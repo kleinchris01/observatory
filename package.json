@@ -1,0 +1,31 @@
+{
+  "name": "custom-field-governance-macro",
+  "private": true,
+  "version": "0.1.1",
+  "description": "Forge Confluence macro for Jira custom field governance",
+  "type": "module",
+  "scripts": {
+    "build": "vite build && vite build --mode admin",
+    "build:macro": "vite build",
+    "build:admin": "vite build --mode admin",
+    "dev": "vite",
+    "lint": "forge lint",
+    "deploy": "forge deploy",
+    "forge:install": "forge install"
+  },
+  "dependencies": {
+    "@forge/api": "^6.1.1",
+    "@forge/bridge": "^5.4.1",
+    "@forge/events": "^2.0.0",
+    "@forge/kvs": "^1.0.5",
+    "@forge/metrics": "^0.3.26",
+    "@forge/resolver": "^1.7.0",
+    "@forge/sql": "^3.0.23",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "vite": "^5.3.1"
+  }
+}

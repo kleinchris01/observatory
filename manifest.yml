@@ -1,0 +1,135 @@
+modules:
+  macro:
+    - key: atlasiq-custom-field-governance-macro
+      resource: main
+      resolver:
+        function: resolver
+      title: Observatory
+      description: Explore Jira custom fields, contexts, and per-project usage from
+        Confluence.
+      categories:
+        - reporting
+        - admin
+      layout: block
+  jira:adminPage:
+    - key: atlasiq-observatory-admin
+      resource: admin
+      resolver:
+        function: admin-resolver
+      title: Observatory Admin
+  trigger:
+    - key: auto-snapshot-trigger
+      function: auto-snapshot
+      events:
+        - avi:scheduled:daily
+  rovo:agent:
+    - key: observatory-field-expert
+      name: Observatory Field Expert
+      description: A Jira custom field specialist that explains field usage, scope, contexts, and governance signals.
+      prompt: resource:agent-resources;prompts/jira-field-expert.txt
+      conversationStarters:
+        - Find the most heavily used custom fields on this site
+        - Explain where customfield_11492 is used and why it matters
+        - Show fields with global context and the highest populated issue counts
+      actions:
+        - search-field-catalog
+        - inspect-field-governance
+  action:
+    - key: search-field-catalog
+      name: Search field catalog
+      function: rovo-search-fields
+      actionVerb: GET
+      description: Search the Observatory field snapshot by field name, id, type, or description and return ranked field matches with usage totals.
+      inputs:
+        query:
+          title: Search query
+          type: string
+          required: true
+          description: Field name, field id, type, or a short phrase describing the field to find.
+        fieldType:
+          title: Field type
+          type: string
+          required: false
+          description: Optional field type filter such as multiselect, datepicker, or textarea.
+        sortBy:
+          title: Sort order
+          type: string
+          required: false
+          description: Optional sort order. Use usage-desc, usage-asc, name-asc, or name-desc.
+        maxResults:
+          title: Maximum results
+          type: integer
+          required: false
+          description: Optional maximum number of matches to return, from 1 to 10.
+    - key: inspect-field-governance
+      name: Inspect field governance
+      function: rovo-inspect-field
+      actionVerb: GET
+      description: Retrieve a detailed field governance summary for one Jira custom field, including full totals, contexts, and project usage.
+      inputs:
+        fieldIdentifier:
+          title: Field identifier
+          type: string
+          required: true
+          description: A field id like customfield_11492 or a field name such as SIT/Attribute.
+        projectPage:
+          title: Project usage page
+          type: integer
+          required: false
+          description: Optional page number for the active-project breakdown list.
+        includeProjectBreakdown:
+          title: Include project breakdown
+          type: boolean
+          required: false
+          description: Whether to include project-level usage rows in the response.
+  consumer:
+    - key: inventory-snapshot-consumer
+      queue: inventory-snapshot-queue
+      function: snapshot-consumer
+  function:
+    - key: resolver
+      handler: index.handler
+    - key: admin-resolver
+      handler: index.adminHandler
+    - key: auto-snapshot
+      handler: index.autoSnapshotCheck
+    - key: sql-migrate
+      handler: index.runProjectStorageMigrations
+    - key: rovo-search-fields
+      handler: index.rovoSearchFields
+    - key: rovo-inspect-field
+      handler: index.rovoInspectField
+    - key: snapshot-consumer
+      handler: index.consumeSnapshot
+      timeoutSeconds: 900
+  sql:
+    - key: project-data
+      engine: mysql
+
+resources:
+  - key: main
+    path: static/dist
+  - key: admin
+    path: static/dist-admin
+  - key: agent-resources
+    path: resource/agent
+
+app:
+  runtime:
+    name: nodejs22.x
+  id: ari:cloud:ecosystem::app/c11559cd-90ed-43a7-9a9b-80866237cd15
+
+permissions:
+  scopes:
+    - read:confluence-content.summary
+    - read:jira-work
+    - read:field:jira
+    - read:field-configuration:jira
+    - read:project:jira
+    - read:issue-meta:jira
+    - read:issue.changelog:jira
+    - read:custom-field-contextual-configuration:jira
+    - manage:jira-configuration
+    - read:jira-user
+    - read:chat:rovo
+    - storage:app

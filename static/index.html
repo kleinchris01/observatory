@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AtlasIQ Custom Field Governance</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background: #f5f5f5;
+        color: #172b4d;
+      }
+
+      #boot-status {
+        margin: 24px;
+        padding: 16px 18px;
+        border: 1px solid #dfe1e6;
+        border-radius: 12px;
+        background: #ffffff;
+        box-shadow: 0 4px 14px rgba(9, 30, 66, 0.08);
+      }
+
+      #boot-status[data-state="error"] {
+        border-color: #de350b;
+        color: #ae2a19;
+      }
+    </style>
+    <script>
+      window.__ATLASSIAN_MACRO_BOOT__ = "html-loaded";
+      window.addEventListener("error", function (event) {
+        var node = document.getElementById("boot-status");
+        if (!node) return;
+        node.dataset.state = "error";
+        node.textContent = "Frontend bootstrap error: " + (event.message || "Unknown browser error");
+      });
+      window.addEventListener("unhandledrejection", function (event) {
+        var node = document.getElementById("boot-status");
+        if (!node) return;
+        node.dataset.state = "error";
+        var message = event.reason && event.reason.message ? event.reason.message : String(event.reason || "Unknown promise rejection");
+        node.textContent = "Unhandled promise rejection: " + message;
+      });
+    </script>
+    <script type="module" src="/src/main.jsx"></script>
+  </head>
+  <body>
+    <div id="boot-status">Loading AtlasIQ Custom Field Governance...</div>
+    <div id="root"></div>
+  </body>
+</html>
