@@ -10,6 +10,9 @@
     "build:admin": "vite build --mode admin",
     "dev": "vite",
     "lint": "forge lint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "deploy": "forge deploy",
     "forge:install": "forge install"
   },
@@ -26,6 +29,8 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.1",
-    "vite": "^5.3.1"
+    "@vitest/coverage-v8": "^2.1.9",
+    "vite": "^5.3.1",
+    "vitest": "^2.1.9"
   }
 }

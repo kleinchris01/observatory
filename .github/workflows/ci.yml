@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22"
+
+jobs:
+  lint:
+    name: Forge Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci --frozen-lockfile
+      - name: Install Forge CLI
+        run: npm install -g @forge/cli@latest
+      - name: Forge manifest lint
+        run: forge lint
+
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci --frozen-lockfile
+      - name: Run tests with coverage
+        run: npm run test:coverage
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci --frozen-lockfile
+      - name: Dependency audit
+        run: npm audit --audit-level=high --omit=dev
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci --frozen-lockfile
+      - name: Build macro frontend
+        run: npm run build:macro
+      - name: Build admin frontend
+        run: npm run build:admin
+      - name: Verify build outputs
+        run: |
+          test -d static/dist && echo "Macro dist OK — $(du -sh static/dist | cut -f1)"
+          test -d static/dist-admin && echo "Admin dist OK — $(du -sh static/dist-admin | cut -f1)"
+
+  ci-gate:
+    name: CI Gate
+    runs-on: ubuntu-latest
+    needs: [lint, test, security, build]
+    if: always()
+    steps:
+      - name: Check all passed
+        run: |
+          [[ "${{ needs.lint.result }}" == "success" ]] || (echo "Lint failed" && exit 1)
+          [[ "${{ needs.test.result }}" == "success" ]] || (echo "Tests failed" && exit 1)
+          [[ "${{ needs.security.result }}" == "success" ]] || (echo "Security failed" && exit 1)
+          [[ "${{ needs.build.result }}" == "success" ]] || (echo "Build failed" && exit 1)
+          echo "All CI checks passed ✓"

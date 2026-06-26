@@ -1,5 +1,7 @@
 node_modules/
 static/dist/
+static/dist-admin/
 .env
 *.log
 .forge/
+coverage/
