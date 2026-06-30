@@ -24,6 +24,7 @@ import {
   loadSnapshotField,
   loadSnapshotProjectUsage,
   loadAllSnapshotProjectUsage,
+  loadAnySnapshotProjectUsage,
   listSnapshotProjects,
   loadSnapshotProjectFields,
   countSnapshotProjectUsage,
@@ -73,7 +74,44 @@ import {
   upsertDeltaFieldProjectUsage,
   countOldScopeKeyRows,
   migrateOldScopeKeys,
+  loadSnapshotFieldIssueSums,
+  sumSnapshotFieldIssueCount,
 } from "./lib/project-store.js";
+import {
+  USAGE_STATUS_READY,
+  USAGE_STATUS_UNAVAILABLE,
+  USAGE_STATUS_UNSUPPORTED,
+  STRUCTURAL_SYSTEM_FIELDS,
+  RQT_SKIP_FIELDS,
+  RQT_DEDUP_PRIORITY_FIELD,
+  RQT_DEDUP_SUBORDINATE_FIELDS,
+  isFieldValueNonEmpty,
+  extractRqtValues,
+  buildRqtJql,
+  collectIssueRqtValues,
+  estimateProjectUsageJobIssues,
+  isFieldSummaryQueuedForDispatch,
+  isFieldSummaryRunning,
+  summarizeProjectUsageCapacity,
+  shouldRetry,
+  getRetryDelayMs,
+  normalizeFieldName,
+  buildDuplicateNameCountMap,
+  hasMeaningfulDescription,
+  isLikelyAppProvidedField,
+  isJiraBuiltinField,
+  classifyFieldUsageStatus,
+  DEFAULT_GOVERNANCE_THRESHOLDS,
+  buildGovernanceFindings,
+  mergeProjectUsageCounts,
+  compareFields,
+  filterInventoryFields,
+  isSelectFieldType,
+  applyFindingsFilter,
+  sortInventoryFields,
+  summarizeFindings,
+  buildInventoryRecord,
+} from "./lib/analysis.js";
 
 const DEFAULT_PAGE_SIZE = 100;
 const INVENTORY_PAGE_SIZE = 10;
@@ -97,114 +135,10 @@ const SNAPSHOT_PROGRESS_FLUSH_INTERVAL_MS = 15000;
 const SNAPSHOT_DB_BATCH_SIZE = 25;
 const FIELD_SUMMARY_QUEUE_STALE_AFTER_MS = 60 * 1000;
 const FIELD_SUMMARY_BUILD_STALE_AFTER_MS = 5 * 60 * 1000;
-const USAGE_STATUS_READY = "ready";
-const USAGE_STATUS_UNAVAILABLE = "unavailable";
-const USAGE_STATUS_UNSUPPORTED = "unsupported";
-
 const ISSUE_SCAN_PAGE_SIZE = 100;      // Jira Cloud cursor-based search caps maxResults at 100
 const ISSUE_SCAN_WORKERS = 5;          // parallel Forge workers; keep low because each invocation has its own in-memory limiter
 const ISSUE_SCAN_INTER_PAGE_DELAY_MS = 500; // ms between pages per worker to ease Jira API pressure
 const ISSUE_SCAN_FLUSH_EVERY_PAGES = 3;    // flush field counts + update UI progress every N pages (300 issues/worker)
-
-// Fields that are always present on every issue — skip when counting field occupancy
-const STRUCTURAL_SYSTEM_FIELDS = new Set([
-  "project", "summary", "created", "updated", "creator", "status", "issuetype",
-  "votes", "watches", "subtasks", "aggregateprogress", "progress", "workratio",
-  "lastViewed", "issuerestrictions",
-  "aggregatetimeoriginalestimate", "aggregatetimespent", "aggregatetimeestimate",
-]);
-
-// Fields whose RQT values belong to related issues rather than this issue itself
-const RQT_SKIP_FIELDS = new Set(["issuelinks", "parent"]);
-
-// If the same RQT value appears in the priority field AND a subordinate field on the same issue,
-// only credit the priority field. Subordinate fields still count unique values not in the priority field.
-const RQT_DEDUP_PRIORITY_FIELD = "customfield_11426"; // Requirement ID
-const RQT_DEDUP_SUBORDINATE_FIELDS = new Set([
-  "customfield_11806", // Requirement #
-  "customfield_18522", // FEDE RQT or Jama Req #
-  "customfield_15178", // RQT Number
-]);
-
-// Collect per-issue RQT values, apply priority deduplication, return Map<fieldId, Set<value>>
-function collectIssueRqtValues(issueFields, summaryValue) {
-  const byField = new Map();
-
-  for (const [fieldId, value] of Object.entries(issueFields || {})) {
-    if (STRUCTURAL_SYSTEM_FIELDS.has(fieldId)) continue;
-    if (RQT_SKIP_FIELDS.has(fieldId)) continue;
-    if (!isFieldValueNonEmpty(value)) continue;
-    const matches = extractRqtValues(value);
-    if (matches.size > 0) byField.set(fieldId, matches);
-  }
-
-  // summary is excluded from regular counting but scanned for RQT
-  const summaryMatches = extractRqtValues(summaryValue);
-  if (summaryMatches.size > 0) byField.set("summary", summaryMatches);
-
-  // Dedup: strip values from subordinate fields that already exist in the priority field
-  const priorityValues = byField.get(RQT_DEDUP_PRIORITY_FIELD);
-  if (priorityValues?.size > 0) {
-    for (const subId of RQT_DEDUP_SUBORDINATE_FIELDS) {
-      const subValues = byField.get(subId);
-      if (!subValues) continue;
-      for (const v of priorityValues) subValues.delete(v);
-      if (subValues.size === 0) byField.delete(subId);
-    }
-  }
-
-  return byField;
-}
-
-function isFieldValueNonEmpty(value) {
-  if (value === null || value === undefined) return false;
-  if (typeof value === "string") return value.length > 0;
-  if (typeof value === "number") return Number.isFinite(value);
-  if (typeof value === "boolean") return true;
-  if (Array.isArray(value)) return value.length > 0;
-  if (typeof value === "object") return Object.keys(value).length > 0;
-  return Boolean(value);
-}
-
-// Matches RQT-NNNNNN-NNNNNN identifiers anywhere in a field value tree
-const RQT_PATTERN = /\bRQT-\d+-\d+\b/gi;
-
-function extractRqtValues(value) {
-  const found = new Set();
-
-  function scan(v) {
-    if (v === null || v === undefined) return;
-    if (typeof v === "string") {
-      const matches = v.match(RQT_PATTERN);
-      if (matches) for (const m of matches) found.add(m.toUpperCase());
-      return;
-    }
-    if (Array.isArray(v)) { for (const item of v) scan(item); return; }
-    if (typeof v === "object") { for (const val of Object.values(v)) scan(val); }
-  }
-
-  scan(value);
-  return found;
-}
-
-function buildRqtJql(fieldIds) {
-  if (!fieldIds.length) return null;
-  const clauses = [];
-  for (const fid of fieldIds) {
-    const cfMatch = String(fid).match(/customfield_(\d+)/);
-    if (cfMatch) {
-      clauses.push(`cf[${cfMatch[1]}] ~ "RQT"`);
-    } else if (fid === "summary") {
-      clauses.push(`summary ~ "RQT"`);
-    } else if (fid === "description") {
-      clauses.push(`description ~ "RQT"`);
-    } else if (fid === "comment") {
-      clauses.push(`comment ~ "RQT"`);
-    }
-    // issuelinks, parent, labels, attachment etc. have no usable ~ JQL clause
-  }
-  return clauses.length ? clauses.join(" OR ") : null;
-}
 
 const METRIC_NAMES = {
   inventorySnapshot: "inventory-snapshot",
@@ -265,46 +199,6 @@ function getJitterMs(maxMs = 20) {
 
 function makeJobToken() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
-function estimateProjectUsageJobIssues(jobLike) {
-  return Number(
-    jobLike?.estimatedIssueTotal
-    ?? jobLike?.totalIssueCount
-    ?? jobLike?.field?.totalIssueCount
-    ?? 0
-  ) || 0;
-}
-
-function isFieldSummaryQueuedForDispatch(summary) {
-  return summary?.summaryStatus === "queued" && Number(summary?.processedIssueCount || 0) <= 0;
-}
-
-function isFieldSummaryRunning(summary) {
-  return summary?.summaryStatus === "building" || isFieldSummaryQueuedForDispatch(summary);
-}
-
-function summarizeProjectUsageCapacity(summaries = []) {
-  const runningJobs = summaries.filter(isFieldSummaryRunning);
-  return {
-    runningJobs,
-    runningJobCount: runningJobs.length,
-    runningIssueBudget: runningJobs.reduce((sum, job) => sum + estimateProjectUsageJobIssues(job), 0),
-  };
-}
-
-function getRetryDelayMs(error, attempt) {
-  const header = error?.originalResponse?.headers?.get?.("Retry-After");
-  if (header) {
-    const s = Number(header);
-    if (Number.isFinite(s) && s > 0) return s * 1000;
-  }
-  return Math.min(30000, 2000 * (2 ** attempt)) + Math.floor(Math.random() * 1000);
-}
-
-function shouldRetry(error) {
-  const s = error?.status;
-  return s === 429 || (s >= 500 && s < 600);
 }
 
 function registerJiraRateLimit(delayMs) {
@@ -913,33 +807,6 @@ async function getLiveFieldProjectUsage(fieldId, usagePage, usagePageSize) {
   };
 }
 
-function mergeProjectUsageCounts(existingProjects = [], nextProjects = []) {
-  const merged = new Map();
-
-  for (const project of existingProjects) {
-    merged.set(project.projectId, { ...project });
-  }
-
-  for (const project of nextProjects) {
-    const current = merged.get(project.projectId) || { ...project, issueCount: 0 };
-    current.projectKey = project.projectKey;
-    current.projectName = project.projectName;
-    current.jql = project.jql;
-    current.issueCount += Number(project.issueCount || 0);
-    const currentUpdatedAt = current.latestIssueUpdatedAt || current.latestFieldChangeAt || null;
-    const nextUpdatedAt = project.latestIssueUpdatedAt || project.latestFieldChangeAt || null;
-    if (nextUpdatedAt && (!currentUpdatedAt || nextUpdatedAt > currentUpdatedAt)) {
-      current.latestFieldChangeAt = project.latestFieldChangeAt || nextUpdatedAt;
-      current.latestIssueKey = project.latestIssueKey || null;
-      current.latestIssueUpdatedAt = project.latestIssueUpdatedAt || nextUpdatedAt;
-    }
-    merged.set(project.projectId, current);
-  }
-
-  return Array.from(merged.values())
-    .sort((left, right) => right.issueCount - left.issueCount || left.projectKey.localeCompare(right.projectKey));
-}
-
 async function processFieldSummaryChunk(
   scopeKey,
   version,
@@ -1200,256 +1067,6 @@ async function processFieldUsageDelta(scopeKey, version, snapshotField, jobToken
   incrMetric(METRIC_NAMES.projectUsageDeltaCompleted);
 }
 
-// ----- Business logic -----
-
-function normalizeFieldName(value) {
-  return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-}
-
-function buildDuplicateNameCountMap(fields = []) {
-  const counts = new Map();
-  for (const field of fields) {
-    const key = normalizeFieldName(field?.name);
-    counts.set(key, (counts.get(key) || 0) + 1);
-  }
-  return counts;
-}
-
-function hasMeaningfulDescription(description) {
-  const n = String(description || "").trim().toLowerCase();
-  if (!n) return false;
-  return !["no admin description is set for this field.", "no description", "n/a", "na"].includes(n);
-}
-
-function isLikelyAppProvidedField(field) {
-  const ct = String(field?.customType || field?.schema?.custom || "");
-  return Boolean(ct && !ct.startsWith("com.atlassian.jira.plugin.system.customfieldtypes:"));
-}
-
-function isJiraBuiltinField(field) {
-  const ct = String(field?.customType || field?.schema?.custom || "");
-  if (!ct) return false;
-  return (
-    ct.startsWith("com.atlassian.jira.plugin.system.customfieldtypes:") ||
-    ct.startsWith("com.pyxis.greenhopper.jira:") ||
-    ct.startsWith("com.atlassian.servicedesk.") ||
-    ct.startsWith("com.atlassian.jira.ext.")
-  );
-}
-
-function classifyFieldUsageStatus(field, error) {
-  if (!error) {
-    return {
-      status: USAGE_STATUS_UNAVAILABLE,
-      detail: "Per-project usage is not collected during the background snapshot.",
-    };
-  }
-
-  if (isLikelyAppProvidedField(field) && error?.status === 401) {
-    return {
-      status: USAGE_STATUS_UNSUPPORTED,
-      detail: "Jira does not expose per-project usage for this app-provided field to the Forge app context.",
-    };
-  }
-
-  if (error?.status === 401 || error?.status === 403) {
-    return {
-      status: USAGE_STATUS_UNAVAILABLE,
-      detail: `Jira rejected the per-project usage endpoint for this field (${error.status}).`,
-    };
-  }
-
-  return {
-    status: USAGE_STATUS_UNAVAILABLE,
-    detail: error?.message || "Per-project usage could not be loaded for this field.",
-  };
-}
-
-const DEFAULT_GOVERNANCE_THRESHOLDS = {
-  highImpactMinProjects: 10,
-  highImpactMinIssues: 1000,
-  appFieldHeavyUsageMin: 500,
-  broadScopeMinProjects: 3,
-  lightUsageMinProjects: 5,
-  lightUsageMaxIssues: 100,
-  missingDescriptionMinProjects: 5,
-  missingDescriptionMinIssues: 500,
-  configuredActiveGapMinProjects: 5,
-  configuredActiveGapMaxRatio: 0.70,
-  globalContextMaxIssues: 50,
-  contextSprawlMinContexts: 8,
-};
-
-function buildGovernanceFindings(field, metrics = {}, thresholds = {}) {
-  const t = { ...DEFAULT_GOVERNANCE_THRESHOLDS, ...thresholds };
-  const totalIssueCount = metrics.totalIssueCount ?? 0;
-  const activeProjectCount = metrics.activeProjectCount ?? 0;
-  const configuredProjectCount = metrics.configuredProjectCount ?? metrics.usageCount ?? 0;
-  const breadthProjectCount = activeProjectCount > 0 ? activeProjectCount : configuredProjectCount;
-  const usesConfiguredScope = activeProjectCount <= 0 && configuredProjectCount > 0;
-  const usageStatus = metrics.usageStatus ?? USAGE_STATUS_READY;
-  const usageAvailable = usageStatus === USAGE_STATUS_READY;
-  const duplicateNameCount = metrics.duplicateNameCount ?? 1;
-  const descriptionPresent = hasMeaningfulDescription(field.description);
-  const appProvided = isLikelyAppProvidedField(field);
-  const isSystemField = Boolean(metrics.isSystemField);
-  const contextCount = metrics.contextCount ?? 0;
-  const hasGlobalContext = Boolean(metrics.hasGlobalContext);
-
-  const reasons = [];
-  let priorityScore = 0;
-
-  // ── High-impact broad usage ──────────────────────────────────────────────
-  if (usageAvailable && breadthProjectCount >= t.highImpactMinProjects && totalIssueCount >= t.highImpactMinIssues) {
-    reasons.push({
-      category: "risky", severity: "high",
-      title: "High-impact field with broad live usage",
-      detail: usesConfiguredScope
-        ? `Configured in ${configuredProjectCount} projects with ${totalIssueCount.toLocaleString()} populated issues. Build project usage to confirm the exact active-project spread.`
-        : `Active across ${activeProjectCount} projects with ${totalIssueCount.toLocaleString()} populated issues.`,
-    });
-    priorityScore += 40;
-  }
-
-  // ── App-provided field with heavy usage ──────────────────────────────────
-  if (!isSystemField && usageAvailable && appProvided && totalIssueCount >= t.appFieldHeavyUsageMin) {
-    reasons.push({
-      category: "risky", severity: "medium",
-      title: "App-provided field with heavy usage",
-      detail: "App or plugin field with significant data — manage changes carefully.",
-    });
-    priorityScore += 22;
-  }
-
-  // ── Global context with very low issue usage ─────────────────────────────
-  if (!isSystemField && usageAvailable && hasGlobalContext && totalIssueCount < t.globalContextMaxIssues) {
-    reasons.push({
-      category: "cleanup", severity: "medium",
-      title: "Global context with very low usage",
-      detail: `This field applies to all projects via a global context but only ${totalIssueCount.toLocaleString()} issues have a value. Consider scoping it to specific projects or removing it.`,
-    });
-    priorityScore += 20;
-  }
-
-  // ── High configured-vs-active gap ────────────────────────────────────────
-  if (!isSystemField && usageAvailable && configuredProjectCount >= t.configuredActiveGapMinProjects) {
-    const inactiveRatio = configuredProjectCount > 0 ? (configuredProjectCount - activeProjectCount) / configuredProjectCount : 0;
-    if (inactiveRatio >= t.configuredActiveGapMaxRatio) {
-      reasons.push({
-        category: "cleanup", severity: "medium",
-        title: "High dead-configuration ratio",
-        detail: `Configured in ${configuredProjectCount} projects but only ${activeProjectCount} have any issue data — ${Math.round(inactiveRatio * 100)}% of configured scope is inactive.`,
-      });
-      priorityScore += 20;
-    }
-  }
-
-  // ── Completely orphaned custom field ─────────────────────────────────────
-  if (!isSystemField && !appProvided && usageAvailable && configuredProjectCount === 0 && totalIssueCount === 0 && activeProjectCount === 0) {
-    reasons.push({
-      category: "cleanup", severity: "medium",
-      title: "Orphaned field — not configured or used anywhere",
-      detail: "No project contexts and no recorded issue usage. This field is a candidate for deletion.",
-    });
-    priorityScore += 25;
-  }
-
-  // ── Configured field with no populated issues ────────────────────────────
-  if (!isSystemField && configuredProjectCount >= t.broadScopeMinProjects && totalIssueCount === 0 && activeProjectCount === 0) {
-    reasons.push({
-      category: "cleanup", severity: "medium",
-      title: "Configured field with no populated issues",
-      detail: `Configured in ${configuredProjectCount} projects but no populated issues were found in the snapshot.`,
-    });
-    priorityScore += 18;
-  }
-
-  // ── System field with no recorded usage ──────────────────────────────────
-  if (isSystemField && usageAvailable && totalIssueCount === 0) {
-    reasons.push({
-      category: "cleanup", severity: "low",
-      title: "System field with no recorded usage",
-      detail: "No issues with a value found in the snapshot. This field may not be actively used.",
-    });
-    priorityScore += 8;
-  }
-
-  // ── Broadly scoped field with very light usage ───────────────────────────
-  if (!isSystemField && usageAvailable && breadthProjectCount >= t.lightUsageMinProjects && totalIssueCount > 0 && totalIssueCount <= t.lightUsageMaxIssues) {
-    reasons.push({
-      category: "cleanup", severity: "medium",
-      title: "Broadly scoped field with very light usage",
-      detail: usesConfiguredScope
-        ? `Configured in ${configuredProjectCount} projects but only ${totalIssueCount.toLocaleString()} populated issues were found.`
-        : `Active in ${activeProjectCount} projects but only ${totalIssueCount.toLocaleString()} populated issues were found.`,
-    });
-    priorityScore += 22;
-  }
-
-  // ── Context sprawl ───────────────────────────────────────────────────────
-  if (!isSystemField && contextCount >= t.contextSprawlMinContexts) {
-    reasons.push({
-      category: "standardize", severity: "medium",
-      title: "Context sprawl",
-      detail: `${contextCount} separate contexts suggest the field was patched project-by-project over time. Consider consolidating into fewer, broader contexts.`,
-    });
-    priorityScore += 15;
-  }
-
-  // ── Duplicate naming (scaled by count) ───────────────────────────────────
-  if (!isSystemField && duplicateNameCount > 1) {
-    const dupeScore = Math.min(50, 20 + Math.max(0, duplicateNameCount - 2) * 5);
-    reasons.push({
-      category: "standardize", severity: "medium",
-      title: "Similar field naming detected",
-      detail: `${duplicateNameCount} fields share the same normalized name — possible duplicates that could confuse users or produce reporting errors.`,
-    });
-    priorityScore += dupeScore;
-  }
-
-  // ── Missing description (project-count or issue-count based) ─────────────
-  if (!isSystemField && !descriptionPresent && (breadthProjectCount >= t.missingDescriptionMinProjects || totalIssueCount >= t.missingDescriptionMinIssues)) {
-    reasons.push({
-      category: "standardize", severity: "medium",
-      title: "Actively used field lacks a meaningful description",
-      detail: totalIssueCount >= t.missingDescriptionMinIssues && breadthProjectCount < t.missingDescriptionMinProjects
-        ? `${totalIssueCount.toLocaleString()} issues carry a value in this field — clear documentation is warranted regardless of project count.`
-        : usesConfiguredScope
-          ? "Configured broadly enough to warrant clearer documentation before usage expands further."
-          : "Used across enough projects to warrant clearer documentation.",
-    });
-    priorityScore += 16;
-  }
-
-  // ── Usage data unavailable ───────────────────────────────────────────────
-  if (!usageAvailable) {
-    reasons.push({
-      category: "review",
-      severity: "medium",
-      title: "Per-project usage is unavailable",
-      detail: metrics.usageStatusDetail || "Jira did not return per-project usage for this field.",
-    });
-    priorityScore += 8;
-  }
-
-  const categories = Array.from(new Set(reasons.map((r) => r.category)));
-  const adminAttention = reasons.some((r) => r.severity === "high") || priorityScore >= 35;
-
-  return {
-    priorityScore,
-    adminAttention,
-    categories,
-    reasons,
-    tags: {
-      risky: categories.includes("risky"),
-      cleanup: categories.includes("cleanup"),
-      standardize: categories.includes("standardize"),
-      review: categories.includes("review"),
-      adminAttention,
-    },
-  };
-}
-
 function hydrateFieldForGovernance(field, summary, duplicateNameCount = 1, thresholds = {}) {
   const activeProjectCount = Number(summary?.activeProjectCount ?? field?.activeProjectCount ?? 0);
   const totalIssueCount = Number(summary?.totalIssueCount ?? field?.totalIssueCount ?? 0);
@@ -1480,38 +1097,6 @@ function hydrateFieldForGovernance(field, summary, duplicateNameCount = 1, thres
       contextCount,
       hasGlobalContext,
     }, thresholds),
-  };
-}
-
-function buildInventoryRecord(field, metrics = {}) {
-  const configuredProjectCount = metrics.configuredProjectCount ?? 0;
-  const activeProjectCount = metrics.activeProjectCount ?? 0;
-  const totalIssueCount = metrics.totalIssueCount ?? 0;
-  const usageStatus = metrics.usageStatus ?? USAGE_STATUS_READY;
-  const usageStatusDetail = metrics.usageStatusDetail || null;
-  const findings = metrics.findings || null;
-  const projectUsageState = metrics.projectUsageState || "unbuilt";
-  const projectUsageBuilt = Boolean(metrics.projectUsageBuilt);
-
-  return {
-    id: field.id,
-    name: field.name,
-    description: field.description || "",
-    type: getFieldTypeLabel(field),
-    primitiveType: field.schema?.type || "unknown",
-    customType: field.schema?.custom || null,
-    searcherKey: field.searcherKey || null,
-    usageCount: configuredProjectCount,
-    configuredProjectCount,
-    totalIssueCount,
-    activeProjectCount,
-    usageStatus,
-    usageStatusDetail,
-    projectUsageState,
-    projectUsageBuilt,
-    fieldJql: buildOverallFieldJql(field.id),
-    findings,
-    isJiraBuiltin: isJiraBuiltinField(field),
   };
 }
 
@@ -2960,74 +2545,6 @@ async function runIssueScanWorkerV2(installationKey, workerId) {
 
 // ----- Inventory UI helpers -----
 
-function compareFields(left, right, sortKey) {
-  const leftUsage = left.totalIssueCount !== 0 ? left.totalIssueCount : (left.configuredProjectCount ?? 0);
-  const rightUsage = right.totalIssueCount !== 0 ? right.totalIssueCount : (right.configuredProjectCount ?? 0);
-  if (sortKey === "name-asc") return left.name.localeCompare(right.name);
-  if (sortKey === "name-desc") return right.name.localeCompare(left.name);
-  if (sortKey === "active-projects-desc") {
-    if (left.activeProjectCount !== right.activeProjectCount) return right.activeProjectCount - left.activeProjectCount;
-    if (leftUsage !== rightUsage) return rightUsage - leftUsage;
-    return left.name.localeCompare(right.name);
-  }
-  if (sortKey === "active-projects-asc") {
-    if (left.activeProjectCount !== right.activeProjectCount) return left.activeProjectCount - right.activeProjectCount;
-    if (leftUsage !== rightUsage) return leftUsage - rightUsage;
-    return left.name.localeCompare(right.name);
-  }
-  if (sortKey === "usage-asc") {
-    if (leftUsage !== rightUsage) return leftUsage - rightUsage;
-    return left.name.localeCompare(right.name);
-  }
-  // usage-desc (default)
-  if (leftUsage !== rightUsage) return rightUsage - leftUsage;
-  if ((left.findings?.priorityScore ?? 0) !== (right.findings?.priorityScore ?? 0)) {
-    return (right.findings?.priorityScore ?? 0) - (left.findings?.priorityScore ?? 0);
-  }
-  return left.name.localeCompare(right.name);
-}
-
-function filterInventoryFields(fields, query, type, projectUsageFilter = "all", maxIssuesWithValue = "", fieldOrigin = "all", minIssuesWithValue = "") {
-  let out = fields;
-  if (query) {
-    const q = String(query).trim().toLowerCase();
-    out = out.filter((f) =>
-      [f.name, f.id, f.type, f.customType, f.description]
-        .filter(Boolean)
-        .some((v) => v.toLowerCase().includes(q))
-    );
-  }
-  if (type && type !== "all") out = out.filter((f) => f.type === type);
-  if (fieldOrigin === "jira-builtin") out = out.filter((f) => f.isJiraBuiltin || f.isSystemField);
-  else if (fieldOrigin === "user-created") out = out.filter((f) => !f.isJiraBuiltin && !f.isSystemField);
-  if (projectUsageFilter && projectUsageFilter !== "all") {
-    out = out.filter((f) => {
-      const state = f.projectUsageState || "unbuilt";
-      const built = Boolean(f.projectUsageBuilt) || state === "ready";
-      if (projectUsageFilter === "not-built") return !built && Number(f.totalIssueCount || 0) > 0;
-      if (projectUsageFilter === "built") return built;
-      if (projectUsageFilter === "building") return state === "queued" || state === "building";
-      if (projectUsageFilter === "incomplete") return state === "failed" || state === "cancelled";
-      return true;
-    });
-  }
-  const minIssues = Number(minIssuesWithValue);
-  if (Number.isFinite(minIssues) && minIssues >= 0 && String(minIssuesWithValue).trim() !== "") {
-    out = out.filter((f) => Number(f.totalIssueCount || 0) >= minIssues);
-  }
-  const maxIssues = Number(maxIssuesWithValue);
-  if (Number.isFinite(maxIssues) && maxIssues >= 0 && String(maxIssuesWithValue).trim() !== "") {
-    out = out.filter((f) => Number(f.totalIssueCount || 0) <= maxIssues);
-  }
-  return out;
-}
-
-const SELECT_FIELD_TYPE_KEYWORDS = ["select", "multiselect", "radiobutton", "checkbox", "cascadingselect"];
-function isSelectFieldType(fieldType) {
-  const normalized = String(fieldType || "").toLowerCase().replace(/[\s\-_]/g, "");
-  return SELECT_FIELD_TYPE_KEYWORDS.some((kw) => normalized.includes(kw));
-}
-
 const OPTION_SEARCH_FIELD_BATCH_SIZE = 10;
 
 async function findFieldIdsByOptionValue(fields, optionQuery, startIndex = 0, maxFields = OPTION_SEARCH_FIELD_BATCH_SIZE) {
@@ -3070,33 +2587,6 @@ async function findFieldIdsByOptionValue(fields, optionQuery, startIndex = 0, ma
   };
 }
 
-function applyFindingsFilter(fields, findingsFilter) {
-  if (!findingsFilter || findingsFilter === "all") return fields;
-  return fields.filter((f) => {
-    const tags = f.findings?.tags || {};
-    if (findingsFilter === "admin-attention") return Boolean(tags.adminAttention);
-    if (findingsFilter === "risky") return Boolean(tags.risky);
-    if (findingsFilter === "cleanup") return Boolean(tags.cleanup);
-    if (findingsFilter === "standardize") return Boolean(tags.standardize);
-    return true;
-  });
-}
-
-function sortInventoryFields(fields, sortKey) {
-  return [...fields].sort((a, b) => compareFields(a, b, sortKey));
-}
-
-function summarizeFindings(fields) {
-  return fields.reduce((s, f) => {
-    const tags = f.findings?.tags || {};
-    if (tags.adminAttention) s.adminAttention++;
-    if (tags.risky) s.risky++;
-    if (tags.cleanup) s.cleanup++;
-    if (tags.standardize) s.standardize++;
-    return s;
-  }, { adminAttention: 0, risky: 0, cleanup: 0, standardize: 0 });
-}
-
 // ----- Resolvers -----
 
 async function getFieldInventory({ payload, context }) {
@@ -3116,6 +2606,12 @@ async function getFieldInventory({ payload, context }) {
     const minIssuesWithValue = filters.minIssuesWithValue ?? "";
     const maxIssuesWithValue = filters.maxIssuesWithValue ?? "";
     const fieldOrigin = String(filters.fieldOrigin || "all").trim() || "all";
+    const minActiveProjects = filters.minActiveProjects ?? "";
+    const maxActiveProjects = filters.maxActiveProjects ?? "";
+    const minContexts = filters.minContexts ?? "";
+    const maxContexts = filters.maxContexts ?? "";
+    const duplicateNamesOnly = Boolean(filters.duplicateNamesOnly);
+    const hasDescription = filters.hasDescription || "all";
 
     const [meta_initial, adminConfig] = await Promise.all([
       readSnapshotMeta(installationKey),
@@ -3193,24 +2689,29 @@ async function getFieldInventory({ payload, context }) {
     }
 
     // Load from last good version — works for "ready", "building" (shows stale), and "failed"
-    const snapshotFields = await loadSnapshotFields(installationKey, meta.version);
-    const fieldSummaries = await listFieldSummaries(installationKey, 5000).catch(() => []);
+    const [snapshotFields, fieldSummaries, issueSumsMap] = await Promise.all([
+      loadSnapshotFields(installationKey, meta.version),
+      listFieldSummaries(installationKey, 5000).catch(() => []),
+      loadSnapshotFieldIssueSums(installationKey, meta.version).catch(() => new Map()),
+    ]);
     const summaryByFieldId = new Map(fieldSummaries.map((summary) => [summary.fieldId, summary]));
     const duplicateNameCounts = buildDuplicateNameCountMap(snapshotFields);
     const allFields = snapshotFields.map((field) => {
       const summary = summaryByFieldId.get(field.id);
+      const derivedIssueCount = summary?.totalIssueCount || field.totalIssueCount || issueSumsMap.get(field.id) || 0;
       if (!summary) {
         return hydrateFieldForGovernance({
           ...field,
-          projectUsageBuilt: Number(field.totalIssueCount || 0) <= 0,
-          projectUsageState: Number(field.totalIssueCount || 0) <= 0 ? "not-needed" : "unbuilt",
+          totalIssueCount: derivedIssueCount,
+          projectUsageBuilt: derivedIssueCount <= 0,
+          projectUsageState: derivedIssueCount <= 0 ? "not-needed" : "unbuilt",
         }, null, duplicateNameCounts.get(normalizeFieldName(field.name)) ?? 1, adminConfig.governanceThresholds);
       }
       const inferredBuilt = summary.summaryStatus === "ready";
       return hydrateFieldForGovernance({
         ...field,
         activeProjectCount: summary.activeProjectCount ?? field.activeProjectCount,
-        totalIssueCount: summary.totalIssueCount ?? field.totalIssueCount,
+        totalIssueCount: derivedIssueCount,
         projectUsageBuilt: inferredBuilt,
         projectUsageState: summary.summaryStatus || (inferredBuilt ? "ready" : "unbuilt"),
       }, summary, duplicateNameCounts.get(normalizeFieldName(field.name)) ?? 1, adminConfig.governanceThresholds);
@@ -3222,7 +2723,12 @@ async function getFieldInventory({ payload, context }) {
       ? allFields.filter((field) => optionMatchedFieldIds.has(field.id))
       : allFields;
     const filteredFields = sortInventoryFields(
-      applyFindingsFilter(filterInventoryFields(optionFilteredFields, query, type, projectUsageFilter, maxIssuesWithValue, fieldOrigin, minIssuesWithValue), findingsFilter),
+      applyFindingsFilter(
+        filterInventoryFields(optionFilteredFields, query, type, projectUsageFilter, maxIssuesWithValue, fieldOrigin, minIssuesWithValue, {
+          minActiveProjects, maxActiveProjects, minContexts, maxContexts, duplicateNamesOnly, hasDescription,
+        }),
+        findingsFilter
+      ),
       sortBy
     );
 
@@ -3310,11 +2816,12 @@ async function getFieldDetails({ payload, context }) {
     if (!meta?.version) throw new Error("No completed snapshot available — build one first.");
 
     const offset = (usagePage - 1) * usagePageSize;
-    const [snapshotField, projectUsageRows, projectCount, rawFieldSummary] = await Promise.all([
+    const [snapshotField, projectUsageRows, projectCount, rawFieldSummary, projectUsageIssueSum] = await Promise.all([
       loadSnapshotField(installationKey, meta.version, fieldId),
       loadSnapshotProjectUsage(installationKey, meta.version, fieldId, usagePageSize, offset),
       countSnapshotProjectUsage(installationKey, meta.version, fieldId),
       loadFieldSummary(installationKey, fieldId),
+      sumSnapshotFieldIssueCount(installationKey, meta.version, fieldId),
     ]);
 
     if (!snapshotField) throw new Error(`Field not found in snapshot: ${fieldId}`);
@@ -3382,7 +2889,7 @@ async function getFieldDetails({ payload, context }) {
     const hydratedField = hydrateFieldForGovernance({
       ...snapshotField,
       activeProjectCount: finalProjectCount,
-      totalIssueCount: fieldSummary?.totalIssueCount ?? snapshotField.totalIssueCount,
+      totalIssueCount: fieldSummary?.totalIssueCount || snapshotField.totalIssueCount || projectUsageIssueSum || 0,
     }, fieldSummary, duplicateNameCounts.get(normalizeFieldName(snapshotField.name)) ?? 1);
 
     const projectUsage = finalProjectRows.map((row) => ({
@@ -3900,13 +3407,38 @@ async function getProjectUsageReport({ payload, context }) {
     const [field, projectUsage, fieldSummary] = await Promise.all([
       loadSnapshotField(installationKey, meta.version, fieldId),
       loadAllSnapshotProjectUsage(installationKey, meta.version, fieldId),
-      Promise.resolve(summaryByFieldId.get(fieldId) || null),
+      loadFieldSummary(installationKey, fieldId).catch(() => summaryByFieldId.get(fieldId) || null),
     ]);
     if (!field) {
       return null;
     }
 
-    if (!projectUsage.length && Number(field.totalIssueCount || 0) > 0) {
+    // Fallback chain when current-version snapshot_project_usage is empty:
+    // 1. Any-version snapshot data (handles post-migration version mismatch)
+    // 2. field_summaries.activeProjects (populated by Field Usage Jobs)
+    let finalProjects = projectUsage;
+    if (!finalProjects.length) {
+      finalProjects = await loadAnySnapshotProjectUsage(installationKey, fieldId).catch(() => []);
+    }
+    if (!finalProjects.length) {
+      finalProjects = (fieldSummary?.activeProjects || []).map((p) => ({
+        projectId: p.projectId,
+        projectKey: p.projectKey,
+        projectName: p.projectName,
+        issueCount: p.issueCount || 0,
+        jql: p.jql || buildFieldJql(fieldId, p.projectKey),
+        latestFieldChangeAt: null,
+        latestIssueKey: null,
+        latestIssueUpdatedAt: null,
+      }));
+    }
+
+    const derivedTotalIssueCount = field.totalIssueCount
+      || fieldSummary?.totalIssueCount
+      || finalProjects.reduce((s, p) => s + (p.issueCount || 0), 0)
+      || 0;
+
+    if (!finalProjects.length && derivedTotalIssueCount > 0) {
       if (fieldSummary?.summaryStatus === "queued" || fieldSummary?.summaryStatus === "building") {
         pendingFields.push({
           fieldId: field.id,
@@ -3918,7 +3450,7 @@ async function getProjectUsageReport({ payload, context }) {
         queueCandidates.push({
           field,
           fieldSummary,
-          issueCount: Number(field.totalIssueCount || 0),
+          issueCount: derivedTotalIssueCount,
         });
       }
     }
@@ -3927,10 +3459,10 @@ async function getProjectUsageReport({ payload, context }) {
       fieldId: field.id,
       fieldName: field.name,
       fieldType: field.type,
-      totalIssueCount: field.totalIssueCount ?? 0,
-      activeProjectCount: field.activeProjectCount ?? 0,
+      totalIssueCount: derivedTotalIssueCount,
+      activeProjectCount: field.activeProjectCount || finalProjects.length || 0,
       fieldJql: field.fieldJql || buildOverallFieldJql(field.id),
-      projects: projectUsage,
+      projects: finalProjects,
     };
   }));
 
@@ -4338,6 +3870,12 @@ async function getFilteredFieldIds({ payload, context }) {
   const maxIssuesWithValue = payload?.maxIssuesWithValue ?? "";
   const fieldOrigin = String(payload?.fieldOrigin || "all").trim() || "all";
   const sortBy = String(payload?.sortBy || "name-asc").trim() || "name-asc";
+  const minActiveProjects = payload?.minActiveProjects ?? "";
+  const maxActiveProjects = payload?.maxActiveProjects ?? "";
+  const minContexts = payload?.minContexts ?? "";
+  const maxContexts = payload?.maxContexts ?? "";
+  const duplicateNamesOnly = Boolean(payload?.duplicateNamesOnly);
+  const hasDescription = payload?.hasDescription || "all";
   const snapshotFields = await loadSnapshotFields(installationKey, meta.version);
   const fieldSummaries = await listFieldSummaries(installationKey, 5000).catch(() => []);
   const summaryByFieldId = new Map(fieldSummaries.map((summary) => [summary.fieldId, summary]));
@@ -4366,7 +3904,12 @@ async function getFilteredFieldIds({ payload, context }) {
     ? allFields.filter((field) => optionMatchedFieldIds.has(field.id))
     : allFields;
   const filtered = sortInventoryFields(
-    applyFindingsFilter(filterInventoryFields(optionFilteredFields, query, type, projectUsageFilter, maxIssuesWithValue, fieldOrigin, minIssuesWithValue), findingsFilter),
+    applyFindingsFilter(
+      filterInventoryFields(optionFilteredFields, query, type, projectUsageFilter, maxIssuesWithValue, fieldOrigin, minIssuesWithValue, {
+        minActiveProjects, maxActiveProjects, minContexts, maxContexts, duplicateNamesOnly, hasDescription,
+      }),
+      findingsFilter
+    ),
     sortBy
   );
   return { fieldIds: filtered.map((field) => field.id) };
@@ -5440,41 +4983,45 @@ async function getFieldOptions({ payload, context }) {
   }
 }
 
-const SHARED_RESOLVER_FUNCTIONS = {
+const MACRO_RESOLVER_FUNCTIONS = {
+  checkMacroAccess,
   getFieldInventory,
   getFieldDetails,
-  getProjectUsageJobs,
-  refreshRecentProjectUsage,
   getProjectsView,
-  startProjectUsageReportJob,
-  getProjectUsageReportJob,
-  cancelProjectUsageJob,
-  restartProjectUsageJob,
-  resumeProjectUsageJob,
+  getFilteredFieldIds,
+  getFieldOptions,
+  searchFieldOptions,
   getSavedReports,
   saveReportDefinition,
   deleteReportDefinition,
-  getFilteredFieldIds,
+  startProjectUsageReportJob,
+  getProjectUsageReportJob,
   getProjectUsageReport,
+};
+
+const ADMIN_ONLY_FUNCTIONS = {
   cancelSnapshot,
   startIssueScan,
   resumeIssueScan,
   getIssueScanStatus,
   cancelIssueScan,
   restoreProjectUsageCache,
-  getFieldOptions,
-  searchFieldOptions,
   startDeltaIssueScan,
   getDeltaIssueScanStatus,
-  checkMacroAccess,
+  getProjectUsageJobs,
+  cancelProjectUsageJob,
+  restartProjectUsageJob,
+  resumeProjectUsageJob,
   getRqtIndex,
   searchRqtValue,
+  refreshRecentProjectUsage,
 };
 
-export const handler = makeResolver(SHARED_RESOLVER_FUNCTIONS);
+export const handler = makeResolver(MACRO_RESOLVER_FUNCTIONS);
 
 export const adminHandler = makeResolver({
-  ...SHARED_RESOLVER_FUNCTIONS,
+  ...MACRO_RESOLVER_FUNCTIONS,
+  ...ADMIN_ONLY_FUNCTIONS,
   getAdminConfig: getAdminConfigResolver,
   saveAdminConfig: saveAdminConfigResolver,
   getAdminOverview,

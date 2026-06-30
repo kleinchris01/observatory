@@ -1,3 +1,5 @@
+import { router, rovo } from "@forge/bridge";
+
 export function formatTimestamp(value) {
   if (!value) return "No field change detected";
   return new Intl.DateTimeFormat(undefined, {
@@ -33,4 +35,350 @@ export function buildValueJql(fields, rqtValue) {
     else if (f.fieldId === "comment") clauses.push(`comment ~ "${rqtValue}"`);
   }
   return clauses.length ? clauses.join(" OR ") : `text ~ "${rqtValue}"`;
+}
+
+export function formatLogTime(value) {
+  if (!value) return "";
+  return new Date(value).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+export function formatShortTime(value) {
+  if (!value) return "";
+  try {
+    return new Intl.DateTimeFormat(undefined, { timeStyle: "medium" }).format(new Date(value));
+  } catch {
+    return "";
+  }
+}
+
+export function formatRelativeTime(value) {
+  if (!value) return null;
+  const diff = Date.now() - new Date(value).getTime();
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
+export function formatRelativeOrAbsoluteTime(value) {
+  if (!value) return "No recent update";
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(value));
+  } catch {
+    return String(value);
+  }
+}
+
+export function formatContextList(values, fallback) {
+  return values?.length ? values.join(", ") : fallback;
+}
+
+export function normalizeSiteOrigin(siteUrl) {
+  if (!siteUrl) return "";
+
+  try {
+    return new URL(siteUrl).origin;
+  } catch {
+    return "";
+  }
+}
+
+export function buildJiraSearchUrl(siteOrigin, jql) {
+  if (!siteOrigin || !jql) return null;
+  return `${siteOrigin}/issues/?jql=${encodeURIComponent(jql)}`;
+}
+
+export function handleJiraLinkClick(e, href) {
+  if (!href || href === "#") return;
+  e.preventDefault();
+  router.open(href);
+}
+
+export function escapeCsvCell(value) {
+  const text = String(value ?? "");
+  if (/[",\n]/.test(text)) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
+}
+
+export function downloadCsv(filename, rows) {
+  const csv = rows.map((row) => row.map(escapeCsvCell).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+export function slugifyFilenamePart(value, fallback = "report") {
+  const normalized = String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return normalized || fallback;
+}
+
+export function normalizeReportData(reportData) {
+  const normalizedFields = Array.isArray(reportData?.fields)
+    ? reportData.fields.map((field) => ({
+        ...field,
+        projects: Array.isArray(field?.projects) ? field.projects : [],
+      }))
+    : [];
+
+  return {
+    fields: normalizedFields,
+    projects: Array.isArray(reportData?.projects) ? reportData.projects : [],
+    pendingFields: Array.isArray(reportData?.pendingFields) ? reportData.pendingFields : [],
+    uniqueIssueCount: Number.isFinite(reportData?.uniqueIssueCount) ? reportData.uniqueIssueCount : null,
+  };
+}
+
+export function groupReportFieldsByType(fields) {
+  const grouped = new Map();
+
+  for (const field of fields || []) {
+    const typeKey = String(field?.fieldType || "unknown").trim() || "unknown";
+    const bucket = grouped.get(typeKey) || [];
+    bucket.push({
+      ...field,
+      fieldId: String(field?.fieldId || ""),
+      fieldName: String(field?.fieldName || field?.fieldId || "Unnamed field"),
+      fieldType: typeKey,
+      projects: Array.isArray(field?.projects) ? field.projects : [],
+    });
+    grouped.set(typeKey, bucket);
+  }
+
+  return Array.from(grouped.entries())
+    .sort((left, right) => left[0].localeCompare(right[0]))
+    .map(([fieldType, groupedFields]) => ({
+      fieldType,
+      fields: [...groupedFields].sort(
+        (left, right) =>
+          String(left?.fieldName || "").localeCompare(String(right?.fieldName || ""))
+          || String(left?.fieldId || "").localeCompare(String(right?.fieldId || ""))
+      ),
+    }));
+}
+
+export function summarizeReportData(fields, projects, uniqueIssueCount = null) {
+  const projectTotals = new Map();
+  const fieldTotals = [];
+  const typeTotals = new Map();
+  let populatedCells = 0;
+  let totalIssues = 0;
+
+  for (const field of fields || []) {
+    let fieldIssueCount = 0;
+    const fieldProjects = Array.isArray(field?.projects) ? field.projects : [];
+    populatedCells += fieldProjects.length;
+
+    for (const project of fieldProjects) {
+      const issueCount = Number(project.issueCount || 0);
+      fieldIssueCount += issueCount;
+      totalIssues += issueCount;
+      const projectId = String(project?.projectId || project?.projectKey || "");
+      const projectKey = String(project?.projectKey || projectId || "Unknown");
+      const projectName = String(project?.projectName || projectKey || "Unknown project");
+
+      const existingProject = projectTotals.get(projectId) || {
+        projectId,
+        projectKey,
+        projectName,
+        issueCount: 0,
+        fieldCount: 0,
+      };
+      existingProject.issueCount += issueCount;
+      existingProject.fieldCount += 1;
+      projectTotals.set(projectId, existingProject);
+    }
+
+    fieldTotals.push({
+      fieldId: String(field?.fieldId || ""),
+      fieldName: String(field?.fieldName || field?.fieldId || "Unnamed field"),
+      fieldType: String(field?.fieldType || "unknown"),
+      issueCount: fieldIssueCount,
+      activeProjectCount: fieldProjects.length,
+    });
+
+    const typeKey = String(field?.fieldType || "unknown").trim() || "unknown";
+    const existingType = typeTotals.get(typeKey) || {
+      fieldType: typeKey,
+      fieldCount: 0,
+      issueCount: 0,
+      activeProjectCount: 0,
+    };
+    existingType.fieldCount += 1;
+    existingType.issueCount += fieldIssueCount;
+    existingType.activeProjectCount += fieldProjects.length;
+    typeTotals.set(typeKey, existingType);
+  }
+
+  const totalPossibleCells = (fields?.length || 0) * (projects?.length || 0);
+
+  return {
+    populatedCells,
+    totalIssues,
+    uniqueIssueCount,
+    totalPossibleCells,
+    coverageRatio: totalPossibleCells ? populatedCells / totalPossibleCells : 0,
+    topProjects: Array.from(projectTotals.values())
+      .sort((left, right) => right.issueCount - left.issueCount || left.projectKey.localeCompare(right.projectKey))
+      .slice(0, 8),
+    topFields: fieldTotals
+      .sort((left, right) => right.issueCount - left.issueCount || left.fieldName.localeCompare(right.fieldName))
+      .slice(0, 8),
+    typeTotals: Array.from(typeTotals.values()).sort(
+      (left, right) => right.issueCount - left.issueCount || left.fieldType.localeCompare(right.fieldType)
+    ),
+  };
+}
+
+export function isUsageAvailable(source) {
+  return (source?.usageStatus || "ready") === "ready";
+}
+
+const SELECT_FIELD_TYPE_KEYWORDS = ["select", "multiselect", "radiobutton", "checkbox", "cascadingselect"];
+export function isSelectType(fieldType) {
+  const normalized = String(fieldType || "").toLowerCase().replace(/[\s\-_]/g, "");
+  return SELECT_FIELD_TYPE_KEYWORDS.some((kw) => normalized.includes(kw));
+}
+
+export function mergeFieldMetrics(field, source) {
+  if (!source) {
+    return field;
+  }
+
+  const sourceField = source.field || source;
+  const configuredProjectCount = Math.max(
+    field?.configuredProjectCount ?? field?.usageCount ?? 0,
+    sourceField?.configuredProjectCount ?? source?.configuredProjectCount ?? sourceField?.usageCount ?? 0
+  );
+  const activeProjectCount = Math.max(
+    field?.activeProjectCount ?? 0,
+    sourceField?.activeProjectCount ?? source?.activeProjectCount ?? 0
+  );
+  const totalIssueCount = Math.max(
+    field?.totalIssueCount ?? 0,
+    sourceField?.totalIssueCount ?? source?.totalIssueCount ?? 0
+  );
+  const derivedProjectUsageBuilt =
+    sourceField?.projectUsageBuilt ??
+    source?.projectUsageBuilt ??
+    (source?.summaryStatus === "ready" ? true : undefined);
+  const derivedProjectUsageState =
+    sourceField?.projectUsageState ||
+    source?.projectUsageState ||
+    source?.summaryStatus ||
+    null;
+
+  return {
+    ...field,
+    configuredProjectCount,
+    usageCount: configuredProjectCount,
+    activeProjectCount,
+    totalIssueCount,
+    usageStatus: sourceField?.usageStatus || source?.usageStatus || field?.usageStatus || "ready",
+    usageStatusDetail: sourceField?.usageStatusDetail || source?.usageStatusDetail || field?.usageStatusDetail || null,
+    projectUsageBuilt: derivedProjectUsageBuilt ?? field?.projectUsageBuilt ?? false,
+    projectUsageState: derivedProjectUsageState || field?.projectUsageState || "unbuilt",
+    findings: source?.findings || sourceField?.findings || field?.findings,
+  };
+}
+
+export async function openFieldExpertRovo(prompt) {
+  await rovo.open({
+    type: "forge",
+    agentName: "Observatory Field Expert",
+    agentKey: "observatory-field-expert",
+    prompt,
+  });
+}
+
+export function buildInventoryRovoPrompt({ totalFields, availableTypes, refreshedAt, currentPage, totalPages, query, typeFilter, sortBy }) {
+  return [
+    "You are reviewing the Observatory Jira custom field inventory.",
+    `Snapshot refreshed at: ${refreshedAt || "unknown"}.`,
+    `Visible fields in the current filtered inventory: ${totalFields}.`,
+    `Current page: ${currentPage} of ${totalPages}.`,
+    `Current search query: ${query || "none"}.`,
+    `Current field type filter: ${typeFilter === "all" ? "all types" : typeFilter}.`,
+    `Current sort: ${sortBy}.`,
+    `Available field types in snapshot: ${formatContextList(availableTypes, "unknown")}.`,
+    "Explain the overall field inventory, call out notable governance signals, prioritize admin attention, and recommend the next actions an admin should take.",
+  ].join(" ");
+}
+
+export function buildFieldRovoPrompt(field, details) {
+  const contexts = details?.contexts || [];
+  const contextNames = contexts.map((context) => context.name).slice(0, 8);
+  const projectSamples = contexts.flatMap((context) => context.projects?.map((project) => project.key) || []).slice(0, 12);
+  const fieldJql = details?.fieldJql || field.fieldJql;
+  const findings = details?.findings || details?.field?.findings || field.findings;
+
+  return [
+    "Explain this Jira custom field in detail.",
+    `Field id: ${field.id}.`,
+    `Field name: ${field.name}.`,
+    `Field type: ${field.type}.`,
+    `Description: ${field.description || "none"}.`,
+    `Configured project count: ${details?.configuredProjectCount ?? field.configuredProjectCount ?? field.usageCount ?? 0}.`,
+    `Per-project usage status: ${details?.field?.usageStatus || details?.usageStatus || field.usageStatus || "ready"}.`,
+    `Active project count: ${isUsageAvailable(details?.field || details || field) ? (details?.activeProjectCount ?? field.activeProjectCount ?? 0) : "unavailable"}.`,
+    `Total issues with populated values: ${isUsageAvailable(details?.field || details || field) ? (details?.totalIssueCount ?? field.totalIssueCount ?? 0) : "unavailable"}.`,
+    `Context scope: ${details?.hasGlobalContext ? "global" : "scoped"}.`,
+    `Field-wide JQL: ${fieldJql}.`,
+    `Sample contexts: ${formatContextList(contextNames, "none")}.`,
+    `Sample project keys in scope: ${formatContextList(projectSamples, "none")}.`,
+    `Current governance findings: ${formatContextList(findings?.reasons?.map((reason) => reason.title) || [], "none")}.`,
+    "Describe what this field does, where it is used, which governance risks or cleanup opportunities exist, and what an admin should review next.",
+  ].join(" ");
+}
+
+export function buildProjectRovoPrompt(field, details, project) {
+  return [
+    "Explain how a single project is using this Jira custom field.",
+    `Field id: ${field.id}.`,
+    `Field name: ${field.name}.`,
+    `Field type: ${field.type}.`,
+    `Project key: ${project.projectKey}.`,
+    `Project name: ${project.projectName}.`,
+    `Issues with populated values in this project: ${project.issueCount}.`,
+    `Latest field activity: ${project.latestFieldChangeAt || "unknown"}.`,
+    `Latest matching issue key: ${project.latestIssueKey || "none"}.`,
+    `Project-scoped JQL: ${project.jql}.`,
+    `Field-wide total issues with values: ${details?.totalIssueCount ?? field.totalIssueCount ?? 0}.`,
+    "Explain what this usage pattern suggests, how the project appears to rely on the field, and what governance or standardization checks should be performed.",
+  ].join(" ");
+}
+
+export function buildReportRovoPrompt({ reportName, fields, projects, pendingFields, reportSummary }) {
+  const fieldTypes = Array.from(new Set((fields || []).map((field) => field?.fieldType).filter(Boolean))).sort();
+  const topFieldNames = (reportSummary?.topFields || []).slice(0, 8).map((field) => field.fieldName);
+  const topProjectKeys = (reportSummary?.topProjects || []).slice(0, 8).map((project) => project.projectKey);
+  const pendingNames = (pendingFields || []).slice(0, 8).map((field) => field.fieldName);
+
+  return [
+    "Review this Observatory report as a collection of Jira custom fields across all included projects.",
+    `Report name: ${reportName || "Project Usage Report"}.`,
+    `Selected field count: ${fields?.length || 0}.`,
+    `Visible project count: ${projects?.length || 0}.`,
+    `Field types represented: ${formatContextList(fieldTypes, "unknown")}.`,
+    `Populated project-field intersections: ${reportSummary?.populatedCells ?? 0}.`,
+    `Total populated issue intersections: ${reportSummary?.totalIssues ?? 0}.`,
+    `Distinct populated issues across the selected fields: ${reportSummary?.uniqueIssueCount ?? "unknown"}.`,
+    `Top fields by populated issues: ${formatContextList(topFieldNames, "none")}.`,
+    `Top projects in this report: ${formatContextList(topProjectKeys, "none")}.`,
+    `Fields still pending usage hydration: ${formatContextList(pendingNames, "none")}.`,
+    "Explain the dominant usage patterns across this collection of fields, call out cleanup or standardization opportunities, identify risk concentrations, and recommend the next administrative actions for this report as a whole.",
+  ].join(" ");
 }

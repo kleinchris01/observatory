@@ -1,73 +1,16 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import { createPortal } from "react-dom";
 import { invoke, view } from "@forge/bridge";
 import "./styles.css";
+import { RqtIndexView } from "./tabs/RqtTab";
+import { formatTimestamp, formatNumber, toDisplayName, buildValueJql, formatShortTime, formatRelativeTime, formatLogTime, formatContextList, normalizeSiteOrigin, buildJiraSearchUrl, handleJiraLinkClick, escapeCsvCell, downloadCsv, slugifyFilenamePart, normalizeReportData, groupReportFieldsByType, summarizeReportData, isUsageAvailable, isSelectType, mergeFieldMetrics, openFieldExpertRovo, buildInventoryRovoPrompt, buildFieldRovoPrompt, buildProjectRovoPrompt, buildReportRovoPrompt } from "./utils";
+import { Icon, ICON_PATHS, useLiveDuration, CHART_PALETTE } from "./components/Icons";
+import { ReportErrorBoundary, SavedReportsPanel, ProjectUsageReportView } from "./components/ReportView";
+import { MetricChip, FindingBadge, FindingsStrip, SkeletonFieldCard, SkeletonProjectItem, InlineOptionsContext, FieldCard } from "./components/FieldCard";
+import { ProjectsTabView } from "./components/ProjectsTab";
 
 const bootStatusNode = document.getElementById("boot-status");
-
-// ── Utilities ──────────────────────────────────────────────────────────────
-
-function formatRelativeTime(value) {
-  if (!value) return null;
-  const diffMs = Date.now() - new Date(value).getTime();
-  const diffMin = Math.floor(diffMs / 60000);
-  if (diffMin < 1) return "just now";
-  if (diffMin < 60) return `${diffMin}m ago`;
-  const diffH = Math.floor(diffMin / 60);
-  if (diffH < 24) return `${diffH}h ago`;
-  return `${Math.floor(diffH / 24)}d ago`;
-}
-
-function toDisplayName(name) {
-  if (!name) return name;
-  const s = String(name);
-  const letters = s.replace(/[^a-zA-Z]/g, "");
-  if (!letters.length) return s;
-  const upperRatio = (s.match(/[A-Z]/g) || []).length / letters.length;
-  if (upperRatio < 0.75) return s;
-  return s.toLowerCase().replace(/(?:^|[\s()\-/])\S/g, (c) => c.toUpperCase());
-}
-
-function formatTimestamp(value) {
-  if (!value) return "—";
-  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
-}
-
-function formatLogTime(value) {
-  if (!value) return "";
-  return new Date(value).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-}
-
-// ── Icons ──────────────────────────────────────────────────────────────────
-
-const ICON_PATHS = {
-  layers:        "M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5",
-  activity:      "M22 12h-4l-3 9L9 3l-3 9H2",
-  zap:           "M13 2L3 14h9l-1 8 10-12h-9l1-8z",
-  folder:        "M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z",
-  settings:      "M12 15a3 3 0 100-6 3 3 0 000 6zM19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z",
-  alertTriangle: "M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4M12 17h.01",
-  check:         "M20 6L9 17l-5-5",
-  checkCircle:   "M22 11.08V12a10 10 0 11-5.93-9.14M22 4L12 14.01l-3-3",
-  x:             "M18 6L6 18M6 6l12 12",
-  refreshCw:     "M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15",
-  info:          "M12 22c5.52 0 10-4.48 10-10S17.52 2 12 2 2 6.48 2 12s4.48 10 10 10zM12 16v-4M12 8h.01",
-  lock:          "M19 11H5a2 2 0 00-2 2v7a2 2 0 002 2h14a2 2 0 002-2v-7a2 2 0 00-2-2zM17 11V7a5 5 0 00-10 0v4",
-  clock:         "M12 22c5.52 0 10-4.48 10-10S17.52 2 12 2 2 6.48 2 12s4.48 10 10 10zM12 6v6l4 2",
-  barChart:      "M18 20V10M12 20V4M6 20v-6",
-  sliders:       "M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6",
-  scissors:      "M6 9a3 3 0 100-6 3 3 0 000 6zM6 21a3 3 0 100-6 3 3 0 000 6zM20 4L8.12 15.88M14.47 14.48L20 20M8.12 8.12L12 12",
-};
-
-function Icon({ name, size = 16 }) {
-  const d = ICON_PATHS[name];
-  if (!d) return null;
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d={d} />
-    </svg>
-  );
-}
 
 // ── Default config ─────────────────────────────────────────────────────────
 
@@ -686,7 +629,7 @@ function ConfigTab({ config, onSave, saving }) {
 
 // ── Project usage tab ─────────────────────────────────────────────────────
 
-function ProjectUsageTab() {
+function ProjectUsageTab({ siteOrigin }) {
   const [projectQuery, setProjectQuery] = React.useState("");
   const [deferredProjectQuery, setDeferredProjectQuery] = React.useState("");
   const [fieldQuery, setFieldQuery] = React.useState("");
@@ -735,278 +678,100 @@ function ProjectUsageTab() {
     return () => { cancelled = true; };
   }, [selectedProjectId, deferredProjectQuery, deferredFieldQuery, fieldType, fieldSort, page]);
 
-  const projects = data?.projects || [];
-  const selectedProject = data?.selectedProject || null;
-  const fields = data?.fields || [];
-  const availableTypes = data?.availableTypes || [];
-  const totalFields = Number(data?.totalFields || 0);
-  const currentPage = Number(data?.page || 1);
-  const totalPages = Number(data?.totalPages || 1);
-  const pageSize = Number(data?.pageSize || 24);
-
-  const currentIndex = projects.findIndex((p) => p.projectId === selectedProjectId);
-  const prevProject = currentIndex > 0 ? projects[currentIndex - 1] : null;
-  const nextProject = currentIndex >= 0 && currentIndex < projects.length - 1 ? projects[currentIndex + 1] : null;
+  function handleSelectProject(projectId) {
+    setSelectedProjectId(projectId);
+    setPage(1);
+  }
 
   return (
-    <div className="admin-projects-tab">
+    <>
       {loadError && <div className="error-banner">{loadError}</div>}
-      <div className="admin-projects-layout">
-        {/* Project rail */}
-        <aside className="admin-projects-rail">
-          <div className="admin-projects-rail__header">
-            <span className="admin-field-detail-section-label" style={{ margin: 0 }}>Projects</span>
-            <span className="admin-pagination__info">{projects.length} total</span>
-          </div>
-          <input
-            type="search"
-            placeholder="Search projects…"
-            value={projectQuery}
-            onChange={(e) => setProjectQuery(e.target.value)}
-            className="admin-jobs-search"
-            style={{ marginBottom: 8 }}
-          />
-          {loading && !projects.length ? (
-            <div className="admin-field-detail-loading">Loading projects…</div>
-          ) : projects.length === 0 ? (
-            <div className="admin-field-detail-loading">No projects found in snapshot.</div>
-          ) : (
-            <div className="admin-projects-rail__list">
-              {projects.map((p) => (
-                <button
-                  key={p.projectId}
-                  type="button"
-                  className={`admin-project-item ${p.projectId === selectedProjectId ? "admin-project-item--active" : ""}`}
-                  onClick={() => { setSelectedProjectId(p.projectId); setPage(1); }}
-                >
-                  <div className="admin-project-item__top">
-                    <strong>{p.projectKey}</strong>
-                    <span>{(p.uniqueIssueCount ?? p.totalIssueCount ?? 0).toLocaleString()} {p.uniqueIssueCount != null ? "issues" : "fills"}</span>
-                  </div>
-                  <div className="admin-project-item__bottom">
-                    <span>{p.projectName}</span>
-                    <span>{(p.fieldCount || 0)} fields</span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </aside>
-
-        {/* Field usage pane */}
-        <div className="admin-projects-content">
-          {!selectedProject ? (
-            <div className="empty-state">Select a project to see field usage.</div>
-          ) : (
-            <>
-              <div className="admin-projects-content__header">
-                <div>
-                  <div className="admin-projects-content__title">{selectedProject.projectKey} — {selectedProject.projectName}</div>
-                  <div className="admin-pagination__info">
-                    {selectedProject.fieldCount || 0} fields with usage
-                    {selectedProject.uniqueIssueCount != null
-                      ? ` · ${selectedProject.uniqueIssueCount.toLocaleString()} unique issues`
-                      : selectedProject.totalIssueCount != null
-                        ? ` · ${selectedProject.totalIssueCount.toLocaleString()} fills`
-                        : ""}
-                  </div>
-                </div>
-                <div className="admin-projects-content__nav">
-                  <button disabled={!prevProject} className="secondary-button secondary-button--small" type="button" onClick={() => { setSelectedProjectId(prevProject.projectId); setPage(1); }}>Prev</button>
-                  <button disabled={!nextProject} className="secondary-button secondary-button--small" type="button" onClick={() => { setSelectedProjectId(nextProject.projectId); setPage(1); }}>Next</button>
-                </div>
-              </div>
-
-              <div className="admin-projects-filters">
-                <input
-                  type="search"
-                  placeholder="Search fields…"
-                  value={fieldQuery}
-                  onChange={(e) => setFieldQuery(e.target.value)}
-                  className="admin-jobs-search"
-                  style={{ flex: "1 1 180px" }}
-                />
-                <select value={fieldType} onChange={(e) => { setFieldType(e.target.value); setPage(1); }}>
-                  <option value="all">All types</option>
-                  {availableTypes.map((t) => <option key={t} value={t}>{t}</option>)}
-                </select>
-                <select value={fieldSort} onChange={(e) => { setFieldSort(e.target.value); setPage(1); }}>
-                  <option value="issues-desc">Most issues</option>
-                  <option value="issues-asc">Fewest issues</option>
-                  <option value="name-asc">Name A–Z</option>
-                  <option value="name-desc">Name Z–A</option>
-                </select>
-              </div>
-
-              {loading && !fields.length ? (
-                <div className="empty-state">Loading fields…</div>
-              ) : fields.length === 0 ? (
-                <div className="empty-state">No fields matched the current filters.</div>
-              ) : (
-                <div className="admin-project-fields">
-                  <table className="admin-usage-table">
-                    <thead>
-                      <tr>
-                        <th>Field</th>
-                        <th>Type</th>
-                        <th style={{ textAlign: "right" }}>Issues on project</th>
-                        <th style={{ textAlign: "right" }}>Active projects</th>
-                        <th>Findings</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {fields.map((f) => {
-                        const tags = f.findings?.tags || {};
-                        return (
-                          <tr key={f.fieldId}>
-                            <td>
-                              <div style={{ fontWeight: 600, fontSize: 13 }}>{toDisplayName(f.fieldName || f.fieldId)}</div>
-                              <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--muted)" }}>{f.fieldId}</div>
-                            </td>
-                            <td><span className="admin-field-row__type">{f.fieldType}</span></td>
-                            <td className="admin-usage-table__count">{(f.issueCount || 0).toLocaleString()}</td>
-                            <td className="admin-usage-table__count">{(f.activeProjectCount || 0).toLocaleString()}</td>
-                            <td>
-                              <div className="admin-field-row__tags">
-                                {tags.adminAttention && <span className="admin-field-tag admin-field-tag--danger">admin</span>}
-                                {tags.risky && <span className="admin-field-tag admin-field-tag--warn">risky</span>}
-                                {tags.cleanup && <span className="admin-field-tag admin-field-tag--neutral">cleanup</span>}
-                                {tags.standardize && <span className="admin-field-tag admin-field-tag--neutral">standardize</span>}
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {totalFields > pageSize && (
-                <div className="admin-pagination" style={{ marginTop: 12 }}>
-                  <button disabled={currentPage <= 1} className="secondary-button secondary-button--small" type="button" onClick={() => setPage(1)}>First</button>
-                  <button disabled={currentPage <= 1} className="secondary-button secondary-button--small" type="button" onClick={() => setPage((p) => p - 1)}>Prev</button>
-                  <span className="admin-pagination__info">
-                    {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, totalFields)} of {totalFields.toLocaleString()} fields
-                  </span>
-                  <button disabled={currentPage >= totalPages} className="secondary-button secondary-button--small" type="button" onClick={() => setPage((p) => p + 1)}>Next</button>
-                  <button disabled={currentPage >= totalPages} className="secondary-button secondary-button--small" type="button" onClick={() => setPage(totalPages)}>Last</button>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-    </div>
+      <ProjectsTabView
+        data={data}
+        loading={loading}
+        siteOrigin={siteOrigin}
+        selectedProjectId={selectedProjectId}
+        onSelectProject={handleSelectProject}
+        projectQuery={projectQuery}
+        onProjectQueryChange={setProjectQuery}
+        fieldQuery={fieldQuery}
+        onFieldQueryChange={(v) => { setFieldQuery(v); }}
+        fieldType={fieldType}
+        onFieldTypeChange={(v) => { setFieldType(v); setPage(1); }}
+        fieldSort={fieldSort}
+        onFieldSortChange={(v) => { setFieldSort(v); setPage(1); }}
+        onChangePage={setPage}
+      />
+    </>
   );
 }
 
 // ── Field browser tab ─────────────────────────────────────────────────────
 
-const SEVERITY_VARIANT = { high: "danger", medium: "warn", low: "neutral" };
-
-function FieldDetailPanel({ detail, detailPage, onPageChange, loading }) {
-  const field = detail?.field || {};
-  const contexts = detail?.contexts || [];
-  const projects = detail?.projects || [];
-  const findingReasons = field?.findings?.reasons || [];
-  const totalPages = detail?.projectUsageTotalPages || 1;
-  const totalProjects = detail?.projectUsageTotalProjects || 0;
-
-  return (
-    <div className="admin-field-detail-panel">
-      <div className="admin-field-detail-meta">
-        {field.description && <p className="admin-field-detail-desc">{field.description}</p>}
-        <div className="admin-field-detail-stats">
-          <span><strong>{(detail.totalIssueCount || 0).toLocaleString()}</strong> issues</span>
-          <span><strong>{totalProjects.toLocaleString()}</strong> active projects</span>
-          {contexts.length > 0 && <span><strong>{contexts.length}</strong> contexts</span>}
-        </div>
-      </div>
-
-      {findingReasons.length > 0 && (
-        <div className="admin-field-detail-findings">
-          <span className="admin-field-detail-section-label">Governance findings</span>
-          <div className="admin-findings-list">
-            {findingReasons.map((r, i) => (
-              <div key={i} className={`admin-finding-item admin-finding-item--${SEVERITY_VARIANT[r.severity] || "neutral"}`}>
-                <strong>{r.title}</strong>
-                {r.detail && <span>{r.detail}</span>}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {contexts.length > 0 && (
-        <div className="admin-field-detail-section">
-          <span className="admin-field-detail-section-label">Contexts ({contexts.length})</span>
-          <div className="admin-context-list">
-            {contexts.map((ctx, i) => (
-              <span key={i} className="admin-context-chip">
-                {ctx.name || ctx.contextName || `Context ${i + 1}`}
-                {ctx.isGlobal && <em className="admin-context-chip__global"> global</em>}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {projects.length > 0 && (
-        <div className="admin-field-detail-section">
-          <span className="admin-field-detail-section-label">
-            Project usage{totalProjects > 0 ? ` (${totalProjects.toLocaleString()} total)` : ""}
-          </span>
-          <table className="admin-usage-table">
-            <thead>
-              <tr><th>Project</th><th>Key</th><th>Issues</th></tr>
-            </thead>
-            <tbody>
-              {projects.map((p) => (
-                <tr key={p.projectId || p.projectKey}>
-                  <td>{p.projectName}</td>
-                  <td className="admin-usage-table__key"><code>{p.projectKey}</code></td>
-                  <td className="admin-usage-table__count">{(p.issueCount || 0).toLocaleString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {totalPages > 1 && (
-            <div className="admin-pagination" style={{ marginTop: 8 }}>
-              <button disabled={detailPage <= 1 || loading} className="secondary-button secondary-button--small" type="button" onClick={() => onPageChange(detailPage - 1)}>Prev</button>
-              <span className="admin-pagination__info">Page {detailPage} of {totalPages}</span>
-              <button disabled={detailPage >= totalPages || loading} className="secondary-button secondary-button--small" type="button" onClick={() => onPageChange(detailPage + 1)}>Next</button>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function FieldBrowserTab() {
-  const PAGE_SIZE = 20;
+function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSelectedFieldIds, onGoToReport, siteOrigin }) {
+  const selectedSet = React.useMemo(() => new Set(selectedFieldIds), [selectedFieldIds]);
+  const [pageSize, setPageSize] = React.useState(() => {
+    const saved = Number(localStorage.getItem("admin-field-pagesize"));
+    return [10, 25, 50].includes(saved) ? saved : 25;
+  });
   const [query, setQuery] = React.useState("");
   const [deferredQuery, setDeferredQuery] = React.useState("");
   const [typeFilter, setTypeFilter] = React.useState("all");
+  const [fieldOrigin, setFieldOrigin] = React.useState("all");
+  const [findingsFilter, setFindingsFilter] = React.useState("all");
   const [sortBy, setSortBy] = React.useState("usage-desc");
   const [page, setPage] = React.useState(1);
+
+  // Advanced filters
+  const [projectUsageFilter, setProjectUsageFilter] = React.useState("all");
+  const [hasDescription, setHasDescription] = React.useState("all");
+  const [duplicateNamesOnly, setDuplicateNamesOnly] = React.useState(false);
+  const [minIssues, setMinIssues] = React.useState("");
+  const [maxIssues, setMaxIssues] = React.useState("");
+  const [minActiveProjects, setMinActiveProjects] = React.useState("");
+  const [maxActiveProjects, setMaxActiveProjects] = React.useState("");
+  const [minContexts, setMinContexts] = React.useState("");
+  const [maxContexts, setMaxContexts] = React.useState("");
+  const [filtersOpen, setFiltersOpen] = React.useState(false);
+
+  const [deferredMinIssues, setDeferredMinIssues] = React.useState("");
+  const [deferredMaxIssues, setDeferredMaxIssues] = React.useState("");
+  const [deferredMinActiveProjects, setDeferredMinActiveProjects] = React.useState("");
+  const [deferredMaxActiveProjects, setDeferredMaxActiveProjects] = React.useState("");
+  const [deferredMinContexts, setDeferredMinContexts] = React.useState("");
+  const [deferredMaxContexts, setDeferredMaxContexts] = React.useState("");
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [loadError, setLoadError] = React.useState("");
   const [openFieldId, setOpenFieldId] = React.useState(null);
-  const [fieldDetail, setFieldDetail] = React.useState(null);
+  const [fieldDetails, setFieldDetails] = React.useState({});
   const [detailLoading, setDetailLoading] = React.useState(false);
   const [detailError, setDetailError] = React.useState("");
-  const [detailPage, setDetailPage] = React.useState(1);
+  const [rovoEnabled, setRovoEnabled] = React.useState(false);
 
   React.useEffect(() => {
+    view.getContext().then(() => setRovoEnabled(true)).catch(() => {});
+  }, []);
+
+  React.useEffect(() => {
+    const t = setTimeout(() => { setDeferredQuery(query); setPage(1); }, 350);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  // Debounce the numeric range filters the same way the search query is debounced,
+  // so typing in a min/max box doesn't fire a request per keystroke.
+  React.useEffect(() => {
     const t = setTimeout(() => {
-      setDeferredQuery(query);
+      setDeferredMinIssues(minIssues);
+      setDeferredMaxIssues(maxIssues);
+      setDeferredMinActiveProjects(minActiveProjects);
+      setDeferredMaxActiveProjects(maxActiveProjects);
+      setDeferredMinContexts(minContexts);
+      setDeferredMaxContexts(maxContexts);
       setPage(1);
     }, 350);
     return () => clearTimeout(t);
-  }, [query]);
+  }, [minIssues, maxIssues, minActiveProjects, maxActiveProjects, minContexts, maxContexts]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -1015,9 +780,20 @@ function FieldBrowserTab() {
     invoke("getFieldInventory", {
       query: deferredQuery,
       type: typeFilter,
+      fieldOrigin,
+      findingsFilter,
       sortBy,
       page,
-      pageSize: PAGE_SIZE,
+      pageSize,
+      projectUsageFilter,
+      hasDescription,
+      duplicateNamesOnly,
+      minIssuesWithValue: deferredMinIssues,
+      maxIssuesWithValue: deferredMaxIssues,
+      minActiveProjects: deferredMinActiveProjects,
+      maxActiveProjects: deferredMaxActiveProjects,
+      minContexts: deferredMinContexts,
+      maxContexts: deferredMaxContexts,
     }).then((result) => {
       if (!cancelled) setData(result);
     }).catch((err) => {
@@ -1026,139 +802,804 @@ function FieldBrowserTab() {
       if (!cancelled) setLoading(false);
     });
     return () => { cancelled = true; };
-  }, [deferredQuery, typeFilter, sortBy, page]);
+  }, [
+    deferredQuery,
+    typeFilter,
+    fieldOrigin,
+    findingsFilter,
+    sortBy,
+    page,
+    pageSize,
+    projectUsageFilter,
+    hasDescription,
+    duplicateNamesOnly,
+    deferredMinIssues,
+    deferredMaxIssues,
+    deferredMinActiveProjects,
+    deferredMaxActiveProjects,
+    deferredMinContexts,
+    deferredMaxContexts,
+  ]);
 
   function openField(fieldId) {
-    if (openFieldId === fieldId) {
-      setOpenFieldId(null);
-      setFieldDetail(null);
-      return;
-    }
+    if (openFieldId === fieldId) { setOpenFieldId(null); return; }
     setOpenFieldId(fieldId);
-    setFieldDetail(null);
     setDetailError("");
-    setDetailPage(1);
-    setDetailLoading(true);
-    invoke("getFieldDetails", { fieldId, usagePage: 1 }).then((result) => {
-      setFieldDetail(result);
-    }).catch((err) => {
-      setDetailError(err.message || "Failed to load field details.");
-    }).finally(() => setDetailLoading(false));
+    if (!fieldDetails[fieldId]) {
+      setDetailLoading(true);
+      invoke("getFieldDetails", { fieldId, usagePage: 1 }).then((result) => {
+        setFieldDetails((prev) => ({ ...prev, [fieldId]: result }));
+      }).catch((err) => {
+        setDetailError(err.message || "Failed to load field details.");
+      }).finally(() => setDetailLoading(false));
+    }
   }
 
   function loadDetailPage(fieldId, pg) {
-    setDetailPage(pg);
     setDetailLoading(true);
     invoke("getFieldDetails", { fieldId, usagePage: pg }).then((result) => {
-      setFieldDetail(result);
+      setFieldDetails((prev) => ({ ...prev, [fieldId]: result }));
     }).catch((err) => {
       setDetailError(err.message || "Failed to load.");
     }).finally(() => setDetailLoading(false));
+  }
+
+  function refreshProjectUsage(fieldId, pg) {
+    loadDetailPage(fieldId, pg);
+  }
+
+  const [selectingAll, setSelectingAll] = React.useState(false);
+
+  async function selectAllFiltered() {
+    setSelectingAll(true);
+    try {
+      const result = await invoke("getFilteredFieldIds", {
+        query: deferredQuery,
+        type: typeFilter,
+        fieldOrigin,
+        findingsFilter,
+        sortBy,
+        projectUsageFilter,
+        hasDescription,
+        duplicateNamesOnly,
+        minIssuesWithValue: deferredMinIssues,
+        maxIssuesWithValue: deferredMaxIssues,
+        minActiveProjects: deferredMinActiveProjects,
+        maxActiveProjects: deferredMaxActiveProjects,
+        minContexts: deferredMinContexts,
+        maxContexts: deferredMaxContexts,
+      });
+      onSetSelectedFieldIds?.(result.fieldIds || []);
+    } catch {
+      // silently fail — user can select manually
+    } finally {
+      setSelectingAll(false);
+    }
+  }
+
+  const activeFilterCount = React.useMemo(() => {
+    let count = 0;
+    if (typeFilter !== "all") count++;
+    if (fieldOrigin !== "all") count++;
+    if (projectUsageFilter !== "all") count++;
+    if (hasDescription !== "all") count++;
+    if (duplicateNamesOnly === true) count++;
+    if (minIssues !== "") count++;
+    if (maxIssues !== "") count++;
+    if (minActiveProjects !== "") count++;
+    if (maxActiveProjects !== "") count++;
+    if (minContexts !== "") count++;
+    if (maxContexts !== "") count++;
+    return count;
+  }, [
+    typeFilter,
+    fieldOrigin,
+    projectUsageFilter,
+    hasDescription,
+    duplicateNamesOnly,
+    minIssues,
+    maxIssues,
+    minActiveProjects,
+    maxActiveProjects,
+    minContexts,
+    maxContexts,
+  ]);
+
+  function clearAllFilters() {
+    setTypeFilter("all");
+    setFieldOrigin("all");
+    setProjectUsageFilter("all");
+    setHasDescription("all");
+    setDuplicateNamesOnly(false);
+    setMinIssues("");
+    setMaxIssues("");
+    setMinActiveProjects("");
+    setMaxActiveProjects("");
+    setMinContexts("");
+    setMaxContexts("");
+    setDeferredMinIssues("");
+    setDeferredMaxIssues("");
+    setDeferredMinActiveProjects("");
+    setDeferredMaxActiveProjects("");
+    setDeferredMinContexts("");
+    setDeferredMaxContexts("");
+    setQuery("");
+    setDeferredQuery("");
+    setFindingsFilter("all");
+    setPage(1);
   }
 
   const fields = data?.fields || [];
   const totalPages = data?.totalPages || 1;
   const total = data?.total || 0;
   const availableTypes = data?.availableTypes || [];
+  const summary = data?.findingsSummary || { adminAttention: 0, risky: 0, cleanup: 0, standardize: 0 };
+
+  const startItem = total > 0 ? (page - 1) * pageSize + 1 : 0;
+  const endItem = Math.min(page * pageSize, total);
+
+  const findingsChips = [
+    { key: "all", label: "All fields" },
+    { key: "admin-attention", label: "Admin attention", count: summary.adminAttention },
+    { key: "risky", label: "Risk", count: summary.risky },
+    { key: "cleanup", label: "Cleanup", count: summary.cleanup },
+    { key: "standardize", label: "Standardize", count: summary.standardize },
+  ];
+
+  function PaginationBar({ top }) {
+    return (
+      <div className={`admin-field-browser__pagebar${top ? " admin-field-browser__pagebar--top" : ""}`}>
+        <span className="admin-pagination__info">
+          {total > 0
+            ? `Showing ${startItem}–${endItem} of ${total.toLocaleString()} fields`
+            : loading ? "Loading…" : "No fields match the current filter"}
+        </span>
+        {top && (
+          <div className="admin-field-browser__pagesize">
+            <span>Per page:</span>
+            {[10, 25, 50].map((n) => (
+              <button
+                key={n}
+                type="button"
+                className={`admin-field-browser__pagesize-btn${pageSize === n ? " admin-field-browser__pagesize-btn--active" : ""}`}
+                onClick={() => { localStorage.setItem("admin-field-pagesize", n); setPageSize(n); setPage(1); }}
+              >{n}</button>
+            ))}
+          </div>
+        )}
+        <div className="admin-field-browser__page-nav">
+          <button disabled={page <= 1} className="secondary-button secondary-button--small" type="button" onClick={() => setPage(1)}>First</button>
+          <button disabled={page <= 1} className="secondary-button secondary-button--small" type="button" onClick={() => setPage((p) => p - 1)}>Previous</button>
+          <button disabled={page >= totalPages} className="secondary-button secondary-button--small" type="button" onClick={() => setPage((p) => p + 1)}>Next</button>
+          <button disabled={page >= totalPages} className="secondary-button secondary-button--small" type="button" onClick={() => setPage(totalPages)}>Last</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="admin-field-browser">
+      {/* Primary toolbar */}
       <div className="admin-field-browser__toolbar">
         <input
           type="search"
-          placeholder="Search fields by name, ID, or type…"
+          placeholder="Field name, ID, or description…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           className="admin-jobs-search"
+          aria-label="Search fields"
         />
-        <select value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }}>
+        <select
+          aria-label="Field type"
+          value={typeFilter}
+          onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }}
+        >
           <option value="all">All types</option>
           {availableTypes.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
-        <select value={sortBy} onChange={(e) => { setSortBy(e.target.value); setPage(1); }}>
-          <option value="usage-desc">Most issues</option>
-          <option value="usage-asc">Least issues</option>
+        <select
+          aria-label="Sort by"
+          value={sortBy}
+          onChange={(e) => { setSortBy(e.target.value); setPage(1); }}
+        >
           <option value="name-asc">Name A–Z</option>
           <option value="name-desc">Name Z–A</option>
-          <option value="projects-desc">Most projects</option>
+          <option value="usage-desc">Most issues with value</option>
+          <option value="usage-asc">Fewest issues with value</option>
+          <option value="active-projects-desc">Most active projects</option>
+          <option value="active-projects-asc">Fewest active projects</option>
+          <option value="contexts-desc">Most contexts</option>
+          <option value="contexts-asc">Fewest contexts</option>
+          <option value="priority-desc">Highest priority</option>
         </select>
+        <button
+          type="button"
+          className={`admin-field-browser__filter-toggle${filtersOpen ? " admin-field-browser__filter-toggle--active" : ""}`}
+          onClick={() => setFiltersOpen((v) => !v)}
+          aria-expanded={filtersOpen}
+        >
+          Filters
+          {activeFilterCount > 0 && (
+            <span className="admin-field-browser__filter-badge">{activeFilterCount}</span>
+          )}
+        </button>
+        {activeFilterCount > 0 && (
+          <button
+            type="button"
+            className="admin-field-browser__clear-filters"
+            onClick={clearAllFilters}
+          >
+            Clear all
+          </button>
+        )}
+      </div>
+
+      {/* Expandable advanced filter panel */}
+      {filtersOpen && (
+        <div className="admin-field-browser__filter-panel">
+          <div className="admin-field-browser__filter-group">
+            <span className="admin-field-browser__filter-group-label">Origin &amp; status</span>
+            <div className="admin-field-browser__filter-group-controls">
+              <select
+                aria-label="Field origin"
+                value={fieldOrigin}
+                onChange={(e) => { setFieldOrigin(e.target.value); setPage(1); }}
+              >
+                <option value="all">All fields</option>
+                <option value="user-created">User-created</option>
+                <option value="jira-builtin">Jira built-in</option>
+              </select>
+              <select
+                aria-label="Project usage build status"
+                value={projectUsageFilter}
+                onChange={(e) => { setProjectUsageFilter(e.target.value); setPage(1); }}
+              >
+                <option value="all">Any build status</option>
+                <option value="not-built">Not built</option>
+                <option value="built">Built</option>
+                <option value="building">Building</option>
+                <option value="incomplete">Incomplete</option>
+              </select>
+              <select
+                aria-label="Has description"
+                value={hasDescription}
+                onChange={(e) => { setHasDescription(e.target.value); setPage(1); }}
+              >
+                <option value="all">Description: any</option>
+                <option value="yes">Has description</option>
+                <option value="no">No description</option>
+              </select>
+              <label className="admin-field-browser__checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={duplicateNamesOnly}
+                  onChange={(e) => { setDuplicateNamesOnly(e.target.checked); setPage(1); }}
+                />
+                Duplicate names only
+              </label>
+            </div>
+          </div>
+
+          <div className="admin-field-browser__filter-group">
+            <span className="admin-field-browser__filter-group-label">Issues with value</span>
+            <div className="admin-field-browser__range-inputs">
+              <input
+                type="number"
+                min="0"
+                placeholder="Min"
+                aria-label="Minimum issues with value"
+                value={minIssues}
+                onChange={(e) => setMinIssues(e.target.value)}
+              />
+              <span className="admin-field-browser__range-sep">–</span>
+              <input
+                type="number"
+                min="0"
+                placeholder="Max"
+                aria-label="Maximum issues with value"
+                value={maxIssues}
+                onChange={(e) => setMaxIssues(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="admin-field-browser__filter-group">
+            <span className="admin-field-browser__filter-group-label">Active projects</span>
+            <div className="admin-field-browser__range-inputs">
+              <input
+                type="number"
+                min="0"
+                placeholder="Min"
+                aria-label="Minimum active projects"
+                value={minActiveProjects}
+                onChange={(e) => setMinActiveProjects(e.target.value)}
+              />
+              <span className="admin-field-browser__range-sep">–</span>
+              <input
+                type="number"
+                min="0"
+                placeholder="Max"
+                aria-label="Maximum active projects"
+                value={maxActiveProjects}
+                onChange={(e) => setMaxActiveProjects(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="admin-field-browser__filter-group">
+            <span className="admin-field-browser__filter-group-label">Contexts</span>
+            <div className="admin-field-browser__range-inputs">
+              <input
+                type="number"
+                min="0"
+                placeholder="Min"
+                aria-label="Minimum contexts"
+                value={minContexts}
+                onChange={(e) => setMinContexts(e.target.value)}
+              />
+              <span className="admin-field-browser__range-sep">–</span>
+              <input
+                type="number"
+                min="0"
+                placeholder="Max"
+                aria-label="Maximum contexts"
+                value={maxContexts}
+                onChange={(e) => setMaxContexts(e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Findings filter chips */}
+      <div className="findings-filter-bar" style={{ marginTop: 4 }}>
+        {findingsChips.map((chip) => (
+          <button
+            key={chip.key}
+            type="button"
+            className={`findings-filter-button${findingsFilter === chip.key ? " findings-filter-button--active" : ""}`}
+            onClick={() => { setFindingsFilter(chip.key); setPage(1); }}
+          >
+            <span>{chip.label}</span>
+            {typeof chip.count === "number" ? <strong>{chip.count}</strong> : null}
+          </button>
+        ))}
       </div>
 
       {loadError && <div className="error-banner">{loadError}</div>}
 
+      <div className="admin-field-browser__report-bar">
+        <span className="admin-field-browser__report-selection">
+          {selectedFieldIds.length > 0
+            ? `${selectedFieldIds.length} ${selectedFieldIds.length === 1 ? "field" : "fields"} selected for report`
+            : "No fields selected"}
+        </span>
+        <div className="admin-field-browser__report-actions">
+          <button
+            className="secondary-button secondary-button--small"
+            type="button"
+            onClick={selectAllFiltered}
+            disabled={selectingAll || loading || !total}
+          >
+            {selectingAll ? "Selecting…" : "Select filtered"}
+          </button>
+          {selectedFieldIds.length > 0 && (
+            <button
+              className="secondary-button secondary-button--small"
+              type="button"
+              onClick={() => onSetSelectedFieldIds?.([])}
+            >
+              Clear
+            </button>
+          )}
+          <button
+            className="primary-button"
+            type="button"
+            onClick={onGoToReport}
+            disabled={!selectedFieldIds.length}
+          >
+            <Icon name="barChart" size={13} />
+            {`Generate report (${selectedFieldIds.length})`}
+          </button>
+        </div>
+      </div>
+
+      <PaginationBar top />
+
       {loading && !fields.length ? (
         <div className="empty-state">Loading fields…</div>
-      ) : fields.length === 0 ? (
+      ) : fields.length === 0 && !loading ? (
         <div className="empty-state">No fields match the current filter.</div>
       ) : (
         <div className="admin-field-list">
           {fields.map((field) => {
             const isOpen = openFieldId === field.id;
-            const displayName = toDisplayName(field.name || field.id);
-            const tags = field.findings?.tags || {};
+            const detail = fieldDetails[field.id] || null;
             return (
-              <div key={field.id} className={`admin-field-row ${isOpen ? "admin-field-row--open" : ""}`}>
-                <button
-                  className="admin-field-row__header"
-                  type="button"
-                  onClick={() => openField(field.id)}
-                  aria-expanded={isOpen}
-                >
-                  <span className="admin-field-row__name">{displayName}</span>
-                  <span className="admin-field-row__id">{field.id}</span>
-                  <span className="admin-field-row__type">{field.type}</span>
-                  <div className="admin-field-row__meta">
-                    <span>{(field.totalIssueCount || 0).toLocaleString()} issues</span>
-                    <span>{field.activeProjectCount || 0} projects</span>
-                  </div>
-                  <div className="admin-field-row__tags">
-                    {tags.adminAttention && <span className="admin-field-tag admin-field-tag--danger">admin</span>}
-                    {tags.risky && <span className="admin-field-tag admin-field-tag--warn">risky</span>}
-                    {tags.cleanup && <span className="admin-field-tag admin-field-tag--neutral">cleanup</span>}
-                    {tags.standardize && <span className="admin-field-tag admin-field-tag--neutral">standardize</span>}
-                  </div>
-                  <span className="admin-field-row__chevron"><Icon name={isOpen ? "x" : "activity"} size={14} /></span>
-                </button>
-                {isOpen && (
-                  <div className="admin-field-detail">
-                    {detailLoading && !fieldDetail ? (
-                      <div className="admin-field-detail-loading">Loading field details…</div>
-                    ) : detailError ? (
-                      <div className="error-banner" style={{ margin: 0 }}>{detailError}</div>
-                    ) : fieldDetail ? (
-                      <FieldDetailPanel
-                        detail={fieldDetail}
-                        detailPage={detailPage}
-                        onPageChange={(pg) => loadDetailPage(field.id, pg)}
-                        loading={detailLoading}
-                      />
-                    ) : null}
-                  </div>
-                )}
-              </div>
+              <FieldCard
+                key={field.id}
+                field={field}
+                details={isOpen ? detail : null}
+                expanded={isOpen}
+                loading={isOpen && detailLoading && !detail}
+                selected={selectedSet.has(field.id)}
+                onSelectChange={(id, checked) => onToggleField?.(id, checked)}
+                onToggle={() => openField(field.id)}
+                onProjectUsagePageChange={loadDetailPage}
+                onRefreshProjectUsage={refreshProjectUsage}
+                onAskField={() => {
+                  const d = fieldDetails[field.id];
+                  openFieldExpertRovo(buildFieldRovoPrompt({ field, details: d })).catch(() => {});
+                }}
+                onAskProject={(project) => {
+                  openFieldExpertRovo(buildProjectRovoPrompt({ field, project })).catch(() => {});
+                }}
+                siteOrigin={siteOrigin}
+                rovoEnabled={rovoEnabled}
+              />
             );
           })}
         </div>
       )}
 
-      <div className="admin-field-browser__footer">
-        {totalPages > 1 ? (
-          <div className="admin-pagination">
-            <button disabled={page <= 1} className="secondary-button secondary-button--small" type="button" onClick={() => setPage((p) => p - 1)}>Prev</button>
-            <span className="admin-pagination__info">Page {page} of {totalPages} · {total.toLocaleString()} fields</span>
-            <button disabled={page >= totalPages} className="secondary-button secondary-button--small" type="button" onClick={() => setPage((p) => p + 1)}>Next</button>
-          </div>
-        ) : total > 0 ? (
-          <span className="admin-field-browser__count">{total.toLocaleString()} fields</span>
-        ) : null}
+      {total > 0 && <PaginationBar />}
+    </div>
+  );
+}
+
+// ── Reports tab (self-contained) ──────────────────────────────────────────
+
+function ReportsTab({ siteOrigin, selectedFieldIds, onSetSelectedFieldIds, autoGenerate, onAutoGenerateConsumed }) {
+  const [reportData, setReportData] = React.useState(null);
+  const [loadingReport, setLoadingReport] = React.useState(false);
+  const [savedReports, setSavedReports] = React.useState([]);
+  const [reportNameInput, setReportNameInput] = React.useState("");
+  const [activeReportName, setActiveReportName] = React.useState("");
+  const [savingReport, setSavingReport] = React.useState(false);
+  const [deletingReportId, setDeletingReportId] = React.useState("");
+  const [error, setError] = React.useState("");
+  const [rovoEnabled, setRovoEnabled] = React.useState(false);
+
+  React.useEffect(() => {
+    invoke("getSavedReports").then((r) => setSavedReports(r.reports || [])).catch(() => {});
+    view.getContext().then(() => setRovoEnabled(true)).catch(() => {});
+  }, []);
+
+  React.useEffect(() => {
+    if (autoGenerate && selectedFieldIds.length) {
+      onAutoGenerateConsumed?.();
+      generateReport();
+    }
+  }, [autoGenerate]);
+
+  async function generateReport(fieldIdsOverride = null, nameOverride = "") {
+    const fieldIds = fieldIdsOverride?.length ? fieldIdsOverride : selectedFieldIds;
+    if (!fieldIds.length) { setError("Select at least one field in the Field Browser to generate a report."); return; }
+    setLoadingReport(true);
+    setReportData(null);
+    try {
+      const nextName = nameOverride || reportNameInput.trim() || "Project Usage Report";
+      setActiveReportName(nextName);
+      const result = await invoke("getProjectUsageReport", { fieldIds });
+      setReportData(result);
+    } catch (err) {
+      setError(err.message || "Failed to generate report.");
+    } finally {
+      setLoadingReport(false);
+    }
+  }
+
+  async function saveCurrentReport() {
+    if (!reportNameInput.trim()) { setError("Enter a report name before saving."); return; }
+    setSavingReport(true);
+    try {
+      const existing = savedReports.find((r) => r.name.toLowerCase() === reportNameInput.trim().toLowerCase());
+      const result = await invoke("saveReportDefinition", { reportId: existing?.reportId || "", name: reportNameInput.trim(), fieldIds: selectedFieldIds });
+      setSavedReports(result.reports || []);
+      setActiveReportName(reportNameInput.trim());
+    } catch (err) {
+      setError(err.message || "Failed to save report.");
+    } finally {
+      setSavingReport(false);
+    }
+  }
+
+  async function loadSavedReport(report) {
+    onSetSelectedFieldIds(report.fieldIds || []);
+    setReportNameInput(report.name || "");
+    await generateReport(report.fieldIds || [], report.name || "");
+  }
+
+  async function removeSavedReport(reportId) {
+    setDeletingReportId(reportId);
+    try {
+      const result = await invoke("deleteReportDefinition", { reportId });
+      setSavedReports(result.reports || []);
+    } catch (err) {
+      setError(err.message || "Failed to delete report.");
+    } finally {
+      setDeletingReportId("");
+    }
+  }
+
+  function exportCsv(overrideData = null) {
+    const exportData = overrideData || reportData;
+    if (!exportData?.fields?.length) { setError("No report data available to export."); return; }
+    const header = ["Field ID", "Field Name", ...exportData.projects.map((p) => p.projectKey)];
+    const rows = [];
+    for (const group of groupReportFieldsByType(exportData.fields)) {
+      rows.push([`${group.fieldType.toUpperCase()} FIELDS`, "", ...exportData.projects.map(() => "")]);
+      for (const field of group.fields) {
+        const cellByProjectId = new Map(field.projects.map((p) => [p.projectId, p]));
+        const cells = exportData.projects.map((project) => {
+          const cell = cellByProjectId.get(project.projectId);
+          if (!cell) return "";
+          const href = buildJiraSearchUrl(siteOrigin, cell.jql);
+          return href ? `=HYPERLINK("${href.replace(/"/g, '""')}", "${cell.issueCount} issues")` : `${cell.issueCount}`;
+        });
+        rows.push([field.fieldId, field.fieldName, ...cells]);
+      }
+    }
+    downloadCsv(`${slugifyFilenamePart(activeReportName, "project-usage-report")}.csv`, [header, ...rows]);
+  }
+
+  async function askRovo({ fields, projects, pendingFields, reportSummary }) {
+    try {
+      await openFieldExpertRovo(buildReportRovoPrompt({ reportName: activeReportName, fields, projects, pendingFields, reportSummary }));
+    } catch (err) {
+      setError(err.message || "Failed to open Rovo.");
+    }
+  }
+
+  return (
+    <div className="admin-reports-tab">
+      {error && <div className="error-banner" style={{ margin: "0 0 12px 0" }}>{error}<button className="inline-text-button" type="button" onClick={() => setError("")} style={{ marginLeft: 10 }}>Dismiss</button></div>}
+      <div className="admin-reports-toolbar">
+        <span className="admin-reports-toolbar__hint">Select fields in the Field Browser tab to build a report.</span>
+        <button
+          className="primary-button"
+          type="button"
+          onClick={() => generateReport()}
+          disabled={loadingReport || !selectedFieldIds.length}
+        >
+          <Icon name="barChart" size={14} />
+          {loadingReport ? "Generating…" : `Generate report (${selectedFieldIds.length} fields)`}
+        </button>
       </div>
+      <ReportErrorBoundary resetKey={`${activeReportName}-${selectedFieldIds.join(",")}`}>
+        <ProjectUsageReportView
+          reportData={reportData}
+          reportName={activeReportName}
+          reportJob={loadingReport ? { status: "building", processedFields: 0, totalFields: selectedFieldIds.length, percentComplete: 0 } : null}
+          siteOrigin={siteOrigin}
+          onExportCsv={exportCsv}
+          onAskReport={askRovo}
+          savedReports={savedReports}
+          selectedFieldIds={selectedFieldIds}
+          reportNameInput={reportNameInput}
+          onReportNameChange={setReportNameInput}
+          onSaveReport={saveCurrentReport}
+          onLoadReport={loadSavedReport}
+          onDeleteReport={removeSavedReport}
+          savingReport={savingReport}
+          deletingReportId={deletingReportId}
+          rovoEnabled={rovoEnabled}
+        />
+      </ReportErrorBoundary>
+    </div>
+  );
+}
+
+// ── Scan components ───────────────────────────────────────────────────────
+
+function ActivitySection({ title, subtitle, open, onToggle, actions, children }) {
+  return (
+    <section className="activity-section">
+      <button className="activity-section__header" type="button" onClick={onToggle} aria-expanded={open}>
+        <div className="activity-section__copy">
+          <div className="snapshot-log-entries__heading">{title}</div>
+          {subtitle ? <div className="saved-reports-panel__subtitle">{subtitle}</div> : null}
+        </div>
+        <div className="activity-section__controls">
+          {actions ? <div className="section-heading__actions">{actions}</div> : null}
+          <span className={`activity-section__chevron ${open ? "activity-section__chevron--open" : ""}`}>
+            <Icon name={open ? "x" : "activity"} size={16} />
+          </span>
+        </div>
+      </button>
+      {open ? <div className="activity-section__body">{children}</div> : null}
+    </section>
+  );
+}
+
+function DeltaIssueScanPanel({ deltaIssueScan, onStartDelta, issueScanDeltaStarting }) {
+  const deltaActive = deltaIssueScan?.state === "building" || deltaIssueScan?.state === "queued";
+  const deltaReady = deltaIssueScan?.state === "ready";
+  const deltaFailed = deltaIssueScan?.state === "failed";
+  const deltaPercent = deltaIssueScan?.totalIssues > 0 ? Math.min(100, Math.round((Number(deltaIssueScan.processedIssues || 0) / Number(deltaIssueScan.totalIssues)) * 100)) : 0;
+  return (
+    <div className="delta-scan-panel">
+      <div className="delta-scan-panel__header">
+        <span className="delta-scan-panel__title">Quick Scan (24h)</span>
+        {deltaReady && deltaIssueScan?.completedAt && (
+          <span className="delta-scan-panel__done">Last ran {formatShortTime(deltaIssueScan.completedAt)} · {(deltaIssueScan.processedIssues || 0).toLocaleString()} issues{deltaIssueScan.fieldProjectPairsUpdated > 0 ? ` · ${deltaIssueScan.fieldProjectPairsUpdated.toLocaleString()} pairs updated` : ""}</span>
+        )}
+      </div>
+      <p className="delta-scan-panel__desc">Scans issues created or updated in the last 24h, refreshes field usage counts for all touched field×project pairs. Runs automatically after each full scan and inventory snapshot.</p>
+      {deltaActive && (
+        <div className="delta-scan-panel__progress">
+          <div className="issue-scan-panel__bar-track"><div className="issue-scan-panel__bar-fill" style={{ width: `${deltaPercent}%` }} /></div>
+          <div className="issue-scan-panel__status">{deltaIssueScan?.state === "queued" ? "Queued..." : `${deltaPercent}% — ${(deltaIssueScan?.processedIssues || 0).toLocaleString()} of ${(deltaIssueScan?.totalIssues || 0).toLocaleString()} issues`}</div>
+        </div>
+      )}
+      {deltaFailed && deltaIssueScan?.lastError && <div className="issue-scan-panel__error">{deltaIssueScan.lastError}</div>}
+      <div className="delta-scan-panel__actions">
+        <button className="secondary-button secondary-button--small" type="button" onClick={onStartDelta} disabled={issueScanDeltaStarting || deltaActive}>
+          {issueScanDeltaStarting || deltaActive ? "Running..." : "Run quick scan"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function UniverseScanPanel({ issueScan, onStart, onResume, onCancel, issueScanLoading, issueScanResuming, issueScanCancelling, deltaIssueScan, onStartDelta, issueScanDeltaStarting }) {
+  const scanActive = issueScan?.state === "building" || issueScan?.state === "queued";
+  const scanDone = issueScan?.state === "ready";
+  const lastScanLogAt = issueScan?.progressLog?.length ? issueScan.progressLog[issueScan.progressLog.length - 1]?.t : issueScan?.startedAt;
+  const scanStale = lastScanLogAt ? (Date.now() - new Date(lastScanLogAt).getTime()) > 10 * 60 * 1000 : scanActive;
+  const canResume = issueScan && !scanDone && ((scanActive && scanStale) || issueScan?.state === "failed" || issueScan?.state === "cancelled");
+  const canForceResume = scanActive && scanStale;
+  const processedIssues = Number(issueScan?.processedIssues || 0);
+  const totalIssues = Number(issueScan?.totalIssues || 0);
+  const processedProjects = Number(issueScan?.processedPages || 0);
+  const totalProjects = Number(issueScan?.totalPages || 0);
+  const scanPercent = totalProjects > 0 ? Math.min(100, Math.round(processedProjects / totalProjects * 100)) : 0;
+  const entries = issueScan?.progressLog?.length ? [...issueScan.progressLog].reverse() : [];
+  const elapsed = useLiveDuration(scanActive ? issueScan?.startedAt : null);
+  const etaLabel = React.useMemo(() => {
+    if (!scanActive) return null;
+    const doneWorkers = Number(issueScan?.processedPages || 0);
+    const totalWorkers = Number(issueScan?.totalPages || 0);
+    if (doneWorkers < 1 || totalWorkers <= doneWorkers) return null;
+    const startMs = issueScan?.startedAt ? new Date(issueScan.startedAt).getTime() : 0;
+    if (!startMs) return null;
+    const elapsedSec = (Date.now() - startMs) / 1000;
+    const rate = doneWorkers / elapsedSec;
+    if (rate <= 0) return null;
+    const remainingSec = Math.round((totalWorkers - doneWorkers) / rate);
+    const m = Math.floor(remainingSec / 60), s = remainingSec % 60;
+    return m > 0 ? `~${m}m ${s}s remaining` : `~${s}s remaining`;
+  }, [scanActive, issueScan?.processedPages, issueScan?.totalPages, issueScan?.startedAt, elapsed]);
+
+  return (
+    <div className="issue-scan-panel">
+      <div className="issue-scan-panel__header">
+        <span className="issue-scan-panel__title">Universe Scan</span>
+        {scanDone && issueScan?.completedAt && <span className="issue-scan-panel__done">{(issueScan.processedIssues || issueScan.totalIssues || 0).toLocaleString()} issues scanned</span>}
+      </div>
+      {scanActive ? (
+        <div className="issue-scan-panel__progress">
+          <div className="issue-scan-panel__bar-track"><div className="issue-scan-panel__bar-fill" style={{ width: `${scanPercent}%` }} /></div>
+          <div className="issue-scan-panel__status">
+            <span className="issue-scan-panel__status-main">{totalProjects > 0 ? `${scanPercent}% — ${processedIssues > 0 ? `${processedIssues.toLocaleString()} issues scanned — ` : ""}${processedProjects.toLocaleString()}/${totalProjects.toLocaleString()} workers` : "Starting…"}</span>
+            <span className="issue-scan-panel__status-meta">
+              {elapsed ? <span className="issue-scan-panel__elapsed">{elapsed}</span> : null}
+              {etaLabel ? <span className="issue-scan-panel__eta">{etaLabel}</span> : null}
+            </span>
+          </div>
+          <div className="issue-scan-panel__buttons">
+            {canForceResume && <button className="secondary-button secondary-button--small" type="button" onClick={onResume} disabled={issueScanResuming}>{issueScanResuming ? "Resuming..." : "Resume"}</button>}
+            <button className="secondary-button secondary-button--small" type="button" onClick={onCancel} disabled={issueScanCancelling}>{issueScanCancelling ? "Cancelling..." : "Cancel scan"}</button>
+          </div>
+        </div>
+      ) : (
+        <div className="issue-scan-panel__actions">
+          <p className="issue-scan-panel__desc">{scanDone ? "Unique issue counts are shown per project. Re-scan to refresh." : "Scan all issues once to get accurate unique issue counts per project."}</p>
+          <button className="secondary-button secondary-button--small" type="button" onClick={canResume ? onResume : onStart} disabled={canResume ? issueScanResuming : issueScanLoading}>
+            {canResume ? (issueScanResuming ? "Resuming..." : "Resume scan") : (issueScanLoading ? "Starting..." : scanDone ? "Re-scan all issues" : "Scan all issues")}
+          </button>
+          {issueScan?.state === "failed" && issueScan?.lastError && <div className="issue-scan-panel__error">{issueScan.lastError}</div>}
+        </div>
+      )}
+      {entries.length ? (
+        <div className="scan-log issue-scan-panel__log">
+          {entries.map((entry, i) => (
+            <div key={i} className="scan-log__entry">
+              <span className="scan-log__time">{formatShortTime(entry.t)}</span>
+              <span className="scan-log__msg">{entry.msg}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="empty-state empty-state--inline">{scanActive ? "Waiting for the scan log to populate..." : "No universe scan log entries yet."}</div>
+      )}
+      <DeltaIssueScanPanel deltaIssueScan={deltaIssueScan} onStartDelta={onStartDelta} issueScanDeltaStarting={issueScanDeltaStarting} />
+    </div>
+  );
+}
+
+// ── Scans tab (self-contained) ────────────────────────────────────────────
+
+function ScansTab({ siteOrigin }) {
+  const [issueScanStatus, setIssueScanStatus] = React.useState(null);
+  const [deltaIssueScanStatus, setDeltaIssueScanStatus] = React.useState(null);
+  const [issueScanLoading, setIssueScanLoading] = React.useState(false);
+  const [issueScanResuming, setIssueScanResuming] = React.useState(false);
+  const [issueScanCancelling, setIssueScanCancelling] = React.useState(false);
+  const [issueScanDeltaStarting, setIssueScanDeltaStarting] = React.useState(false);
+  const [collapsedSections, setCollapsedSections] = React.useState({ universe: false, rqt: false });
+  const [error, setError] = React.useState("");
+
+  const fetchIssueScanStatus = React.useCallback(async () => {
+    try { const r = await invoke("getIssueScanStatus"); setIssueScanStatus(r?.meta || null); } catch (err) { setError(err.message || "Failed to load universe scan status."); }
+  }, []);
+
+  const fetchDeltaStatus = React.useCallback(async () => {
+    try { const r = await invoke("getDeltaIssueScanStatus"); setDeltaIssueScanStatus(r?.meta || null); } catch {}
+  }, []);
+
+  React.useEffect(() => { fetchIssueScanStatus(); fetchDeltaStatus(); }, []);
+
+  React.useEffect(() => {
+    const active = issueScanStatus?.state === "building" || issueScanStatus?.state === "queued";
+    if (!active) return;
+    const timer = setInterval(() => { fetchIssueScanStatus(); fetchDeltaStatus(); }, 8000);
+    return () => clearInterval(timer);
+  }, [issueScanStatus?.state]);
+
+  async function startScan() {
+    setIssueScanLoading(true);
+    try { await invoke("startIssueScan"); await fetchIssueScanStatus(); } catch (err) { setError(err.message || "Failed to start universe scan."); } finally { setIssueScanLoading(false); }
+  }
+
+  async function resumeScan() {
+    setIssueScanResuming(true);
+    try {
+      const result = await invoke("resumeIssueScan");
+      if (result?.resumed === false) setError({ "already-complete": "Universe scan is already complete.", "no-scan": "No universe scan exists to resume." }[result.reason] || "Universe scan could not be resumed.");
+      await fetchIssueScanStatus();
+    } catch (err) { setError(err.message || "Failed to resume universe scan."); } finally { setIssueScanResuming(false); }
+  }
+
+  async function cancelScan() {
+    setIssueScanCancelling(true);
+    try { await invoke("cancelIssueScan"); await fetchIssueScanStatus(); } catch (err) { setError(err.message || "Failed to cancel scan."); } finally { setIssueScanCancelling(false); }
+  }
+
+  async function startDeltaScan() {
+    setIssueScanDeltaStarting(true);
+    try { await invoke("startDeltaIssueScan"); await fetchDeltaStatus(); } catch (err) { setError(err.message || "Failed to start quick scan."); } finally { setIssueScanDeltaStarting(false); }
+  }
+
+  function toggleSection(key) { setCollapsedSections((prev) => ({ ...prev, [key]: !prev[key] })); }
+
+  return (
+    <div className="admin-scans-tab">
+      {error && <div className="error-banner" style={{ margin: "0 0 12px 0" }}>{error}<button className="inline-text-button" type="button" onClick={() => setError("")} style={{ marginLeft: 10 }}>Dismiss</button></div>}
+      <ActivitySection title="Universe Scan" subtitle="Full-site issue crawl used to derive unique issue counts per project." open={!collapsedSections.universe} onToggle={() => toggleSection("universe")}>
+        <UniverseScanPanel
+          issueScan={issueScanStatus}
+          onStart={startScan}
+          onResume={resumeScan}
+          onCancel={cancelScan}
+          issueScanLoading={issueScanLoading}
+          issueScanResuming={issueScanResuming}
+          issueScanCancelling={issueScanCancelling}
+          deltaIssueScan={deltaIssueScanStatus}
+          onStartDelta={startDeltaScan}
+          issueScanDeltaStarting={issueScanDeltaStarting}
+        />
+      </ActivitySection>
+      <ActivitySection title="RQT Index" subtitle="Requirement ID tracking across all custom field values." open={!collapsedSections.rqt} onToggle={() => toggleSection("rqt")}>
+        <RqtIndexView siteOrigin={siteOrigin} />
+      </ActivitySection>
     </div>
   );
 }
 
 // ── Root app ───────────────────────────────────────────────────────────────
 
-function AdminApp() {
+export function AdminApp() {
   const [activeTab, setActiveTab] = React.useState("overview");
   const [theme, setTheme] = React.useState(() => localStorage.getItem("atlasiq-field-theme") || "dark");
   const [overview, setOverview] = React.useState(null);
@@ -1177,6 +1618,9 @@ function AdminApp() {
   const [cancellingId, setCancellingId] = React.useState("");
   const [restartingId, setRestartingId] = React.useState("");
   const [resumingId, setResumingId] = React.useState("");
+  const [siteOrigin, setSiteOrigin] = React.useState("");
+  const [selectedFieldIds, setSelectedFieldIds] = React.useState([]);
+  const [pendingReportGenerate, setPendingReportGenerate] = React.useState(false);
 
   React.useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -1223,7 +1667,19 @@ function AdminApp() {
 
   React.useEffect(() => {
     loadOverview();
+    view.getContext().then((ctx) => {
+      const origin = normalizeSiteOrigin(ctx?.siteUrl || ctx?.extension?.siteUrl || ctx?.extensionContext?.siteUrl);
+      if (origin) setSiteOrigin(origin);
+    }).catch(() => {});
   }, []);
+
+  function toggleFieldSelection(fieldId, checked) {
+    setSelectedFieldIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(fieldId); else next.delete(fieldId);
+      return [...next];
+    });
+  }
 
   React.useEffect(() => {
     if (activeTab === "jobs" && !jobs.length) {
@@ -1330,6 +1786,8 @@ function AdminApp() {
     { key: "overview", label: "Overview", icon: "barChart" },
     { key: "fields", label: "Field Browser", icon: "layers" },
     { key: "projects", label: "Project Usage", icon: "folder" },
+    { key: "reports", label: "Reports", icon: "barChart" },
+    { key: "scans", label: "Scans", icon: "zap" },
     { key: "jobs", label: "Field Usage Jobs", icon: "activity" },
     { key: "config", label: "Configuration", icon: "settings" },
   ];
@@ -1396,9 +1854,19 @@ function AdminApp() {
           <OverviewTab overview={overview} onBuildSnapshot={handleBuildSnapshot} buildingSnapshot={buildingSnapshot} onRefresh={handleRefreshOverview} refreshingOverview={refreshingOverview} onMigrateNamespace={handleMigrateNamespace} migratingNamespace={migratingNamespace} />
         )
       ) : activeTab === "fields" ? (
-        <FieldBrowserTab />
+        <FieldBrowserTab
+          selectedFieldIds={selectedFieldIds}
+          onToggleField={toggleFieldSelection}
+          onSetSelectedFieldIds={setSelectedFieldIds}
+          onGoToReport={() => { setActiveTab("reports"); setPendingReportGenerate(true); }}
+          siteOrigin={siteOrigin}
+        />
       ) : activeTab === "projects" ? (
-        <ProjectUsageTab />
+        <ProjectUsageTab siteOrigin={siteOrigin} />
+      ) : activeTab === "reports" ? (
+        <ReportsTab siteOrigin={siteOrigin} selectedFieldIds={selectedFieldIds} onSetSelectedFieldIds={setSelectedFieldIds} autoGenerate={pendingReportGenerate} onAutoGenerateConsumed={() => setPendingReportGenerate(false)} />
+      ) : activeTab === "scans" ? (
+        <ScansTab siteOrigin={siteOrigin} />
       ) : activeTab === "jobs" ? (
         <JobsTab
           jobs={jobs}
@@ -1421,17 +1889,20 @@ function AdminApp() {
   );
 }
 
-try {
-  ReactDOM.createRoot(document.getElementById("root")).render(
-    <React.StrictMode>
-      <AdminApp />
-    </React.StrictMode>
-  );
-  if (bootStatusNode) bootStatusNode.remove();
-} catch (error) {
-  if (bootStatusNode) {
-    bootStatusNode.dataset.state = "error";
-    bootStatusNode.textContent = `React mount failed: ${error.message || "Unknown error"}`;
+const rootNode = document.getElementById("root");
+if (rootNode) {
+  try {
+    ReactDOM.createRoot(rootNode).render(
+      <React.StrictMode>
+        <AdminApp />
+      </React.StrictMode>
+    );
+    if (bootStatusNode) bootStatusNode.remove();
+  } catch (error) {
+    if (bootStatusNode) {
+      bootStatusNode.dataset.state = "error";
+      bootStatusNode.textContent = `React mount failed: ${error.message || "Unknown error"}`;
+    }
+    throw error;
   }
-  throw error;
 }

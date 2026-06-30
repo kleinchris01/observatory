@@ -98,6 +98,45 @@ select {
   padding-right: 0;
 }
 
+/* Admin report table: scroll in place, don't blow out iframe width */
+.admin-shell .snapshot-log-entries {
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.admin-shell .report-table-wrap {
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: 65vh;
+}
+
+.admin-shell .report-table thead th:not(:first-child),
+.admin-shell .report-table td:not(:first-child) {
+  max-width: 130px;
+  min-width: 90px;
+}
+
+.admin-shell .report-table thead th:first-child,
+.admin-shell .report-table tbody th {
+  min-width: 180px;
+  max-width: 220px;
+  width: 200px;
+}
+
+.admin-shell .report-table .field-card__eyebrow {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 108px;
+}
+
+.admin-shell .report-table .report-table__field-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 190px;
+}
+
 .app-shell--projects .snapshot-log-view,
 .app-shell--projects .snapshot-log-layout,
 .app-shell--projects .snapshot-log-entries,
@@ -3623,11 +3662,175 @@ code {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  align-items: center;
 }
 
 .admin-field-browser__toolbar .admin-jobs-search {
   flex: 1 1 220px;
   min-width: 0;
+}
+
+.admin-field-browser__toolbar select {
+  min-height: 36px;
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-md);
+  padding: 0 10px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  color-scheme: var(--control-scheme, dark);
+  font-size: 13px;
+}
+
+.admin-field-browser__toolbar select option,
+.admin-field-browser__toolbar select optgroup {
+  background: #1f2227;
+  color: #f4efe7;
+}
+
+:root[data-theme="light"] .admin-field-browser__toolbar select option,
+:root[data-theme="light"] .admin-field-browser__toolbar select optgroup {
+  background: #ffffff;
+  color: #1f1a17;
+}
+
+.admin-field-browser__filter-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  min-height: 36px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--stroke);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.admin-field-browser__filter-toggle--active {
+  border-color: rgba(121, 184, 255, 0.5);
+  background: rgba(121, 184, 255, 0.12);
+  color: var(--cool);
+}
+
+.admin-field-browser__filter-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--cool);
+  color: #0b1620;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.admin-field-browser__clear-filters {
+  padding: 7px 12px;
+  min-height: 36px;
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--stroke);
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.admin-field-browser__clear-filters:hover {
+  color: var(--text);
+  border-color: var(--cool);
+}
+
+.admin-field-browser__filter-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 12px 14px;
+  background: var(--panel);
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-md);
+}
+
+.admin-field-browser__filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.admin-field-browser__filter-group-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.admin-field-browser__filter-group-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-field-browser__filter-group-controls select {
+  min-height: 32px;
+  border: 1px solid var(--stroke);
+  border-radius: 10px;
+  padding: 0 10px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  color-scheme: var(--control-scheme, dark);
+  font-size: 12px;
+}
+
+.admin-field-browser__filter-group-controls select option,
+.admin-field-browser__filter-group-controls select optgroup {
+  background: #1f2227;
+  color: #f4efe7;
+}
+
+:root[data-theme="light"] .admin-field-browser__filter-group-controls select option,
+:root[data-theme="light"] .admin-field-browser__filter-group-controls select optgroup {
+  background: #ffffff;
+  color: #1f1a17;
+}
+
+.admin-field-browser__checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.admin-field-browser__range-inputs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.admin-field-browser__range-inputs input[type="number"] {
+  width: 70px;
+  min-height: 32px;
+  border: 1px solid var(--stroke);
+  border-radius: 10px;
+  padding: 0 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.admin-field-browser__range-sep {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .admin-field-browser__footer {
@@ -3752,6 +3955,153 @@ code {
   color: var(--muted);
   display: flex;
   align-items: center;
+}
+
+/* Upgraded card layout — primary column + stats column */
+
+.admin-field-row__header {
+  align-items: flex-start;
+}
+
+/* Inside the new column primary, the name must not carry its old flex-basis
+   (180px) which becomes a min-height in a column flex container. */
+.admin-field-row__primary .admin-field-row__name {
+  flex: none;
+  white-space: normal;
+}
+
+.admin-field-row__primary {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.admin-field-row__eyebrow {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--muted);
+}
+
+.admin-field-row__desc {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 560px;
+}
+
+.admin-field-row__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.admin-field-row__stats {
+  display: flex;
+  gap: 20px;
+  flex-shrink: 0;
+  align-items: flex-start;
+  padding-top: 2px;
+}
+
+.admin-field-row__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 64px;
+}
+
+.admin-field-row__stat-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.admin-field-row__stat strong {
+  font-size: 13px;
+}
+
+.admin-field-tag--muted {
+  background: rgba(127, 127, 127, 0.1);
+  color: var(--muted);
+}
+
+/* Report action bar */
+
+.admin-field-browser__report-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  margin: 6px 0;
+  background: rgba(121, 184, 255, 0.05);
+  border: 1px solid rgba(121, 184, 255, 0.12);
+  border-radius: 8px;
+}
+
+.admin-field-browser__report-selection {
+  font-size: 12px;
+  color: var(--text-muted, rgba(255,255,255,0.5));
+  white-space: nowrap;
+}
+
+.admin-field-browser__report-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* Pagination bar */
+
+.admin-field-browser__pagebar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.admin-field-browser__pagebar--top {
+  margin-bottom: 4px;
+}
+
+.admin-field-browser__page-nav {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.admin-field-browser__pagesize {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  margin-right: 4px;
+}
+
+.admin-field-browser__pagesize-btn {
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--stroke);
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.admin-field-browser__pagesize-btn--active {
+  background: rgba(121, 184, 255, 0.15);
+  border-color: rgba(121, 184, 255, 0.4);
+  color: var(--cool);
+  font-weight: 700;
 }
 
 /* ── Field detail panel ───────────────────────────────────────────────────── */

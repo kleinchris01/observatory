@@ -281,7 +281,7 @@ const projectStoreMigrations = migrationRunner
 
 let migrationPromise = null;
 
-function chunkArray(items, size) {
+export function chunkArray(items, size) {
   const chunks = [];
   for (let i = 0; i < items.length; i += size) {
     chunks.push(items.slice(i, i + size));
@@ -289,7 +289,7 @@ function chunkArray(items, size) {
   return chunks;
 }
 
-function safeParseJson(value, fallback) {
+export function safeParseJson(value, fallback) {
   if (!value) return fallback;
   try {
     return JSON.parse(value);
@@ -298,16 +298,16 @@ function safeParseJson(value, fallback) {
   }
 }
 
-function toNumber(value, fallback = 0) {
+export function toNumber(value, fallback = 0) {
   const next = Number(value);
   return Number.isFinite(next) ? next : fallback;
 }
 
-function isSqlRateLimitError(error) {
+export function isSqlRateLimitError(error) {
   return error?.code === "RATE_LIMIT_EXCEEDED" || error?.responseDetails?.status === 429;
 }
 
-async function withSqlRetry(operation) {
+export async function withSqlRetry(operation) {
   for (let attempt = 0; attempt < 6; attempt++) {
     try {
       return await operation();
@@ -472,7 +472,7 @@ export async function loadSnapshotFields(scopeKey, version) {
 export async function loadSnapshotField(scopeKey, version, fieldId) {
   await ensureProjectStoreReady();
 
-  const result = await sql
+  const result = await withSqlRetry(() => sql
     .prepare(`
       SELECT
         field_id,
@@ -496,7 +496,7 @@ export async function loadSnapshotField(scopeKey, version, fieldId) {
       LIMIT 1
     `)
     .bindParams(scopeKey, version, fieldId)
-    .execute();
+    .execute());
 
   const row = result.rows?.[0];
   if (!row) {
@@ -673,7 +673,7 @@ export async function loadSnapshotProjectUsage(scopeKey, version, fieldId, limit
 export async function loadAllSnapshotProjectUsage(scopeKey, version, fieldId) {
   await ensureProjectStoreReady();
 
-  const result = await sql
+  const result = await withSqlRetry(() => sql
     .prepare(`
         SELECT
           project_id,
@@ -689,7 +689,40 @@ export async function loadAllSnapshotProjectUsage(scopeKey, version, fieldId) {
       ORDER BY issue_count DESC, project_key ASC
     `)
     .bindParams(scopeKey, version, fieldId)
-    .execute();
+    .execute());
+
+  return (result.rows || []).map((row) => ({
+    projectId: row.project_id,
+    projectKey: row.project_key,
+    projectName: row.project_name,
+    issueCount: toNumber(row.issue_count),
+    jql: row.jql || null,
+    latestFieldChangeAt: row.latest_field_change_at || null,
+    latestIssueKey: row.latest_issue_key || null,
+    latestIssueUpdatedAt: row.latest_issue_updated_at || null,
+  }));
+}
+
+export async function loadAnySnapshotProjectUsage(scopeKey, fieldId) {
+  await ensureProjectStoreReady();
+
+  const result = await withSqlRetry(() => sql
+    .prepare(`
+        SELECT
+          project_id,
+          project_key,
+          project_name,
+          issue_count,
+          jql,
+          latest_field_change_at,
+          latest_issue_key,
+          latest_issue_updated_at
+      FROM snapshot_project_usage
+      WHERE scope_key = ? AND field_id = ?
+      ORDER BY issue_count DESC, project_key ASC
+    `)
+    .bindParams(scopeKey, fieldId)
+    .execute());
 
   return (result.rows || []).map((row) => ({
     projectId: row.project_id,
@@ -861,6 +894,37 @@ export async function countSnapshotProjectUsage(scopeKey, version, fieldId) {
     .execute();
 
   return toNumber(result.rows?.[0]?.total, 0);
+}
+
+export async function loadSnapshotFieldIssueSums(scopeKey, version) {
+  await ensureProjectStoreReady();
+
+  const result = await sql
+    .prepare(`
+      SELECT field_id, SUM(issue_count) AS total_issue_count
+      FROM snapshot_project_usage
+      WHERE scope_key = ? AND version = ?
+      GROUP BY field_id
+    `)
+    .bindParams(scopeKey, version)
+    .execute();
+
+  return new Map((result.rows || []).map((row) => [row.field_id, toNumber(row.total_issue_count)]));
+}
+
+export async function sumSnapshotFieldIssueCount(scopeKey, version, fieldId) {
+  await ensureProjectStoreReady();
+
+  const result = await sql
+    .prepare(`
+      SELECT SUM(issue_count) AS total_issue_count
+      FROM snapshot_project_usage
+      WHERE scope_key = ? AND version = ? AND field_id = ?
+    `)
+    .bindParams(scopeKey, version, fieldId)
+    .execute();
+
+  return toNumber(result.rows?.[0]?.total_issue_count, 0);
 }
 
 export async function getSnapshotProcessedFieldIds(scopeKey, version) {
