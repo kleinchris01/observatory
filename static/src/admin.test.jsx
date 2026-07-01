@@ -138,49 +138,45 @@ describe("AdminApp tab navigation", () => {
     const user = userEvent.setup();
     await renderAdminApp();
 
-    const tabBar = document.querySelector(".tab-bar");
-    expect(tabBar).toBeTruthy();
+    const adminNav = document.querySelector(".admin-nav");
+    expect(adminNav).toBeTruthy();
 
     // Overview is default
     await waitFor(() => expect(screen.getByText("Governance findings")).toBeInTheDocument());
 
     // Field Browser
-    await user.click(within(tabBar).getByText("Field Browser"));
+    await user.click(within(adminNav).getByText("Field Browser"));
     await waitFor(() => expect(document.querySelector(".admin-field-browser")).toBeTruthy());
 
     // Project Usage
-    await user.click(within(tabBar).getByText("Project Usage"));
+    await user.click(within(adminNav).getByText("Project Usage"));
     await waitFor(() => expect(invoke).toHaveBeenCalledWith("getProjectsView", expect.any(Object)));
 
     // Reports
-    await user.click(within(tabBar).getByText("Reports"));
+    await user.click(within(adminNav).getByText("Reports"));
     await waitFor(() => expect(document.querySelector(".admin-reports-tab")).toBeTruthy());
 
     // Scans
-    await user.click(within(tabBar).getByText("Scans"));
+    await user.click(within(adminNav).getByText("Scans"));
     await waitFor(() => expect(document.querySelector(".admin-scans-tab")).toBeTruthy());
 
-    // Field Usage Jobs
-    await user.click(within(tabBar).getByText("Field Usage Jobs"));
-    await waitFor(() => expect(document.querySelector(".admin-jobs-tab")).toBeTruthy());
-
     // Configuration
-    await user.click(within(tabBar).getByText("Configuration"));
+    await user.click(within(adminNav).getByText("Configuration"));
     await waitFor(() => expect(document.querySelector(".admin-config-tab")).toBeTruthy());
   });
 
   it("marks the active tab button with the active class", async () => {
     const user = userEvent.setup();
     await renderAdminApp();
-    const tabBar = document.querySelector(".tab-bar");
+    const adminNav = document.querySelector(".admin-nav");
 
-    const overviewBtn = within(tabBar).getByText("Overview").closest("button");
-    expect(overviewBtn).toHaveClass("tab-bar__tab--active");
+    const overviewBtn = within(adminNav).getByText("Overview").closest("button");
+    expect(overviewBtn).toHaveClass("admin-nav__item--active");
 
-    const fieldsBtn = within(tabBar).getByText("Field Browser").closest("button");
+    const fieldsBtn = within(adminNav).getByText("Field Browser").closest("button");
     await user.click(fieldsBtn);
-    expect(fieldsBtn).toHaveClass("tab-bar__tab--active");
-    expect(overviewBtn).not.toHaveClass("tab-bar__tab--active");
+    expect(fieldsBtn).toHaveClass("admin-nav__item--active");
+    expect(overviewBtn).not.toHaveClass("admin-nav__item--active");
   });
 });
 
@@ -210,9 +206,9 @@ describe("AdminApp field browser -> reports auto-generate flow", () => {
     });
 
     await renderAdminApp();
-    const tabBar = document.querySelector(".tab-bar");
+    const adminNav = document.querySelector(".admin-nav");
 
-    await user.click(within(tabBar).getByText("Field Browser"));
+    await user.click(within(adminNav).getByText("Field Browser"));
     await waitFor(() => expect(document.querySelector(".admin-field-browser")).toBeTruthy());
     // Wait for field list to settle
     await waitFor(() => expect(screen.getByText("Test Field")).toBeInTheDocument());
@@ -229,8 +225,8 @@ describe("AdminApp field browser -> reports auto-generate flow", () => {
 
     // Reports tab should become active
     await waitFor(() => {
-      const reportsBtn = within(tabBar).getByText("Reports").closest("button");
-      expect(reportsBtn).toHaveClass("tab-bar__tab--active");
+      const reportsBtn = within(adminNav).getByText("Reports").closest("button");
+      expect(reportsBtn).toHaveClass("admin-nav__item--active");
     });
 
     // Auto-generate should have fired getProjectUsageReport with the selected field ids
@@ -242,9 +238,9 @@ describe("AdminApp field browser -> reports auto-generate flow", () => {
     expect(callCountAfterAuto).toBe(1);
 
     // Switching away and back to Reports must NOT re-trigger auto-generate (onAutoGenerateConsumed reset)
-    await user.click(within(tabBar).getByText("Field Browser"));
+    await user.click(within(adminNav).getByText("Field Browser"));
     await waitFor(() => expect(document.querySelector(".admin-field-browser")).toBeTruthy());
-    await user.click(within(tabBar).getByText("Reports"));
+    await user.click(within(adminNav).getByText("Reports"));
     await waitFor(() => expect(document.querySelector(".admin-reports-tab")).toBeTruthy());
 
     const callCountAfterRevisit = invoke.mock.calls.filter((c) => c[0] === "getProjectUsageReport").length;
@@ -277,9 +273,9 @@ describe("AdminApp Reports tab generate lifecycle", () => {
     });
 
     await renderAdminApp();
-    const tabBar = document.querySelector(".tab-bar");
+    const adminNav = document.querySelector(".admin-nav");
 
-    await user.click(within(tabBar).getByText("Field Browser"));
+    await user.click(within(adminNav).getByText("Field Browser"));
     await waitFor(() => expect(screen.getByText("Test Field")).toBeInTheDocument());
     await user.click(screen.getByRole("button", { name: "Select filtered" }));
     await waitFor(() => expect(invoke).toHaveBeenCalledWith("getFilteredFieldIds", expect.any(Object)));
@@ -288,8 +284,8 @@ describe("AdminApp Reports tab generate lifecycle", () => {
     await user.click(generateBtn);
 
     await waitFor(() => {
-      const reportsBtn = within(tabBar).getByText("Reports").closest("button");
-      expect(reportsBtn).toHaveClass("tab-bar__tab--active");
+      const reportsBtn = within(adminNav).getByText("Reports").closest("button");
+      expect(reportsBtn).toHaveClass("admin-nav__item--active");
     });
 
     // While the report promise is pending, the building state should show
@@ -325,9 +321,9 @@ describe("AdminApp Reports tab generate lifecycle", () => {
     });
 
     await renderAdminApp();
-    const tabBar = document.querySelector(".tab-bar");
+    const adminNav = document.querySelector(".admin-nav");
 
-    await user.click(within(tabBar).getByText("Field Browser"));
+    await user.click(within(adminNav).getByText("Field Browser"));
     await waitFor(() => expect(screen.getByText("Test Field")).toBeInTheDocument());
     await user.click(screen.getByRole("button", { name: "Select filtered" }));
     await waitFor(() => expect(invoke).toHaveBeenCalledWith("getFilteredFieldIds", expect.any(Object)));
@@ -358,8 +354,8 @@ describe("AdminApp Field Browser select-all-filtered", () => {
     });
 
     await renderAdminApp();
-    const tabBar = document.querySelector(".tab-bar");
-    await user.click(within(tabBar).getByText("Field Browser"));
+    const adminNav = document.querySelector(".admin-nav");
+    await user.click(within(adminNav).getByText("Field Browser"));
     await waitFor(() => expect(screen.getByText("Test Field")).toBeInTheDocument());
 
     const searchInput = screen.getByPlaceholderText("Field name, ID, or description…");
@@ -395,8 +391,8 @@ describe("AdminApp Field Browser select-all-filtered", () => {
 
 async function goToFieldBrowser(user) {
   await renderAdminApp();
-  const tabBar = document.querySelector(".tab-bar");
-  await user.click(within(tabBar).getByText("Field Browser"));
+  const adminNav = document.querySelector(".admin-nav");
+  await user.click(within(adminNav).getByText("Field Browser"));
   await waitFor(() => expect(screen.getByText("Test Field")).toBeInTheDocument());
 }
 
@@ -470,6 +466,11 @@ describe("AdminApp Field Browser advanced filter panel", () => {
     await waitFor(() => {
       expect(screen.queryByRole("button", { name: "Clear all" })).not.toBeInTheDocument();
     });
-    expect(screen.getByLabelText("Field origin")).toHaveValue("all");
+
+    // Reopen the panel to verify the select was reset (panel closes after Clear all due to click-outside)
+    await user.click(screen.getByRole("button", { name: /^Filters/ }));
+    await waitFor(() => {
+      expect(screen.getByLabelText("Field origin")).toHaveValue("all");
+    });
   });
 });

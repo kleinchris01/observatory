@@ -13,7 +13,7 @@ import { SkeletonProjectItem, FindingsStrip, MetricChip } from "./FieldCard";
 
 export function TopFieldsChart({ fields }) {
   const top = [...fields]
-    .filter((f) => String(f.fieldId || "").startsWith("customfield_"))
+    .filter((f) => String(f.fieldId || "").startsWith("customfield_") && !f.isJiraBuiltin)
     .sort((a, b) => b.issueCount - a.issueCount)
     .slice(0, 8);
   const max = top[0]?.issueCount || 1;
