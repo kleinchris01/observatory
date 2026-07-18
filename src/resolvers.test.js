@@ -218,6 +218,7 @@ import {
   runDeltaIssueScanJob,
   rovoSearchFields,
   rovoInspectField,
+  migrateNamespaceKeys,
 } from "./resolvers.js";
 
 const {
@@ -1635,5 +1636,28 @@ describe("rovoInspectField", () => {
     expect(result.status).toBe("ok");
     expect(result.governance.activeProjectCount).toBe(1);
     expect(result.projectUsage).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// migrateNamespaceKeys -- a real data migration, thin at the resolver layer
+// (the actual row-rewriting logic lives in migrateOldScopeKeys/project-store.js,
+// out of scope here). Covers the delegation contract: correct installation
+// key derivation, result passed through verbatim, and errors not swallowed.
+// ---------------------------------------------------------------------------
+describe("migrateNamespaceKeys", () => {
+  test("ensures storage is ready and delegates to migrateOldScopeKeys with the installation key", async () => {
+    mocks.migrateOldScopeKeys.mockResolvedValue({ migrated: 42, skipped: 3 });
+
+    const result = await migrateNamespaceKeys({ context: {} });
+
+    expect(mocks.ensureProjectStoreReady).toHaveBeenCalled();
+    expect(mocks.migrateOldScopeKeys).toHaveBeenCalledWith("test-install");
+    expect(result).toEqual({ migrated: 42, skipped: 3 });
+  });
+
+  test("does not swallow an error from the underlying migration", async () => {
+    mocks.migrateOldScopeKeys.mockRejectedValue(new Error("migration failed: duplicate key"));
+    await expect(migrateNamespaceKeys({ context: {} })).rejects.toThrow("migration failed: duplicate key");
   });
 });
