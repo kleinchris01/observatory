@@ -254,6 +254,54 @@ export async function jiraRequest(path, options = {}) {
   });
 }
 
+// asUser() variant of jiraRequest -- for calls that must reflect the CALLING
+// user's own permissions rather than the app's broad service identity (e.g.
+// getBrowsableProjectIds below). Same retry/rate-limit/error conventions.
+export async function jiraRequestAsUser(path, options = {}) {
+  return withRetry(async () => {
+    const response = await scheduleRateLimitedRequest(() =>
+      api.asUser().requestJira(path, {
+        headers: {
+          Accept: "application/json",
+          ...(options.body ? { "Content-Type": "application/json" } : {}),
+          ...options.headers,
+        },
+        ...options,
+      })
+    );
+
+    if (!response.ok) {
+      const message = await response.text();
+      const error = new Error(`Jira request failed (${response.status}): ${message}`);
+      error.status = response.status;
+      error.originalResponse = response;
+      throw error;
+    }
+
+    return response.json();
+  });
+}
+
+// Bulk-checks BROWSE_PROJECTS for the given user across up to 1000 projects in
+// one call, returning the subset of projectIds (as strings) they can browse.
+// Used to filter project-level data down to what the CALLING user is actually
+// permitted to see, independent of the app's own broad service-level access.
+export async function getBrowsableProjectIds(accountId, projectIds) {
+  const ids = Array.from(new Set((projectIds || []).map(String).filter(Boolean)));
+  if (!accountId || !ids.length) return new Set();
+
+  const data = await jiraRequestAsUser(route`/rest/api/3/permissions/check`, {
+    method: "POST",
+    body: JSON.stringify({
+      accountId,
+      projectPermissions: [{ permissions: ["BROWSE_PROJECTS"], projects: ids }],
+    }),
+  });
+
+  const allowed = data?.projectPermissions?.[0]?.projects || [];
+  return new Set(allowed.map(String));
+}
+
 export async function paginate(pathBuilder, valuesKey = "values") {
   const results = [];
   let startAt = 0;
