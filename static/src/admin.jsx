@@ -113,6 +113,20 @@ function ThresholdInput({ label, value, onChange, min = 1, max = 100000, step = 
   );
 }
 
+function InlineThresholdInput({ value, onChange, min = 1, max = 100000, step = 1 }) {
+  return (
+    <input
+      type="number"
+      className="admin-threshold-rule__input"
+      min={min}
+      max={max}
+      step={step}
+      value={value}
+      onChange={(e) => onChange(step === 1 ? (Number(e.target.value) || min) : (parseFloat(e.target.value) || min))}
+    />
+  );
+}
+
 // ── Job list (re-implemented for admin context) ───────────────────────────
 
 function JobStatusBadge({ status }) {
@@ -396,7 +410,7 @@ function OverviewTab({ overview, onBuildSnapshot, buildingSnapshot, onRefresh, r
   );
 }
 
-function JobsTab({ jobs, loading, expandedId, onToggle, onCancel, onRestart, onResume, onRefresh, cancellingId, restartingId, resumingId, refreshing }) {
+function JobsPanel({ jobs, loading, expandedId, onToggle, onCancel, onRestart, onResume, onRefresh, cancellingId, restartingId, resumingId, refreshing }) {
   const [jobQuery, setJobQuery] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState("all");
 
@@ -464,7 +478,15 @@ function JobsTab({ jobs, loading, expandedId, onToggle, onCancel, onRestart, onR
 }
 
 function ConfigTab({ config, onSave, saving }) {
-  const [local, setLocal] = React.useState(config || DEFAULT_CONFIG);
+  const [local, setLocal] = React.useState(() => {
+    const c = config || DEFAULT_CONFIG;
+    return {
+      ...DEFAULT_CONFIG,
+      ...c,
+      governanceThresholds: { ...DEFAULT_THRESHOLDS, ...(c.governanceThresholds || {}) },
+      macroAccess: { ...DEFAULT_MACRO_ACCESS, ...(c.macroAccess || {}) },
+    };
+  });
   const [dirty, setDirty] = React.useState(false);
 
   React.useEffect(() => {
@@ -593,22 +615,94 @@ function ConfigTab({ config, onSave, saving }) {
 
       <ConfigSection title="Governance thresholds" icon="alertTriangle">
         <p className="admin-config-section__desc">
-          These values control when governance findings are triggered. Changes apply immediately to the next inventory load — no snapshot rebuild required.
+          Each rule below controls one specific finding. Edit the numbers inline — changes apply on the next inventory load with no snapshot rebuild required.
         </p>
-        <div className="admin-threshold-grid">
-          <ThresholdInput label="High-impact: min projects" value={t.highImpactMinProjects} onChange={(v) => setThreshold("highImpactMinProjects", v)} min={1} max={500} />
-          <ThresholdInput label="High-impact: min issues" value={t.highImpactMinIssues} onChange={(v) => setThreshold("highImpactMinIssues", v)} min={1} max={1000000} />
-          <ThresholdInput label="App-field heavy usage: min issues" value={t.appFieldHeavyUsageMin} onChange={(v) => setThreshold("appFieldHeavyUsageMin", v)} min={1} max={100000} />
-          <ThresholdInput label="Broad scope: min configured projects" value={t.broadScopeMinProjects} onChange={(v) => setThreshold("broadScopeMinProjects", v)} min={1} max={500} />
-          <ThresholdInput label="Light usage: min active projects" value={t.lightUsageMinProjects} onChange={(v) => setThreshold("lightUsageMinProjects", v)} min={1} max={500} />
-          <ThresholdInput label="Light usage: max issues" value={t.lightUsageMaxIssues} onChange={(v) => setThreshold("lightUsageMaxIssues", v)} min={1} max={10000} />
-          <ThresholdInput label="Missing description: min projects" value={t.missingDescriptionMinProjects} onChange={(v) => setThreshold("missingDescriptionMinProjects", v)} min={1} max={500} />
-          <ThresholdInput label="Missing description: min issues" value={t.missingDescriptionMinIssues} onChange={(v) => setThreshold("missingDescriptionMinIssues", v)} min={1} max={100000} />
-          <ThresholdInput label="Dead config: min configured projects" value={t.configuredActiveGapMinProjects} onChange={(v) => setThreshold("configuredActiveGapMinProjects", v)} min={1} max={500} />
-          <ThresholdInput label="Dead config: max inactive ratio (0–1)" value={t.configuredActiveGapMaxRatio} onChange={(v) => setThreshold("configuredActiveGapMaxRatio", Math.max(0.05, Math.min(0.99, v)))} min={0.05} max={0.99} step="0.05" />
-          <ThresholdInput label="Global context: max issues to flag" value={t.globalContextMaxIssues} onChange={(v) => setThreshold("globalContextMaxIssues", v)} min={1} max={10000} />
-          <ThresholdInput label="Context sprawl: min contexts to flag" value={t.contextSprawlMinContexts} onChange={(v) => setThreshold("contextSprawlMinContexts", v)} min={2} max={100} />
+        <div className="admin-threshold-rules">
+
+          <div className="admin-threshold-rule">
+            <span className="admin-threshold-rule__badge admin-threshold-rule__badge--risk">Risk</span>
+            <span className="admin-threshold-rule__sentence">
+              <strong>High-impact field:</strong> Flag when active in at least{" "}
+              <InlineThresholdInput value={t.highImpactMinProjects} onChange={(v) => setThreshold("highImpactMinProjects", v)} min={1} max={500} />{" "}
+              projects with{" "}
+              <InlineThresholdInput value={t.highImpactMinIssues} onChange={(v) => setThreshold("highImpactMinIssues", v)} min={1} max={1000000} />{" "}
+              or more issues — high stakes if changed or removed.
+            </span>
+          </div>
+
+          <div className="admin-threshold-rule">
+            <span className="admin-threshold-rule__badge admin-threshold-rule__badge--risk">Risk</span>
+            <span className="admin-threshold-rule__sentence">
+              <strong>App-provided field:</strong> Flag third-party app or plugin fields when they have{" "}
+              <InlineThresholdInput value={t.appFieldHeavyUsageMin} onChange={(v) => setThreshold("appFieldHeavyUsageMin", v)} min={1} max={100000} />{" "}
+              or more issues — data at risk if the app is removed.
+            </span>
+          </div>
+
+          <div className="admin-threshold-rule">
+            <span className="admin-threshold-rule__badge admin-threshold-rule__badge--cleanup">Cleanup</span>
+            <span className="admin-threshold-rule__sentence">
+              <strong>Broadly scoped, light usage:</strong> Flag when active in{" "}
+              <InlineThresholdInput value={t.lightUsageMinProjects} onChange={(v) => setThreshold("lightUsageMinProjects", v)} min={1} max={500} />{" "}
+              or more projects but fewer than{" "}
+              <InlineThresholdInput value={t.lightUsageMaxIssues} onChange={(v) => setThreshold("lightUsageMaxIssues", v)} min={1} max={10000} />{" "}
+              total issues — wide scope, very little actual data.
+            </span>
+          </div>
+
+          <div className="admin-threshold-rule">
+            <span className="admin-threshold-rule__badge admin-threshold-rule__badge--cleanup">Cleanup</span>
+            <span className="admin-threshold-rule__sentence">
+              <strong>Configured but unused:</strong> Flag when added to{" "}
+              <InlineThresholdInput value={t.broadScopeMinProjects} onChange={(v) => setThreshold("broadScopeMinProjects", v)} min={1} max={500} />{" "}
+              or more project screens but has zero issues with a value — likely never adopted.
+            </span>
+          </div>
+
+          <div className="admin-threshold-rule">
+            <span className="admin-threshold-rule__badge admin-threshold-rule__badge--cleanup">Cleanup</span>
+            <span className="admin-threshold-rule__sentence">
+              <strong>Dead configuration:</strong> Flag when configured in{" "}
+              <InlineThresholdInput value={t.configuredActiveGapMinProjects} onChange={(v) => setThreshold("configuredActiveGapMinProjects", v)} min={1} max={500} />{" "}
+              or more projects but more than{" "}
+              <InlineThresholdInput value={Math.round(t.configuredActiveGapMaxRatio * 100)} onChange={(v) => setThreshold("configuredActiveGapMaxRatio", Math.max(5, Math.min(99, v)) / 100)} min={5} max={99} />{" "}
+              % of those have no issue data — the field was added but not used.
+            </span>
+          </div>
+
+          <div className="admin-threshold-rule">
+            <span className="admin-threshold-rule__badge admin-threshold-rule__badge--cleanup">Cleanup</span>
+            <span className="admin-threshold-rule__sentence">
+              <strong>Over-scoped global context:</strong> Flag fields available to all projects (global context) when they have fewer than{" "}
+              <InlineThresholdInput value={t.globalContextMaxIssues} onChange={(v) => setThreshold("globalContextMaxIssues", v)} min={1} max={100000} />{" "}
+              issues — probably not worth applying site-wide.
+            </span>
+          </div>
+
+          <div className="admin-threshold-rule">
+            <span className="admin-threshold-rule__badge admin-threshold-rule__badge--standardize">Standardize</span>
+            <span className="admin-threshold-rule__sentence">
+              <strong>Missing description:</strong> Flag when a field has no admin description and is active in{" "}
+              <InlineThresholdInput value={t.missingDescriptionMinProjects} onChange={(v) => setThreshold("missingDescriptionMinProjects", v)} min={1} max={500} />{" "}
+              or more projects, or has{" "}
+              <InlineThresholdInput value={t.missingDescriptionMinIssues} onChange={(v) => setThreshold("missingDescriptionMinIssues", v)} min={1} max={1000000} />{" "}
+              or more issues — prominent enough to need documentation.
+            </span>
+          </div>
+
+          <div className="admin-threshold-rule">
+            <span className="admin-threshold-rule__badge admin-threshold-rule__badge--standardize">Standardize</span>
+            <span className="admin-threshold-rule__sentence">
+              <strong>Context sprawl:</strong> Flag when a field has{" "}
+              <InlineThresholdInput value={t.contextSprawlMinContexts} onChange={(v) => setThreshold("contextSprawlMinContexts", v)} min={2} max={100} />{" "}
+              or more separate project contexts — suggests it was added project-by-project and should be consolidated.
+            </span>
+          </div>
+
         </div>
+        <p className="admin-threshold-rules__note">
+          <strong>Admin Attention</strong> is applied automatically to any field with a high-severity finding, or when the combined priority score of its findings reaches 35 or higher.
+        </p>
       </ConfigSection>
 
       <div className="admin-config-footer">
@@ -733,6 +827,18 @@ function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSelectedFi
   const [minContexts, setMinContexts] = React.useState("");
   const [maxContexts, setMaxContexts] = React.useState("");
   const [filtersOpen, setFiltersOpen] = React.useState(false);
+  const filterPanelRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (!filtersOpen) return;
+    function handleClickOutside(e) {
+      if (filterPanelRef.current && !filterPanelRef.current.contains(e.target)) {
+        setFiltersOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [filtersOpen]);
 
   const [deferredMinIssues, setDeferredMinIssues] = React.useState("");
   const [deferredMaxIssues, setDeferredMaxIssues] = React.useState("");
@@ -977,6 +1083,41 @@ function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSelectedFi
     );
   }
 
+  // Build active filter chips list
+  const activeFilterChips = React.useMemo(() => {
+    const chips = [];
+    if (fieldOrigin !== "all") {
+      const label = fieldOrigin === "user-created" ? "User-created" : "Jira built-in";
+      chips.push({ id: "fieldOrigin", label: `Origin: ${label}`, clear: () => { setFieldOrigin("all"); setPage(1); } });
+    }
+    if (projectUsageFilter !== "all") {
+      const labels = { "not-built": "not-built", "built": "built", "building": "building", "incomplete": "incomplete" };
+      chips.push({ id: "projectUsageFilter", label: `Build: ${labels[projectUsageFilter] || projectUsageFilter}`, clear: () => { setProjectUsageFilter("all"); setPage(1); } });
+    }
+    if (hasDescription !== "all") {
+      chips.push({ id: "hasDescription", label: `Has description: ${hasDescription === "yes" ? "Yes" : "No"}`, clear: () => { setHasDescription("all"); setPage(1); } });
+    }
+    if (duplicateNamesOnly) {
+      chips.push({ id: "duplicateNamesOnly", label: "Duplicate names only", clear: () => { setDuplicateNamesOnly(false); setPage(1); } });
+    }
+    if (minIssues !== "" || maxIssues !== "") {
+      const range = [minIssues || "0", maxIssues || "∞"].join("–");
+      chips.push({ id: "issues", label: `Issues: ${range}`, clear: () => { setMinIssues(""); setMaxIssues(""); setPage(1); } });
+    }
+    if (minActiveProjects !== "" || maxActiveProjects !== "") {
+      const range = [minActiveProjects || "0", maxActiveProjects || "∞"].join("–");
+      chips.push({ id: "activeProjects", label: `Active projects: ${range}`, clear: () => { setMinActiveProjects(""); setMaxActiveProjects(""); setPage(1); } });
+    }
+    if (minContexts !== "" || maxContexts !== "") {
+      const range = [minContexts || "0", maxContexts || "∞"].join("–");
+      chips.push({ id: "contexts", label: `Contexts: ${range}`, clear: () => { setMinContexts(""); setMaxContexts(""); setPage(1); } });
+    }
+    if (findingsFilter !== "all") {
+      chips.push({ id: "findingsFilter", label: `Findings: Admin attention`, clear: () => { setFindingsFilter("all"); setPage(1); } });
+    }
+    return chips;
+  }, [fieldOrigin, projectUsageFilter, hasDescription, duplicateNamesOnly, minIssues, maxIssues, minActiveProjects, maxActiveProjects, minContexts, maxContexts, findingsFilter]);
+
   return (
     <div className="admin-field-browser">
       {/* Primary toolbar */}
@@ -1012,17 +1153,136 @@ function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSelectedFi
           <option value="contexts-asc">Fewest contexts</option>
           <option value="priority-desc">Highest priority</option>
         </select>
-        <button
-          type="button"
-          className={`admin-field-browser__filter-toggle${filtersOpen ? " admin-field-browser__filter-toggle--active" : ""}`}
-          onClick={() => setFiltersOpen((v) => !v)}
-          aria-expanded={filtersOpen}
-        >
-          Filters
-          {activeFilterCount > 0 && (
-            <span className="admin-field-browser__filter-badge">{activeFilterCount}</span>
+        <div className="admin-field-browser__filter-anchor" ref={filterPanelRef}>
+          <button
+            type="button"
+            className={`admin-field-browser__filter-toggle${filtersOpen ? " admin-field-browser__filter-toggle--active" : ""}`}
+            onClick={() => setFiltersOpen((v) => !v)}
+            aria-expanded={filtersOpen}
+          >
+            Filters
+            {activeFilterCount > 0 && (
+              <span className="admin-field-browser__filter-badge">{activeFilterCount}</span>
+            )}
+          </button>
+
+          {/* Floating filter popover */}
+          {filtersOpen && (
+            <div className="admin-field-browser__filter-panel">
+              <div className="admin-field-browser__filter-group">
+                <span className="admin-field-browser__filter-group-label">Origin &amp; status</span>
+                <div className="admin-field-browser__filter-group-controls">
+                  <select
+                    aria-label="Field origin"
+                    value={fieldOrigin}
+                    onChange={(e) => { setFieldOrigin(e.target.value); setPage(1); }}
+                  >
+                    <option value="all">All fields</option>
+                    <option value="user-created">User-created</option>
+                    <option value="jira-builtin">Jira built-in</option>
+                  </select>
+                  <select
+                    aria-label="Project usage build status"
+                    value={projectUsageFilter}
+                    onChange={(e) => { setProjectUsageFilter(e.target.value); setPage(1); }}
+                  >
+                    <option value="all">Any build status</option>
+                    <option value="not-built">Not built</option>
+                    <option value="built">Built</option>
+                    <option value="building">Building</option>
+                    <option value="incomplete">Incomplete</option>
+                  </select>
+                  <select
+                    aria-label="Has description"
+                    value={hasDescription}
+                    onChange={(e) => { setHasDescription(e.target.value); setPage(1); }}
+                  >
+                    <option value="all">Description: any</option>
+                    <option value="yes">Has description</option>
+                    <option value="no">No description</option>
+                  </select>
+                  <label className="admin-field-browser__checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={duplicateNamesOnly}
+                      onChange={(e) => { setDuplicateNamesOnly(e.target.checked); setPage(1); }}
+                    />
+                    Duplicate names only
+                  </label>
+                </div>
+              </div>
+
+              <div className="admin-field-browser__filter-group">
+                <span className="admin-field-browser__filter-group-label">Issues with value</span>
+                <div className="admin-field-browser__range-inputs">
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="Min"
+                    aria-label="Minimum issues with value"
+                    value={minIssues}
+                    onChange={(e) => setMinIssues(e.target.value)}
+                  />
+                  <span className="admin-field-browser__range-sep">–</span>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="Max"
+                    aria-label="Maximum issues with value"
+                    value={maxIssues}
+                    onChange={(e) => setMaxIssues(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="admin-field-browser__filter-group">
+                <span className="admin-field-browser__filter-group-label">Active projects</span>
+                <div className="admin-field-browser__range-inputs">
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="Min"
+                    aria-label="Minimum active projects"
+                    value={minActiveProjects}
+                    onChange={(e) => setMinActiveProjects(e.target.value)}
+                  />
+                  <span className="admin-field-browser__range-sep">–</span>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="Max"
+                    aria-label="Maximum active projects"
+                    value={maxActiveProjects}
+                    onChange={(e) => setMaxActiveProjects(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="admin-field-browser__filter-group">
+                <span className="admin-field-browser__filter-group-label">Contexts</span>
+                <div className="admin-field-browser__range-inputs">
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="Min"
+                    aria-label="Minimum contexts"
+                    value={minContexts}
+                    onChange={(e) => setMinContexts(e.target.value)}
+                  />
+                  <span className="admin-field-browser__range-sep">–</span>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="Max"
+                    aria-label="Maximum contexts"
+                    value={maxContexts}
+                    onChange={(e) => setMaxContexts(e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
           )}
-        </button>
+        </div>
         {activeFilterCount > 0 && (
           <button
             type="button"
@@ -1034,120 +1294,20 @@ function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSelectedFi
         )}
       </div>
 
-      {/* Expandable advanced filter panel */}
-      {filtersOpen && (
-        <div className="admin-field-browser__filter-panel">
-          <div className="admin-field-browser__filter-group">
-            <span className="admin-field-browser__filter-group-label">Origin &amp; status</span>
-            <div className="admin-field-browser__filter-group-controls">
-              <select
-                aria-label="Field origin"
-                value={fieldOrigin}
-                onChange={(e) => { setFieldOrigin(e.target.value); setPage(1); }}
-              >
-                <option value="all">All fields</option>
-                <option value="user-created">User-created</option>
-                <option value="jira-builtin">Jira built-in</option>
-              </select>
-              <select
-                aria-label="Project usage build status"
-                value={projectUsageFilter}
-                onChange={(e) => { setProjectUsageFilter(e.target.value); setPage(1); }}
-              >
-                <option value="all">Any build status</option>
-                <option value="not-built">Not built</option>
-                <option value="built">Built</option>
-                <option value="building">Building</option>
-                <option value="incomplete">Incomplete</option>
-              </select>
-              <select
-                aria-label="Has description"
-                value={hasDescription}
-                onChange={(e) => { setHasDescription(e.target.value); setPage(1); }}
-              >
-                <option value="all">Description: any</option>
-                <option value="yes">Has description</option>
-                <option value="no">No description</option>
-              </select>
-              <label className="admin-field-browser__checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={duplicateNamesOnly}
-                  onChange={(e) => { setDuplicateNamesOnly(e.target.checked); setPage(1); }}
-                />
-                Duplicate names only
-              </label>
-            </div>
-          </div>
-
-          <div className="admin-field-browser__filter-group">
-            <span className="admin-field-browser__filter-group-label">Issues with value</span>
-            <div className="admin-field-browser__range-inputs">
-              <input
-                type="number"
-                min="0"
-                placeholder="Min"
-                aria-label="Minimum issues with value"
-                value={minIssues}
-                onChange={(e) => setMinIssues(e.target.value)}
-              />
-              <span className="admin-field-browser__range-sep">–</span>
-              <input
-                type="number"
-                min="0"
-                placeholder="Max"
-                aria-label="Maximum issues with value"
-                value={maxIssues}
-                onChange={(e) => setMaxIssues(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="admin-field-browser__filter-group">
-            <span className="admin-field-browser__filter-group-label">Active projects</span>
-            <div className="admin-field-browser__range-inputs">
-              <input
-                type="number"
-                min="0"
-                placeholder="Min"
-                aria-label="Minimum active projects"
-                value={minActiveProjects}
-                onChange={(e) => setMinActiveProjects(e.target.value)}
-              />
-              <span className="admin-field-browser__range-sep">–</span>
-              <input
-                type="number"
-                min="0"
-                placeholder="Max"
-                aria-label="Maximum active projects"
-                value={maxActiveProjects}
-                onChange={(e) => setMaxActiveProjects(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="admin-field-browser__filter-group">
-            <span className="admin-field-browser__filter-group-label">Contexts</span>
-            <div className="admin-field-browser__range-inputs">
-              <input
-                type="number"
-                min="0"
-                placeholder="Min"
-                aria-label="Minimum contexts"
-                value={minContexts}
-                onChange={(e) => setMinContexts(e.target.value)}
-              />
-              <span className="admin-field-browser__range-sep">–</span>
-              <input
-                type="number"
-                min="0"
-                placeholder="Max"
-                aria-label="Maximum contexts"
-                value={maxContexts}
-                onChange={(e) => setMaxContexts(e.target.value)}
-              />
-            </div>
-          </div>
+      {/* Active filter chips */}
+      {activeFilterChips.length > 0 && (
+        <div className="admin-field-browser__active-filters">
+          {activeFilterChips.map((chip) => (
+            <button
+              key={chip.id}
+              type="button"
+              className="admin-field-browser__filter-chip"
+              onClick={chip.clear}
+            >
+              <span>{chip.label}</span>
+              <span className="admin-field-browser__filter-chip__remove">×</span>
+            </button>
+          ))}
         </div>
       )}
 
@@ -1392,6 +1552,30 @@ function ReportsTab({ siteOrigin, selectedFieldIds, onSetSelectedFieldIds, autoG
 
 // ── Scan components ───────────────────────────────────────────────────────
 
+function SubNavLayout({ items, activeKey, onSelect, children }) {
+  return (
+    <div className="sub-nav-layout">
+      <nav className="sub-nav" aria-label="Section navigation">
+        {items.map(({ key, label, icon, badge }) => (
+          <button
+            key={key}
+            type="button"
+            className={`sub-nav__item ${activeKey === key ? "sub-nav__item--active" : ""}`}
+            onClick={() => onSelect(key)}
+          >
+            {icon && <Icon name={icon} size={14} />}
+            <span>{label}</span>
+            {badge != null && <span className="sub-nav__badge">{badge}</span>}
+          </button>
+        ))}
+      </nav>
+      <div className="sub-nav__panel">
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function ActivitySection({ title, subtitle, open, onToggle, actions, children }) {
   return (
     <section className="activity-section">
@@ -1442,78 +1626,413 @@ function DeltaIssueScanPanel({ deltaIssueScan, onStartDelta, issueScanDeltaStart
   );
 }
 
-function UniverseScanPanel({ issueScan, onStart, onResume, onCancel, issueScanLoading, issueScanResuming, issueScanCancelling, deltaIssueScan, onStartDelta, issueScanDeltaStarting }) {
+function ScanProgressChart({ data }) {
+  if (data.length < 2) {
+    return <div className="scan-chart-card__empty">{data.length === 0 ? "No progress data yet" : "Running…"}</div>;
+  }
+  const W = 480, H = 130, P = { t: 12, r: 16, b: 22, l: 52 };
+  const cW = W - P.l - P.r, cH = H - P.t - P.b;
+  const minT = data[0].t, maxT = data[data.length - 1].t, maxV = Math.max(...data.map(d => d.count));
+  const xS = t => (maxT > minT ? (t - minT) / (maxT - minT) : 0.5) * cW;
+  const yS = v => cH - (v / (maxV || 1)) * cH;
+  const pathD = data.map((d, i) => `${i === 0 ? "M" : "L"} ${xS(d.t).toFixed(1)} ${yS(d.count).toFixed(1)}`).join(" ");
+  const areaD = `${pathD} L ${xS(data[data.length - 1].t).toFixed(1)} ${cH} L 0 ${cH} Z`;
+  const yTicks = [0, 0.5, 1].map(r => ({
+    y: yS(maxV * r),
+    label: maxV * r >= 1000 ? `${Math.round(maxV * r / 1000)}k` : String(Math.round(maxV * r)),
+  }));
+  const xTicks = [data[0], data[Math.floor((data.length - 1) / 2)], data[data.length - 1]];
+  return (
+    <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: "block", overflow: "visible" }}>
+      <defs>
+        <linearGradient id="sp-grad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#79b8ff" stopOpacity="0.35" />
+          <stop offset="100%" stopColor="#79b8ff" stopOpacity="0.02" />
+        </linearGradient>
+      </defs>
+      <g transform={`translate(${P.l},${P.t})`}>
+        {yTicks.map((t, i) => (
+          <g key={i}>
+            <line x1={0} y1={t.y} x2={cW} y2={t.y} stroke="var(--stroke)" strokeDasharray="3 5" />
+            <text x={-6} y={t.y + 4} textAnchor="end" fontSize="9" fill="var(--muted)">{t.label}</text>
+          </g>
+        ))}
+        <path d={areaD} fill="url(#sp-grad)" />
+        <path d={pathD} fill="none" stroke="#79b8ff" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+        <circle cx={xS(data[data.length - 1].t)} cy={yS(data[data.length - 1].count)} r={3.5} fill="#79b8ff" />
+        {xTicks.map((d, i) => (
+          <text key={i} x={xS(d.t)} y={cH + 14} textAnchor={i === 0 ? "start" : i === 2 ? "end" : "middle"} fontSize="9" fill="var(--muted)">{d.label}</text>
+        ))}
+      </g>
+    </svg>
+  );
+}
+
+function ScanHistoryChart({ data }) {
+  if (data.length === 0) {
+    return <div className="scan-chart-card__empty">No completed scan runs recorded yet</div>;
+  }
+  const W = 480, H = 130, P = { t: 12, r: 16, b: 22, l: 52 };
+  const cW = W - P.l - P.r, cH = H - P.t - P.b;
+  const maxV = Math.max(...data.map(d => d.issues), 1);
+  const step = cW / Math.max(data.length, 1);
+  const barW = Math.max(4, step * 0.7);
+  const yTicks = [0, 0.5, 1].map(r => ({
+    y: cH - r * cH,
+    label: maxV * r >= 1000 ? `${Math.round(maxV * r / 1000)}k` : String(Math.round(maxV * r)),
+  }));
+  return (
+    <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: "block", overflow: "visible" }}>
+      <g transform={`translate(${P.l},${P.t})`}>
+        {yTicks.map((t, i) => (
+          <g key={i}>
+            <line x1={0} y1={t.y} x2={cW} y2={t.y} stroke="var(--stroke)" strokeDasharray="3 5" />
+            <text x={-6} y={t.y + 4} textAnchor="end" fontSize="9" fill="var(--muted)">{t.label}</text>
+          </g>
+        ))}
+        {data.map((d, i) => {
+          const h = Math.max(2, (d.issues / maxV) * cH);
+          const x = step * i + (step - barW) / 2;
+          const opacity = 0.35 + (d.issues / maxV) * 0.55;
+          return (
+            <g key={i}>
+              <rect x={x} y={cH - h} width={barW} height={h} rx="2" fill={`rgba(126,200,164,${opacity.toFixed(2)})`} />
+              <text x={x + barW / 2} y={cH + 14} textAnchor="middle" fontSize="9" fill="var(--muted)">{d.label}</text>
+            </g>
+          );
+        })}
+      </g>
+    </svg>
+  );
+}
+
+function UniverseScanPanel({ issueScan, onStart, onResume, onCancel, issueScanLoading, issueScanResuming, issueScanCancelling }) {
+  const [logSearch, setLogSearch] = React.useState("");
+
   const scanActive = issueScan?.state === "building" || issueScan?.state === "queued";
   const scanDone = issueScan?.state === "ready";
+  const scanFailed = issueScan?.state === "failed";
+  const scanCancelled = issueScan?.state === "cancelled";
   const lastScanLogAt = issueScan?.progressLog?.length ? issueScan.progressLog[issueScan.progressLog.length - 1]?.t : issueScan?.startedAt;
   const scanStale = lastScanLogAt ? (Date.now() - new Date(lastScanLogAt).getTime()) > 10 * 60 * 1000 : scanActive;
-  const canResume = issueScan && !scanDone && ((scanActive && scanStale) || issueScan?.state === "failed" || issueScan?.state === "cancelled");
+  const canResume = issueScan && !scanDone && ((scanActive && scanStale) || scanFailed || scanCancelled);
   const canForceResume = scanActive && scanStale;
   const processedIssues = Number(issueScan?.processedIssues || 0);
-  const totalIssues = Number(issueScan?.totalIssues || 0);
   const processedProjects = Number(issueScan?.processedPages || 0);
   const totalProjects = Number(issueScan?.totalPages || 0);
   const scanPercent = totalProjects > 0 ? Math.min(100, Math.round(processedProjects / totalProjects * 100)) : 0;
-  const entries = issueScan?.progressLog?.length ? [...issueScan.progressLog].reverse() : [];
   const elapsed = useLiveDuration(scanActive ? issueScan?.startedAt : null);
+
+  const durationMs = React.useMemo(() => {
+    if (!issueScan?.startedAt || !issueScan?.completedAt) return null;
+    return new Date(issueScan.completedAt).getTime() - new Date(issueScan.startedAt).getTime();
+  }, [issueScan?.startedAt, issueScan?.completedAt]);
+
+  const durationLabel = React.useMemo(() => {
+    if (!durationMs) return null;
+    const totalSec = Math.round(durationMs / 1000);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    if (h > 0) return `${h}h ${m}m`;
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
+  }, [durationMs]);
+
+  const scanRate = React.useMemo(() => {
+    if (!durationMs || !processedIssues) return null;
+    return Math.round(processedIssues / (durationMs / 1000));
+  }, [durationMs, processedIssues]);
+
   const etaLabel = React.useMemo(() => {
     if (!scanActive) return null;
-    const doneWorkers = Number(issueScan?.processedPages || 0);
-    const totalWorkers = Number(issueScan?.totalPages || 0);
-    if (doneWorkers < 1 || totalWorkers <= doneWorkers) return null;
+    const done = Number(issueScan?.processedPages || 0);
+    const total = Number(issueScan?.totalPages || 0);
+    if (done < 1 || total <= done) return null;
     const startMs = issueScan?.startedAt ? new Date(issueScan.startedAt).getTime() : 0;
     if (!startMs) return null;
     const elapsedSec = (Date.now() - startMs) / 1000;
-    const rate = doneWorkers / elapsedSec;
+    const rate = done / elapsedSec;
     if (rate <= 0) return null;
-    const remainingSec = Math.round((totalWorkers - doneWorkers) / rate);
+    const remainingSec = Math.round((total - done) / rate);
     const m = Math.floor(remainingSec / 60), s = remainingSec % 60;
     return m > 0 ? `~${m}m ${s}s remaining` : `~${s}s remaining`;
   }, [scanActive, issueScan?.processedPages, issueScan?.totalPages, issueScan?.startedAt, elapsed]);
 
+  // Current run's entries newest-first (for count / search)
+  const currentEntries = React.useMemo(
+    () => (issueScan?.progressLog?.length ? [...issueScan.progressLog].reverse() : []),
+    [issueScan?.progressLog]
+  );
+
+  // All historical runs (newest-first order)
+  const scanHistoryRuns = issueScan?.scanHistory || [];
+
+  // Total log entry count across all runs
+  const totalLogCount = React.useMemo(() => {
+    let n = issueScan?.progressLog?.length || 0;
+    for (const run of scanHistoryRuns) n += run.progressLog?.length || 0;
+    return n;
+  }, [issueScan?.progressLog, scanHistoryRuns]);
+
+  // Full multi-run view (run-headers interleaved with log entries), newest first
+  const allRunEntries = React.useMemo(() => {
+    const result = [];
+    if (issueScan?.startedAt || currentEntries.length) {
+      result.push({ type: "run-header", key: "current", startedAt: issueScan?.startedAt, completedAt: issueScan?.completedAt, processedIssues: issueScan?.processedIssues || 0, isCurrent: true });
+      currentEntries.forEach(e => result.push({ type: "log", ...e }));
+    }
+    [...scanHistoryRuns].reverse().forEach((run, i) => {
+      result.push({ type: "run-header", key: `hist-${i}`, startedAt: run.startedAt, completedAt: run.completedAt, processedIssues: run.processedIssues || 0, isCurrent: false });
+      [...(run.progressLog || [])].reverse().forEach(e => result.push({ type: "log", ...e }));
+    });
+    return result;
+  }, [currentEntries, scanHistoryRuns, issueScan?.startedAt, issueScan?.completedAt, issueScan?.processedIssues]);
+
+  // Flat list of all log entries for search
+  const flatAllEntries = React.useMemo(() => {
+    const entries = [...currentEntries];
+    [...scanHistoryRuns].reverse().forEach(run => {
+      entries.push(...[...(run.progressLog || [])].reverse());
+    });
+    return entries;
+  }, [currentEntries, scanHistoryRuns]);
+
+  // Filtered view (searching shows flat entries without run separators)
+  const filteredEntries = React.useMemo(() => {
+    if (!logSearch.trim()) return null;
+    const q = logSearch.toLowerCase();
+    return flatAllEntries.filter(e => e.msg?.toLowerCase().includes(q) || formatShortTime(e.t).toLowerCase().includes(q));
+  }, [flatAllEntries, logSearch]);
+
+  // Chart data: parse current-run log for issue counts over time
+  const progressSeries = React.useMemo(() => {
+    const entries = issueScan?.progressLog || [];
+    const parsed = [];
+    for (const entry of entries) {
+      const match = entry.msg.match(/^([0-9,]+)(?:\s*\/\s*[0-9,]+)?\s+issues?\s+(?:scanned|on\s+site)/i);
+      if (match) {
+        parsed.push({ t: new Date(entry.t).getTime(), count: parseInt(match[1].replace(/,/g, ""), 10), label: formatShortTime(entry.t) });
+      }
+    }
+    return parsed;
+  }, [issueScan?.progressLog]);
+
+  // Chart data: historical runs bar chart
+  const historySeries = React.useMemo(() =>
+    scanHistoryRuns.map(run => ({
+      issues: run.processedIssues || 0,
+      label: run.completedAt ? new Date(run.completedAt).toLocaleDateString([], { month: "short", day: "numeric" }) : "?",
+    })),
+    [scanHistoryRuns]
+  );
+
+  const showCharts = progressSeries.length >= 2 || historySeries.length >= 1;
+
+  const stateClass = scanActive ? "scan-status--active" : scanDone ? "scan-status--done" : scanFailed ? "scan-status--failed" : "scan-status--idle";
+  const stateLabel = scanActive ? "Running" : scanDone ? "Complete" : scanFailed ? "Failed" : scanCancelled ? "Cancelled" : "Not started";
+  const displayIssues = scanDone ? (issueScan.processedIssues || issueScan.totalIssues || 0) : processedIssues;
+  const hasStats = scanDone || scanActive || processedIssues > 0;
+
   return (
-    <div className="issue-scan-panel">
-      <div className="issue-scan-panel__header">
-        <span className="issue-scan-panel__title">Universe Scan</span>
-        {scanDone && issueScan?.completedAt && <span className="issue-scan-panel__done">{(issueScan.processedIssues || issueScan.totalIssues || 0).toLocaleString()} issues scanned</span>}
+    <div className="universe-scan-panel">
+      <div className="universe-scan-panel__head">
+        <div className="universe-scan-panel__title-row">
+          <h3 className="universe-scan-panel__title">Universe Scan</h3>
+          <span className={`scan-status-pill ${stateClass}`}>{stateLabel}</span>
+        </div>
+        <p className="universe-scan-panel__desc">
+          Crawls every issue across all Jira projects in parallel workers to compute per-project field usage counts, detect RQT-pattern values, and build the complete field inventory.
+          {issueScan?.completedAt ? ` Last completed ${formatTimestamp(issueScan.completedAt)}.` : ""}
+        </p>
       </div>
-      {scanActive ? (
-        <div className="issue-scan-panel__progress">
-          <div className="issue-scan-panel__bar-track"><div className="issue-scan-panel__bar-fill" style={{ width: `${scanPercent}%` }} /></div>
-          <div className="issue-scan-panel__status">
-            <span className="issue-scan-panel__status-main">{totalProjects > 0 ? `${scanPercent}% — ${processedIssues > 0 ? `${processedIssues.toLocaleString()} issues scanned — ` : ""}${processedProjects.toLocaleString()}/${totalProjects.toLocaleString()} workers` : "Starting…"}</span>
-            <span className="issue-scan-panel__status-meta">
-              {elapsed ? <span className="issue-scan-panel__elapsed">{elapsed}</span> : null}
-              {etaLabel ? <span className="issue-scan-panel__eta">{etaLabel}</span> : null}
-            </span>
+
+      {hasStats && (
+        <div className="universe-scan-panel__stats">
+          <div className="scan-stat-card">
+            <div className="scan-stat-card__value">{Number(displayIssues).toLocaleString()}</div>
+            <div className="scan-stat-card__label">Issues scanned</div>
           </div>
-          <div className="issue-scan-panel__buttons">
-            {canForceResume && <button className="secondary-button secondary-button--small" type="button" onClick={onResume} disabled={issueScanResuming}>{issueScanResuming ? "Resuming..." : "Resume"}</button>}
-            <button className="secondary-button secondary-button--small" type="button" onClick={onCancel} disabled={issueScanCancelling}>{issueScanCancelling ? "Cancelling..." : "Cancel scan"}</button>
-          </div>
-        </div>
-      ) : (
-        <div className="issue-scan-panel__actions">
-          <p className="issue-scan-panel__desc">{scanDone ? "Unique issue counts are shown per project. Re-scan to refresh." : "Scan all issues once to get accurate unique issue counts per project."}</p>
-          <button className="secondary-button secondary-button--small" type="button" onClick={canResume ? onResume : onStart} disabled={canResume ? issueScanResuming : issueScanLoading}>
-            {canResume ? (issueScanResuming ? "Resuming..." : "Resume scan") : (issueScanLoading ? "Starting..." : scanDone ? "Re-scan all issues" : "Scan all issues")}
-          </button>
-          {issueScan?.state === "failed" && issueScan?.lastError && <div className="issue-scan-panel__error">{issueScan.lastError}</div>}
-        </div>
-      )}
-      {entries.length ? (
-        <div className="scan-log issue-scan-panel__log">
-          {entries.map((entry, i) => (
-            <div key={i} className="scan-log__entry">
-              <span className="scan-log__time">{formatShortTime(entry.t)}</span>
-              <span className="scan-log__msg">{entry.msg}</span>
+          {totalProjects > 0 && (
+            <div className="scan-stat-card">
+              <div className="scan-stat-card__value">
+                {processedProjects.toLocaleString()}
+                <span style={{ fontSize: "0.7em", opacity: 0.55 }}>/{totalProjects.toLocaleString()}</span>
+              </div>
+              <div className="scan-stat-card__label">Workers complete</div>
             </div>
-          ))}
+          )}
+          {durationLabel && (
+            <div className="scan-stat-card">
+              <div className="scan-stat-card__value">{durationLabel}</div>
+              <div className="scan-stat-card__label">Duration</div>
+            </div>
+          )}
+          {scanRate && (
+            <div className="scan-stat-card">
+              <div className="scan-stat-card__value">
+                {scanRate.toLocaleString()}
+                <span style={{ fontSize: "0.7em", opacity: 0.55 }}>/s</span>
+              </div>
+              <div className="scan-stat-card__label">Avg scan rate</div>
+            </div>
+          )}
+          {totalLogCount > 0 && (
+            <div className="scan-stat-card">
+              <div className="scan-stat-card__value">{totalLogCount}</div>
+              <div className="scan-stat-card__label">Log entries</div>
+            </div>
+          )}
+          {scanHistoryRuns.length > 0 && (
+            <div className="scan-stat-card">
+              <div className="scan-stat-card__value">{scanHistoryRuns.length}</div>
+              <div className="scan-stat-card__label">Past runs</div>
+            </div>
+          )}
         </div>
-      ) : (
-        <div className="empty-state empty-state--inline">{scanActive ? "Waiting for the scan log to populate..." : "No universe scan log entries yet."}</div>
       )}
-      <DeltaIssueScanPanel deltaIssueScan={deltaIssueScan} onStartDelta={onStartDelta} issueScanDeltaStarting={issueScanDeltaStarting} />
+
+      {showCharts && (
+        <div className="universe-scan-panel__charts">
+          {progressSeries.length >= 2 && (
+            <div className="scan-chart-card">
+              <div className="scan-chart-card__title">Issues scanned — current run</div>
+              <ScanProgressChart data={progressSeries} />
+            </div>
+          )}
+          {historySeries.length >= 1 && (
+            <div className="scan-chart-card">
+              <div className="scan-chart-card__title">Issues scanned — run history</div>
+              <ScanHistoryChart data={historySeries} />
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="universe-scan-panel__body">
+        <div className="universe-scan-panel__controls">
+          {scanActive && (
+            <div className="universe-scan-panel__progress">
+              <div className="universe-scan-panel__progress-bar">
+                <div className="universe-scan-panel__progress-fill" style={{ width: `${scanPercent}%` }} />
+              </div>
+              <div className="universe-scan-panel__progress-text">
+                <span>{totalProjects > 0 ? `${scanPercent}% — ${processedProjects}/${totalProjects} workers` : "Starting…"}</span>
+                {elapsed && <span className="universe-scan-panel__elapsed">{elapsed}</span>}
+              </div>
+              {processedIssues > 0 && (
+                <div className="universe-scan-panel__issues-live">{processedIssues.toLocaleString()} issues scanned</div>
+              )}
+              {etaLabel && <div className="universe-scan-panel__eta">{etaLabel}</div>}
+            </div>
+          )}
+
+          <div className="universe-scan-panel__action-row">
+            <button className="secondary-button secondary-button--small" type="button"
+              onClick={canResume ? onResume : onStart}
+              disabled={canResume ? issueScanResuming : issueScanLoading}>
+              {canResume
+                ? (issueScanResuming ? "Resuming…" : "Resume scan")
+                : (issueScanLoading ? "Starting…" : scanDone ? "Re-scan all issues" : "Scan all issues")}
+            </button>
+            {scanActive && canForceResume && (
+              <button className="secondary-button secondary-button--small" type="button" onClick={onResume} disabled={issueScanResuming}>
+                {issueScanResuming ? "Resuming…" : "Force resume"}
+              </button>
+            )}
+            {scanActive && (
+              <button className="secondary-button secondary-button--small" type="button" onClick={onCancel} disabled={issueScanCancelling}>
+                {issueScanCancelling ? "Cancelling…" : "Cancel scan"}
+              </button>
+            )}
+          </div>
+
+          {(scanFailed || scanCancelled) && issueScan?.lastError && (
+            <div className="universe-scan-panel__error">{issueScan.lastError}</div>
+          )}
+
+          {issueScan?.startedAt && (
+            <div className="universe-scan-panel__timestamps">
+              <div><span className="scan-ts-label">Started</span>{formatTimestamp(issueScan.startedAt)}</div>
+              {issueScan.completedAt && <div><span className="scan-ts-label">Completed</span>{formatTimestamp(issueScan.completedAt)}</div>}
+            </div>
+          )}
+
+          <div className="universe-scan-panel__about">
+            <div className="universe-scan-panel__about-title">What this scan does</div>
+            <ul className="universe-scan-panel__about-list">
+              <li>Reads every issue across all Jira projects using parallel workers</li>
+              <li>Records which custom fields are populated on each issue</li>
+              <li>Computes unique issue counts per field × project pair</li>
+              <li>Detects <code>RQT-XXXXXX-XXXXXX</code> pattern values in custom fields</li>
+              <li>Updates field usage summaries and governance scores</li>
+              <li>Promotes completed usage counts into the active field snapshot</li>
+            </ul>
+          </div>
+        </div>
+
+        <div className="universe-scan-panel__log-col">
+          <div className="universe-scan-panel__log-head">
+            <span className="universe-scan-panel__log-title">Audit Log</span>
+            <span className="universe-scan-panel__log-count">{totalLogCount} entr{totalLogCount !== 1 ? "ies" : "y"}</span>
+            {scanHistoryRuns.length > 0 && (
+              <span className="universe-scan-panel__log-runs">{scanHistoryRuns.length + 1} runs</span>
+            )}
+            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
+              <input
+                className="rqt-search-input"
+                style={{ maxWidth: 200 }}
+                placeholder="Search all runs…"
+                value={logSearch}
+                onChange={e => setLogSearch(e.target.value)}
+              />
+              {logSearch && (
+                <button className="inline-text-button" type="button" onClick={() => setLogSearch("")} style={{ fontSize: "0.75rem" }}>Clear</button>
+              )}
+            </div>
+          </div>
+          <div className="universe-scan-panel__log scan-log">
+            {filteredEntries ? (
+              filteredEntries.length > 0 ? filteredEntries.map((entry, i) => {
+                const isComplete = /complete|done|finished/i.test(entry.msg);
+                const isError = /error|fail/i.test(entry.msg);
+                const isWarn = /warn|stale|slow|timeout/i.test(entry.msg);
+                return (
+                  <div key={i} className={`scan-log__entry${isComplete ? " scan-log__entry--complete" : ""}${isError ? " scan-log__entry--error" : ""}${isWarn ? " scan-log__entry--warn" : ""}`}>
+                    <span className="scan-log__time">{formatShortTime(entry.t)}</span>
+                    <span className="scan-log__msg">{entry.msg}</span>
+                  </div>
+                );
+              }) : (
+                <div className="empty-state empty-state--inline" style={{ padding: "24px 16px" }}>{`No entries match "${logSearch}".`}</div>
+              )
+            ) : allRunEntries.length > 0 ? allRunEntries.map((item, i) => {
+              if (item.type === "run-header") {
+                return (
+                  <div key={item.key} className="scan-log__run-header">
+                    <span className="scan-log__run-label">{item.isCurrent ? (scanDone ? "Latest run" : scanActive ? "Current run" : "Last run") : "Previous run"}</span>
+                    {item.startedAt && <span className="scan-log__run-date">{formatTimestamp(item.startedAt)}</span>}
+                    {item.processedIssues > 0 && <span className="scan-log__run-issues">{item.processedIssues.toLocaleString()} issues</span>}
+                  </div>
+                );
+              }
+              const isComplete = /complete|done|finished/i.test(item.msg);
+              const isError = /error|fail/i.test(item.msg);
+              const isWarn = /warn|stale|slow|timeout/i.test(item.msg);
+              return (
+                <div key={i} className={`scan-log__entry${isComplete ? " scan-log__entry--complete" : ""}${isError ? " scan-log__entry--error" : ""}${isWarn ? " scan-log__entry--warn" : ""}`}>
+                  <span className="scan-log__time">{formatShortTime(item.t)}</span>
+                  <span className="scan-log__msg">{item.msg}</span>
+                </div>
+              );
+            }) : (
+              <div className="empty-state empty-state--inline" style={{ padding: "24px 16px" }}>
+                {scanActive ? "Waiting for log entries…" : "No log entries yet. Start a scan to populate the audit log."}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1521,14 +2040,25 @@ function UniverseScanPanel({ issueScan, onStart, onResume, onCancel, issueScanLo
 // ── Scans tab (self-contained) ────────────────────────────────────────────
 
 function ScansTab({ siteOrigin }) {
+  const [activeSection, setActiveSection] = React.useState("universe");
+
+  // Universe scan state
   const [issueScanStatus, setIssueScanStatus] = React.useState(null);
   const [deltaIssueScanStatus, setDeltaIssueScanStatus] = React.useState(null);
   const [issueScanLoading, setIssueScanLoading] = React.useState(false);
   const [issueScanResuming, setIssueScanResuming] = React.useState(false);
   const [issueScanCancelling, setIssueScanCancelling] = React.useState(false);
   const [issueScanDeltaStarting, setIssueScanDeltaStarting] = React.useState(false);
-  const [collapsedSections, setCollapsedSections] = React.useState({ universe: false, rqt: false });
   const [error, setError] = React.useState("");
+
+  // Jobs state (moved from AdminApp)
+  const [jobs, setJobs] = React.useState([]);
+  const [loadingJobs, setLoadingJobs] = React.useState(false);
+  const [refreshingJobs, setRefreshingJobs] = React.useState(false);
+  const [expandedJobId, setExpandedJobId] = React.useState("");
+  const [cancellingId, setCancellingId] = React.useState("");
+  const [restartingId, setRestartingId] = React.useState("");
+  const [resumingId, setResumingId] = React.useState("");
 
   const fetchIssueScanStatus = React.useCallback(async () => {
     try { const r = await invoke("getIssueScanStatus"); setIssueScanStatus(r?.meta || null); } catch (err) { setError(err.message || "Failed to load universe scan status."); }
@@ -1571,28 +2101,87 @@ function ScansTab({ siteOrigin }) {
     try { await invoke("startDeltaIssueScan"); await fetchDeltaStatus(); } catch (err) { setError(err.message || "Failed to start quick scan."); } finally { setIssueScanDeltaStarting(false); }
   }
 
-  function toggleSection(key) { setCollapsedSections((prev) => ({ ...prev, [key]: !prev[key] })); }
+  async function loadJobs() {
+    setRefreshingJobs(true);
+    try {
+      const data = await invoke("getProjectUsageJobs");
+      setJobs(data.jobs || []);
+    } catch (err) {
+      setError(err.message || "Failed to load jobs.");
+    } finally {
+      setRefreshingJobs(false);
+    }
+  }
+
+  React.useEffect(() => {
+    if (activeSection === "jobs" && !jobs.length) {
+      setLoadingJobs(true);
+      loadJobs().finally(() => setLoadingJobs(false));
+    }
+  }, [activeSection]);
+
+  async function handleCancelJob(fieldId) {
+    setCancellingId(fieldId);
+    try { await invoke("cancelProjectUsageJob", { fieldId }); await loadJobs(); } catch (err) { setError(err.message || "Failed to cancel job."); } finally { setCancellingId(""); }
+  }
+
+  async function handleRestartJob(fieldId) {
+    setRestartingId(fieldId);
+    try { await invoke("restartProjectUsageJob", { fieldId }); await loadJobs(); } catch (err) { setError(err.message || "Failed to restart job."); } finally { setRestartingId(""); }
+  }
+
+  async function handleResumeJob(fieldId) {
+    setResumingId(fieldId);
+    try { await invoke("resumeProjectUsageJob", { fieldId }); await loadJobs(); } catch (err) { setError(err.message || "Failed to resume job."); } finally { setResumingId(""); }
+  }
+
+  const subNavItems = [
+    { key: "universe", label: "Universe Scan", icon: "zap" },
+    { key: "quick", label: "Quick Scan", icon: "activity" },
+    { key: "rqt", label: "RQT Index", icon: "layers" },
+    { key: "jobs", label: "Field Usage Jobs", icon: "barChart" },
+  ];
 
   return (
     <div className="admin-scans-tab">
       {error && <div className="error-banner" style={{ margin: "0 0 12px 0" }}>{error}<button className="inline-text-button" type="button" onClick={() => setError("")} style={{ marginLeft: 10 }}>Dismiss</button></div>}
-      <ActivitySection title="Universe Scan" subtitle="Full-site issue crawl used to derive unique issue counts per project." open={!collapsedSections.universe} onToggle={() => toggleSection("universe")}>
-        <UniverseScanPanel
-          issueScan={issueScanStatus}
-          onStart={startScan}
-          onResume={resumeScan}
-          onCancel={cancelScan}
-          issueScanLoading={issueScanLoading}
-          issueScanResuming={issueScanResuming}
-          issueScanCancelling={issueScanCancelling}
-          deltaIssueScan={deltaIssueScanStatus}
-          onStartDelta={startDeltaScan}
-          issueScanDeltaStarting={issueScanDeltaStarting}
-        />
-      </ActivitySection>
-      <ActivitySection title="RQT Index" subtitle="Requirement ID tracking across all custom field values." open={!collapsedSections.rqt} onToggle={() => toggleSection("rqt")}>
-        <RqtIndexView siteOrigin={siteOrigin} />
-      </ActivitySection>
+      <SubNavLayout items={subNavItems} activeKey={activeSection} onSelect={setActiveSection}>
+        {activeSection === "universe" && (
+          <UniverseScanPanel
+            issueScan={issueScanStatus}
+            onStart={startScan}
+            onResume={resumeScan}
+            onCancel={cancelScan}
+            issueScanLoading={issueScanLoading}
+            issueScanResuming={issueScanResuming}
+            issueScanCancelling={issueScanCancelling}
+          />
+        )}
+        {activeSection === "quick" && (
+          <DeltaIssueScanPanel
+            deltaIssueScan={deltaIssueScanStatus}
+            onStartDelta={startDeltaScan}
+            issueScanDeltaStarting={issueScanDeltaStarting}
+          />
+        )}
+        {activeSection === "rqt" && <RqtIndexView siteOrigin={siteOrigin} />}
+        {activeSection === "jobs" && (
+          <JobsPanel
+            jobs={jobs}
+            loading={loadingJobs}
+            expandedId={expandedJobId}
+            onToggle={(id) => setExpandedJobId((cur) => cur === id ? "" : id)}
+            onCancel={handleCancelJob}
+            onRestart={handleRestartJob}
+            onResume={handleResumeJob}
+            onRefresh={loadJobs}
+            cancellingId={cancellingId}
+            restartingId={restartingId}
+            resumingId={resumingId}
+            refreshing={refreshingJobs}
+          />
+        )}
+      </SubNavLayout>
     </div>
   );
 }
@@ -1606,18 +2195,11 @@ export function AdminApp() {
   const [loadingOverview, setLoadingOverview] = React.useState(true);
   const [refreshingOverview, setRefreshingOverview] = React.useState(false);
   const [config, setConfig] = React.useState(null);
-  const [jobs, setJobs] = React.useState([]);
-  const [loadingJobs, setLoadingJobs] = React.useState(false);
-  const [refreshingJobs, setRefreshingJobs] = React.useState(false);
   const [savingConfig, setSavingConfig] = React.useState(false);
   const [buildingSnapshot, setBuildingSnapshot] = React.useState(false);
   const [migratingNamespace, setMigratingNamespace] = React.useState(false);
   const [error, setError] = React.useState("");
   const [saveSuccess, setSaveSuccess] = React.useState(false);
-  const [expandedJobId, setExpandedJobId] = React.useState("");
-  const [cancellingId, setCancellingId] = React.useState("");
-  const [restartingId, setRestartingId] = React.useState("");
-  const [resumingId, setResumingId] = React.useState("");
   const [siteOrigin, setSiteOrigin] = React.useState("");
   const [selectedFieldIds, setSelectedFieldIds] = React.useState([]);
   const [pendingReportGenerate, setPendingReportGenerate] = React.useState(false);
@@ -1653,18 +2235,6 @@ export function AdminApp() {
     await loadOverview({ quiet: true });
   }
 
-  async function loadJobs() {
-    setRefreshingJobs(true);
-    try {
-      const data = await invoke("getProjectUsageJobs");
-      setJobs(data.jobs || []);
-    } catch (err) {
-      setError(err.message || "Failed to load jobs.");
-    } finally {
-      setRefreshingJobs(false);
-    }
-  }
-
   React.useEffect(() => {
     loadOverview();
     view.getContext().then((ctx) => {
@@ -1681,20 +2251,11 @@ export function AdminApp() {
     });
   }
 
-  React.useEffect(() => {
-    if (activeTab === "jobs" && !jobs.length) {
-      setLoadingJobs(true);
-      loadJobs().finally(() => setLoadingJobs(false));
-    }
-  }, [activeTab]);
-
-  // Fast poll (12s) while actively building; slow poll (60s) always to catch external changes
+  // Fast poll (12s) while snapshot is actively building; slow poll (60s) always to catch external changes
   React.useEffect(() => {
     const isBuilding = overview?.snapshot?.state === "building" || overview?.snapshot?.state === "queued";
-    const hasActiveJobs = jobs.some((j) => j.summaryStatus === "building" || j.summaryStatus === "queued");
-    const fastTimer = (isBuilding || hasActiveJobs) ? setInterval(() => {
-      if (isBuilding) loadOverview({ quiet: true });
-      if (hasActiveJobs && activeTab === "jobs") loadJobs();
+    const fastTimer = isBuilding ? setInterval(() => {
+      loadOverview({ quiet: true });
     }, 12000) : null;
     const slowTimer = setInterval(() => {
       loadOverview({ quiet: true });
@@ -1703,7 +2264,7 @@ export function AdminApp() {
       if (fastTimer) clearInterval(fastTimer);
       clearInterval(slowTimer);
     };
-  }, [overview, jobs, activeTab]);
+  }, [overview]);
 
   async function handleBuildSnapshot() {
     setBuildingSnapshot(true);
@@ -1746,146 +2307,100 @@ export function AdminApp() {
     }
   }
 
-  async function handleCancelJob(fieldId) {
-    setCancellingId(fieldId);
-    try {
-      await invoke("cancelProjectUsageJob", { fieldId });
-      await loadJobs();
-    } catch (err) {
-      setError(err.message || "Failed to cancel job.");
-    } finally {
-      setCancellingId("");
-    }
-  }
-
-  async function handleRestartJob(fieldId) {
-    setRestartingId(fieldId);
-    try {
-      await invoke("restartProjectUsageJob", { fieldId });
-      await loadJobs();
-    } catch (err) {
-      setError(err.message || "Failed to restart job.");
-    } finally {
-      setRestartingId("");
-    }
-  }
-
-  async function handleResumeJob(fieldId) {
-    setResumingId(fieldId);
-    try {
-      await invoke("resumeProjectUsageJob", { fieldId });
-      await loadJobs();
-    } catch (err) {
-      setError(err.message || "Failed to resume job.");
-    } finally {
-      setResumingId("");
-    }
-  }
-
   const tabs = [
     { key: "overview", label: "Overview", icon: "barChart" },
     { key: "fields", label: "Field Browser", icon: "layers" },
     { key: "projects", label: "Project Usage", icon: "folder" },
     { key: "reports", label: "Reports", icon: "barChart" },
     { key: "scans", label: "Scans", icon: "zap" },
-    { key: "jobs", label: "Field Usage Jobs", icon: "activity" },
     { key: "config", label: "Configuration", icon: "settings" },
   ];
 
   return (
-    <main className="app-shell admin-shell" style={{ minHeight: "100vh" }}>
-      <section className="hero">
-        <div className="hero__identity">
-          <h1>Observatory</h1>
-          <span className="admin-badge">Admin</span>
-        </div>
-        <div className="hero__actions">
-          <button
-            className="icon-button"
-            onClick={() => setTheme((v) => v === "dark" ? "light" : "dark")}
-            type="button"
-            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-          >
-            {theme === "dark" ? "☀" : "☽"}
-          </button>
-        </div>
-      </section>
+    <div className="admin-shell">
+      <div className="admin-layout">
+        <aside className="admin-sidebar">
+          <div className="admin-sidebar__brand">
+            <span className="admin-sidebar__logo">Observatory</span>
+            <span className="admin-badge">Admin</span>
+          </div>
 
-      {config?.readOnlyMode && (
-        <div className="admin-readonly-banner">
-          <Icon name="lock" size={14} />
-          Read-only mode is active — Confluence macro users cannot trigger field usage scans.
-        </div>
-      )}
+          <nav className="admin-nav" aria-label="Admin navigation">
+            {tabs.map(({ key, label, icon }) => (
+              <button
+                key={key}
+                className={`admin-nav__item${activeTab === key ? " admin-nav__item--active" : ""}`}
+                type="button"
+                onClick={() => setActiveTab(key)}
+              >
+                <Icon name={icon} size={15} />
+                <span>{label}</span>
+              </button>
+            ))}
+          </nav>
 
-      {error && (
-        <div className="error-banner" style={{ margin: "0 0 12px 0" }}>
-          {error}
-          <button className="inline-text-button" type="button" onClick={() => setError("")} style={{ marginLeft: 10 }}>Dismiss</button>
-        </div>
-      )}
+          <div className="admin-sidebar__footer">
+            <button
+              className="admin-nav__item admin-nav__item--footer"
+              onClick={() => setTheme((v) => v === "dark" ? "light" : "dark")}
+              type="button"
+              title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            >
+              <span>{theme === "dark" ? "☀" : "☽"}</span>
+              <span>{theme === "dark" ? "Light mode" : "Dark mode"}</span>
+            </button>
+          </div>
+        </aside>
 
-      {saveSuccess && (
-        <div className="admin-success-banner">
-          <Icon name="checkCircle" size={14} />
-          Configuration saved.
-        </div>
-      )}
+        <div className="admin-content">
+          {config?.readOnlyMode && (
+            <div className="admin-readonly-banner">
+              <Icon name="lock" size={14} />
+              Read-only mode is active — Confluence macro users cannot trigger field usage scans.
+            </div>
+          )}
 
-      <div className="tab-bar">
-        {tabs.map(({ key, label, icon }) => (
-          <button
-            key={key}
-            className={`tab-bar__tab ${activeTab === key ? "tab-bar__tab--active" : ""}`}
-            type="button"
-            onClick={() => setActiveTab(key)}
-          >
-            <Icon name={icon} size={15} />
-            {label}
-          </button>
-        ))}
+          {error && (
+            <div className="error-banner" style={{ margin: "0 0 12px 0" }}>
+              {error}
+              <button className="inline-text-button" type="button" onClick={() => setError("")} style={{ marginLeft: 10 }}>Dismiss</button>
+            </div>
+          )}
+
+          {saveSuccess && (
+            <div className="admin-success-banner">
+              <Icon name="checkCircle" size={14} />
+              Configuration saved.
+            </div>
+          )}
+
+          {activeTab === "overview" ? (
+            loadingOverview && !overview ? (
+              <div className="empty-state">Loading…</div>
+            ) : (
+              <OverviewTab overview={overview} onBuildSnapshot={handleBuildSnapshot} buildingSnapshot={buildingSnapshot} onRefresh={handleRefreshOverview} refreshingOverview={refreshingOverview} onMigrateNamespace={handleMigrateNamespace} migratingNamespace={migratingNamespace} />
+            )
+          ) : activeTab === "fields" ? (
+            <FieldBrowserTab
+              selectedFieldIds={selectedFieldIds}
+              onToggleField={toggleFieldSelection}
+              onSetSelectedFieldIds={setSelectedFieldIds}
+              onGoToReport={() => { setActiveTab("reports"); setPendingReportGenerate(true); }}
+              siteOrigin={siteOrigin}
+            />
+          ) : activeTab === "projects" ? (
+            <ProjectUsageTab siteOrigin={siteOrigin} />
+          ) : activeTab === "reports" ? (
+            <ReportsTab siteOrigin={siteOrigin} selectedFieldIds={selectedFieldIds} onSetSelectedFieldIds={setSelectedFieldIds} autoGenerate={pendingReportGenerate} onAutoGenerateConsumed={() => setPendingReportGenerate(false)} />
+          ) : activeTab === "scans" ? (
+            <ScansTab siteOrigin={siteOrigin} />
+          ) : (
+            <ConfigTab config={config} onSave={handleSaveConfig} saving={savingConfig} />
+          )}
+        </div>
       </div>
-
-      {activeTab === "overview" ? (
-        loadingOverview && !overview ? (
-          <div className="empty-state">Loading…</div>
-        ) : (
-          <OverviewTab overview={overview} onBuildSnapshot={handleBuildSnapshot} buildingSnapshot={buildingSnapshot} onRefresh={handleRefreshOverview} refreshingOverview={refreshingOverview} onMigrateNamespace={handleMigrateNamespace} migratingNamespace={migratingNamespace} />
-        )
-      ) : activeTab === "fields" ? (
-        <FieldBrowserTab
-          selectedFieldIds={selectedFieldIds}
-          onToggleField={toggleFieldSelection}
-          onSetSelectedFieldIds={setSelectedFieldIds}
-          onGoToReport={() => { setActiveTab("reports"); setPendingReportGenerate(true); }}
-          siteOrigin={siteOrigin}
-        />
-      ) : activeTab === "projects" ? (
-        <ProjectUsageTab siteOrigin={siteOrigin} />
-      ) : activeTab === "reports" ? (
-        <ReportsTab siteOrigin={siteOrigin} selectedFieldIds={selectedFieldIds} onSetSelectedFieldIds={setSelectedFieldIds} autoGenerate={pendingReportGenerate} onAutoGenerateConsumed={() => setPendingReportGenerate(false)} />
-      ) : activeTab === "scans" ? (
-        <ScansTab siteOrigin={siteOrigin} />
-      ) : activeTab === "jobs" ? (
-        <JobsTab
-          jobs={jobs}
-          loading={loadingJobs}
-          expandedId={expandedJobId}
-          onToggle={(id) => setExpandedJobId((cur) => cur === id ? "" : id)}
-          onCancel={handleCancelJob}
-          onRestart={handleRestartJob}
-          onResume={handleResumeJob}
-          onRefresh={loadJobs}
-          cancellingId={cancellingId}
-          restartingId={restartingId}
-          resumingId={resumingId}
-          refreshing={refreshingJobs}
-        />
-      ) : (
-        <ConfigTab config={config} onSave={handleSaveConfig} saving={savingConfig} />
-      )}
-    </main>
+    </div>
   );
 }
 

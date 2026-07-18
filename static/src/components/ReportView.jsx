@@ -147,6 +147,57 @@ export function SavedReportsPanel({
 }
 
 // Inline chart helpers used by ProjectUsageReportView
+function ScrollableTableWrap({ children, colCount }) {
+  const scrollRef = React.useRef(null);
+  const [canLeft, setCanLeft] = React.useState(false);
+  const [canRight, setCanRight] = React.useState(false);
+
+  const checkScroll = React.useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setCanLeft(el.scrollLeft > 4);
+    setCanRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  }, []);
+
+  React.useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    checkScroll();
+    el.addEventListener("scroll", checkScroll, { passive: true });
+    const ro = new ResizeObserver(checkScroll);
+    ro.observe(el);
+    return () => { el.removeEventListener("scroll", checkScroll); ro.disconnect(); };
+  }, [checkScroll]);
+
+  React.useEffect(() => { checkScroll(); }, [colCount, checkScroll]);
+
+  function nudge(dir) {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * 320, behavior: "smooth" });
+  }
+
+  return (
+    <div className="report-table-scroll-outer">
+      <button
+        type="button"
+        className={`report-table-scroll-btn report-table-scroll-btn--left ${canLeft ? "report-table-scroll-btn--visible" : ""}`}
+        onClick={() => nudge(-1)}
+        aria-label="Scroll left"
+      >‹</button>
+      <div className="report-table-wrap" ref={scrollRef}>
+        {children}
+      </div>
+      <button
+        type="button"
+        className={`report-table-scroll-btn report-table-scroll-btn--right ${canRight ? "report-table-scroll-btn--visible" : ""}`}
+        onClick={() => nudge(1)}
+        aria-label="Scroll right"
+      >›</button>
+    </div>
+  );
+}
+
 function TopFieldsChart({ fields }) {
   const top = [...fields]
     .filter((f) => String(f.fieldId || "").startsWith("customfield_"))
@@ -621,7 +672,7 @@ export function ProjectUsageReportView({
           </div>
           ) : null}
           {fields.length ? (
-          <div className="report-table-wrap">
+          <ScrollableTableWrap colCount={filteredProjects.length}>
             <table className="report-table">
               {tableOrientation === "projects" ? (
                 <>
@@ -752,7 +803,7 @@ export function ProjectUsageReportView({
                 </>
               )}
             </table>
-          </div>
+          </ScrollableTableWrap>
           ) : reportJob && (reportJob.status === "queued" || reportJob.status === "building") ? (
             <div className="empty-state empty-state--inline">Report data will appear here as soon as the background build completes.</div>
           ) : null}

@@ -15,37 +15,6 @@ if (bootStatusNode) {
   bootStatusNode.textContent = "Starting React application...";
 }
 
-function FindingsFilterBar({ value, onChange, summary, hasActiveFilters, onClear }) {
-  const filters = [
-    { key: "all", label: "All fields" },
-    { key: "admin-attention", label: "Admin attention", count: summary.adminAttention },
-    { key: "risky", label: "Risk", count: summary.risky },
-    { key: "cleanup", label: "Cleanup", count: summary.cleanup },
-    { key: "standardize", label: "Standardize", count: summary.standardize },
-  ];
-
-  return (
-    <div className="findings-filter-bar">
-      {filters.map((filter) => (
-        <button
-          key={filter.key}
-          className={`findings-filter-button ${value === filter.key ? "findings-filter-button--active" : ""}`}
-          type="button"
-          onClick={() => onChange(filter.key)}
-        >
-          <span>{filter.label}</span>
-          {typeof filter.count === "number" ? <strong>{filter.count}</strong> : null}
-        </button>
-      ))}
-      {hasActiveFilters ? (
-        <button className="findings-filter-button findings-filter-button--clear" type="button" onClick={onClear}>
-          Clear filters
-        </button>
-      ) : null}
-    </div>
-  );
-}
-
 
 
 export function App() {
@@ -59,7 +28,6 @@ export function App() {
   const [optionSearchStatus, setOptionSearchStatus] = React.useState(null);
   const [typeFilter, setTypeFilter] = React.useState("all");
   const [fieldOrigin, setFieldOrigin] = React.useState("all");
-  const [findingsFilter, setFindingsFilter] = React.useState("all");
   const [projectUsageFilter, setProjectUsageFilter] = React.useState("all");
   const [minIssuesWithValue, setMinIssuesWithValue] = React.useState("");
   const [maxIssuesWithValue, setMaxIssuesWithValue] = React.useState("");
@@ -104,12 +72,6 @@ export function App() {
   const [projectTabFieldSort, setProjectTabFieldSort] = React.useState("issues-desc");
   const [projectTabPage, setProjectTabPage] = React.useState(1);
   const [accessCheck, setAccessCheck] = React.useState(null);
-  const [findingsSummary, setFindingsSummary] = React.useState({
-    adminAttention: 0,
-    risky: 0,
-    cleanup: 0,
-    standardize: 0,
-  });
   const detailsRef = React.useRef(detailsByFieldId);
   const latestInventoryRequestRef = React.useRef(0);
 
@@ -202,7 +164,6 @@ export function App() {
     debouncedOptionQuery !== "" ||
     typeFilter !== "all" ||
     fieldOrigin !== "all" ||
-    findingsFilter !== "all" ||
     projectUsageFilter !== "all" ||
     String(minIssuesWithValue).trim() !== "" ||
     String(maxIssuesWithValue).trim() !== "";
@@ -214,7 +175,6 @@ export function App() {
     setDebouncedOptionQuery("");
     setTypeFilter("all");
     setFieldOrigin("all");
-    setFindingsFilter("all");
     setProjectUsageFilter("all");
     setMinIssuesWithValue("");
     setMaxIssuesWithValue("");
@@ -237,7 +197,6 @@ export function App() {
         optionQuery: debouncedOptionQuery,
         type: typeFilter,
         fieldOrigin,
-        findingsFilter,
         projectUsageFilter,
         minIssuesWithValue,
         maxIssuesWithValue,
@@ -257,12 +216,6 @@ export function App() {
       });
       setAvailableTypes(result.availableTypes || []);
       setRefreshedAt(result.refreshedAt || null);
-      setFindingsSummary(result.findingsSummary || {
-        adminAttention: 0,
-        risky: 0,
-        cleanup: 0,
-        standardize: 0,
-      });
       setTotalFields(result.total || 0);
       setTotalPages(result.totalPages || 1);
       setCurrentPage(result.page || page);
@@ -280,7 +233,7 @@ export function App() {
         setLoadingInventory(false);
       }
     }
-  }, [debouncedQuery, debouncedOptionQuery, fieldOrigin, findingsFilter, projectUsageFilter, minIssuesWithValue, maxIssuesWithValue, sortBy, typeFilter, pageSize]);
+  }, [debouncedQuery, debouncedOptionQuery, fieldOrigin, projectUsageFilter, minIssuesWithValue, maxIssuesWithValue, sortBy, typeFilter, pageSize]);
 
   async function fetchSavedReports() {
     try {
@@ -393,7 +346,7 @@ export function App() {
 
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedQuery, debouncedOptionQuery, fieldOrigin, findingsFilter, projectUsageFilter, minIssuesWithValue, maxIssuesWithValue, typeFilter, sortBy, pageSize]);
+  }, [debouncedQuery, debouncedOptionQuery, fieldOrigin, projectUsageFilter, minIssuesWithValue, maxIssuesWithValue, typeFilter, sortBy, pageSize]);
 
   React.useEffect(() => {
     setProjectTabPage(1);
@@ -478,7 +431,6 @@ export function App() {
         optionQuery: debouncedOptionQuery,
         type: typeFilter,
         fieldOrigin,
-        findingsFilter,
         projectUsageFilter,
         minIssuesWithValue,
         maxIssuesWithValue,
@@ -636,6 +588,9 @@ export function App() {
   const showOnboarding = !loadingInventory && !refreshedAt;
   const snapshotChipState = refreshedAt ? "ready" : "idle";
   const snapshotChipLabel = refreshedAt ? `Synced ${formatRelativeTime(refreshedAt)}` : "No snapshot";
+  const SNAPSHOT_STALE_DAYS = 7;
+  const snapshotAgeMs = refreshedAt ? Date.now() - new Date(refreshedAt).getTime() : null;
+  const isSnapshotStale = !loadingInventory && snapshotAgeMs != null && snapshotAgeMs > SNAPSHOT_STALE_DAYS * 24 * 60 * 60 * 1000;
 
   if (accessCheck === null) {
     return (
@@ -754,6 +709,16 @@ export function App() {
           {selectedFieldIds.length ? <span className="tab-bar__dot" /> : null}
         </button>
       </div>
+
+      {isSnapshotStale && (
+        <div className="status-banner status-banner--warning staleness-banner" role="alert">
+          <svg className="staleness-banner__icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          Field data was last synced {formatRelativeTime(refreshedAt)} — data may be outdated. Ask your Jira admin to run a snapshot refresh.
+        </div>
+      )}
 
       {activeTab === "projects" ? (
         <ProjectsTabView
@@ -890,13 +855,6 @@ export function App() {
           </section>
 
           <div className="findings-actions-bar">
-            <FindingsFilterBar
-              value={findingsFilter}
-              onChange={setFindingsFilter}
-              summary={findingsSummary}
-              hasActiveFilters={hasActiveFilters}
-              onClear={clearFilters}
-            />
             <div className="toolbar__report-actions">
               {selectedFieldIds.length > 0 && (
                 <span className="toolbar__selected-count">{selectedFieldIds.length} selected</span>
@@ -986,6 +944,7 @@ export function App() {
                   onAskProject={(project) => askRovoAboutProject(field, project)}
                   siteOrigin={siteOrigin}
                   rovoEnabled={rovoEnabled}
+                  showGovernance={false}
                 />
               ))
             ) : (

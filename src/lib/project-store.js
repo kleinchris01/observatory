@@ -275,9 +275,11 @@ const projectStoreMigrations = migrationRunner
   .enqueue("v035_create_rqt_field_index_table", CREATE_RQT_FIELD_INDEX_TABLE)
   .enqueue("v036_create_rqt_issue_keys_table", CREATE_RQT_ISSUE_KEYS_TABLE)
   .enqueue("v037_create_rqt_value_issue_index_table", CREATE_RQT_VALUE_ISSUE_INDEX_TABLE)
-  .enqueue("v038_create_rqt_field_issue_index_table", CREATE_RQT_FIELD_ISSUE_INDEX_TABLE);
+  .enqueue("v038_create_rqt_field_issue_index_table", CREATE_RQT_FIELD_ISSUE_INDEX_TABLE)
+  .enqueue("v039_alter_issue_scan_meta_add_scan_history", "ALTER TABLE issue_scan_meta ADD COLUMN IF NOT EXISTS scan_history LONGTEXT NULL");
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
+  // v039 adds scan_history LONGTEXT for multi-run audit history
 
 let migrationPromise = null;
 
@@ -844,6 +846,7 @@ export async function loadSnapshotProjectFields(scopeKey, version, projectId, fi
           sf.name,
           sf.description,
           sf.type,
+          sf.custom_type,
           sf.configured_project_count,
           sf.total_issue_count,
           sf.active_project_count,
@@ -868,6 +871,7 @@ export async function loadSnapshotProjectFields(scopeKey, version, projectId, fi
       fieldName: row.name || row.field_id,
       description: row.description || "",
       fieldType: row.type || "unknown",
+      customType: row.custom_type || "",
       configuredProjectCount: toNumber(row.configured_project_count),
       totalIssueCount: toNumber(row.total_issue_count),
       activeProjectCount: toNumber(row.active_project_count),
@@ -938,6 +942,8 @@ export async function getSnapshotProcessedFieldIds(scopeKey, version) {
   return new Set((result.rows || []).map((row) => row.field_id));
 }
 
+// TTL note: field option caches are overwritten on each scan but never explicitly expired.
+// Consider adding a cached_at column and pruning entries older than 90 days if storage grows.
 export async function replaceFieldOptionsCache(scopeKey, fieldId, optionsByContext) {
   await ensureProjectStoreReady();
   const refreshedAt = new Date().toISOString();
@@ -1608,7 +1614,8 @@ export async function readIssueScanMeta(scopeKey) {
     sql
       .prepare(`
         SELECT state, job_token, started_at, completed_at, total_pages, processed_pages,
-               total_issues, processed_issues, last_error, progress_log, next_page_token, next_start_at
+               total_issues, processed_issues, last_error, progress_log, next_page_token, next_start_at,
+               scan_history
         FROM issue_scan_meta
         WHERE scope_key = ?
         LIMIT 1
@@ -1633,6 +1640,7 @@ export async function readIssueScanMeta(scopeKey) {
     progressLog: safeParseJson(row.progress_log, []),
     nextPageToken: row.next_page_token || null,
     nextStartAt: toNumber(row.next_start_at),
+    scanHistory: safeParseJson(row.scan_history, []),
   };
 }
 
@@ -1653,6 +1661,7 @@ export async function writeIssueScanMeta(scopeKey, patch) {
     progressLog: [],
     nextPageToken: null,
     nextStartAt: 0,
+    scanHistory: [],
     ...(current || {}),
     ...patch,
   };
@@ -1660,6 +1669,9 @@ export async function writeIssueScanMeta(scopeKey, patch) {
   const progressLogJson = Array.isArray(next.progressLog)
     ? JSON.stringify(next.progressLog)
     : (next.progressLog || null);
+  const scanHistoryJson = Array.isArray(next.scanHistory)
+    ? JSON.stringify(next.scanHistory)
+    : (next.scanHistory || null);
 
   await withSqlRetry(() =>
     sql
@@ -1667,9 +1679,9 @@ export async function writeIssueScanMeta(scopeKey, patch) {
         INSERT INTO issue_scan_meta (
           scope_key, state, job_token, started_at, completed_at,
            total_pages, processed_pages, total_issues, processed_issues, last_error, progress_log,
-           next_page_token, next_start_at
+           next_page_token, next_start_at, scan_history
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
           state = VALUES(state),
           job_token = VALUES(job_token),
@@ -1682,12 +1694,14 @@ export async function writeIssueScanMeta(scopeKey, patch) {
           last_error = VALUES(last_error),
           progress_log = VALUES(progress_log),
           next_page_token = VALUES(next_page_token),
-          next_start_at = VALUES(next_start_at)
+          next_start_at = VALUES(next_start_at),
+          scan_history = VALUES(scan_history)
       `)
       .bindParams(
         scopeKey, next.state, next.jobToken, next.startedAt, next.completedAt,
         next.totalPages, next.processedPages, next.totalIssues, next.processedIssues,
-        next.lastError, progressLogJson, next.nextPageToken || null, next.nextStartAt ?? 0
+        next.lastError, progressLogJson, next.nextPageToken || null, next.nextStartAt ?? 0,
+        scanHistoryJson
       )
       .execute()
   );
@@ -2467,6 +2481,49 @@ export async function loadRqtFieldIssueIndex(scopeKey) {
     map[row.field_id].push(row.issue_key);
   }
   return map;
+}
+
+export async function pruneOldSnapshotVersions(scopeKey, keepVersion) {
+  await ensureProjectStoreReady();
+
+  const fieldsResult = await withSqlRetry(() =>
+    sql
+      .prepare("DELETE FROM snapshot_fields WHERE scope_key = ? AND version != ?")
+      .bindParams(scopeKey, keepVersion)
+      .execute()
+  );
+
+  const usageResult = await withSqlRetry(() =>
+    sql
+      .prepare("DELETE FROM snapshot_project_usage WHERE scope_key = ? AND version != ?")
+      .bindParams(scopeKey, keepVersion)
+      .execute()
+  );
+
+  return {
+    fieldsDeleted: toNumber(fieldsResult?.rowsAffected, 0),
+    usageRowsDeleted: toNumber(usageResult?.rowsAffected, 0),
+  };
+}
+
+export async function pruneStaleReportJobs(scopeKey, olderThanMs = 7 * 24 * 60 * 60 * 1000) {
+  await ensureProjectStoreReady();
+
+  const cutoffIso = new Date(Date.now() - olderThanMs).toISOString();
+
+  const result = await withSqlRetry(() =>
+    sql
+      .prepare(`
+        DELETE FROM report_jobs
+        WHERE scope_key = ?
+          AND completed_at IS NOT NULL
+          AND completed_at < ?
+      `)
+      .bindParams(scopeKey, cutoffIso)
+      .execute()
+  );
+
+  return { jobsDeleted: toNumber(result?.rowsAffected, 0) };
 }
 
 export async function migrateOldScopeKeys(newScopeKey) {

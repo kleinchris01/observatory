@@ -1,0 +1,813 @@
+import { inventorySnapshotQueue } from "./queues.js";
+import { logger } from "./logger.js";
+import {
+  jiraRequest,
+  sleep,
+  incrMetric,
+  METRIC_NAMES,
+  makeJobToken,
+  getAllJiraProjectKeys,
+  loadFieldOptionsFromJira,
+  getScanTelemetry,
+  resetScanTelemetry,
+  mapWithConcurrency,
+  withTimeout,
+  ISSUE_SCAN_PAGE_SIZE,
+  ISSUE_SCAN_WORKERS,
+  ISSUE_SCAN_INTER_PAGE_DELAY_MS,
+  ISSUE_SCAN_FLUSH_EVERY_PAGES,
+} from "./jira-api.js";
+import {
+  ensureProjectStoreReady,
+  readSnapshotMeta,
+  writeIssueScanMeta,
+  readIssueScanMeta,
+  clearIssueScanBuffer,
+  replaceIssueScanWorkers,
+  readIssueScanWorker,
+  updateIssueScanWorker,
+  replaceFieldOptionsCache,
+  flushIssueScanCounts,
+  finalizeIssueScan,
+  clearRqtFieldIndex,
+  upsertRqtFieldHits,
+  clearRqtIssueKeys,
+  upsertRqtIssueKeys,
+  clearRqtValueIndex,
+  upsertRqtValueIssueKeys,
+  clearRqtFieldIssueIndex,
+  upsertRqtFieldIssueKeys,
+  atomicAccumulateIssueScanProgress,
+  appendIssueScanLogEntry,
+  tryClaimIssueScanFinalization,
+  loadIssueScanProjectTotals,
+  promoteIssueScanToSnapshotProjectUsage,
+} from "./project-store.js";
+import {
+  STRUCTURAL_SYSTEM_FIELDS,
+  isFieldValueNonEmpty,
+  collectIssueRqtValues,
+  isSelectFieldType,
+  getRetryDelayMs,
+} from "./analysis.js";
+import { route } from "@forge/api";
+
+const ISSUE_SCAN_CHUNK_PAGES = 10;
+const ISSUE_SCAN_RATE_LIMIT_COOLDOWN_MS = 60 * 1000;
+const ISSUE_COUNT_TIMEOUT_MS = 8000;
+
+export function isJiraRateLimitError(error) {
+  return Number(error?.status) === 429;
+}
+
+export function isExpiredPageTokenError(error) {
+  return Number(error?.status) === 400 && String(error?.message || "").toLowerCase().includes("next page token");
+}
+
+export async function queueIssueScanChunk(installationKey, progressLog = [], nextStartAt = 0) {
+  const retryDelaysMs = [0, 2000, 5000];
+  for (let attempt = 0; attempt < retryDelaysMs.length; attempt++) {
+    if (retryDelaysMs[attempt] > 0) await sleep(retryDelaysMs[attempt]);
+    try {
+      await inventorySnapshotQueue.push({
+        body: { jobType: "run-issue-scan", installationKey },
+      });
+      return true;
+    } catch (pushError) {
+      if (attempt < retryDelaysMs.length - 1) continue;
+      const delayMs = ISSUE_SCAN_RATE_LIMIT_COOLDOWN_MS;
+      const queuedLog = [
+        ...progressLog,
+        {
+          t: new Date().toISOString(),
+          msg: `Queue backpressure hit; pausing universe scan for ${Math.round(delayMs / 1000)}s before retry`,
+        },
+      ];
+      await writeIssueScanMeta(installationKey, {
+        state: "queued",
+        nextStartAt: nextStartAt || (Date.now() + delayMs),
+        lastError: null,
+        progressLog: queuedLog,
+      }).catch(() => {});
+      return false;
+    }
+  }
+  return false;
+}
+
+export async function queueIssueScanWorker(installationKey, workerId) {
+  await inventorySnapshotQueue.push({
+    body: { jobType: "run-issue-scan-worker", installationKey, workerId },
+  });
+}
+
+export async function queueFieldOptionsCache(installationKey, fieldId) {
+  await inventorySnapshotQueue.push({
+    body: { jobType: "cache-field-options", installationKey, fieldId },
+  });
+}
+
+export async function cacheFieldOptionsForField(installationKey, fieldId) {
+  if (!fieldId) return { fieldId, optionCount: 0 };
+  const optionsByContext = await loadFieldOptionsFromJira(fieldId);
+  const result = await replaceFieldOptionsCache(installationKey, fieldId, optionsByContext);
+  return { fieldId, ...result };
+}
+
+export async function completeIssueScanFinalization(installationKey, tag, workerError = null) {
+  try {
+    console.log(`${tag}: finalizing scan...`);
+    await finalizeIssueScan(installationKey);
+
+    const snapshotMeta = await readSnapshotMeta(installationKey);
+    if (snapshotMeta?.version) {
+      const promoted = await promoteIssueScanToSnapshotProjectUsage(installationKey, snapshotMeta.version);
+      console.log(`${tag}: promoted ${promoted.fieldsPromoted} fields (${promoted.rowsInserted} rows)`);
+    }
+
+    const finalMeta = await readIssueScanMeta(installationKey);
+    const completionTimestamp = new Date().toISOString();
+    const completedProgressLog = [
+      ...((finalMeta?.progressLog || []).slice(-40)),
+      { t: completionTimestamp, msg: `Scan complete - ${(finalMeta?.processedIssues || 0).toLocaleString()} issues` },
+    ];
+    const prevScanHistory = (finalMeta?.scanHistory || []).slice(-14);
+    await writeIssueScanMeta(installationKey, {
+      state: "ready",
+      completedAt: completionTimestamp,
+      nextPageToken: null,
+      nextStartAt: 0,
+      lastError: workerError,
+      progressLog: completedProgressLog,
+      scanHistory: [
+        ...prevScanHistory,
+        {
+          startedAt: finalMeta?.startedAt || null,
+          completedAt: completionTimestamp,
+          processedIssues: finalMeta?.processedIssues || 0,
+          progressLog: completedProgressLog.slice(-30),
+        },
+      ],
+    });
+    console.log(`${tag}: scan finalized and marked ready`);
+    logger.info("scan.finalized", { installationKey, processedIssues: finalMeta?.processedIssues || 0 });
+  } catch (error) {
+    const message = error?.message || String(error);
+    logger.error("scan.finalization_failed", { installationKey, error: message });
+    console.error(`${tag}: finalization failed:`, message);
+    const finalMeta = await readIssueScanMeta(installationKey).catch(() => null);
+    await writeIssueScanMeta(installationKey, {
+      state: "failed",
+      completedAt: new Date().toISOString(),
+      nextPageToken: null,
+      nextStartAt: 0,
+      lastError: `Finalization failed: ${message}`,
+      progressLog: [
+        ...((finalMeta?.progressLog || []).slice(-40)),
+        { t: new Date().toISOString(), msg: `Finalization failed - ${message}` },
+      ],
+    }).catch(() => {});
+  }
+}
+
+export async function runIssueScanCoordinator(installationKey) {
+  try {
+    await ensureProjectStoreReady();
+
+    const existing = await readIssueScanMeta(installationKey);
+    if (existing?.state !== "queued") {
+      console.log("runIssueScanCoordinator: not in queued state, skipping");
+      return;
+    }
+
+    logger.info("scan.coordinator.start", { installationKey });
+    const log = (msg) => console.log(`runIssueScanCoordinator: ${msg}`);
+
+    log("Fetching all project keys...");
+    const allProjectKeys = await getAllJiraProjectKeys();
+
+    if (allProjectKeys.length === 0) {
+      await writeIssueScanMeta(installationKey, {
+        state: "ready",
+        completedAt: new Date().toISOString(),
+        totalIssues: 0,
+        processedIssues: 0,
+        totalPages: 0,
+        processedPages: 0,
+        progressLog: [{ t: new Date().toISOString(), msg: "No projects found — scan skipped" }],
+      });
+      return;
+    }
+
+    // Get site-wide issue count for progress tracking
+    log("Fetching site-wide issue count...");
+    const globalCountResult = await withTimeout(
+      jiraRequest(route`/rest/api/3/search/approximate-count`, {
+        method: "POST",
+        body: JSON.stringify({ jql: "project is not empty" }),
+      }),
+      ISSUE_COUNT_TIMEOUT_MS
+    ).catch(() => null);
+    const totalEstimatedIssues = Number(globalCountResult?.count ?? 0);
+    log(`Site-wide issue count: ${totalEstimatedIssues.toLocaleString()}`);
+
+    // Get per-project approximate counts to load-balance workers.
+    // Prefer historical data; fall back to live approximate-count for unknown projects.
+    const knownTotals = await loadIssueScanProjectTotals(installationKey).catch(() => []);
+    const issueCountByKey = new Map(knownTotals.map((r) => [r.projectKey, r.uniqueIssueCount]));
+    const unknownKeys = allProjectKeys.filter((k) => !issueCountByKey.has(k));
+    if (unknownKeys.length > 0) {
+      log(`Fetching approximate counts for ${unknownKeys.length} unknown projects...`);
+      const APPROX_BATCH = 8;
+      for (let i = 0; i < unknownKeys.length; i += APPROX_BATCH) {
+        const batch = unknownKeys.slice(i, i + APPROX_BATCH);
+        const results = await Promise.all(
+          batch.map((key) =>
+            withTimeout(
+              jiraRequest(route`/rest/api/3/search/approximate-count`, {
+                method: "POST",
+                body: JSON.stringify({ jql: `project = "${key}"` }),
+              }),
+              ISSUE_COUNT_TIMEOUT_MS
+            )
+              .then((r) => [key, Number(r?.count ?? 0)])
+              .catch(() => [key, 100])
+          )
+        );
+        for (const [key, count] of results) issueCountByKey.set(key, count || 1);
+        if (i + APPROX_BATCH < unknownKeys.length) await sleep(150);
+      }
+    }
+
+    // Greedy bin-pack: assign projects to ISSUE_SCAN_WORKERS bins so each bin has
+    // approximately equal total issue count. Sort largest-first (LPT heuristic).
+    const sortedKeys = [...allProjectKeys].sort(
+      (a, b) => (issueCountByKey.get(b) ?? 1) - (issueCountByKey.get(a) ?? 1)
+    );
+    const bins = Array.from({ length: ISSUE_SCAN_WORKERS }, () => ({ keys: [], count: 0 }));
+    for (const key of sortedKeys) {
+      const smallest = bins.reduce((min, b) => b.count < min.count ? b : min);
+      smallest.keys.push(key);
+      smallest.count += issueCountByKey.get(key) ?? 1;
+    }
+
+    // Build one JQL filter per worker covering all its assigned projects
+    const workerJqls = bins.map((bin) =>
+      bin.keys.length === 0 ? null : `project IN (${bin.keys.map((k) => `"${k}"`).join(", ")})`
+    );
+
+    // Targeted fields from the active snapshot — smaller payloads, faster per-page processing
+    const snapshotMeta = await readSnapshotMeta(installationKey);
+    let fieldIds = null;
+    if (snapshotMeta?.version) {
+      const { loadSnapshotFields } = await import("./project-store.js");
+      const snapshotFields = await loadSnapshotFields(installationKey, snapshotMeta.version);
+      const ids = new Set(snapshotFields.map((field) => field.id));
+      if (ids.size > 0) fieldIds = ["project", ...ids];
+      const selectFields = snapshotFields.filter((field) => isSelectFieldType(field.type));
+      for (const field of selectFields) {
+        try {
+          await queueFieldOptionsCache(installationKey, field.id);
+        } catch (pushError) {
+          console.warn(`runIssueScanCoordinator: failed to queue option cache for ${field.id}:`, pushError?.message || pushError);
+        }
+      }
+    }
+
+    log(`Starting ${ISSUE_SCAN_WORKERS} workers across ${allProjectKeys.length} projects (${totalEstimatedIssues.toLocaleString()} issues on site)`);
+
+    await clearIssueScanBuffer(installationKey);
+    await clearRqtFieldIndex(installationKey);
+    await clearRqtIssueKeys(installationKey);
+    await clearRqtValueIndex(installationKey);
+    await clearRqtFieldIssueIndex(installationKey);
+    await writeIssueScanMeta(installationKey, {
+      state: "building",
+      startedAt: new Date().toISOString(),
+      completedAt: null,
+      totalPages: ISSUE_SCAN_WORKERS,  // one slot per worker; finalization fires when all done
+      processedPages: 0,
+      totalIssues: totalEstimatedIssues,
+      processedIssues: 0,
+      nextPageToken: null,
+      nextStartAt: 0,
+      lastError: null,
+      progressLog: [{ t: new Date().toISOString(), msg: `Starting ${ISSUE_SCAN_WORKERS} workers — ${totalEstimatedIssues.toLocaleString()} issues on site` }],
+    });
+
+    await replaceIssueScanWorkers(
+      installationKey,
+      workerJqls.map((jqlFilter, workerId) => ({
+        workerId,
+        status: "queued",
+        jqlFilter,
+        fieldIds,
+      }))
+    );
+
+    for (let i = 0; i < ISSUE_SCAN_WORKERS; i++) {
+      await queueIssueScanWorker(installationKey, i);
+    }
+
+    log(`All ${ISSUE_SCAN_WORKERS} workers queued`);
+    logger.info("scan.coordinator.workers_queued", { installationKey, workers: ISSUE_SCAN_WORKERS });
+  } catch (error) {
+    logger.error("scan.coordinator.failed", { installationKey, error: error?.message });
+    console.error("runIssueScanCoordinator failed:", error?.message || error);
+    await writeIssueScanMeta(installationKey, {
+      state: "failed",
+      completedAt: new Date().toISOString(),
+      lastError: error?.message || String(error),
+    }).catch(() => {});
+  }
+}
+
+export async function runIssueScanWorker(installationKey, workerId, jqlFilter, fieldIds) {
+  const tag = `runIssueScanWorker[${workerId}]`;
+  if (!jqlFilter) {
+    // Empty bin — no projects assigned; count this worker done immediately
+    console.log(`${tag}: no projects assigned, skipping`);
+    const updatedMeta = await atomicAccumulateIssueScanProgress(installationKey, 1, 0).catch(() => null);
+    if (updatedMeta && updatedMeta.processedPages >= updatedMeta.totalPages && updatedMeta.totalPages > 0) {
+      const claimToken = makeJobToken();
+      const claimed = await tryClaimIssueScanFinalization(installationKey, claimToken).catch(() => false);
+      if (claimed) await finalizeIssueScan(installationKey).catch(() => {});
+    }
+    return;
+  }
+  const jql = jqlFilter;
+  console.log(`${tag}: starting — jql: ${jql}`);
+
+  let pendingIssues = 0;
+  const fieldProjectCounts = new Map();
+  const projectTotals = new Map();
+  const rqtFieldHits = new Map(); // fieldId → { count, values: Set<string> }
+  const rqtIssueBuffer = []; // { projectKey, issueKey }
+  const rqtValueBuffer = []; // { rqtValue, issueKey }
+  const rqtFieldIssueBuffer = []; // { fieldId, issueKey }
+
+  try {
+    await ensureProjectStoreReady();
+
+    const scanFields = fieldIds || ["*all"];
+    let currentNextPageToken = null;
+    let pageCount = 0;
+    let issueCount = 0;
+
+    for (let page = 0; ; page++) {
+      // Periodic flush + progress push + cancellation check
+      if (page > 0 && page % ISSUE_SCAN_FLUSH_EVERY_PAGES === 0) {
+        if (fieldProjectCounts.size > 0 || projectTotals.size > 0) {
+          await flushIssueScanCounts(installationKey, fieldProjectCounts, projectTotals);
+          fieldProjectCounts.clear();
+          projectTotals.clear();
+        }
+        if (pendingIssues > 0) {
+          const updMid = await atomicAccumulateIssueScanProgress(installationKey, 0, pendingIssues).catch(() => null);
+          if (updMid) {
+            const cur = updMid.processedIssues ?? 0;
+            const prev = cur - pendingIssues;
+            if (Math.floor(prev / 5000) < Math.floor(cur / 5000)) {
+              const tot = updMid.totalIssues ?? 0;
+              await appendIssueScanLogEntry(installationKey,
+                `${cur.toLocaleString()}${tot > 0 ? ` / ${tot.toLocaleString()}` : ""} issues scanned`
+              ).catch(() => {});
+            }
+          }
+          pendingIssues = 0;
+        }
+        const cancelCheck = await readIssueScanMeta(installationKey);
+        if (cancelCheck?.state === "cancelled") {
+          console.log(`${tag}: scan cancelled`);
+          return;
+        }
+      }
+
+      const reqBody = {
+        jql,
+        maxResults: ISSUE_SCAN_PAGE_SIZE,
+        fields: scanFields,
+        fieldsByKeys: false,
+      };
+      if (currentNextPageToken) reqBody.nextPageToken = currentNextPageToken;
+
+      const data = await jiraRequest(route`/rest/api/3/search/jql`, {
+        method: "POST",
+        body: JSON.stringify(reqBody),
+      });
+
+      const issues = data?.issues || [];
+      const newNextPageToken = data?.nextPageToken || null;
+
+      for (const issue of issues) {
+        const projectId = String(issue.fields?.project?.id || "");
+        if (!projectId) continue;
+        const projectKey_ = String(issue.fields?.project?.key || "");
+        const projectName = String(issue.fields?.project?.name || projectKey_);
+
+        const projEntry = projectTotals.get(projectId) || { count: 0, key: projectKey_, name: projectName };
+        projEntry.count++;
+        projectTotals.set(projectId, projEntry);
+
+        for (const [fieldId, value] of Object.entries(issue.fields || {})) {
+          if (STRUCTURAL_SYSTEM_FIELDS.has(fieldId)) continue;
+          if (!isFieldValueNonEmpty(value)) continue;
+          let byProject = fieldProjectCounts.get(fieldId);
+          if (!byProject) { byProject = new Map(); fieldProjectCounts.set(fieldId, byProject); }
+          const entry = byProject.get(projectId) || { count: 0, key: projectKey_, name: projectName };
+          entry.count++;
+          byProject.set(projectId, entry);
+        }
+
+        const issueRqt = collectIssueRqtValues(issue.fields, issue.fields?.summary);
+        for (const [fieldId, values] of issueRqt) {
+          const rqtEntry = rqtFieldHits.get(fieldId) || { count: 0, values: new Set() };
+          rqtEntry.count++;
+          for (const v of values) rqtEntry.values.add(v);
+          rqtFieldHits.set(fieldId, rqtEntry);
+        }
+
+        if (issueRqt.size > 0 && issue.key) {
+          rqtIssueBuffer.push({
+            projectKey: projectKey_,
+            issueType: issue.fields?.issuetype?.name || "Unknown",
+            issueKey: issue.key,
+          });
+          const allValues = new Set();
+          for (const vals of issueRqt.values()) for (const v of vals) allValues.add(v);
+          for (const v of allValues) rqtValueBuffer.push({ rqtValue: v, issueKey: issue.key });
+        }
+        if (issueRqt.size > 0 && issue.key) {
+          for (const fieldId of issueRqt.keys()) {
+            rqtFieldIssueBuffer.push({ fieldId, issueKey: issue.key });
+          }
+        }
+      }
+
+      pageCount++;
+      issueCount += issues.length;
+      pendingIssues += issues.length;
+      currentNextPageToken = newNextPageToken;
+      if (!newNextPageToken || issues.length === 0) break;
+      await sleep(ISSUE_SCAN_INTER_PAGE_DELAY_MS);
+    }
+
+    // Flush remaining counts then mark this worker done (processedPages += 1)
+    if (fieldProjectCounts.size > 0 || projectTotals.size > 0) {
+      await flushIssueScanCounts(installationKey, fieldProjectCounts, projectTotals);
+    }
+    if (rqtFieldHits.size > 0) {
+      await upsertRqtFieldHits(installationKey, rqtFieldHits).catch((e) => {
+        console.error(`${tag}: RQT flush error`, e?.message || e);
+      });
+    }
+    if (rqtIssueBuffer.length > 0) {
+      await upsertRqtIssueKeys(installationKey, rqtIssueBuffer).catch((e) => {
+        console.error(`${tag}: RQT issue key flush error`, e?.message || e);
+      });
+    }
+    if (rqtValueBuffer.length > 0) {
+      await upsertRqtValueIssueKeys(installationKey, rqtValueBuffer).catch((e) => {
+        console.error(`${tag}: RQT value index flush error`, e?.message || e);
+      });
+    }
+    if (rqtFieldIssueBuffer.length > 0) {
+      await upsertRqtFieldIssueKeys(installationKey, rqtFieldIssueBuffer).catch((e) => {
+        console.error(`RQT field issue index flush error`, e?.message || e);
+      });
+    }
+    const updatedMeta = await atomicAccumulateIssueScanProgress(installationKey, 1, pendingIssues);
+    pendingIssues = 0;
+    console.log(`${tag}: done — ${issueCount} issues, ${pageCount} pages`);
+
+    // Last worker to finish claims finalization
+    const doneWorkers = updatedMeta?.processedPages ?? 0;
+    const totalWorkers = updatedMeta?.totalPages ?? 0;
+    if (doneWorkers >= totalWorkers && totalWorkers > 0) {
+      const claimToken = makeJobToken();
+      const claimed = await tryClaimIssueScanFinalization(installationKey, claimToken);
+      if (claimed) {
+        console.log(`${tag}: finalizing scan...`);
+        await finalizeIssueScan(installationKey);
+
+        const snapshotMeta = await readSnapshotMeta(installationKey);
+        if (snapshotMeta?.version) {
+          const promoted = await promoteIssueScanToSnapshotProjectUsage(installationKey, snapshotMeta.version);
+          console.log(`${tag}: promoted ${promoted.fieldsPromoted} fields (${promoted.rowsInserted} rows)`);
+        }
+
+        const finalMeta = await readIssueScanMeta(installationKey);
+        await writeIssueScanMeta(installationKey, {
+          state: "ready",
+          completedAt: new Date().toISOString(),
+          nextStartAt: 0,
+          lastError: null,
+          progressLog: [
+            ...((finalMeta?.progressLog || []).slice(-40)),
+            { t: new Date().toISOString(), msg: `Scan complete — ${(finalMeta?.processedIssues || 0).toLocaleString()} issues` },
+          ],
+        });
+        console.log(`${tag}: scan finalized and marked ready`);
+      }
+    }
+
+  } catch (error) {
+    const errMsg = error?.message || String(error);
+    if (isJiraRateLimitError(error)) {
+      const retryAfterMs = getRetryDelayMs(error, 0);
+      const retryAt = Date.now() + retryAfterMs;
+      logger.warn("scan.worker.ratelimit", { installationKey, workerId, retryAfterSec: Math.round(retryAfterMs / 1000) });
+      console.warn(`${tag}: rate-limited; checkpoint kept and worker will retry in ${Math.round(retryAfterMs / 1000)}s`);
+      await updateIssueScanWorker(installationKey, workerId, {
+        status: "queued",
+        lastError: `Rate-limited; retrying after ${new Date(retryAt).toISOString()}`,
+      }).catch(() => {});
+      await appendIssueScanLogEntry(
+        installationKey,
+        `Worker ${workerId} rate-limited - retrying in ${Math.round(retryAfterMs / 1000)}s`
+      ).catch(() => {});
+      await sleep(retryAfterMs);
+      await queueIssueScanWorker(installationKey, workerId).catch(async (pushError) => {
+        await writeIssueScanMeta(installationKey, {
+          state: "queued",
+          nextStartAt: Date.now() + ISSUE_SCAN_RATE_LIMIT_COOLDOWN_MS,
+          lastError: `Queue retry failed after rate limit: ${pushError?.message || String(pushError)}`,
+        }).catch(() => {});
+      });
+      return;
+    }
+    console.error(`${tag} failed:`, errMsg);
+    await appendIssueScanLogEntry(installationKey, `Worker ${workerId} failed — ${errMsg}`).catch(() => {});
+    // Count this worker done so finalization can still fire if it was the last one
+    const updatedMeta = await atomicAccumulateIssueScanProgress(installationKey, 1, pendingIssues).catch(() => null);
+    if (updatedMeta && updatedMeta.processedPages >= updatedMeta.totalPages && updatedMeta.totalPages > 0) {
+      const claimToken = makeJobToken();
+      const claimed = await tryClaimIssueScanFinalization(installationKey, claimToken).catch(() => false);
+      if (claimed) {
+        await finalizeIssueScan(installationKey).catch(() => {});
+        const snapshotMeta = await readSnapshotMeta(installationKey).catch(() => null);
+        if (snapshotMeta?.version) {
+          await promoteIssueScanToSnapshotProjectUsage(installationKey, snapshotMeta.version).catch(() => {});
+        }
+        await writeIssueScanMeta(installationKey, {
+          state: "ready",
+          completedAt: new Date().toISOString(),
+          nextStartAt: 0,
+          lastError: `Worker ${workerId} failed — ${errMsg}`,
+        }).catch(() => {});
+      }
+    }
+  }
+}
+
+export async function runIssueScanWorkerV2(installationKey, workerId) {
+  const tag = `runIssueScanWorker[${workerId}]`;
+  let pendingIssues = 0;
+  const fieldProjectCounts = new Map();
+  const projectTotals = new Map();
+  const rqtFieldHits = new Map();
+  const rqtIssueBuffer = [];
+  const rqtValueBuffer = []; // { rqtValue, issueKey }
+  const rqtFieldIssueBuffer = []; // { fieldId, issueKey }
+
+  try {
+    await ensureProjectStoreReady();
+
+    const meta = await readIssueScanMeta(installationKey);
+    if (meta?.state !== "building") {
+      console.log(`${tag}: scan state is ${meta?.state || "missing"}, skipping`);
+      return;
+    }
+
+    let worker = await readIssueScanWorker(installationKey, workerId);
+    if (!worker) throw new Error(`Missing worker checkpoint for worker ${workerId}`);
+    if (worker.status === "done") {
+      console.log(`${tag}: already done`);
+      return;
+    }
+    if (worker.status === "building" && worker.updatedAt) {
+      const ageMs = Date.now() - new Date(worker.updatedAt).getTime();
+      if (Number.isFinite(ageMs) && ageMs < 2 * 60 * 1000) {
+        console.log(`${tag}: worker already active, skipping duplicate event`);
+        return;
+      }
+    }
+
+    if (!worker.jqlFilter) {
+      console.log(`${tag}: no projects assigned, marking done`);
+      await updateIssueScanWorker(installationKey, workerId, { status: "done", nextPageToken: null, lastError: null });
+      const updatedMeta = await atomicAccumulateIssueScanProgress(installationKey, 1, 0).catch(() => null);
+      if (updatedMeta && updatedMeta.processedPages >= updatedMeta.totalPages && updatedMeta.totalPages > 0) {
+        const claimToken = makeJobToken();
+        const claimed = await tryClaimIssueScanFinalization(installationKey, claimToken).catch(() => false);
+        if (claimed) await completeIssueScanFinalization(installationKey, tag);
+      }
+      return;
+    }
+
+    await updateIssueScanWorker(installationKey, workerId, { status: "building", lastError: null });
+
+    const scanFields = Array.isArray(worker.fieldIds) && worker.fieldIds.length ? worker.fieldIds : ["*all"];
+    let currentNextPageToken = worker.nextPageToken || null;
+    let pageCount = 0;
+    let issueCount = 0;
+
+    for (let page = 0; page < ISSUE_SCAN_CHUNK_PAGES; page++) {
+      if (page > 0 && page % ISSUE_SCAN_FLUSH_EVERY_PAGES === 0) {
+        if (fieldProjectCounts.size > 0 || projectTotals.size > 0) {
+          await flushIssueScanCounts(installationKey, fieldProjectCounts, projectTotals);
+          fieldProjectCounts.clear();
+          projectTotals.clear();
+        }
+        if (rqtFieldHits.size > 0) {
+          await upsertRqtFieldHits(installationKey, rqtFieldHits).catch(() => {});
+          rqtFieldHits.clear();
+        }
+        if (pendingIssues > 0) {
+          const updMid = await atomicAccumulateIssueScanProgress(installationKey, 0, pendingIssues).catch(() => null);
+          if (updMid) {
+            const cur = updMid.processedIssues ?? 0;
+            const prev = cur - pendingIssues;
+            if (Math.floor(prev / 5000) < Math.floor(cur / 5000)) {
+              await appendIssueScanLogEntry(installationKey, `${cur.toLocaleString()} issues scanned`).catch(() => {});
+            }
+          }
+          worker = await updateIssueScanWorker(installationKey, workerId, {
+            status: "building",
+            nextPageToken: currentNextPageToken,
+            processedIssues: Number(worker.processedIssues || 0) + issueCount,
+            processedPages: Number(worker.processedPages || 0) + pageCount,
+            lastError: null,
+          }) || worker;
+          issueCount = 0;
+          pageCount = 0;
+          pendingIssues = 0;
+        }
+        const cancelCheck = await readIssueScanMeta(installationKey);
+        if (cancelCheck?.state === "cancelled") {
+          console.log(`${tag}: scan cancelled`);
+          return;
+        }
+      }
+
+      const reqBody = {
+        jql: worker.jqlFilter,
+        maxResults: ISSUE_SCAN_PAGE_SIZE,
+        fields: scanFields,
+        fieldsByKeys: false,
+      };
+      if (currentNextPageToken) reqBody.nextPageToken = currentNextPageToken;
+
+      let data;
+      try {
+        data = await jiraRequest(route`/rest/api/3/search/jql`, {
+          method: "POST",
+          body: JSON.stringify(reqBody),
+        });
+      } catch (searchErr) {
+        const errStr = String(searchErr?.message || searchErr || "");
+        const is400 = errStr.includes("400") || searchErr?.statusCode === 400 || searchErr?.status === 400;
+        if (is400 && currentNextPageToken) {
+          // Cursor token expired — flush buffered data and restart this worker from the beginning
+          console.warn(`${tag}: 400 on paginated search — nextPageToken likely expired; flushing and restarting worker`);
+          await appendIssueScanLogEntry(installationKey, `Worker ${workerId}: page token expired (400), restarting from page 1`).catch(() => {});
+          if (fieldProjectCounts.size > 0 || projectTotals.size > 0) {
+            await flushIssueScanCounts(installationKey, fieldProjectCounts, projectTotals).catch(() => {});
+            fieldProjectCounts.clear(); projectTotals.clear();
+          }
+          if (rqtFieldHits.size > 0) { await upsertRqtFieldHits(installationKey, rqtFieldHits).catch(() => {}); rqtFieldHits.clear(); }
+          if (rqtIssueBuffer.length > 0) { await upsertRqtIssueKeys(installationKey, rqtIssueBuffer).catch(() => {}); rqtIssueBuffer.length = 0; }
+          if (rqtValueBuffer.length > 0) { await upsertRqtValueIssueKeys(installationKey, rqtValueBuffer).catch(() => {}); rqtValueBuffer.length = 0; }
+          if (rqtFieldIssueBuffer.length > 0) { await upsertRqtFieldIssueKeys(installationKey, rqtFieldIssueBuffer).catch(() => {}); rqtFieldIssueBuffer.length = 0; }
+          await updateIssueScanWorker(installationKey, workerId, {
+            status: "queued", nextPageToken: null, lastError: "Page token expired; restarting from beginning",
+          }).catch(() => {});
+          await queueIssueScanWorker(installationKey, workerId);
+          return;
+        }
+        throw searchErr;
+      }
+
+      const issues = data?.issues || [];
+      const newNextPageToken = data?.nextPageToken || null;
+
+      for (const issue of issues) {
+        const projectId = String(issue.fields?.project?.id || "");
+        if (!projectId) continue;
+        const projectKey_ = String(issue.fields?.project?.key || "");
+        const projectName = String(issue.fields?.project?.name || projectKey_);
+
+        const projEntry = projectTotals.get(projectId) || { count: 0, key: projectKey_, name: projectName };
+        projEntry.count++;
+        projectTotals.set(projectId, projEntry);
+
+        for (const [fieldId, value] of Object.entries(issue.fields || {})) {
+          if (STRUCTURAL_SYSTEM_FIELDS.has(fieldId)) continue;
+          if (!isFieldValueNonEmpty(value)) continue;
+          let byProject = fieldProjectCounts.get(fieldId);
+          if (!byProject) {
+            byProject = new Map();
+            fieldProjectCounts.set(fieldId, byProject);
+          }
+          const entry = byProject.get(projectId) || { count: 0, key: projectKey_, name: projectName };
+          entry.count++;
+          byProject.set(projectId, entry);
+        }
+
+        const issueRqt = collectIssueRqtValues(issue.fields, issue.fields?.summary);
+        for (const [fieldId, values] of issueRqt) {
+          const rqtEntry = rqtFieldHits.get(fieldId) || { count: 0, values: new Set() };
+          rqtEntry.count++;
+          for (const v of values) rqtEntry.values.add(v);
+          rqtFieldHits.set(fieldId, rqtEntry);
+        }
+
+        if (issueRqt.size > 0 && issue.key) {
+          rqtIssueBuffer.push({
+            projectKey: projectKey_,
+            issueType: issue.fields?.issuetype?.name || "Unknown",
+            issueKey: issue.key,
+          });
+          const allValues = new Set();
+          for (const vals of issueRqt.values()) for (const v of vals) allValues.add(v);
+          for (const v of allValues) rqtValueBuffer.push({ rqtValue: v, issueKey: issue.key });
+        }
+        if (issueRqt.size > 0 && issue.key) {
+          for (const fieldId of issueRqt.keys()) {
+            rqtFieldIssueBuffer.push({ fieldId, issueKey: issue.key });
+          }
+        }
+      }
+
+      pageCount++;
+      issueCount += issues.length;
+      pendingIssues += issues.length;
+      currentNextPageToken = newNextPageToken;
+      if (!newNextPageToken || issues.length === 0) break;
+      await sleep(ISSUE_SCAN_INTER_PAGE_DELAY_MS);
+    }
+
+    if (fieldProjectCounts.size > 0 || projectTotals.size > 0) {
+      await flushIssueScanCounts(installationKey, fieldProjectCounts, projectTotals);
+    }
+    if (rqtFieldHits.size > 0) {
+      await upsertRqtFieldHits(installationKey, rqtFieldHits).catch((e) => {
+        console.error(`${tag}: RQT flush error`, e?.message || e);
+      });
+    }
+    if (rqtIssueBuffer.length > 0) {
+      await upsertRqtIssueKeys(installationKey, rqtIssueBuffer).catch((e) => {
+        console.error(`${tag}: RQT issue key flush error`, e?.message || e);
+      });
+    }
+    if (rqtValueBuffer.length > 0) {
+      await upsertRqtValueIssueKeys(installationKey, rqtValueBuffer).catch((e) => {
+        console.error(`${tag}: RQT value index flush error`, e?.message || e);
+      });
+    }
+    if (rqtFieldIssueBuffer.length > 0) {
+      await upsertRqtFieldIssueKeys(installationKey, rqtFieldIssueBuffer).catch((e) => {
+        console.error(`RQT field issue index flush error`, e?.message || e);
+      });
+    }
+
+    const processedIssues = Number(worker.processedIssues || 0) + issueCount;
+    const processedPages = Number(worker.processedPages || 0) + pageCount;
+    const isDone = !currentNextPageToken;
+    await updateIssueScanWorker(installationKey, workerId, {
+      status: isDone ? "done" : "queued",
+      nextPageToken: currentNextPageToken,
+      processedIssues,
+      processedPages,
+      lastError: null,
+    });
+
+    const updatedMeta = await atomicAccumulateIssueScanProgress(installationKey, isDone ? 1 : 0, pendingIssues);
+    pendingIssues = 0;
+
+    if (!isDone) {
+      await queueIssueScanWorker(installationKey, workerId);
+      console.log(`${tag}: checkpointed - ${processedIssues} issues, ${processedPages} pages; requeued`);
+      return;
+    }
+
+    console.log(`${tag}: done - ${processedIssues} issues, ${processedPages} pages`);
+    if ((updatedMeta?.processedPages ?? 0) >= (updatedMeta?.totalPages ?? 0) && (updatedMeta?.totalPages ?? 0) > 0) {
+      const claimToken = makeJobToken();
+      const claimed = await tryClaimIssueScanFinalization(installationKey, claimToken);
+      if (claimed) await completeIssueScanFinalization(installationKey, tag);
+    }
+  } catch (error) {
+    const errMsg = error?.message || String(error);
+    console.error(`${tag} failed:`, errMsg);
+    await updateIssueScanWorker(installationKey, workerId, { status: "failed", lastError: errMsg }).catch(() => {});
+    await appendIssueScanLogEntry(installationKey, `Worker ${workerId} failed - ${errMsg}`).catch(() => {});
+    await writeIssueScanMeta(installationKey, {
+      state: "failed",
+      completedAt: new Date().toISOString(),
+      nextPageToken: null,
+      nextStartAt: 0,
+      lastError: `Worker ${workerId} failed - ${errMsg}`,
+    }).catch(() => {});
+  }
+}

@@ -177,6 +177,7 @@ export function FieldCard({
   onAskProject,
   siteOrigin,
   rovoEnabled,
+  showGovernance = true,
 }) {
   const displayField = React.useMemo(() => mergeFieldMetrics(field, details), [field, details]);
   const configuredProjectsValue = details ? details.configuredProjectCount : (field.configuredProjectCount ?? field.usageCount ?? 0);
@@ -199,8 +200,8 @@ export function FieldCard({
   const activeProjectsValue = usageAvailable ? (details ? details.activeProjectCount : (field.activeProjectCount ?? 0)) : "Unavailable";
   const fieldFindings = details?.findings || details?.field?.findings || field.findings;
 
-  const hasDanger = fieldFindings?.tags?.adminAttention || fieldFindings?.tags?.risky;
-  const hasWarn = !hasDanger && (fieldFindings?.tags?.cleanup || fieldFindings?.tags?.standardize);
+  const hasDanger = showGovernance && (fieldFindings?.tags?.adminAttention || fieldFindings?.tags?.risky);
+  const hasWarn = showGovernance && !hasDanger && (fieldFindings?.tags?.cleanup || fieldFindings?.tags?.standardize);
   const severityClass = hasDanger ? "field-card--has-danger" : hasWarn ? "field-card--has-warn" : "";
 
   return (
@@ -223,7 +224,7 @@ export function FieldCard({
           <h3>{field.name}</h3>
           <p>{field.description || "No admin description is set for this field."}</p>
           <ProjectUsageBuildBadge field={displayField} />
-          <FindingsStrip findings={fieldFindings} />
+          {showGovernance && <FindingsStrip findings={fieldFindings} />}
         </div>
         <div className="field-card__meta">
           <MetricChip label="Type" value={field.type} tone="cool" />
@@ -240,7 +241,7 @@ export function FieldCard({
             <div className="empty-state empty-state--inline">Loading field contexts and project usage...</div>
           ) : details ? (
             <>
-              <section className="detail-section">
+              {showGovernance && <section className="detail-section">
                 <div className="section-heading">
                   <h4>Governance Findings</h4>
                   <div className="section-heading__actions">
@@ -288,7 +289,7 @@ export function FieldCard({
                     No immediate governance issues were flagged for this field by the current heuristics.
                   </div>
                 )}
-              </section>
+              </section>}
 
               <section className="detail-section">
                 <div className="section-heading">

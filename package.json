@@ -15,7 +15,10 @@
     "test:backend": "vitest run --project backend",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "deploy": "forge deploy",
+    "deploy": "npm run build && forge deploy",
+    "deploy:dev": "npm run build && forge deploy",
+    "deploy:staging": "npm run test && npm run build && forge deploy --environment staging",
+    "deploy:production": "npm run test && npm run build && forge deploy --environment production",
     "forge:install": "forge install"
   },
   "dependencies": {
