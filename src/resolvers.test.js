@@ -244,6 +244,10 @@ const {
   restartProjectUsageJob,
   resumeProjectUsageJob,
   restoreProjectUsageCache,
+  getSavedReports,
+  deleteReportDefinition,
+  getProjectUsageReport,
+  getProjectUsageReportJob,
 } = { ...SHARED_RESOLVER_FUNCTIONS, ...ADMIN_ONLY_FUNCTIONS };
 
 function manyFieldIds(count) {
@@ -1285,5 +1289,211 @@ describe("restoreProjectUsageCache", () => {
     const result = await restoreProjectUsageCache({ context: {} });
     expect(result).toEqual({ started: true, version: 7 });
     expect(mocks.queueProjectUsageRestore).toHaveBeenCalledWith("test-install", 7);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Reports -- getSavedReports/deleteReportDefinition extend the existing
+// saveReportDefinition/startProjectUsageReportJob coverage from the field-cap
+// fix. getProjectUsageReport is the most complex read path in the app: a
+// 3-tier data fallback chain plus 3 independent auto-queue caps.
+// ---------------------------------------------------------------------------
+describe("getSavedReports", () => {
+  test("returns the installation's saved report list", async () => {
+    mocks.listSavedReports.mockResolvedValue([{ reportId: "r1", name: "My Report", fieldIds: ["customfield_1"] }]);
+    const result = await getSavedReports({ context: {} });
+    expect(result.reports).toHaveLength(1);
+    expect(mocks.listSavedReports).toHaveBeenCalledWith("test-install");
+  });
+});
+
+describe("deleteReportDefinition", () => {
+  test("requires a reportId", async () => {
+    await expect(deleteReportDefinition({ payload: {}, context: {} })).rejects.toThrow(/reportId/);
+  });
+
+  test("deletes and returns the refreshed list", async () => {
+    mocks.listSavedReports.mockResolvedValue([]);
+    const result = await deleteReportDefinition({ payload: { reportId: "r1" }, context: {} });
+    expect(mocks.deleteSavedReport).toHaveBeenCalledWith("test-install", "r1");
+    expect(result.reports).toEqual([]);
+  });
+});
+
+describe("getProjectUsageReport", () => {
+  test("returns an empty shape without touching storage when fieldIds is empty", async () => {
+    const result = await getProjectUsageReport({ payload: { fieldIds: [] }, context: {} });
+    expect(result).toEqual({ fields: [], projects: [] });
+    expect(mocks.ensureProjectStoreReady).toHaveBeenCalled(); // still runs before the shortcut
+    expect(mocks.readSnapshotMeta).not.toHaveBeenCalled();
+  });
+
+  test("throws when no snapshot has completed", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue(null);
+    await expect(getProjectUsageReport({ payload: { fieldIds: ["customfield_1"] }, context: {} }))
+      .rejects.toThrow(/No completed snapshot/);
+  });
+
+  test("skips a field that's missing from the snapshot entirely rather than erroring the whole report", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: 1 });
+    mocks.listFieldSummaries.mockResolvedValue([]);
+    mocks.loadSnapshotField.mockResolvedValue(null);
+    mocks.loadAllSnapshotProjectUsage.mockResolvedValue([]);
+    mocks.loadFieldSummary.mockResolvedValue(null);
+    mocks.getDistinctIssueCountForFields.mockResolvedValue(0);
+
+    const result = await getProjectUsageReport({ payload: { fieldIds: ["customfield_missing"] }, context: {} });
+
+    expect(result.fields).toEqual([]);
+  });
+
+  test("uses current-version project usage when present", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: 1 });
+    mocks.listFieldSummaries.mockResolvedValue([]);
+    mocks.loadSnapshotField.mockResolvedValue(snapshotField({ id: "customfield_1" }));
+    mocks.loadAllSnapshotProjectUsage.mockResolvedValue([
+      { projectId: "10", projectKey: "ABC", projectName: "Alpha", issueCount: 5 },
+    ]);
+    mocks.loadFieldSummary.mockResolvedValue(null);
+    mocks.getDistinctIssueCountForFields.mockResolvedValue(5);
+
+    const result = await getProjectUsageReport({ payload: { fieldIds: ["customfield_1"] }, context: {} });
+
+    expect(result.fields[0].projects).toHaveLength(1);
+    expect(mocks.loadAnySnapshotProjectUsage).not.toHaveBeenCalled(); // didn't need the fallback
+  });
+
+  test("falls back to any-version usage when the current version has none", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: 2 });
+    mocks.listFieldSummaries.mockResolvedValue([]);
+    mocks.loadSnapshotField.mockResolvedValue(snapshotField({ id: "customfield_1" }));
+    mocks.loadAllSnapshotProjectUsage.mockResolvedValue([]);
+    mocks.loadAnySnapshotProjectUsage.mockResolvedValue([
+      { projectId: "10", projectKey: "ABC", projectName: "Alpha", issueCount: 3 },
+    ]);
+    mocks.loadFieldSummary.mockResolvedValue(null);
+    mocks.getDistinctIssueCountForFields.mockResolvedValue(3);
+
+    const result = await getProjectUsageReport({ payload: { fieldIds: ["customfield_1"] }, context: {} });
+
+    expect(mocks.loadAnySnapshotProjectUsage).toHaveBeenCalledWith("test-install", "customfield_1");
+    expect(result.fields[0].projects).toHaveLength(1);
+  });
+
+  test("falls back to the field summary's cached activeProjects as a last resort", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: 2 });
+    mocks.listFieldSummaries.mockResolvedValue([]);
+    mocks.loadSnapshotField.mockResolvedValue(snapshotField({ id: "customfield_1" }));
+    mocks.loadAllSnapshotProjectUsage.mockResolvedValue([]);
+    mocks.loadAnySnapshotProjectUsage.mockResolvedValue([]);
+    mocks.loadFieldSummary.mockResolvedValue({
+      activeProjects: [{ projectId: "10", projectKey: "ABC", projectName: "Alpha", issueCount: 2 }],
+    });
+    mocks.getDistinctIssueCountForFields.mockResolvedValue(2);
+
+    const result = await getProjectUsageReport({ payload: { fieldIds: ["customfield_1"] }, context: {} });
+
+    expect(result.fields[0].projects).toHaveLength(1);
+    expect(result.fields[0].projects[0].projectKey).toBe("ABC");
+  });
+
+  test("marks a field pending (already-running) instead of re-queueing when its job is already queued/building", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: 1 });
+    mocks.listFieldSummaries.mockResolvedValue([]);
+    mocks.loadSnapshotField.mockResolvedValue(snapshotField({ id: "customfield_1", totalIssueCount: 50 }));
+    mocks.loadAllSnapshotProjectUsage.mockResolvedValue([]);
+    mocks.loadAnySnapshotProjectUsage.mockResolvedValue([]);
+    mocks.loadFieldSummary.mockResolvedValue({ summaryStatus: "building" });
+    mocks.getDistinctIssueCountForFields.mockResolvedValue(0);
+
+    const result = await getProjectUsageReport({ payload: { fieldIds: ["customfield_1"] }, context: {} });
+
+    expect(result.pendingFields).toEqual([
+      { fieldId: "customfield_1", fieldName: "Story Points", summaryStatus: "building", reason: "already-running" },
+    ]);
+    expect(mocks.replaceFieldSummary).not.toHaveBeenCalled(); // never touched ensureProjectUsageJobQueued's write path
+  });
+
+  test("auto-queues a missing field's project-usage job when under all caps", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: 1 });
+    mocks.listFieldSummaries.mockResolvedValue([]); // no running jobs -> under every cap
+    mocks.loadSnapshotField.mockResolvedValue(snapshotField({ id: "customfield_1", totalIssueCount: 50 }));
+    mocks.loadAllSnapshotProjectUsage.mockResolvedValue([]);
+    mocks.loadAnySnapshotProjectUsage.mockResolvedValue([]);
+    mocks.loadFieldSummary.mockResolvedValue(null); // no summary at all -> not already-running
+    mocks.queueFieldSummaryContinuationWithRetry.mockResolvedValue({ queued: true });
+    mocks.getDistinctIssueCountForFields.mockResolvedValue(0);
+
+    const result = await getProjectUsageReport({ payload: { fieldIds: ["customfield_1"] }, context: {} });
+
+    expect(result.pendingFields).toEqual([
+      { fieldId: "customfield_1", fieldName: "Story Points", summaryStatus: "queued", reason: "project-usage-missing" },
+    ]);
+  });
+
+  test("defers a candidate once the active-job cap (3) is already reached", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: 1 });
+    // 3 already-running summaries -> at MAX_ACTIVE_PROJECT_USAGE_JOBS
+    mocks.listFieldSummaries.mockResolvedValue([
+      { fieldId: "x1", summaryStatus: "building", totalIssueCount: 10 },
+      { fieldId: "x2", summaryStatus: "building", totalIssueCount: 10 },
+      { fieldId: "x3", summaryStatus: "building", totalIssueCount: 10 },
+    ]);
+    mocks.loadSnapshotField.mockResolvedValue(snapshotField({ id: "customfield_1", totalIssueCount: 50 }));
+    mocks.loadAllSnapshotProjectUsage.mockResolvedValue([]);
+    mocks.loadAnySnapshotProjectUsage.mockResolvedValue([]);
+    mocks.loadFieldSummary.mockResolvedValue(null);
+    mocks.getDistinctIssueCountForFields.mockResolvedValue(0);
+
+    const result = await getProjectUsageReport({ payload: { fieldIds: ["customfield_1"] }, context: {} });
+
+    expect(result.pendingFields).toEqual([
+      { fieldId: "customfield_1", fieldName: "Story Points", summaryStatus: "deferred", reason: "deferred-active-job-cap" },
+    ]);
+    // deferred candidates get recorded via ensureDeferredProjectUsageJobRecorded, not queued
+    expect(mocks.queueFieldSummaryContinuationWithRetry).not.toHaveBeenCalled();
+  });
+
+  test("returns the deduped, sorted set of projects across all requested fields", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: 1 });
+    mocks.listFieldSummaries.mockResolvedValue([]);
+    mocks.loadSnapshotField.mockImplementation((_i, _v, fieldId) => Promise.resolve(snapshotField({ id: fieldId, name: fieldId })));
+    mocks.loadAllSnapshotProjectUsage.mockImplementation((_i, _v, fieldId) =>
+      Promise.resolve(fieldId === "customfield_1"
+        ? [{ projectId: "10", projectKey: "ABC", projectName: "Alpha", issueCount: 1 }]
+        : [{ projectId: "10", projectKey: "ABC", projectName: "Alpha", issueCount: 1 }, { projectId: "20", projectKey: "XYZ", projectName: "Zulu", issueCount: 1 }])
+    );
+    mocks.loadFieldSummary.mockResolvedValue(null);
+    mocks.getDistinctIssueCountForFields.mockResolvedValue(2);
+
+    const result = await getProjectUsageReport({ payload: { fieldIds: ["customfield_1", "customfield_2"] }, context: {} });
+
+    expect(result.projects.map((p) => p.projectKey)).toEqual(["ABC", "XYZ"]); // deduped, sorted by key
+  });
+});
+
+describe("getProjectUsageReportJob", () => {
+  test("returns a null job when no jobId is given", async () => {
+    const result = await getProjectUsageReportJob({ payload: {}, context: {} });
+    expect(result).toEqual({ job: null });
+    expect(mocks.loadReportJob).not.toHaveBeenCalled();
+  });
+
+  test("returns a null job when the jobId doesn't match anything stored", async () => {
+    mocks.loadReportJob.mockResolvedValue(null);
+    const result = await getProjectUsageReportJob({ payload: { jobId: "job-1" }, context: {} });
+    expect(result).toEqual({ job: null });
+  });
+
+  test("computes percentComplete from processed/total fields", async () => {
+    mocks.loadReportJob.mockResolvedValue({ jobId: "job-1", totalFields: 4, processedFields: 1 });
+    const result = await getProjectUsageReportJob({ payload: { jobId: "job-1" }, context: {} });
+    expect(result.job.percentComplete).toBe(25);
+  });
+
+  test("reports 0% for a job with no totalFields yet, rather than dividing by zero", async () => {
+    mocks.loadReportJob.mockResolvedValue({ jobId: "job-1", totalFields: 0, processedFields: 0 });
+    const result = await getProjectUsageReportJob({ payload: { jobId: "job-1" }, context: {} });
+    expect(result.job.percentComplete).toBe(0);
   });
 });
