@@ -1005,7 +1005,7 @@ async function saveReportDefinition({ payload, context }) {
   requireNonEmptyString(payload?.name, "name");
   if ((payload?.name || "").trim().length > 200) throw new Error("name must not exceed 200 characters");
   const rawFieldIds = requireArray(payload?.fieldIds, "fieldIds");
-  if (rawFieldIds.length < 1 || rawFieldIds.length > 100) throw new Error("fieldIds must contain between 1 and 100 elements");
+  if (rawFieldIds.length < 1) throw new Error("fieldIds must contain at least 1 element");
   await ensureProjectStoreReady();
   const installationKey = getInstallationKey(context);
   const name = String(payload?.name || "").trim();
@@ -1218,7 +1218,7 @@ async function startProjectUsageReportJob({ payload, context }) {
   incrMetric(METRIC_NAMES.resolver);
   // Input validation
   const rawFieldIds = requireArray(payload?.fieldIds, "fieldIds");
-  if (rawFieldIds.length < 1 || rawFieldIds.length > 200) throw new Error("fieldIds must contain between 1 and 200 elements");
+  if (rawFieldIds.length < 1) throw new Error("fieldIds must contain at least 1 element");
   await ensureProjectStoreReady();
   const fieldIds = Array.from(new Set((payload?.fieldIds || []).map((value) => String(value || "").trim()).filter(Boolean)));
   if (!fieldIds.length) {
