@@ -215,6 +215,7 @@ import {
   getAdminConfigResolver,
   saveAdminConfigResolver,
   getAdminOverview,
+  runDeltaIssueScanJob,
 } from "./resolvers.js";
 
 const {
@@ -230,6 +231,12 @@ const {
   getFieldOptions,
   searchFieldOptions,
   getProjectsView,
+  startIssueScan,
+  resumeIssueScan,
+  cancelIssueScan,
+  getIssueScanStatus,
+  startDeltaIssueScan,
+  getDeltaIssueScanStatus,
 } = { ...SHARED_RESOLVER_FUNCTIONS, ...ADMIN_ONLY_FUNCTIONS };
 
 function manyFieldIds(count) {
@@ -277,6 +284,9 @@ beforeEach(() => {
   mocks.ensureFieldSummaryJobRunning.mockImplementation(async (_i, _v, _f, summary) => summary);
   mocks.kvsGet.mockResolvedValue(null); // readAdminConfig falls back to DEFAULT_ADMIN_CONFIG
   mocks.queueSnapshotBuild.mockResolvedValue(undefined);
+  mocks.queuePush.mockResolvedValue({ queued: true });
+  mocks.writeIssueScanMeta.mockResolvedValue(undefined);
+  mocks.readIssueScanWorker.mockResolvedValue(null);
 });
 
 // ---------------------------------------------------------------------------
@@ -824,5 +834,255 @@ describe("getAdminOverview", () => {
     const result = await getAdminOverview({ context: {} });
 
     expect(result.findingsSummary).toEqual({ adminAttention: 0, risky: 0, cleanup: 0, standardize: 0 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Issue scan lifecycle -- the most complex stateful subsystem in the app.
+// RUNBOOK.md's entire "Section 1: Universe Scan Recovery" is a spec for this
+// code's failure modes (stuck scan, resume, force resume, cancel) -- tests
+// below are written directly against that spec.
+// ---------------------------------------------------------------------------
+describe("startIssueScan", () => {
+  test("refuses to start a second scan while one is already building", async () => {
+    mocks.readIssueScanMeta.mockResolvedValue({ state: "building" });
+    const result = await startIssueScan({ context: {} });
+    expect(result).toEqual({ started: false, reason: "already-running", meta: { state: "building" } });
+    expect(mocks.queuePush).not.toHaveBeenCalled();
+  });
+
+  test("refuses to start a second scan while one is queued", async () => {
+    mocks.readIssueScanMeta.mockResolvedValue({ state: "queued" });
+    const result = await startIssueScan({ context: {} });
+    expect(result.started).toBe(false);
+  });
+
+  test("queues a new scan with a fresh job token when idle", async () => {
+    mocks.readIssueScanMeta.mockResolvedValue({ state: "idle" });
+    const result = await startIssueScan({ context: {} });
+    expect(result).toEqual({ started: true, jobToken: "job-token-1" });
+    expect(mocks.writeIssueScanMeta).toHaveBeenCalledWith("test-install", expect.objectContaining({ state: "queued", jobToken: "job-token-1" }));
+    expect(mocks.queuePush).toHaveBeenCalledWith({ body: { jobType: "run-issue-scan", installationKey: "test-install" } });
+  });
+
+  test("marks the scan failed and re-throws if the queue push itself fails", async () => {
+    mocks.readIssueScanMeta.mockResolvedValue({ state: "idle" });
+    mocks.queuePush.mockRejectedValue(new Error("queue backpressure"));
+
+    await expect(startIssueScan({ context: {} })).rejects.toThrow("queue backpressure");
+
+    expect(mocks.writeIssueScanMeta).toHaveBeenLastCalledWith("test-install", expect.objectContaining({ state: "failed" }));
+  });
+});
+
+describe("resumeIssueScan", () => {
+  test("reports no-scan when nothing has ever run", async () => {
+    mocks.readIssueScanMeta.mockResolvedValue(null);
+    const result = await resumeIssueScan({ context: {} });
+    expect(result).toEqual({ resumed: false, reason: "no-scan" });
+  });
+
+  test("reports already-complete for a ready scan rather than re-running it", async () => {
+    mocks.readIssueScanMeta.mockResolvedValue({ state: "ready" });
+    const result = await resumeIssueScan({ context: {} });
+    expect(result.resumed).toBe(false);
+    expect(result.reason).toBe("already-complete");
+  });
+
+  test("re-queues only workers that are not done, and resets failed ones to queued first", async () => {
+    mocks.readIssueScanMeta.mockResolvedValue({ state: "failed", jobToken: "old-token", progressLog: [] });
+    mocks.writeIssueScanMeta.mockResolvedValue({ state: "building" });
+    mocks.readIssueScanWorker.mockImplementation((_key, workerId) => {
+      if (workerId === 0) return Promise.resolve({ status: "done" });
+      if (workerId === 1) return Promise.resolve({ status: "failed" });
+      return Promise.resolve({ status: "queued" });
+    });
+
+    const result = await resumeIssueScan({ context: {} });
+
+    expect(result.resumed).toBe(true);
+    // worker 0 (done) must NOT be re-queued
+    expect(mocks.queueIssueScanWorker).not.toHaveBeenCalledWith("test-install", 0);
+    // worker 1 (failed) must be reset to queued, then re-queued
+    expect(mocks.updateIssueScanWorker).toHaveBeenCalledWith("test-install", 1, { status: "queued", lastError: null });
+    expect(mocks.queueIssueScanWorker).toHaveBeenCalledWith("test-install", 1);
+    // every other non-done worker gets re-queued too
+    expect(mocks.queueIssueScanWorker).toHaveBeenCalledWith("test-install", 2);
+  });
+
+  test("marks the scan failed and throws when a worker re-queue fails", async () => {
+    mocks.readIssueScanMeta.mockResolvedValue({ state: "building", progressLog: [] });
+    mocks.writeIssueScanMeta.mockResolvedValue({ state: "building" });
+    mocks.readIssueScanWorker.mockResolvedValue({ status: "queued" });
+    mocks.queueIssueScanWorker.mockRejectedValue(new Error("queue full"));
+
+    await expect(resumeIssueScan({ context: {} })).rejects.toThrow(/Resume partially failed/);
+
+    expect(mocks.writeIssueScanMeta).toHaveBeenLastCalledWith("test-install", expect.objectContaining({ state: "failed" }));
+  });
+});
+
+describe("cancelIssueScan", () => {
+  test("reports not-running when there's no active scan", async () => {
+    mocks.readIssueScanMeta.mockResolvedValue(null);
+    const result = await cancelIssueScan({ context: {} });
+    expect(result).toEqual({ cancelled: false, reason: "not-running" });
+  });
+
+  test("reports not-running for an already-idle or already-ready scan", async () => {
+    mocks.readIssueScanMeta.mockResolvedValue({ state: "ready" });
+    const result = await cancelIssueScan({ context: {} });
+    expect(result.cancelled).toBe(false);
+  });
+
+  test("cancels an in-progress scan", async () => {
+    mocks.readIssueScanMeta.mockResolvedValue({ state: "building", progressLog: [] });
+    const result = await cancelIssueScan({ context: {} });
+    expect(result).toEqual({ cancelled: true });
+    expect(mocks.writeIssueScanMeta).toHaveBeenCalledWith("test-install", expect.objectContaining({ state: "cancelled" }));
+  });
+});
+
+describe("getIssueScanStatus", () => {
+  test("returns null meta when no scan has ever run", async () => {
+    mocks.readIssueScanMeta.mockResolvedValue(null);
+    const result = await getIssueScanStatus({ context: {} });
+    expect(result).toEqual({ meta: null });
+  });
+
+  test("surfaces the internal 'finalizing' transition state as 'building' to the UI", async () => {
+    mocks.readIssueScanMeta.mockResolvedValue({ state: "finalizing", processedPages: 10 });
+    const result = await getIssueScanStatus({ context: {} });
+    expect(result.meta.state).toBe("building");
+  });
+
+  test("passes through any other state as-is", async () => {
+    mocks.readIssueScanMeta.mockResolvedValue({ state: "ready" });
+    const result = await getIssueScanStatus({ context: {} });
+    expect(result.meta.state).toBe("ready");
+  });
+});
+
+describe("startDeltaIssueScan", () => {
+  test("refuses to start while a delta scan is already building or queued", async () => {
+    mocks.readIssueScanMeta.mockResolvedValue({ state: "building" });
+    const result = await startDeltaIssueScan({ context: {} });
+    expect(result).toEqual({ started: false, reason: "already-running" });
+  });
+
+  test("queues a new delta scan under a distinct ::delta scope key", async () => {
+    mocks.readIssueScanMeta.mockResolvedValue(null);
+    const result = await startDeltaIssueScan({ context: {} });
+    expect(result).toEqual({ started: true });
+    expect(mocks.writeIssueScanMeta).toHaveBeenCalledWith("test-install::delta", expect.objectContaining({ state: "queued" }));
+    expect(mocks.queuePush).toHaveBeenCalledWith({ body: { jobType: "run-delta-issue-scan", installationKey: "test-install" } });
+  });
+});
+
+describe("getDeltaIssueScanStatus", () => {
+  test("reads from the ::delta scope key, distinct from the full scan", async () => {
+    mocks.readIssueScanMeta.mockResolvedValue({ state: "ready" });
+    const result = await getDeltaIssueScanStatus({ context: {} });
+    expect(mocks.readIssueScanMeta).toHaveBeenCalledWith("test-install::delta");
+    expect(result.meta.state).toBe("ready");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// runDeltaIssueScanJob -- the queue-consumer entry point, not resolver-
+// registered directly. Never throws (always catches and writes a failed
+// state); covering the guard clause, a single-page happy path with RQT +
+// project-usage aggregation, pagination continuation, and the top-level
+// catch-all.
+// ---------------------------------------------------------------------------
+describe("runDeltaIssueScanJob", () => {
+  function jiraSearchResponse(issues, nextPageToken = null) {
+    return { issues, nextPageToken, total: issues.length };
+  }
+
+  test("skips silently when a delta scan is already building and recently started", async () => {
+    mocks.readIssueScanMeta.mockResolvedValue({ state: "building", startedAt: new Date().toISOString() });
+    await runDeltaIssueScanJob("test-install");
+    expect(mocks.jiraRequest).not.toHaveBeenCalled();
+    expect(mocks.writeIssueScanMeta).not.toHaveBeenCalled();
+  });
+
+  test("proceeds if the existing 'building' state is stale (started over 10 minutes ago)", async () => {
+    mocks.readIssueScanMeta.mockResolvedValue({ state: "building", startedAt: new Date(Date.now() - 20 * 60 * 1000).toISOString() });
+    mocks.jiraRequest.mockResolvedValue(jiraSearchResponse([]));
+    mocks.readSnapshotMeta.mockResolvedValue(null);
+
+    await runDeltaIssueScanJob("test-install");
+
+    expect(mocks.jiraRequest).toHaveBeenCalled();
+  });
+
+  test("scans a single page, aggregates field/project usage, and writes a ready state", async () => {
+    mocks.readIssueScanMeta.mockResolvedValue(null);
+    mocks.jiraRequest
+      .mockResolvedValueOnce({ total: 1 }) // initial count call
+      .mockResolvedValueOnce(jiraSearchResponse([
+        {
+          key: "ABC-1",
+          fields: {
+            project: { id: "10", key: "ABC", name: "Alpha" },
+            summary: "Test issue",
+            customfield_10001: "Some value",
+          },
+        },
+      ], null));
+    mocks.readSnapshotMeta.mockResolvedValue(null); // no snapshot -> skip field-usage update
+
+    await runDeltaIssueScanJob("test-install");
+
+    expect(mocks.upsertProjectTotalsForDelta).toHaveBeenCalled();
+    const finalCall = mocks.writeIssueScanMeta.mock.calls.at(-1);
+    expect(finalCall[0]).toBe("test-install::delta");
+    expect(finalCall[1]).toEqual(expect.objectContaining({ state: "ready", processedIssues: 1 }));
+  });
+
+  test("continues across multiple pages until nextPageToken is exhausted", async () => {
+    mocks.readIssueScanMeta.mockResolvedValue(null);
+    mocks.jiraRequest
+      .mockResolvedValueOnce({ total: 2 })
+      .mockResolvedValueOnce(jiraSearchResponse(
+        [{ key: "ABC-1", fields: { project: { id: "10", key: "ABC", name: "Alpha" } } }],
+        "page-2-token"
+      ))
+      .mockResolvedValueOnce(jiraSearchResponse(
+        [{ key: "ABC-2", fields: { project: { id: "10", key: "ABC", name: "Alpha" } } }],
+        null
+      ));
+    mocks.readSnapshotMeta.mockResolvedValue(null);
+
+    await runDeltaIssueScanJob("test-install");
+
+    const finalCall = mocks.writeIssueScanMeta.mock.calls.at(-1);
+    expect(finalCall[1]).toEqual(expect.objectContaining({ state: "ready", processedPages: 2, processedIssues: 2 }));
+  });
+
+  test("skips field-usage update (but still finishes) when no snapshot exists yet", async () => {
+    mocks.readIssueScanMeta.mockResolvedValue(null);
+    mocks.jiraRequest
+      .mockResolvedValueOnce({ total: 0 })
+      .mockResolvedValueOnce(jiraSearchResponse([], null));
+    mocks.readSnapshotMeta.mockResolvedValue(null);
+
+    await runDeltaIssueScanJob("test-install");
+
+    expect(mocks.upsertDeltaFieldProjectUsage).not.toHaveBeenCalled();
+    const finalCall = mocks.writeIssueScanMeta.mock.calls.at(-1);
+    expect(finalCall[1].state).toBe("ready");
+  });
+
+  test("never throws -- writes a failed state and swallows the error instead", async () => {
+    mocks.readIssueScanMeta.mockResolvedValue(null);
+    mocks.jiraRequest.mockRejectedValue(new Error("Jira is down"));
+    // ensureProjectStoreReady throwing is the simplest way to force the top-level catch
+    mocks.ensureProjectStoreReady.mockRejectedValueOnce(new Error("SQL unavailable"));
+
+    await expect(runDeltaIssueScanJob("test-install")).resolves.toBeUndefined();
+
+    expect(mocks.writeIssueScanMeta).toHaveBeenCalledWith("test-install::delta", expect.objectContaining({ state: "failed" }));
   });
 });
