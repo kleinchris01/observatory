@@ -208,7 +208,14 @@ vi.mock("./lib/snapshot-engine.js", async (importOriginal) => {
   };
 });
 
-import { SHARED_RESOLVER_FUNCTIONS, ADMIN_ONLY_FUNCTIONS } from "./resolvers.js";
+import {
+  SHARED_RESOLVER_FUNCTIONS,
+  ADMIN_ONLY_FUNCTIONS,
+  readAdminConfig,
+  getAdminConfigResolver,
+  saveAdminConfigResolver,
+  getAdminOverview,
+} from "./resolvers.js";
 
 const {
   saveReportDefinition,
@@ -222,6 +229,7 @@ const {
   getFilteredFieldIds,
   getFieldOptions,
   searchFieldOptions,
+  getProjectsView,
 } = { ...SHARED_RESOLVER_FUNCTIONS, ...ADMIN_ONLY_FUNCTIONS };
 
 function manyFieldIds(count) {
@@ -631,5 +639,190 @@ describe("getFieldOptions", () => {
 
     expect(mocks.jiraRequest).toHaveBeenCalled();
     expect(result.optionsByContext[0].options[0].issueCount).toBe(7);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Admin config -- readAdminConfig / getAdminConfigResolver / saveAdminConfigResolver
+// ---------------------------------------------------------------------------
+describe("readAdminConfig", () => {
+  test("returns defaults when nothing is stored", async () => {
+    mocks.kvsGet.mockResolvedValue(null);
+    const config = await readAdminConfig();
+    expect(config.readOnlyMode).toBe(false);
+    expect(config.macroAccess).toEqual({ restrictAccess: false, allowedGroups: [] });
+  });
+
+  test("deep-merges stored config over defaults, not a shallow overwrite", async () => {
+    mocks.kvsGet.mockResolvedValue({ readOnlyMode: true, macroAccess: { restrictAccess: true } });
+    const config = await readAdminConfig();
+    expect(config.readOnlyMode).toBe(true);
+    // allowedGroups wasn't in the stored macroAccess -- must still come from defaults, not vanish
+    expect(config.macroAccess).toEqual({ restrictAccess: true, allowedGroups: [] });
+  });
+
+  test("falls back to defaults if kvs.get throws", async () => {
+    mocks.kvsGet.mockRejectedValue(new Error("kvs unavailable"));
+    const config = await readAdminConfig();
+    expect(config.readOnlyMode).toBe(false);
+  });
+});
+
+describe("getAdminConfigResolver", () => {
+  test("delegates to readAdminConfig", async () => {
+    mocks.kvsGet.mockResolvedValue({ readOnlyMode: true });
+    const config = await getAdminConfigResolver({}, {});
+    expect(config.readOnlyMode).toBe(true);
+  });
+});
+
+describe("saveAdminConfigResolver", () => {
+  test("validates apiConcurrency bounds", async () => {
+    await expect(saveAdminConfigResolver({ payload: { apiConcurrency: 99 } }))
+      .rejects.toThrow(/apiConcurrency/);
+  });
+
+  test("validates autoSnapshotFrequency against the allowed enum", async () => {
+    await expect(saveAdminConfigResolver({ payload: { autoSnapshotFrequency: "hourly" } }))
+      .rejects.toThrow(/autoSnapshotFrequency/);
+  });
+
+  test("validates governance threshold values are positive integers", async () => {
+    await expect(saveAdminConfigResolver({ payload: { governanceThresholds: { lowUsageIssueThreshold: -5 } } }))
+      .rejects.toThrow(/lowUsageIssueThreshold/);
+  });
+
+  test("merges partial updates over the current stored config and persists via kvs.set", async () => {
+    mocks.kvsGet.mockResolvedValue({ readOnlyMode: false, apiConcurrency: 4, macroAccess: { restrictAccess: false, allowedGroups: [] } });
+
+    const result = await saveAdminConfigResolver({ payload: { readOnlyMode: true } });
+
+    expect(result.ok).toBe(true);
+    expect(result.config.readOnlyMode).toBe(true);
+    expect(mocks.kvsSet).toHaveBeenCalledWith("atlasiq-admin-config", expect.objectContaining({ readOnlyMode: true }));
+  });
+
+  test("clamps apiConcurrency into [1, 10] even if a valid-but-out-of-clamp-range value slips through", async () => {
+    mocks.kvsGet.mockResolvedValue(null);
+    const result = await saveAdminConfigResolver({ payload: { apiConcurrency: 1 } });
+    expect(result.config.apiConcurrency).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getProjectsView
+// ---------------------------------------------------------------------------
+describe("getProjectsView", () => {
+  test("returns an empty shape when no snapshot has completed", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue(null);
+    const result = await getProjectsView({ payload: {}, context: {} });
+    expect(result.projects).toEqual([]);
+    expect(result.selectedProject).toBeNull();
+  });
+
+  test("returns an empty shape (with issue-scan status) when there are no projects at all", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: 1 });
+    mocks.listSnapshotProjects.mockResolvedValue([]);
+    mocks.readIssueScanMeta.mockResolvedValue({ state: "ready", totalIssues: 100, processedIssues: 100 });
+    const result = await getProjectsView({ payload: {}, context: {} });
+    expect(result.projects).toEqual([]);
+    expect(result.issueScan.state).toBe("ready");
+  });
+
+  test("defaults to the first project when none is explicitly selected", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: 1, refreshedAt: "2026-01-01T00:00:00Z" });
+    mocks.listSnapshotProjects.mockResolvedValue([
+      { projectId: "10", projectKey: "ABC", projectName: "Alpha" },
+      { projectId: "20", projectKey: "XYZ", projectName: "Zulu" },
+    ]);
+    mocks.readIssueScanMeta.mockResolvedValue(null);
+    mocks.loadSnapshotProjectFields.mockResolvedValue({ rows: [], total: 0 });
+
+    const result = await getProjectsView({ payload: {}, context: {} });
+
+    expect(result.selectedProject.projectId).toBe("10");
+  });
+
+  test("selects the requested project and returns its paginated fields", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: 1, refreshedAt: "2026-01-01T00:00:00Z" });
+    mocks.listSnapshotProjects.mockResolvedValue([
+      { projectId: "10", projectKey: "ABC", projectName: "Alpha" },
+      { projectId: "20", projectKey: "XYZ", projectName: "Zulu" },
+    ]);
+    mocks.readIssueScanMeta.mockResolvedValue(null);
+    mocks.loadSnapshotProjectFields.mockResolvedValue({
+      rows: [{ fieldId: "customfield_1", fieldName: "Story Points", fieldType: "number", customType: "number" }],
+      total: 1,
+    });
+
+    const result = await getProjectsView({ payload: { projectId: "20" }, context: {} });
+
+    expect(result.selectedProject.projectId).toBe("20");
+    expect(result.fields).toHaveLength(1);
+    expect(result.totalFields).toBe(1);
+    expect(mocks.loadSnapshotProjectFields).toHaveBeenCalledWith(
+      "test-install", 1, "20", expect.objectContaining({ query: "", type: "all" })
+    );
+  });
+
+  test("validates page is a positive integer when provided", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: 1 });
+    await expect(getProjectsView({ payload: { page: -1 }, context: {} })).rejects.toThrow(/page/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getAdminOverview
+// ---------------------------------------------------------------------------
+describe("getAdminOverview", () => {
+  test("aggregates job-status counts from field summaries", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "ready", totalFields: 10, processedFields: 10 });
+    mocks.listFieldSummaries.mockResolvedValue([
+      { summaryStatus: "ready" }, { summaryStatus: "ready" }, { summaryStatus: "building" }, { summaryStatus: "failed" },
+    ]);
+    mocks.kvsGet.mockResolvedValue(null);
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+
+    const result = await getAdminOverview({ context: {} });
+
+    expect(result.jobCounts).toEqual({ queued: 0, building: 1, ready: 2, failed: 1, cancelled: 0, unbuilt: 0 });
+    expect(result.totalSummaries).toBe(4);
+  });
+
+  test("counts an unrecognized summaryStatus as unbuilt rather than dropping it", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "idle" });
+    mocks.listFieldSummaries.mockResolvedValue([{ summaryStatus: "some-unknown-state" }, {}]);
+    mocks.kvsGet.mockResolvedValue(null);
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+
+    const result = await getAdminOverview({ context: {} });
+
+    expect(result.jobCounts.unbuilt).toBe(2);
+  });
+
+  test("computes findings summary from the latest snapshot when one exists", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "ready", version: 5 });
+    mocks.listFieldSummaries.mockResolvedValue([]);
+    mocks.kvsGet.mockResolvedValue(null);
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+    mocks.loadSnapshotFields.mockResolvedValue([snapshotField()]);
+
+    const result = await getAdminOverview({ context: {} });
+
+    expect(result.findingsSummary).toEqual(expect.objectContaining({
+      adminAttention: expect.any(Number), risky: expect.any(Number), cleanup: expect.any(Number), standardize: expect.any(Number),
+    }));
+  });
+
+  test("does not fail the whole overview if the findings computation throws", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "ready", version: 5 });
+    mocks.listFieldSummaries.mockResolvedValue([]);
+    mocks.kvsGet.mockResolvedValue(null);
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+    mocks.loadSnapshotFields.mockRejectedValue(new Error("SQL error"));
+
+    const result = await getAdminOverview({ context: {} });
+
+    expect(result.findingsSummary).toEqual({ adminAttention: 0, risky: 0, cleanup: 0, standardize: 0 });
   });
 });
