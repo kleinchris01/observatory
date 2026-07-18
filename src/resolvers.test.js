@@ -216,6 +216,8 @@ import {
   saveAdminConfigResolver,
   getAdminOverview,
   runDeltaIssueScanJob,
+  rovoSearchFields,
+  rovoInspectField,
 } from "./resolvers.js";
 
 const {
@@ -248,6 +250,8 @@ const {
   deleteReportDefinition,
   getProjectUsageReport,
   getProjectUsageReportJob,
+  getRqtIndex,
+  searchRqtValue,
 } = { ...SHARED_RESOLVER_FUNCTIONS, ...ADMIN_ONLY_FUNCTIONS };
 
 function manyFieldIds(count) {
@@ -1495,5 +1499,141 @@ describe("getProjectUsageReportJob", () => {
     mocks.loadReportJob.mockResolvedValue({ jobId: "job-1", totalFields: 0, processedFields: 0 });
     const result = await getProjectUsageReportJob({ payload: { jobId: "job-1" }, context: {} });
     expect(result.job.percentComplete).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// RQT (required-query-token) index -- governance analytics surface.
+// ---------------------------------------------------------------------------
+describe("getRqtIndex", () => {
+  test("aggregates totals and enriches field names from the live snapshot", async () => {
+    mocks.loadRqtFieldIndex.mockResolvedValue([
+      { fieldId: "customfield_1", issueCount: 10, sampleValues: ["A", "B"], refreshedAt: "2026-01-01T00:00:00Z" },
+    ]);
+    mocks.readSnapshotMeta.mockResolvedValue({ version: 1 });
+    mocks.loadRqtIssueKeys.mockResolvedValue([{ projectId: "10", total: 5 }]);
+    mocks.loadRqtValueFrequency.mockResolvedValue([]);
+    mocks.loadIssueRqtValues.mockResolvedValue([]);
+    mocks.loadRqtFieldIssueIndex.mockResolvedValue([]);
+    mocks.loadSnapshotFields.mockResolvedValue([{ id: "customfield_1", name: "Real Field Name" }]);
+
+    const result = await getRqtIndex({ context: {} });
+
+    expect(result.fields[0].fieldName).toBe("Real Field Name"); // enriched from snapshot
+    expect(result.totalIssues).toBe(10);
+    expect(result.totalUniqueIssues).toBe(5);
+    expect(result.uniqueValues).toEqual(["A", "B"]);
+  });
+
+  test("still returns a full shape (without name enrichment) when there's no snapshot yet", async () => {
+    mocks.loadRqtFieldIndex.mockResolvedValue([{ fieldId: "customfield_1", issueCount: 3, sampleValues: [], refreshedAt: null }]);
+    mocks.readSnapshotMeta.mockResolvedValue(null);
+    mocks.loadRqtIssueKeys.mockResolvedValue([]);
+    mocks.loadRqtValueFrequency.mockResolvedValue([]);
+    mocks.loadIssueRqtValues.mockResolvedValue([]);
+    mocks.loadRqtFieldIssueIndex.mockResolvedValue([]);
+
+    const result = await getRqtIndex({ context: {} });
+
+    expect(result.fieldCount).toBe(1);
+    expect(mocks.loadSnapshotFields).not.toHaveBeenCalled();
+  });
+});
+
+describe("searchRqtValue", () => {
+  test("returns an empty list without querying storage when rqtValue is blank", async () => {
+    const result = await searchRqtValue({ payload: {}, context: {} });
+    expect(result).toEqual({ issueKeys: [] });
+    expect(mocks.searchRqtValueIssueKeys).not.toHaveBeenCalled();
+  });
+
+  test("normalizes the search value to uppercase before searching", async () => {
+    mocks.searchRqtValueIssueKeys.mockResolvedValue(["ABC-1", "ABC-2"]);
+    const result = await searchRqtValue({ payload: { rqtValue: "req-42" }, context: {} });
+    expect(mocks.searchRqtValueIssueKeys).toHaveBeenCalledWith("test-install", "REQ-42");
+    expect(result.issueKeys).toEqual(["ABC-1", "ABC-2"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Rovo agent actions -- note the (payload, context) positional signature,
+// different from every other resolver's ({ payload, context }) destructure.
+// ---------------------------------------------------------------------------
+describe("rovoSearchFields", () => {
+  test("requires a query", async () => {
+    const result = await rovoSearchFields({}, {});
+    expect(result).toEqual({ status: "error", message: "A search query is required." });
+  });
+
+  test("reports snapshot-unavailable when no snapshot has completed", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue(null);
+    const result = await rovoSearchFields({ query: "story points" }, {});
+    expect(result.status).toBe("snapshot-unavailable");
+    expect(result.matches).toEqual([]);
+  });
+
+  test("returns matching fields, capped at maxResults", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: 1, refreshedAt: "2026-01-01T00:00:00Z" });
+    mocks.loadSnapshotFields.mockResolvedValue([
+      snapshotField({ id: "customfield_1", name: "Story Points" }),
+      snapshotField({ id: "customfield_2", name: "Story Estimate" }),
+    ]);
+
+    const result = await rovoSearchFields({ query: "story", maxResults: 1 }, {});
+
+    expect(result.status).toBe("ok");
+    expect(result.matches).toHaveLength(1);
+    expect(result.totalMatches).toBe(1);
+  });
+});
+
+describe("rovoInspectField", () => {
+  test("requires a fieldIdentifier", async () => {
+    const result = await rovoInspectField({}, {});
+    expect(result).toEqual({ status: "error", message: "A field identifier is required." });
+  });
+
+  test("reports snapshot-unavailable when no snapshot has completed", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue(null);
+    const result = await rovoInspectField({ fieldIdentifier: "Story Points" }, {});
+    expect(result.status).toBe("snapshot-unavailable");
+  });
+
+  test("reports not-found when no field matches the identifier", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: 1, refreshedAt: "2026-01-01T00:00:00Z" });
+    mocks.loadSnapshotFields.mockResolvedValue([snapshotField({ id: "customfield_1", name: "Story Points" })]);
+    const result = await rovoInspectField({ fieldIdentifier: "Nonexistent Field" }, {});
+    expect(result.status).toBe("not-found");
+  });
+
+  test("matches by exact id, then exact name, then name prefix, then substring -- in that priority order", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: 1, refreshedAt: "2026-01-01T00:00:00Z" });
+    mocks.loadSnapshotFields.mockResolvedValue([snapshotField({ id: "customfield_10001", name: "Story Points" })]);
+    mocks.getLiveFieldProjectUsage.mockResolvedValue({ projectUsage: [], total: 0, totalIssueCount: 0 });
+
+    const byId = await rovoInspectField({ fieldIdentifier: "customfield_10001" }, {});
+    expect(byId.field.id).toBe("customfield_10001");
+
+    const byName = await rovoInspectField({ fieldIdentifier: "Story Points" }, {});
+    expect(byName.field.id).toBe("customfield_10001");
+
+    const byPrefix = await rovoInspectField({ fieldIdentifier: "Story" }, {});
+    expect(byPrefix.field.id).toBe("customfield_10001");
+  });
+
+  test("returns governance and live project usage for a matched field", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: 1, refreshedAt: "2026-01-01T00:00:00Z" });
+    mocks.loadSnapshotFields.mockResolvedValue([snapshotField({ id: "customfield_1", name: "Story Points" })]);
+    mocks.getLiveFieldProjectUsage.mockResolvedValue({
+      projectUsage: [{ projectKey: "ABC", projectName: "Alpha", issueCount: 5, jql: "project = ABC" }],
+      total: 1,
+      totalIssueCount: 5,
+    });
+
+    const result = await rovoInspectField({ fieldIdentifier: "Story Points" }, {});
+
+    expect(result.status).toBe("ok");
+    expect(result.governance.activeProjectCount).toBe(1);
+    expect(result.projectUsage).toHaveLength(1);
   });
 });
