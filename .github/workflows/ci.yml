@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [master]
   pull_request:
-    branches: [main, develop]
+    branches: [master]
     types: [opened, synchronize, reopened]
 
 concurrency:
@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  NODE_VERSION: "22"
+  NODE_VERSION: "24"
 
 jobs:
   lint:
@@ -25,10 +25,19 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci --frozen-lockfile
+      - name: Build frontend (forge lint validates that manifest resource paths exist on disk)
+        run: |
+          npm run build:macro
+          npm run build:admin
       - name: Install Forge CLI
         run: npm install -g @forge/cli@latest
+      - name: Suppress first-run analytics prompt (fails in non-TTY CI otherwise)
+        run: forge settings set usage-analytics false
       - name: Forge manifest lint
         run: forge lint
+        env:
+          FORGE_EMAIL: ${{ secrets.FORGE_EMAIL }}
+          FORGE_API_TOKEN: ${{ secrets.FORGE_API_TOKEN }}
 
   test:
     name: Unit Tests
