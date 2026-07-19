@@ -66,14 +66,14 @@ jobs:
       - name: Install Forge CLI
         run: npm install -g @forge/cli@latest
 
-      - name: Suppress first-run analytics prompt (fails in non-TTY CI otherwise)
-        run: forge settings set usage-analytics false
-
       - name: Deploy to Forge
         run: forge deploy --environment ${{ env.FORGE_ENV }} --non-interactive
         env:
           FORGE_EMAIL: ${{ secrets.FORGE_EMAIL }}
           FORGE_API_TOKEN: ${{ secrets.FORGE_API_TOKEN }}
+          # See ci.yml -- bypasses the first-run analytics prompt directly rather
+          # than relying on a prior `forge settings set` step's disk write.
+          FORGE_DISABLE_ANALYTICS: "true"
 
       - name: Write job summary
         run: |
