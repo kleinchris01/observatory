@@ -1,11 +1,13 @@
 name: Deploy — Forge
 
-# Triggers on push to main (after CI) or manually with environment selection.
+# Push to master auto-deploys to development only (fast feedback, low stakes).
+# Staging/production are manual-only via workflow_dispatch, matching the
+# deliberate dev -> staging -> production promotion path in RUNBOOK.md.
 # Requires FORGE_EMAIL and FORGE_API_TOKEN repository secrets.
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   workflow_dispatch:
     inputs:
       environment:
@@ -15,8 +17,8 @@ on:
         default: production
 
 env:
-  NODE_VERSION: "22"
-  FORGE_ENV: ${{ inputs.environment || 'production' }}
+  NODE_VERSION: "24"
+  FORGE_ENV: ${{ inputs.environment || 'development' }}
 
 jobs:
   build:
@@ -41,11 +43,11 @@ jobs:
           retention-days: 1
 
   deploy:
-    name: Forge Deploy (${{ inputs.environment || 'production' }})
+    name: Forge Deploy (${{ inputs.environment || 'development' }})
     runs-on: ubuntu-latest
     needs: build
     environment:
-      name: ${{ inputs.environment || 'production' }}
+      name: ${{ inputs.environment || 'development' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -64,8 +66,11 @@ jobs:
       - name: Install Forge CLI
         run: npm install -g @forge/cli@latest
 
+      - name: Suppress first-run analytics prompt (fails in non-TTY CI otherwise)
+        run: forge settings set usage-analytics false
+
       - name: Deploy to Forge
-        run: forge deploy --environment ${{ env.FORGE_ENV }} --no-interactive
+        run: forge deploy --environment ${{ env.FORGE_ENV }} --non-interactive
         env:
           FORGE_EMAIL: ${{ secrets.FORGE_EMAIL }}
           FORGE_API_TOKEN: ${{ secrets.FORGE_API_TOKEN }}
