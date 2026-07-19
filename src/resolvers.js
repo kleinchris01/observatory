@@ -78,7 +78,12 @@ import {
   searchRqtValueIssueKeys,
   loadRqtFieldIssueIndex,
   loadIssueRqtValues,
+  readWorkflowSnapshotMeta,
+  loadWorkflowSchemes,
+  loadWorkflowSchemeProjects,
+  loadStatusesCatalog,
 } from "./lib/project-store.js";
+import { buildWorkflowSnapshot } from "./lib/workflow-engine.js";
 import {
   STRUCTURAL_SYSTEM_FIELDS,
   isFieldValueNonEmpty,
@@ -447,6 +452,89 @@ async function getFieldInventory({ payload, context }) {
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
     console.error("getFieldInventory failed:", error);
+    throw error;
+  }
+}
+
+async function getWorkflowInventory({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    await ensureProjectStoreReady();
+    const filters = payload || {};
+    if (filters.page !== undefined && filters.page !== null) requirePositiveInt(filters.page, "page");
+    if (filters.pageSize !== undefined && filters.pageSize !== null) requireBoundedInt(filters.pageSize, "pageSize", 1, 100);
+    optionalString(filters.search, "search");
+
+    const installationKey = getInstallationKey(context);
+    const pageSize = Math.max(1, Math.min(50, Number(filters.pageSize) || 10));
+    const requestedPage = Math.max(1, Number(filters.page) || 1);
+    const search = String(filters.search || "").trim().toLowerCase();
+
+    let meta = await readWorkflowSnapshotMeta(installationKey);
+    const alreadyBuilding = meta?.state === "building";
+    const shouldBuild = Boolean(filters.forceRefresh && !alreadyBuilding);
+
+    if (shouldBuild) {
+      await buildWorkflowSnapshot(installationKey);
+      meta = await readWorkflowSnapshotMeta(installationKey);
+    }
+
+    const snapshotStatus = {
+      state: meta?.state || "idle",
+      version: meta?.version || null,
+      startedAt: meta?.startedAt || null,
+      completedAt: meta?.completedAt || null,
+      refreshedAt: meta?.refreshedAt || null,
+      totalSchemes: meta?.totalSchemes || 0,
+      lastError: meta?.lastError || null,
+    };
+
+    if (!meta?.version) {
+      return {
+        schemes: [], statuses: [], page: requestedPage, pageSize,
+        totalCount: 0, totalPages: 0, snapshotStatus,
+      };
+    }
+
+    const [schemes, statuses] = await Promise.all([
+      loadWorkflowSchemes(installationKey, meta.version),
+      loadStatusesCatalog(installationKey, meta.version),
+    ]);
+
+    // Never surface a scheme's project count as-computed from projects the
+    // viewer can't browse — recompute from only the browsable subset, same
+    // enforcement point as getFieldInventory / getProjectUsageReport (PR #19).
+    const filteredSchemes = await mapWithConcurrency(schemes, 8, async (scheme) => {
+      const projects = await loadWorkflowSchemeProjects(installationKey, meta.version, scheme.id);
+      const browsableProjectIds = await getBrowsableProjectIds(
+        context?.accountId,
+        projects.map((p) => p.projectId)
+      );
+      const visibleProjectCount = projects.filter((p) => browsableProjectIds.has(String(p.projectId))).length;
+      return { ...scheme, projectCount: visibleProjectCount };
+    });
+
+    const searched = search
+      ? filteredSchemes.filter((s) =>
+          s.name.toLowerCase().includes(search) || (s.description || "").toLowerCase().includes(search))
+      : filteredSchemes;
+
+    const totalCount = searched.length;
+    const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+    const startIndex = (requestedPage - 1) * pageSize;
+
+    return {
+      schemes: searched.slice(startIndex, startIndex + pageSize),
+      statuses,
+      page: requestedPage,
+      pageSize,
+      totalCount,
+      totalPages,
+      snapshotStatus,
+    };
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("getWorkflowInventory failed:", error);
     throw error;
   }
 }
@@ -2263,6 +2351,7 @@ async function getFieldOptions({ payload, context }) {
 export const SHARED_RESOLVER_FUNCTIONS = {
   checkMacroAccess,        // Read-only: checks group membership for macro access gating
   getFieldInventory,       // Read-only: returns paginated snapshot of custom field inventory
+  getWorkflowInventory,    // Read-only: returns paginated snapshot of workflow scheme / status inventory
   getFieldDetails,         // Read-only: returns detailed field data for a single field
   getProjectsView,         // Read-only: returns per-project field usage view
   getFilteredFieldIds,     // Read-only: returns filtered and sorted field ID list

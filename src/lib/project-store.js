@@ -237,6 +237,64 @@ const CREATE_RQT_FIELD_ISSUE_INDEX_TABLE = `
   )
 `;
 
+const CREATE_SNAPSHOT_WORKFLOW_SCHEMES_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_workflow_schemes (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    scheme_id VARCHAR(191) NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT NULL,
+    default_workflow VARCHAR(255) NULL,
+    issue_type_mapping_json LONGTEXT NULL,
+    project_count BIGINT NOT NULL DEFAULT 0,
+    findings_json LONGTEXT NULL,
+    PRIMARY KEY (scope_key, version, scheme_id)
+  )
+`;
+
+const CREATE_SNAPSHOT_WORKFLOW_SCHEME_PROJECTS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_workflow_scheme_projects (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    scheme_id VARCHAR(191) NOT NULL,
+    project_id VARCHAR(191) NOT NULL,
+    project_key VARCHAR(191) NOT NULL,
+    project_name TEXT NOT NULL,
+    PRIMARY KEY (scope_key, version, scheme_id, project_id)
+  )
+`;
+
+const CREATE_SNAPSHOT_WORKFLOW_SCHEME_PROJECTS_BY_PROJECT_INDEX = `
+  CREATE INDEX idx_workflow_scheme_projects_by_project
+  ON snapshot_workflow_scheme_projects (scope_key, version, project_id)
+`;
+
+const CREATE_SNAPSHOT_STATUSES_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_statuses (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    status_id VARCHAR(191) NOT NULL,
+    name TEXT NOT NULL,
+    status_category VARCHAR(64) NULL,
+    findings_json LONGTEXT NULL,
+    PRIMARY KEY (scope_key, version, status_id)
+  )
+`;
+
+const CREATE_WORKFLOW_SNAPSHOT_META_TABLE = `
+  CREATE TABLE IF NOT EXISTS workflow_snapshot_meta (
+    scope_key VARCHAR(191) NOT NULL,
+    state VARCHAR(32) NOT NULL DEFAULT 'idle',
+    version VARCHAR(64) NULL,
+    started_at VARCHAR(64) NULL,
+    completed_at VARCHAR(64) NULL,
+    refreshed_at VARCHAR(64) NULL,
+    total_schemes INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT NULL,
+    PRIMARY KEY (scope_key)
+  )
+`;
+
 const projectStoreMigrations = migrationRunner
   .enqueue("v001_create_snapshot_fields_table", CREATE_SNAPSHOT_FIELDS_TABLE)
   .enqueue("v002_create_field_summaries_table", CREATE_FIELD_SUMMARIES_TABLE)
@@ -276,10 +334,16 @@ const projectStoreMigrations = migrationRunner
   .enqueue("v036_create_rqt_issue_keys_table", CREATE_RQT_ISSUE_KEYS_TABLE)
   .enqueue("v037_create_rqt_value_issue_index_table", CREATE_RQT_VALUE_ISSUE_INDEX_TABLE)
   .enqueue("v038_create_rqt_field_issue_index_table", CREATE_RQT_FIELD_ISSUE_INDEX_TABLE)
-  .enqueue("v039_alter_issue_scan_meta_add_scan_history", "ALTER TABLE issue_scan_meta ADD COLUMN IF NOT EXISTS scan_history LONGTEXT NULL");
+  .enqueue("v039_alter_issue_scan_meta_add_scan_history", "ALTER TABLE issue_scan_meta ADD COLUMN IF NOT EXISTS scan_history LONGTEXT NULL")
+  .enqueue("v040_create_snapshot_workflow_schemes_table", CREATE_SNAPSHOT_WORKFLOW_SCHEMES_TABLE)
+  .enqueue("v041_create_snapshot_workflow_scheme_projects_table", CREATE_SNAPSHOT_WORKFLOW_SCHEME_PROJECTS_TABLE)
+  .enqueue("v042_create_workflow_scheme_projects_by_project_index", CREATE_SNAPSHOT_WORKFLOW_SCHEME_PROJECTS_BY_PROJECT_INDEX)
+  .enqueue("v043_create_snapshot_statuses_table", CREATE_SNAPSHOT_STATUSES_TABLE)
+  .enqueue("v044_create_workflow_snapshot_meta_table", CREATE_WORKFLOW_SNAPSHOT_META_TABLE);
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history
+  // v040-v044 add workflow scheme / status inventory tables (Workflow & Status Tracking, Phase 1)
 
 let migrationPromise = null;
 
@@ -2617,7 +2681,200 @@ export async function migrateOldScopeKeys(newScopeKey) {
     withSqlRetry(() => sql.prepare("DELETE FROM rqt_issue_keys WHERE scope_key = ?").bindParams(oldScopeKey).execute()),
     withSqlRetry(() => sql.prepare("DELETE FROM rqt_value_issue_index WHERE scope_key = ?").bindParams(oldScopeKey).execute()),
     withSqlRetry(() => sql.prepare("DELETE FROM rqt_field_issue_index WHERE scope_key = ?").bindParams(oldScopeKey).execute()),
+    withSqlRetry(() => sql.prepare("DELETE FROM snapshot_workflow_schemes WHERE scope_key = ?").bindParams(oldScopeKey).execute()),
+    withSqlRetry(() => sql.prepare("DELETE FROM snapshot_workflow_scheme_projects WHERE scope_key = ?").bindParams(oldScopeKey).execute()),
+    withSqlRetry(() => sql.prepare("DELETE FROM snapshot_statuses WHERE scope_key = ?").bindParams(oldScopeKey).execute()),
+    withSqlRetry(() => sql.prepare("DELETE FROM workflow_snapshot_meta WHERE scope_key = ?").bindParams(oldScopeKey).execute()),
   ]);
 
   return { skipped: false, migratedUsage, migratedSummaries, migratedReports };
+}
+
+// ---------------------------------------------------------------------------
+// Workflow scheme / status inventory (Workflow & Status Tracking, Phase 1)
+// ---------------------------------------------------------------------------
+
+// Full replace, mirroring replaceSnapshotFields: delete this scope's rows, then
+// insert the fresh set. Workflow schemes/statuses are small site-wide catalogs
+// (no resume/append path needed, unlike the custom-field snapshot).
+export async function replaceWorkflowSnapshot(scopeKey, version, { schemes = [], schemeProjects = [], statuses = [] }) {
+  await ensureProjectStoreReady();
+
+  await withSqlRetry(() => sql.prepare("DELETE FROM snapshot_workflow_schemes WHERE scope_key = ?").bindParams(scopeKey).execute());
+  await withSqlRetry(() => sql.prepare("DELETE FROM snapshot_workflow_scheme_projects WHERE scope_key = ?").bindParams(scopeKey).execute());
+  await withSqlRetry(() => sql.prepare("DELETE FROM snapshot_statuses WHERE scope_key = ?").bindParams(scopeKey).execute());
+
+  for (const batch of chunkArray(schemes, 50)) {
+    const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
+    const params = batch.flatMap((scheme) => [
+      scopeKey, version, scheme.id, scheme.name, scheme.description || null,
+      scheme.defaultWorkflow || null, JSON.stringify(scheme.issueTypeMapping || null),
+      scheme.projectCount ?? 0, JSON.stringify(scheme.findings || null),
+    ]);
+    await withSqlRetry(() =>
+      sql.prepare(`
+        INSERT INTO snapshot_workflow_schemes
+          (scope_key, version, scheme_id, name, description, default_workflow, issue_type_mapping_json, project_count, findings_json)
+        VALUES ${valuesSql}
+      `).bindParams(...params).execute()
+    );
+  }
+
+  for (const batch of chunkArray(schemeProjects, 50)) {
+    const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?)").join(", ");
+    const params = batch.flatMap((row) => [
+      scopeKey, version, row.schemeId, row.projectId, row.projectKey, row.projectName,
+    ]);
+    await withSqlRetry(() =>
+      sql.prepare(`
+        INSERT INTO snapshot_workflow_scheme_projects
+          (scope_key, version, scheme_id, project_id, project_key, project_name)
+        VALUES ${valuesSql}
+      `).bindParams(...params).execute()
+    );
+  }
+
+  for (const batch of chunkArray(statuses, 50)) {
+    const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?)").join(", ");
+    const params = batch.flatMap((status) => [
+      scopeKey, version, status.id, status.name, status.statusCategory || null,
+      JSON.stringify(status.findings || null),
+    ]);
+    await withSqlRetry(() =>
+      sql.prepare(`
+        INSERT INTO snapshot_statuses (scope_key, version, status_id, name, status_category, findings_json)
+        VALUES ${valuesSql}
+      `).bindParams(...params).execute()
+    );
+  }
+}
+
+export async function loadWorkflowSchemes(scopeKey, version) {
+  await ensureProjectStoreReady();
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT scheme_id, name, description, default_workflow, issue_type_mapping_json, project_count, findings_json
+      FROM snapshot_workflow_schemes
+      WHERE scope_key = ? AND version = ?
+      ORDER BY name ASC
+    `).bindParams(scopeKey, version).execute()
+  );
+  return (result.rows || []).map((row) => ({
+    id: row.scheme_id,
+    name: row.name,
+    description: row.description || "",
+    defaultWorkflow: row.default_workflow || null,
+    issueTypeMapping: safeParseJson(row.issue_type_mapping_json, null),
+    projectCount: toNumber(row.project_count),
+    findings: safeParseJson(row.findings_json, null),
+  }));
+}
+
+export async function loadWorkflowSchemeProjects(scopeKey, version, schemeId) {
+  await ensureProjectStoreReady();
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT project_id, project_key, project_name
+      FROM snapshot_workflow_scheme_projects
+      WHERE scope_key = ? AND version = ? AND scheme_id = ?
+      ORDER BY project_name ASC
+    `).bindParams(scopeKey, version, schemeId).execute()
+  );
+  return (result.rows || []).map((row) => ({
+    projectId: row.project_id,
+    projectKey: row.project_key,
+    projectName: row.project_name,
+  }));
+}
+
+// Reverse lookup for the Projects tab (Phase 4): which scheme does this project use.
+export async function loadWorkflowSchemeForProject(scopeKey, version, projectId) {
+  await ensureProjectStoreReady();
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT wsp.scheme_id, ws.name, ws.description
+      FROM snapshot_workflow_scheme_projects wsp
+      JOIN snapshot_workflow_schemes ws
+        ON ws.scope_key = wsp.scope_key AND ws.version = wsp.version AND ws.scheme_id = wsp.scheme_id
+      WHERE wsp.scope_key = ? AND wsp.version = ? AND wsp.project_id = ?
+      LIMIT 1
+    `).bindParams(scopeKey, version, projectId).execute()
+  );
+  const row = result.rows?.[0];
+  if (!row) return null;
+  return { schemeId: row.scheme_id, name: row.name, description: row.description || "" };
+}
+
+export async function loadStatusesCatalog(scopeKey, version) {
+  await ensureProjectStoreReady();
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT status_id, name, status_category, findings_json
+      FROM snapshot_statuses
+      WHERE scope_key = ? AND version = ?
+      ORDER BY name ASC
+    `).bindParams(scopeKey, version).execute()
+  );
+  return (result.rows || []).map((row) => ({
+    id: row.status_id,
+    name: row.name,
+    statusCategory: row.status_category || null,
+    findings: safeParseJson(row.findings_json, null),
+  }));
+}
+
+export async function readWorkflowSnapshotMeta(scopeKey) {
+  await ensureProjectStoreReady();
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT state, version, started_at, completed_at, refreshed_at, total_schemes, last_error
+      FROM workflow_snapshot_meta
+      WHERE scope_key = ?
+      LIMIT 1
+    `).bindParams(scopeKey).execute()
+  );
+  const row = result.rows?.[0];
+  if (!row) return null;
+  return {
+    state: row.state || "idle",
+    version: row.version || null,
+    startedAt: row.started_at || null,
+    completedAt: row.completed_at || null,
+    refreshedAt: row.refreshed_at || null,
+    totalSchemes: toNumber(row.total_schemes),
+    lastError: row.last_error || null,
+  };
+}
+
+export async function writeWorkflowSnapshotMeta(scopeKey, patch) {
+  await ensureProjectStoreReady();
+  const current = await readWorkflowSnapshotMeta(scopeKey);
+  const next = {
+    state: "idle",
+    version: null,
+    startedAt: null,
+    completedAt: null,
+    refreshedAt: null,
+    totalSchemes: 0,
+    lastError: null,
+    ...(current || {}),
+    ...patch,
+  };
+
+  await withSqlRetry(() =>
+    sql.prepare(`
+      INSERT INTO workflow_snapshot_meta (scope_key, state, version, started_at, completed_at, refreshed_at, total_schemes, last_error)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE
+        state = VALUES(state),
+        version = VALUES(version),
+        started_at = VALUES(started_at),
+        completed_at = VALUES(completed_at),
+        refreshed_at = VALUES(refreshed_at),
+        total_schemes = VALUES(total_schemes),
+        last_error = VALUES(last_error)
+    `).bindParams(scopeKey, next.state, next.version, next.startedAt, next.completedAt, next.refreshedAt, next.totalSchemes, next.lastError).execute()
+  );
+
+  return next;
 }

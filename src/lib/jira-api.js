@@ -56,6 +56,9 @@ export const METRIC_NAMES = {
   reportJobStarted: "report-job-started",
   reportJobCompleted: "report-job-completed",
   reportJobFailed: "report-job-failed",
+  workflowSnapshotStarted: "workflow-snapshot-started",
+  workflowSnapshotCompleted: "workflow-snapshot-completed",
+  workflowSnapshotFailed: "workflow-snapshot-failed",
 };
 
 // ----- Module-level rate limiter state -----
@@ -785,6 +788,41 @@ export async function getLiveFieldProjectUsage(fieldId, usagePage, usagePageSize
     total,
     totalIssueCount,
   };
+}
+
+export async function getAllJiraProjects() {
+  return paginate(
+    (startAt) => route`/rest/api/3/project/search?maxResults=50&startAt=${startAt}`
+  );
+}
+
+// GET /rest/api/3/status returns a flat array, not the usual {values, isLast} wrapper.
+export async function getAllStatuses() {
+  const data = await jiraRequest(route`/rest/api/3/status`);
+  return Array.isArray(data) ? data : [];
+}
+
+export async function getAllWorkflowsWithStatuses() {
+  return paginate(
+    (startAt) => route`/rest/api/3/workflow/search?expand=statuses&startAt=${startAt}&maxResults=${DEFAULT_PAGE_SIZE}`
+  );
+}
+
+export async function getWorkflowSchemeForProject(projectId) {
+  return jiraRequest(route`/rest/api/3/workflowscheme/project?projectId=${projectId}`);
+}
+
+// One call per project (no confirmed bulk form for scheme<->project association at
+// implementation time — see plan). Concurrency-limited like other per-project fetches.
+export async function getWorkflowSchemesForProjects(projectIds, concurrency = 8) {
+  return mapWithConcurrency(projectIds, concurrency, async (projectId) => {
+    try {
+      const data = await getWorkflowSchemeForProject(projectId);
+      return { projectId, scheme: data?.workflowScheme || data || null, error: null };
+    } catch (error) {
+      return { projectId, scheme: null, error: String(error?.message || error) };
+    }
+  });
 }
 
 export async function getAllJiraProjectKeys() {
