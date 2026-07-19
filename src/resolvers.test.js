@@ -237,6 +237,13 @@ const {
   getIssueScanStatus,
   startDeltaIssueScan,
   getDeltaIssueScanStatus,
+  cancelSnapshot,
+  getProjectUsageJobs,
+  refreshRecentProjectUsage,
+  cancelProjectUsageJob,
+  restartProjectUsageJob,
+  resumeProjectUsageJob,
+  restoreProjectUsageCache,
 } = { ...SHARED_RESOLVER_FUNCTIONS, ...ADMIN_ONLY_FUNCTIONS };
 
 function manyFieldIds(count) {
@@ -1084,5 +1091,199 @@ describe("runDeltaIssueScanJob", () => {
     await expect(runDeltaIssueScanJob("test-install")).resolves.toBeUndefined();
 
     expect(mocks.writeIssueScanMeta).toHaveBeenCalledWith("test-install::delta", expect.objectContaining({ state: "failed" }));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Snapshot & project-usage job lifecycle -- RUNBOOK.md's "Section 2: Snapshot
+// Build Recovery" and "Section 3: Database Health" / field summary job
+// recovery are the spec for this group.
+// ---------------------------------------------------------------------------
+describe("cancelSnapshot", () => {
+  test("nulls buildingVersion so any in-flight build's own version-check fails", async () => {
+    const result = await cancelSnapshot({ context: {} });
+    expect(result).toEqual({ cancelled: true });
+    expect(mocks.writeSnapshotMeta).toHaveBeenCalledWith("test-install", expect.objectContaining({ state: "cancelled", buildingVersion: null }));
+  });
+});
+
+describe("getProjectUsageJobs", () => {
+  test("shapes each job with a computed percentComplete from processed/estimated issue counts", async () => {
+    mocks.listFieldSummaries.mockResolvedValue([
+      { fieldId: "customfield_1", summaryStatus: "building", processedIssueCount: 50, estimatedIssueTotal: 200 },
+      { fieldId: "customfield_2", summaryStatus: "ready", processedIssueCount: 0, estimatedIssueTotal: 0 },
+    ]);
+    const result = await getProjectUsageJobs({ context: {} });
+    expect(result.jobs[0].percentComplete).toBe(25);
+    // ready with no estimate still reports 100%, not 0%
+    expect(result.jobs[1].percentComplete).toBe(100);
+  });
+});
+
+describe("refreshRecentProjectUsage", () => {
+  test("throws when no snapshot has completed", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue(null);
+    await expect(refreshRecentProjectUsage({ payload: {}, context: {} })).rejects.toThrow(/No completed snapshot/);
+  });
+
+  test("clamps hours and maxIssues into their allowed ranges", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: 1 });
+    mocks.collectRecentFieldProjectCandidates.mockResolvedValue({ fields: [], scannedIssues: 0 });
+    const result = await refreshRecentProjectUsage({ payload: { hours: 9999, maxIssues: 1 }, context: {} });
+    expect(mocks.collectRecentFieldProjectCandidates).toHaveBeenCalledWith(168, 50); // clamped to max 168h, min 50 issues
+    expect(result.windowHours).toBe(168);
+  });
+
+  test("queues a full rebuild for a field with no existing ready summary", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: 1 });
+    mocks.collectRecentFieldProjectCandidates.mockResolvedValue({
+      fields: [{ fieldId: "customfield_1", projectKeys: ["ABC"] }],
+      scannedIssues: 5,
+    });
+    mocks.listFieldSummaries.mockResolvedValue([]); // no existing summary
+    mocks.loadSnapshotField.mockResolvedValue(snapshotField({ id: "customfield_1", totalIssueCount: 10 }));
+    mocks.loadFieldSummary.mockResolvedValue(null);
+    mocks.queueFieldSummaryContinuationWithRetry.mockResolvedValue({ queued: true });
+
+    const result = await refreshRecentProjectUsage({ payload: {}, context: {} });
+
+    expect(result.queuedCount).toBe(1);
+    expect(result.fullRebuildCount).toBe(1);
+  });
+
+  test("queues an incremental delta refresh for a field with an existing ready summary", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: 1 });
+    mocks.collectRecentFieldProjectCandidates.mockResolvedValue({
+      fields: [{ fieldId: "customfield_1", projectKeys: ["ABC"] }],
+      scannedIssues: 5,
+    });
+    mocks.listFieldSummaries.mockResolvedValue([{ fieldId: "customfield_1", summaryStatus: "ready" }]);
+    mocks.loadSnapshotField.mockResolvedValue(snapshotField({ id: "customfield_1" }));
+    mocks.queueFieldUsageDeltaRefreshWithRetry.mockResolvedValue({ queued: true });
+
+    const result = await refreshRecentProjectUsage({ payload: {}, context: {} });
+
+    expect(result.queuedCount).toBe(1);
+    expect(result.fullRebuildCount).toBe(0);
+    expect(mocks.replaceFieldSummary).toHaveBeenCalledWith("test-install", "customfield_1", expect.objectContaining({ summaryStatus: "queued" }));
+  });
+
+  test("marks a field deferred when the incremental refresh queue push fails", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: 1 });
+    mocks.collectRecentFieldProjectCandidates.mockResolvedValue({
+      fields: [{ fieldId: "customfield_1", projectKeys: ["ABC"] }],
+      scannedIssues: 5,
+    });
+    mocks.listFieldSummaries.mockResolvedValue([{ fieldId: "customfield_1", summaryStatus: "ready" }]);
+    mocks.loadSnapshotField.mockResolvedValue(snapshotField({ id: "customfield_1" }));
+    mocks.queueFieldUsageDeltaRefreshWithRetry.mockResolvedValue({ queued: false, attempts: 3 });
+
+    const result = await refreshRecentProjectUsage({ payload: {}, context: {} });
+
+    expect(result.queuedCount).toBe(0);
+    expect(mocks.replaceFieldSummary).toHaveBeenLastCalledWith("test-install", "customfield_1", expect.objectContaining({ summaryStatus: "deferred" }));
+  });
+});
+
+describe("cancelProjectUsageJob", () => {
+  test("requires a fieldId", async () => {
+    await expect(cancelProjectUsageJob({ payload: {}, context: {} })).rejects.toThrow(/fieldId/);
+  });
+
+  test("reports not-found when there's no summary for the field", async () => {
+    mocks.loadFieldSummary.mockResolvedValue(null);
+    const result = await cancelProjectUsageJob({ payload: { fieldId: "customfield_1" }, context: {} });
+    expect(result).toEqual({ cancelled: false, reason: "not-found" });
+  });
+
+  test("marks the job cancelled", async () => {
+    mocks.loadFieldSummary.mockResolvedValue({ summaryStatus: "building", progressLog: [] });
+    const result = await cancelProjectUsageJob({ payload: { fieldId: "customfield_1" }, context: {} });
+    expect(result).toEqual({ cancelled: true });
+    expect(mocks.replaceFieldSummary).toHaveBeenCalledWith("test-install", "customfield_1", expect.objectContaining({ summaryStatus: "cancelled" }));
+  });
+});
+
+describe("restartProjectUsageJob", () => {
+  test("requires a fieldId", async () => {
+    await expect(restartProjectUsageJob({ payload: {}, context: {} })).rejects.toThrow(/fieldId/);
+  });
+
+  test("throws when no snapshot has completed", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue(null);
+    await expect(restartProjectUsageJob({ payload: { fieldId: "customfield_1" }, context: {} })).rejects.toThrow(/No completed snapshot/);
+  });
+
+  test("throws when the field isn't in the snapshot", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: 1 });
+    mocks.loadSnapshotField.mockResolvedValue(null);
+    await expect(restartProjectUsageJob({ payload: { fieldId: "customfield_missing" }, context: {} })).rejects.toThrow(/Field not found/);
+  });
+
+  test("wipes existing usage rows and starts a fresh job from zero", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: 1 });
+    mocks.loadSnapshotField.mockResolvedValue(snapshotField({ id: "customfield_1" }));
+
+    const result = await restartProjectUsageJob({ payload: { fieldId: "customfield_1" }, context: {} });
+
+    expect(result).toEqual({ queued: true, fieldId: "customfield_1" });
+    expect(mocks.replaceSnapshotProjectUsageForField).toHaveBeenCalledWith("test-install", 1, "customfield_1", []);
+    expect(mocks.replaceFieldSummary).toHaveBeenCalledWith("test-install", "customfield_1", expect.objectContaining({ summaryStatus: "queued", processedIssueCount: 0 }));
+    expect(mocks.processFieldSummaryChunk).toHaveBeenCalledWith("test-install", 1, expect.objectContaining({ id: "customfield_1" }), expect.any(String), 0, null, 1);
+  });
+});
+
+describe("resumeProjectUsageJob", () => {
+  test("requires a fieldId", async () => {
+    await expect(resumeProjectUsageJob({ payload: {}, context: {} })).rejects.toThrow(/fieldId/);
+  });
+
+  test("throws when no snapshot has completed", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue(null);
+    await expect(resumeProjectUsageJob({ payload: { fieldId: "customfield_1" }, context: {} })).rejects.toThrow(/No completed snapshot/);
+  });
+
+  test("throws when there's no existing job state to resume", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: 1 });
+    mocks.loadSnapshotField.mockResolvedValue(snapshotField());
+    mocks.loadFieldSummary.mockResolvedValue(null);
+    await expect(resumeProjectUsageJob({ payload: { fieldId: "customfield_1" }, context: {} })).rejects.toThrow(/No existing project-usage job state/);
+  });
+
+  test("refuses to resume a job that's already running", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: 1 });
+    mocks.loadSnapshotField.mockResolvedValue(snapshotField());
+    mocks.loadFieldSummary.mockResolvedValue({ summaryStatus: "building" });
+    const result = await resumeProjectUsageJob({ payload: { fieldId: "customfield_1" }, context: {} });
+    expect(result).toEqual({ queued: false, fieldId: "customfield_1", reason: "already-running" });
+  });
+
+  test("resumes from the last checkpoint (processedIssueCount), not from zero", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: 1 });
+    mocks.loadSnapshotField.mockResolvedValue(snapshotField({ id: "customfield_1" }));
+    mocks.loadFieldSummary.mockResolvedValue({
+      summaryStatus: "failed", processedIssueCount: 340, nextPageToken: "page-token-abc", progressLog: [],
+    });
+
+    const result = await resumeProjectUsageJob({ payload: { fieldId: "customfield_1" }, context: {} });
+
+    expect(result).toEqual({ queued: true, fieldId: "customfield_1", resumedFrom: 340 });
+    expect(mocks.processFieldSummaryChunk).toHaveBeenCalledWith("test-install", 1, expect.objectContaining({ id: "customfield_1" }), expect.any(String), 340, "page-token-abc", 1);
+  });
+});
+
+describe("restoreProjectUsageCache", () => {
+  test("reports no-snapshot when nothing has completed", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue(null);
+    const result = await restoreProjectUsageCache({ context: {} });
+    expect(result).toEqual({ started: false, reason: "no-snapshot" });
+    expect(mocks.queueProjectUsageRestore).not.toHaveBeenCalled();
+  });
+
+  test("queues a full restore from the latest snapshot version", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: 7 });
+    const result = await restoreProjectUsageCache({ context: {} });
+    expect(result).toEqual({ started: true, version: 7 });
+    expect(mocks.queueProjectUsageRestore).toHaveBeenCalledWith("test-install", 7);
   });
 });
