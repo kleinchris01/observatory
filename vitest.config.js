@@ -5,7 +5,7 @@ export default defineConfig({
     globals: true,
     coverage: {
       reporter: ["text-summary", "lcov"],
-      include: ["src/lib/**/*.js", "static/src/**/*.{js,jsx}"],
+      include: ["src/*.js", "src/lib/**/*.js", "static/src/**/*.{js,jsx}"],
       exclude: ["**/*.test.*", "static/src/test-setup.js"],
     },
   },
