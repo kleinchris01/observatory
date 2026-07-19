@@ -129,6 +129,9 @@ permissions:
     - read:issue-meta:jira
     - read:issue.changelog:jira
     - read:custom-field-contextual-configuration:jira
+    - read:workflow:jira
+    - read:workflow-scheme:jira
+    - read:status:jira
     - manage:jira-configuration
     - read:jira-user
     - read:chat:rovo

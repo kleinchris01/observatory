@@ -74,6 +74,13 @@ const mocks = vi.hoisted(() => ({
   searchRqtValueIssueKeys: vi.fn(),
   loadRqtFieldIssueIndex: vi.fn(),
   loadIssueRqtValues: vi.fn(),
+  readWorkflowSnapshotMeta: vi.fn(),
+  loadWorkflowSchemes: vi.fn(),
+  loadWorkflowSchemeProjects: vi.fn(),
+  loadStatusesCatalog: vi.fn(),
+
+  // workflow-engine.js
+  buildWorkflowSnapshot: vi.fn(),
 
   // jira-api.js
   incrMetric: vi.fn(),
@@ -168,6 +175,14 @@ vi.mock("./lib/project-store.js", () => ({
   searchRqtValueIssueKeys: mocks.searchRqtValueIssueKeys,
   loadRqtFieldIssueIndex: mocks.loadRqtFieldIssueIndex,
   loadIssueRqtValues: mocks.loadIssueRqtValues,
+  readWorkflowSnapshotMeta: mocks.readWorkflowSnapshotMeta,
+  loadWorkflowSchemes: mocks.loadWorkflowSchemes,
+  loadWorkflowSchemeProjects: mocks.loadWorkflowSchemeProjects,
+  loadStatusesCatalog: mocks.loadStatusesCatalog,
+}));
+
+vi.mock("./lib/workflow-engine.js", () => ({
+  buildWorkflowSnapshot: mocks.buildWorkflowSnapshot,
 }));
 
 vi.mock("./lib/jira-api.js", () => ({
@@ -235,6 +250,7 @@ const {
 const {
   checkMacroAccess,
   getFieldInventory,
+  getWorkflowInventory,
   getFieldDetails,
   getFilteredFieldIds,
   getFieldOptions,
@@ -310,6 +326,11 @@ beforeEach(() => {
   mocks.writeIssueScanMeta.mockResolvedValue(undefined);
   mocks.readIssueScanWorker.mockResolvedValue(null);
   mocks.getBrowsableProjectIds.mockImplementation(async (_accountId, projectIds) => new Set((projectIds || []).map(String)));
+  mocks.readWorkflowSnapshotMeta.mockResolvedValue(null);
+  mocks.loadWorkflowSchemes.mockResolvedValue([]);
+  mocks.loadWorkflowSchemeProjects.mockResolvedValue([]);
+  mocks.loadStatusesCatalog.mockResolvedValue([]);
+  mocks.buildWorkflowSnapshot.mockResolvedValue({ version: "v1", schemeCount: 0, statusCount: 0, projectCount: 0 });
 });
 
 function ctxWithAccount(accountId = "user-1") {
@@ -506,6 +527,114 @@ describe("getFieldInventory", () => {
   test("propagates errors and increments the failure metric", async () => {
     mocks.readSnapshotMeta.mockRejectedValue(new Error("SQL connection lost"));
     await expect(getFieldInventory({ payload: {}, context: {} })).rejects.toThrow("SQL connection lost");
+    expect(mocks.incrMetric).toHaveBeenCalledWith("resolver-failed");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getWorkflowInventory
+// ---------------------------------------------------------------------------
+describe("getWorkflowInventory", () => {
+  function workflowScheme(overrides = {}) {
+    return {
+      id: "scheme-1", name: "Default Workflow Scheme", description: "",
+      defaultWorkflow: "Software Simplified Workflow", issueTypeMapping: null,
+      projectCount: 2, findings: null,
+      ...overrides,
+    };
+  }
+
+  test("returns an empty, non-error shape when no workflow snapshot has ever completed", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue(null);
+    const result = await getWorkflowInventory({ payload: {}, context: ctxWithAccount() });
+    expect(result.schemes).toEqual([]);
+    expect(result.statuses).toEqual([]);
+    expect(result.totalCount).toBe(0);
+    expect(result.snapshotStatus.state).toBe("idle");
+    expect(mocks.loadWorkflowSchemes).not.toHaveBeenCalled();
+  });
+
+  test("returns paginated schemes and the status catalog from the latest snapshot version", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready", totalSchemes: 2 });
+    mocks.loadWorkflowSchemes.mockResolvedValue([
+      workflowScheme({ id: "scheme-1", name: "Alpha Scheme" }),
+      workflowScheme({ id: "scheme-2", name: "Beta Scheme" }),
+    ]);
+    mocks.loadWorkflowSchemeProjects.mockResolvedValue([
+      { projectId: "10", projectKey: "ALPHA", projectName: "Alpha" },
+      { projectId: "11", projectKey: "BRAVO", projectName: "Bravo" },
+    ]);
+    mocks.loadStatusesCatalog.mockResolvedValue([{ id: "1", name: "To Do", statusCategory: "To Do" }]);
+
+    const result = await getWorkflowInventory({ payload: { pageSize: 1, page: 1 }, context: ctxWithAccount() });
+
+    expect(result.totalCount).toBe(2);
+    expect(result.schemes).toHaveLength(1);
+    expect(result.totalPages).toBe(2);
+    expect(result.statuses).toEqual([{ id: "1", name: "To Do", statusCategory: "To Do" }]);
+  });
+
+  test("filters search by scheme name and description", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready" });
+    mocks.loadWorkflowSchemes.mockResolvedValue([
+      workflowScheme({ id: "scheme-1", name: "Bug Triage Scheme" }),
+      workflowScheme({ id: "scheme-2", name: "Default Scheme", description: "used for bugs too" }),
+      workflowScheme({ id: "scheme-3", name: "Something Else" }),
+    ]);
+    mocks.loadWorkflowSchemeProjects.mockResolvedValue([]);
+    mocks.loadStatusesCatalog.mockResolvedValue([]);
+
+    const result = await getWorkflowInventory({ payload: { search: "bug" }, context: ctxWithAccount() });
+
+    expect(result.schemes.map((s) => s.id).sort()).toEqual(["scheme-1", "scheme-2"]);
+  });
+
+  test("force-refresh builds a new snapshot and returns fresh data", async () => {
+    mocks.readWorkflowSnapshotMeta
+      .mockResolvedValueOnce({ version: null, state: "idle" }) // initial read
+      .mockResolvedValueOnce({ version: "v2", state: "ready", totalSchemes: 1 }); // post-build read
+    mocks.buildWorkflowSnapshot.mockResolvedValue({ version: "v2", schemeCount: 1, statusCount: 1, projectCount: 1 });
+    mocks.loadWorkflowSchemes.mockResolvedValue([workflowScheme()]);
+    mocks.loadWorkflowSchemeProjects.mockResolvedValue([]);
+    mocks.loadStatusesCatalog.mockResolvedValue([]);
+
+    const result = await getWorkflowInventory({ payload: { forceRefresh: true }, context: ctxWithAccount() });
+
+    expect(mocks.buildWorkflowSnapshot).toHaveBeenCalledWith("test-install");
+    expect(result.snapshotStatus.version).toBe("v2");
+  });
+
+  test("does not trigger a second build while one is already in progress", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: null, state: "building" });
+
+    await getWorkflowInventory({ payload: { forceRefresh: true }, context: ctxWithAccount() });
+
+    expect(mocks.buildWorkflowSnapshot).not.toHaveBeenCalled();
+  });
+
+  test("never surfaces a scheme's project count from projects the viewer can't browse", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready" });
+    mocks.loadWorkflowSchemes.mockResolvedValue([workflowScheme({ id: "scheme-1", projectCount: 2 })]);
+    mocks.loadWorkflowSchemeProjects.mockResolvedValue([
+      { projectId: "10", projectKey: "VISIBLE", projectName: "Visible Project" },
+      { projectId: "11", projectKey: "HIDDEN", projectName: "Hidden Project" },
+    ]);
+    mocks.loadStatusesCatalog.mockResolvedValue([]);
+    mocks.getBrowsableProjectIds.mockImplementation(async () => new Set(["10"])); // only project 10 is browsable
+
+    const result = await getWorkflowInventory({ payload: {}, context: ctxWithAccount("less-privileged-user") });
+
+    expect(result.schemes[0].projectCount).toBe(1);
+  });
+
+  test("validates page and pageSize bounds", async () => {
+    await expect(getWorkflowInventory({ payload: { page: 0 }, context: ctxWithAccount() })).rejects.toThrow(/page/);
+    await expect(getWorkflowInventory({ payload: { pageSize: 500 }, context: ctxWithAccount() })).rejects.toThrow(/pageSize/);
+  });
+
+  test("propagates errors and increments the failure metric", async () => {
+    mocks.readWorkflowSnapshotMeta.mockRejectedValue(new Error("SQL connection lost"));
+    await expect(getWorkflowInventory({ payload: {}, context: ctxWithAccount() })).rejects.toThrow("SQL connection lost");
     expect(mocks.incrMetric).toHaveBeenCalledWith("resolver-failed");
   });
 });
