@@ -11,6 +11,10 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  pull-requests: read # gitleaks-action lists PR commits via the GitHub API
+
 env:
   NODE_VERSION: "24"
 
