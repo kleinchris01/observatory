@@ -35,13 +35,16 @@ jobs:
           npm run build:admin
       - name: Install Forge CLI
         run: npm install -g @forge/cli@latest
-      - name: Suppress first-run analytics prompt (fails in non-TTY CI otherwise)
-        run: forge settings set usage-analytics false
       - name: Forge manifest lint
         run: forge lint
         env:
           FORGE_EMAIL: ${{ secrets.FORGE_EMAIL }}
           FORGE_API_TOKEN: ${{ secrets.FORGE_API_TOKEN }}
+          # Bypasses the first-run analytics prompt directly (checked before the
+          # cached settings file), instead of relying on `forge settings set`
+          # persisting to disk before the next step reads it back -- that step
+          # ordering proved flaky across separate CI steps/processes.
+          FORGE_DISABLE_ANALYTICS: "true"
 
   test:
     name: Unit Tests
