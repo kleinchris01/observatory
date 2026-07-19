@@ -20,6 +20,7 @@ import {
   ISSUE_SCAN_WORKERS,
   BASE_JIRA_CONCURRENCY,
   loadFieldOptionsFromJira,
+  getBrowsableProjectIds,
 } from "./lib/jira-api.js";
 import { queueIssueScanWorker } from "./lib/scan-engine.js";
 import {
@@ -92,6 +93,7 @@ import {
   applyFindingsFilter,
   sortInventoryFields,
   summarizeFindings,
+  filterProjectUsageByBrowsable,
 } from "./lib/analysis.js";
 import {
   buildFieldJql,
@@ -540,6 +542,17 @@ async function getFieldDetails({ payload, context }) {
       activeProjectCount: finalProjectCount,
       totalIssueCount: fieldSummary?.totalIssueCount || snapshotField.totalIssueCount || projectUsageIssueSum || 0,
     }, fieldSummary, duplicateNameCounts.get(normalizeFieldName(snapshotField.name)) ?? 1);
+
+    // Never surface a project's identity to a viewer who lacks Browse Projects
+    // on it in Jira. finalProjectCount/pagination totals are left as-is (a bare
+    // number doesn't reveal a project's identity, same tradeoff already
+    // accepted for field-inventory aggregate counts) -- only row-level identity
+    // is filtered here.
+    const browsableProjectIds = await getBrowsableProjectIds(
+      context?.accountId,
+      finalProjectRows.map((row) => row.projectId)
+    );
+    finalProjectRows = finalProjectRows.filter((row) => browsableProjectIds.has(String(row.projectId)));
 
     const projectUsage = finalProjectRows.map((row) => ({
       projectId: row.projectId,
@@ -1211,7 +1224,15 @@ async function getProjectUsageReport({ payload, context }) {
 
   const uniqueIssueCount = await getDistinctIssueCountForFields(fields.map((field) => field.fieldId));
 
-  return { fields, projects, pendingFields, uniqueIssueCount };
+  // Never surface a project's identity to a viewer who lacks Browse Projects on
+  // it -- one bulk permission check for every project touched by this report.
+  const browsableProjectIds = await getBrowsableProjectIds(
+    context?.accountId,
+    projects.map((p) => p.projectId)
+  );
+  const filtered = filterProjectUsageByBrowsable({ fields, projects, pendingFields, uniqueIssueCount }, browsableProjectIds);
+
+  return filtered;
 }
 
 async function startProjectUsageReportJob({ payload, context }) {
@@ -1263,9 +1284,19 @@ async function getProjectUsageReportJob({ payload, context }) {
   if (!job) {
     return { job: null };
   }
+
+  // Filter at READ time using the CURRENT caller's own permissions, not the
+  // admin who originally started the job -- this is the only enforcement point
+  // for stored report results, since the same job can be read by many
+  // different people (with different Browse Projects access) over time.
+  const candidateProjectIds = (job.result?.projects || []).map((p) => p.projectId);
+  const browsableProjectIds = await getBrowsableProjectIds(context?.accountId, candidateProjectIds);
+  const filteredResult = job.result ? filterProjectUsageByBrowsable(job.result, browsableProjectIds) : job.result;
+
   return {
     job: {
       ...job,
+      result: filteredResult,
       percentComplete: job.totalFields > 0 ? Math.min(100, Math.round((job.processedFields / job.totalFields) * 100)) : 0,
     },
   };
@@ -1300,10 +1331,20 @@ async function getProjectsView({ payload, context }) {
   const sortBy = String(payload?.sortBy || "issues-desc").trim() || "issues-desc";
   const requestedPage = Math.max(1, Math.trunc(Number(payload?.page)) || 1);
 
-  const [projects, issueScanMeta] = await Promise.all([
+  const [allProjects, issueScanMeta] = await Promise.all([
     listSnapshotProjects(installationKey, meta.version, projectQuery),
     readIssueScanMeta(installationKey).catch(() => null),
   ]);
+
+  // Only show projects the CALLING user actually has Browse Projects
+  // permission on -- never surface another project's name/existence to
+  // someone who can't see it in Jira itself.
+  const browsableProjectIds = await getBrowsableProjectIds(
+    context?.accountId,
+    allProjects.map((p) => p.projectId)
+  );
+  const projects = allProjects.filter((p) => browsableProjectIds.has(String(p.projectId)));
+
   const selectedProjectId = String(payload?.projectId || "").trim() || projects[0]?.projectId || "";
   const selectedProject = projects.find((project) => project.projectId === selectedProjectId) || projects[0] || null;
 
@@ -1696,10 +1737,19 @@ export async function rovoInspectField(payload, context) {
   }
 
   const {
-    projectUsage,
+    projectUsage: rawProjectUsage,
     total: projectCount,
     totalIssueCount,
   } = await getLiveFieldProjectUsage(matchedField.id, usagePage, PROJECT_USAGE_PAGE_SIZE);
+
+  // Never surface a project's identity to a Rovo caller who lacks Browse
+  // Projects on it. projectCount/pagination totals are left as-is, same
+  // bare-number tradeoff already accepted elsewhere in this file.
+  const browsableProjectIds = await getBrowsableProjectIds(
+    context?.accountId,
+    rawProjectUsage.map((p) => p.projectId)
+  );
+  const projectUsage = rawProjectUsage.filter((p) => browsableProjectIds.has(String(p.projectId)));
 
   return {
     status: "ok",

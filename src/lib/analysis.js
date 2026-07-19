@@ -151,6 +151,26 @@ export function summarizeProjectUsageCapacity(summaries = []) {
   };
 }
 
+// Filters a { fields: [{ ..., projects }], projects } project-usage-report shape
+// (the return type of getProjectUsageReport / a stored report job's result) down
+// to only the projects the CURRENT viewer has Browse Projects permission on.
+// activeProjectCount is recomputed from the filtered array, not the original
+// count, so a hidden project's contribution to that number never leaks either.
+// browsableProjectIds is a Set of string project IDs; pass null/undefined to
+// skip filtering entirely (e.g. when the caller has no accountId to check).
+export function filterProjectUsageByBrowsable(result, browsableProjectIds) {
+  if (!browsableProjectIds) return result;
+
+  const fields = (result?.fields || []).map((field) => {
+    const projects = (field.projects || []).filter((p) => browsableProjectIds.has(String(p.projectId)));
+    return { ...field, projects, activeProjectCount: projects.length };
+  });
+
+  const projects = (result?.projects || []).filter((p) => browsableProjectIds.has(String(p.projectId)));
+
+  return { ...result, fields, projects };
+}
+
 // ── HTTP retry logic ────────────────────────────────────────────────────────
 
 export function shouldRetry(error) {

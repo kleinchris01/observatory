@@ -86,6 +86,11 @@ const mocks = vi.hoisted(() => ({
   loadFieldContexts: vi.fn().mockResolvedValue([]),
   collectRecentFieldProjectCandidates: vi.fn(),
   loadFieldOptionsFromJira: vi.fn(),
+  // Permissive by default (every candidate project ID is "browsable") so
+  // existing tests don't need to know about this filter unless they're
+  // specifically testing it -- see the "Browse Projects permission
+  // filtering" describe block for the tests that override this.
+  getBrowsableProjectIds: vi.fn(async (_accountId, projectIds) => new Set((projectIds || []).map(String))),
 
   // snapshot-engine.js (I/O only -- hydrateFieldForGovernance stays real)
   requeueStaleSnapshotBuild: vi.fn(),
@@ -183,6 +188,7 @@ vi.mock("./lib/jira-api.js", () => ({
   loadFieldContexts: mocks.loadFieldContexts,
   collectRecentFieldProjectCandidates: mocks.collectRecentFieldProjectCandidates,
   loadFieldOptionsFromJira: mocks.loadFieldOptionsFromJira,
+  getBrowsableProjectIds: mocks.getBrowsableProjectIds,
   PROJECT_USAGE_PAGE_SIZE: 12,
   PROJECTS_VIEW_PAGE_SIZE: 24,
   MAX_ACTIVE_PROJECT_USAGE_JOBS: 3,
@@ -303,7 +309,12 @@ beforeEach(() => {
   mocks.queuePush.mockResolvedValue({ queued: true });
   mocks.writeIssueScanMeta.mockResolvedValue(undefined);
   mocks.readIssueScanWorker.mockResolvedValue(null);
+  mocks.getBrowsableProjectIds.mockImplementation(async (_accountId, projectIds) => new Set((projectIds || []).map(String)));
 });
+
+function ctxWithAccount(accountId = "user-1") {
+  return { accountId };
+}
 
 // ---------------------------------------------------------------------------
 // Existing report field-count validation (kept from the field-cap fix)
@@ -572,6 +583,46 @@ describe("getFieldDetails", () => {
     expect(mocks.loadFieldContexts).toHaveBeenCalledWith("customfield_10001");
     expect(result.contexts).toEqual([{ id: "ctx-1", isGlobal: true }]);
   });
+
+  test("never returns a project row the caller lacks Browse Projects permission on", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: 1, refreshedAt: "2026-01-01T00:00:00Z" });
+    mocks.loadSnapshotField.mockResolvedValue(snapshotField());
+    mocks.loadSnapshotProjectUsage.mockResolvedValue([
+      { projectId: "10", projectKey: "ABC", projectName: "Alpha", issueCount: 5, jql: null },
+      { projectId: "20", projectKey: "SECRET", projectName: "Confidential", issueCount: 2, jql: null },
+    ]);
+    mocks.countSnapshotProjectUsage.mockResolvedValue(2);
+    mocks.loadFieldSummary.mockResolvedValue(null);
+    mocks.loadSnapshotFields.mockResolvedValue([snapshotField()]);
+    mocks.getBrowsableProjectIds.mockResolvedValue(new Set(["10"]));
+
+    const result = await getFieldDetails({ payload: { fieldId: "customfield_10001" }, context: ctxWithAccount() });
+
+    expect(result.projects).toHaveLength(1);
+    expect(result.projects[0].projectKey).toBe("ABC");
+    expect(result.projects.some((p) => p.projectKey === "SECRET")).toBe(false);
+  });
+
+  test("filters the fallback activeProjects list (fieldSummary path) the same way", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: 1 });
+    mocks.loadSnapshotField.mockResolvedValue(snapshotField());
+    mocks.loadSnapshotProjectUsage.mockResolvedValue([]);
+    mocks.countSnapshotProjectUsage.mockResolvedValue(0);
+    mocks.loadFieldSummary.mockResolvedValue({
+      summaryStatus: "ready",
+      activeProjectCount: 2,
+      activeProjects: [
+        { projectId: "10", projectKey: "ABC", projectName: "Alpha", issueCount: 5 },
+        { projectId: "20", projectKey: "SECRET", projectName: "Confidential", issueCount: 2 },
+      ],
+    });
+    mocks.loadSnapshotFields.mockResolvedValue([snapshotField()]);
+    mocks.getBrowsableProjectIds.mockResolvedValue(new Set(["10"]));
+
+    const result = await getFieldDetails({ payload: { fieldId: "customfield_10001" }, context: ctxWithAccount() });
+
+    expect(result.projects.map((p) => p.projectKey)).toEqual(["ABC"]);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -794,6 +845,40 @@ describe("getProjectsView", () => {
   test("validates page is a positive integer when provided", async () => {
     mocks.readSnapshotMeta.mockResolvedValue({ version: 1 });
     await expect(getProjectsView({ payload: { page: -1 }, context: {} })).rejects.toThrow(/page/);
+  });
+
+  test("never returns a project the caller lacks Browse Projects permission on", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: 1, refreshedAt: "2026-01-01T00:00:00Z" });
+    mocks.listSnapshotProjects.mockResolvedValue([
+      { projectId: "10", projectKey: "ABC", projectName: "Alpha" },
+      { projectId: "20", projectKey: "SECRET", projectName: "Confidential Project" },
+    ]);
+    mocks.readIssueScanMeta.mockResolvedValue(null);
+    mocks.loadSnapshotProjectFields.mockResolvedValue({ rows: [], total: 0 });
+    mocks.getBrowsableProjectIds.mockResolvedValue(new Set(["10"])); // only Alpha is browsable
+
+    const result = await getProjectsView({ payload: {}, context: ctxWithAccount() });
+
+    expect(result.projects).toEqual([{ projectId: "10", projectKey: "ABC", projectName: "Alpha" }]);
+    expect(result.projects.some((p) => p.projectKey === "SECRET")).toBe(false);
+  });
+
+  test("cannot bypass the filter by requesting a hidden project's id directly", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: 1, refreshedAt: "2026-01-01T00:00:00Z" });
+    mocks.listSnapshotProjects.mockResolvedValue([
+      { projectId: "10", projectKey: "ABC", projectName: "Alpha" },
+      { projectId: "20", projectKey: "SECRET", projectName: "Confidential Project" },
+    ]);
+    mocks.readIssueScanMeta.mockResolvedValue(null);
+    mocks.loadSnapshotProjectFields.mockResolvedValue({ rows: [], total: 0 });
+    mocks.getBrowsableProjectIds.mockResolvedValue(new Set(["10"]));
+
+    // Explicitly ask for the hidden project by id -- should fall back to the
+    // first BROWSABLE project instead of honoring the direct request.
+    const result = await getProjectsView({ payload: { projectId: "20" }, context: ctxWithAccount() });
+
+    expect(result.selectedProject?.projectId).not.toBe("20");
+    expect(result.selectedProject?.projectId).toBe("10");
   });
 });
 
@@ -1475,6 +1560,25 @@ describe("getProjectUsageReport", () => {
 
     expect(result.projects.map((p) => p.projectKey)).toEqual(["ABC", "XYZ"]); // deduped, sorted by key
   });
+
+  test("never returns a project (top-level or per-field) the caller lacks Browse Projects permission on", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: 1 });
+    mocks.listFieldSummaries.mockResolvedValue([]);
+    mocks.loadSnapshotField.mockResolvedValue(snapshotField({ id: "customfield_1" }));
+    mocks.loadAllSnapshotProjectUsage.mockResolvedValue([
+      { projectId: "10", projectKey: "ABC", projectName: "Alpha", issueCount: 1 },
+      { projectId: "20", projectKey: "SECRET", projectName: "Confidential", issueCount: 1 },
+    ]);
+    mocks.loadFieldSummary.mockResolvedValue(null);
+    mocks.getDistinctIssueCountForFields.mockResolvedValue(2);
+    mocks.getBrowsableProjectIds.mockResolvedValue(new Set(["10"]));
+
+    const result = await getProjectUsageReport({ payload: { fieldIds: ["customfield_1"] }, context: ctxWithAccount() });
+
+    expect(result.projects.map((p) => p.projectKey)).toEqual(["ABC"]);
+    expect(result.fields[0].projects.map((p) => p.projectKey)).toEqual(["ABC"]);
+    expect(result.fields[0].activeProjectCount).toBe(1); // recomputed from the filtered set, not the original 2
+  });
 });
 
 describe("getProjectUsageReportJob", () => {
@@ -1500,6 +1604,36 @@ describe("getProjectUsageReportJob", () => {
     mocks.loadReportJob.mockResolvedValue({ jobId: "job-1", totalFields: 0, processedFields: 0 });
     const result = await getProjectUsageReportJob({ payload: { jobId: "job-1" }, context: {} });
     expect(result.job.percentComplete).toBe(0);
+  });
+
+  test("filters a stored report's result using the CURRENT reader's permissions, not the original admin's", async () => {
+    // An admin could have built this job (they're always allowed to start one),
+    // but a different, less-privileged person reading it later must not see
+    // projects that admin could see but they themselves cannot.
+    mocks.loadReportJob.mockResolvedValue({
+      jobId: "job-1",
+      totalFields: 1,
+      processedFields: 1,
+      result: {
+        fields: [{ fieldId: "customfield_1", fieldName: "Story Points", activeProjectCount: 2, projects: [
+          { projectId: "10", projectKey: "ABC", projectName: "Alpha" },
+          { projectId: "20", projectKey: "SECRET", projectName: "Confidential" },
+        ] }],
+        projects: [
+          { projectId: "10", projectKey: "ABC", projectName: "Alpha" },
+          { projectId: "20", projectKey: "SECRET", projectName: "Confidential" },
+        ],
+        pendingFields: [],
+        uniqueIssueCount: 2,
+      },
+    });
+    mocks.getBrowsableProjectIds.mockResolvedValue(new Set(["10"])); // this reader can only see Alpha
+
+    const result = await getProjectUsageReportJob({ payload: { jobId: "job-1" }, context: ctxWithAccount("less-privileged-user") });
+
+    expect(result.job.result.projects.map((p) => p.projectKey)).toEqual(["ABC"]);
+    expect(result.job.result.fields[0].projects.map((p) => p.projectKey)).toEqual(["ABC"]);
+    expect(result.job.result.fields[0].activeProjectCount).toBe(1);
   });
 });
 
@@ -1636,6 +1770,25 @@ describe("rovoInspectField", () => {
     expect(result.status).toBe("ok");
     expect(result.governance.activeProjectCount).toBe(1);
     expect(result.projectUsage).toHaveLength(1);
+  });
+
+  test("never returns a project the Rovo caller lacks Browse Projects permission on", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: 1, refreshedAt: "2026-01-01T00:00:00Z" });
+    mocks.loadSnapshotFields.mockResolvedValue([snapshotField({ id: "customfield_1", name: "Story Points" })]);
+    mocks.getLiveFieldProjectUsage.mockResolvedValue({
+      projectUsage: [
+        { projectId: "10", projectKey: "ABC", projectName: "Alpha", issueCount: 5, jql: "project = ABC" },
+        { projectId: "20", projectKey: "SECRET", projectName: "Confidential", issueCount: 3, jql: "project = SECRET" },
+      ],
+      total: 2,
+      totalIssueCount: 8,
+    });
+    mocks.getBrowsableProjectIds.mockResolvedValue(new Set(["10"]));
+
+    const result = await rovoInspectField({ fieldIdentifier: "Story Points" }, ctxWithAccount());
+
+    expect(result.projectUsage).toHaveLength(1);
+    expect(result.projectUsage[0].projectKey).toBe("ABC");
   });
 });
 
