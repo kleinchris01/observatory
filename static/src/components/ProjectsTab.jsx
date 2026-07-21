@@ -1,5 +1,8 @@
 import React from "react";
 import {
+  BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer,
+} from "recharts";
+import {
   buildJiraSearchUrl,
   handleJiraLinkClick,
   openFieldExpertRovo,
@@ -8,84 +11,96 @@ import {
   formatTimestamp,
   formatNumber,
 } from "../utils";
-import { Icon, CHART_PALETTE } from "./Icons";
+import { Icon, useChartPalette } from "./Icons";
 import { SkeletonProjectItem, FindingsStrip, MetricChip } from "./FieldCard";
 
+function ChartTooltip({ active, payload }) {
+  if (!active || !payload?.length) return null;
+  const { name, value } = payload[0];
+  return (
+    <div className="chart-tooltip">
+      <span className="chart-tooltip__label">{name}</span>
+      <span className="chart-tooltip__value">{formatNumber(value)}</span>
+    </div>
+  );
+}
+
 export function TopFieldsChart({ fields }) {
+  const palette = useChartPalette();
   const top = [...fields]
     .filter((f) => String(f.fieldId || "").startsWith("customfield_") && !f.isJiraBuiltin)
     .sort((a, b) => b.issueCount - a.issueCount)
-    .slice(0, 8);
-  const max = top[0]?.issueCount || 1;
+    .slice(0, 8)
+    .map((field) => ({ name: field.fieldName, value: field.issueCount, fieldId: field.fieldId }));
   if (!top.length) return null;
+  const chartHeight = Math.max(160, top.length * 34);
   return (
     <div className="project-chart">
       <div className="chart-title">Top fields by issue count</div>
-      <div className="chart-bar-list">
-        {top.map((field, i) => {
-          const pct = Math.max(3, Math.round((field.issueCount / max) * 100));
-          return (
-            <div className="chart-bar-row" key={field.fieldId}>
-              <span className="chart-bar-label" title={field.fieldName}>{field.fieldName}</span>
-              <div className="chart-bar-track">
-                <div
-                  className="chart-bar-fill"
-                  style={{ width: `${pct}%`, background: CHART_PALETTE[i % CHART_PALETTE.length] }}
-                />
-              </div>
-              <span className="chart-bar-count">{formatNumber(field.issueCount)}</span>
-            </div>
-          );
-        })}
+      <div style={{ width: "100%", height: chartHeight }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={top} layout="vertical" margin={{ top: 4, right: 16, bottom: 4, left: 4 }}>
+            <XAxis type="number" hide />
+            <YAxis
+              type="category"
+              dataKey="name"
+              width={140}
+              tick={{ fontSize: 12, fill: "var(--muted)" }}
+              tickLine={false}
+              axisLine={false}
+            />
+            <Tooltip content={<ChartTooltip />} cursor={{ fill: "var(--stroke)" }} />
+            <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={18}>
+              {top.map((entry, i) => (
+                <Cell key={entry.fieldId} fill={palette[i % palette.length]} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
       </div>
     </div>
   );
 }
 
 export function FieldTypeDonut({ fields }) {
+  const palette = useChartPalette();
   if (!fields.length) return null;
   const counts = {};
   for (const f of fields) {
     counts[f.fieldType] = (counts[f.fieldType] || 0) + 1;
   }
   const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 7);
-  const total = entries.reduce((s, [, c]) => s + c, 0);
-  const r = 40;
-  const circumference = 2 * Math.PI * r;
-  let acc = 0;
-  const segments = entries.map(([type, count], i) => {
-    const dash = (count / total) * circumference;
-    const seg = { type, count, color: CHART_PALETTE[i % CHART_PALETTE.length], dash, acc };
-    acc += dash;
-    return seg;
-  });
+  const segments = entries.map(([type, count]) => ({ name: type, value: count }));
   return (
     <div className="project-chart">
       <div className="chart-title">Field types on this project</div>
       <div className="project-chart__donut-layout">
-        <svg className="donut-svg" viewBox="0 0 108 108" width="100" height="100" aria-hidden="true">
-          <g transform="rotate(-90, 54, 54)">
-            {segments.map((seg) => (
-              <circle
-                key={seg.type}
-                cx={54}
-                cy={54}
-                r={r}
-                fill="none"
-                stroke={seg.color}
-                strokeWidth="15"
-                strokeDasharray={`${seg.dash} ${circumference - seg.dash}`}
-                strokeDashoffset={-seg.acc}
-              />
-            ))}
-          </g>
-        </svg>
+        <div style={{ width: 120, height: 120, flexShrink: 0 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={segments}
+                dataKey="value"
+                nameKey="name"
+                innerRadius={32}
+                outerRadius={54}
+                paddingAngle={2}
+                stroke="none"
+              >
+                {segments.map((seg, i) => (
+                  <Cell key={seg.name} fill={palette[i % palette.length]} />
+                ))}
+              </Pie>
+              <Tooltip content={<ChartTooltip />} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
         <div className="chart-legend">
-          {segments.map((seg) => (
-            <div className="chart-legend-item" key={seg.type}>
-              <span className="chart-legend-dot" style={{ background: seg.color }} />
-              <span className="chart-legend-label" title={seg.type}>{seg.type}</span>
-              <span className="chart-legend-count">{seg.count}</span>
+          {segments.map((seg, i) => (
+            <div className="chart-legend-item" key={seg.name}>
+              <span className="chart-legend-dot" style={{ background: palette[i % palette.length] }} />
+              <span className="chart-legend-label" title={seg.name}>{seg.name}</span>
+              <span className="chart-legend-count">{seg.value}</span>
             </div>
           ))}
         </div>

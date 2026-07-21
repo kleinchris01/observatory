@@ -3,12 +3,20 @@ import ReactDOM from "react-dom/client";
 import { createPortal } from "react-dom";
 import { invoke, view } from "@forge/bridge";
 import "./styles.css";
-import { RqtIndexView } from "./tabs/RqtTab";
 import { formatTimestamp, formatNumber, toDisplayName, buildValueJql, formatShortTime, formatRelativeTime, formatLogTime, formatContextList, normalizeSiteOrigin, buildJiraSearchUrl, handleJiraLinkClick, escapeCsvCell, downloadCsv, slugifyFilenamePart, normalizeReportData, groupReportFieldsByType, summarizeReportData, isUsageAvailable, isSelectType, mergeFieldMetrics, openFieldExpertRovo, buildInventoryRovoPrompt, buildFieldRovoPrompt, buildProjectRovoPrompt, buildReportRovoPrompt } from "./utils";
-import { Icon, ICON_PATHS, useLiveDuration, CHART_PALETTE } from "./components/Icons";
+import { Icon, useLiveDuration } from "./components/Icons";
 import { ReportErrorBoundary, SavedReportsPanel, ProjectUsageReportView } from "./components/ReportView";
 import { MetricChip, FindingBadge, FindingsStrip, SkeletonFieldCard, SkeletonProjectItem, InlineOptionsContext, FieldCard } from "./components/FieldCard";
-import { ProjectsTabView } from "./components/ProjectsTab";
+
+// Lazy: both pull in recharts (+122KB gzip measured on the macro bundle) and
+// sit behind tabs not shown by default -- split into their own chunk, fetched
+// only when a user actually opens Projects or Scans/RQT.
+const ProjectsTabView = React.lazy(() =>
+  import("./components/ProjectsTab").then((m) => ({ default: m.ProjectsTabView }))
+);
+const RqtIndexView = React.lazy(() =>
+  import("./tabs/RqtTab").then((m) => ({ default: m.RqtIndexView }))
+);
 
 const bootStatusNode = document.getElementById("boot-status");
 
@@ -780,22 +788,24 @@ function ProjectUsageTab({ siteOrigin }) {
   return (
     <>
       {loadError && <div className="error-banner">{loadError}</div>}
-      <ProjectsTabView
-        data={data}
-        loading={loading}
-        siteOrigin={siteOrigin}
-        selectedProjectId={selectedProjectId}
-        onSelectProject={handleSelectProject}
-        projectQuery={projectQuery}
-        onProjectQueryChange={setProjectQuery}
-        fieldQuery={fieldQuery}
-        onFieldQueryChange={(v) => { setFieldQuery(v); }}
-        fieldType={fieldType}
-        onFieldTypeChange={(v) => { setFieldType(v); setPage(1); }}
-        fieldSort={fieldSort}
-        onFieldSortChange={(v) => { setFieldSort(v); setPage(1); }}
-        onChangePage={setPage}
-      />
+      <React.Suspense fallback={<div className="empty-state">Loading…</div>}>
+        <ProjectsTabView
+          data={data}
+          loading={loading}
+          siteOrigin={siteOrigin}
+          selectedProjectId={selectedProjectId}
+          onSelectProject={handleSelectProject}
+          projectQuery={projectQuery}
+          onProjectQueryChange={setProjectQuery}
+          fieldQuery={fieldQuery}
+          onFieldQueryChange={(v) => { setFieldQuery(v); }}
+          fieldType={fieldType}
+          onFieldTypeChange={(v) => { setFieldType(v); setPage(1); }}
+          fieldSort={fieldSort}
+          onFieldSortChange={(v) => { setFieldSort(v); setPage(1); }}
+          onChangePage={setPage}
+        />
+      </React.Suspense>
     </>
   );
 }
@@ -2164,7 +2174,11 @@ function ScansTab({ siteOrigin }) {
             issueScanDeltaStarting={issueScanDeltaStarting}
           />
         )}
-        {activeSection === "rqt" && <RqtIndexView siteOrigin={siteOrigin} />}
+        {activeSection === "rqt" && (
+          <React.Suspense fallback={<div className="empty-state">Loading…</div>}>
+            <RqtIndexView siteOrigin={siteOrigin} />
+          </React.Suspense>
+        )}
         {activeSection === "jobs" && (
           <JobsPanel
             jobs={jobs}

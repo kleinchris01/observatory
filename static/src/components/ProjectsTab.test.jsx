@@ -27,14 +27,17 @@ describe("TopFieldsChart", () => {
     expect(screen.getByText("Top fields by issue count")).toBeInTheDocument();
   });
 
-  it("renders a bar row for each qualifying field", () => {
+  it("renders a bar for each qualifying field", () => {
     const fields = [
       { fieldId: "customfield_1", fieldName: "Epic Link", issueCount: 200 },
       { fieldId: "customfield_2", fieldName: "Story Points", issueCount: 100 },
     ];
-    render(<TopFieldsChart fields={fields} />);
-    expect(screen.getByText("Epic Link")).toBeInTheDocument();
-    expect(screen.getByText("Story Points")).toBeInTheDocument();
+    const { container } = render(<TopFieldsChart fields={fields} />);
+    // Recharts' YAxis tick-collision avoidance depends on real text-measurement
+    // APIs jsdom doesn't implement, so it unpredictably drops some tick labels
+    // under test -- not something this component controls. Assert on the mark
+    // count instead, which renders reliably regardless of label collision logic.
+    expect(container.querySelectorAll(".recharts-bar-rectangle").length).toBe(2);
   });
 
   it("limits display to top 8 fields", () => {
@@ -43,10 +46,10 @@ describe("TopFieldsChart", () => {
       fieldName: `Field ${i + 1}`,
       issueCount: 100 - i,
     }));
-    render(<TopFieldsChart fields={fields} />);
-    const rows = screen.getAllByRole("generic").filter((el) => el.className === "chart-bar-row");
-    // Should render at most 8 rows
-    expect(rows.length).toBeLessThanOrEqual(8);
+    const { container } = render(<TopFieldsChart fields={fields} />);
+    const bars = container.querySelectorAll(".recharts-bar-rectangle");
+    expect(bars.length).toBeLessThanOrEqual(8);
+    expect(bars.length).toBeGreaterThan(0);
   });
 });
 
