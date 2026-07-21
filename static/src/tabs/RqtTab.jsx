@@ -1,7 +1,11 @@
 import React from "react";
 import { invoke, router } from "@forge/bridge";
+import {
+  BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList,
+} from "recharts";
 import { toDisplayName, buildValueJql } from "../utils";
 import { formatTimestamp, formatNumber } from "../utils";
+import { useChartPalette } from "../components/Icons";
 
 // ── RQT Dashboard helper components ─────────────────────────────────────
 
@@ -129,70 +133,76 @@ function RqtValuesTable({ uniqueValues, rqtValueFrequency, siteOrigin }) {
   );
 }
 
-const RQT_CHART_COLORS = [
-  "#f2b367","#79b8ff","#7ec8a4","#d98c8c","#b39ddb",
-  "#80cbc4","#ffcc80","#ef9a9a","#a5d6a7","#90caf9",
-];
+function RqtChartTooltip({ active, payload }) {
+  if (!active || !payload?.length) return null;
+  const { name, value } = payload[0];
+  return (
+    <div className="chart-tooltip">
+      <span className="chart-tooltip__label">{name}</span>
+      <span className="chart-tooltip__value">{formatNumber(value)}</span>
+    </div>
+  );
+}
 
 function RqtHBarChart({ items, labelKey, valueKey, color = "#f2b367", maxItems = 15, emptyMsg = "No data", labelWidth = 110 }) {
   if (!items?.length) return <div style={{ color: "var(--muted)", fontSize: "0.82rem", padding: "20px 0" }}>{emptyMsg}</div>;
-  const rows = items.slice(0, maxItems);
-  const max = Math.max(...rows.map(r => r[valueKey]), 1);
-  const BAR_H = 20, GAP = 5, LABEL_W = labelWidth, BAR_W = 260, VAL_W = 50;
-  const W = LABEL_W + BAR_W + VAL_W;
-  const H = rows.length * (BAR_H + GAP);
+  const rows = items.slice(0, maxItems).map((row) => ({ name: String(row[labelKey]), value: row[valueKey] }));
+  const height = Math.max(120, rows.length * 25);
   return (
-    <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ overflow: "visible" }}>
-      {rows.map((row, i) => {
-        const y = i * (BAR_H + GAP);
-        const bw = Math.max(2, (row[valueKey] / max) * BAR_W);
-        const label = String(row[labelKey]);
-        return (
-          <g key={label}>
-            <text x={LABEL_W - 6} y={y + BAR_H - 5} textAnchor="end" fontSize="11" fill="var(--muted)">{label}</text>
-            <rect x={LABEL_W} y={y + 2} width={bw} height={BAR_H - 4} fill={color} rx="2" opacity="0.85" />
-            <text x={LABEL_W + bw + 5} y={y + BAR_H - 5} fontSize="11" fill="var(--muted)">{row[valueKey].toLocaleString()}</text>
-          </g>
-        );
-      })}
-    </svg>
+    <div style={{ width: "100%", height }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={rows} layout="vertical" margin={{ top: 2, right: 40, bottom: 2, left: 2 }}>
+          <XAxis type="number" hide />
+          <YAxis
+            type="category"
+            dataKey="name"
+            width={labelWidth}
+            tick={{ fontSize: 11, fill: "var(--muted)" }}
+            tickLine={false}
+            axisLine={false}
+          />
+          <Tooltip content={<RqtChartTooltip />} cursor={{ fill: "var(--stroke)" }} />
+          <Bar dataKey="value" fill={color} radius={[0, 2, 2, 0]} maxBarSize={16} opacity={0.85}>
+            <LabelList dataKey="value" position="right" fontSize={11} fill="var(--muted)" formatter={(v) => v.toLocaleString()} />
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
 
 function RqtDonutChart({ items }) {
+  const palette = useChartPalette();
   if (!items?.length) return <div style={{ color: "var(--muted)", fontSize: "0.82rem" }}>No data</div>;
   const total = items.reduce((s, d) => s + d.value, 0);
   if (!total) return null;
-  const CX = 70, CY = 70, R = 56, IR = 34;
-  let angle = -Math.PI / 2;
-  const arcs = items.map((d, i) => {
-    const slice = (d.value / total) * 2 * Math.PI;
-    const sa = angle; angle += slice;
-    const ea = angle;
-    const x1 = CX + R * Math.cos(sa), y1 = CY + R * Math.sin(sa);
-    const x2 = CX + R * Math.cos(ea), y2 = CY + R * Math.sin(ea);
-    const ix1 = CX + IR * Math.cos(sa), iy1 = CY + IR * Math.sin(sa);
-    const ix2 = CX + IR * Math.cos(ea), iy2 = CY + IR * Math.sin(ea);
-    const la = slice > Math.PI ? 1 : 0;
-    return {
-      path: `M ${ix1} ${iy1} L ${x1} ${y1} A ${R} ${R} 0 ${la} 1 ${x2} ${y2} L ${ix2} ${iy2} A ${IR} ${IR} 0 ${la} 0 ${ix1} ${iy1} Z`,
-      color: RQT_CHART_COLORS[i % RQT_CHART_COLORS.length],
-      label: d.label, value: d.value,
-    };
-  });
   return (
-    <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
-      <svg width={140} height={140} style={{ flexShrink: 0 }}>
-        {arcs.map(a => <path key={a.label} d={a.path} fill={a.color} />)}
-        <text x={CX} y={CY - 4} textAnchor="middle" fontSize="15" fontWeight="700" fill="var(--text)">{total.toLocaleString()}</text>
-        <text x={CX} y={CY + 12} textAnchor="middle" fontSize="9" fill="var(--muted)">issues</text>
-      </svg>
+    <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+      <div style={{ width: 140, height: 140, flexShrink: 0, position: "relative" }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie data={items} dataKey="value" nameKey="label" innerRadius={38} outerRadius={56} paddingAngle={2} stroke="none">
+              {items.map((entry, i) => (
+                <Cell key={entry.label} fill={palette[i % palette.length]} />
+              ))}
+            </Pie>
+            <Tooltip content={<RqtChartTooltip />} />
+          </PieChart>
+        </ResponsiveContainer>
+        <div style={{
+          position: "absolute", inset: 0, display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center", pointerEvents: "none",
+        }}>
+          <span style={{ fontSize: 15, fontWeight: 700, color: "var(--text)" }}>{total.toLocaleString()}</span>
+          <span style={{ fontSize: 9, color: "var(--muted)" }}>issues</span>
+        </div>
+      </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: "0.77rem", paddingTop: 4 }}>
-        {arcs.map(a => (
-          <div key={a.label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ width: 9, height: 9, borderRadius: 2, background: a.color, flexShrink: 0 }} />
-            <span style={{ color: "var(--muted)", maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.label}</span>
-            <span style={{ marginLeft: "auto", color: "var(--text)", fontWeight: 600, paddingLeft: 8 }}>{a.value.toLocaleString()}</span>
+        {items.map((d, i) => (
+          <div key={d.label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ width: 9, height: 9, borderRadius: 2, background: palette[i % palette.length], flexShrink: 0 }} />
+            <span style={{ color: "var(--muted)", maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.label}</span>
+            <span style={{ marginLeft: "auto", color: "var(--text)", fontWeight: 600, paddingLeft: 8 }}>{d.value.toLocaleString()}</span>
           </div>
         ))}
       </div>

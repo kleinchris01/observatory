@@ -9,6 +9,14 @@ global.ResizeObserver = class ResizeObserver {
   disconnect() {}
 };
 
+// jsdom does no layout, so getBoundingClientRect always reports 0x0. Recharts'
+// ResponsiveContainer reads this to size its chart and, at 0x0, renders nothing
+// at all -- not a bug in the chart code, a known Recharts+jsdom gap. A plausible
+// non-zero default lets chart components actually render their content in tests.
+Element.prototype.getBoundingClientRect = function getBoundingClientRect() {
+  return { width: 400, height: 300, top: 0, left: 0, right: 400, bottom: 300, x: 0, y: 0, toJSON() {} };
+};
+
 // Mock createPortal to render children inline so jsdom can find them
 import { createPortal } from "react-dom";
 vi.mock("react-dom", async (importOriginal) => {

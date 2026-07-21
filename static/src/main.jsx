@@ -6,7 +6,15 @@ import { formatNumber, formatRelativeTime, normalizeSiteOrigin, buildJiraSearchU
 import { Icon } from "./components/Icons";
 import { ReportErrorBoundary, ProjectUsageReportView } from "./components/ReportView";
 import { SkeletonFieldCard, FieldCard } from "./components/FieldCard";
-import { ProjectsTabView } from "./components/ProjectsTab";
+
+// Lazy: ProjectsTab pulls in recharts, which nearly doubles this macro's JS
+// payload (measured: +122KB gzip). The macro defaults to the "inventory" tab,
+// so most page views never touch Projects/charts at all -- loading recharts
+// eagerly on every Confluence page view for a tab most visits never open isn't
+// worth it. Split into its own chunk, fetched only when the tab is opened.
+const ProjectsTabView = React.lazy(() =>
+  import("./components/ProjectsTab").then((m) => ({ default: m.ProjectsTabView }))
+);
 
 const bootStatusNode = document.getElementById("boot-status");
 const PROJECT_USAGE_PAGE_SIZE = 12;
@@ -721,22 +729,24 @@ export function App() {
       )}
 
       {activeTab === "projects" ? (
-        <ProjectsTabView
-          data={projectsViewData}
-          loading={loadingProjectsView}
-          siteOrigin={siteOrigin}
-          selectedProjectId={selectedProjectId}
-          onSelectProject={setSelectedProjectId}
-          projectQuery={projectTabProjectQuery}
-          onProjectQueryChange={setProjectTabProjectQuery}
-          fieldQuery={projectTabFieldQuery}
-          onFieldQueryChange={setProjectTabFieldQuery}
-          fieldType={projectTabFieldType}
-          onFieldTypeChange={setProjectTabFieldType}
-          fieldSort={projectTabFieldSort}
-          onFieldSortChange={setProjectTabFieldSort}
-          onChangePage={setProjectTabPage}
-        />
+        <React.Suspense fallback={<div className="empty-state">Loading…</div>}>
+          <ProjectsTabView
+            data={projectsViewData}
+            loading={loadingProjectsView}
+            siteOrigin={siteOrigin}
+            selectedProjectId={selectedProjectId}
+            onSelectProject={setSelectedProjectId}
+            projectQuery={projectTabProjectQuery}
+            onProjectQueryChange={setProjectTabProjectQuery}
+            fieldQuery={projectTabFieldQuery}
+            onFieldQueryChange={setProjectTabFieldQuery}
+            fieldType={projectTabFieldType}
+            onFieldTypeChange={setProjectTabFieldType}
+            fieldSort={projectTabFieldSort}
+            onFieldSortChange={setProjectTabFieldSort}
+            onChangePage={setProjectTabPage}
+          />
+        </React.Suspense>
       ) : activeTab === "report" ? (
         <ReportErrorBoundary resetKey={`${activeReportName}-${selectedFieldIds.join(",")}`}>
           <ProjectUsageReportView
