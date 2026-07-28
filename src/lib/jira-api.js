@@ -528,7 +528,10 @@ export async function getFieldConfiguredProjectCount(fieldId) {
     );
     return Number(data?.total ?? data?.values?.length ?? 0);
   } catch {
-    return 0;
+    // -1 signals "count unavailable" (timeout or error) — matches getFieldTotalIssueCount's
+    // convention. Must NOT be 0: a real 0 means "no projects configured", while a timeout
+    // means "we don't know", and callers need to tell those apart.
+    return -1;
   }
 }
 

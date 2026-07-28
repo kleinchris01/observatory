@@ -20,6 +20,8 @@ import {
 import {
   ensureProjectStoreReady,
   readSnapshotMeta,
+  writeSnapshotMeta,
+  clearSnapshotVersion,
   writeIssueScanMeta,
   readIssueScanMeta,
   clearIssueScanBuffer,
@@ -50,6 +52,7 @@ import {
   isSelectFieldType,
   getRetryDelayMs,
 } from "./analysis.js";
+import { syncFieldCatalog, refreshGovernanceFindingsForFields } from "./snapshot-engine.js";
 import { route } from "@forge/api";
 
 const ISSUE_SCAN_CHUNK_PAGES = 10;
@@ -121,8 +124,25 @@ export async function completeIssueScanFinalization(installationKey, tag, worker
 
     const snapshotMeta = await readSnapshotMeta(installationKey);
     if (snapshotMeta?.version) {
-      const promoted = await promoteIssueScanToSnapshotProjectUsage(installationKey, snapshotMeta.version);
-      console.log(`${tag}: promoted ${promoted.fieldsPromoted} fields (${promoted.rowsInserted} rows)`);
+      // Only trust the crawl's totals as authoritative (and zero out fields it never saw)
+      // when every worker actually finished — a field absent from a partial crawl's buffer
+      // is "not yet crawled," not "confirmed zero," and treating it as the latter would
+      // erase good data from a previous run.
+      const workers = await Promise.all(
+        Array.from({ length: ISSUE_SCAN_WORKERS }, (_, workerId) => readIssueScanWorker(installationKey, workerId).catch(() => null))
+      );
+      const scanCoverageComplete = workers.every((worker) => !worker || worker.status === "done");
+
+      const promoted = await promoteIssueScanToSnapshotProjectUsage(installationKey, snapshotMeta.version, { syncTotalIssueCount: scanCoverageComplete });
+      console.log(`${tag}: promoted ${promoted.fieldsPromoted} fields (${promoted.rowsInserted} rows)${scanCoverageComplete ? ", totals synced" : ""}`);
+
+      if (promoted.touchedFieldIds?.length) {
+        const refreshed = await refreshGovernanceFindingsForFields(installationKey, snapshotMeta.version, promoted.touchedFieldIds).catch((err) => {
+          console.warn(`${tag}: refreshGovernanceFindingsForFields failed:`, err?.message || err);
+          return { updatedCount: 0 };
+        });
+        console.log(`${tag}: refreshed findings for ${refreshed.updatedCount} fields`);
+      }
     }
 
     const finalMeta = await readIssueScanMeta(installationKey);
@@ -256,8 +276,34 @@ export async function runIssueScanCoordinator(installationKey) {
       bin.keys.length === 0 ? null : `project IN (${bin.keys.map((k) => `"${k}"`).join(", ")})`
     );
 
+    // Keep the field inventory in sync with Jira before crawling — every scan run
+    // re-checks for new/renamed fields via a fast metadata-only call (no per-field issue
+    // counting), so newly created custom fields are targeted by this same run instead of
+    // waiting for the next full snapshot build.
+    let snapshotMeta = await readSnapshotMeta(installationKey);
+    if (snapshotMeta?.state === "building") {
+      // A manual/scheduled runSnapshot() is actively writing this version — don't race it.
+      log("Skipping field catalog sync — a snapshot build is currently in progress");
+    } else {
+      try {
+        const isColdStart = !snapshotMeta?.version;
+        const version = snapshotMeta?.version || String(Date.now());
+        if (isColdStart) await clearSnapshotVersion(installationKey, version);
+        const syncResult = await syncFieldCatalog(installationKey, version);
+        log(`Field catalog synced — ${syncResult.newFieldCount} new, ${syncResult.changedFieldCount} changed, ${syncResult.totalCatalogCount} total`);
+        const now = new Date().toISOString();
+        await writeSnapshotMeta(installationKey, isColdStart
+          ? { state: "ready", version, buildingVersion: null, startedAt: now, completedAt: now, refreshedAt: now, totalFields: syncResult.totalCatalogCount, processedFields: syncResult.totalCatalogCount, lastError: null }
+          : { totalFields: syncResult.totalCatalogCount });
+        snapshotMeta = await readSnapshotMeta(installationKey);
+      } catch (syncError) {
+        // Discovery must never block the crawl itself — fall through and use whatever
+        // inventory already exists (or none, via the "*all" fields fallback below).
+        log(`Field catalog sync failed (continuing with existing inventory): ${syncError?.message}`);
+      }
+    }
+
     // Targeted fields from the active snapshot — smaller payloads, faster per-page processing
-    const snapshotMeta = await readSnapshotMeta(installationKey);
     let fieldIds = null;
     if (snapshotMeta?.version) {
       const { loadSnapshotFields } = await import("./project-store.js");

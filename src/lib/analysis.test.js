@@ -423,6 +423,12 @@ describe("getRetryDelayMs", () => {
     expect(getRetryDelayMs({}, 20)).toBe(30000);
   });
 
+  test("caps a large Retry-After header at 30s instead of honoring it verbatim", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    const error = { originalResponse: { headers: { get: (h) => h === "Retry-After" ? "123" : null } } };
+    expect(getRetryDelayMs(error, 0)).toBe(30000);
+  });
+
   test("adds up to 999ms jitter on top of base", () => {
     vi.spyOn(Math, "random").mockReturnValue(0.999);
     const delay = getRetryDelayMs({}, 0);

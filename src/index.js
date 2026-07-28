@@ -15,6 +15,7 @@ import {
   queueSnapshotBuild,
   processFieldSummaryChunk,
   processFieldUsageDelta,
+  requeueStaleSnapshotBuild,
 } from "./lib/snapshot-engine.js";
 import { processProjectUsageReportJob } from "./lib/report-engine.js";
 import {
@@ -88,7 +89,19 @@ export async function autoSnapshotCheck(_event, context) {
   const installationKey = getInstallationKey(context);
   const meta = await readSnapshotMeta(installationKey);
 
-  if (meta?.state === "building" || meta?.state === "queued") {
+  if (meta?.state === "building") {
+    // A build stuck in "building" for a long time (e.g. the consumer invocation was
+    // killed mid-run and never got a chance to update state) would otherwise sit here
+    // forever — this daily check is the only automated path that ever revisits it, so
+    // it must actively requeue stale builds instead of unconditionally skipping them.
+    const requeued = await requeueStaleSnapshotBuild(installationKey, meta);
+    if (requeued?.state === "queued") {
+      return { requeuedStale: true };
+    }
+    return { skipped: true, reason: "already running" };
+  }
+
+  if (meta?.state === "queued") {
     return { skipped: true, reason: "already running" };
   }
 

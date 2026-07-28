@@ -39,6 +39,8 @@ vi.mock("./jira-api.js", () => ({
 vi.mock("./project-store.js", () => ({
   ensureProjectStoreReady: vi.fn().mockResolvedValue(undefined),
   readSnapshotMeta: vi.fn().mockResolvedValue(null),
+  writeSnapshotMeta: vi.fn().mockResolvedValue(undefined),
+  clearSnapshotVersion: vi.fn().mockResolvedValue(undefined),
   writeIssueScanMeta: vi.fn().mockResolvedValue(undefined),
   readIssueScanMeta: vi.fn().mockResolvedValue(null),
   clearIssueScanBuffer: vi.fn().mockResolvedValue(undefined),
@@ -61,6 +63,7 @@ vi.mock("./project-store.js", () => ({
   tryClaimIssueScanFinalization: vi.fn().mockResolvedValue(false),
   loadIssueScanProjectTotals: vi.fn().mockResolvedValue([]),
   promoteIssueScanToSnapshotProjectUsage: vi.fn().mockResolvedValue({ fieldsPromoted: 0, rowsInserted: 0 }),
+  loadSnapshotFields: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("./analysis.js", () => ({
@@ -69,6 +72,11 @@ vi.mock("./analysis.js", () => ({
   collectIssueRqtValues: vi.fn().mockReturnValue(new Map()),
   isSelectFieldType: vi.fn().mockReturnValue(false),
   getRetryDelayMs: vi.fn().mockReturnValue(2000),
+}));
+
+vi.mock("./snapshot-engine.js", () => ({
+  syncFieldCatalog: vi.fn().mockResolvedValue({ newFieldCount: 0, changedFieldCount: 0, totalCatalogCount: 0 }),
+  refreshGovernanceFindingsForFields: vi.fn().mockResolvedValue({ updatedCount: 0 }),
 }));
 
 vi.mock("@forge/api", () => ({
@@ -249,6 +257,82 @@ describe("runIssueScanCoordinator", () => {
     expect(workerPushes).toHaveLength(4);
   });
 
+  it("syncs the field catalog before targeting fields when a snapshot version already exists", async () => {
+    const store = await getProjectStoreMock();
+    const jiraApi = await getJiraApiMock();
+    const snapshotEngine = await import("./snapshot-engine.js");
+
+    store.readIssueScanMeta.mockResolvedValue({ state: "queued" });
+    store.readSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
+    jiraApi.getAllJiraProjectKeys.mockResolvedValue(["PROJ-A"]);
+    jiraApi.withTimeout.mockResolvedValue({ count: 10 });
+    store.loadIssueScanProjectTotals.mockResolvedValue([]);
+
+    await runIssueScanCoordinator(INSTALLATION_KEY);
+
+    expect(snapshotEngine.syncFieldCatalog).toHaveBeenCalledWith(INSTALLATION_KEY, "v1");
+    expect(store.clearSnapshotVersion).not.toHaveBeenCalled();
+  });
+
+  it("skips the field catalog sync when a runSnapshot build is concurrently in progress", async () => {
+    const store = await getProjectStoreMock();
+    const jiraApi = await getJiraApiMock();
+    const snapshotEngine = await import("./snapshot-engine.js");
+
+    store.readIssueScanMeta.mockResolvedValue({ state: "queued" });
+    store.readSnapshotMeta.mockResolvedValue({ state: "building", version: "v1" });
+    jiraApi.getAllJiraProjectKeys.mockResolvedValue(["PROJ-A"]);
+    jiraApi.withTimeout.mockResolvedValue({ count: 10 });
+    store.loadIssueScanProjectTotals.mockResolvedValue([]);
+
+    await runIssueScanCoordinator(INSTALLATION_KEY);
+
+    expect(snapshotEngine.syncFieldCatalog).not.toHaveBeenCalled();
+    // The crawl itself must still proceed even though discovery was skipped
+    expect(store.replaceIssueScanWorkers).toHaveBeenCalled();
+  });
+
+  it("bootstraps a fresh snapshot version and syncs the catalog on a cold start (no snapshot has ever run)", async () => {
+    const store = await getProjectStoreMock();
+    const jiraApi = await getJiraApiMock();
+    const snapshotEngine = await import("./snapshot-engine.js");
+
+    store.readIssueScanMeta.mockResolvedValue({ state: "queued" });
+    store.readSnapshotMeta.mockResolvedValue(null);
+    jiraApi.getAllJiraProjectKeys.mockResolvedValue(["PROJ-A"]);
+    jiraApi.withTimeout.mockResolvedValue({ count: 10 });
+    store.loadIssueScanProjectTotals.mockResolvedValue([]);
+    snapshotEngine.syncFieldCatalog.mockResolvedValue({ newFieldCount: 3, changedFieldCount: 0, totalCatalogCount: 3 });
+
+    await runIssueScanCoordinator(INSTALLATION_KEY);
+
+    expect(store.clearSnapshotVersion).toHaveBeenCalledWith(INSTALLATION_KEY, expect.any(String));
+    expect(snapshotEngine.syncFieldCatalog).toHaveBeenCalledWith(INSTALLATION_KEY, expect.any(String));
+    const readyCall = store.writeSnapshotMeta.mock.calls.find((c) => c[1].state === "ready");
+    expect(readyCall).toBeDefined();
+    expect(readyCall[1].totalFields).toBe(3);
+  });
+
+  it("does not block the crawl when the field catalog sync throws", async () => {
+    const store = await getProjectStoreMock();
+    const jiraApi = await getJiraApiMock();
+    const snapshotEngine = await import("./snapshot-engine.js");
+
+    store.readIssueScanMeta.mockResolvedValue({ state: "queued" });
+    store.readSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
+    jiraApi.getAllJiraProjectKeys.mockResolvedValue(["PROJ-A"]);
+    jiraApi.withTimeout.mockResolvedValue({ count: 10 });
+    store.loadIssueScanProjectTotals.mockResolvedValue([]);
+    snapshotEngine.syncFieldCatalog.mockRejectedValueOnce(new Error("Jira unavailable"));
+
+    await runIssueScanCoordinator(INSTALLATION_KEY);
+
+    // Sync failure is swallowed -- the crawl still proceeds and queues workers
+    expect(store.replaceIssueScanWorkers).toHaveBeenCalled();
+    const failCall = store.writeIssueScanMeta.mock.calls.find((c) => c[1].state === "failed");
+    expect(failCall).toBeUndefined();
+  });
+
   it("writes failed state when getAllJiraProjectKeys throws", async () => {
     const store = await getProjectStoreMock();
     const jiraApi = await getJiraApiMock();
@@ -394,10 +478,81 @@ describe("completeIssueScanFinalization", () => {
 
     await completeIssueScanFinalization(INSTALLATION_KEY, "test-tag");
 
+    // Default readIssueScanWorker mock resolves null for every worker -- a missing
+    // worker record counts as trivially complete, so full coverage is assumed here.
     expect(store.promoteIssueScanToSnapshotProjectUsage).toHaveBeenCalledWith(
       INSTALLATION_KEY,
-      "v1"
+      "v1",
+      { syncTotalIssueCount: true }
     );
+  });
+
+  it("does not sync total issue counts when any worker did not finish", async () => {
+    const store = await getProjectStoreMock();
+    store.readSnapshotMeta.mockResolvedValue({ version: "v1" });
+    store.readIssueScanMeta.mockResolvedValue({
+      processedIssues: 100,
+      startedAt: "2026-01-01T00:00:00.000Z",
+      progressLog: [],
+      scanHistory: [],
+    });
+    store.readIssueScanWorker.mockImplementation((_key, workerId) =>
+      Promise.resolve(workerId === 0 ? { status: "failed" } : { status: "done" })
+    );
+
+    await completeIssueScanFinalization(INSTALLATION_KEY, "test-tag");
+
+    expect(store.promoteIssueScanToSnapshotProjectUsage).toHaveBeenCalledWith(
+      INSTALLATION_KEY,
+      "v1",
+      { syncTotalIssueCount: false }
+    );
+  });
+
+  it("refreshes governance findings for touched fields after promotion", async () => {
+    const store = await getProjectStoreMock();
+    const { refreshGovernanceFindingsForFields } = await import("./snapshot-engine.js");
+    store.readSnapshotMeta.mockResolvedValue({ version: "v1" });
+    store.readIssueScanMeta.mockResolvedValue({
+      processedIssues: 100,
+      startedAt: "2026-01-01T00:00:00.000Z",
+      progressLog: [],
+      scanHistory: [],
+    });
+    store.promoteIssueScanToSnapshotProjectUsage.mockResolvedValue({
+      fieldsPromoted: 2,
+      rowsInserted: 5,
+      touchedFieldIds: ["customfield_1", "customfield_2"],
+    });
+
+    await completeIssueScanFinalization(INSTALLATION_KEY, "test-tag");
+
+    expect(refreshGovernanceFindingsForFields).toHaveBeenCalledWith(
+      INSTALLATION_KEY,
+      "v1",
+      ["customfield_1", "customfield_2"]
+    );
+  });
+
+  it("does not attempt to refresh findings when nothing was touched", async () => {
+    const store = await getProjectStoreMock();
+    const { refreshGovernanceFindingsForFields } = await import("./snapshot-engine.js");
+    store.readSnapshotMeta.mockResolvedValue({ version: "v1" });
+    store.readIssueScanMeta.mockResolvedValue({
+      processedIssues: 100,
+      startedAt: "2026-01-01T00:00:00.000Z",
+      progressLog: [],
+      scanHistory: [],
+    });
+    store.promoteIssueScanToSnapshotProjectUsage.mockResolvedValue({
+      fieldsPromoted: 0,
+      rowsInserted: 0,
+      touchedFieldIds: [],
+    });
+
+    await completeIssueScanFinalization(INSTALLATION_KEY, "test-tag");
+
+    expect(refreshGovernanceFindingsForFields).not.toHaveBeenCalled();
   });
 });
 

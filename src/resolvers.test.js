@@ -55,6 +55,7 @@ const mocks = vi.hoisted(() => ({
   writeIssueScanMeta: vi.fn().mockResolvedValue(undefined),
   readIssueScanWorker: vi.fn(),
   updateIssueScanWorker: vi.fn().mockResolvedValue(undefined),
+  tryClaimIssueScanFinalization: vi.fn().mockResolvedValue(false),
   replaceFieldOptionsCache: vi.fn(),
   loadFieldOptionsCache: vi.fn(),
   searchFieldOptionsCache: vi.fn().mockResolvedValue([]),
@@ -111,6 +112,7 @@ const mocks = vi.hoisted(() => ({
 
   // scan-engine.js
   queueIssueScanWorker: vi.fn(),
+  completeIssueScanFinalization: vi.fn().mockResolvedValue(undefined),
 
   // queues.js
   queuePush: vi.fn().mockResolvedValue({ queued: true }),
@@ -129,6 +131,7 @@ vi.mock("./lib/queues.js", () => ({
 
 vi.mock("./lib/scan-engine.js", () => ({
   queueIssueScanWorker: mocks.queueIssueScanWorker,
+  completeIssueScanFinalization: mocks.completeIssueScanFinalization,
 }));
 
 vi.mock("./lib/project-store.js", () => ({
@@ -156,6 +159,7 @@ vi.mock("./lib/project-store.js", () => ({
   writeIssueScanMeta: mocks.writeIssueScanMeta,
   readIssueScanWorker: mocks.readIssueScanWorker,
   updateIssueScanWorker: mocks.updateIssueScanWorker,
+  tryClaimIssueScanFinalization: mocks.tryClaimIssueScanFinalization,
   replaceFieldOptionsCache: mocks.replaceFieldOptionsCache,
   loadFieldOptionsCache: mocks.loadFieldOptionsCache,
   searchFieldOptionsCache: mocks.searchFieldOptionsCache,
@@ -522,6 +526,51 @@ describe("getFieldInventory", () => {
     await getFieldInventory({ payload: { forceRefresh: true }, context: {} });
 
     expect(mocks.requeueStaleSnapshotBuild).toHaveBeenCalledWith("test-install", expect.objectContaining({ state: "building" }));
+  });
+
+  // Regression test: requeueStaleSnapshotBuild transitions state "building" -> "queued"
+  // in this same request. A prior bug re-read that fresh "queued" state as if it were a
+  // stuck leftover from an earlier request and immediately reset it back to "idle",
+  // silently undoing the requeue every time (this is what broke the admin "Force resume
+  // (stalled)" button — see the plan file for the full trace).
+  test("force-refresh on a stuck 'building' state does NOT undo the requeue it just performed", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: 1, state: "building" });
+    mocks.requeueStaleSnapshotBuild.mockResolvedValue({ version: 1, state: "queued", jobToken: "requeue-token" });
+    mocks.kvsGet.mockResolvedValue(null);
+    mocks.loadSnapshotFields.mockResolvedValue([]);
+
+    const result = await getFieldInventory({ payload: { forceRefresh: true }, context: {} });
+
+    // Must NOT reset the fresh "queued" state back to "idle"
+    expect(mocks.writeSnapshotMeta).not.toHaveBeenCalledWith(
+      "test-install",
+      expect.objectContaining({ state: "idle" })
+    );
+    // Already active (queued) after the requeue, so no separate/duplicate queue push
+    expect(mocks.queueSnapshotBuild).not.toHaveBeenCalled();
+    expect(result.snapshotStatus.state).toBe("queued");
+  });
+
+  // The reset-to-idle path is still correct for a job that was ALREADY stuck in
+  // "queued" before this request started (not one this request just produced) --
+  // and, since shouldQueue is now computed after the reset, it should also push a
+  // fresh build in the same call rather than requiring a second click.
+  test("force-refresh resets an already-stuck 'queued' state to idle and re-queues a fresh build in the same call", async () => {
+    mocks.readSnapshotMeta
+      .mockResolvedValueOnce({ version: 1, state: "queued", jobToken: "stale-token" }) // initial read
+      .mockResolvedValueOnce({ version: 1, state: "idle" }) // after reset-to-idle write
+      .mockResolvedValueOnce({ version: 1, state: "queued", jobToken: "job-token-1" }); // post-claim verify
+    mocks.kvsGet.mockResolvedValue(null);
+    mocks.loadSnapshotFields.mockResolvedValue([]);
+
+    const result = await getFieldInventory({ payload: { forceRefresh: true }, context: {} });
+
+    expect(mocks.writeSnapshotMeta).toHaveBeenCalledWith(
+      "test-install",
+      expect.objectContaining({ state: "idle", lastError: "Queue job did not start; reset by manual refresh." })
+    );
+    expect(mocks.queueSnapshotBuild).toHaveBeenCalledTimes(1);
+    expect(result.snapshotStatus.state).toBe("queued");
   });
 
   test("propagates errors and increments the failure metric", async () => {
@@ -1064,6 +1113,56 @@ describe("getAdminOverview", () => {
     const result = await getAdminOverview({ context: {} });
 
     expect(result.findingsSummary).toEqual({ adminAttention: 0, risky: 0, cleanup: 0, standardize: 0 });
+    expect(result.dashboard.fieldUsage.totalFields).toBe(0);
+    expect(result.dashboard.projects.totalProjects).toBe(0);
+  });
+
+  test("computes dashboard field-usage and project insights from the latest snapshot", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "ready", version: 5 });
+    mocks.listFieldSummaries.mockResolvedValue([]);
+    mocks.kvsGet.mockResolvedValue(null);
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+    mocks.loadSnapshotFields.mockResolvedValue([
+      snapshotField({ id: "customfield_1", name: "Story Points", type: "number" }),
+      snapshotField({ id: "customfield_2", name: "Story Points", type: "number" }), // duplicate name -> one cluster
+      snapshotField({
+        id: "customfield_3",
+        name: "Epic Link",
+        type: "text",
+        customType: "com.atlassian.jira.plugin.system.customfieldtypes:epic-link",
+      }),
+    ]);
+    mocks.listSnapshotProjects.mockResolvedValue([
+      { projectId: "1", projectKey: "AAA", projectName: "Alpha", fieldCount: 5, totalIssueCount: 100 },
+      { projectId: "2", projectKey: "BBB", projectName: "Beta", fieldCount: 10, totalIssueCount: 50 },
+    ]);
+
+    const result = await getAdminOverview({ context: {} });
+
+    expect(result.dashboard.fieldUsage.totalFields).toBe(3);
+    expect(result.dashboard.fieldUsage.duplicateClusters).toBe(1);
+    expect(result.dashboard.fieldUsage.origin.builtin).toBe(1);
+    expect(result.dashboard.fieldUsage.origin.custom).toBe(2);
+    expect(result.dashboard.projects.totalProjects).toBe(2);
+    expect(result.dashboard.projects.topByIssueVolume[0]).toEqual(
+      expect.objectContaining({ projectKey: "AAA", totalIssueCount: 100 })
+    );
+    expect(result.dashboard.projects.topByFieldCount[0]).toEqual(
+      expect.objectContaining({ projectKey: "BBB", fieldCount: 10 })
+    );
+  });
+
+  test("returns the empty dashboard shape when no snapshot version exists", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "idle" });
+    mocks.listFieldSummaries.mockResolvedValue([]);
+    mocks.kvsGet.mockResolvedValue(null);
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+
+    const result = await getAdminOverview({ context: {} });
+
+    expect(result.dashboard.fieldUsage.totalFields).toBe(0);
+    expect(result.dashboard.projects.totalProjects).toBe(0);
+    expect(mocks.listSnapshotProjects).not.toHaveBeenCalled();
   });
 });
 
@@ -1149,6 +1248,54 @@ describe("resumeIssueScan", () => {
     await expect(resumeIssueScan({ context: {} })).rejects.toThrow(/Resume partially failed/);
 
     expect(mocks.writeIssueScanMeta).toHaveBeenLastCalledWith("test-install", expect.objectContaining({ state: "failed" }));
+  });
+
+  // Regression test: a worker can finish (marking itself "done") right after a cancel
+  // sets state to "cancelled", so its own finalization claim is rejected (it requires
+  // state === "building"). Resume would previously just re-set state to "building" and
+  // then skip every worker in the requeue loop because they're all already "done" --
+  // leaving the scan stuck at 100%/state=building forever with no further attempt to
+  // finalize. It must finalize directly in that case instead of silently no-op'ing.
+  test("finalizes directly when every worker already reports done but the scan was never finalized", async () => {
+    mocks.readIssueScanMeta
+      .mockResolvedValueOnce({ state: "cancelled", jobToken: "old-token", progressLog: [] })
+      .mockResolvedValue({ state: "ready", processedIssues: 322835 });
+    mocks.writeIssueScanMeta.mockResolvedValue({ state: "building", processedPages: 5, totalPages: 5 });
+    mocks.readIssueScanWorker.mockResolvedValue({ status: "done" });
+    mocks.tryClaimIssueScanFinalization.mockResolvedValue(true);
+
+    const result = await resumeIssueScan({ context: {} });
+
+    expect(mocks.queueIssueScanWorker).not.toHaveBeenCalled();
+    expect(mocks.tryClaimIssueScanFinalization).toHaveBeenCalledWith("test-install", "old-token");
+    expect(mocks.completeIssueScanFinalization).toHaveBeenCalledWith("test-install", "resumeIssueScan");
+    expect(result.resumed).toBe(true);
+    expect(result.finalizedDirectly).toBe(true);
+    expect(result.meta.state).toBe("ready");
+  });
+
+  test("does not finalize when the finalization claim loses a race to a concurrent finalizer", async () => {
+    mocks.readIssueScanMeta.mockResolvedValue({ state: "cancelled", jobToken: "old-token", progressLog: [] });
+    mocks.writeIssueScanMeta.mockResolvedValue({ state: "building", processedPages: 5, totalPages: 5 });
+    mocks.readIssueScanWorker.mockResolvedValue({ status: "done" });
+    mocks.tryClaimIssueScanFinalization.mockResolvedValue(false);
+
+    const result = await resumeIssueScan({ context: {} });
+
+    expect(mocks.completeIssueScanFinalization).not.toHaveBeenCalled();
+    expect(result.resumed).toBe(true);
+    expect(result.finalizedDirectly).toBeUndefined();
+  });
+
+  test("does not attempt finalization when workers are done but pages are incomplete", async () => {
+    mocks.readIssueScanMeta.mockResolvedValue({ state: "cancelled", jobToken: "old-token", progressLog: [] });
+    mocks.writeIssueScanMeta.mockResolvedValue({ state: "building", processedPages: 3, totalPages: 5 });
+    mocks.readIssueScanWorker.mockResolvedValue({ status: "done" });
+
+    const result = await resumeIssueScan({ context: {} });
+
+    expect(mocks.tryClaimIssueScanFinalization).not.toHaveBeenCalled();
+    expect(result.resumed).toBe(true);
   });
 });
 

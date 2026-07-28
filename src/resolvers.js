@@ -22,7 +22,7 @@ import {
   loadFieldOptionsFromJira,
   getBrowsableProjectIds,
 } from "./lib/jira-api.js";
-import { queueIssueScanWorker } from "./lib/scan-engine.js";
+import { queueIssueScanWorker, completeIssueScanFinalization } from "./lib/scan-engine.js";
 import {
   requeueStaleSnapshotBuild,
   hydrateFieldForGovernance,
@@ -59,6 +59,7 @@ import {
   writeIssueScanMeta,
   readIssueScanWorker,
   updateIssueScanWorker,
+  tryClaimIssueScanFinalization,
   replaceFieldOptionsCache,
   loadFieldOptionsCache,
   searchFieldOptionsCache,
@@ -93,6 +94,7 @@ import {
   normalizeFieldName,
   buildDuplicateNameCountMap,
   isJiraBuiltinField,
+  isLikelyAppProvidedField,
   DEFAULT_GOVERNANCE_THRESHOLDS,
   filterInventoryFields,
   applyFindingsFilter,
@@ -317,14 +319,14 @@ async function getFieldInventory({ payload, context }) {
     ]);
     let meta = meta_initial;
 
-    const alreadyActive = meta?.state === "building" || meta?.state === "queued";
-    const shouldQueue = Boolean(filters.forceRefresh && !alreadyActive && !adminConfig.readOnlyMode);
-
     if (filters.forceRefresh && meta?.state === "building") {
       meta = await requeueStaleSnapshotBuild(installationKey, meta);
     }
 
-    if (filters.forceRefresh && meta?.state === "queued") {
+    // Only reset a job that was ALREADY stuck in "queued" before this request came in --
+    // not one this request just transitioned into "queued" via requeueStaleSnapshotBuild
+    // above, otherwise a successful requeue is undone on the very next line every time.
+    if (filters.forceRefresh && meta_initial?.state === "queued" && meta?.state === "queued") {
       // Queue job never started — reset so forceRefresh can re-enqueue
       await writeSnapshotMeta(installationKey, {
         state: "idle",
@@ -332,6 +334,12 @@ async function getFieldInventory({ payload, context }) {
       });
       meta = await readSnapshotMeta(installationKey);
     }
+
+    // Computed from the final state (after any recovery above), not the state the
+    // request started with, so a reset-to-idle above can trigger a fresh requeue in
+    // this same call instead of silently requiring a second click.
+    const alreadyActive = meta?.state === "building" || meta?.state === "queued";
+    const shouldQueue = Boolean(filters.forceRefresh && !alreadyActive && !adminConfig.readOnlyMode);
 
     if (shouldQueue) {
       // Claim the queue slot with a unique token, then verify we won before actually pushing.
@@ -1673,9 +1681,11 @@ async function resumeIssueScan({ context }) {
   // Re-queue only workers that haven't finished — do NOT call the coordinator
   // (the coordinator wipes all accumulated data and starts over)
   const queueErrors = [];
+  let anyRequeued = false;
   for (let workerId = 0; workerId < ISSUE_SCAN_WORKERS; workerId++) {
     const worker = await readIssueScanWorker(installationKey, workerId).catch(() => null);
     if (!worker || worker.status === "done") continue;
+    anyRequeued = true;
     // Reset failed workers back to queued so they can run again
     if (worker.status === "failed") {
       await updateIssueScanWorker(installationKey, workerId, { status: "queued", lastError: null }).catch(() => {});
@@ -1691,6 +1701,22 @@ async function resumeIssueScan({ context }) {
     const errMsg = `Resume partially failed: ${queueErrors.join("; ")}`;
     await writeIssueScanMeta(installationKey, { state: "failed", lastError: errMsg }).catch(() => {});
     throw new Error(errMsg);
+  }
+
+  // Every worker already reported "done", so nothing got re-queued above — no worker
+  // invocation will ever run again to trigger finalization, since that's the only place
+  // it's attempted. This happens when the last worker finished mid-cancel: its own
+  // finalization claim was rejected because state wasn't "building" at that instant, and
+  // the CAS above (which just set state back to "building") is the only thing that makes
+  // finalization claimable again. Without this, the scan is stuck at 100%/state=building
+  // forever, since re-running resumeIssueScan repeats the exact same no-op indefinitely.
+  if (!anyRequeued && (meta?.processedPages ?? 0) >= (meta?.totalPages ?? 0) && (meta?.totalPages ?? 0) > 0) {
+    const claimed = await tryClaimIssueScanFinalization(installationKey, jobToken);
+    if (claimed) {
+      await completeIssueScanFinalization(installationKey, "resumeIssueScan");
+      const finalizedMeta = await readIssueScanMeta(installationKey);
+      return { resumed: true, jobToken, meta: finalizedMeta, finalizedDirectly: true };
+    }
   }
 
   return { resumed: true, jobToken, meta };
@@ -1861,6 +1887,84 @@ export async function rovoInspectField(payload, context) {
   };
 }
 
+const EMPTY_DASHBOARD = {
+  fieldUsage: {
+    totalFields: 0,
+    findingsBySeverity: { high: 0, medium: 0, low: 0 },
+    findingsByType: [],
+    fieldTypeBreakdown: [],
+    origin: { builtin: 0, appProvided: 0, custom: 0 },
+    duplicateClusters: 0,
+  },
+  projects: { totalProjects: 0, topByIssueVolume: [], topByFieldCount: [] },
+};
+
+// Top finding-type/field-type breakdowns are capped -- Overview is a glance-level
+// summary, not the full Field Browser, and shipping ~1500 hydrated fields' worth of
+// distinct titles/types to the client would dwarf the rest of the payload for no benefit.
+const DASHBOARD_TOP_N = 8;
+
+function buildFieldUsageInsights(hydratedFields) {
+  const findingsBySeverity = { high: 0, medium: 0, low: 0 };
+  const findingsByTitle = new Map();
+  const fieldTypeCounts = new Map();
+  const origin = { builtin: 0, appProvided: 0, custom: 0 };
+  const nameGroups = new Map();
+
+  for (const f of hydratedFields) {
+    for (const reason of f.findings?.reasons || []) {
+      if (reason.severity in findingsBySeverity) findingsBySeverity[reason.severity]++;
+      findingsByTitle.set(reason.title, (findingsByTitle.get(reason.title) || 0) + 1);
+    }
+
+    const typeLabel = f.type || "Unknown";
+    fieldTypeCounts.set(typeLabel, (fieldTypeCounts.get(typeLabel) || 0) + 1);
+
+    if (!f.isSystemField) {
+      if (f.isJiraBuiltin) origin.builtin++;
+      else if (isLikelyAppProvidedField(f)) origin.appProvided++;
+      else origin.custom++;
+    }
+
+    nameGroups.set(normalizeFieldName(f.name), (nameGroups.get(normalizeFieldName(f.name)) || 0) + 1);
+  }
+
+  const findingsByType = [...findingsByTitle.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, DASHBOARD_TOP_N)
+    .map(([title, count]) => ({ title, count }));
+
+  const fieldTypeBreakdown = [...fieldTypeCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, DASHBOARD_TOP_N)
+    .map(([type, count]) => ({ type, count }));
+
+  const duplicateClusters = [...nameGroups.values()].filter((n) => n > 1).length;
+
+  return {
+    totalFields: hydratedFields.length,
+    findingsBySeverity,
+    findingsByType,
+    fieldTypeBreakdown,
+    origin,
+    duplicateClusters,
+  };
+}
+
+function buildProjectInsights(projects) {
+  const topByIssueVolume = [...projects]
+    .sort((a, b) => b.totalIssueCount - a.totalIssueCount)
+    .slice(0, DASHBOARD_TOP_N)
+    .map((p) => ({ projectKey: p.projectKey, projectName: p.projectName, totalIssueCount: p.totalIssueCount }));
+
+  const topByFieldCount = [...projects]
+    .sort((a, b) => b.fieldCount - a.fieldCount)
+    .slice(0, DASHBOARD_TOP_N)
+    .map((p) => ({ projectKey: p.projectKey, projectName: p.projectName, fieldCount: p.fieldCount }));
+
+  return { totalProjects: projects.length, topByIssueVolume, topByFieldCount };
+}
+
 export async function getAdminOverview({ context }) {
   await ensureProjectStoreReady();
   const installationKey = getInstallationKey(context);
@@ -1879,14 +1983,22 @@ export async function getAdminOverview({ context }) {
   }
 
   let findingsSummary = { adminAttention: 0, risky: 0, cleanup: 0, standardize: 0 };
+  let dashboard = EMPTY_DASHBOARD;
   if (meta?.version) {
     try {
-      const fields = await loadSnapshotFields(installationKey, meta.version);
+      const [fields, projects] = await Promise.all([
+        loadSnapshotFields(installationKey, meta.version),
+        listSnapshotProjects(installationKey, meta.version),
+      ]);
       const dup = buildDuplicateNameCountMap(fields);
       const hydrated = fields.map((f) =>
         hydrateFieldForGovernance(f, null, dup.get(normalizeFieldName(f.name)) ?? 1, config.governanceThresholds)
       );
       findingsSummary = summarizeFindings(hydrated);
+      dashboard = {
+        fieldUsage: buildFieldUsageInsights(hydrated),
+        projects: buildProjectInsights(projects),
+      };
     } catch {}
   }
 
@@ -1907,6 +2019,7 @@ export async function getAdminOverview({ context }) {
     },
     jobCounts,
     findingsSummary,
+    dashboard,
     totalSummaries: summaries.length,
     legacySummaryCount,
   };

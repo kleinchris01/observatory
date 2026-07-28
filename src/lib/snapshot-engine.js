@@ -45,6 +45,7 @@ import {
   appendSnapshotFields,
   replaceSnapshotProjectUsageForField,
   loadSnapshotField,
+  loadSnapshotFields,
   loadFieldSummary,
   replaceFieldSummary,
   getSnapshotProcessedFieldIds,
@@ -53,9 +54,13 @@ import {
   fillSnapshotProjectUsageFromSummaries,
   replaceFieldOptionsCache,
   pruneOldSnapshotVersions,
+  updateSnapshotFieldMetadata,
+  updateSnapshotFieldFindings,
+  syncActiveProjectCountsFromUsage,
 } from "./project-store.js";
 import {
   USAGE_STATUS_READY,
+  USAGE_STATUS_UNAVAILABLE,
   mergeProjectUsageCounts,
   summarizeProjectUsageCapacity,
   normalizeFieldName,
@@ -65,7 +70,7 @@ import {
   buildDuplicateNameCountMap,
   isSelectFieldType,
 } from "./analysis.js";
-import { buildOverallFieldJql, getFieldNumericId } from "./transform.js";
+import { buildOverallFieldJql, getFieldNumericId, getFieldTypeLabel } from "./transform.js";
 
 // ----- hydrateFieldForGovernance -----
 
@@ -693,6 +698,133 @@ function isExpiredPageTokenError(error) {
   return Number(error?.status) === 400 && String(error?.message || "").toLowerCase().includes("next page token");
 }
 
+// ----- fetchFieldCatalog -----
+
+// The only place field discovery happens — everything else (Universal Scan's
+// syncFieldCatalog included) treats this as the source of truth for "what fields exist."
+export async function fetchFieldCatalog() {
+  const [customFields, systemFields] = await Promise.all([
+    getAllCustomFields(),
+    getAllSystemFields().catch(() => []),
+  ]);
+  return [
+    ...customFields,
+    ...systemFields.map((f) => ({ ...f, isSystemField: true })),
+  ];
+}
+
+// ----- syncFieldCatalog -----
+
+// Fast field-discovery/metadata refresh — called at the start of every Universal Scan run
+// (see runIssueScanCoordinator in scan-engine.js) so newly-created or renamed fields show
+// up in the inventory without waiting for the next full runSnapshot(). Deliberately does
+// NOT call getFieldTotalIssueCount — that's the expensive, rate-limited per-field REST loop
+// that caused the original stuck-at-88% bug; Universal Scan supplies totalIssueCount itself
+// from its own crawl (see promoteIssueScanToSnapshotProjectUsage's syncTotalIssueCount option).
+export async function syncFieldCatalog(installationKey, version) {
+  const allFields = await fetchFieldCatalog();
+  const existingRows = await loadSnapshotFields(installationKey, version);
+  const existingById = new Map(existingRows.map((row) => [row.id, row]));
+
+  const newFields = [];
+  const changedFields = [];
+  for (const field of allFields) {
+    const existing = existingById.get(field.id);
+    const typeLabel = getFieldTypeLabel(field);
+    const primitiveType = field.schema?.type || "unknown";
+    const customType = field.schema?.custom || null;
+    const searcherKey = field.searcherKey || null;
+    const description = field.description || "";
+    if (!existing) {
+      newFields.push(field);
+      continue;
+    }
+    if (
+      existing.name !== field.name ||
+      existing.description !== description ||
+      existing.type !== typeLabel ||
+      existing.primitiveType !== primitiveType ||
+      existing.customType !== customType ||
+      existing.searcherKey !== searcherKey
+    ) {
+      changedFields.push({ id: field.id, name: field.name, description, type: typeLabel, primitiveType, customType, searcherKey });
+    }
+  }
+
+  const nameCountMap = buildDuplicateNameCountMap(allFields);
+
+  const newRecords = await mapWithConcurrency(newFields, SNAPSHOT_CONCURRENCY, async (field) => {
+    let configuredProjectCount = 0;
+    if (!field.isSystemField) {
+      configuredProjectCount = await getFieldConfiguredProjectCount(field.id);
+      if (configuredProjectCount < 0) configuredProjectCount = 0; // -1 = timeout/unknown, not "0 projects"
+    }
+    const duplicateNameCount = nameCountMap.get(normalizeFieldName(field.name)) ?? 1;
+    const usageStatusDetail = "Newly discovered field; usage not yet crawled.";
+    const findings = buildGovernanceFindings(field, {
+      configuredProjectCount,
+      totalIssueCount: 0,
+      activeProjectCount: 0,
+      duplicateNameCount,
+      usageStatus: USAGE_STATUS_UNAVAILABLE,
+      usageStatusDetail,
+      isSystemField: Boolean(field.isSystemField),
+    });
+    return buildInventoryRecord(field, {
+      configuredProjectCount,
+      activeProjectCount: 0,
+      totalIssueCount: 0,
+      usageStatus: USAGE_STATUS_UNAVAILABLE,
+      usageStatusDetail,
+      findings,
+    });
+  });
+
+  if (newRecords.length) {
+    await appendSnapshotFields(installationKey, version, newRecords);
+  }
+  if (changedFields.length) {
+    await updateSnapshotFieldMetadata(installationKey, version, changedFields);
+  }
+
+  return { newFieldCount: newRecords.length, changedFieldCount: changedFields.length, totalCatalogCount: allFields.length };
+}
+
+// ----- refreshGovernanceFindingsForFields -----
+
+// Recomputes governance findings for a specific set of already-known fields using numbers
+// already on their snapshot_fields row (no REST calls) — called after
+// promoteIssueScanToSnapshotProjectUsage updates totalIssueCount/activeProjectCount from a
+// completed Universal Scan crawl, so findings reflect real crawl data instead of going stale.
+export async function refreshGovernanceFindingsForFields(installationKey, version, fieldIds) {
+  if (!fieldIds || !fieldIds.length) return { updatedCount: 0 };
+  const allFields = await loadSnapshotFields(installationKey, version);
+  const nameCountMap = buildDuplicateNameCountMap(allFields);
+  const idSet = new Set(fieldIds);
+
+  const updates = allFields
+    .filter((field) => idSet.has(field.id))
+    .map((field) => {
+      const isSystemField = !String(field.id || "").startsWith("customfield_");
+      const duplicateNameCount = nameCountMap.get(normalizeFieldName(field.name)) ?? 1;
+      const findings = buildGovernanceFindings(field, {
+        configuredProjectCount: field.configuredProjectCount,
+        totalIssueCount: field.totalIssueCount,
+        activeProjectCount: field.activeProjectCount,
+        duplicateNameCount,
+        usageStatus: USAGE_STATUS_READY,
+        usageStatusDetail: null,
+        isSystemField,
+      });
+      return { id: field.id, findings };
+    });
+
+  if (updates.length) {
+    await updateSnapshotFieldFindings(installationKey, version, updates);
+  }
+  return { updatedCount: updates.length };
+}
+
 // ----- runSnapshot -----
 
 class CancelError extends Error {
@@ -763,6 +895,14 @@ export async function runSnapshot(installationKey) {
       } else {
         console.log("runSnapshot: existing build had no version, starting fresh");
       }
+    } else if (existingMeta?.state === "queued" && existingMeta.buildingVersion) {
+      // Re-queued from a stale/stuck build (see requeueStaleSnapshotBuild) — state was
+      // flipped to "queued" purely as a hand-off signal for this consumer invocation, but
+      // the checkpoint (buildingVersion) must still be honored here, or the build silently
+      // restarts from field 0 and discards every field already completed.
+      version = existingMeta.buildingVersion;
+      resuming = true;
+      console.log(`runSnapshot: resuming re-queued build (version ${version})`);
     }
 
     if (!version) {
@@ -797,21 +937,10 @@ export async function runSnapshot(installationKey) {
       flushProgress().catch(() => {});
     }, SNAPSHOT_PROGRESS_FLUSH_INTERVAL_MS);
 
-    const [customFields, systemFields] = await Promise.all([
-      getAllCustomFields(),
-      getAllSystemFields().catch(() => []),
-    ]);
-    const allFields = [
-      ...customFields,
-      ...systemFields.map((f) => ({ ...f, isSystemField: true })),
-    ];
+    const allFields = await fetchFieldCatalog();
     totalCount = allFields.length;
 
-    const nameCountMap = new Map();
-    for (const field of allFields) {
-      const key = normalizeFieldName(field.name);
-      nameCountMap.set(key, (nameCountMap.get(key) || 0) + 1);
-    }
+    const nameCountMap = buildDuplicateNameCountMap(allFields);
 
     // Checkpoint: skip fields already written to DB in this version
     let alreadyDoneIds = new Set();
@@ -842,6 +971,7 @@ export async function runSnapshot(installationKey) {
       let totalIssueCount = 0;
       let configuredProjectCount = 0;
       let activeProjectCount = 0;
+      let timedOut = false;
       const fieldsDone = skipCount + index + 1;
       const fieldTag = `[${fieldsDone}/${totalCount}] ${field.name} (${field.id})`;
       const t0 = Date.now();
@@ -856,16 +986,22 @@ export async function runSnapshot(installationKey) {
           configuredProjectCount = 0; // global — not tracked per-project context
         } else {
           configuredProjectCount = await getFieldConfiguredProjectCount(field.id);
-          if (configuredProjectCount > 0 && getFieldNumericId(field.id)) {
+          // -1 means the project-association lookup itself timed out/errored — we don't
+          // know whether this field has any configured projects, so don't treat it as 0
+          // and don't ask for an issue count we can't trust either.
+          if (configuredProjectCount === -1) {
+            timedOut = true;
+          } else if (configuredProjectCount > 0 && getFieldNumericId(field.id)) {
             totalIssueCount = await getFieldTotalIssueCount(field.id);
           }
         }
+        if (totalIssueCount === -1) timedOut = true;
         activeProjectCount = 0;
         const elapsed = Date.now() - t0;
-        if (totalIssueCount > 0) {
-          logEntry(`✓ ${fieldTag} — ${field.isSystemField ? "global" : `${configuredProjectCount} projects`}, ${totalIssueCount.toLocaleString()} issues (${elapsed}ms)`);
-        } else if (totalIssueCount === -1) {
+        if (timedOut) {
           logEntry(`⏱ ${fieldTag} — count timed out (${elapsed}ms)`);
+        } else if (totalIssueCount > 0) {
+          logEntry(`✓ ${fieldTag} — ${field.isSystemField ? "global" : `${configuredProjectCount} projects`}, ${totalIssueCount.toLocaleString()} issues (${elapsed}ms)`);
         } else if (!field.isSystemField && configuredProjectCount > 0) {
           logEntry(`○ ${fieldTag} — ${configuredProjectCount} projects, 0 issues (${elapsed}ms)`);
         } else {
@@ -877,28 +1013,34 @@ export async function runSnapshot(installationKey) {
         console.warn(`runSnapshot: usage stats failed for ${field.id}: ${usageErr?.message}`);
       }
 
-      // -1 means the count query timed out — store 0 so the record is valid,
-      // governance findings won't fire for "unknown" fields
+      // A timed-out/-1 count is unknown, not zero — store 0 so the record shape stays
+      // valid, but flag usageStatus as unavailable below so governance findings that
+      // depend on "confirmed zero usage" don't fire off a guess.
       const resolvedIssueCount = totalIssueCount < 0 ? 0 : totalIssueCount;
+      const resolvedConfiguredProjectCount = configuredProjectCount < 0 ? 0 : configuredProjectCount;
+      const usageStatus = timedOut ? USAGE_STATUS_UNAVAILABLE : USAGE_STATUS_READY;
+      const usageStatusDetail = timedOut
+        ? "Usage count timed out during the background snapshot; will be retried on the next build."
+        : null;
 
       const duplicateNameCount = nameCountMap.get(normalizeFieldName(field.name)) ?? 1;
 
       const findings = buildGovernanceFindings(field, {
-        configuredProjectCount,
+        configuredProjectCount: resolvedConfiguredProjectCount,
         totalIssueCount: resolvedIssueCount,
         activeProjectCount,
         duplicateNameCount,
-        usageStatus: USAGE_STATUS_READY,
-        usageStatusDetail: null,
+        usageStatus,
+        usageStatusDetail,
         isSystemField: Boolean(field.isSystemField),
       });
 
       const record = buildInventoryRecord(field, {
-        configuredProjectCount,
+        configuredProjectCount: resolvedConfiguredProjectCount,
         activeProjectCount,
         totalIssueCount: resolvedIssueCount,
-        usageStatus: USAGE_STATUS_READY,
-        usageStatusDetail: null,
+        usageStatus,
+        usageStatusDetail,
         findings,
       });
 
@@ -923,6 +1065,15 @@ export async function runSnapshot(installationKey) {
     const fillResult = await fillSnapshotProjectUsageFromSummaries(installationKey, version);
     if (fillResult.rowsInserted > 0) {
       logEntry(`Filled ${fillResult.fieldsRestored} fields (${fillResult.rowsInserted} project rows) from field summaries`);
+    }
+
+    // Every field record above was written with active_project_count hardcoded to 0 --
+    // re-sync it from the per-project rows the two steps above just restored, or the
+    // list view (and governance findings computed from it) silently disagree with the
+    // per-field detail view until the next Universal Scan happens to touch each field.
+    const syncResult = await syncActiveProjectCountsFromUsage(installationKey, version);
+    if (syncResult.fieldsSynced > 0) {
+      logEntry(`Synced active project counts for ${syncResult.fieldsSynced} fields`);
     }
 
     const refreshedAt = new Date().toISOString();

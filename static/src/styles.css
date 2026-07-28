@@ -3298,7 +3298,8 @@ code {
 .admin-snapshot-log-toggle:hover { color: var(--text); }
 
 .admin-snapshot-log {
-  max-height: 220px;
+  max-height: calc(100vh - 300px);
+  min-height: 300px;
   overflow-y: auto;
   background: rgba(0, 0, 0, 0.25);
   border: 1px solid var(--stroke);
@@ -5297,6 +5298,12 @@ code {
   letter-spacing: 0.06em;
   color: var(--muted);
   margin-bottom: 12px;
+}
+
+.dashboard-chart-empty {
+  color: var(--muted);
+  font-size: 0.82rem;
+  padding: 20px 0;
 }
 
 .rqt-filter-bar {

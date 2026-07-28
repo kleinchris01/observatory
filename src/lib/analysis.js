@@ -178,11 +178,18 @@ export function shouldRetry(error) {
   return s === 429 || (s >= 500 && s < 600);
 }
 
+// Cap how long a single Jira Retry-After header can force us to wait. Jira has been
+// observed sending Retry-After values well over 100s during sustained rate-limit storms;
+// honoring that uncapped stalls the caller far past its own per-request timeout budget
+// (e.g. the 8s field-usage count timeout), so cap it to the same ceiling as the
+// exponential fallback below.
+const MAX_RETRY_AFTER_MS = 30000;
+
 export function getRetryDelayMs(error, attempt) {
   const header = error?.originalResponse?.headers?.get?.("Retry-After");
   if (header) {
     const s = Number(header);
-    if (Number.isFinite(s) && s > 0) return s * 1000;
+    if (Number.isFinite(s) && s > 0) return Math.min(MAX_RETRY_AFTER_MS, s * 1000);
   }
   return Math.min(30000, 2000 * (2 ** attempt)) + Math.floor(Math.random() * 1000);
 }

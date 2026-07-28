@@ -388,9 +388,28 @@ export async function withSqlRetry(operation) {
   }
 }
 
+// A brand-new installation's first page load fires several resolvers concurrently (each
+// its own Forge function invocation, so the in-process migrationPromise memoization below
+// doesn't protect across them), and each one calls this. Against a completely empty
+// database, multiple invocations can race on the same CREATE/ALTER TABLE statement. The
+// migration runner tracks which migrations already succeeded, so retrying the whole run is
+// safe -- a retry just resumes from whichever one lost the race, it doesn't redo work.
+async function runMigrationsWithRetry() {
+  const MAX_ATTEMPTS = 3;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    try {
+      return await projectStoreMigrations.run();
+    } catch (error) {
+      if (attempt === MAX_ATTEMPTS - 1) throw error;
+      const delayMs = 500 * (attempt + 1) + Math.floor(Math.random() * 250);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+}
+
 export async function ensureProjectStoreReady() {
   if (!migrationPromise) {
-    migrationPromise = projectStoreMigrations.run().catch((error) => {
+    migrationPromise = runMigrationsWithRetry().catch((error) => {
       migrationPromise = null;
       throw error;
     });
@@ -1271,6 +1290,41 @@ export async function fillSnapshotProjectUsageFromSummaries(scopeKey, version, i
   return { fieldsRestored, rowsInserted };
 }
 
+// Re-sync snapshot_fields.active_project_count from the real per-project row counts in
+// snapshot_project_usage. Every field record written during a rebuild (runSnapshot) starts
+// with active_project_count hardcoded to 0 -- the carry-forward/fill steps above restore the
+// underlying per-project rows for the new version but never touch that summary column, so
+// without this it stays at 0 indefinitely for any field the *next* Universal Scan doesn't
+// happen to also touch, even though its real usage data is sitting right there. Call this
+// after both carry-forward steps have finished inserting rows for the version.
+export async function syncActiveProjectCountsFromUsage(scopeKey, version) {
+  await ensureProjectStoreReady();
+
+  const result = await withSqlRetry(() =>
+    sql
+      .prepare(`
+        SELECT field_id, COUNT(*) AS active_count
+        FROM snapshot_project_usage
+        WHERE scope_key = ? AND version = ?
+        GROUP BY field_id
+      `)
+      .bindParams(scopeKey, version)
+      .execute()
+  );
+
+  const rows = result.rows || [];
+  for (const row of rows) {
+    await withSqlRetry(() =>
+      sql
+        .prepare("UPDATE snapshot_fields SET active_project_count = ? WHERE scope_key = ? AND version = ? AND field_id = ?")
+        .bindParams(toNumber(row.active_count), scopeKey, version, row.field_id)
+        .execute()
+    );
+  }
+
+  return { fieldsSynced: rows.length };
+}
+
 export async function replaceSnapshotField(scopeKey, version, field) {
   await ensureProjectStoreReady();
 
@@ -2049,13 +2103,58 @@ export async function upsertDeltaFieldProjectUsage(scopeKey, version, rows) {
   return rowsInserted;
 }
 
+// Batch-update field metadata (name/description/type/schema) for fields whose Jira
+// definition changed since the snapshot version was last written — used by
+// syncFieldCatalog's rename/retype detection. Never touches usage numbers or findings.
+export async function updateSnapshotFieldMetadata(scopeKey, version, fields) {
+  await ensureProjectStoreReady();
+  for (const field of fields) {
+    await withSqlRetry(() =>
+      sql
+        .prepare(`
+          UPDATE snapshot_fields
+          SET name = ?, description = ?, type = ?, primitive_type = ?, custom_type = ?, searcher_key = ?
+          WHERE scope_key = ? AND version = ? AND field_id = ?
+        `)
+        .bindParams(field.name, field.description, field.type, field.primitiveType, field.customType, field.searcherKey, scopeKey, version, field.id)
+        .execute()
+    );
+  }
+  return { updatedCount: fields.length };
+}
+
+// Batch-update governance findings (and flip usage_status to "ready") for fields whose
+// usage numbers just changed — used by refreshGovernanceFindingsForFields after a
+// Universal Scan promotes fresh totalIssueCount/activeProjectCount numbers.
+export async function updateSnapshotFieldFindings(scopeKey, version, updates) {
+  await ensureProjectStoreReady();
+  for (const update of updates) {
+    await withSqlRetry(() =>
+      sql
+        .prepare(`
+          UPDATE snapshot_fields
+          SET findings_json = ?, usage_status = 'ready', usage_status_detail = NULL
+          WHERE scope_key = ? AND version = ? AND field_id = ?
+        `)
+        .bindParams(JSON.stringify(update.findings || null), scopeKey, version, update.id)
+        .execute()
+    );
+  }
+  return { updatedCount: updates.length };
+}
+
 // Promote field×project counts from issue_scan_buffer into snapshot_project_usage.
 // This is intentionally non-destructive until a field's new rows have been written:
 // 1. upsert new/changed rows for the field
 // 2. delete stale rows for that same field that are absent from the completed scan
-// 3. update active_project_count in snapshot_fields
+// 3. update active_project_count (and, when syncTotalIssueCount is true, total_issue_count) in snapshot_fields
 // Existing cached usage for unrelated fields is never touched by the universe scan.
-export async function promoteIssueScanToSnapshotProjectUsage(scopeKey, version) {
+//
+// syncTotalIssueCount should only be true when the scan covered every project (all
+// workers finished "done") -- otherwise a field simply absent from this run's buffer is
+// indistinguishable from "never crawled" and treating it as a confirmed zero would erase
+// good data from a previous run.
+export async function promoteIssueScanToSnapshotProjectUsage(scopeKey, version, { syncTotalIssueCount = false } = {}) {
   await ensureProjectStoreReady();
 
   const result = await withSqlRetry(() =>
@@ -2071,7 +2170,7 @@ export async function promoteIssueScanToSnapshotProjectUsage(scopeKey, version) 
   );
 
   const bufferRows = result.rows || [];
-  if (!bufferRows.length) return { fieldsPromoted: 0, rowsInserted: 0 };
+  if (!bufferRows.length) return { fieldsPromoted: 0, rowsInserted: 0, touchedFieldIds: [] };
 
   // Group by field_id
   const byField = new Map();
@@ -2082,6 +2181,7 @@ export async function promoteIssueScanToSnapshotProjectUsage(scopeKey, version) 
 
   let fieldsPromoted = 0;
   let rowsInserted = 0;
+  const touchedFieldIds = [];
 
   for (const [fieldId, fieldRows] of byField) {
     // Generate JQL for each row — same formula used everywhere else in the app
@@ -2141,19 +2241,63 @@ export async function promoteIssueScanToSnapshotProjectUsage(scopeKey, version) 
       );
     }
 
-    // Keep active_project_count in snapshot_fields in sync
-    await withSqlRetry(() =>
-      sql
-        .prepare("UPDATE snapshot_fields SET active_project_count = ? WHERE scope_key = ? AND version = ? AND field_id = ?")
-        .bindParams(usageRows.length, scopeKey, version, fieldId)
-        .execute()
-    );
+    // Keep active_project_count (and, once the scan has full coverage, total_issue_count)
+    // in snapshot_fields in sync
+    const totalIssueCount = usageRows.reduce((sum, r) => sum + r.issueCount, 0);
+    if (syncTotalIssueCount) {
+      await withSqlRetry(() =>
+        sql
+          .prepare("UPDATE snapshot_fields SET active_project_count = ?, total_issue_count = ? WHERE scope_key = ? AND version = ? AND field_id = ?")
+          .bindParams(usageRows.length, totalIssueCount, scopeKey, version, fieldId)
+          .execute()
+      );
+    } else {
+      await withSqlRetry(() =>
+        sql
+          .prepare("UPDATE snapshot_fields SET active_project_count = ? WHERE scope_key = ? AND version = ? AND field_id = ?")
+          .bindParams(usageRows.length, scopeKey, version, fieldId)
+          .execute()
+      );
+    }
 
+    touchedFieldIds.push(fieldId);
     fieldsPromoted += 1;
     rowsInserted += usageRows.length;
   }
 
-  return { fieldsPromoted, rowsInserted };
+  if (syncTotalIssueCount) {
+    // Full scan coverage means a field with NO rows in issue_scan_buffer genuinely has
+    // zero usage across every project — zero it out and drop its stale per-project rows.
+    const crawledFieldIds = Array.from(byField.keys());
+    const placeholders = crawledFieldIds.map(() => "?").join(", ");
+    const absentResult = await withSqlRetry(() =>
+      sql
+        .prepare(`
+          SELECT field_id FROM snapshot_fields
+          WHERE scope_key = ? AND version = ? AND field_id NOT IN (${placeholders})
+        `)
+        .bindParams(scopeKey, version, ...crawledFieldIds)
+        .execute()
+    );
+    const absentFieldIds = (absentResult.rows || []).map((row) => row.field_id);
+    for (const fieldId of absentFieldIds) {
+      await withSqlRetry(() =>
+        sql
+          .prepare("UPDATE snapshot_fields SET active_project_count = 0, total_issue_count = 0 WHERE scope_key = ? AND version = ? AND field_id = ?")
+          .bindParams(scopeKey, version, fieldId)
+          .execute()
+      );
+      await withSqlRetry(() =>
+        sql
+          .prepare("DELETE FROM snapshot_project_usage WHERE scope_key = ? AND version = ? AND field_id = ?")
+          .bindParams(scopeKey, version, fieldId)
+          .execute()
+      );
+      touchedFieldIds.push(fieldId);
+    }
+  }
+
+  return { fieldsPromoted, rowsInserted, touchedFieldIds };
 }
 
 export async function loadIssueScanProjectTotals(scopeKey) {

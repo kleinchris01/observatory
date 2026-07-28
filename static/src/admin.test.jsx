@@ -2,7 +2,7 @@ import React from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { invoke, view } from "@forge/bridge";
+import { invoke, view, router } from "@forge/bridge";
 import { AdminApp } from "./admin";
 
 // ---------------------------------------------------------------------------
@@ -25,6 +25,17 @@ function makeOverview(overrides = {}) {
     },
     jobCounts: { queued: 0, building: 0, ready: 2, failed: 0, cancelled: 0, unbuilt: 0 },
     findingsSummary: { adminAttention: 0, risky: 0, cleanup: 0, standardize: 0 },
+    dashboard: {
+      fieldUsage: {
+        totalFields: 2,
+        findingsBySeverity: { high: 0, medium: 0, low: 0 },
+        findingsByType: [],
+        fieldTypeBreakdown: [{ type: "text", count: 2 }],
+        origin: { builtin: 0, appProvided: 0, custom: 2 },
+        duplicateClusters: 0,
+      },
+      projects: { totalProjects: 0, topByIssueVolume: [], topByFieldCount: [] },
+    },
     totalSummaries: 2,
     legacySummaryCount: 0,
     ...overrides,
@@ -90,6 +101,8 @@ function defaultInvokeImpl(fnName, payload) {
       return Promise.resolve({ meta: null });
     case "getDeltaIssueScanStatus":
       return Promise.resolve({ meta: null });
+    case "getRqtIndex":
+      return Promise.resolve({ totalUniqueIssues: 0, fieldCount: 0, uniqueValues: [] });
     default:
       return Promise.resolve({});
   }
@@ -124,7 +137,7 @@ describe("AdminApp smoke test", () => {
     expect(screen.getByText("Admin")).toBeInTheDocument();
     // Overview tab is the default active tab
     await waitFor(() => {
-      expect(screen.getByText("Snapshot")).toBeInTheDocument();
+      expect(screen.getByText("Governance findings")).toBeInTheDocument();
     });
   });
 });
@@ -177,6 +190,231 @@ describe("AdminApp tab navigation", () => {
     await user.click(fieldsBtn);
     expect(fieldsBtn).toHaveClass("admin-nav__item--active");
     expect(overviewBtn).not.toHaveClass("admin-nav__item--active");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 2b. Scans tab -> Snapshot subnav -- stalled snapshot build recovery
+//
+// The Snapshot panel (and the Field Usage Jobs stat row) live under the Scans
+// tab now, not Overview -- see the Phase 1 scan/snapshot pipeline merge. Each
+// panel there self-fetches via getAdminOverview, matching every other
+// self-contained panel in ScansTab (UniverseScanPanel, JobsPanel, etc).
+//
+// Regression coverage: a build stuck in "building" used to leave the button
+// permanently disabled with no way to unstick it from the UI (see
+// requeueStaleSnapshotBuild in snapshot-engine.js, which the resolver behind
+// this button already knows how to call via getFieldInventory({forceRefresh:true})
+// -- the button just never let an admin reach it while active).
+// ---------------------------------------------------------------------------
+
+async function openScansSnapshotPanel(user) {
+  const adminNav = document.querySelector(".admin-nav");
+  await user.click(within(adminNav).getByText("Scans"));
+  await waitFor(() => expect(document.querySelector(".admin-scans-tab")).toBeTruthy());
+  const subNav = document.querySelector(".sub-nav");
+  await user.click(within(subNav).getByText("Snapshot"));
+}
+
+describe("AdminApp Scans tab -> Snapshot subnav -- stalled snapshot build", () => {
+  it("keeps the build button disabled for a build that only just started", async () => {
+    const user = userEvent.setup();
+    invoke.mockImplementation((fnName, payload) => {
+      if (fnName === "getAdminOverview") {
+        return Promise.resolve(makeOverview({
+          snapshot: {
+            state: "building",
+            refreshedAt: null,
+            startedAt: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
+            completedAt: null,
+            totalFields: 1516,
+            processedFields: 1328,
+            percent: 88,
+            lastError: null,
+            progressLog: [],
+          },
+        }));
+      }
+      return defaultInvokeImpl(fnName, payload);
+    });
+
+    await renderAdminApp();
+    await openScansSnapshotPanel(user);
+
+    const button = await screen.findByRole("button", { name: "Building…" });
+    expect(button).toBeDisabled();
+  });
+
+  it("enables a 'Force resume (stalled)' button once a build has been running past the stale threshold, and it re-triggers the build via forceRefresh", async () => {
+    const user = userEvent.setup();
+    invoke.mockImplementation((fnName, payload) => {
+      if (fnName === "getAdminOverview") {
+        return Promise.resolve(makeOverview({
+          snapshot: {
+            state: "building",
+            refreshedAt: null,
+            startedAt: new Date(Date.now() - 25 * 60 * 1000).toISOString(), // stale (> 20 min)
+            completedAt: null,
+            totalFields: 1516,
+            processedFields: 1328,
+            percent: 88,
+            lastError: null,
+            progressLog: [],
+          },
+        }));
+      }
+      return defaultInvokeImpl(fnName, payload);
+    });
+
+    await renderAdminApp();
+    await openScansSnapshotPanel(user);
+
+    const button = await screen.findByRole("button", { name: "Force resume (stalled)" });
+    expect(button).not.toBeDisabled();
+
+    await user.click(button);
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith("getFieldInventory", expect.objectContaining({ forceRefresh: true }));
+    });
+  });
+});
+
+describe("AdminApp Overview tab -- Snapshot and Field Usage Jobs moved out", () => {
+  it("no longer renders a Snapshot or Field usage jobs section, but still renders Governance findings", async () => {
+    await renderAdminApp();
+    await waitFor(() => expect(screen.getByText("Governance findings")).toBeInTheDocument());
+
+    expect(screen.queryByRole("heading", { name: "Snapshot" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Field usage jobs")).not.toBeInTheDocument();
+  });
+});
+
+describe("AdminApp Scans tab -> Field Usage Jobs subnav -- summary stat row", () => {
+  it("renders the Ready/Building/Queued/Failed/Not built stat row above the job list", async () => {
+    const user = userEvent.setup();
+    invoke.mockImplementation((fnName, payload) => {
+      if (fnName === "getAdminOverview") {
+        return Promise.resolve(makeOverview({
+          jobCounts: { queued: 1, building: 2, ready: 3, failed: 4, cancelled: 0, unbuilt: 5 },
+        }));
+      }
+      return defaultInvokeImpl(fnName, payload);
+    });
+
+    await renderAdminApp();
+    const adminNav = document.querySelector(".admin-nav");
+    await user.click(within(adminNav).getByText("Scans"));
+    await waitFor(() => expect(document.querySelector(".admin-scans-tab")).toBeTruthy());
+    const subNav = document.querySelector(".sub-nav");
+    await user.click(within(subNav).getByText("Field Usage Jobs"));
+
+    await waitFor(() => expect(document.querySelector(".admin-stat-row")).toBeTruthy());
+    const statRow = document.querySelector(".admin-stat-row");
+    expect(within(statRow).getByText("Not built")).toBeInTheDocument();
+    expect(within(statRow).getByText("3")).toBeInTheDocument(); // Ready
+    expect(within(statRow).getByText("2")).toBeInTheDocument(); // Building
+    expect(within(statRow).getByText("4")).toBeInTheDocument(); // Failed
+  });
+});
+
+describe("AdminApp Overview tab -- Developer Console links", () => {
+  it("opens Dev Console links via router.open instead of native navigation", async () => {
+    const user = userEvent.setup();
+    await renderAdminApp();
+    await waitFor(() => expect(screen.getByText("Governance findings")).toBeInTheDocument());
+
+    await user.click(screen.getByText("App overview"));
+
+    expect(router.open).toHaveBeenCalledWith(
+      "https://developer.atlassian.com/console/myapps/c11559cd-90ed-43a7-9a9b-80866237cd15/"
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 2c. Overview tab -- Recharts dashboard (Phase 2)
+// ---------------------------------------------------------------------------
+
+describe("AdminApp Overview tab -- dashboard", () => {
+  it("renders the Field Usage, Projects, and RQT Values sections with data from getAdminOverview", async () => {
+    invoke.mockImplementation((fnName, payload) => {
+      if (fnName === "getAdminOverview") {
+        return Promise.resolve(makeOverview({
+          dashboard: {
+            fieldUsage: {
+              totalFields: 42,
+              findingsBySeverity: { high: 3, medium: 5, low: 1 },
+              findingsByType: [{ title: "High-impact field with broad live usage", count: 3 }],
+              fieldTypeBreakdown: [{ type: "text", count: 20 }, { type: "number", count: 22 }],
+              origin: { builtin: 10, appProvided: 2, custom: 30 },
+              duplicateClusters: 4,
+            },
+            projects: {
+              totalProjects: 2,
+              topByIssueVolume: [{ projectKey: "AAA", projectName: "Alpha", totalIssueCount: 100 }],
+              topByFieldCount: [{ projectKey: "BBB", projectName: "Beta", fieldCount: 10 }],
+            },
+          },
+        }));
+      }
+      if (fnName === "getRqtIndex") {
+        return Promise.resolve({ totalUniqueIssues: 250, fieldCount: 6, uniqueValues: Array.from({ length: 12 }) });
+      }
+      return defaultInvokeImpl(fnName, payload);
+    });
+
+    await renderAdminApp();
+
+    expect(await screen.findByRole("heading", { name: /Field Usage/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Projects/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /RQT Values/ })).toBeInTheDocument();
+
+    // Severity KPI tiles
+    expect(screen.getByText("High severity")).toBeInTheDocument();
+    expect(screen.getByText("Duplicate-name clusters")).toBeInTheDocument();
+
+    // RQT summary card fetched and rendered its own data
+    await waitFor(() => expect(screen.getByText("250")).toBeInTheDocument());
+    expect(screen.getByText("6")).toBeInTheDocument();
+  });
+
+  it("jumps to the Scans tab's RQT Index subnav when 'Open full RQT Index' is clicked", async () => {
+    const user = userEvent.setup();
+    await renderAdminApp();
+
+    const openButton = await screen.findByRole("button", { name: /Open full RQT Index/ });
+    await user.click(openButton);
+
+    await waitFor(() => expect(document.querySelector(".admin-scans-tab")).toBeTruthy());
+    const subNav = document.querySelector(".sub-nav");
+    expect(within(subNav).getByText("RQT Index").closest("button")).toHaveClass("sub-nav__item--active");
+  });
+
+  it("shows empty-state messaging for charts when there is no data yet", async () => {
+    invoke.mockImplementation((fnName, payload) => {
+      if (fnName === "getAdminOverview") {
+        return Promise.resolve(makeOverview({
+          dashboard: {
+            fieldUsage: {
+              totalFields: 0,
+              findingsBySeverity: { high: 0, medium: 0, low: 0 },
+              findingsByType: [],
+              fieldTypeBreakdown: [],
+              origin: { builtin: 0, appProvided: 0, custom: 0 },
+              duplicateClusters: 0,
+            },
+            projects: { totalProjects: 0, topByIssueVolume: [], topByFieldCount: [] },
+          },
+        }));
+      }
+      return defaultInvokeImpl(fnName, payload);
+    });
+
+    await renderAdminApp();
+
+    expect(await screen.findByText("No governance findings yet")).toBeInTheDocument();
+    expect(screen.getAllByText("No project usage data yet").length).toBeGreaterThan(0);
   });
 });
 

@@ -6,6 +6,9 @@ import {
   queueSnapshotBuild,
   tryQueueFieldSummaryBuild,
   queueFieldSummaryContinuationWithRetry,
+  fetchFieldCatalog,
+  syncFieldCatalog,
+  refreshGovernanceFindingsForFields,
 } from "./snapshot-engine.js";
 import { buildGovernanceFindings } from "./analysis.js";
 
@@ -72,6 +75,9 @@ vi.mock("./project-store.js", () => ({
   appendSnapshotFields: vi.fn().mockResolvedValue(undefined),
   replaceSnapshotProjectUsageForField: vi.fn().mockResolvedValue(undefined),
   loadSnapshotField: vi.fn().mockResolvedValue(null),
+  loadSnapshotFields: vi.fn().mockResolvedValue([]),
+  updateSnapshotFieldMetadata: vi.fn().mockResolvedValue({ updatedCount: 0 }),
+  updateSnapshotFieldFindings: vi.fn().mockResolvedValue({ updatedCount: 0 }),
   loadFieldSummary: vi.fn().mockResolvedValue(null),
   replaceFieldSummary: vi.fn().mockResolvedValue(undefined),
   getSnapshotProcessedFieldIds: vi.fn().mockResolvedValue(new Set()),
@@ -80,10 +86,12 @@ vi.mock("./project-store.js", () => ({
   fillSnapshotProjectUsageFromSummaries: vi.fn().mockResolvedValue({ fieldsRestored: 0, rowsInserted: 0 }),
   replaceFieldOptionsCache: vi.fn().mockResolvedValue({ optionCount: 0 }),
   pruneOldSnapshotVersions: vi.fn().mockResolvedValue({ fieldsDeleted: 0, usageRowsDeleted: 0 }),
+  syncActiveProjectCountsFromUsage: vi.fn().mockResolvedValue({ fieldsSynced: 0 }),
 }));
 
 vi.mock("./analysis.js", () => ({
   USAGE_STATUS_READY: "ready",
+  USAGE_STATUS_UNAVAILABLE: "unavailable",
   mergeProjectUsageCounts: vi.fn().mockReturnValue([]),
   summarizeProjectUsageCapacity: vi.fn().mockReturnValue({ runningJobCount: 0, runningIssueBudget: 0, runningJobs: [] }),
   normalizeFieldName: vi.fn().mockImplementation((name) => (name || "").toLowerCase().trim()),
@@ -104,6 +112,7 @@ vi.mock("./transform.js", () => ({
     const match = String(id || "").match(/customfield_(\d+)/);
     return match ? Number(match[1]) : null;
   }),
+  getFieldTypeLabel: vi.fn().mockImplementation((field) => field?.schema?.type || "unknown"),
   buildProjectUsageRecord: vi.fn().mockImplementation(({ project, fieldId, issueCount }) => ({
     projectId: project?.id || "unknown",
     projectKey: project?.key || "unknown",
@@ -230,6 +239,163 @@ describe("hydrateFieldForGovernance", () => {
     hydrateFieldForGovernance(field, null, 1, thresholds);
 
     expect(buildGovernanceFindings).toHaveBeenCalledWith(field, expect.any(Object), thresholds);
+  });
+});
+
+// ── fetchFieldCatalog ─────────────────────────────────────────────────────────
+
+describe("fetchFieldCatalog", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("merges custom and system fields, tagging system fields", async () => {
+    const jiraApi = await getJiraApiMock();
+    jiraApi.getAllCustomFields.mockResolvedValue([{ id: "customfield_1", name: "Custom" }]);
+    jiraApi.getAllSystemFields.mockResolvedValue([{ id: "summary", name: "Summary" }]);
+
+    const result = await fetchFieldCatalog();
+
+    expect(result).toEqual([
+      { id: "customfield_1", name: "Custom" },
+      { id: "summary", name: "Summary", isSystemField: true },
+    ]);
+  });
+
+  it("tolerates getAllSystemFields rejecting by treating it as no system fields", async () => {
+    const jiraApi = await getJiraApiMock();
+    jiraApi.getAllCustomFields.mockResolvedValue([{ id: "customfield_1", name: "Custom" }]);
+    jiraApi.getAllSystemFields.mockRejectedValue(new Error("boom"));
+
+    const result = await fetchFieldCatalog();
+
+    expect(result).toEqual([{ id: "customfield_1", name: "Custom" }]);
+  });
+});
+
+// ── syncFieldCatalog ──────────────────────────────────────────────────────────
+
+describe("syncFieldCatalog", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("inserts newly discovered custom fields as unavailable, pending records with configuredProjectCount looked up", async () => {
+    const store = await getProjectStoreMock();
+    const jiraApi = await getJiraApiMock();
+    jiraApi.getAllCustomFields.mockResolvedValue([{ id: "customfield_1", name: "New Field" }]);
+    jiraApi.getAllSystemFields.mockResolvedValue([]);
+    store.loadSnapshotFields.mockResolvedValue([]);
+    jiraApi.getFieldConfiguredProjectCount.mockResolvedValue(3);
+
+    const result = await syncFieldCatalog(INSTALLATION_KEY, "v1");
+
+    expect(result).toEqual({ newFieldCount: 1, changedFieldCount: 0, totalCatalogCount: 1 });
+    expect(jiraApi.getFieldConfiguredProjectCount).toHaveBeenCalledWith("customfield_1");
+    expect(store.appendSnapshotFields).toHaveBeenCalledWith(
+      INSTALLATION_KEY,
+      "v1",
+      expect.arrayContaining([expect.objectContaining({ usageStatus: "unavailable" })])
+    );
+    expect(store.updateSnapshotFieldMetadata).not.toHaveBeenCalled();
+  });
+
+  it("does not call getFieldConfiguredProjectCount for newly discovered system fields", async () => {
+    const store = await getProjectStoreMock();
+    const jiraApi = await getJiraApiMock();
+    jiraApi.getAllCustomFields.mockResolvedValue([]);
+    jiraApi.getAllSystemFields.mockResolvedValue([{ id: "summary", name: "Summary" }]);
+    store.loadSnapshotFields.mockResolvedValue([]);
+
+    await syncFieldCatalog(INSTALLATION_KEY, "v1");
+
+    expect(jiraApi.getFieldConfiguredProjectCount).not.toHaveBeenCalled();
+  });
+
+  it("coerces a -1 (timeout) configuredProjectCount to 0 instead of leaving it negative", async () => {
+    const store = await getProjectStoreMock();
+    const jiraApi = await getJiraApiMock();
+    jiraApi.getAllCustomFields.mockResolvedValue([{ id: "customfield_1", name: "New Field" }]);
+    jiraApi.getAllSystemFields.mockResolvedValue([]);
+    store.loadSnapshotFields.mockResolvedValue([]);
+    jiraApi.getFieldConfiguredProjectCount.mockResolvedValue(-1);
+
+    await syncFieldCatalog(INSTALLATION_KEY, "v1");
+
+    const [, , records] = store.appendSnapshotFields.mock.calls[0];
+    expect(records[0].configuredProjectCount).toBe(0);
+  });
+
+  it("detects a renamed field and updates its metadata without re-fetching configuredProjectCount", async () => {
+    const store = await getProjectStoreMock();
+    const jiraApi = await getJiraApiMock();
+    jiraApi.getAllCustomFields.mockResolvedValue([{ id: "customfield_1", name: "Renamed Field" }]);
+    jiraApi.getAllSystemFields.mockResolvedValue([]);
+    store.loadSnapshotFields.mockResolvedValue([
+      { id: "customfield_1", name: "Old Name", description: "", type: "unknown", primitiveType: null, customType: null, searcherKey: null },
+    ]);
+
+    const result = await syncFieldCatalog(INSTALLATION_KEY, "v1");
+
+    expect(result.changedFieldCount).toBe(1);
+    expect(result.newFieldCount).toBe(0);
+    expect(jiraApi.getFieldConfiguredProjectCount).not.toHaveBeenCalled();
+    expect(store.updateSnapshotFieldMetadata).toHaveBeenCalledWith(
+      INSTALLATION_KEY,
+      "v1",
+      expect.arrayContaining([expect.objectContaining({ id: "customfield_1", name: "Renamed Field" })])
+    );
+    expect(store.appendSnapshotFields).not.toHaveBeenCalled();
+  });
+
+  it("does nothing when the catalog exactly matches what's already stored", async () => {
+    const store = await getProjectStoreMock();
+    const jiraApi = await getJiraApiMock();
+    const existing = { id: "customfield_1", name: "Same", description: "", type: "unknown", primitiveType: "unknown", customType: null, searcherKey: null };
+    jiraApi.getAllCustomFields.mockResolvedValue([{ id: "customfield_1", name: "Same" }]);
+    jiraApi.getAllSystemFields.mockResolvedValue([]);
+    store.loadSnapshotFields.mockResolvedValue([existing]);
+
+    const result = await syncFieldCatalog(INSTALLATION_KEY, "v1");
+
+    expect(result).toEqual({ newFieldCount: 0, changedFieldCount: 0, totalCatalogCount: 1 });
+    expect(store.appendSnapshotFields).not.toHaveBeenCalled();
+    expect(store.updateSnapshotFieldMetadata).not.toHaveBeenCalled();
+  });
+});
+
+// ── refreshGovernanceFindingsForFields ────────────────────────────────────────
+
+describe("refreshGovernanceFindingsForFields", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns immediately without touching the store when fieldIds is empty", async () => {
+    const store = await getProjectStoreMock();
+
+    const result = await refreshGovernanceFindingsForFields(INSTALLATION_KEY, "v1", []);
+
+    expect(result).toEqual({ updatedCount: 0 });
+    expect(store.loadSnapshotFields).not.toHaveBeenCalled();
+    expect(store.updateSnapshotFieldFindings).not.toHaveBeenCalled();
+  });
+
+  it("recomputes findings only for the requested field ids, marked ready", async () => {
+    const store = await getProjectStoreMock();
+    store.loadSnapshotFields.mockResolvedValue([
+      { id: "customfield_1", name: "Touched", configuredProjectCount: 2, totalIssueCount: 10, activeProjectCount: 2 },
+      { id: "customfield_2", name: "Untouched", configuredProjectCount: 5, totalIssueCount: 20, activeProjectCount: 5 },
+    ]);
+
+    const result = await refreshGovernanceFindingsForFields(INSTALLATION_KEY, "v1", ["customfield_1"]);
+
+    expect(result).toEqual({ updatedCount: 1 });
+    expect(store.updateSnapshotFieldFindings).toHaveBeenCalledWith(
+      INSTALLATION_KEY,
+      "v1",
+      [expect.objectContaining({ id: "customfield_1" })]
+    );
   });
 });
 
@@ -432,6 +598,48 @@ describe("runSnapshot", () => {
     expect(store.writeSnapshotMeta).not.toHaveBeenCalled();
   });
 
+  // Regression test: requeueStaleSnapshotBuild (invoked via getFieldInventory's
+  // force-refresh path) flips a stuck build's state from "building" to "queued" as a
+  // hand-off signal to the next consumer invocation, while preserving buildingVersion via
+  // a patch-merge write. A prior bug only checked for state === "building" when deciding
+  // whether to resume, so a re-queued build silently started a brand-new version from
+  // scratch and discarded every field already completed ("Force resume" restarting from 0
+  // instead of continuing from checkpoint).
+  it("resumes from checkpoint when re-queued (state 'queued' with a preserved buildingVersion)", async () => {
+    const store = await getProjectStoreMock();
+    const jiraApi = await getJiraApiMock();
+
+    const startedAt = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+    store.readSnapshotMeta.mockResolvedValue({
+      state: "queued",
+      startedAt,
+      buildingVersion: "v-existing",
+      processedFields: 818,
+      progressLog: [{ t: startedAt, msg: "Resuming — 818 of 1516 fields already done" }],
+    });
+    store.getSnapshotProcessedFieldIds.mockResolvedValue(new Set(["customfield_1"]));
+    jiraApi.getAllCustomFields.mockResolvedValue([
+      { id: "customfield_1", name: "Already Done" },
+      { id: "customfield_2", name: "Still To Do" },
+    ]);
+    jiraApi.getAllSystemFields.mockResolvedValue([]);
+    jiraApi.getFieldConfiguredProjectCount.mockResolvedValue(0);
+
+    const runPromise = runSnapshot(INSTALLATION_KEY);
+    vi.runAllTimers();
+    await runPromise;
+
+    // Must NOT start a fresh version — that would wipe the in-progress build's data
+    expect(store.clearSnapshotVersion).not.toHaveBeenCalled();
+
+    const writeCalls = store.writeSnapshotMeta.mock.calls;
+    const buildingCall = writeCalls.find((c) => c[1].state === "building");
+    expect(buildingCall).toBeDefined();
+    expect(buildingCall[1].buildingVersion).toBe("v-existing");
+    // Resumed from the checkpoint count, not reset to 0
+    expect(buildingCall[1].processedFields).toBe(818);
+  });
+
   it("exits cleanly when it loses the startup race", async () => {
     const store = await getProjectStoreMock();
     const jiraApi = await getJiraApiMock();
@@ -502,6 +710,97 @@ describe("runSnapshot", () => {
     expect(store.clearOtherSnapshotVersions).toHaveBeenCalled();
   });
 
+  it("marks a field usageStatus unavailable (not a false zero) when the project-count query times out", async () => {
+    const store = await getProjectStoreMock();
+    const jiraApi = await getJiraApiMock();
+
+    jiraApi.getAllCustomFields.mockResolvedValue([
+      { id: "customfield_1", name: "Field One" },
+    ]);
+    jiraApi.getAllSystemFields.mockResolvedValue([]);
+    // -1 is the "timed out / unavailable" sentinel, distinct from a genuine 0
+    jiraApi.getFieldConfiguredProjectCount.mockResolvedValue(-1);
+
+    let capturedVersion = null;
+    store.writeSnapshotMeta.mockImplementation(async (_key, data) => {
+      if (data.buildingVersion) capturedVersion = data.buildingVersion;
+    });
+    store.readSnapshotMeta
+      .mockResolvedValueOnce(null)
+      .mockImplementation(async () => ({ buildingVersion: capturedVersion }));
+
+    const runPromise = runSnapshot(INSTALLATION_KEY);
+    vi.runAllTimers();
+    await runPromise;
+
+    const appendCalls = store.appendSnapshotFields.mock.calls;
+    const record = appendCalls.flatMap((c) => c[2]).find((r) => r.id === "customfield_1");
+    expect(record.usageStatus).toBe("unavailable");
+    expect(record.totalIssueCount).toBe(0);
+    expect(record.configuredProjectCount).toBe(0);
+    // getFieldTotalIssueCount must not be called once the project-count lookup is unknown —
+    // we can't trust an issue count scoped to an unknown set of projects.
+    expect(jiraApi.getFieldTotalIssueCount).not.toHaveBeenCalled();
+  });
+
+  it("marks a field usageStatus unavailable when the issue-count query times out", async () => {
+    const store = await getProjectStoreMock();
+    const jiraApi = await getJiraApiMock();
+
+    jiraApi.getAllCustomFields.mockResolvedValue([
+      { id: "customfield_1", name: "Field One" },
+    ]);
+    jiraApi.getAllSystemFields.mockResolvedValue([]);
+    jiraApi.getFieldConfiguredProjectCount.mockResolvedValue(3);
+    jiraApi.getFieldTotalIssueCount.mockResolvedValue(-1);
+
+    let capturedVersion = null;
+    store.writeSnapshotMeta.mockImplementation(async (_key, data) => {
+      if (data.buildingVersion) capturedVersion = data.buildingVersion;
+    });
+    store.readSnapshotMeta
+      .mockResolvedValueOnce(null)
+      .mockImplementation(async () => ({ buildingVersion: capturedVersion }));
+
+    const runPromise = runSnapshot(INSTALLATION_KEY);
+    vi.runAllTimers();
+    await runPromise;
+
+    const appendCalls = store.appendSnapshotFields.mock.calls;
+    const record = appendCalls.flatMap((c) => c[2]).find((r) => r.id === "customfield_1");
+    expect(record.usageStatus).toBe("unavailable");
+    expect(record.totalIssueCount).toBe(0);
+  });
+
+  it("marks a genuine zero-usage field as ready, not unavailable", async () => {
+    const store = await getProjectStoreMock();
+    const jiraApi = await getJiraApiMock();
+
+    jiraApi.getAllCustomFields.mockResolvedValue([
+      { id: "customfield_1", name: "Field One" },
+    ]);
+    jiraApi.getAllSystemFields.mockResolvedValue([]);
+    jiraApi.getFieldConfiguredProjectCount.mockResolvedValue(0);
+
+    let capturedVersion = null;
+    store.writeSnapshotMeta.mockImplementation(async (_key, data) => {
+      if (data.buildingVersion) capturedVersion = data.buildingVersion;
+    });
+    store.readSnapshotMeta
+      .mockResolvedValueOnce(null)
+      .mockImplementation(async () => ({ buildingVersion: capturedVersion }));
+
+    const runPromise = runSnapshot(INSTALLATION_KEY);
+    vi.runAllTimers();
+    await runPromise;
+
+    const appendCalls = store.appendSnapshotFields.mock.calls;
+    const record = appendCalls.flatMap((c) => c[2]).find((r) => r.id === "customfield_1");
+    expect(record.usageStatus).toBe("ready");
+    expect(record.totalIssueCount).toBe(0);
+    expect(record.configuredProjectCount).toBe(0);
+  });
+
   it("calls carryForwardSnapshotProjectUsage before clearing old versions", async () => {
     const store = await getProjectStoreMock();
     const jiraApi = await getJiraApiMock();
@@ -526,6 +825,41 @@ describe("runSnapshot", () => {
     const carryCallIndex = store.carryForwardSnapshotProjectUsage.mock.invocationCallOrder[0];
     const clearCallIndex = store.clearOtherSnapshotVersions.mock.invocationCallOrder[0];
     expect(carryCallIndex).toBeLessThan(clearCallIndex);
+  });
+
+  // Regression test: every field record is written with active_project_count hardcoded to
+  // 0 (see the field-processing loop above); carryForwardSnapshotProjectUsage and
+  // fillSnapshotProjectUsageFromSummaries restore the real per-project rows for the new
+  // version but never touch that summary column themselves, so without this sync call the
+  // list view (getFieldInventory) permanently disagrees with the live per-field detail view
+  // (getFieldDetails, which computes activeProjectCount fresh from snapshot_project_usage)
+  // until the next Universal Scan happens to touch that exact field.
+  it("syncs active project counts from usage after both carry-forward/fill steps complete", async () => {
+    const store = await getProjectStoreMock();
+    const jiraApi = await getJiraApiMock();
+
+    jiraApi.getAllCustomFields.mockResolvedValue([]);
+    jiraApi.getAllSystemFields.mockResolvedValue([]);
+    store.syncActiveProjectCountsFromUsage.mockResolvedValue({ fieldsSynced: 3 });
+
+    let capturedVersion = null;
+    store.writeSnapshotMeta.mockImplementation(async (_key, data) => {
+      if (data.buildingVersion) capturedVersion = data.buildingVersion;
+    });
+    store.readSnapshotMeta
+      .mockResolvedValueOnce(null)
+      .mockImplementation(async () => ({ buildingVersion: capturedVersion }));
+
+    const runPromise = runSnapshot(INSTALLATION_KEY);
+    vi.runAllTimers();
+    await runPromise;
+
+    expect(store.syncActiveProjectCountsFromUsage).toHaveBeenCalledWith(INSTALLATION_KEY, expect.any(String));
+    const carryCallIndex = store.carryForwardSnapshotProjectUsage.mock.invocationCallOrder[0];
+    const fillCallIndex = store.fillSnapshotProjectUsageFromSummaries.mock.invocationCallOrder[0];
+    const syncCallIndex = store.syncActiveProjectCountsFromUsage.mock.invocationCallOrder[0];
+    expect(syncCallIndex).toBeGreaterThan(carryCallIndex);
+    expect(syncCallIndex).toBeGreaterThan(fillCallIndex);
   });
 });
 

@@ -17,6 +17,9 @@ const ProjectsTabView = React.lazy(() =>
 const RqtIndexView = React.lazy(() =>
   import("./tabs/RqtTab").then((m) => ({ default: m.RqtIndexView }))
 );
+const OverviewDashboard = React.lazy(() =>
+  import("./components/OverviewDashboard").then((m) => ({ default: m.OverviewDashboard }))
+);
 
 const bootStatusNode = document.getElementById("boot-status");
 
@@ -254,89 +257,15 @@ function SnapshotLog({ entries }) {
   );
 }
 
-function OverviewTab({ overview, onBuildSnapshot, buildingSnapshot, onRefresh, refreshingOverview, onMigrateNamespace, migratingNamespace }) {
+function OverviewTab({ overview, onMigrateNamespace, migratingNamespace, onOpenRqtIndex }) {
   if (!overview) {
     return <div className="empty-state">Loading overview…</div>;
   }
 
-  const { snapshot, findingsSummary, jobCounts } = overview;
-  const snapshotStateLabel = {
-    idle: "No snapshot",
-    queued: "Queued",
-    building: "Building…",
-    ready: "Ready",
-    failed: "Failed",
-  }[snapshot.state] || snapshot.state;
-
-  const isActive = snapshot.state === "building" || snapshot.state === "queued";
-  const chipVariant = { ready: "ready", building: "building", queued: "queued" }[snapshot.state] || "idle";
+  const { findingsSummary } = overview;
 
   return (
     <div className="admin-overview">
-      <div className="admin-section">
-        <h2 className="admin-section__title"><Icon name="layers" size={16} /> Snapshot</h2>
-        <div className="admin-snapshot-card">
-          <div className="admin-snapshot-card__header">
-            <div className="admin-snapshot-card__meta">
-              <span className={`snapshot-chip snapshot-chip--${chipVariant}`}>
-                <span className="snapshot-chip__dot" />
-                {snapshotStateLabel}
-              </span>
-              {snapshot.refreshedAt && (
-                <span className="admin-snapshot-card__age">Last built {formatRelativeTime(snapshot.refreshedAt)} · {formatTimestamp(snapshot.refreshedAt)}</span>
-              )}
-              {snapshot.totalFields > 0 && (
-                <span className="admin-snapshot-card__count">{snapshot.totalFields.toLocaleString()} fields indexed</span>
-              )}
-              {snapshot.startedAt && isActive && (
-                <span className="admin-snapshot-card__age">Started {formatRelativeTime(snapshot.startedAt)}</span>
-              )}
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                className="secondary-button"
-                type="button"
-                onClick={onRefresh}
-                disabled={refreshingOverview}
-                title="Refresh overview data"
-              >
-                <Icon name="refreshCw" size={13} />
-                {refreshingOverview ? "…" : "Refresh"}
-              </button>
-              <button
-                className="primary-button"
-                type="button"
-                onClick={onBuildSnapshot}
-                disabled={buildingSnapshot || isActive}
-              >
-                <Icon name="refreshCw" size={14} />
-                {isActive ? "Building…" : "Build new snapshot"}
-              </button>
-            </div>
-          </div>
-
-          {isActive && (
-            <div className="status-progress admin-snapshot-progress">
-              <div className="status-progress__meta">
-                <strong>{snapshot.percent}%</strong>
-                <span>{(snapshot.processedFields || 0).toLocaleString()} / {(snapshot.totalFields || 0).toLocaleString()} fields</span>
-              </div>
-              <div className="status-progress__bar">
-                <span style={{ width: `${snapshot.percent}%`, background: snapshot.state === "queued" ? "var(--warm)" : "var(--cool)" }} />
-              </div>
-            </div>
-          )}
-
-          {snapshot.lastError && (
-            <div className="admin-snapshot-error">
-              <Icon name="alertTriangle" size={13} /> {snapshot.lastError}
-            </div>
-          )}
-
-          <SnapshotLog entries={snapshot.progressLog} />
-        </div>
-      </div>
-
       {overview.legacySummaryCount > 0 && (
         <div className="admin-migration-banner">
           <div className="admin-migration-banner__body">
@@ -366,16 +295,9 @@ function OverviewTab({ overview, onBuildSnapshot, buildingSnapshot, onRefresh, r
         </div>
       </div>
 
-      <div className="admin-section">
-        <h2 className="admin-section__title"><Icon name="activity" size={16} /> Field usage jobs</h2>
-        <div className="admin-stat-row">
-          <StatCard label="Ready" value={jobCounts?.ready ?? 0} icon="checkCircle" variant="success" />
-          <StatCard label="Building" value={jobCounts?.building ?? 0} icon="activity" variant={(jobCounts?.building ?? 0) > 0 ? "building" : "neutral"} />
-          <StatCard label="Queued" value={jobCounts?.queued ?? 0} icon="clock" variant="neutral" />
-          <StatCard label="Failed" value={jobCounts?.failed ?? 0} icon="x" variant={(jobCounts?.failed ?? 0) > 0 ? "danger" : "neutral"} />
-          <StatCard label="Not built" value={jobCounts?.unbuilt ?? 0} icon="layers" variant="neutral" />
-        </div>
-      </div>
+      <React.Suspense fallback={<div className="empty-state">Loading dashboard…</div>}>
+        <OverviewDashboard dashboard={overview.dashboard} onOpenRqtIndex={onOpenRqtIndex} />
+      </React.Suspense>
 
       <div className="admin-section">
         <h2 className="admin-section__title"><Icon name="zap" size={16} /> Atlassian Developer Console</h2>
@@ -385,6 +307,7 @@ function OverviewTab({ overview, onBuildSnapshot, buildingSnapshot, onRefresh, r
             href="https://developer.atlassian.com/console/myapps/c11559cd-90ed-43a7-9a9b-80866237cd15/"
             target="_blank"
             rel="noopener noreferrer"
+            onClick={(e) => handleJiraLinkClick(e, "https://developer.atlassian.com/console/myapps/c11559cd-90ed-43a7-9a9b-80866237cd15/")}
           >
             <Icon name="zap" size={13} /> App overview
           </a>
@@ -393,6 +316,7 @@ function OverviewTab({ overview, onBuildSnapshot, buildingSnapshot, onRefresh, r
             href="https://developer.atlassian.com/console/myapps/c11559cd-90ed-43a7-9a9b-80866237cd15/invocations"
             target="_blank"
             rel="noopener noreferrer"
+            onClick={(e) => handleJiraLinkClick(e, "https://developer.atlassian.com/console/myapps/c11559cd-90ed-43a7-9a9b-80866237cd15/invocations")}
           >
             <Icon name="activity" size={13} /> Invocation metrics
           </a>
@@ -401,6 +325,7 @@ function OverviewTab({ overview, onBuildSnapshot, buildingSnapshot, onRefresh, r
             href="https://developer.atlassian.com/console/myapps/c11559cd-90ed-43a7-9a9b-80866237cd15/storage"
             target="_blank"
             rel="noopener noreferrer"
+            onClick={(e) => handleJiraLinkClick(e, "https://developer.atlassian.com/console/myapps/c11559cd-90ed-43a7-9a9b-80866237cd15/storage")}
           >
             <Icon name="layers" size={13} /> Storage / SQL
           </a>
@@ -409,6 +334,7 @@ function OverviewTab({ overview, onBuildSnapshot, buildingSnapshot, onRefresh, r
             href="https://developer.atlassian.com/console/myapps/c11559cd-90ed-43a7-9a9b-80866237cd15/logs"
             target="_blank"
             rel="noopener noreferrer"
+            onClick={(e) => handleJiraLinkClick(e, "https://developer.atlassian.com/console/myapps/c11559cd-90ed-43a7-9a9b-80866237cd15/logs")}
           >
             <Icon name="info" size={13} /> App logs
           </a>
@@ -1606,6 +1532,94 @@ function ActivitySection({ title, subtitle, open, onToggle, actions, children })
   );
 }
 
+function SnapshotPanel({ snapshot, onBuildSnapshot, buildingSnapshot, onRefresh, refreshingOverview }) {
+  if (!snapshot) {
+    return <div className="empty-state">Loading snapshot status…</div>;
+  }
+
+  const snapshotStateLabel = {
+    idle: "No snapshot",
+    queued: "Queued",
+    building: "Building…",
+    ready: "Ready",
+    failed: "Failed",
+  }[snapshot.state] || snapshot.state;
+
+  const isActive = snapshot.state === "building" || snapshot.state === "queued";
+  // A build stuck in "building" past the server's own stale threshold (see
+  // requeueStaleSnapshotBuild) would otherwise leave this button permanently disabled
+  // with no way to unstick it short of waiting for the next daily auto-check — mirror
+  // Universe Scan's "Force resume" affordance so an admin can force it immediately.
+  const STALE_BUILD_MS = 20 * 60 * 1000;
+  const isStaleBuild = isActive && snapshot.state === "building" && snapshot.startedAt
+    && (Date.now() - new Date(snapshot.startedAt).getTime() > STALE_BUILD_MS);
+  const chipVariant = { ready: "ready", building: "building", queued: "queued" }[snapshot.state] || "idle";
+
+  return (
+    <div className="admin-snapshot-card">
+      <div className="admin-snapshot-card__header">
+        <div className="admin-snapshot-card__meta">
+          <span className={`snapshot-chip snapshot-chip--${chipVariant}`}>
+            <span className="snapshot-chip__dot" />
+            {snapshotStateLabel}
+          </span>
+          {snapshot.refreshedAt && (
+            <span className="admin-snapshot-card__age">Last built {formatRelativeTime(snapshot.refreshedAt)} · {formatTimestamp(snapshot.refreshedAt)}</span>
+          )}
+          {snapshot.totalFields > 0 && (
+            <span className="admin-snapshot-card__count">{snapshot.totalFields.toLocaleString()} fields indexed</span>
+          )}
+          {snapshot.startedAt && isActive && (
+            <span className="admin-snapshot-card__age">Started {formatRelativeTime(snapshot.startedAt)}</span>
+          )}
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={onRefresh}
+            disabled={refreshingOverview}
+            title="Refresh snapshot status"
+          >
+            <Icon name="refreshCw" size={13} />
+            {refreshingOverview ? "…" : "Refresh"}
+          </button>
+          <button
+            className="primary-button"
+            type="button"
+            onClick={onBuildSnapshot}
+            disabled={buildingSnapshot || (isActive && !isStaleBuild)}
+            title={isStaleBuild ? "This build has been stalled for over 20 minutes — click to force it to resume from checkpoint" : undefined}
+          >
+            <Icon name="refreshCw" size={14} />
+            {isStaleBuild ? "Force resume (stalled)" : isActive ? "Building…" : "Build new snapshot"}
+          </button>
+        </div>
+      </div>
+
+      {isActive && (
+        <div className="status-progress admin-snapshot-progress">
+          <div className="status-progress__meta">
+            <strong>{snapshot.percent}%</strong>
+            <span>{(snapshot.processedFields || 0).toLocaleString()} / {(snapshot.totalFields || 0).toLocaleString()} fields</span>
+          </div>
+          <div className="status-progress__bar">
+            <span style={{ width: `${snapshot.percent}%`, background: snapshot.state === "queued" ? "var(--warm)" : "var(--cool)" }} />
+          </div>
+        </div>
+      )}
+
+      {snapshot.lastError && (
+        <div className="admin-snapshot-error">
+          <Icon name="alertTriangle" size={13} /> {snapshot.lastError}
+        </div>
+      )}
+
+      <SnapshotLog entries={snapshot.progressLog} />
+    </div>
+  );
+}
+
 function DeltaIssueScanPanel({ deltaIssueScan, onStartDelta, issueScanDeltaStarting }) {
   const deltaActive = deltaIssueScan?.state === "building" || deltaIssueScan?.state === "queued";
   const deltaReady = deltaIssueScan?.state === "ready";
@@ -2049,8 +2063,16 @@ function UniverseScanPanel({ issueScan, onStart, onResume, onCancel, issueScanLo
 
 // ── Scans tab (self-contained) ────────────────────────────────────────────
 
-function ScansTab({ siteOrigin }) {
-  const [activeSection, setActiveSection] = React.useState("universe");
+function ScansTab({ siteOrigin, initialSection }) {
+  const [activeSection, setActiveSection] = React.useState(initialSection || "universe");
+
+  // Snapshot state (self-contained, same shape as the universe-scan state below;
+  // getAdminOverview also returns jobCounts, so this one fetch feeds both the
+  // Snapshot panel and the Field Usage Jobs stat row)
+  const [snapshotStatus, setSnapshotStatus] = React.useState(null);
+  const [jobCounts, setJobCounts] = React.useState(null);
+  const [buildingSnapshot, setBuildingSnapshot] = React.useState(false);
+  const [refreshingSnapshot, setRefreshingSnapshot] = React.useState(false);
 
   // Universe scan state
   const [issueScanStatus, setIssueScanStatus] = React.useState(null);
@@ -2069,6 +2091,41 @@ function ScansTab({ siteOrigin }) {
   const [cancellingId, setCancellingId] = React.useState("");
   const [restartingId, setRestartingId] = React.useState("");
   const [resumingId, setResumingId] = React.useState("");
+
+  const fetchSnapshotStatus = React.useCallback(async ({ quiet = false } = {}) => {
+    if (quiet) setRefreshingSnapshot(true);
+    try {
+      const data = await invoke("getAdminOverview");
+      setSnapshotStatus(data?.snapshot || null);
+      setJobCounts(data?.jobCounts || null);
+    } catch (err) {
+      setError(err.message || "Failed to load snapshot status.");
+    } finally {
+      if (quiet) setRefreshingSnapshot(false);
+    }
+  }, []);
+
+  React.useEffect(() => { fetchSnapshotStatus(); }, []);
+
+  React.useEffect(() => {
+    const active = snapshotStatus?.state === "building" || snapshotStatus?.state === "queued";
+    if (!active) return;
+    const timer = setInterval(() => { fetchSnapshotStatus({ quiet: true }); }, 8000);
+    return () => clearInterval(timer);
+  }, [snapshotStatus?.state]);
+
+  async function handleBuildSnapshot() {
+    setBuildingSnapshot(true);
+    setError("");
+    try {
+      await invoke("getFieldInventory", { forceRefresh: true, page: 1, pageSize: 1 });
+      await fetchSnapshotStatus();
+    } catch (err) {
+      setError(err.message || "Failed to trigger snapshot.");
+    } finally {
+      setBuildingSnapshot(false);
+    }
+  }
 
   const fetchIssueScanStatus = React.useCallback(async () => {
     try { const r = await invoke("getIssueScanStatus"); setIssueScanStatus(r?.meta || null); } catch (err) { setError(err.message || "Failed to load universe scan status."); }
@@ -2146,6 +2203,7 @@ function ScansTab({ siteOrigin }) {
   }
 
   const subNavItems = [
+    { key: "snapshot", label: "Snapshot", icon: "layers" },
     { key: "universe", label: "Universe Scan", icon: "zap" },
     { key: "quick", label: "Quick Scan", icon: "activity" },
     { key: "rqt", label: "RQT Index", icon: "layers" },
@@ -2156,6 +2214,15 @@ function ScansTab({ siteOrigin }) {
     <div className="admin-scans-tab">
       {error && <div className="error-banner" style={{ margin: "0 0 12px 0" }}>{error}<button className="inline-text-button" type="button" onClick={() => setError("")} style={{ marginLeft: 10 }}>Dismiss</button></div>}
       <SubNavLayout items={subNavItems} activeKey={activeSection} onSelect={setActiveSection}>
+        {activeSection === "snapshot" && (
+          <SnapshotPanel
+            snapshot={snapshotStatus}
+            onBuildSnapshot={handleBuildSnapshot}
+            buildingSnapshot={buildingSnapshot}
+            onRefresh={() => fetchSnapshotStatus({ quiet: true })}
+            refreshingOverview={refreshingSnapshot}
+          />
+        )}
         {activeSection === "universe" && (
           <UniverseScanPanel
             issueScan={issueScanStatus}
@@ -2180,20 +2247,29 @@ function ScansTab({ siteOrigin }) {
           </React.Suspense>
         )}
         {activeSection === "jobs" && (
-          <JobsPanel
-            jobs={jobs}
-            loading={loadingJobs}
-            expandedId={expandedJobId}
-            onToggle={(id) => setExpandedJobId((cur) => cur === id ? "" : id)}
-            onCancel={handleCancelJob}
-            onRestart={handleRestartJob}
-            onResume={handleResumeJob}
-            onRefresh={loadJobs}
-            cancellingId={cancellingId}
-            restartingId={restartingId}
-            resumingId={resumingId}
-            refreshing={refreshingJobs}
-          />
+          <>
+            <div className="admin-stat-row" style={{ marginBottom: 16 }}>
+              <StatCard label="Ready" value={jobCounts?.ready ?? 0} icon="checkCircle" variant="success" />
+              <StatCard label="Building" value={jobCounts?.building ?? 0} icon="activity" variant={(jobCounts?.building ?? 0) > 0 ? "building" : "neutral"} />
+              <StatCard label="Queued" value={jobCounts?.queued ?? 0} icon="clock" variant="neutral" />
+              <StatCard label="Failed" value={jobCounts?.failed ?? 0} icon="x" variant={(jobCounts?.failed ?? 0) > 0 ? "danger" : "neutral"} />
+              <StatCard label="Not built" value={jobCounts?.unbuilt ?? 0} icon="layers" variant="neutral" />
+            </div>
+            <JobsPanel
+              jobs={jobs}
+              loading={loadingJobs}
+              expandedId={expandedJobId}
+              onToggle={(id) => setExpandedJobId((cur) => cur === id ? "" : id)}
+              onCancel={handleCancelJob}
+              onRestart={handleRestartJob}
+              onResume={handleResumeJob}
+              onRefresh={loadJobs}
+              cancellingId={cancellingId}
+              restartingId={restartingId}
+              resumingId={resumingId}
+              refreshing={refreshingJobs}
+            />
+          </>
         )}
       </SubNavLayout>
     </div>
@@ -2207,14 +2283,13 @@ export function AdminApp() {
   const [theme, setTheme] = React.useState(() => localStorage.getItem("atlasiq-field-theme") || "dark");
   const [overview, setOverview] = React.useState(null);
   const [loadingOverview, setLoadingOverview] = React.useState(true);
-  const [refreshingOverview, setRefreshingOverview] = React.useState(false);
   const [config, setConfig] = React.useState(null);
   const [savingConfig, setSavingConfig] = React.useState(false);
-  const [buildingSnapshot, setBuildingSnapshot] = React.useState(false);
   const [migratingNamespace, setMigratingNamespace] = React.useState(false);
   const [error, setError] = React.useState("");
   const [saveSuccess, setSaveSuccess] = React.useState(false);
   const [siteOrigin, setSiteOrigin] = React.useState("");
+  const [scansInitialSection, setScansInitialSection] = React.useState("universe");
   const [selectedFieldIds, setSelectedFieldIds] = React.useState([]);
   const [pendingReportGenerate, setPendingReportGenerate] = React.useState(false);
 
@@ -2228,11 +2303,7 @@ export function AdminApp() {
   }, []);
 
   async function loadOverview({ quiet = false } = {}) {
-    if (quiet) {
-      setRefreshingOverview(true);
-    } else {
-      setLoadingOverview(true);
-    }
+    if (!quiet) setLoadingOverview(true);
     try {
       const data = await invoke("getAdminOverview");
       setOverview(data);
@@ -2241,12 +2312,7 @@ export function AdminApp() {
       if (!quiet) setError(err.message || "Failed to load overview.");
     } finally {
       setLoadingOverview(false);
-      setRefreshingOverview(false);
     }
-  }
-
-  async function handleRefreshOverview() {
-    await loadOverview({ quiet: true });
   }
 
   React.useEffect(() => {
@@ -2265,33 +2331,14 @@ export function AdminApp() {
     });
   }
 
-  // Fast poll (12s) while snapshot is actively building; slow poll (60s) always to catch external changes
+  // Slow poll to catch external changes (findings/migration banner) -- live snapshot
+  // build progress is now polled independently by ScansTab's own Snapshot panel.
   React.useEffect(() => {
-    const isBuilding = overview?.snapshot?.state === "building" || overview?.snapshot?.state === "queued";
-    const fastTimer = isBuilding ? setInterval(() => {
-      loadOverview({ quiet: true });
-    }, 12000) : null;
-    const slowTimer = setInterval(() => {
+    const timer = setInterval(() => {
       loadOverview({ quiet: true });
     }, 60000);
-    return () => {
-      if (fastTimer) clearInterval(fastTimer);
-      clearInterval(slowTimer);
-    };
-  }, [overview]);
-
-  async function handleBuildSnapshot() {
-    setBuildingSnapshot(true);
-    setError("");
-    try {
-      await invoke("getFieldInventory", { forceRefresh: true, page: 1, pageSize: 1 });
-      await loadOverview();
-    } catch (err) {
-      setError(err.message || "Failed to trigger snapshot.");
-    } finally {
-      setBuildingSnapshot(false);
-    }
-  }
+    return () => clearInterval(timer);
+  }, []);
 
   async function handleMigrateNamespace() {
     setMigratingNamespace(true);
@@ -2393,7 +2440,12 @@ export function AdminApp() {
             loadingOverview && !overview ? (
               <div className="empty-state">Loading…</div>
             ) : (
-              <OverviewTab overview={overview} onBuildSnapshot={handleBuildSnapshot} buildingSnapshot={buildingSnapshot} onRefresh={handleRefreshOverview} refreshingOverview={refreshingOverview} onMigrateNamespace={handleMigrateNamespace} migratingNamespace={migratingNamespace} />
+              <OverviewTab
+                overview={overview}
+                onMigrateNamespace={handleMigrateNamespace}
+                migratingNamespace={migratingNamespace}
+                onOpenRqtIndex={() => { setScansInitialSection("rqt"); setActiveTab("scans"); }}
+              />
             )
           ) : activeTab === "fields" ? (
             <FieldBrowserTab
@@ -2408,7 +2460,7 @@ export function AdminApp() {
           ) : activeTab === "reports" ? (
             <ReportsTab siteOrigin={siteOrigin} selectedFieldIds={selectedFieldIds} onSetSelectedFieldIds={setSelectedFieldIds} autoGenerate={pendingReportGenerate} onAutoGenerateConsumed={() => setPendingReportGenerate(false)} />
           ) : activeTab === "scans" ? (
-            <ScansTab siteOrigin={siteOrigin} />
+            <ScansTab siteOrigin={siteOrigin} initialSection={scansInitialSection} />
           ) : (
             <ConfigTab config={config} onSave={handleSaveConfig} saving={savingConfig} />
           )}
