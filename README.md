@@ -1,5 +1,17 @@
 # Observatory — Jira Custom Field Governance
 
+[![Coverage](https://img.shields.io/badge/coverage-63.6%25-yellow)](#testing)
+[![Tests](https://img.shields.io/badge/tests-934%20passing-brightgreen)](#testing)
+
+<!--
+  These badges are static. There is no coverage service wired up, so the numbers
+  here are updated by hand — run `npm run test:coverage` and edit them.
+
+  The enforced floor lives in vitest.config.js under coverage.thresholds and is
+  set just below the actuals, so CI fails if coverage drops. Treat that as the
+  source of truth; these badges are a summary of it.
+-->
+
 Observatory is an Atlassian Forge Confluence macro that gives Jira admins a live, searchable inventory of every custom field on their site — with per-project usage data, automated governance findings, multi-field reports, and an AI assistant — all embedded directly in a Confluence page.
 
 ---
@@ -162,14 +174,32 @@ Six tables managed by a 27-step migration runner (`@forge/sql` + `migrationRunne
 ## Development
 
 ```bash
-cd forge/custom-field-governance-macro
 npm install
-npm run build       # Vite build → static/dist
+npm run build       # dual Vite build → static/dist (macro) + static/dist-admin (admin page)
 forge deploy        # deploy to development environment
 forge install       # install on a Confluence site (first time only)
 ```
 
-The frontend is a Vite project rooted at `static/` with output to `static/dist`. Backend entry point is `src/index.js`. SQL migrations live in `src/lib/project-store.js`.
+The frontend is a Vite project rooted at `static/`, built twice: once for the Confluence macro (`static/dist`) and once for the Jira admin page (`static/dist-admin`). Backend entry point is `src/index.js`. SQL migrations live in `src/lib/project-store.js`.
+
+Note that `forge deploy` does **not** rebuild the Vite bundles — always run `npm run build` first, or use `npm run deploy`, which chains both.
+
+---
+
+## Testing
+
+```bash
+npm test              # unit + component tests (backend and frontend projects)
+npm run test:backend  # backend only
+npm run test:frontend # frontend only
+npm run test:coverage # with coverage report
+```
+
+Tests are colocated with their source (`src/lib/analysis.test.js` sits next to `analysis.js`). The suite is split into two Vitest projects — `backend` runs in Node, `frontend` in jsdom with `@forge/bridge` aliased to a mock.
+
+Coverage thresholds are enforced in `vitest.config.js` and set just below current actuals, so they act as a ratchet: coverage can rise freely, but a drop fails the run. Per-file floors pin the two modules whose failure modes are hardest to diagnose in production — `src/lib/jira-api.js` (rate limiting, retry, cursor pagination) and `src/index.js` (the queue job router, where an unrecognised job type would otherwise fail silently).
+
+Raising the thresholds is a deliberate edit to that config, not something that happens by accident.
 
 ---
 
