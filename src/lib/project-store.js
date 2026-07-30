@@ -2143,6 +2143,42 @@ export async function updateSnapshotFieldFindings(scopeKey, version, updates) {
   return { updatedCount: updates.length };
 }
 
+// Roll per-project "last field change" timestamps up to one value per field, so the
+// staleness governance rule can ask "when was this field last touched anywhere?" without
+// loading every usage row. Fields with no recorded change date are simply absent from the
+// returned map — see daysSince() in analysis.js for why absent must not mean "not stale".
+export async function loadFieldLastChangeMap(scopeKey, version, fieldIds = null) {
+  await ensureProjectStoreReady();
+
+  const ids = Array.isArray(fieldIds) ? fieldIds.filter(Boolean).map(String) : null;
+  if (ids && !ids.length) return new Map();
+
+  const map = new Map();
+  // Chunked so a large fieldIds list can't blow past the bind-parameter ceiling.
+  const batches = ids ? chunkArray(ids, 100) : [null];
+
+  for (const batch of batches) {
+    const filterSql = batch ? ` AND field_id IN (${batch.map(() => "?").join(", ")})` : "";
+    const params = batch ? [scopeKey, version, ...batch] : [scopeKey, version];
+    const result = await withSqlRetry(() =>
+      sql
+        .prepare(`
+          SELECT field_id, MAX(latest_field_change_at) AS last_change_at
+          FROM snapshot_project_usage
+          WHERE scope_key = ? AND version = ? AND latest_field_change_at IS NOT NULL${filterSql}
+          GROUP BY field_id
+        `)
+        .bindParams(...params)
+        .execute()
+    );
+    for (const row of result.rows || []) {
+      if (row?.field_id && row?.last_change_at) map.set(String(row.field_id), String(row.last_change_at));
+    }
+  }
+
+  return map;
+}
+
 // Promote field×project counts from issue_scan_buffer into snapshot_project_usage.
 // This is intentionally non-destructive until a field's new rows have been written:
 // 1. upsert new/changed rows for the field

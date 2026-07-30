@@ -56,6 +56,7 @@ import {
   pruneOldSnapshotVersions,
   updateSnapshotFieldMetadata,
   updateSnapshotFieldFindings,
+  loadFieldLastChangeMap,
   syncActiveProjectCountsFromUsage,
 } from "./project-store.js";
 import {
@@ -73,6 +74,21 @@ import {
 import { buildOverallFieldJql, getFieldNumericId, getFieldTypeLabel } from "./transform.js";
 
 // ----- hydrateFieldForGovernance -----
+
+// Newest per-project field-change timestamp across a summary's active projects — the
+// field-level "last touched" signal the staleness rule keys off. Mirrors what
+// loadFieldLastChangeMap does in SQL, for the detail path where projects are already loaded.
+export function latestChangeAcrossProjects(activeProjects) {
+  let newest = null;
+  for (const project of Array.isArray(activeProjects) ? activeProjects : []) {
+    const at = project?.latestFieldChangeAt;
+    if (!at) continue;
+    const ts = new Date(at).getTime();
+    if (!Number.isFinite(ts)) continue;
+    if (newest === null || ts > newest.ts) newest = { ts, at: String(at) };
+  }
+  return newest?.at ?? null;
+}
 
 export function hydrateFieldForGovernance(field, summary, duplicateNameCount = 1, thresholds = {}) {
   const activeProjectCount = Number(summary?.activeProjectCount ?? field?.activeProjectCount ?? 0);
@@ -103,6 +119,7 @@ export function hydrateFieldForGovernance(field, summary, duplicateNameCount = 1
       isSystemField,
       contextCount,
       hasGlobalContext,
+      lastFieldChangeAt: latestChangeAcrossProjects(summary?.activeProjects),
     }, thresholds),
   };
 }
@@ -802,6 +819,13 @@ export async function refreshGovernanceFindingsForFields(installationKey, versio
   const nameCountMap = buildDuplicateNameCountMap(allFields);
   const idSet = new Set(fieldIds);
 
+  // Best-effort: if the rollup query fails, findings still recompute without the
+  // staleness signal rather than losing the whole refresh.
+  const lastChangeMap = await loadFieldLastChangeMap(installationKey, version, fieldIds).catch((err) => {
+    console.warn("refreshGovernanceFindingsForFields: last-change rollup failed:", err?.message || err);
+    return new Map();
+  });
+
   const updates = allFields
     .filter((field) => idSet.has(field.id))
     .map((field) => {
@@ -815,6 +839,7 @@ export async function refreshGovernanceFindingsForFields(installationKey, versio
         usageStatus: USAGE_STATUS_READY,
         usageStatusDetail: null,
         isSystemField,
+        lastFieldChangeAt: lastChangeMap.get(field.id) ?? null,
       });
       return { id: field.id, findings };
     });

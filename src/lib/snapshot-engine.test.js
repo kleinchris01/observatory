@@ -9,6 +9,7 @@ import {
   fetchFieldCatalog,
   syncFieldCatalog,
   refreshGovernanceFindingsForFields,
+  latestChangeAcrossProjects,
 } from "./snapshot-engine.js";
 import { buildGovernanceFindings } from "./analysis.js";
 
@@ -87,6 +88,7 @@ vi.mock("./project-store.js", () => ({
   replaceFieldOptionsCache: vi.fn().mockResolvedValue({ optionCount: 0 }),
   pruneOldSnapshotVersions: vi.fn().mockResolvedValue({ fieldsDeleted: 0, usageRowsDeleted: 0 }),
   syncActiveProjectCountsFromUsage: vi.fn().mockResolvedValue({ fieldsSynced: 0 }),
+  loadFieldLastChangeMap: vi.fn().mockResolvedValue(new Map()),
 }));
 
 vi.mock("./analysis.js", () => ({
@@ -166,6 +168,40 @@ describe("hydrateFieldForGovernance", () => {
     expect(result.findings).toBeDefined();
     expect(result.findings.reasons).toHaveLength(1);
     expect(result.findings.reasons[0].title).toBe("Orphaned field");
+  });
+
+  it("derives lastFieldChangeAt from the newest active-project change date", async () => {
+    const { buildGovernanceFindings } = await import("./analysis.js");
+    const field = { id: "customfield_123", name: "Field" };
+    const summary = {
+      activeProjectCount: 2,
+      totalIssueCount: 100,
+      activeProjects: [
+        { projectKey: "AAA", latestFieldChangeAt: "2024-01-01T00:00:00.000Z" },
+        { projectKey: "BBB", latestFieldChangeAt: "2026-06-01T00:00:00.000Z" },
+      ],
+    };
+
+    hydrateFieldForGovernance(field, summary);
+
+    expect(buildGovernanceFindings).toHaveBeenCalledWith(
+      field,
+      expect.objectContaining({ lastFieldChangeAt: "2026-06-01T00:00:00.000Z" }),
+      {}
+    );
+  });
+
+  it("passes lastFieldChangeAt as null when the summary has no project dates", async () => {
+    const { buildGovernanceFindings } = await import("./analysis.js");
+    const field = { id: "customfield_123", name: "Field" };
+
+    hydrateFieldForGovernance(field, { activeProjectCount: 1, totalIssueCount: 5 });
+
+    expect(buildGovernanceFindings).toHaveBeenCalledWith(
+      field,
+      expect.objectContaining({ lastFieldChangeAt: null }),
+      {}
+    );
   });
 
   it("populates configuredProjectCount from field.configuredProjectCount", () => {
@@ -396,6 +432,73 @@ describe("refreshGovernanceFindingsForFields", () => {
       "v1",
       [expect.objectContaining({ id: "customfield_1" })]
     );
+  });
+
+  it("feeds each field's rolled-up last-change date into its governance findings", async () => {
+    const store = await getProjectStoreMock();
+    const { buildGovernanceFindings: mockFindings } = await import("./analysis.js");
+    store.loadSnapshotFields.mockResolvedValue([
+      { id: "customfield_1", name: "Stale", configuredProjectCount: 2, totalIssueCount: 10, activeProjectCount: 2 },
+      { id: "customfield_2", name: "NoDate", configuredProjectCount: 1, totalIssueCount: 5, activeProjectCount: 1 },
+    ]);
+    store.loadFieldLastChangeMap.mockResolvedValue(new Map([["customfield_1", "2023-01-01T00:00:00.000Z"]]));
+
+    await refreshGovernanceFindingsForFields(INSTALLATION_KEY, "v1", ["customfield_1", "customfield_2"]);
+
+    expect(store.loadFieldLastChangeMap).toHaveBeenCalledWith(INSTALLATION_KEY, "v1", ["customfield_1", "customfield_2"]);
+    expect(mockFindings).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "customfield_1" }),
+      expect.objectContaining({ lastFieldChangeAt: "2023-01-01T00:00:00.000Z" })
+    );
+    // A field with no recorded change date must be passed null, never left undefined —
+    // the staleness rule treats null as "unknown" and undefined would read the same,
+    // but pinning it keeps the contract explicit.
+    expect(mockFindings).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "customfield_2" }),
+      expect.objectContaining({ lastFieldChangeAt: null })
+    );
+  });
+
+  it("still recomputes findings when the last-change rollup query fails", async () => {
+    const store = await getProjectStoreMock();
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    store.loadSnapshotFields.mockResolvedValue([
+      { id: "customfield_1", name: "F", configuredProjectCount: 2, totalIssueCount: 10, activeProjectCount: 2 },
+    ]);
+    store.loadFieldLastChangeMap.mockRejectedValue(new Error("SQL rate limit"));
+
+    const result = await refreshGovernanceFindingsForFields(INSTALLATION_KEY, "v1", ["customfield_1"]);
+
+    expect(result).toEqual({ updatedCount: 1 });
+    expect(store.updateSnapshotFieldFindings).toHaveBeenCalled();
+  });
+});
+
+// ── latestChangeAcrossProjects ────────────────────────────────────────────────
+
+describe("latestChangeAcrossProjects", () => {
+  it("returns the newest timestamp across projects", () => {
+    expect(latestChangeAcrossProjects([
+      { latestFieldChangeAt: "2024-01-01T00:00:00.000Z" },
+      { latestFieldChangeAt: "2026-05-05T00:00:00.000Z" },
+      { latestFieldChangeAt: "2025-02-02T00:00:00.000Z" },
+    ])).toBe("2026-05-05T00:00:00.000Z");
+  });
+
+  it("ignores projects with missing or unparseable dates", () => {
+    expect(latestChangeAcrossProjects([
+      { latestFieldChangeAt: null },
+      { latestFieldChangeAt: "nonsense" },
+      { latestFieldChangeAt: "2024-03-03T00:00:00.000Z" },
+      {},
+    ])).toBe("2024-03-03T00:00:00.000Z");
+  });
+
+  it("returns null for empty, missing, or all-dateless input", () => {
+    expect(latestChangeAcrossProjects([])).toBeNull();
+    expect(latestChangeAcrossProjects(undefined)).toBeNull();
+    expect(latestChangeAcrossProjects(null)).toBeNull();
+    expect(latestChangeAcrossProjects([{ latestFieldChangeAt: null }])).toBeNull();
   });
 });
 

@@ -14,15 +14,37 @@ vi.mock("@forge/sql", () => {
   };
 });
 
+import { sql } from "@forge/sql";
 import {
   chunkArray,
   safeParseJson,
   toNumber,
   isSqlRateLimitError,
   withSqlRetry,
+  loadFieldLastChangeMap,
 } from "./project-store.js";
 
 afterEach(() => vi.restoreAllMocks());
+
+// Replaces the module-level sql.prepare mock with one that records the SQL text and bound
+// params per call and returns queued row sets, so query shape can be asserted directly.
+function mockSqlQueries(rowSets) {
+  const calls = [];
+  let i = 0;
+  sql.prepare.mockImplementation((text) => {
+    const call = { text, params: null };
+    calls.push(call);
+    return {
+      bindParams: (...params) => {
+        call.params = params;
+        return {
+          execute: async () => ({ rows: rowSets[i++] ?? [] }),
+        };
+      },
+    };
+  });
+  return calls;
+}
 
 // ── chunkArray ────────────────────────────────────────────────────────────────
 
@@ -196,5 +218,87 @@ describe("ensureProjectStoreReady", () => {
     await Promise.all([ensureProjectStoreReady(), ensureProjectStoreReady(), ensureProjectStoreReady()]);
 
     expect(sqlMod.migrationRunner.run).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ── loadFieldLastChangeMap ────────────────────────────────────────────────────
+
+describe("loadFieldLastChangeMap", () => {
+  test("maps field ids to their newest change timestamp", async () => {
+    mockSqlQueries([[
+      { field_id: "customfield_1", last_change_at: "2024-01-01T00:00:00.000Z" },
+      { field_id: "customfield_2", last_change_at: "2026-06-01T00:00:00.000Z" },
+    ]]);
+
+    const map = await loadFieldLastChangeMap("scope", "v1", ["customfield_1", "customfield_2"]);
+
+    expect(map.get("customfield_1")).toBe("2024-01-01T00:00:00.000Z");
+    expect(map.get("customfield_2")).toBe("2026-06-01T00:00:00.000Z");
+    expect(map.size).toBe(2);
+  });
+
+  test("aggregates with MAX and excludes NULL change dates at the query level", async () => {
+    const calls = mockSqlQueries([[]]);
+
+    await loadFieldLastChangeMap("scope", "v1", ["customfield_1"]);
+
+    expect(calls[0].text).toContain("MAX(latest_field_change_at)");
+    expect(calls[0].text).toContain("latest_field_change_at IS NOT NULL");
+    expect(calls[0].text).toContain("GROUP BY field_id");
+  });
+
+  test("scopes the query by scope key and version and filters to the requested ids", async () => {
+    const calls = mockSqlQueries([[]]);
+
+    await loadFieldLastChangeMap("scope-a", "v7", ["customfield_1", "customfield_2"]);
+
+    expect(calls[0].text).toContain("field_id IN (?, ?)");
+    expect(calls[0].params).toEqual(["scope-a", "v7", "customfield_1", "customfield_2"]);
+  });
+
+  test("omits the IN filter entirely when no field ids are given", async () => {
+    const calls = mockSqlQueries([[]]);
+
+    await loadFieldLastChangeMap("scope", "v1", null);
+
+    expect(calls[0].text).not.toContain("field_id IN");
+    expect(calls[0].params).toEqual(["scope", "v1"]);
+  });
+
+  test("returns an empty map without querying when fieldIds is an empty array", async () => {
+    const calls = mockSqlQueries([[]]);
+
+    const map = await loadFieldLastChangeMap("scope", "v1", []);
+
+    expect(map.size).toBe(0);
+    expect(calls).toHaveLength(0);
+  });
+
+  test("chunks large id lists into separate queries and merges the results", async () => {
+    const ids = Array.from({ length: 250 }, (_, i) => `customfield_${i}`);
+    const calls = mockSqlQueries([
+      [{ field_id: "customfield_0", last_change_at: "2024-01-01T00:00:00.000Z" }],
+      [{ field_id: "customfield_100", last_change_at: "2025-01-01T00:00:00.000Z" }],
+      [{ field_id: "customfield_200", last_change_at: "2026-01-01T00:00:00.000Z" }],
+    ]);
+
+    const map = await loadFieldLastChangeMap("scope", "v1", ids);
+
+    expect(calls).toHaveLength(3);
+    expect(map.size).toBe(3);
+    expect(map.get("customfield_200")).toBe("2026-01-01T00:00:00.000Z");
+  });
+
+  test("skips rows with a missing field id or null aggregate", async () => {
+    mockSqlQueries([[
+      { field_id: "customfield_1", last_change_at: null },
+      { field_id: null, last_change_at: "2026-01-01T00:00:00.000Z" },
+      { field_id: "customfield_3", last_change_at: "2026-02-02T00:00:00.000Z" },
+    ]]);
+
+    const map = await loadFieldLastChangeMap("scope", "v1", null);
+
+    expect(map.size).toBe(1);
+    expect(map.get("customfield_3")).toBe("2026-02-02T00:00:00.000Z");
   });
 });
