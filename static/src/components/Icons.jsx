@@ -17,6 +17,7 @@ import {
   Lock,
   Clock,
   Sliders,
+  Copy,
 } from "@phosphor-icons/react";
 
 export function useLiveDuration(startedAt) {
@@ -56,6 +57,7 @@ export const ICON_COMPONENTS = {
   lock: Lock,
   clock: Clock,
   sliders: Sliders,
+  copy: Copy,
 };
 
 // Validated categorical palette (dataviz skill's reference instance, references/palette.md) --

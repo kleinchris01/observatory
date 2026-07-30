@@ -1,5 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, test, expect, vi, beforeEach, afterEach } from "vitest";
 import {
+  copyToClipboard,
   formatTimestamp,
   formatNumber,
   formatShortTime,
@@ -567,5 +568,76 @@ describe("buildReportRovoPrompt", () => {
   it("includes field count", () => {
     const result = buildReportRovoPrompt(params);
     expect(result).toContain("2");
+  });
+});
+
+// ── copyToClipboard ──────────────────────────────────────────────────────────
+
+describe("copyToClipboard", () => {
+  afterEach(() => {
+    delete document.execCommand;
+  });
+
+  function setClipboard(value) {
+    Object.defineProperty(navigator, "clipboard", { value, configurable: true, writable: true });
+  }
+
+  test("uses navigator.clipboard when available", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    setClipboard({ writeText });
+
+    await expect(copyToClipboard("customfield_1")).resolves.toBe(true);
+    expect(writeText).toHaveBeenCalledWith("customfield_1");
+  });
+
+  // Forge Custom UI renders in a sandboxed iframe; without the clipboard-write
+  // permission policy the API is absent, and the execCommand path is the only one left.
+  test("falls back to execCommand when navigator.clipboard is missing", async () => {
+    setClipboard(undefined);
+    document.execCommand = vi.fn().mockReturnValue(true);
+
+    await expect(copyToClipboard("customfield_1")).resolves.toBe(true);
+    expect(document.execCommand).toHaveBeenCalledWith("copy");
+  });
+
+  test("falls back to execCommand when the clipboard API rejects", async () => {
+    setClipboard({ writeText: vi.fn().mockRejectedValue(new Error("permissions policy")) });
+    document.execCommand = vi.fn().mockReturnValue(true);
+
+    await expect(copyToClipboard("customfield_1")).resolves.toBe(true);
+    expect(document.execCommand).toHaveBeenCalledWith("copy");
+  });
+
+  test("resolves false when both paths fail", async () => {
+    setClipboard({ writeText: vi.fn().mockRejectedValue(new Error("nope")) });
+    document.execCommand = vi.fn().mockReturnValue(false);
+
+    await expect(copyToClipboard("customfield_1")).resolves.toBe(false);
+  });
+
+  test("resolves false for empty or nullish text without touching the clipboard", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    setClipboard({ writeText });
+
+    await expect(copyToClipboard("")).resolves.toBe(false);
+    await expect(copyToClipboard(null)).resolves.toBe(false);
+    await expect(copyToClipboard(undefined)).resolves.toBe(false);
+    expect(writeText).not.toHaveBeenCalled();
+  });
+
+  test("removes the temporary textarea from the DOM after the fallback runs", async () => {
+    setClipboard(undefined);
+    document.execCommand = vi.fn().mockReturnValue(true);
+
+    await copyToClipboard("customfield_1");
+
+    expect(document.querySelectorAll("textarea")).toHaveLength(0);
+  });
+
+  test("resolves false rather than throwing when execCommand itself throws", async () => {
+    setClipboard(undefined);
+    document.execCommand = vi.fn(() => { throw new Error("not supported"); });
+
+    await expect(copyToClipboard("customfield_1")).resolves.toBe(false);
   });
 });

@@ -118,6 +118,44 @@ export function downloadCsv(filename, rows) {
   URL.revokeObjectURL(url);
 }
 
+// Copy text to the clipboard, resolving true on success and false on failure.
+//
+// navigator.clipboard is not dependable here: Forge Custom UI renders inside a sandboxed
+// cross-origin iframe, and unless the host page grants the clipboard-write permission
+// policy the API is either missing outright or present-but-rejecting. The execCommand
+// path is deprecated but still the only thing that works in that case, so it stays as a
+// fallback rather than an alternative.
+export async function copyToClipboard(text) {
+  const value = String(text ?? "");
+  if (!value) return false;
+
+  if (navigator?.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(value);
+      return true;
+    } catch {
+      // Permission policy blocked it — fall through to the textarea path.
+    }
+  }
+
+  try {
+    const textarea = document.createElement("textarea");
+    textarea.value = value;
+    // Keep it out of view and out of the tab order, and avoid scrolling the card away.
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.top = "-9999px";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(textarea);
+    return Boolean(ok);
+  } catch {
+    return false;
+  }
+}
+
 export function slugifyFilenamePart(value, fallback = "report") {
   const normalized = String(value || "")
     .toLowerCase()

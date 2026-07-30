@@ -12,6 +12,7 @@ import {
   toDisplayName,
   formatTimestamp,
   formatNumber,
+  copyToClipboard,
 } from "../utils";
 import { Icon } from "./Icons";
 import { FieldOptionsModal } from "./FieldOptionsModal";
@@ -22,6 +23,51 @@ export function MetricChip({ label, value, tone = "neutral" }) {
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
+  );
+}
+
+// The field id itself, clickable to copy. The id text always stays visible — the copy
+// affordance is the icon beside it, not a control that stands in for the value.
+//
+// Rendered as a role="button" span rather than a real <button> because it sits inside the
+// card-header <button> that toggles the panel, and nesting buttons is invalid HTML. Click
+// and keyboard activation both stopPropagation so copying never also expands the card.
+export function CopyableFieldId({ fieldId }) {
+  const [state, setState] = React.useState("idle"); // idle | copied | failed
+  const timerRef = React.useRef(null);
+
+  React.useEffect(() => () => clearTimeout(timerRef.current), []);
+
+  async function copy(event) {
+    event.stopPropagation();
+    event.preventDefault();
+    const ok = await copyToClipboard(fieldId);
+    setState(ok ? "copied" : "failed");
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setState("idle"), 1500);
+  }
+
+  return (
+    <span
+      role="button"
+      tabIndex={0}
+      className={`copy-field-id copy-field-id--${state}`}
+      title={`Copy field ID ${fieldId}`}
+      aria-label={`Copy field ID ${fieldId}`}
+      onClick={copy}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") copy(event);
+      }}
+    >
+      <span className="copy-field-id__value">{fieldId}</span>
+      <Icon name={state === "copied" ? "check" : "copy"} size={11} />
+      {/* Success is carried by the icon swap and color alone so the id never shifts on the
+          happy path; a failure is rare enough that the layout cost of saying so is worth it. */}
+      {state === "failed" ? <span className="copy-field-id__note">Copy failed</span> : null}
+      <span className="sr-only" role="status" aria-live="polite">
+        {state === "copied" ? "Copied" : state === "failed" ? "Copy failed" : ""}
+      </span>
+    </span>
   );
 }
 
@@ -217,7 +263,7 @@ export function FieldCard({
             Select for report
           </label>
           <div className="field-card__field-id">
-            {field.id}
+            <CopyableFieldId fieldId={field.id} />
             {field.isSystemField && <span className="field-badge field-badge--system">System</span>}
             {!field.isSystemField && field.isJiraBuiltin && <span className="field-badge field-badge--builtin">Jira built-in</span>}
           </div>

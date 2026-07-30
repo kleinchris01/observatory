@@ -33,6 +33,7 @@ import {
   sortInventoryFields,
   summarizeFindings,
   buildInventoryRecord,
+  daysSince,
 } from "./analysis.js";
 
 afterEach(() => vi.restoreAllMocks());
@@ -717,6 +718,102 @@ describe("buildGovernanceFindings — rule: broadly scoped with light usage", ()
   test("does not fire when issues exceed lightUsageMaxIssues", () => {
     const result = findings(customField, { activeProjectCount: 5, totalIssueCount: 500, usageStatus: "ready" });
     expect(result.reasons.find((r) => r.title.includes("very light usage"))).toBeUndefined();
+  });
+});
+
+describe("buildGovernanceFindings — rule: no field activity in over a year", () => {
+  const NOW = Date.parse("2026-07-30T00:00:00.000Z");
+  const daysAgo = (n) => new Date(NOW - n * 86400000).toISOString();
+  const stale = (over, extra = {}) =>
+    findings(customField, {
+      totalIssueCount: 400,
+      activeProjectCount: 2,
+      usageStatus: "ready",
+      lastFieldChangeAt: daysAgo(over),
+      now: NOW,
+      ...extra,
+    });
+  const rule = (result) => result.reasons.find((r) => r.title.includes("No field activity"));
+
+  test("fires for a populated field whose last change is older than the threshold", () => {
+    const result = stale(400);
+    expect(rule(result)).toBeDefined();
+    expect(rule(result).category).toBe("cleanup");
+    expect(rule(result).severity).toBe("medium");
+  });
+
+  test("does not fire when the last change is inside the threshold", () => {
+    expect(rule(stale(364))).toBeUndefined();
+  });
+
+  test("fires exactly at the threshold boundary", () => {
+    expect(rule(stale(365))).toBeDefined();
+  });
+
+  test("respects a custom staleFieldMaxAgeDays threshold", () => {
+    const result = findings(
+      customField,
+      { totalIssueCount: 400, usageStatus: "ready", lastFieldChangeAt: daysAgo(200), now: NOW },
+      { staleFieldMaxAgeDays: 180 }
+    );
+    expect(rule(result)).toBeDefined();
+  });
+
+  // The whole point of the totalIssueCount > 0 guard: an unpopulated field is already
+  // reported by the orphaned / "configured but no populated issues" rules.
+  test("does not fire for a field with no populated issues", () => {
+    expect(rule(stale(1000, { totalIssueCount: 0 }))).toBeUndefined();
+  });
+
+  test("does not fire when no change date is known", () => {
+    expect(rule(stale(400, { lastFieldChangeAt: null }))).toBeUndefined();
+  });
+
+  test("does not fire when usage data is unavailable", () => {
+    expect(rule(stale(400, { usageStatus: "unavailable" }))).toBeUndefined();
+  });
+
+  test("does not fire for system fields", () => {
+    const result = findings(systemField, {
+      totalIssueCount: 400,
+      usageStatus: "ready",
+      isSystemField: true,
+      lastFieldChangeAt: daysAgo(900),
+      now: NOW,
+    });
+    expect(rule(result)).toBeUndefined();
+  });
+
+  test("reports years once past two years, days below that", () => {
+    expect(rule(stale(400)).detail).toContain("400 days ago");
+    expect(rule(stale(800)).detail).toContain("2 years ago");
+  });
+
+  test("tags the field for cleanup", () => {
+    expect(stale(400).tags.cleanup).toBe(true);
+  });
+});
+
+describe("daysSince", () => {
+  const NOW = Date.parse("2026-07-30T00:00:00.000Z");
+
+  test("returns whole days elapsed", () => {
+    expect(daysSince(new Date(NOW - 10 * 86400000).toISOString(), NOW)).toBe(10);
+  });
+
+  test("floors partial days", () => {
+    expect(daysSince(new Date(NOW - (10 * 86400000 + 3600000)).toISOString(), NOW)).toBe(10);
+  });
+
+  test("returns null for missing, unparseable, or future dates", () => {
+    expect(daysSince(null, NOW)).toBeNull();
+    expect(daysSince("", NOW)).toBeNull();
+    expect(daysSince("not-a-date", NOW)).toBeNull();
+    expect(daysSince(new Date(NOW + 86400000).toISOString(), NOW)).toBeNull();
+  });
+
+  test("accepts a plain date string", () => {
+    expect(daysSince("2026-07-20", NOW)).toBe(10);
   });
 });
 

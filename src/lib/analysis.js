@@ -24,6 +24,7 @@ export const DEFAULT_GOVERNANCE_THRESHOLDS = {
   configuredActiveGapMaxRatio: 0.70,
   globalContextMaxIssues: 50,
   contextSprawlMinContexts: 8,
+  staleFieldMaxAgeDays: 365,
 };
 
 const SELECT_FIELD_TYPE_KEYWORDS = ["select", "multiselect", "radiobutton", "checkbox", "cascadingselect"];
@@ -220,6 +221,20 @@ export function isLikelyAppProvidedField(field) {
   return Boolean(ct && !ct.startsWith("com.atlassian.jira.plugin.system.customfieldtypes:"));
 }
 
+// Whole days between `at` and `now`. Returns null for a missing/unparseable value or a
+// future date -- callers treat null as "we don't know", never as "not stale", because
+// the only source of these timestamps (snapshot_project_usage.latest_field_change_at) is
+// NULL for any field whose usage came from the Universal Scan rather than a per-field
+// summary build. Guessing "stale" from absent data would flag half the catalog.
+export function daysSince(at, now = Date.now()) {
+  if (!at) return null;
+  const then = new Date(at).getTime();
+  if (!Number.isFinite(then)) return null;
+  const diffMs = now - then;
+  if (diffMs < 0) return null;
+  return Math.floor(diffMs / 86400000);
+}
+
 export function isJiraBuiltinField(field) {
   const ct = String(field?.customType || field?.schema?.custom || "");
   if (!ct) return false;
@@ -276,6 +291,7 @@ export function buildGovernanceFindings(field, metrics = {}, thresholds = {}) {
   const isSystemField = Boolean(metrics.isSystemField);
   const contextCount = metrics.contextCount ?? 0;
   const hasGlobalContext = Boolean(metrics.hasGlobalContext);
+  const staleDays = daysSince(metrics.lastFieldChangeAt, metrics.now ?? Date.now());
 
   const reasons = [];
   let priorityScore = 0;
@@ -357,6 +373,22 @@ export function buildGovernanceFindings(field, metrics = {}, thresholds = {}) {
         : `Active in ${activeProjectCount} projects but only ${totalIssueCount.toLocaleString()} populated issues were found.`,
     });
     priorityScore += 22;
+  }
+
+  // Deliberately requires totalIssueCount > 0: a field with no data at all is already
+  // covered by the orphaned / "configured but no populated issues" rules above, and
+  // firing both would double-count it into Admin Attention on priority score alone.
+  // This rule is specifically "it WAS used, and then everyone stopped".
+  if (!isSystemField && usageAvailable && totalIssueCount > 0 && staleDays !== null && staleDays >= t.staleFieldMaxAgeDays) {
+    const years = staleDays / 365;
+    reasons.push({
+      category: "cleanup", severity: "medium",
+      title: "No field activity in over a year",
+      detail: `${totalIssueCount.toLocaleString()} issues carry a value, but the most recent recorded change was ${
+        years >= 2 ? `${Math.floor(years)} years` : `${staleDays} days`
+      } ago. The data is historical — consider retiring the field or removing it from active screens.`,
+    });
+    priorityScore += 20;
   }
 
   if (!isSystemField && contextCount >= t.contextSprawlMinContexts) {

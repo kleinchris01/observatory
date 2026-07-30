@@ -38,6 +38,7 @@ const DEFAULT_THRESHOLDS = {
   configuredActiveGapMaxRatio: 0.70,
   globalContextMaxIssues: 50,
   contextSprawlMinContexts: 8,
+  staleFieldMaxAgeDays: 365,
 };
 
 const DEFAULT_MACRO_ACCESS = {
@@ -610,6 +611,15 @@ function ConfigTab({ config, onSave, saving }) {
               <strong>Over-scoped global context:</strong> Flag fields available to all projects (global context) when they have fewer than{" "}
               <InlineThresholdInput value={t.globalContextMaxIssues} onChange={(v) => setThreshold("globalContextMaxIssues", v)} min={1} max={100000} />{" "}
               issues — probably not worth applying site-wide.
+            </span>
+          </div>
+
+          <div className="admin-threshold-rule">
+            <span className="admin-threshold-rule__badge admin-threshold-rule__badge--cleanup">Cleanup</span>
+            <span className="admin-threshold-rule__sentence">
+              <strong>No recent activity:</strong> Flag fields that have issue data but whose most recent recorded change is older than{" "}
+              <InlineThresholdInput value={t.staleFieldMaxAgeDays} onChange={(v) => setThreshold("staleFieldMaxAgeDays", v)} min={30} max={3650} />{" "}
+              days — the data is historical. Only applies to fields whose per-project usage was built with changelog dates.
             </span>
           </div>
 

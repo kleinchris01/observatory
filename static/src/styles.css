@@ -998,6 +998,77 @@ select {
   gap: 8px;
 }
 
+/* The field id itself is the copy target — it inherits the id line's type and color so it
+   reads as the value, not as a button. Only the trailing icon signals the affordance.
+   Sits inside the card-header button, so it is a role="button" span rather than a nested
+   <button>. Negative margins cancel the padding so the id stays optically aligned. */
+.copy-field-id {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 5px;
+  margin: -1px -5px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+
+/* Icon stays hidden until the card is hovered or the control focused, so the id line
+   stays quiet at rest. */
+.copy-field-id svg {
+  opacity: 0;
+  flex: none;
+  transition: opacity 120ms ease;
+}
+
+.field-card:hover .copy-field-id svg,
+.copy-field-id:focus-visible svg,
+.copy-field-id--copied svg,
+.copy-field-id--failed svg {
+  opacity: 1;
+}
+
+.copy-field-id:hover {
+  color: var(--text);
+  border-color: var(--stroke);
+}
+
+.copy-field-id:focus-visible {
+  outline: 2px solid var(--cool);
+  outline-offset: 1px;
+}
+
+.copy-field-id--copied { color: var(--success); }
+.copy-field-id--failed { color: var(--warm); }
+
+.copy-field-id__note {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Touch and keyboard-only users never fire :hover, so the affordance must not be
+   hover-gated for them. */
+@media (hover: none) {
+  .copy-field-id svg { opacity: 1; }
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .field-badge {
   display: inline-flex;
   align-items: center;
