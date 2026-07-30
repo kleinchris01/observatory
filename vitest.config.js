@@ -7,6 +7,18 @@ export default defineConfig({
       reporter: ["text-summary", "lcov"],
       include: ["src/*.js", "src/lib/**/*.js", "static/src/**/*.{js,jsx}"],
       exclude: ["**/*.test.*", "static/src/test-setup.js"],
+      // A ratchet, not a goal. These are set just below current actuals so coverage
+      // can only go up: adding untested code fails CI, and raising the numbers is a
+      // deliberate edit here. Per-file overrides pin the modules whose failure modes
+      // are hardest to debug in production -- the Jira transport and the queue router.
+      thresholds: {
+        lines: 63,
+        functions: 48,
+        branches: 73,
+        "src/lib/jira-api.js": { lines: 98, functions: 90, branches: 81 },
+        "src/index.js": { lines: 98, functions: 85, branches: 83 },
+        "src/lib/report-engine.js": { lines: 100, functions: 100, branches: 90 },
+      },
     },
   },
 });
