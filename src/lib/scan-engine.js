@@ -16,6 +16,7 @@ import {
   ISSUE_SCAN_WORKERS,
   ISSUE_SCAN_INTER_PAGE_DELAY_MS,
   ISSUE_SCAN_FLUSH_EVERY_PAGES,
+  ISSUE_SCAN_CANCEL_CHECK_EVERY_PAGES,
 } from "./jira-api.js";
 import {
   ensureProjectStoreReady,
@@ -368,244 +369,6 @@ export async function runIssueScanCoordinator(installationKey) {
   }
 }
 
-export async function runIssueScanWorker(installationKey, workerId, jqlFilter, fieldIds) {
-  const tag = `runIssueScanWorker[${workerId}]`;
-  if (!jqlFilter) {
-    // Empty bin — no projects assigned; count this worker done immediately
-    console.log(`${tag}: no projects assigned, skipping`);
-    const updatedMeta = await atomicAccumulateIssueScanProgress(installationKey, 1, 0).catch(() => null);
-    if (updatedMeta && updatedMeta.processedPages >= updatedMeta.totalPages && updatedMeta.totalPages > 0) {
-      const claimToken = makeJobToken();
-      const claimed = await tryClaimIssueScanFinalization(installationKey, claimToken).catch(() => false);
-      if (claimed) await finalizeIssueScan(installationKey).catch(() => {});
-    }
-    return;
-  }
-  const jql = jqlFilter;
-  console.log(`${tag}: starting — jql: ${jql}`);
-
-  let pendingIssues = 0;
-  const fieldProjectCounts = new Map();
-  const projectTotals = new Map();
-  const rqtFieldHits = new Map(); // fieldId → { count, values: Set<string> }
-  const rqtIssueBuffer = []; // { projectKey, issueKey }
-  const rqtValueBuffer = []; // { rqtValue, issueKey }
-  const rqtFieldIssueBuffer = []; // { fieldId, issueKey }
-
-  try {
-    await ensureProjectStoreReady();
-
-    const scanFields = fieldIds || ["*all"];
-    let currentNextPageToken = null;
-    let pageCount = 0;
-    let issueCount = 0;
-
-    for (let page = 0; ; page++) {
-      // Periodic flush + progress push + cancellation check
-      if (page > 0 && page % ISSUE_SCAN_FLUSH_EVERY_PAGES === 0) {
-        if (fieldProjectCounts.size > 0 || projectTotals.size > 0) {
-          await flushIssueScanCounts(installationKey, fieldProjectCounts, projectTotals);
-          fieldProjectCounts.clear();
-          projectTotals.clear();
-        }
-        if (pendingIssues > 0) {
-          const updMid = await atomicAccumulateIssueScanProgress(installationKey, 0, pendingIssues).catch(() => null);
-          if (updMid) {
-            const cur = updMid.processedIssues ?? 0;
-            const prev = cur - pendingIssues;
-            if (Math.floor(prev / 5000) < Math.floor(cur / 5000)) {
-              const tot = updMid.totalIssues ?? 0;
-              await appendIssueScanLogEntry(installationKey,
-                `${cur.toLocaleString()}${tot > 0 ? ` / ${tot.toLocaleString()}` : ""} issues scanned`
-              ).catch(() => {});
-            }
-          }
-          pendingIssues = 0;
-        }
-        const cancelCheck = await readIssueScanMeta(installationKey);
-        if (cancelCheck?.state === "cancelled") {
-          console.log(`${tag}: scan cancelled`);
-          return;
-        }
-      }
-
-      const reqBody = {
-        jql,
-        maxResults: ISSUE_SCAN_PAGE_SIZE,
-        fields: scanFields,
-        fieldsByKeys: false,
-      };
-      if (currentNextPageToken) reqBody.nextPageToken = currentNextPageToken;
-
-      const data = await jiraRequest(route`/rest/api/3/search/jql`, {
-        method: "POST",
-        body: JSON.stringify(reqBody),
-      });
-
-      const issues = data?.issues || [];
-      const newNextPageToken = data?.nextPageToken || null;
-
-      for (const issue of issues) {
-        const projectId = String(issue.fields?.project?.id || "");
-        if (!projectId) continue;
-        const projectKey_ = String(issue.fields?.project?.key || "");
-        const projectName = String(issue.fields?.project?.name || projectKey_);
-
-        const projEntry = projectTotals.get(projectId) || { count: 0, key: projectKey_, name: projectName };
-        projEntry.count++;
-        projectTotals.set(projectId, projEntry);
-
-        for (const [fieldId, value] of Object.entries(issue.fields || {})) {
-          if (STRUCTURAL_SYSTEM_FIELDS.has(fieldId)) continue;
-          if (!isFieldValueNonEmpty(value)) continue;
-          let byProject = fieldProjectCounts.get(fieldId);
-          if (!byProject) { byProject = new Map(); fieldProjectCounts.set(fieldId, byProject); }
-          const entry = byProject.get(projectId) || { count: 0, key: projectKey_, name: projectName };
-          entry.count++;
-          byProject.set(projectId, entry);
-        }
-
-        const issueRqt = collectIssueRqtValues(issue.fields, issue.fields?.summary);
-        for (const [fieldId, values] of issueRqt) {
-          const rqtEntry = rqtFieldHits.get(fieldId) || { count: 0, values: new Set() };
-          rqtEntry.count++;
-          for (const v of values) rqtEntry.values.add(v);
-          rqtFieldHits.set(fieldId, rqtEntry);
-        }
-
-        if (issueRqt.size > 0 && issue.key) {
-          rqtIssueBuffer.push({
-            projectKey: projectKey_,
-            issueType: issue.fields?.issuetype?.name || "Unknown",
-            issueKey: issue.key,
-          });
-          const allValues = new Set();
-          for (const vals of issueRqt.values()) for (const v of vals) allValues.add(v);
-          for (const v of allValues) rqtValueBuffer.push({ rqtValue: v, issueKey: issue.key });
-        }
-        if (issueRqt.size > 0 && issue.key) {
-          for (const fieldId of issueRqt.keys()) {
-            rqtFieldIssueBuffer.push({ fieldId, issueKey: issue.key });
-          }
-        }
-      }
-
-      pageCount++;
-      issueCount += issues.length;
-      pendingIssues += issues.length;
-      currentNextPageToken = newNextPageToken;
-      if (!newNextPageToken || issues.length === 0) break;
-      await sleep(ISSUE_SCAN_INTER_PAGE_DELAY_MS);
-    }
-
-    // Flush remaining counts then mark this worker done (processedPages += 1)
-    if (fieldProjectCounts.size > 0 || projectTotals.size > 0) {
-      await flushIssueScanCounts(installationKey, fieldProjectCounts, projectTotals);
-    }
-    if (rqtFieldHits.size > 0) {
-      await upsertRqtFieldHits(installationKey, rqtFieldHits).catch((e) => {
-        console.error(`${tag}: RQT flush error`, e?.message || e);
-      });
-    }
-    if (rqtIssueBuffer.length > 0) {
-      await upsertRqtIssueKeys(installationKey, rqtIssueBuffer).catch((e) => {
-        console.error(`${tag}: RQT issue key flush error`, e?.message || e);
-      });
-    }
-    if (rqtValueBuffer.length > 0) {
-      await upsertRqtValueIssueKeys(installationKey, rqtValueBuffer).catch((e) => {
-        console.error(`${tag}: RQT value index flush error`, e?.message || e);
-      });
-    }
-    if (rqtFieldIssueBuffer.length > 0) {
-      await upsertRqtFieldIssueKeys(installationKey, rqtFieldIssueBuffer).catch((e) => {
-        console.error(`RQT field issue index flush error`, e?.message || e);
-      });
-    }
-    const updatedMeta = await atomicAccumulateIssueScanProgress(installationKey, 1, pendingIssues);
-    pendingIssues = 0;
-    console.log(`${tag}: done — ${issueCount} issues, ${pageCount} pages`);
-
-    // Last worker to finish claims finalization
-    const doneWorkers = updatedMeta?.processedPages ?? 0;
-    const totalWorkers = updatedMeta?.totalPages ?? 0;
-    if (doneWorkers >= totalWorkers && totalWorkers > 0) {
-      const claimToken = makeJobToken();
-      const claimed = await tryClaimIssueScanFinalization(installationKey, claimToken);
-      if (claimed) {
-        console.log(`${tag}: finalizing scan...`);
-        await finalizeIssueScan(installationKey);
-
-        const snapshotMeta = await readSnapshotMeta(installationKey);
-        if (snapshotMeta?.version) {
-          const promoted = await promoteIssueScanToSnapshotProjectUsage(installationKey, snapshotMeta.version);
-          console.log(`${tag}: promoted ${promoted.fieldsPromoted} fields (${promoted.rowsInserted} rows)`);
-        }
-
-        const finalMeta = await readIssueScanMeta(installationKey);
-        await writeIssueScanMeta(installationKey, {
-          state: "ready",
-          completedAt: new Date().toISOString(),
-          nextStartAt: 0,
-          lastError: null,
-          progressLog: [
-            ...((finalMeta?.progressLog || []).slice(-40)),
-            { t: new Date().toISOString(), msg: `Scan complete — ${(finalMeta?.processedIssues || 0).toLocaleString()} issues` },
-          ],
-        });
-        console.log(`${tag}: scan finalized and marked ready`);
-      }
-    }
-
-  } catch (error) {
-    const errMsg = error?.message || String(error);
-    if (isJiraRateLimitError(error)) {
-      const retryAfterMs = getRetryDelayMs(error, 0);
-      const retryAt = Date.now() + retryAfterMs;
-      logger.warn("scan.worker.ratelimit", { installationKey, workerId, retryAfterSec: Math.round(retryAfterMs / 1000) });
-      console.warn(`${tag}: rate-limited; checkpoint kept and worker will retry in ${Math.round(retryAfterMs / 1000)}s`);
-      await updateIssueScanWorker(installationKey, workerId, {
-        status: "queued",
-        lastError: `Rate-limited; retrying after ${new Date(retryAt).toISOString()}`,
-      }).catch(() => {});
-      await appendIssueScanLogEntry(
-        installationKey,
-        `Worker ${workerId} rate-limited - retrying in ${Math.round(retryAfterMs / 1000)}s`
-      ).catch(() => {});
-      await sleep(retryAfterMs);
-      await queueIssueScanWorker(installationKey, workerId).catch(async (pushError) => {
-        await writeIssueScanMeta(installationKey, {
-          state: "queued",
-          nextStartAt: Date.now() + ISSUE_SCAN_RATE_LIMIT_COOLDOWN_MS,
-          lastError: `Queue retry failed after rate limit: ${pushError?.message || String(pushError)}`,
-        }).catch(() => {});
-      });
-      return;
-    }
-    console.error(`${tag} failed:`, errMsg);
-    await appendIssueScanLogEntry(installationKey, `Worker ${workerId} failed — ${errMsg}`).catch(() => {});
-    // Count this worker done so finalization can still fire if it was the last one
-    const updatedMeta = await atomicAccumulateIssueScanProgress(installationKey, 1, pendingIssues).catch(() => null);
-    if (updatedMeta && updatedMeta.processedPages >= updatedMeta.totalPages && updatedMeta.totalPages > 0) {
-      const claimToken = makeJobToken();
-      const claimed = await tryClaimIssueScanFinalization(installationKey, claimToken).catch(() => false);
-      if (claimed) {
-        await finalizeIssueScan(installationKey).catch(() => {});
-        const snapshotMeta = await readSnapshotMeta(installationKey).catch(() => null);
-        if (snapshotMeta?.version) {
-          await promoteIssueScanToSnapshotProjectUsage(installationKey, snapshotMeta.version).catch(() => {});
-        }
-        await writeIssueScanMeta(installationKey, {
-          state: "ready",
-          completedAt: new Date().toISOString(),
-          nextStartAt: 0,
-          lastError: `Worker ${workerId} failed — ${errMsg}`,
-        }).catch(() => {});
-      }
-    }
-  }
-}
-
 export async function runIssueScanWorkerV2(installationKey, workerId) {
   const tag = `runIssueScanWorker[${workerId}]`;
   let pendingIssues = 0;
@@ -659,6 +422,9 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
     let issueCount = 0;
 
     for (let page = 0; page < ISSUE_SCAN_CHUNK_PAGES; page++) {
+      // With ISSUE_SCAN_FLUSH_EVERY_PAGES >= ISSUE_SCAN_CHUNK_PAGES this never fires and
+      // the single end-of-chunk flush below does the work. Kept rather than deleted so
+      // lowering the constant restores mid-chunk flushing without a code change.
       if (page > 0 && page % ISSUE_SCAN_FLUSH_EVERY_PAGES === 0) {
         if (fieldProjectCounts.size > 0 || projectTotals.size > 0) {
           await flushIssueScanCounts(installationKey, fieldProjectCounts, projectTotals);
@@ -689,6 +455,9 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
           pageCount = 0;
           pendingIssues = 0;
         }
+      }
+
+      if (page > 0 && page % ISSUE_SCAN_CANCEL_CHECK_EVERY_PAGES === 0) {
         const cancelCheck = await readIssueScanMeta(installationKey);
         if (cancelCheck?.state === "cancelled") {
           console.log(`${tag}: scan cancelled`);

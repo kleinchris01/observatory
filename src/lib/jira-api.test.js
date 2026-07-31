@@ -757,3 +757,37 @@ describe("getWorkflowSchemesForProjects", () => {
     expect(mockRequestJira).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Scan cadence constants
+//
+// These are pure numbers, but they are the app's main lever on Forge's SQL
+// request quota -- the one that binds long before compute or storage. A 325k
+// issue site was measured at ~30k SQL requests per full scan against a 100k
+// monthly allowance, so a silent change here is a billing regression, not a
+// style choice.
+// ---------------------------------------------------------------------------
+describe("issue scan cadence", () => {
+  test("flushes once per worker chunk rather than mid-chunk", async () => {
+    const { ISSUE_SCAN_FLUSH_EVERY_PAGES } = await import("./jira-api.js");
+    // scan-engine's loop is bounded by ISSUE_SCAN_CHUNK_PAGES (10). At or above
+    // that bound the mid-loop flush never fires and the end-of-chunk flush --
+    // which is also the durable checkpoint -- does the work exactly once.
+    expect(ISSUE_SCAN_FLUSH_EVERY_PAGES).toBeGreaterThanOrEqual(10);
+  });
+
+  test("checks for cancellation more often than it flushes", async () => {
+    const { ISSUE_SCAN_FLUSH_EVERY_PAGES, ISSUE_SCAN_CANCEL_CHECK_EVERY_PAGES } = await import("./jira-api.js");
+    // A cancel check is one cheap read; a flush is many writes. Tying them to the
+    // same cadence is what made cancellation expensive in the first place.
+    expect(ISSUE_SCAN_CANCEL_CHECK_EVERY_PAGES).toBeLessThan(ISSUE_SCAN_FLUSH_EVERY_PAGES);
+    expect(ISSUE_SCAN_CANCEL_CHECK_EVERY_PAGES).toBeGreaterThan(0);
+  });
+
+  test("page size stays at the Jira cursor-search ceiling", async () => {
+    const { ISSUE_SCAN_PAGE_SIZE } = await import("./jira-api.js");
+    // Jira Cloud caps maxResults at 100 for cursor-based search. Anything lower
+    // multiplies both HTTP round trips and per-page SQL bookkeeping.
+    expect(ISSUE_SCAN_PAGE_SIZE).toBe(100);
+  });
+});

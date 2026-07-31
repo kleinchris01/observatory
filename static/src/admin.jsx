@@ -2264,7 +2264,10 @@ function ScansTab({ siteOrigin, initialSection }) {
   React.useEffect(() => {
     const active = issueScanStatus?.state === "building" || issueScanStatus?.state === "queued";
     if (!active) return;
-    const timer = setInterval(() => { fetchIssueScanStatus(); fetchDeltaStatus(); }, 8000);
+    // 15s, not 8s: a full scan runs for over an hour, so 8-second granularity was finer
+    // than anyone reads while costing two resolver invocations -- and their SQL reads --
+    // every 8 seconds for the whole run.
+    const timer = setInterval(() => { fetchIssueScanStatus(); fetchDeltaStatus(); }, 15000);
     return () => clearInterval(timer);
   }, [issueScanStatus?.state]);
 

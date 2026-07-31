@@ -2021,7 +2021,11 @@ export async function flushIssueScanCounts(scopeKey, fieldProjectCounts, project
 
   if (!rows.length) return;
 
-  for (const batch of chunkArray(rows, 50)) {
+  // 150, not 50: this is the hottest write path in the app -- one call per worker chunk
+  // on a site with thousands of field x project pairs -- and SQL *request count* is the
+  // Forge quota that binds first, well before compute or storage. At 6 bound params per
+  // row this is 900 per statement, comfortably inside the placeholder ceiling.
+  for (const batch of chunkArray(rows, 150)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap(([fieldId, projectId, key, name, count]) => [
       scopeKey, fieldId, projectId, key, name, count,
@@ -2279,7 +2283,10 @@ export async function promoteIssueScanToSnapshotProjectUsage(scopeKey, version, 
       };
     });
 
-    for (const batch of chunkArray(usageRows, 50)) {
+    // Runs once per field at promote time, so on a 1,570-field site this loop's chunk
+    // size is a direct multiplier on the scan's total SQL request count. 11 params per
+    // row x 100 = 1,100 per statement.
+    for (const batch of chunkArray(usageRows, 100)) {
       const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
       const params = batch.flatMap((r) => [
         scopeKey, version, fieldId, r.projectId, r.projectKey, r.projectName,

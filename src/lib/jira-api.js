@@ -36,7 +36,27 @@ export const FIELD_SUMMARY_BUILD_STALE_AFTER_MS = 5 * 60 * 1000;
 export const ISSUE_SCAN_PAGE_SIZE = 100;      // Jira Cloud cursor-based search caps maxResults at 100
 export const ISSUE_SCAN_WORKERS = 5;          // parallel Forge workers; keep low because each invocation has its own in-memory limiter
 export const ISSUE_SCAN_INTER_PAGE_DELAY_MS = 500; // ms between pages per worker to ease Jira API pressure
-export const ISSUE_SCAN_FLUSH_EVERY_PAGES = 3;    // flush field counts + update UI progress every N pages (300 issues/worker)
+// Flush field counts + checkpoint the worker every N pages. Set to match
+// ISSUE_SCAN_CHUNK_PAGES so the mid-loop flush never fires and each invocation flushes
+// exactly once, at the end of its chunk.
+//
+// This was 3 (a flush every 300 issues/worker), which on a 325k-issue site produced
+// ~1,080 flush cycles per scan, each costing several SQL requests -- SQL request count,
+// not compute or storage, is the quota that binds first. The invocation boundary is
+// already the durable checkpoint (the worker re-enqueues with nextPageToken), so
+// flushing more often than that bought finer resume granularity and nothing else: the
+// cost of losing a chunk is re-scanning up to 1,000 issues, ~14 seconds of work.
+//
+// Fewer flushes also means fewer windows in which an invocation can die between the
+// count flush and the token checkpoint -- the one ordering that can double-count, since
+// the buffer upsert is additive.
+export const ISSUE_SCAN_FLUSH_EVERY_PAGES = 10;
+
+// Cancellation is checked at invocation entry (runIssueScanWorkerV2 reads scan meta and
+// bails unless state is "building"), so this is a second line of defence within a single
+// ~70s chunk. Kept on its own cadence rather than riding the flush cycle: a cancel check
+// is one cheap read, a flush is many writes, and they have no reason to share a rhythm.
+export const ISSUE_SCAN_CANCEL_CHECK_EVERY_PAGES = 5;
 
 export const METRIC_NAMES = {
   inventorySnapshot: "inventory-snapshot",

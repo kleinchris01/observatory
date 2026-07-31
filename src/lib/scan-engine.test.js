@@ -34,6 +34,10 @@ vi.mock("./jira-api.js", () => ({
   ISSUE_SCAN_WORKERS: 4,
   ISSUE_SCAN_INTER_PAGE_DELAY_MS: 100,
   ISSUE_SCAN_FLUSH_EVERY_PAGES: 5,
+  // Must be present: the worker loop does `page % ISSUE_SCAN_CANCEL_CHECK_EVERY_PAGES`,
+  // and an undefined constant yields NaN, which is never === 0 -- the cancellation path
+  // would silently never run under test while looking perfectly healthy.
+  ISSUE_SCAN_CANCEL_CHECK_EVERY_PAGES: 5,
 }));
 
 vi.mock("./project-store.js", () => ({
