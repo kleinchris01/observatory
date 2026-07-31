@@ -2,7 +2,7 @@ import React from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { invoke, view, router } from "@forge/bridge";
+import { invoke, view, router, rovo } from "@forge/bridge";
 import { AdminApp, ClearSnapshotControl, AuditLogPanel } from "./admin";
 
 // ---------------------------------------------------------------------------
@@ -917,5 +917,99 @@ describe("AuditLogPanel", () => {
     await user.click(screen.getByRole("button", { name: /load audit log/i }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/permission denied/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Ask Rovo — prompt construction at the call site
+//
+// buildFieldRovoPrompt(field, details) and buildProjectRovoPrompt(field, details,
+// project) take POSITIONAL arguments, while buildReportRovoPrompt in the same
+// module takes a destructured object. admin.jsx passed wrapper objects to the
+// first two, so every prompt read "Field id: undefined. Field name: undefined"
+// with all counts zeroed, and Rovo answered confidently about a field that did
+// not exist.
+//
+// The unit tests for those builders all passed, because they call them
+// correctly. Only a test at the call site catches this, which is what these are.
+// ---------------------------------------------------------------------------
+describe("Ask Rovo prompts", () => {
+  const FIELD = makeField({
+    id: "customfield_11322",
+    name: "CAE Program",
+    type: "select",
+    activeProjectCount: 125,
+    totalIssueCount: 312054,
+  });
+
+  function withFieldOpen() {
+    invoke.mockImplementation((fnName, payload) => {
+      if (fnName === "getFieldInventory") {
+        return Promise.resolve(makeFieldInventory({ fields: [FIELD], total: 1 }));
+      }
+      if (fnName === "getFieldDetails") {
+        // Mirrors the real getFieldDetails response shape -- `projects`, not
+        // `activeProjects`, and `projectUsage*` rather than `usage*`. FieldCard reads
+        // details.projects.length unguarded, so a wrong-shaped fixture crashes the
+        // component rather than failing an assertion.
+        return Promise.resolve({
+          refreshedAt: "2026-07-31T10:00:00Z",
+          field: FIELD,
+          fieldJql: "cf[11322] is not EMPTY",
+          findings: null,
+          totalIssueCount: 312054,
+          activeProjectCount: 125,
+          contexts: [],
+          projects: [
+            { projectKey: "CAV", projectName: "CAVPSE", issueCount: 57709, jql: 'project = "CAV"' },
+          ],
+          projectUsagePage: 1,
+          projectUsageTotalPages: 1,
+          progressLog: [],
+        });
+      }
+      return defaultInvokeImpl(fnName, payload);
+    });
+  }
+
+  async function openTheField(user) {
+    const adminNav = document.querySelector(".admin-nav");
+    await user.click(within(adminNav).getByText("Field Browser"));
+    await screen.findByText("CAE Program");
+    await user.click(screen.getByText("CAE Program"));
+  }
+
+  it("sends the field's real identity, not undefined", async () => {
+    const user = userEvent.setup();
+    withFieldOpen();
+    await renderAdminApp();
+    await openTheField(user);
+
+    const askButtons = await screen.findAllByRole("button", { name: /ask rovo/i });
+    await user.click(askButtons[0]);
+
+    await waitFor(() => expect(rovo.open).toHaveBeenCalled());
+    const { prompt } = rovo.open.mock.calls[0][0];
+
+    expect(prompt).toContain("customfield_11322");
+    expect(prompt).toContain("CAE Program");
+    expect(prompt).not.toContain("undefined");
+  });
+
+  it("sends real usage numbers rather than zeroes", async () => {
+    const user = userEvent.setup();
+    withFieldOpen();
+    await renderAdminApp();
+    await openTheField(user);
+
+    const askButtons = await screen.findAllByRole("button", { name: /ask rovo/i });
+    await user.click(askButtons[0]);
+
+    await waitFor(() => expect(rovo.open).toHaveBeenCalled());
+    const { prompt } = rovo.open.mock.calls[0][0];
+
+    expect(prompt).toContain("312054");
+    expect(prompt).toContain("125");
+    expect(prompt).not.toMatch(/Total issues with populated values: 0\./);
   });
 });

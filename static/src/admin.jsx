@@ -1456,12 +1456,17 @@ function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSelectedFi
                 onToggle={() => openField(field.id)}
                 onProjectUsagePageChange={loadDetailPage}
                 onRefreshProjectUsage={refreshProjectUsage}
+                // Positional arguments, NOT a wrapper object. buildReportRovoPrompt in the
+                // same module does take a destructured object, and passing one here
+                // instead produced a prompt reading "Field id: undefined. Field name:
+                // undefined" with every count zeroed -- the field object ended up bound to
+                // the `field` parameter's own `field` property, and `details` to nothing.
+                // Rovo then answered confidently about a nonexistent "ghost field".
                 onAskField={() => {
-                  const d = fieldDetails[field.id];
-                  openFieldExpertRovo(buildFieldRovoPrompt({ field, details: d })).catch(() => {});
+                  openFieldExpertRovo(buildFieldRovoPrompt(field, fieldDetails[field.id])).catch(() => {});
                 }}
                 onAskProject={(project) => {
-                  openFieldExpertRovo(buildProjectRovoPrompt({ field, project })).catch(() => {});
+                  openFieldExpertRovo(buildProjectRovoPrompt(field, fieldDetails[field.id], project)).catch(() => {});
                 }}
                 siteOrigin={siteOrigin}
                 rovoEnabled={rovoEnabled}

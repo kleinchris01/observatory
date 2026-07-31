@@ -4,4 +4,6 @@ export const view = {
   setAutoResizing: vi.fn(),
 };
 export const router = { open: vi.fn() };
-export const rovo = { invoke: vi.fn() };
+// `open` is what openFieldExpertRovo actually calls. Its absence here meant every
+// Ask Rovo path was untestable, which is how a broken call site survived.
+export const rovo = { invoke: vi.fn(), open: vi.fn().mockResolvedValue(undefined) };
