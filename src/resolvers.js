@@ -41,6 +41,7 @@ import {
   writeSnapshotMeta,
   clearAllSnapshotData,
   recordAuditEvent,
+  listAuditEvents,
   loadSnapshotFields,
   loadSnapshotField,
   loadSnapshotProjectUsage,
@@ -116,6 +117,7 @@ import {
   requireNonEmptyString,
   requirePositiveInt,
   requireBoundedInt,
+  optionalPositiveInt,
   requireArray,
   optionalString,
   optionalEnum,
@@ -748,6 +750,17 @@ async function clearSnapshot({ payload, context }) {
   console.log(`clearSnapshot: deleted ${result.totalRowsDeleted} rows across ${Object.keys(result.deleted).length} tables`);
 
   return { cleared: true, ...result };
+}
+
+// Admin read. Guarded like everything else in the registry, but deliberately NOT in
+// AUDITED_ADMIN_ACTIONS -- auditing reads of the audit log is a loop that buries the
+// events worth finding, and this exposes nothing an admin could not already query.
+async function getAuditLog({ payload, context }) {
+  await ensureProjectStoreReady();
+  const limit = optionalPositiveInt(payload?.limit, "limit", 100, 1000);
+  const installationKey = getInstallationKey(context);
+  const events = await listAuditEvents(installationKey, limit);
+  return { events, limit };
 }
 
 async function getProjectUsageJobs({ context }) {
@@ -2691,6 +2704,9 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   // RQT (required-query-token) index — internal governance analytics
   getRqtIndex,             // Admin read: returns RQT field index and issue sample data
   searchRqtValue,          // Admin read: looks up issues by RQT value token
+
+  // Audit trail
+  getAuditLog,             // Admin read: returns recent privileged-action records
 
   // Admin page surface. These were previously registered directly onto adminHandler in
   // index.js, which meant they sat outside this registry and therefore outside its

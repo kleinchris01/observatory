@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { invoke, view, router } from "@forge/bridge";
-import { AdminApp, ClearSnapshotControl } from "./admin";
+import { AdminApp, ClearSnapshotControl, AuditLogPanel } from "./admin";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -829,5 +829,93 @@ describe("ClearSnapshotControl", () => {
     await open(user);
 
     expect(screen.getByText(/saved reports, workflow data and the RQT index are not affected/i)).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AuditLogPanel
+// ---------------------------------------------------------------------------
+describe("AuditLogPanel", () => {
+  const EVENTS = [
+    { at: "2026-07-31T10:00:00Z", actorId: "acct-1", action: "clearSnapshot", outcome: "allowed", detail: null },
+    { at: "2026-07-31T09:00:00Z", actorId: "acct-9", action: "startIssueScan", outcome: "denied", detail: "Caller does not hold Jira ADMINISTER permission" },
+    { at: "2026-07-31T08:00:00Z", actorId: "acct-1", action: "saveAdminConfig", outcome: "failed", detail: "sql exploded" },
+  ];
+
+  it("does not query until asked, since SQL requests are the binding quota", () => {
+    render(<AuditLogPanel />);
+    expect(invoke).not.toHaveBeenCalledWith("getAuditLog", expect.anything());
+    expect(screen.getByRole("button", { name: /load audit log/i })).toBeInTheDocument();
+  });
+
+  it("loads and renders events", async () => {
+    const user = userEvent.setup();
+    invoke.mockResolvedValue({ events: EVENTS, limit: 200 });
+
+    render(<AuditLogPanel />);
+    await user.click(screen.getByRole("button", { name: /load audit log/i }));
+
+    expect(await screen.findByText("clearSnapshot")).toBeInTheDocument();
+    expect(screen.getByText("startIssueScan")).toBeInTheDocument();
+    expect(invoke).toHaveBeenCalledWith("getAuditLog", { limit: 200 });
+  });
+
+  // A denial means someone reached an admin resolver without admin permission.
+  // Leaving that buried in a 200-row table defeats the point of recording it.
+  it("surfaces permission denials above the table", async () => {
+    const user = userEvent.setup();
+    invoke.mockResolvedValue({ events: EVENTS });
+
+    render(<AuditLogPanel />);
+    await user.click(screen.getByRole("button", { name: /load audit log/i }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(/1 permission denial/i);
+  });
+
+  it("does not warn when there are no denials", async () => {
+    const user = userEvent.setup();
+    invoke.mockResolvedValue({ events: [EVENTS[0]] });
+
+    render(<AuditLogPanel />);
+    await user.click(screen.getByRole("button", { name: /load audit log/i }));
+
+    await screen.findByText("clearSnapshot");
+    // Queried by role, not by text: the panel's own hint copy mentions "permission
+    // denials", so a text match here passes whether or not the alert rendered.
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("filters by outcome", async () => {
+    const user = userEvent.setup();
+    invoke.mockResolvedValue({ events: EVENTS });
+
+    render(<AuditLogPanel />);
+    await user.click(screen.getByRole("button", { name: /load audit log/i }));
+    await screen.findByText("clearSnapshot");
+
+    await user.click(screen.getByRole("button", { name: "Denied" }));
+
+    expect(screen.getByText("startIssueScan")).toBeInTheDocument();
+    expect(screen.queryByText("clearSnapshot")).not.toBeInTheDocument();
+  });
+
+  it("shows an empty state rather than a blank panel", async () => {
+    const user = userEvent.setup();
+    invoke.mockResolvedValue({ events: [] });
+
+    render(<AuditLogPanel />);
+    await user.click(screen.getByRole("button", { name: /load audit log/i }));
+
+    expect(await screen.findByText(/no audit events recorded yet/i)).toBeInTheDocument();
+  });
+
+  it("surfaces a load failure instead of failing silently", async () => {
+    const user = userEvent.setup();
+    invoke.mockRejectedValue(new Error("permission denied"));
+
+    render(<AuditLogPanel />);
+    await user.click(screen.getByRole("button", { name: /load audit log/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/permission denied/i);
   });
 });

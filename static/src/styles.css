@@ -5694,3 +5694,125 @@ code {
 @media (prefers-reduced-motion: reduce) {
   .danger-button { transition: none; }
 }
+
+/* ── Audit log panel ───────────────────────────────────────────────────────── */
+
+.audit-panel { display: flex; flex-direction: column; gap: 12px; }
+
+.audit-panel__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.audit-panel__alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 9px 12px;
+  font-size: 0.83rem;
+  line-height: 1.45;
+  color: var(--warm);
+  background: rgba(139, 94, 46, 0.08);
+  border: 1px solid rgba(139, 94, 46, 0.28);
+  border-radius: 8px;
+}
+
+.audit-panel__filters { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.audit-filter {
+  padding: 4px 11px;
+  font-family: inherit;
+  font-size: 0.78rem;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--stroke);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.audit-filter:hover { color: var(--text); }
+
+.audit-filter--active {
+  color: var(--text);
+  background: var(--panel-strong);
+  border-color: var(--cool);
+}
+
+.audit-filter:focus-visible {
+  outline: 2px solid var(--cool);
+  outline-offset: 2px;
+}
+
+/* Its own scroll container so a long detail string never pushes the page sideways. */
+.audit-panel__scroll {
+  overflow-x: auto;
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-md);
+  background: var(--panel);
+}
+
+.audit-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.audit-table th,
+.audit-table td {
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--stroke);
+  vertical-align: top;
+}
+
+.audit-table thead th {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.audit-table tbody tr:last-child td { border-bottom: none; }
+
+.audit-table__when { white-space: nowrap; color: var(--muted); }
+
+.audit-table__actor {
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audit-table__action {
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
+.audit-table__detail {
+  color: var(--muted);
+  min-width: 16rem;
+  line-height: 1.45;
+}
+
+.audit-outcome {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.audit-outcome--allowed { color: var(--success); background: rgba(44, 122, 87, 0.12); }
+.audit-outcome--denied  { color: var(--danger);  background: var(--danger-bg); }
+.audit-outcome--failed  { color: var(--warm);    background: rgba(139, 94, 46, 0.12); }

@@ -120,9 +120,14 @@ Recorded per event: timestamp, actor `accountId`, action name, outcome
   Deliberately far longer than the 7 days kept for report jobs — "who cleared the snapshot
   in March" is usually asked long after March.
 
-> **Known gap.** There is no UI for reading the audit log. `listAuditEvents` exists in the
-> store layer but is not exposed by a resolver. Reading it today means querying Forge SQL
-> directly. Tracked separately.
+**Reading the audit log.** Admin page → Configuration → Audit log. Shows the most recent
+200 events, filterable by outcome, with permission denials called out above the table —
+a denial means an admin resolver was reached by a caller without admin permission, and
+that should not require scanning a table to notice.
+
+The viewer is admin-guarded like every other admin function, and reading it is
+deliberately **not** itself audited: that loop would bury the events worth finding, and it
+exposes nothing an admin could not already query directly.
 
 ---
 

@@ -12,9 +12,9 @@ export default defineConfig({
       // deliberate edit here. Per-file overrides pin the modules whose failure modes
       // are hardest to debug in production -- the Jira transport and the queue router.
       thresholds: {
-        lines: 65.2,
-        functions: 50,
-        branches: 74,
+        lines: 65.4,
+        functions: 50.4,
+        branches: 74.2,
         "src/lib/jira-api.js": { lines: 98, functions: 90, branches: 81 },
         "src/index.js": { lines: 98, functions: 85, branches: 83 },
         "src/lib/report-engine.js": { lines: 100, functions: 100, branches: 90 },
