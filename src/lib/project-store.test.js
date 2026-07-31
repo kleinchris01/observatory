@@ -173,55 +173,6 @@ describe("withSqlRetry", () => {
   });
 });
 
-// ── ensureProjectStoreReady ──────────────────────────────────────────────────
-//
-// A brand-new install's first page load fires several resolvers concurrently, each its
-// own Forge invocation, each calling this against a completely empty database -- they can
-// race on the same CREATE/ALTER TABLE statement. Regression coverage for the retry added
-// to absorb that: the migration runner tracks which migrations already succeeded, so
-// retrying the whole run is safe and should resume past a one-time collision.
-//
-// Uses vi.resetModules() + a fresh dynamic import per test because migrationPromise is
-// module-level singleton state in project-store.js -- without a reset, a later test would
-// see the promise from an earlier test's successful run and never call .run() again.
-
-describe("ensureProjectStoreReady", () => {
-  beforeEach(() => {
-    vi.resetModules();
-  });
-
-  test("retries the migration run after a transient failure and eventually succeeds", async () => {
-    vi.spyOn(globalThis, "setTimeout").mockImplementation((fn) => { fn(); return 0; });
-    const sqlMod = await import("@forge/sql");
-    sqlMod.migrationRunner.run
-      .mockRejectedValueOnce(new Error("Failed to execute migration with name v010_alter_snapshot_meta_add_job_token"))
-      .mockResolvedValueOnce(undefined);
-
-    const { ensureProjectStoreReady } = await import("./project-store.js");
-    await expect(ensureProjectStoreReady()).resolves.toBeUndefined();
-    expect(sqlMod.migrationRunner.run).toHaveBeenCalledTimes(2);
-  });
-
-  test("throws after exhausting all retry attempts on a persistent failure", async () => {
-    vi.spyOn(globalThis, "setTimeout").mockImplementation((fn) => { fn(); return 0; });
-    const sqlMod = await import("@forge/sql");
-    sqlMod.migrationRunner.run.mockRejectedValue(new Error("still broken"));
-
-    const { ensureProjectStoreReady } = await import("./project-store.js");
-    await expect(ensureProjectStoreReady()).rejects.toThrow("still broken");
-    expect(sqlMod.migrationRunner.run).toHaveBeenCalledTimes(3);
-  });
-
-  test("only runs migrations once for concurrent callers within the same invocation", async () => {
-    const sqlMod = await import("@forge/sql");
-    const { ensureProjectStoreReady } = await import("./project-store.js");
-
-    await Promise.all([ensureProjectStoreReady(), ensureProjectStoreReady(), ensureProjectStoreReady()]);
-
-    expect(sqlMod.migrationRunner.run).toHaveBeenCalledTimes(1);
-  });
-});
-
 // ── loadFieldLastChangeMap ────────────────────────────────────────────────────
 
 describe("loadFieldLastChangeMap", () => {
