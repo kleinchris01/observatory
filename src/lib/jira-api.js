@@ -35,7 +35,16 @@ export const FIELD_SUMMARY_QUEUE_STALE_AFTER_MS = 60 * 1000;
 export const FIELD_SUMMARY_BUILD_STALE_AFTER_MS = 5 * 60 * 1000;
 export const ISSUE_SCAN_PAGE_SIZE = 100;      // Jira Cloud cursor-based search caps maxResults at 100
 export const ISSUE_SCAN_WORKERS = 5;          // parallel Forge workers; keep low because each invocation has its own in-memory limiter
-export const ISSUE_SCAN_INTER_PAGE_DELAY_MS = 500; // ms between pages per worker to ease Jira API pressure
+// Fixed pause between pages per worker. Predates the adaptive limiter, which now handles
+// Jira pressure reactively (widening the request interval on 429s, easing back on success
+// streaks) -- so this is a static tax on top of a system that already self-regulates.
+//
+// Sized against a measured 325k-issue run: ~6.9s per page per worker, so 500ms was ~7% of
+// scan wall-clock, and Forge bills GB-seconds of wall-clock including time spent asleep.
+// 200ms keeps a politeness margin while returning most of that. If a site starts seeing
+// sustained 429s the limiter absorbs it and recovers on its own; this constant is not the
+// mechanism that protects Jira, it just makes the scan slower and more expensive.
+export const ISSUE_SCAN_INTER_PAGE_DELAY_MS = 200;
 // Flush field counts + checkpoint the worker every N pages. Set to match
 // ISSUE_SCAN_CHUNK_PAGES so the mid-loop flush never fires and each invocation flushes
 // exactly once, at the end of its chunk.
