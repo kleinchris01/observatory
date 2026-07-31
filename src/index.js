@@ -30,6 +30,7 @@ import {
   restoreSnapshotProjectUsageFromSummaries,
   pruneOldSnapshotVersions,
   pruneStaleReportJobs,
+  pruneOldAuditEvents,
 } from "./lib/project-store.js";
 import {
   readAdminConfig,
@@ -39,10 +40,6 @@ import {
   rovoInspectField,
   SHARED_RESOLVER_FUNCTIONS,
   ADMIN_ONLY_FUNCTIONS,
-  getAdminConfigResolver,
-  saveAdminConfigResolver,
-  getAdminOverview,
-  migrateNamespaceKeys,
 } from "./resolvers.js";
 
 export async function runRetentionCleanup(_event, context) {
@@ -67,12 +64,29 @@ export async function runRetentionCleanup(_event, context) {
     console.log(`runRetentionCleanup: pruned ${reportPruned.jobsDeleted} stale report jobs`);
   }
 
-  return {
+  const auditPruned = await pruneOldAuditEvents(installationKey);
+  if (auditPruned.eventsDeleted > 0) {
+    console.log(`runRetentionCleanup: pruned ${auditPruned.eventsDeleted} audit events older than 180 days`);
+  }
+
+  // Unconditional, unlike the per-prune lines above, which only fire when something was
+  // actually deleted. Without this a clean run logs nothing at all, and "no output" is
+  // indistinguishable from "the trigger never fired" -- which matters most right after
+  // wiring a trigger up.
+  const summary = {
     activeVersion,
     snapshotFieldsDeleted: snapshotPruned.fieldsDeleted,
     snapshotUsageRowsDeleted: snapshotPruned.usageRowsDeleted,
     reportJobsDeleted: reportPruned.jobsDeleted,
+    auditEventsDeleted: auditPruned.eventsDeleted,
   };
+  console.log(
+    `runRetentionCleanup: complete — ${summary.snapshotFieldsDeleted} fields, `
+    + `${summary.snapshotUsageRowsDeleted} usage rows, ${summary.reportJobsDeleted} report jobs, `
+    + `${summary.auditEventsDeleted} audit events`
+  );
+
+  return summary;
 }
 
 export async function autoSnapshotCheck(_event, context) {
@@ -292,13 +306,13 @@ export async function consumeSnapshot(event) {
 
 export const handler = makeResolver(SHARED_RESOLVER_FUNCTIONS);
 
+// Every admin-only function -- including getAdminConfig/saveAdminConfig/getAdminOverview/
+// migrateNamespaceKeys, which used to be spread in here individually -- now comes from
+// ADMIN_ONLY_FUNCTIONS, which applies the Jira ADMINISTER guard to the whole registry.
+// Anything added here directly would bypass that guard, so don't.
 export const adminHandler = makeResolver({
   ...SHARED_RESOLVER_FUNCTIONS,
   ...ADMIN_ONLY_FUNCTIONS,
-  getAdminConfig: getAdminConfigResolver,
-  saveAdminConfig: saveAdminConfigResolver,
-  getAdminOverview,
-  migrateNamespaceKeys,
 });
 
 export { rovoSearchFields, rovoInspectField };

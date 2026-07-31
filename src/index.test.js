@@ -50,6 +50,7 @@ vi.mock("./lib/project-store.js", () => ({
   restoreSnapshotProjectUsageFromSummaries: vi.fn().mockResolvedValue({ fieldsRestored: 2, rowsInserted: 5 }),
   pruneOldSnapshotVersions: vi.fn().mockResolvedValue({ fieldsDeleted: 0, usageRowsDeleted: 0 }),
   pruneStaleReportJobs: vi.fn().mockResolvedValue({ jobsDeleted: 0 }),
+  pruneOldAuditEvents: vi.fn().mockResolvedValue({ eventsDeleted: 0 }),
 }));
 
 vi.mock("./resolvers.js", () => ({
@@ -85,6 +86,7 @@ import {
   ensureProjectStoreReady,
   pruneOldSnapshotVersions,
   pruneStaleReportJobs,
+  pruneOldAuditEvents,
   restoreSnapshotProjectUsageFromSummaries,
   loadSnapshotField,
   loadFieldSummary,
@@ -119,6 +121,7 @@ beforeEach(() => {
   requeueStaleSnapshotBuild.mockResolvedValue(null);
   pruneOldSnapshotVersions.mockResolvedValue({ fieldsDeleted: 0, usageRowsDeleted: 0 });
   pruneStaleReportJobs.mockResolvedValue({ jobsDeleted: 0 });
+  pruneOldAuditEvents.mockResolvedValue({ eventsDeleted: 0 });
 });
 
 // ── Retention ─────────────────────────────────────────────────────────────────
@@ -134,6 +137,7 @@ describe("runRetentionCleanup", () => {
       snapshotFieldsDeleted: 3,
       snapshotUsageRowsDeleted: 7,
       reportJobsDeleted: 2,
+      auditEventsDeleted: 0,
     });
     expect(pruneOldSnapshotVersions).toHaveBeenCalledWith("scope-1", "v9");
   });
@@ -152,6 +156,27 @@ describe("runRetentionCleanup", () => {
     readSnapshotMeta.mockResolvedValue(null);
     await runRetentionCleanup({}, CONTEXT);
     expect(pruneStaleReportJobs).toHaveBeenCalledWith("scope-1");
+  });
+
+  test("prunes audit events and reports the count", async () => {
+    readSnapshotMeta.mockResolvedValue({ version: "v9" });
+    pruneOldAuditEvents.mockResolvedValue({ eventsDeleted: 12 });
+
+    const result = await runRetentionCleanup({}, CONTEXT);
+
+    expect(pruneOldAuditEvents).toHaveBeenCalledWith("scope-1");
+    expect(result.auditEventsDeleted).toBe(12);
+  });
+
+  // A run that deletes nothing used to log nothing at all, which made "ran and found
+  // nothing" indistinguishable from "the trigger never fired" -- the exact question
+  // asked right after wiring a trigger up.
+  test("always logs a completion summary, even when nothing was deleted", async () => {
+    readSnapshotMeta.mockResolvedValue(null);
+
+    await runRetentionCleanup({}, CONTEXT);
+
+    expect(console.log).toHaveBeenCalledWith(expect.stringContaining("runRetentionCleanup: complete"));
   });
 });
 
@@ -478,12 +503,17 @@ describe("resolver handler registries", () => {
     }
   });
 
-  test("the admin handler adds the config and overview resolvers", () => {
-    const registered = adminHandler.__registered;
-    expect(registered).toHaveProperty("getAdminConfig");
-    expect(registered).toHaveProperty("saveAdminConfig");
-    expect(registered).toHaveProperty("getAdminOverview");
-    expect(registered).toHaveProperty("migrateNamespaceKeys");
+  // These four used to be spread onto adminHandler directly here in index.js, which
+  // put them outside ADMIN_ONLY_FUNCTIONS and therefore outside its admin guard. They
+  // now arrive via that registry, so this asserts index.js adds nothing of its own --
+  // anything spread in directly would be unguarded.
+  test("the admin handler registers nothing beyond the two guarded registries", () => {
+    const registered = Object.keys(adminHandler.__registered);
+    const expected = new Set([
+      ...Object.keys(SHARED_RESOLVER_FUNCTIONS),
+      ...Object.keys(ADMIN_ONLY_FUNCTIONS),
+    ]);
+    expect(registered.filter((name) => !expected.has(name))).toEqual([]);
   });
 
   test("config mutation is not reachable from the macro handler", () => {

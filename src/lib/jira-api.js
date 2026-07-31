@@ -334,6 +334,33 @@ export async function getBrowsableProjectIds(accountId, projectIds) {
   return new Set(allowed.map(String));
 }
 
+// Does the CALLING user hold the Jira ADMINISTER global permission?
+//
+// Deliberately asUser, not asApp: asApp would report the app's own permissions, which
+// are constant, and answer a question nobody asked. This must reflect the human whose
+// click reached the resolver.
+//
+// Fails closed. Unlike macro access -- which fails open so an unrelated Jira API blip
+// cannot black out a read-only Confluence page -- everything gated by this check mutates
+// state or exposes governance internals, so an unanswerable question is a "no".
+export async function callerHasJiraAdmin(accountId) {
+  if (!accountId) return false;
+  try {
+    const data = await jiraRequestAsUser(route`/rest/api/3/permissions/check`, {
+      method: "POST",
+      body: JSON.stringify({
+        accountId,
+        globalPermissions: ["ADMINISTER"],
+      }),
+    });
+    const granted = data?.globalPermissions;
+    return Array.isArray(granted) && granted.includes("ADMINISTER");
+  } catch (error) {
+    console.error("callerHasJiraAdmin: permission check failed", error?.message || error);
+    return false;
+  }
+}
+
 export async function paginate(pathBuilder, valuesKey = "values") {
   const results = [];
   let startAt = 0;

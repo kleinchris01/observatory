@@ -12,12 +12,15 @@ export default defineConfig({
       // deliberate edit here. Per-file overrides pin the modules whose failure modes
       // are hardest to debug in production -- the Jira transport and the queue router.
       thresholds: {
-        lines: 64.8,
-        functions: 49.6,
-        branches: 73.8,
+        lines: 65.2,
+        functions: 50,
+        branches: 74,
         "src/lib/jira-api.js": { lines: 98, functions: 90, branches: 81 },
         "src/index.js": { lines: 98, functions: 85, branches: 83 },
         "src/lib/report-engine.js": { lines: 100, functions: 100, branches: 90 },
+        // Holds the authorization boundary -- withAdminGuard and the audit trail. A
+        // regression here is a security regression, not a coverage statistic.
+        "src/resolvers.js": { lines: 93, functions: 100, branches: 73 },
       },
     },
   },

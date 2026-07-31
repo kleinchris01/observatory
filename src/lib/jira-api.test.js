@@ -45,6 +45,7 @@ import {
   jiraRequest,
   jiraRequestAsUser,
   getBrowsableProjectIds,
+  callerHasJiraAdmin,
   paginate,
   mapWithConcurrency,
   getAllCustomFields,
@@ -789,5 +790,70 @@ describe("issue scan cadence", () => {
     // Jira Cloud caps maxResults at 100 for cursor-based search. Anything lower
     // multiplies both HTTP round trips and per-page SQL bookkeeping.
     expect(ISSUE_SCAN_PAGE_SIZE).toBe(100);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// callerHasJiraAdmin
+//
+// The authorization primitive behind every admin resolver. It must fail closed:
+// anything other than an explicit, affirmative ADMINISTER grant is a "no".
+// ---------------------------------------------------------------------------
+describe("callerHasJiraAdmin", () => {
+  test("returns true when Jira grants ADMINISTER to the caller", async () => {
+    mockRequestJiraAsUser.mockResolvedValue(jiraResponse({
+      body: { globalPermissions: ["ADMINISTER", "BULK_CHANGE"] },
+    }));
+
+    await expect(callerHasJiraAdmin("acct-1")).resolves.toBe(true);
+  });
+
+  test("asks as the user, not as the app", async () => {
+    mockRequestJiraAsUser.mockResolvedValue(jiraResponse({ body: { globalPermissions: ["ADMINISTER"] } }));
+
+    await callerHasJiraAdmin("acct-1");
+
+    // asApp would report the app's own permissions and answer nothing useful.
+    expect(mockRequestJiraAsUser).toHaveBeenCalled();
+    expect(mockRequestJira).not.toHaveBeenCalled();
+    const body = JSON.parse(mockRequestJiraAsUser.mock.calls[0][1].body);
+    expect(body).toEqual({ accountId: "acct-1", globalPermissions: ["ADMINISTER"] });
+  });
+
+  test("returns false when ADMINISTER is absent from the granted list", async () => {
+    mockRequestJiraAsUser.mockResolvedValue(jiraResponse({
+      body: { globalPermissions: ["BULK_CHANGE"] },
+    }));
+
+    await expect(callerHasJiraAdmin("acct-1")).resolves.toBe(false);
+  });
+
+  test("returns false for an empty grant list", async () => {
+    mockRequestJiraAsUser.mockResolvedValue(jiraResponse({ body: { globalPermissions: [] } }));
+    await expect(callerHasJiraAdmin("acct-1")).resolves.toBe(false);
+  });
+
+  test("returns false without calling Jira when there is no accountId", async () => {
+    await expect(callerHasJiraAdmin(null)).resolves.toBe(false);
+    await expect(callerHasJiraAdmin("")).resolves.toBe(false);
+    expect(mockRequestJiraAsUser).not.toHaveBeenCalled();
+  });
+
+  // Fails closed, unlike checkMacroAccess which deliberately fails open. Everything
+  // behind this check mutates state or exposes governance internals, so an
+  // unanswerable question must resolve to "no".
+  test("returns false when the permission call throws", async () => {
+    mockRequestJiraAsUser.mockRejectedValue(new Error("network down"));
+    await expect(callerHasJiraAdmin("acct-1")).resolves.toBe(false);
+  });
+
+  test("returns false when Jira rejects the permission call", async () => {
+    mockRequestJiraAsUser.mockResolvedValue(jiraResponse({ ok: false, status: 403, text: "Forbidden" }));
+    await expect(callerHasJiraAdmin("acct-1")).resolves.toBe(false);
+  });
+
+  test("returns false for a malformed response body", async () => {
+    mockRequestJiraAsUser.mockResolvedValue(jiraResponse({ body: { globalPermissions: "ADMINISTER" } }));
+    await expect(callerHasJiraAdmin("acct-1")).resolves.toBe(false);
   });
 });

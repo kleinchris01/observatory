@@ -35,6 +35,7 @@ const mocks = vi.hoisted(() => ({
   readSnapshotMeta: vi.fn(),
   writeSnapshotMeta: vi.fn().mockResolvedValue(undefined),
   clearAllSnapshotData: vi.fn().mockResolvedValue({ deleted: {}, totalRowsDeleted: 0 }),
+  recordAuditEvent: vi.fn().mockResolvedValue({ recorded: true }),
   loadSnapshotFields: vi.fn(),
   loadSnapshotField: vi.fn(),
   loadSnapshotProjectUsage: vi.fn(),
@@ -88,6 +89,7 @@ const mocks = vi.hoisted(() => ({
   incrMetric: vi.fn(),
   makeJobToken: vi.fn(() => "job-token-1"),
   getInstallationKey: vi.fn(() => "test-install"),
+  callerHasJiraAdmin: vi.fn().mockResolvedValue(true),
   mapWithConcurrency: vi.fn(async (items, _concurrency, fn) => Promise.all(items.map(fn))),
   jiraRequest: vi.fn(),
   getDistinctIssueCountForFields: vi.fn(),
@@ -140,6 +142,7 @@ vi.mock("./lib/project-store.js", () => ({
   readSnapshotMeta: mocks.readSnapshotMeta,
   writeSnapshotMeta: mocks.writeSnapshotMeta,
   clearAllSnapshotData: mocks.clearAllSnapshotData,
+  recordAuditEvent: mocks.recordAuditEvent,
   loadSnapshotFields: mocks.loadSnapshotFields,
   loadSnapshotField: mocks.loadSnapshotField,
   loadSnapshotProjectUsage: mocks.loadSnapshotProjectUsage,
@@ -202,6 +205,7 @@ vi.mock("./lib/jira-api.js", () => ({
   incrMetric: mocks.incrMetric,
   makeJobToken: mocks.makeJobToken,
   getInstallationKey: mocks.getInstallationKey,
+  callerHasJiraAdmin: mocks.callerHasJiraAdmin,
   mapWithConcurrency: mocks.mapWithConcurrency,
   jiraRequest: mocks.jiraRequest,
   getDistinctIssueCountForFields: mocks.getDistinctIssueCountForFields,
@@ -247,12 +251,15 @@ import {
   rovoInspectField,
   migrateNamespaceKeys,
   CLEAR_SNAPSHOT_CONFIRMATION,
+  __RAW_ADMIN_ONLY_FUNCTIONS,
+  __resetAdminCheckCache,
+  AdminPermissionError,
 } from "./resolvers.js";
 
 const {
   saveReportDefinition,
   startProjectUsageReportJob,
-} = ADMIN_ONLY_FUNCTIONS;
+} = __RAW_ADMIN_ONLY_FUNCTIONS;
 
 const {
   checkMacroAccess,
@@ -283,7 +290,7 @@ const {
   getProjectUsageReportJob,
   getRqtIndex,
   searchRqtValue,
-} = { ...SHARED_RESOLVER_FUNCTIONS, ...ADMIN_ONLY_FUNCTIONS };
+} = { ...SHARED_RESOLVER_FUNCTIONS, ...__RAW_ADMIN_ONLY_FUNCTIONS };
 
 function manyFieldIds(count) {
   return Array.from({ length: count }, (_, i) => `customfield_${i}`);
@@ -2184,5 +2191,159 @@ describe("clearSnapshot", () => {
   test("is registered admin-only and never on the shared macro resolver", () => {
     expect(ADMIN_ONLY_FUNCTIONS.clearSnapshot).toBeDefined();
     expect(SHARED_RESOLVER_FUNCTIONS.clearSnapshot).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Admin authorization guard
+//
+// Before this existed, the ONLY thing standing between an arbitrary authenticated
+// user and clearSnapshot / saveAdminConfig / migrateNamespaceKeys was that the
+// jira:adminPage module decides who sees the admin *page*. An invoke() does not
+// go through the page. These tests assert the boundary is now in the resolver,
+// where it belongs, and that it is applied to the whole registry rather than
+// remembered function by function.
+// ---------------------------------------------------------------------------
+describe("admin authorization guard", () => {
+  const ADMIN_CTX = { context: { accountId: "acct-admin" }, payload: {} };
+
+  beforeEach(() => {
+    __resetAdminCheckCache();
+    mocks.callerHasJiraAdmin.mockResolvedValue(true);
+  });
+
+  test("every admin-only function is wrapped, not just the ones someone remembered", () => {
+    // The guard is applied to the registry, so raw and wrapped must have identical
+    // key sets and no entry may be the raw function itself.
+    expect(Object.keys(ADMIN_ONLY_FUNCTIONS).sort()).toEqual(Object.keys(__RAW_ADMIN_ONLY_FUNCTIONS).sort());
+    for (const [name, fn] of Object.entries(ADMIN_ONLY_FUNCTIONS)) {
+      expect(fn, `${name} is unwrapped`).not.toBe(__RAW_ADMIN_ONLY_FUNCTIONS[name]);
+    }
+  });
+
+  test("rejects a caller without Jira ADMINISTER", async () => {
+    mocks.callerHasJiraAdmin.mockResolvedValue(false);
+
+    await expect(ADMIN_ONLY_FUNCTIONS.clearSnapshot(ADMIN_CTX)).rejects.toThrow(AdminPermissionError);
+    expect(mocks.clearAllSnapshotData).not.toHaveBeenCalled();
+  });
+
+  test("rejects an anonymous caller without even asking Jira", async () => {
+    await expect(ADMIN_ONLY_FUNCTIONS.clearSnapshot({ context: {}, payload: {} })).rejects.toThrow(AdminPermissionError);
+    expect(mocks.callerHasJiraAdmin).not.toHaveBeenCalled();
+  });
+
+  test("allows a caller who holds Jira ADMINISTER", async () => {
+    await expect(
+      ADMIN_ONLY_FUNCTIONS.clearSnapshot({ context: { accountId: "acct-admin" }, payload: { confirmation: CLEAR_SNAPSHOT_CONFIRMATION } })
+    ).resolves.toMatchObject({ cleared: true });
+  });
+
+  test("guards the config and overview resolvers that used to bypass the registry", async () => {
+    mocks.callerHasJiraAdmin.mockResolvedValue(false);
+
+    for (const name of ["getAdminConfig", "saveAdminConfig", "getAdminOverview", "migrateNamespaceKeys"]) {
+      await expect(ADMIN_ONLY_FUNCTIONS[name](ADMIN_CTX), name).rejects.toThrow(AdminPermissionError);
+    }
+  });
+
+  test("records a denial in the audit log", async () => {
+    mocks.callerHasJiraAdmin.mockResolvedValue(false);
+
+    await expect(ADMIN_ONLY_FUNCTIONS.startIssueScan(ADMIN_CTX)).rejects.toThrow();
+
+    expect(mocks.recordAuditEvent).toHaveBeenCalledWith("test-install", expect.objectContaining({
+      actorId: "acct-admin",
+      action: "startIssueScan",
+      outcome: "denied",
+    }));
+  });
+
+  test("caches the permission answer instead of asking Jira on every call", async () => {
+    await ADMIN_ONLY_FUNCTIONS.getIssueScanStatus(ADMIN_CTX);
+    await ADMIN_ONLY_FUNCTIONS.getIssueScanStatus(ADMIN_CTX);
+    await ADMIN_ONLY_FUNCTIONS.getIssueScanStatus(ADMIN_CTX);
+
+    expect(mocks.callerHasJiraAdmin).toHaveBeenCalledTimes(1);
+  });
+
+  test("caches per account, so one admin does not authorise everyone", async () => {
+    mocks.callerHasJiraAdmin.mockImplementation(async (id) => id === "acct-admin");
+
+    await expect(ADMIN_ONLY_FUNCTIONS.getIssueScanStatus(ADMIN_CTX)).resolves.toBeDefined();
+    await expect(
+      ADMIN_ONLY_FUNCTIONS.getIssueScanStatus({ context: { accountId: "acct-other" }, payload: {} })
+    ).rejects.toThrow(AdminPermissionError);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Audit trail
+// ---------------------------------------------------------------------------
+describe("audit trail", () => {
+  const ADMIN_CTX = { context: { accountId: "acct-admin" }, payload: {} };
+
+  beforeEach(() => {
+    __resetAdminCheckCache();
+    mocks.callerHasJiraAdmin.mockResolvedValue(true);
+  });
+
+  test("records a completed privileged action", async () => {
+    await ADMIN_ONLY_FUNCTIONS.cancelSnapshot(ADMIN_CTX);
+
+    expect(mocks.recordAuditEvent).toHaveBeenCalledWith("test-install", expect.objectContaining({
+      actorId: "acct-admin",
+      action: "cancelSnapshot",
+      outcome: "allowed",
+    }));
+  });
+
+  // Several resolvers signal refusal by returning { error } rather than throwing.
+  // Recording those as plain successes would make the audit log say an action
+  // happened when it did not.
+  test("records a returned refusal as refused, not as a completed action", async () => {
+    await ADMIN_ONLY_FUNCTIONS.clearSnapshot({ context: { accountId: "acct-admin" }, payload: { confirmation: "nope" } });
+
+    expect(mocks.recordAuditEvent).toHaveBeenCalledWith("test-install", expect.objectContaining({
+      action: "clearSnapshot",
+      outcome: "allowed",
+      detail: expect.stringContaining("Refused:"),
+    }));
+  });
+
+  test("records a thrown failure and still propagates the error", async () => {
+    mocks.clearAllSnapshotData.mockRejectedValueOnce(new Error("sql exploded"));
+
+    await expect(
+      ADMIN_ONLY_FUNCTIONS.clearSnapshot({ context: { accountId: "acct-admin" }, payload: { confirmation: CLEAR_SNAPSHOT_CONFIRMATION } })
+    ).rejects.toThrow("sql exploded");
+
+    expect(mocks.recordAuditEvent).toHaveBeenCalledWith("test-install", expect.objectContaining({
+      action: "clearSnapshot",
+      outcome: "failed",
+      detail: expect.stringContaining("sql exploded"),
+    }));
+  });
+
+  // Admin reads are polled every 15s for the length of a scan. Auditing them would
+  // bury the handful of events anyone actually wants to find.
+  test("does not audit high-frequency admin reads", async () => {
+    await ADMIN_ONLY_FUNCTIONS.getIssueScanStatus(ADMIN_CTX);
+    expect(mocks.recordAuditEvent).not.toHaveBeenCalled();
+  });
+
+  // A broken audit table must not become an outage of every admin action -- nor a
+  // denial-of-service that anyone able to break that table can trigger.
+  test("an audit write failure never blocks the action", async () => {
+    mocks.recordAuditEvent.mockRejectedValueOnce(new Error("audit table gone"));
+
+    await expect(ADMIN_ONLY_FUNCTIONS.cancelSnapshot(ADMIN_CTX)).resolves.toEqual({ cancelled: true });
+  });
+
+  test("an audit write failure never turns a denial into a server error", async () => {
+    mocks.callerHasJiraAdmin.mockResolvedValue(false);
+    mocks.recordAuditEvent.mockRejectedValueOnce(new Error("audit table gone"));
+
+    await expect(ADMIN_ONLY_FUNCTIONS.cancelSnapshot(ADMIN_CTX)).rejects.toThrow(AdminPermissionError);
   });
 });

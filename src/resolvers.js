@@ -5,6 +5,7 @@ import {
   METRIC_NAMES,
   makeJobToken,
   getInstallationKey,
+  callerHasJiraAdmin,
   mapWithConcurrency,
   jiraRequest,
   getDistinctIssueCountForFields,
@@ -39,6 +40,7 @@ import {
   readSnapshotMeta,
   writeSnapshotMeta,
   clearAllSnapshotData,
+  recordAuditEvent,
   loadSnapshotFields,
   loadSnapshotField,
   loadSnapshotProjectUsage,
@@ -109,6 +111,7 @@ import {
   getFieldNumericId,
 } from "./lib/transform.js";
 import { inventorySnapshotQueue } from "./lib/queues.js";
+import { logger } from "./lib/logger.js";
 import {
   requireNonEmptyString,
   requirePositiveInt,
@@ -2518,10 +2521,146 @@ export const SHARED_RESOLVER_FUNCTIONS = {
   getProjectUsageReport,   // Read-only: returns project usage data for given fields
 };
 
+// ── Admin authorization ──────────────────────────────────────────────────────
+//
+// The jira:adminPage module controls who can SEE the admin page. It does not control
+// who can reach its resolver: an invoke() is an authenticated app endpoint, and module
+// placement is a UI affordance, not an authorization boundary. Every function below
+// therefore verifies the calling user holds Jira ADMINISTER before running.
+//
+// The check is applied by wrapping the registry rather than by calling a helper inside
+// each function, so a function added to ADMIN_ONLY_FUNCTIONS is guarded by construction.
+// Remembering to add a guard is exactly the kind of thing that gets forgotten once.
+
+const ADMIN_CHECK_TTL_MS = 60 * 1000;
+const adminCheckCache = new Map();
+
+// Forge reuses warm invocations, so this cache survives across calls within one container
+// and spares a Jira round trip per admin read -- getIssueScanStatus is polled every 15s
+// for the length of a scan. The cost is that a revoked admin keeps access for up to 60s.
+// Accepted, and recorded in SECURITY_CHECKLIST.md.
+async function isCallerJiraAdmin(accountId) {
+  if (!accountId) return false;
+  const cached = adminCheckCache.get(accountId);
+  if (cached && cached.expires > Date.now()) return cached.allowed;
+
+  const allowed = await callerHasJiraAdmin(accountId);
+  adminCheckCache.set(accountId, { allowed, expires: Date.now() + ADMIN_CHECK_TTL_MS });
+  return allowed;
+}
+
+export function __resetAdminCheckCache() {
+  adminCheckCache.clear();
+}
+
+// recordAuditEvent already swallows its own failures, but this layer must not depend on
+// that: if writing the audit row ever did throw, an unguarded await here would turn a
+// broken audit table into a total outage of every admin action -- and into a denial-of-
+// service anyone able to break that table could trigger. Availability wins over
+// completeness here; the loss is loud in the structured log rather than silent.
+async function safeAudit(scopeKey, event) {
+  try {
+    await recordAuditEvent(scopeKey, event);
+  } catch (error) {
+    logger.error("audit.write_failed", { action: event?.action, error: error?.message || String(error) });
+  }
+}
+
+export class AdminPermissionError extends Error {
+  constructor() {
+    super("This action requires Jira administrator permission.");
+    this.name = "AdminPermissionError";
+  }
+}
+
+function withAdminGuard(functions) {
+  return Object.fromEntries(
+    Object.entries(functions).map(([name, fn]) => [
+      name,
+      async (req) => {
+        const accountId = req?.context?.accountId || null;
+        if (!(await isCallerJiraAdmin(accountId))) {
+          // Denials are audited: a burst of them is the signal that someone is probing
+          // the resolver directly, which is the whole reason this guard exists.
+          const installationKey = getInstallationKey(req?.context);
+          await safeAudit(installationKey, {
+            actorId: accountId,
+            action: name,
+            outcome: "denied",
+            detail: "Caller does not hold Jira ADMINISTER permission",
+          });
+          logger.warn("auth.denied", { action: name, actorId: accountId });
+          throw new AdminPermissionError();
+        }
+        return fn(req);
+      },
+    ])
+  );
+}
+
+// Actions worth a permanent record: they mutate state, destroy data, or change the rules
+// the governance engine runs by. Admin *reads* are not audited -- they are frequent
+// (polled during scans) and recording them would bury the events that matter.
+const AUDITED_ADMIN_ACTIONS = new Set([
+  "startIssueScan",
+  "resumeIssueScan",
+  "cancelIssueScan",
+  "startDeltaIssueScan",
+  "cancelSnapshot",
+  "clearSnapshot",
+  "cancelProjectUsageJob",
+  "restartProjectUsageJob",
+  "resumeProjectUsageJob",
+  "restoreProjectUsageCache",
+  "refreshRecentProjectUsage",
+  "saveReportDefinition",
+  "deleteReportDefinition",
+  "saveAdminConfig",
+  "migrateNamespaceKeys",
+]);
+
+function withAuditTrail(functions) {
+  return Object.fromEntries(
+    Object.entries(functions).map(([name, fn]) => [
+      name,
+      !AUDITED_ADMIN_ACTIONS.has(name)
+        ? fn
+        : async (req) => {
+            const accountId = req?.context?.accountId || null;
+            const installationKey = getInstallationKey(req?.context);
+            try {
+              const result = await fn(req);
+              await safeAudit(installationKey, {
+                actorId: accountId,
+                action: name,
+                outcome: "allowed",
+                // Resolvers signal a refusal by returning a shape rather than throwing
+                // (clearSnapshot's confirmation mismatch, read-only mode), so carry that
+                // through instead of recording a blocked action as a completed one.
+                detail: result && result.error ? `Refused: ${result.error}` : null,
+              });
+              return result;
+            } catch (error) {
+              await safeAudit(installationKey, {
+                actorId: accountId,
+                action: name,
+                outcome: "failed",
+                detail: error?.message || String(error),
+              });
+              throw error;
+            }
+          },
+    ])
+  );
+}
+
 // Functions registered on adminHandler ONLY.
 // Any function that mutates data, triggers background jobs, modifies config,
 // or exposes governance internals must live here and nowhere else.
-export const ADMIN_ONLY_FUNCTIONS = {
+//
+// Exported through withAdminGuard + withAuditTrail -- see above. Add new entries to the
+// raw object; the wrapping is applied to the whole registry at export.
+const RAW_ADMIN_ONLY_FUNCTIONS = {
   // Issue scan lifecycle — trigger and cancel full field×issue scans
   startIssueScan,          // Mutating: queues a full issue scan job
   resumeIssueScan,         // Mutating: re-queues incomplete issue scan workers
@@ -2552,4 +2691,22 @@ export const ADMIN_ONLY_FUNCTIONS = {
   // RQT (required-query-token) index — internal governance analytics
   getRqtIndex,             // Admin read: returns RQT field index and issue sample data
   searchRqtValue,          // Admin read: looks up issues by RQT value token
+
+  // Admin page surface. These were previously registered directly onto adminHandler in
+  // index.js, which meant they sat outside this registry and therefore outside its
+  // guard -- saveAdminConfig, which rewrites governance thresholds AND the macro access
+  // group list, was reachable by any caller who could invoke it. Registered here so the
+  // guard covers them like everything else.
+  getAdminConfig: getAdminConfigResolver,      // Admin read: returns full admin config
+  saveAdminConfig: saveAdminConfigResolver,    // Mutating: rewrites thresholds and access control
+  getAdminOverview,                            // Admin read: dashboard aggregate
+  migrateNamespaceKeys,                        // Mutating: rewrites scope keys across every table
 };
+
+// Order matters: the guard runs first, so an unauthorized caller is recorded as `denied`
+// and never reaches the action, rather than producing both a denial and a failed action.
+export const ADMIN_ONLY_FUNCTIONS = withAdminGuard(withAuditTrail(RAW_ADMIN_ONLY_FUNCTIONS));
+
+// Unwrapped originals, for tests that need to exercise a resolver's own logic without
+// standing up a permission mock. Never register these on a handler.
+export const __RAW_ADMIN_ONLY_FUNCTIONS = RAW_ADMIN_ONLY_FUNCTIONS;

@@ -295,6 +295,31 @@ const CREATE_WORKFLOW_SNAPSHOT_META_TABLE = `
   )
 `;
 
+// Append-only record of privileged actions: who did what, when, and whether it was
+// allowed. Deliberately not versioned by snapshot and deliberately NOT wiped by
+// clearAllSnapshotData -- an audit trail that a privileged action can erase is not an
+// audit trail. Pruned only by the scheduled retention job, on age.
+//
+// actor_id is the Atlassian accountId. No display names or emails are stored: the
+// accountId is already the durable identifier, and resolving it to a person is a
+// deliberate step someone takes in Jira rather than something this table leaks.
+const CREATE_AUDIT_LOG_TABLE = `
+  CREATE TABLE IF NOT EXISTS audit_log (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    scope_key VARCHAR(191) NOT NULL,
+    at VARCHAR(64) NOT NULL,
+    actor_id VARCHAR(128) NULL,
+    action VARCHAR(128) NOT NULL,
+    outcome VARCHAR(32) NOT NULL,
+    detail TEXT NULL,
+    PRIMARY KEY (id)
+  )
+`;
+
+const CREATE_AUDIT_LOG_SCOPE_AT_INDEX = `
+  CREATE INDEX IF NOT EXISTS idx_audit_log_scope_at ON audit_log (scope_key, at)
+`;
+
 const projectStoreMigrations = migrationRunner
   .enqueue("v001_create_snapshot_fields_table", CREATE_SNAPSHOT_FIELDS_TABLE)
   .enqueue("v002_create_field_summaries_table", CREATE_FIELD_SUMMARIES_TABLE)
@@ -339,7 +364,9 @@ const projectStoreMigrations = migrationRunner
   .enqueue("v041_create_snapshot_workflow_scheme_projects_table", CREATE_SNAPSHOT_WORKFLOW_SCHEME_PROJECTS_TABLE)
   .enqueue("v042_create_workflow_scheme_projects_by_project_index", CREATE_SNAPSHOT_WORKFLOW_SCHEME_PROJECTS_BY_PROJECT_INDEX)
   .enqueue("v043_create_snapshot_statuses_table", CREATE_SNAPSHOT_STATUSES_TABLE)
-  .enqueue("v044_create_workflow_snapshot_meta_table", CREATE_WORKFLOW_SNAPSHOT_META_TABLE);
+  .enqueue("v044_create_workflow_snapshot_meta_table", CREATE_WORKFLOW_SNAPSHOT_META_TABLE)
+  .enqueue("v045_create_audit_log_table", CREATE_AUDIT_LOG_TABLE)
+  .enqueue("v046_create_audit_log_scope_at_index", CREATE_AUDIT_LOG_SCOPE_AT_INDEX);
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history
@@ -2799,6 +2826,68 @@ export async function pruneOldSnapshotVersions(scopeKey, keepVersion) {
     fieldsDeleted: toNumber(fieldsResult?.rowsAffected, 0),
     usageRowsDeleted: toNumber(usageResult?.rowsAffected, 0),
   };
+}
+
+// Write one audit row. Never throws: an audit failure must not become the reason a
+// legitimate admin action fails, and must not become a way to block one either. Failures
+// are surfaced to the structured log so a silently broken audit trail is still visible.
+export async function recordAuditEvent(scopeKey, { actorId, action, outcome, detail } = {}) {
+  try {
+    await ensureProjectStoreReady();
+    await withSqlRetry(() =>
+      sql
+        .prepare(`
+          INSERT INTO audit_log (scope_key, at, actor_id, action, outcome, detail)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `)
+        .bindParams(
+          scopeKey,
+          new Date().toISOString(),
+          actorId ? String(actorId).slice(0, 128) : null,
+          String(action || "unknown").slice(0, 128),
+          String(outcome || "unknown").slice(0, 32),
+          detail ? String(detail).slice(0, 2000) : null
+        )
+        .execute()
+    );
+    return { recorded: true };
+  } catch (error) {
+    console.error("recordAuditEvent: failed to write audit row", error?.message || error);
+    return { recorded: false };
+  }
+}
+
+export async function listAuditEvents(scopeKey, limit = 200) {
+  await ensureProjectStoreReady();
+  const capped = Math.max(1, Math.min(1000, Number(limit) || 200));
+  const result = await withSqlRetry(() =>
+    sql
+      .prepare("SELECT at, actor_id, action, outcome, detail FROM audit_log WHERE scope_key = ? ORDER BY at DESC LIMIT ?")
+      .bindParams(scopeKey, capped)
+      .execute()
+  );
+  return (result?.rows || []).map((row) => ({
+    at: row.at,
+    actorId: row.actor_id || null,
+    action: row.action,
+    outcome: row.outcome,
+    detail: row.detail || null,
+  }));
+}
+
+// 180 days, far longer than the 7 kept for report jobs: this is the record you reach for
+// when asking "who cleared the snapshot in March", and that question is usually asked
+// long after the fact.
+export async function pruneOldAuditEvents(scopeKey, olderThanMs = 180 * 24 * 60 * 60 * 1000) {
+  await ensureProjectStoreReady();
+  const cutoffIso = new Date(Date.now() - olderThanMs).toISOString();
+  const result = await withSqlRetry(() =>
+    sql
+      .prepare("DELETE FROM audit_log WHERE scope_key = ? AND at < ?")
+      .bindParams(scopeKey, cutoffIso)
+      .execute()
+  );
+  return { eventsDeleted: toNumber(result?.rowsAffected, 0) };
 }
 
 export async function pruneStaleReportJobs(scopeKey, olderThanMs = 7 * 24 * 60 * 60 * 1000) {
