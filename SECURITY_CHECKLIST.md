@@ -226,9 +226,33 @@ under it. This is verifiable via §3.1.
 
 - `npm audit` runs on every CI build (`.github/workflows/ci.yml`).
 - Dependabot is enabled.
-- **Open item, 31 July 2026:** GitHub reports 24 open Dependabot advisories on the default
-  branch (1 critical, 12 high, 8 moderate, 3 low). These have not been triaged. This is the
-  largest unaddressed item on this checklist.
+**Triaged 31 July 2026.** `npm audit` went from 17 advisories (2 critical, 8 high) to 5
+(0 critical, 4 high, 1 moderate). Both criticals and four highs cleared by upgrading
+Vitest to v4.
+
+The five that remain have **no safe fix**, and each is accepted for a stated reason:
+
+| Package | Sev | Why it stays |
+|---|---|---|
+| `linkify-it` <=5.0.1 | high | Reached only via `@forge/bridge` -> `@atlaskit/adf-schema`. **No fixed version of `@forge/bridge` exists** — npm's suggested "fix" is a *downgrade* to 5.8.0, eight minor versions back. Bridge 6.1.1 still pulls the same vulnerable `linkify-it@2.2.0`. |
+| `@atlaskit/adf-schema` | high | Same chain, same root cause. |
+| `@forge/bridge` | high | Same chain. Vendor package; no fixed release available. |
+| `vite` <=5.x | high | Fix requires Vite 8, which **breaks the admin build**: the `renameAdminHtml` plugin's `generateBundle` hook does not fire under rolldown, so `static/dist-admin/` is emitted with no `index.html`. Verified 31 Jul. |
+| `esbuild` <=0.24.2 | moderate | Transitive under `vite`; same blocker. |
+
+**Impact assessment.** All five are development- or client-side-only:
+
+- The `linkify-it` advisories are quadratic-complexity DoS in a markdown link parser.
+  Observatory does not render user-authored ADF or markdown — it renders its own field
+  catalog — and any such parse would run in the viewer's own sandboxed browser iframe.
+- The `vite` and `esbuild` advisories (path traversal in optimized-deps `.map` handling,
+  `server.fs.deny` bypass on Windows, launch-editor UNC hash disclosure) all require a
+  **running Vite dev server**. Vite is a build tool; it is never present in the deployed
+  Forge artifact, which is a static bundle.
+
+**Re-check trigger.** Revisit when a fixed `@forge/bridge` ships, or as part of a
+dedicated Vite 8 migration (which needs `renameAdminHtml` rewritten against rolldown's
+bundle API and the two-bundle output verified by hand).
 
 ---
 
