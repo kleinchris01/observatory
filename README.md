@@ -125,7 +125,7 @@ Per-field scanning costs one search per field (hundreds of round trips); the Uni
 **Quick Scan** is the same machinery narrowed to issues updated in the last 24 hours — a cheap top-up between full passes.
 
 **5. RQT index**
-Builds the Recently-Queried-Type frequency index — which fields and which *values* appear on which issues — backing the per-field value-frequency view.
+Builds the RQT token index — which `RQT-<n>-<n>` reference tokens appear in which field values on which issues — backing the per-value frequency and drilldown views. Two fields (`issuelinks`, `parent`) are skipped because their values describe *related* issues rather than the issue being indexed, and a dedup rule collapses tokens duplicated across four known overlapping fields.
 
 **6. UI reads**
 All reads go through `invoke()` to a resolver, which queries SQL and returns paginated, filtered, sorted results. No data is held in client state between page loads.
@@ -200,13 +200,15 @@ Nineteen tables managed by a 44-step migration runner (`@forge/sql` + `migration
 | `issue_scan_buffer` | Staging rows written by workers, promoted into `snapshot_project_usage` in batches |
 | `issue_scan_project_totals` | Per-project issue totals accumulated during the scan |
 
-**Recently-Queried-Type index**
+**RQT index**
+
+RQT tokens are site-specific reference identifiers matching `RQT-<n>-<n>`, which appear inside custom field *values* rather than as fields themselves. This index makes them queryable: which issues carry which token, in which field.
 
 | Table | Purpose |
 |---|---|
-| `rqt_field_index` | Field-level RQT frequency counters |
+| `rqt_field_index` | Per-field RQT token frequency counters |
 | `rqt_field_issue_index` | Field → issue associations backing the frequency view |
-| `rqt_value_issue_index` | Value → issue associations for per-value breakdowns |
+| `rqt_value_issue_index` | Token value → issue associations for per-value drilldown |
 | `rqt_issue_keys` | Issue key dictionary, so the index tables store integers rather than repeated strings |
 
 **Workflow & status snapshot**
