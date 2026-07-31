@@ -68,15 +68,32 @@ Each field can have an independent background summary job (`field_summaries.summ
 | `issue_scan_workers` | `(scope_key, worker_id)` | Reset at scan start; small and stable |
 | `field_summaries` | `(scope_key, field_id)` | One row per field; stable |
 | `field_options_cache` | `(scope_key, field_id, context_id, option_id)` | Replaced on each scan; grows with field option count |
-| `report_jobs` | `(scope_key, job_id)` | Accumulates completed jobs; pruned manually or on schedule |
+| `report_jobs` | `(scope_key, job_id)` | Accumulates completed jobs; pruned by the weekly retention trigger |
 
-### Automatic retention
+### Retention
 
-`pruneOldSnapshotVersions` runs automatically inside `runSnapshot` after each successful snapshot. It deletes `snapshot_fields` and `snapshot_project_usage` rows for any version other than the newly completed one. This keeps both tables at a single-version footprint.
+Two prune paths run automatically. Neither needs operator action.
 
-### Manual retention
+**After every snapshot.** `pruneOldSnapshotVersions` runs inline inside `runSnapshot` once a build completes, deleting `snapshot_fields` and `snapshot_project_usage` rows for every version except the new one. This keeps both tables at a single-version footprint.
 
-`pruneStaleReportJobs` deletes `report_jobs` rows where `completed_at` is older than the given threshold (default: 7 days). Call `runRetentionCleanup` to invoke both prune functions in one pass. It is idempotent and safe to call repeatedly.
+**Weekly.** The `retention-cleanup-trigger` scheduled trigger calls `runRetentionCleanup` (`index.js`), which runs both prune functions in one pass:
+
+- `pruneOldSnapshotVersions` — a safety net for the case where a build completed but its inline prune did not
+- `pruneStaleReportJobs` — deletes `report_jobs` rows whose `completed_at` is older than 7 days
+
+It is idempotent and safe to run repeatedly. It skips snapshot pruning when there is no active version, since without a version to keep it has no anchor and could delete the only snapshot present.
+
+To confirm it ran, search the Forge logs for `runRetentionCleanup:` — it logs a line per prune that deleted anything, and nothing when there was nothing to delete.
+
+> **Historical note.** Before 30 Jul 2026 this section told operators to "call `runRetentionCleanup`" directly. That was not possible: the function existed but was bound to no manifest function, so nothing could invoke it and `report_jobs` grew without bound. If you are looking at an installation deployed before that date, expect a backlog on the first weekly run.
+
+### Clearing all snapshot data
+
+Admin page → Scans → Snapshot → **Danger zone**. Requires typing `DELETE` to confirm, and is blocked while read-only mode is enabled.
+
+This deletes the field catalog, per-project usage, field summaries, cached options, issue scan state, and report job history, then cancels any in-flight build. **Saved reports, workflow data and the RQT index survive.** A full rebuild is required afterwards and can take hours on a large site.
+
+Use it to recover from a corrupted snapshot, or to purge site data on request. There is no undo.
 
 ### Warning signs
 

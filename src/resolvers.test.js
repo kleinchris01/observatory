@@ -34,6 +34,7 @@ const mocks = vi.hoisted(() => ({
   ensureProjectStoreReady: vi.fn().mockResolvedValue(undefined),
   readSnapshotMeta: vi.fn(),
   writeSnapshotMeta: vi.fn().mockResolvedValue(undefined),
+  clearAllSnapshotData: vi.fn().mockResolvedValue({ deleted: {}, totalRowsDeleted: 0 }),
   loadSnapshotFields: vi.fn(),
   loadSnapshotField: vi.fn(),
   loadSnapshotProjectUsage: vi.fn(),
@@ -138,6 +139,7 @@ vi.mock("./lib/project-store.js", () => ({
   ensureProjectStoreReady: mocks.ensureProjectStoreReady,
   readSnapshotMeta: mocks.readSnapshotMeta,
   writeSnapshotMeta: mocks.writeSnapshotMeta,
+  clearAllSnapshotData: mocks.clearAllSnapshotData,
   loadSnapshotFields: mocks.loadSnapshotFields,
   loadSnapshotField: mocks.loadSnapshotField,
   loadSnapshotProjectUsage: mocks.loadSnapshotProjectUsage,
@@ -244,6 +246,7 @@ import {
   rovoSearchFields,
   rovoInspectField,
   migrateNamespaceKeys,
+  CLEAR_SNAPSHOT_CONFIRMATION,
 } from "./resolvers.js";
 
 const {
@@ -267,6 +270,7 @@ const {
   startDeltaIssueScan,
   getDeltaIssueScanStatus,
   cancelSnapshot,
+  clearSnapshot,
   getProjectUsageJobs,
   refreshRecentProjectUsage,
   cancelProjectUsageJob,
@@ -2088,5 +2092,97 @@ describe("migrateNamespaceKeys", () => {
   test("does not swallow an error from the underlying migration", async () => {
     mocks.migrateOldScopeKeys.mockRejectedValue(new Error("migration failed: duplicate key"));
     await expect(migrateNamespaceKeys({ context: {} })).rejects.toThrow("migration failed: duplicate key");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// clearSnapshot
+//
+// The only irreversible operation in the app. These tests exist mainly to pin
+// the things that make it *safe*: the confirmation is enforced server-side and
+// not just in the UI, read-only mode blocks it, and the running build is
+// cancelled before any DELETE runs -- an in-flight build would otherwise keep
+// writing rows into the tables behind the delete.
+// ---------------------------------------------------------------------------
+describe("clearSnapshot", () => {
+  beforeEach(() => {
+    mocks.clearAllSnapshotData.mockResolvedValue({
+      deleted: { snapshot_fields: 120, snapshot_project_usage: 4300 },
+      totalRowsDeleted: 4420,
+    });
+  });
+
+  test("refuses when the confirmation text is missing", async () => {
+    const result = await clearSnapshot({ payload: {}, context: {} });
+
+    expect(result.cleared).toBe(false);
+    expect(result.error).toContain(CLEAR_SNAPSHOT_CONFIRMATION);
+    expect(mocks.clearAllSnapshotData).not.toHaveBeenCalled();
+  });
+
+  test("refuses when the confirmation text does not match", async () => {
+    const result = await clearSnapshot({ payload: { confirmation: "delete" }, context: {} });
+
+    expect(result.cleared).toBe(false);
+    expect(mocks.clearAllSnapshotData).not.toHaveBeenCalled();
+  });
+
+  test("accepts the confirmation with surrounding whitespace", async () => {
+    const result = await clearSnapshot({
+      payload: { confirmation: `  ${CLEAR_SNAPSHOT_CONFIRMATION}  ` },
+      context: {},
+    });
+
+    expect(result.cleared).toBe(true);
+    expect(mocks.clearAllSnapshotData).toHaveBeenCalledWith("test-install");
+  });
+
+  test("refuses while read-only mode is enabled", async () => {
+    mocks.kvsGet.mockResolvedValue({ readOnlyMode: true });
+
+    const result = await clearSnapshot({
+      payload: { confirmation: CLEAR_SNAPSHOT_CONFIRMATION },
+      context: {},
+    });
+
+    expect(result.cleared).toBe(false);
+    expect(result.error).toMatch(/read-only/i);
+    expect(mocks.clearAllSnapshotData).not.toHaveBeenCalled();
+  });
+
+  test("cancels the in-flight build before deleting anything", async () => {
+    const order = [];
+    mocks.writeSnapshotMeta.mockImplementation(async () => { order.push("cancel"); });
+    mocks.clearAllSnapshotData.mockImplementation(async () => {
+      order.push("delete");
+      return { deleted: {}, totalRowsDeleted: 0 };
+    });
+
+    await clearSnapshot({ payload: { confirmation: CLEAR_SNAPSHOT_CONFIRMATION }, context: {} });
+
+    expect(order).toEqual(["cancel", "delete"]);
+    expect(mocks.writeSnapshotMeta).toHaveBeenCalledWith("test-install", {
+      state: "cancelled",
+      buildingVersion: null,
+      lastError: null,
+    });
+  });
+
+  test("returns the per-table row counts so the UI can report what was destroyed", async () => {
+    const result = await clearSnapshot({
+      payload: { confirmation: CLEAR_SNAPSHOT_CONFIRMATION },
+      context: {},
+    });
+
+    expect(result).toEqual({
+      cleared: true,
+      deleted: { snapshot_fields: 120, snapshot_project_usage: 4300 },
+      totalRowsDeleted: 4420,
+    });
+  });
+
+  test("is registered admin-only and never on the shared macro resolver", () => {
+    expect(ADMIN_ONLY_FUNCTIONS.clearSnapshot).toBeDefined();
+    expect(SHARED_RESOLVER_FUNCTIONS.clearSnapshot).toBeUndefined();
   });
 });

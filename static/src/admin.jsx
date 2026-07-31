@@ -1542,7 +1542,119 @@ function ActivitySection({ title, subtitle, open, onToggle, actions, children })
   );
 }
 
-function SnapshotPanel({ snapshot, onBuildSnapshot, buildingSnapshot, onRefresh, refreshingOverview }) {
+// Must match CLEAR_SNAPSHOT_CONFIRMATION in src/resolvers.js. The admin bundle is built
+// separately from the backend so this cannot be imported; the server re-checks it anyway,
+// which means a drift here shows up as "confirmation did not match" rather than as an
+// accidental deletion.
+const CLEAR_CONFIRMATION_WORD = "DELETE";
+
+// Type-to-confirm rather than a plain OK dialog. This is the one irreversible action in
+// the app, and a single mis-click should not be able to destroy a snapshot that took
+// hours to build on a large site.
+export function ClearSnapshotControl({ onCleared }) {
+  const [open, setOpen] = React.useState(false);
+  const [typed, setTyped] = React.useState("");
+  const [clearing, setClearing] = React.useState(false);
+  const [result, setResult] = React.useState(null);
+  const [error, setError] = React.useState(null);
+
+  const confirmed = typed.trim() === CLEAR_CONFIRMATION_WORD;
+
+  function reset() {
+    setOpen(false);
+    setTyped("");
+    setError(null);
+  }
+
+  async function handleClear() {
+    if (!confirmed || clearing) return;
+    setClearing(true);
+    setError(null);
+    try {
+      const response = await invoke("clearSnapshot", { confirmation: typed.trim() });
+      if (!response?.cleared) {
+        setError(response?.error || "Clear failed.");
+        return;
+      }
+      setResult(response);
+      reset();
+      if (onCleared) await onCleared();
+    } catch (err) {
+      setError(err?.message || "Clear failed.");
+    } finally {
+      setClearing(false);
+    }
+  }
+
+  return (
+    <div className="danger-zone">
+      <div className="danger-zone__header">
+        <Icon name="alertTriangle" size={13} />
+        <span className="danger-zone__title">Danger zone</span>
+      </div>
+
+      {result && !open && (
+        <div className="danger-zone__result" role="status">
+          Snapshot data cleared — {result.totalRowsDeleted.toLocaleString()} rows removed. Build a new snapshot to repopulate.
+        </div>
+      )}
+
+      {!open ? (
+        <div className="danger-zone__row">
+          <p className="danger-zone__desc">
+            Delete all indexed field data and start over. Use this to recover from a corrupted
+            snapshot, or to purge site data on request.
+          </p>
+          <button className="danger-button" type="button" onClick={() => { setOpen(true); setResult(null); }}>
+            Clear snapshot data
+          </button>
+        </div>
+      ) : (
+        <div className="danger-zone__confirm">
+          <p className="danger-zone__desc">
+            This permanently deletes the field catalog, per-project usage, field summaries,
+            cached options, issue scan state and report job history. A full rebuild will be
+            required, which can take hours on a large site.
+          </p>
+          <p className="danger-zone__desc danger-zone__desc--muted">
+            Saved reports, workflow data and the RQT index are not affected.
+          </p>
+
+          <label className="danger-zone__label" htmlFor="clear-confirm-input">
+            Type <strong>{CLEAR_CONFIRMATION_WORD}</strong> to confirm
+          </label>
+          <div className="danger-zone__row">
+            <input
+              id="clear-confirm-input"
+              className="danger-zone__input"
+              type="text"
+              value={typed}
+              autoComplete="off"
+              disabled={clearing}
+              placeholder={CLEAR_CONFIRMATION_WORD}
+              onChange={(e) => setTyped(e.target.value)}
+            />
+            <button className="secondary-button" type="button" onClick={reset} disabled={clearing}>
+              Cancel
+            </button>
+            <button
+              className="danger-button"
+              type="button"
+              onClick={handleClear}
+              disabled={!confirmed || clearing}
+            >
+              {clearing ? "Clearing…" : "Clear everything"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {error && <div className="danger-zone__error" role="alert">{error}</div>}
+    </div>
+  );
+}
+
+function SnapshotPanel({ snapshot, onBuildSnapshot, buildingSnapshot, onRefresh, refreshingOverview, onCleared }) {
   if (!snapshot) {
     return <div className="empty-state">Loading snapshot status…</div>;
   }
@@ -1626,6 +1738,8 @@ function SnapshotPanel({ snapshot, onBuildSnapshot, buildingSnapshot, onRefresh,
       )}
 
       <SnapshotLog entries={snapshot.progressLog} />
+
+      <ClearSnapshotControl onCleared={onCleared} />
     </div>
   );
 }
@@ -2231,6 +2345,7 @@ function ScansTab({ siteOrigin, initialSection }) {
             buildingSnapshot={buildingSnapshot}
             onRefresh={() => fetchSnapshotStatus({ quiet: true })}
             refreshingOverview={refreshingSnapshot}
+            onCleared={() => fetchSnapshotStatus({ quiet: true })}
           />
         )}
         {activeSection === "universe" && (

@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { invoke, view, router } from "@forge/bridge";
-import { AdminApp } from "./admin";
+import { AdminApp, ClearSnapshotControl } from "./admin";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -710,5 +710,124 @@ describe("AdminApp Field Browser advanced filter panel", () => {
     await waitFor(() => {
       expect(screen.getByLabelText("Field origin")).toHaveValue("all");
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ClearSnapshotControl
+//
+// The only irreversible action in the app. These tests are about the guard rails
+// rather than the happy path: the button stays disabled until the confirmation
+// is exact, a server-side refusal surfaces instead of being reported as success,
+// and the panel says plainly what survives the delete.
+// ---------------------------------------------------------------------------
+describe("ClearSnapshotControl", () => {
+  async function open(user) {
+    await user.click(screen.getByRole("button", { name: /clear snapshot data/i }));
+  }
+
+  it("does not expose the destructive action until the admin opts in", () => {
+    render(<ClearSnapshotControl />);
+
+    expect(screen.getByRole("button", { name: /clear snapshot data/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /clear everything/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("keeps the clear button disabled until the confirmation matches exactly", async () => {
+    const user = userEvent.setup();
+    render(<ClearSnapshotControl />);
+    await open(user);
+
+    const confirmButton = screen.getByRole("button", { name: /clear everything/i });
+    const input = screen.getByRole("textbox");
+
+    expect(confirmButton).toBeDisabled();
+
+    await user.type(input, "delete");
+    expect(confirmButton).toBeDisabled();
+
+    await user.clear(input);
+    await user.type(input, "DELETE ME");
+    expect(confirmButton).toBeDisabled();
+
+    await user.clear(input);
+    await user.type(input, "DELETE");
+    expect(confirmButton).toBeEnabled();
+  });
+
+  it("sends the confirmation to the server and reports what was deleted", async () => {
+    const user = userEvent.setup();
+    invoke.mockResolvedValue({ cleared: true, totalRowsDeleted: 4420, deleted: {} });
+    const onCleared = vi.fn();
+
+    render(<ClearSnapshotControl onCleared={onCleared} />);
+    await open(user);
+    await user.type(screen.getByRole("textbox"), "DELETE");
+    await user.click(screen.getByRole("button", { name: /clear everything/i }));
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith("clearSnapshot", { confirmation: "DELETE" });
+    });
+    expect(await screen.findByText(/4,420 rows removed/i)).toBeInTheDocument();
+    expect(onCleared).toHaveBeenCalled();
+  });
+
+  it("surfaces a server-side refusal instead of claiming success", async () => {
+    const user = userEvent.setup();
+    invoke.mockResolvedValue({ cleared: false, error: "Read-only mode is enabled." });
+
+    render(<ClearSnapshotControl />);
+    await open(user);
+    await user.type(screen.getByRole("textbox"), "DELETE");
+    await user.click(screen.getByRole("button", { name: /clear everything/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/read-only mode/i);
+    expect(screen.queryByText(/rows removed/i)).not.toBeInTheDocument();
+  });
+
+  it("surfaces a thrown error rather than failing silently", async () => {
+    const user = userEvent.setup();
+    invoke.mockRejectedValue(new Error("network down"));
+
+    render(<ClearSnapshotControl />);
+    await open(user);
+    await user.type(screen.getByRole("textbox"), "DELETE");
+    await user.click(screen.getByRole("button", { name: /clear everything/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/network down/i);
+  });
+
+  it("cancelling closes the panel without invoking anything", async () => {
+    const user = userEvent.setup();
+    render(<ClearSnapshotControl />);
+    await open(user);
+
+    await user.type(screen.getByRole("textbox"), "DELETE");
+    await user.click(screen.getByRole("button", { name: /^cancel$/i }));
+
+    expect(invoke).not.toHaveBeenCalledWith("clearSnapshot", expect.anything());
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("discards a previously typed confirmation when reopened", async () => {
+    const user = userEvent.setup();
+    render(<ClearSnapshotControl />);
+
+    await open(user);
+    await user.type(screen.getByRole("textbox"), "DELETE");
+    await user.click(screen.getByRole("button", { name: /^cancel$/i }));
+    await open(user);
+
+    expect(screen.getByRole("textbox")).toHaveValue("");
+    expect(screen.getByRole("button", { name: /clear everything/i })).toBeDisabled();
+  });
+
+  it("states what the clear does not destroy", async () => {
+    const user = userEvent.setup();
+    render(<ClearSnapshotControl />);
+    await open(user);
+
+    expect(screen.getByText(/saved reports, workflow data and the RQT index are not affected/i)).toBeInTheDocument();
   });
 });

@@ -1178,6 +1178,50 @@ export async function clearOtherSnapshotVersions(scopeKey, version) {
     .execute();
 }
 
+// Tables wiped by a full snapshot clear, in deletion order. The field snapshot and the
+// issue-scan state go together deliberately: scan meta records the version it promoted
+// into, so leaving it behind after wiping snapshot_fields produces a scan that believes
+// it has already populated a version that no longer exists -- which is the exact
+// corruption this operation exists to recover from.
+//
+// Deliberately NOT here:
+//   saved_reports      user-authored definitions, not derived data -- clearing the
+//                      snapshot must not destroy someone's saved work
+//   workflow tables    separate pipeline, separately versioned, unaffected by field state
+//   rqt_* tables       keyed by issue rather than snapshot version, so they stay valid
+const SNAPSHOT_CLEAR_TABLES = [
+  "snapshot_project_usage",
+  "snapshot_fields",
+  "field_summaries",
+  "field_options_cache",
+  "issue_scan_buffer",
+  "issue_scan_workers",
+  "issue_scan_project_totals",
+  "issue_scan_meta",
+  "report_jobs",
+  "snapshot_meta",
+];
+
+// Wipe every derived field-snapshot table for one installation, returning per-table row
+// counts so the caller can report exactly what was destroyed rather than claiming success
+// blindly. snapshot_meta is deleted last: while it exists the UI still reports a state,
+// so if this fails partway the app shows "ready" over incomplete data for as short a
+// window as possible.
+export async function clearAllSnapshotData(scopeKey) {
+  await ensureProjectStoreReady();
+
+  const deleted = {};
+  for (const table of SNAPSHOT_CLEAR_TABLES) {
+    const result = await withSqlRetry(() =>
+      sql.prepare(`DELETE FROM ${table} WHERE scope_key = ?`).bindParams(scopeKey).execute()
+    );
+    deleted[table] = toNumber(result?.rowsAffected, 0);
+  }
+
+  const totalRowsDeleted = Object.values(deleted).reduce((sum, n) => sum + n, 0);
+  return { deleted, totalRowsDeleted };
+}
+
 // Copy all project-usage rows from any older snapshot version into the current version,
 // preserving the historical per-field cache built up by individual field scans.
 // INSERT IGNORE means rows already written for the new version (fresh per-field scans)

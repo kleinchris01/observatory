@@ -22,6 +22,7 @@ import {
   isSqlRateLimitError,
   withSqlRetry,
   loadFieldLastChangeMap,
+  clearAllSnapshotData,
 } from "./project-store.js";
 
 afterEach(() => vi.restoreAllMocks());
@@ -300,5 +301,98 @@ describe("loadFieldLastChangeMap", () => {
 
     expect(map.size).toBe(1);
     expect(map.get("customfield_3")).toBe("2026-02-02T00:00:00.000Z");
+  });
+});
+
+// ── clearAllSnapshotData ──────────────────────────────────────────────────────
+//
+// Every assertion here is really about blast radius. The function deletes without
+// a version filter, so the set of tables it touches -- and the set it must not --
+// is the whole safety contract.
+
+// Records SQL text and params per call, returning a fixed rowsAffected so the
+// per-table counts can be asserted. The shared mockSqlQueries helper returns
+// `rows`, which this function does not read.
+function mockDeletes(rowsAffected = 1) {
+  const calls = [];
+  sql.prepare.mockImplementation((text) => {
+    const call = { text, params: null };
+    calls.push(call);
+    return {
+      bindParams: (...params) => {
+        call.params = params;
+        return { execute: async () => ({ rowsAffected }) };
+      },
+    };
+  });
+  return calls;
+}
+
+describe("clearAllSnapshotData", () => {
+  test("deletes from every derived snapshot table, scoped to the installation", async () => {
+    const calls = mockDeletes();
+
+    await clearAllSnapshotData("scope-1");
+
+    const tables = calls.map((c) => c.text.match(/DELETE FROM (\w+)/)[1]);
+    expect(tables).toEqual([
+      "snapshot_project_usage",
+      "snapshot_fields",
+      "field_summaries",
+      "field_options_cache",
+      "issue_scan_buffer",
+      "issue_scan_workers",
+      "issue_scan_project_totals",
+      "issue_scan_meta",
+      "report_jobs",
+      "snapshot_meta",
+    ]);
+    for (const call of calls) {
+      expect(call.text).toContain("WHERE scope_key = ?");
+      expect(call.params).toEqual(["scope-1"]);
+    }
+  });
+
+  test("never touches saved reports, workflow data, or the RQT index", async () => {
+    const calls = mockDeletes();
+
+    await clearAllSnapshotData("scope-1");
+
+    const sqlText = calls.map((c) => c.text).join(" ");
+    expect(sqlText).not.toContain("saved_reports");
+    expect(sqlText).not.toContain("rqt_");
+    expect(sqlText).not.toContain("workflow");
+    expect(sqlText).not.toContain("snapshot_statuses");
+  });
+
+  test("deletes snapshot_meta last so the app never reports ready over wiped data", async () => {
+    const calls = mockDeletes();
+
+    await clearAllSnapshotData("scope-1");
+
+    expect(calls[calls.length - 1].text).toContain("snapshot_meta");
+  });
+
+  test("returns per-table and total row counts", async () => {
+    mockDeletes(7);
+
+    const result = await clearAllSnapshotData("scope-1");
+
+    expect(result.deleted.snapshot_fields).toBe(7);
+    expect(result.deleted.snapshot_meta).toBe(7);
+    expect(result.totalRowsDeleted).toBe(70);
+  });
+
+  test("treats a missing rowsAffected as zero rather than NaN", async () => {
+    const calls = [];
+    sql.prepare.mockImplementation((text) => {
+      calls.push(text);
+      return { bindParams: () => ({ execute: async () => ({}) }) };
+    });
+
+    const result = await clearAllSnapshotData("scope-1");
+
+    expect(result.totalRowsDeleted).toBe(0);
+    expect(Number.isNaN(result.totalRowsDeleted)).toBe(false);
   });
 });

@@ -75,13 +75,6 @@ export async function runRetentionCleanup(_event, context) {
   };
 }
 
-export async function scheduleSnapshot(_event, context) {
-  incrMetric(METRIC_NAMES.snapshotScheduler);
-  const installationKey = getInstallationKey(context);
-  await queueSnapshotBuild(installationKey);
-  return { queued: true };
-}
-
 export async function autoSnapshotCheck(_event, context) {
   const config = await readAdminConfig();
   if (!config.autoSnapshotEnabled) return { skipped: true, reason: "disabled" };

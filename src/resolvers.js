@@ -38,6 +38,7 @@ import {
   ensureProjectStoreReady,
   readSnapshotMeta,
   writeSnapshotMeta,
+  clearAllSnapshotData,
   loadSnapshotFields,
   loadSnapshotField,
   loadSnapshotProjectUsage,
@@ -702,6 +703,48 @@ async function cancelSnapshot({ context }) {
     lastError: null,
   });
   return { cancelled: true };
+}
+
+// The literal a caller must send to confirm a destructive clear. The admin bundle is
+// built separately and cannot import from here, so ClearSnapshotControl in admin.jsx
+// carries its own copy of this string -- if you change it, change it there too, or
+// admins get told to type a word the server will reject.
+export const CLEAR_SNAPSHOT_CONFIRMATION = "DELETE";
+
+async function clearSnapshot({ payload, context }) {
+  await ensureProjectStoreReady();
+
+  // Re-checked server-side even though the UI gates on it. The UI check is there to make
+  // the action deliberate; this one is there because a resolver is reachable without the
+  // UI, and "irreversibly delete everything" should not be a bare invoke() away.
+  const confirmation = String(payload?.confirmation ?? "").trim();
+  if (confirmation !== CLEAR_SNAPSHOT_CONFIRMATION) {
+    return {
+      cleared: false,
+      error: `Confirmation text did not match. Type ${CLEAR_SNAPSHOT_CONFIRMATION} to confirm.`,
+    };
+  }
+
+  const adminConfig = await readAdminConfig();
+  if (adminConfig.readOnlyMode) {
+    return { cleared: false, error: "Read-only mode is enabled. Disable it before clearing snapshot data." };
+  }
+
+  const installationKey = getInstallationKey(context);
+
+  // Cancel before deleting, not after. A build running against the version we are about
+  // to wipe would otherwise keep writing rows into the tables behind us, leaving the
+  // installation in exactly the half-populated state this action is meant to escape.
+  await writeSnapshotMeta(installationKey, {
+    state: "cancelled",
+    buildingVersion: null,
+    lastError: null,
+  });
+
+  const result = await clearAllSnapshotData(installationKey);
+  console.log(`clearSnapshot: deleted ${result.totalRowsDeleted} rows across ${Object.keys(result.deleted).length} tables`);
+
+  return { cleared: true, ...result };
 }
 
 async function getProjectUsageJobs({ context }) {
@@ -2491,6 +2534,7 @@ export const ADMIN_ONLY_FUNCTIONS = {
 
   // Snapshot lifecycle
   cancelSnapshot,          // Mutating: cancels in-progress snapshot build
+  clearSnapshot,           // Mutating: irreversibly deletes all derived snapshot data
 
   // Project usage job management
   getProjectUsageJobs,     // Admin read: lists all field-level project-usage jobs with logs

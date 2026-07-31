@@ -12,6 +12,11 @@
   --warm: #8b5e2e;
   --cool: #1c658c;
   --success: #2c7a57;
+  /* Was already referenced by .admin-config-danger before it existed as a token, so that
+     rule silently inherited its colour. Defined here for the danger zone and that rule. */
+  --danger: #b03024;
+  --danger-bg: rgba(176, 48, 36, 0.07);
+  --danger-stroke: rgba(176, 48, 36, 0.28);
   --shadow: 0 18px 50px rgba(71, 53, 26, 0.12);
   --radius-xl: 28px;
   --radius-lg: 20px;
@@ -35,6 +40,9 @@
   --warm: #f2b367;
   --cool: #79b8ff;
   --success: #58d68d;
+  --danger: #f0736a;
+  --danger-bg: rgba(240, 115, 106, 0.09);
+  --danger-stroke: rgba(240, 115, 106, 0.3);
   --shadow: 0 18px 50px rgba(0, 0, 0, 0.34);
   --control-scheme: dark;
 }
@@ -5567,4 +5575,122 @@ code {
   flex-wrap: wrap;
   gap: 3px;
   padding: 2px 0 2px 4px;
+}
+
+/* ── Danger zone (snapshot clear) ──────────────────────────────────────────── */
+
+.danger-zone {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--danger-stroke);
+  background: var(--danger-bg);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.danger-zone__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--danger);
+}
+
+.danger-zone__title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.danger-zone__row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.danger-zone__desc {
+  margin: 0;
+  flex: 1;
+  min-width: 16rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.danger-zone__desc--muted { font-size: 0.8rem; opacity: 0.85; }
+
+.danger-zone__confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.danger-zone__label {
+  font-size: 0.8rem;
+  color: var(--text);
+}
+
+.danger-zone__input {
+  flex: 0 1 12rem;
+  padding: 7px 10px;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  letter-spacing: 0.06em;
+  color: var(--text);
+  background: var(--panel-strong);
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+}
+
+.danger-zone__input:focus-visible,
+.danger-button:focus-visible {
+  outline: 2px solid var(--danger);
+  outline-offset: 2px;
+}
+
+.danger-button {
+  padding: 7px 14px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--danger);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: opacity 120ms ease;
+}
+
+.danger-button:hover:not(:disabled) { opacity: 0.88; }
+
+.danger-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.danger-zone__error,
+.danger-zone__result {
+  font-size: 0.83rem;
+  padding: 8px 10px;
+  border-radius: 8px;
+  line-height: 1.45;
+}
+
+.danger-zone__error {
+  color: var(--danger);
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-stroke);
+}
+
+.danger-zone__result {
+  color: var(--success);
+  background: rgba(44, 122, 87, 0.08);
+  border: 1px solid rgba(44, 122, 87, 0.25);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .danger-button { transition: none; }
 }

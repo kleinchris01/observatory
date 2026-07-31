@@ -1,4 +1,5 @@
 import { describe, test, expect, vi, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
 
 // index.js is the Forge entry point: scheduled triggers, the queue consumer's job
 // router, and the two resolver handler registries. The router is the reason this
@@ -72,7 +73,6 @@ vi.mock("@forge/resolver", () => ({ makeResolver: (fns) => ({ __registered: fns 
 
 import {
   runRetentionCleanup,
-  scheduleSnapshot,
   autoSnapshotCheck,
   runProjectStorageMigrations,
   consumeSnapshot,
@@ -156,13 +156,6 @@ describe("runRetentionCleanup", () => {
 });
 
 // ── Scheduled entry points ────────────────────────────────────────────────────
-
-describe("scheduleSnapshot", () => {
-  test("queues a build for the installation", async () => {
-    await expect(scheduleSnapshot({}, CONTEXT)).resolves.toEqual({ queued: true });
-    expect(queueSnapshotBuild).toHaveBeenCalledWith("scope-1");
-  });
-});
 
 describe("autoSnapshotCheck", () => {
   test("does nothing when auto-snapshot is disabled", async () => {
@@ -495,5 +488,49 @@ describe("resolver handler registries", () => {
 
   test("config mutation is not reachable from the macro handler", () => {
     expect(handler.__registered).not.toHaveProperty("saveAdminConfig");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Manifest wiring
+//
+// runRetentionCleanup existed and worked for months while bound to no manifest
+// function, so nothing could ever call it -- RUNBOOK.md even told operators to
+// invoke it directly, which was impossible. A unit test cannot catch that class
+// of bug, because the function itself is fine. This reads the manifest and
+// asserts every exported entry point is actually reachable.
+// ---------------------------------------------------------------------------
+describe("manifest wiring", () => {
+  const manifest = readFileSync(new URL("../manifest.yml", import.meta.url), "utf8");
+
+  test("runRetentionCleanup is bound to a function and a scheduled trigger", () => {
+    expect(manifest).toContain("handler: index.runRetentionCleanup");
+    expect(manifest).toMatch(/key: retention-cleanup-trigger[\s\S]*?function: retention-cleanup/);
+  });
+
+  test("retention runs on a different schedule than auto-snapshot", () => {
+    const events = manifest.match(/avi:scheduled:\w+/g) || [];
+    expect(events).toContain("avi:scheduled:daily");
+    expect(events).toContain("avi:scheduled:weekly");
+  });
+
+  // Deliberately checks "is exported", not "is a function": the two resolver entry
+  // points are objects built by makeResolver, while the triggers and the consumer are
+  // plain functions. What matters is that Forge can resolve the name at all -- a
+  // manifest pointing at a missing export fails only at invocation time, in production.
+  test("every index.* handler in the manifest is a real export", async () => {
+    const handlers = [...manifest.matchAll(/handler: index\.(\w+)/g)].map((m) => m[1]);
+    const module = await import("./index.js");
+
+    expect(handlers.length).toBeGreaterThan(0);
+    for (const name of handlers) {
+      expect(module[name], `manifest references index.${name}`).toBeDefined();
+    }
+  });
+
+  test("scheduleSnapshot is gone from both the code and the manifest", async () => {
+    const module = await import("./index.js");
+    expect(module.scheduleSnapshot).toBeUndefined();
+    expect(manifest).not.toContain("scheduleSnapshot");
   });
 });

@@ -22,6 +22,14 @@ modules:
       function: auto-snapshot
       events:
         - avi:scheduled:daily
+    # Weekly, not daily: the daily slot is taken by auto-snapshot, and retention only
+    # deletes report_jobs completed more than 7 days ago -- running it more often than
+    # the retention window buys nothing. Snapshot version pruning already runs inline
+    # after each successful build; this is the only path that prunes report_jobs at all.
+    - key: retention-cleanup-trigger
+      function: retention-cleanup
+      events:
+        - avi:scheduled:weekly
   rovo:agent:
     - key: observatory-field-expert
       name: Observatory Field Expert
@@ -93,6 +101,8 @@ modules:
       handler: index.adminHandler
     - key: auto-snapshot
       handler: index.autoSnapshotCheck
+    - key: retention-cleanup
+      handler: index.runRetentionCleanup
     - key: sql-migrate
       handler: index.runProjectStorageMigrations
     - key: rovo-search-fields
