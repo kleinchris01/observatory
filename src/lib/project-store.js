@@ -320,38 +320,55 @@ const CREATE_AUDIT_LOG_SCOPE_AT_INDEX = `
   CREATE INDEX IF NOT EXISTS idx_audit_log_scope_at ON audit_log (scope_key, at)
 `;
 
+// Every ADD COLUMN below is written IF NOT EXISTS, without exception.
+//
+// The CREATE TABLE constants above describe the CURRENT shape of each table, not the
+// shape it had when its migration was first written -- a column added later gets appended
+// to the CREATE *and* enqueued as an ALTER. On a database that already existed, the ALTER
+// does the work. On a fresh database the CREATE already produced the column, so a bare
+// ALTER fails with a duplicate-column error, the runner stops there, and every migration
+// after it never runs.
+//
+// That is not hypothetical: v010 adds snapshot_meta.job_token, which CREATE_SNAPSHOT_META_TABLE
+// has contained since the initial commit. Any database built from scratch by this code
+// died at v010 until this was fixed -- it went unnoticed only because every environment
+// had a pre-existing database. Deploying to a fresh staging site surfaced it.
+//
+// So: idempotent ALTERs are the rule here, not a patch applied where a collision is known.
+// Applying it only to the columns that collide today leaves the trap armed for whoever
+// adds the next column. project-store.migrations.test.js enforces this mechanically.
 const projectStoreMigrations = migrationRunner
   .enqueue("v001_create_snapshot_fields_table", CREATE_SNAPSHOT_FIELDS_TABLE)
   .enqueue("v002_create_field_summaries_table", CREATE_FIELD_SUMMARIES_TABLE)
   .enqueue("v003_create_field_summaries_refresh_index", CREATE_SUMMARY_REFRESH_INDEX)
   .enqueue("v004_create_snapshot_project_usage_table", CREATE_SNAPSHOT_PROJECT_USAGE_TABLE)
   .enqueue("v005_create_snapshot_project_usage_index", CREATE_SNAPSHOT_PROJECT_USAGE_INDEX)
-  .enqueue("v006_alter_snapshot_fields_add_fingerprint", "ALTER TABLE snapshot_fields ADD COLUMN project_usage_fingerprint VARCHAR(128) NULL")
+  .enqueue("v006_alter_snapshot_fields_add_fingerprint", "ALTER TABLE snapshot_fields ADD COLUMN IF NOT EXISTS project_usage_fingerprint VARCHAR(128) NULL")
   .enqueue("v007_create_snapshot_meta_table", CREATE_SNAPSHOT_META_TABLE)
-  .enqueue("v008_alter_snapshot_fields_add_usage_status", "ALTER TABLE snapshot_fields ADD COLUMN usage_status VARCHAR(32) NOT NULL DEFAULT 'ready'")
-  .enqueue("v009_alter_snapshot_fields_add_usage_status_detail", "ALTER TABLE snapshot_fields ADD COLUMN usage_status_detail TEXT NULL")
-  .enqueue("v010_alter_snapshot_meta_add_job_token", "ALTER TABLE snapshot_meta ADD COLUMN job_token VARCHAR(96) NULL")
-  .enqueue("v011_alter_snapshot_meta_add_processed_fields", "ALTER TABLE snapshot_meta ADD COLUMN processed_fields INTEGER NOT NULL DEFAULT 0")
-  .enqueue("v012_alter_snapshot_meta_add_progress_log", "ALTER TABLE snapshot_meta ADD COLUMN progress_log LONGTEXT NULL")
-  .enqueue("v013_alter_snapshot_meta_add_building_version", "ALTER TABLE snapshot_meta ADD COLUMN building_version VARCHAR(64) NULL")
-  .enqueue("v014_alter_field_summaries_add_started_at", "ALTER TABLE field_summaries ADD COLUMN started_at VARCHAR(64) NULL")
-  .enqueue("v015_alter_field_summaries_add_completed_at", "ALTER TABLE field_summaries ADD COLUMN completed_at VARCHAR(64) NULL")
-  .enqueue("v016_alter_field_summaries_add_last_error", "ALTER TABLE field_summaries ADD COLUMN last_error TEXT NULL")
-  .enqueue("v017_alter_field_summaries_add_progress_log", "ALTER TABLE field_summaries ADD COLUMN progress_log LONGTEXT NULL")
-  .enqueue("v018_alter_field_summaries_add_job_token", "ALTER TABLE field_summaries ADD COLUMN job_token VARCHAR(96) NULL")
-  .enqueue("v019_alter_field_summaries_add_processed_issue_count", "ALTER TABLE field_summaries ADD COLUMN processed_issue_count BIGINT NOT NULL DEFAULT 0")
-  .enqueue("v020_alter_field_summaries_add_estimated_issue_total", "ALTER TABLE field_summaries ADD COLUMN estimated_issue_total BIGINT NOT NULL DEFAULT 0")
-  .enqueue("v021_alter_field_summaries_add_next_start_at", "ALTER TABLE field_summaries ADD COLUMN next_start_at BIGINT NOT NULL DEFAULT 0")
-  .enqueue("v022_alter_field_summaries_add_next_page_token", "ALTER TABLE field_summaries ADD COLUMN next_page_token TEXT NULL")
+  .enqueue("v008_alter_snapshot_fields_add_usage_status", "ALTER TABLE snapshot_fields ADD COLUMN IF NOT EXISTS usage_status VARCHAR(32) NOT NULL DEFAULT 'ready'")
+  .enqueue("v009_alter_snapshot_fields_add_usage_status_detail", "ALTER TABLE snapshot_fields ADD COLUMN IF NOT EXISTS usage_status_detail TEXT NULL")
+  .enqueue("v010_alter_snapshot_meta_add_job_token", "ALTER TABLE snapshot_meta ADD COLUMN IF NOT EXISTS job_token VARCHAR(96) NULL")
+  .enqueue("v011_alter_snapshot_meta_add_processed_fields", "ALTER TABLE snapshot_meta ADD COLUMN IF NOT EXISTS processed_fields INTEGER NOT NULL DEFAULT 0")
+  .enqueue("v012_alter_snapshot_meta_add_progress_log", "ALTER TABLE snapshot_meta ADD COLUMN IF NOT EXISTS progress_log LONGTEXT NULL")
+  .enqueue("v013_alter_snapshot_meta_add_building_version", "ALTER TABLE snapshot_meta ADD COLUMN IF NOT EXISTS building_version VARCHAR(64) NULL")
+  .enqueue("v014_alter_field_summaries_add_started_at", "ALTER TABLE field_summaries ADD COLUMN IF NOT EXISTS started_at VARCHAR(64) NULL")
+  .enqueue("v015_alter_field_summaries_add_completed_at", "ALTER TABLE field_summaries ADD COLUMN IF NOT EXISTS completed_at VARCHAR(64) NULL")
+  .enqueue("v016_alter_field_summaries_add_last_error", "ALTER TABLE field_summaries ADD COLUMN IF NOT EXISTS last_error TEXT NULL")
+  .enqueue("v017_alter_field_summaries_add_progress_log", "ALTER TABLE field_summaries ADD COLUMN IF NOT EXISTS progress_log LONGTEXT NULL")
+  .enqueue("v018_alter_field_summaries_add_job_token", "ALTER TABLE field_summaries ADD COLUMN IF NOT EXISTS job_token VARCHAR(96) NULL")
+  .enqueue("v019_alter_field_summaries_add_processed_issue_count", "ALTER TABLE field_summaries ADD COLUMN IF NOT EXISTS processed_issue_count BIGINT NOT NULL DEFAULT 0")
+  .enqueue("v020_alter_field_summaries_add_estimated_issue_total", "ALTER TABLE field_summaries ADD COLUMN IF NOT EXISTS estimated_issue_total BIGINT NOT NULL DEFAULT 0")
+  .enqueue("v021_alter_field_summaries_add_next_start_at", "ALTER TABLE field_summaries ADD COLUMN IF NOT EXISTS next_start_at BIGINT NOT NULL DEFAULT 0")
+  .enqueue("v022_alter_field_summaries_add_next_page_token", "ALTER TABLE field_summaries ADD COLUMN IF NOT EXISTS next_page_token TEXT NULL")
   .enqueue("v023_create_saved_reports_table", CREATE_SAVED_REPORTS_TABLE)
-  .enqueue("v024_alter_snapshot_project_usage_add_latest_field_change_at", "ALTER TABLE snapshot_project_usage ADD COLUMN latest_field_change_at VARCHAR(64) NULL")
-  .enqueue("v025_alter_snapshot_project_usage_add_latest_issue_key", "ALTER TABLE snapshot_project_usage ADD COLUMN latest_issue_key VARCHAR(64) NULL")
-  .enqueue("v026_alter_snapshot_project_usage_add_latest_issue_updated_at", "ALTER TABLE snapshot_project_usage ADD COLUMN latest_issue_updated_at VARCHAR(64) NULL")
+  .enqueue("v024_alter_snapshot_project_usage_add_latest_field_change_at", "ALTER TABLE snapshot_project_usage ADD COLUMN IF NOT EXISTS latest_field_change_at VARCHAR(64) NULL")
+  .enqueue("v025_alter_snapshot_project_usage_add_latest_issue_key", "ALTER TABLE snapshot_project_usage ADD COLUMN IF NOT EXISTS latest_issue_key VARCHAR(64) NULL")
+  .enqueue("v026_alter_snapshot_project_usage_add_latest_issue_updated_at", "ALTER TABLE snapshot_project_usage ADD COLUMN IF NOT EXISTS latest_issue_updated_at VARCHAR(64) NULL")
   .enqueue("v027_create_report_jobs_table", CREATE_REPORT_JOBS_TABLE)
   .enqueue("v028_create_issue_scan_meta_table", CREATE_ISSUE_SCAN_META_TABLE)
   .enqueue("v029_create_issue_scan_buffer_table", CREATE_ISSUE_SCAN_BUFFER_TABLE)
   .enqueue("v030_create_issue_scan_project_totals_table", CREATE_ISSUE_SCAN_PROJECT_TOTALS_TABLE)
-  .enqueue("v031_alter_issue_scan_meta_add_next_page_token", "ALTER TABLE issue_scan_meta ADD COLUMN next_page_token TEXT NULL")
+  .enqueue("v031_alter_issue_scan_meta_add_next_page_token", "ALTER TABLE issue_scan_meta ADD COLUMN IF NOT EXISTS next_page_token TEXT NULL")
   .enqueue("v032_alter_issue_scan_meta_add_next_start_at", "ALTER TABLE issue_scan_meta ADD COLUMN IF NOT EXISTS next_start_at BIGINT NULL DEFAULT 0")
   .enqueue("v033_create_issue_scan_workers_table", CREATE_ISSUE_SCAN_WORKERS_TABLE)
   .enqueue("v034_create_field_options_cache_table", CREATE_FIELD_OPTIONS_CACHE_TABLE)
@@ -3123,6 +3140,32 @@ export async function loadWorkflowSchemeForProject(scopeKey, version, projectId)
   const row = result.rows?.[0];
   if (!row) return null;
   return { schemeId: row.scheme_id, name: row.name, description: row.description || "" };
+}
+
+// project_id -> { schemeId, name } for every project in one query.
+//
+// The per-project loadWorkflowSchemeForProject above is right for a single lookup, but
+// reports enrich every project in the result set -- on a 140-project site that would be
+// 140 round trips, against the one Forge quota this app actually pushes against. One
+// join returns the whole mapping instead.
+export async function loadProjectWorkflowSchemeMap(scopeKey, version) {
+  await ensureProjectStoreReady();
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT wsp.project_id, wsp.scheme_id, ws.name
+      FROM snapshot_workflow_scheme_projects wsp
+      JOIN snapshot_workflow_schemes ws
+        ON ws.scope_key = wsp.scope_key AND ws.version = wsp.version AND ws.scheme_id = wsp.scheme_id
+      WHERE wsp.scope_key = ? AND wsp.version = ?
+    `).bindParams(scopeKey, version).execute()
+  );
+  const map = new Map();
+  for (const row of result.rows || []) {
+    if (row?.project_id) {
+      map.set(String(row.project_id), { schemeId: row.scheme_id, name: row.name });
+    }
+  }
+  return map;
 }
 
 export async function loadStatusesCatalog(scopeKey, version) {
