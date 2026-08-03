@@ -5,6 +5,7 @@ import {
   findDuplicateStatusGroups,
   findOrphanedStatuses,
   computeSchemeCategoryBalance,
+  isSpellingVariant,
   summarizeWorkflowInsights,
 } from "./workflow-insights.js";
 
@@ -238,5 +239,39 @@ describe("summarizeWorkflowInsights", () => {
     expect(summarizeWorkflowInsights({})).toMatchObject({
       duplicateGroupCount: 0, reducibleStatusCount: 0, orphanCount: 0, flaggedSchemeCount: 0,
     });
+  });
+});
+
+// Precision guards. These came from the real 435-status catalog, where the first cut of
+// the spelling heuristic flagged deliberate series as duplicates -- the fastest way to
+// get a governance report dismissed wholesale.
+describe("isSpellingVariant — false positives", () => {
+  test("rejects enumerated series that differ only by a digit", () => {
+    expect(isSpellingVariant("cp3signoffcomplete", "cp4signoffcomplete")).toBe(false);
+    expect(isSpellingVariant("phase1review", "phase2review")).toBe(false);
+  });
+
+  test("rejects short codes where one character carries the meaning", () => {
+    // Customer hold vs user hold -- distinct statuses, one character apart.
+    expect(isSpellingVariant("chold", "uhold")).toBe(false);
+  });
+
+  test("still accepts genuine spelling variants", () => {
+    expect(isSpellingVariant("cancelled", "canceled")).toBe(true);
+    expect(isSpellingVariant("completed", "complete")).toBe(true);
+  });
+
+  test("groups the real catalog's variants without merging its series", () => {
+    const groups = findDuplicateStatusGroups([
+      status(1, "CP3 Sign Off Complete"), status(2, "CP4 Sign Off Complete"),
+      status(3, "CP5 Sign Off Complete"),
+      status(4, "CHOLD"), status(5, "UHOLD"),
+      status(6, "Cancelled"), status(7, "Canceled"),
+    ]);
+
+    const names = groups.flatMap((g) => g.statuses.map((s) => s.name));
+    expect(names).toEqual(expect.arrayContaining(["Cancelled", "Canceled"]));
+    expect(names).not.toContain("CP3 Sign Off Complete");
+    expect(names).not.toContain("CHOLD");
   });
 });

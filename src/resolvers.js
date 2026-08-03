@@ -626,14 +626,21 @@ async function getWorkflowInsights({ context }) {
     const issueCounts = await loadStatusIssueCounts(installationKey).catch(() => new Map());
     const hasIssueCounts = issueCounts.size > 0;
 
-    const duplicateGroups = findDuplicateStatusGroups(statuses);
-    const orphans = findOrphanedStatuses(statuses, schemeStatuses, hasIssueCounts ? issueCounts : null);
-    const balance = computeSchemeCategoryBalance(schemes, schemeStatuses, statuses);
-
     // The scheme->status mapping is best-effort in the build: if the workflow expansion
     // failed, every status looks orphaned and every scheme looks empty. Say so rather
     // than presenting a confidently wrong catalogue of findings.
     const schemeStatusesAvailable = schemeStatuses.length > 0;
+
+    const duplicateGroups = findDuplicateStatusGroups(statuses);
+    // Computed only when the underlying data supports them. Deriving these and then
+    // hiding the lists still leaked the numbers into the summary, which rendered
+    // "435 unreachable statuses" directly above a warning saying the data was missing.
+    const orphans = schemeStatusesAvailable
+      ? findOrphanedStatuses(statuses, schemeStatuses, hasIssueCounts ? issueCounts : null)
+      : [];
+    const balance = schemeStatusesAvailable
+      ? computeSchemeCategoryBalance(schemes, schemeStatuses, statuses)
+      : [];
 
     return {
       available: true,
@@ -649,8 +656,8 @@ async function getWorkflowInsights({ context }) {
           issueCount: hasIssueCounts ? Number(issueCounts.get(String(s.statusId ?? s.id)) ?? 0) : null,
         })),
       })),
-      orphans: schemeStatusesAvailable ? orphans.slice(0, 200) : [],
-      balance: schemeStatusesAvailable ? balance.slice(0, 100) : [],
+      orphans: orphans.slice(0, 200),
+      balance: balance.slice(0, 100),
       statusTotals: {
         catalogCount: statuses.length,
         withIssues: hasIssueCounts ? [...issueCounts.values()].filter((n) => n > 0).length : null,

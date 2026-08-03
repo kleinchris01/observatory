@@ -41,6 +41,25 @@ export function editDistanceWithin(a, b, max = 1) {
   return previous[b.length];
 }
 
+// Below this length a single character is a large proportion of the name, and the
+// difference is usually meaningful rather than a typo: CHOLD and UHOLD are distinct hold
+// types, not one status misspelled.
+const MIN_SPELLING_LENGTH = 8;
+
+// True when two names differing by one character are genuinely a spelling variant, rather
+// than members of a deliberate series.
+//
+// "CP3 Sign Off Complete" / "CP4 Sign Off Complete" are one edit apart and completely
+// distinct statuses -- the digit IS the meaning. Any pair that becomes identical once
+// digits are removed is an enumeration, not a duplicate. Precision matters more than
+// recall here: a governance report that flags real statuses as duplicates gets dismissed
+// wholesale, taking the true findings with it.
+export function isSpellingVariant(a, b) {
+  if (Math.min(a.length, b.length) < MIN_SPELLING_LENGTH) return false;
+  if (a.replace(/\d/g, "") === b.replace(/\d/g, "")) return false;
+  return editDistanceWithin(a, b, 1) <= 1;
+}
+
 // Statuses that are almost certainly the same thing, grouped so an admin can consolidate.
 //
 // Three kinds, reported separately because they carry different confidence and different
@@ -87,7 +106,7 @@ export function findDuplicateStatusGroups(statuses = []) {
       const b = remaining[j];
       if (consumed.has(b)) continue;
       if (Math.abs(a.length - b.length) > 1) continue;
-      if (editDistanceWithin(a, b, 1) <= 1) {
+      if (isSpellingVariant(a, b)) {
         cluster.push(b);
         consumed.add(b);
       }
@@ -200,6 +219,8 @@ export function computeSchemeCategoryBalance(schemes = [], schemeStatusPairs = [
 // duplicate GROUP is one problem to solve regardless of how many statuses it contains,
 // but the status count is what quantifies the cleanup.
 export function summarizeWorkflowInsights({ duplicateGroups = [], orphans = [], balance = [] }) {
+  // Callers pass empty arrays for anything they are suppressing, so the summary can never
+  // assert more than the sections below it show.
   const duplicateStatusCount = duplicateGroups.reduce((sum, group) => sum + group.count, 0);
   return {
     duplicateGroupCount: duplicateGroups.length,
