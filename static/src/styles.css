@@ -6088,3 +6088,134 @@ code {
 .wf-balance__flag--low { border-left-color: rgba(255, 255, 255, 0.25); }
 
 .wf-viewtab__count--alert { background: rgba(201, 96, 90, 0.2); }
+
+/* ── Shared UI primitives ────────────────────────────────────────────────────
+   One canonical vocabulary for widgets that appear on more than one tab. These
+   replace four separate stat-card idioms (scan-stat-card, rqt-stat,
+   wf-insight-stat, admin-stat-row) and three chart-card idioms that had drifted
+   apart tab by tab. Tokens are reused from the existing admin theme so this
+   reads as the same product, not a fifth style. */
+
+.ui-dashboard { display: flex; flex-direction: column; gap: 1.25rem; }
+
+.ui-panel {
+  background: var(--ds-surface, rgba(255, 255, 255, 0.02));
+  border: 1px solid var(--ds-border, rgba(255, 255, 255, 0.1));
+  border-radius: 8px;
+  padding: 1.1rem 1.25rem 1.25rem;
+  display: flex; flex-direction: column; gap: 1rem;
+}
+.ui-panel__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.ui-panel__titles { display: flex; flex-direction: column; gap: 0.2rem; }
+.ui-panel__title {
+  display: flex; align-items: center; gap: 0.5rem;
+  font-size: 0.98rem; font-weight: 650; margin: 0;
+}
+.ui-panel__desc { font-size: 0.8rem; opacity: 0.65; margin: 0; max-width: 62ch; }
+.ui-panel__body { display: flex; flex-direction: column; gap: 1.1rem; }
+
+.ui-stat-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
+  gap: 0.6rem;
+}
+.ui-stat {
+  display: flex; flex-direction: column; gap: 0.25rem;
+  padding: 0.8rem 0.9rem;
+  border-radius: 6px;
+  border: 1px solid var(--ds-border, rgba(255, 255, 255, 0.09));
+  background: var(--ds-surface-sunken, rgba(255, 255, 255, 0.03));
+}
+.ui-stat__head { display: flex; align-items: center; gap: 0.4rem; opacity: 0.7; }
+.ui-stat__label { font-size: 0.74rem; line-height: 1.3; }
+.ui-stat__value { font-size: 1.45rem; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.ui-stat__hint { font-size: 0.7rem; opacity: 0.55; line-height: 1.3; }
+.ui-stat--warning { border-color: rgba(201, 134, 10, 0.45); }
+.ui-stat--warning .ui-stat__value { color: #d3a24e; }
+.ui-stat--critical { border-color: rgba(201, 96, 90, 0.45); }
+.ui-stat--critical .ui-stat__value { color: #e0796d; }
+
+.ui-chip {
+  display: inline-flex; align-items: center;
+  font-size: 0.7rem; font-weight: 600; letter-spacing: 0.04em;
+  padding: 0.15rem 0.45rem; border-radius: 3px;
+  background: var(--ds-surface-sunken, rgba(255, 255, 255, 0.07));
+}
+.ui-chip--warning { color: #d3a24e; background: rgba(201, 134, 10, 0.14); }
+.ui-chip--critical { color: #e0796d; background: rgba(201, 96, 90, 0.14); }
+
+.ui-empty {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  flex-wrap: wrap;
+  padding: 1rem 1.1rem; border-radius: 6px;
+  border: 1px dashed var(--ds-border, rgba(255, 255, 255, 0.13));
+  font-size: 0.85rem; opacity: 0.85;
+}
+.ui-empty--inline { padding: 0.6rem 0.75rem; font-size: 0.8rem; }
+
+.ui-note {
+  display: flex; align-items: flex-start; gap: 0.5rem; margin: 0;
+  font-size: 0.8rem; opacity: 0.75;
+}
+
+.ui-subhead { font-size: 0.8rem; font-weight: 650; margin: 0 0 0.45rem; opacity: 0.85; }
+.ui-subhead__desc { font-size: 0.76rem; opacity: 0.6; margin: -0.25rem 0 0.5rem; max-width: 56ch; }
+
+.ui-split { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: 1.25rem; }
+.ui-split__col { min-width: 0; }
+
+.ui-barlist { display: flex; flex-direction: column; gap: 0.3rem; }
+.ui-barlist__row { display: grid; grid-template-columns: 8.5rem 1fr auto; align-items: center; gap: 0.6rem; }
+.ui-barlist__label {
+  font-size: 0.78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ui-barlist__track { background: rgba(255, 255, 255, 0.05); border-radius: 3px; height: 0.65rem; overflow: hidden; }
+.ui-barlist__bar { height: 100%; border-radius: 3px; min-width: 2px; }
+.ui-barlist__bar--accent { background: #4d8fd6; }
+.ui-barlist__bar--warn { background: #c9860a; }
+.ui-barlist__value { font-size: 0.75rem; font-variant-numeric: tabular-nums; opacity: 0.75; white-space: nowrap; }
+
+.ui-finding-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.ui-finding {
+  display: flex; align-items: center; gap: 0.85rem;
+  padding: 0.7rem 0.85rem; border-radius: 6px;
+  border: 1px solid var(--ds-border, rgba(255, 255, 255, 0.09));
+  border-left-width: 3px;
+}
+.ui-finding--critical { border-left-color: #c9605a; }
+.ui-finding--warning { border-left-color: #c9860a; }
+.ui-finding--info { border-left-color: #4d8fd6; }
+.ui-finding__count {
+  font-size: 1.15rem; font-weight: 650; font-variant-numeric: tabular-nums;
+  min-width: 2.5rem; text-align: right; flex-shrink: 0;
+}
+.ui-finding__body { display: flex; flex-direction: column; gap: 0.1rem; flex: 1; min-width: 0; }
+.ui-finding__title { font-size: 0.86rem; font-weight: 600; }
+.ui-finding__detail { font-size: 0.76rem; opacity: 0.65; line-height: 1.4; }
+
+.ui-linkbutton {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  background: none; border: none; cursor: pointer;
+  font-size: 0.78rem; font-weight: 600;
+  color: var(--ds-text-brand, #7ab5f0);
+  padding: 0.3rem 0.1rem; white-space: nowrap;
+}
+.ui-linkbutton:hover { text-decoration: underline; }
+.ui-linkbutton:focus-visible { outline: 2px solid var(--ds-border-focused, #7ab5f0); outline-offset: 2px; border-radius: 3px; }
+.ui-linkbutton__arrow { font-size: 0.9em; }
+
+.ui-stale-list { display: flex; flex-direction: column; gap: 0.25rem; }
+.ui-stale {
+  display: grid; grid-template-columns: 5rem 1fr auto; gap: 0.6rem; align-items: center;
+  font-size: 0.78rem; padding: 0.35rem 0.5rem; border-radius: 4px;
+  background: var(--ds-surface-sunken, rgba(255, 255, 255, 0.03));
+}
+.ui-stale__key { font-weight: 600; }
+.ui-stale__name { opacity: 0.7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ui-stale__when { opacity: 0.6; white-space: nowrap; }
+
+@media (max-width: 640px) {
+  .ui-barlist__row { grid-template-columns: 6rem 1fr auto; }
+  .ui-stale { grid-template-columns: 4rem 1fr; }
+  .ui-stale__when { grid-column: 2; }
+}

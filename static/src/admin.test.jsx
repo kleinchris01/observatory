@@ -137,7 +137,7 @@ describe("AdminApp smoke test", () => {
     expect(screen.getByText("Admin")).toBeInTheDocument();
     // Overview tab is the default active tab
     await waitFor(() => {
-      expect(screen.getByText("Governance findings")).toBeInTheDocument();
+      expect(screen.getByText("What needs attention")).toBeInTheDocument();
     });
   });
 });
@@ -155,7 +155,7 @@ describe("AdminApp tab navigation", () => {
     expect(adminNav).toBeTruthy();
 
     // Overview is default
-    await waitFor(() => expect(screen.getByText("Governance findings")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("What needs attention")).toBeInTheDocument());
 
     // Field Browser
     await user.click(within(adminNav).getByText("Field Browser"));
@@ -281,9 +281,9 @@ describe("AdminApp Scans tab -> Snapshot subnav -- stalled snapshot build", () =
 });
 
 describe("AdminApp Overview tab -- Snapshot and Field Usage Jobs moved out", () => {
-  it("no longer renders a Snapshot or Field usage jobs section, but still renders Governance findings", async () => {
+  it("no longer renders a Snapshot or Field usage jobs section, but still routes governance findings", async () => {
     await renderAdminApp();
-    await waitFor(() => expect(screen.getByText("Governance findings")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("What needs attention")).toBeInTheDocument());
 
     expect(screen.queryByRole("heading", { name: "Snapshot" })).not.toBeInTheDocument();
     expect(screen.queryByText("Field usage jobs")).not.toBeInTheDocument();
@@ -322,7 +322,7 @@ describe("AdminApp Overview tab -- Developer Console links", () => {
   it("opens Dev Console links via router.open instead of native navigation", async () => {
     const user = userEvent.setup();
     await renderAdminApp();
-    await waitFor(() => expect(screen.getByText("Governance findings")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("What needs attention")).toBeInTheDocument());
 
     await user.click(screen.getByText("App overview"));
 
@@ -337,7 +337,7 @@ describe("AdminApp Overview tab -- Developer Console links", () => {
 // ---------------------------------------------------------------------------
 
 describe("AdminApp Overview tab -- dashboard", () => {
-  it("renders the Field Usage, Projects, and RQT Values sections with data from getAdminOverview", async () => {
+  it("renders the Field usage, Projects, Workflows and RQT panels from getAdminOverview", async () => {
     invoke.mockImplementation((fnName, payload) => {
       if (fnName === "getAdminOverview") {
         return Promise.resolve(makeOverview({
@@ -366,9 +366,9 @@ describe("AdminApp Overview tab -- dashboard", () => {
 
     await renderAdminApp();
 
-    expect(await screen.findByRole("heading", { name: /Field Usage/ })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /Field usage/ })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /Projects/ })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /RQT Values/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /RQT values/ })).toBeInTheDocument();
 
     // Severity KPI tiles
     expect(screen.getByText("High severity")).toBeInTheDocument();
@@ -379,11 +379,11 @@ describe("AdminApp Overview tab -- dashboard", () => {
     expect(screen.getByText("6")).toBeInTheDocument();
   });
 
-  it("jumps to the Scans tab's RQT Index subnav when 'Open full RQT Index' is clicked", async () => {
+  it("jumps to the Scans tab's RQT Index subnav when 'Open RQT Index' is clicked", async () => {
     const user = userEvent.setup();
     await renderAdminApp();
 
-    const openButton = await screen.findByRole("button", { name: /Open full RQT Index/ });
+    const openButton = await screen.findByRole("button", { name: /Open RQT Index/ });
     await user.click(openButton);
 
     await waitFor(() => expect(document.querySelector(".admin-scans-tab")).toBeTruthy());
@@ -414,7 +414,7 @@ describe("AdminApp Overview tab -- dashboard", () => {
     await renderAdminApp();
 
     expect(await screen.findByText("No governance findings yet")).toBeInTheDocument();
-    expect(screen.getAllByText("No project usage data yet").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/No project usage data yet|No issue data yet/).length).toBeGreaterThan(0);
   });
 });
 

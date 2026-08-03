@@ -261,7 +261,7 @@ function SnapshotLog({ entries }) {
   );
 }
 
-function OverviewTab({ overview, onMigrateNamespace, migratingNamespace, onOpenRqtIndex }) {
+function OverviewTab({ overview, onMigrateNamespace, migratingNamespace, onOpenRqtIndex, onNavigate }) {
   if (!overview) {
     return <div className="empty-state">Loading overview…</div>;
   }
@@ -289,18 +289,14 @@ function OverviewTab({ overview, onMigrateNamespace, migratingNamespace, onOpenR
         </div>
       )}
 
-      <div className="admin-section">
-        <h2 className="admin-section__title"><Icon name="alertTriangle" size={16} /> Governance findings</h2>
-        <div className="admin-stat-row">
-          <StatCard label="Admin attention" value={findingsSummary?.adminAttention ?? 0} icon="alertTriangle" variant={findingsSummary?.adminAttention > 0 ? "danger" : "neutral"} />
-          <StatCard label="Risky" value={findingsSummary?.risky ?? 0} icon="alertTriangle" variant={findingsSummary?.risky > 0 ? "warn" : "neutral"} />
-          <StatCard label="Cleanup" value={findingsSummary?.cleanup ?? 0} icon="scissors" variant="neutral" />
-          <StatCard label="Standardize" value={findingsSummary?.standardize ?? 0} icon="sliders" variant="neutral" />
-        </div>
-      </div>
-
       <React.Suspense fallback={<div className="empty-state">Loading dashboard…</div>}>
-        <OverviewDashboard dashboard={overview.dashboard} onOpenRqtIndex={onOpenRqtIndex} />
+        <OverviewDashboard
+          dashboard={overview.dashboard}
+          findingsSummary={findingsSummary}
+          workflow={overview.workflow}
+          onOpenRqtIndex={onOpenRqtIndex}
+          onNavigate={onNavigate}
+        />
       </React.Suspense>
 
       <div className="admin-section">
@@ -2712,6 +2708,7 @@ export function AdminApp() {
                 onMigrateNamespace={handleMigrateNamespace}
                 migratingNamespace={migratingNamespace}
                 onOpenRqtIndex={() => { setScansInitialSection("rqt"); setActiveTab("scans"); }}
+                onNavigate={(tab) => setActiveTab(tab)}
               />
             )
           ) : activeTab === "fields" ? (

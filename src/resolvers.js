@@ -2175,6 +2175,12 @@ function buildFieldUsageInsights(hydratedFields) {
   };
 }
 
+function percentile(sortedValues, fraction) {
+  if (!sortedValues.length) return 0;
+  const index = Math.min(sortedValues.length - 1, Math.floor(sortedValues.length * fraction));
+  return sortedValues[index];
+}
+
 function buildProjectInsights(projects) {
   const topByIssueVolume = [...projects]
     .sort((a, b) => b.totalIssueCount - a.totalIssueCount)
@@ -2186,17 +2192,126 @@ function buildProjectInsights(projects) {
     .slice(0, DASHBOARD_TOP_N)
     .map((p) => ({ projectKey: p.projectKey, projectName: p.projectName, fieldCount: p.fieldCount }));
 
-  return { totalProjects: projects.length, topByIssueVolume, topByFieldCount };
+  // Distribution, not just leaders. A "top 8 by field count" list is unreadable without
+  // knowing what normal looks like: 40 fields is unremarkable on a site whose median is 38
+  // and a serious outlier on one whose median is 6.
+  const fieldCounts = projects.map((p) => p.fieldCount).sort((a, b) => a - b);
+  const medianFieldCount = percentile(fieldCounts, 0.5);
+  const p90FieldCount = percentile(fieldCounts, 0.9);
+  const totalIssues = projects.reduce((sum, p) => sum + p.totalIssueCount, 0);
+
+  // Configured well past the site norm while carrying little actual work. These are where
+  // field governance conversations start, because the cost is real and the usage is not.
+  // Guarded against a degenerate median: on a site where the median project has one field,
+  // "twice the median" is noise, so require an absolute floor as well.
+  const overConfiguredFloor = Math.max(10, medianFieldCount * 2);
+  const overConfigured = projects
+    .filter((p) => p.fieldCount >= overConfiguredFloor && p.totalIssueCount < Math.max(50, totalIssues / Math.max(1, projects.length) / 4))
+    .sort((a, b) => b.fieldCount - a.fieldCount)
+    .slice(0, DASHBOARD_TOP_N)
+    .map((p) => ({
+      projectKey: p.projectKey,
+      projectName: p.projectName,
+      fieldCount: p.fieldCount,
+      totalIssueCount: p.totalIssueCount,
+    }));
+
+  // Fields configured, no issues recorded at all -- either abandoned or never started.
+  const unusedProjects = projects
+    .filter((p) => p.fieldCount > 0 && p.totalIssueCount === 0)
+    .sort((a, b) => b.fieldCount - a.fieldCount)
+    .slice(0, DASHBOARD_TOP_N)
+    .map((p) => ({ projectKey: p.projectKey, projectName: p.projectName, fieldCount: p.fieldCount }));
+
+  // Staleness is a per-project signal the field view never surfaces: a project can carry
+  // 60 fields and 40,000 issues and still have had nothing touched in a year.
+  const now = Date.now();
+  const STALE_MS = 180 * 24 * 60 * 60 * 1000;
+  const staleProjects = projects
+    .filter((p) => {
+      const at = Date.parse(p.latestIssueUpdatedAt || "");
+      return p.totalIssueCount > 0 && Number.isFinite(at) && now - at > STALE_MS;
+    })
+    .sort((a, b) => Date.parse(a.latestIssueUpdatedAt) - Date.parse(b.latestIssueUpdatedAt))
+    .slice(0, DASHBOARD_TOP_N)
+    .map((p) => ({
+      projectKey: p.projectKey,
+      projectName: p.projectName,
+      fieldCount: p.fieldCount,
+      latestIssueUpdatedAt: p.latestIssueUpdatedAt,
+    }));
+
+  return {
+    totalProjects: projects.length,
+    totalIssues,
+    medianFieldCount,
+    p90FieldCount,
+    topByIssueVolume,
+    topByFieldCount,
+    overConfigured,
+    unusedProjects,
+    staleProjects,
+  };
+}
+
+// Workflow health for the Overview, as a summary rather than a second inventory.
+//
+// Entirely best-effort and entirely optional: the workflow snapshot is versioned
+// separately from the field snapshot and may never have been built. Overview is the
+// landing page, so nothing here may throw and nothing may block -- a missing workflow
+// snapshot renders as a prompt to build one, not as an error.
+async function buildWorkflowOverview(installationKey) {
+  try {
+    const meta = await readWorkflowSnapshotMeta(installationKey);
+    if (!meta?.version) return { available: false, state: meta?.state || "idle" };
+
+    const [schemes, statuses, schemeStatuses] = await Promise.all([
+      loadWorkflowSchemes(installationKey, meta.version),
+      loadStatusesCatalog(installationKey, meta.version),
+      loadWorkflowSchemeStatuses(installationKey, meta.version),
+    ]);
+    const issueCounts = await loadStatusIssueCounts(installationKey).catch(() => new Map());
+    const hasIssueCounts = issueCounts.size > 0;
+    const schemeStatusesAvailable = schemeStatuses.length > 0;
+
+    const duplicateGroups = findDuplicateStatusGroups(statuses);
+    const orphans = schemeStatusesAvailable
+      ? findOrphanedStatuses(statuses, schemeStatuses, hasIssueCounts ? issueCounts : null)
+      : [];
+    const balance = schemeStatusesAvailable
+      ? computeSchemeCategoryBalance(schemes, schemeStatuses, statuses)
+      : [];
+
+    // Schemes governing more than one project are where standardization has any leverage:
+    // a scheme used once is a bespoke process by definition.
+    const sharedSchemes = schemes.filter((s) => (s.projectCount ?? 0) > 1).length;
+
+    return {
+      available: true,
+      state: meta.state || "idle",
+      refreshedAt: meta.refreshedAt || null,
+      schemeCount: schemes.length,
+      statusCount: statuses.length,
+      sharedSchemes,
+      schemeStatusesAvailable,
+      hasIssueCounts,
+      ...summarizeWorkflowInsights({ duplicateGroups, orphans, balance }),
+    };
+  } catch (error) {
+    console.warn("buildWorkflowOverview failed:", error?.message || error);
+    return { available: false, state: "error" };
+  }
 }
 
 export async function getAdminOverview({ context }) {
   await ensureProjectStoreReady();
   const installationKey = getInstallationKey(context);
-  const [meta, summaries, config, legacySummaryCount] = await Promise.all([
+  const [meta, summaries, config, legacySummaryCount, workflow] = await Promise.all([
     readSnapshotMeta(installationKey),
     listFieldSummaries(installationKey, 5000).catch(() => []),
     readAdminConfig(),
     countOldScopeKeyRows(installationKey).catch(() => 0),
+    buildWorkflowOverview(installationKey),
   ]);
 
   const jobCounts = { queued: 0, building: 0, ready: 0, failed: 0, cancelled: 0, unbuilt: 0 };
@@ -2243,6 +2358,7 @@ export async function getAdminOverview({ context }) {
     },
     jobCounts,
     findingsSummary,
+    workflow,
     dashboard,
     totalSummaries: summaries.length,
     legacySummaryCount,
