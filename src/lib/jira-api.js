@@ -871,13 +871,34 @@ export async function getWorkflowSchemeForProject(projectId) {
   return jiraRequest(route`/rest/api/3/workflowscheme/project?projectId=${projectId}`);
 }
 
+// Pull the scheme out of the endpoint's container shape:
+//   { values: [ { projectIds: [...], workflowScheme: {...} } ] }
+//
+// Returns null rather than guessing when the shape is unrecognized. The previous
+// `data?.workflowScheme || data` fallback handed back the whole container, which has no
+// id and no name -- so every project produced a distinct scheme named
+// "(unnamed workflow scheme)" keyed `unknown-<projectId>`. A 142-project site rendered as
+// 142 one-project schemes, and the "projects sharing a scheme" correlation could never
+// fire. A null here is logged as a lookup failure and skipped, which is visible; a
+// half-parsed object is not.
+export function extractWorkflowScheme(data) {
+  const entry = Array.isArray(data?.values) ? data.values[0] : null;
+  const scheme = entry?.workflowScheme || data?.workflowScheme || null;
+  return scheme && (scheme.id != null || scheme.name) ? scheme : null;
+}
+
 // One call per project (no confirmed bulk form for scheme<->project association at
 // implementation time — see plan). Concurrency-limited like other per-project fetches.
 export async function getWorkflowSchemesForProjects(projectIds, concurrency = 8) {
   return mapWithConcurrency(projectIds, concurrency, async (projectId) => {
     try {
       const data = await getWorkflowSchemeForProject(projectId);
-      return { projectId, scheme: data?.workflowScheme || data || null, error: null };
+      const scheme = extractWorkflowScheme(data);
+      return {
+        projectId,
+        scheme,
+        error: scheme ? null : "workflow scheme missing from response",
+      };
     } catch (error) {
       return { projectId, scheme: null, error: String(error?.message || error) };
     }

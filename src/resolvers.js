@@ -86,9 +86,10 @@ import {
   readWorkflowSnapshotMeta,
   loadWorkflowSchemes,
   loadWorkflowSchemeProjects,
+  loadWorkflowSchemeForProject,
   loadStatusesCatalog,
 } from "./lib/project-store.js";
-import { buildWorkflowSnapshot } from "./lib/workflow-engine.js";
+import { queueWorkflowSnapshotBuild, isWorkflowBuildStale } from "./lib/workflow-engine.js";
 import {
   STRUCTURAL_SYSTEM_FIELDS,
   isFieldValueNonEmpty,
@@ -485,11 +486,17 @@ async function getWorkflowInventory({ payload, context }) {
     const search = String(filters.search || "").trim().toLowerCase();
 
     let meta = await readWorkflowSnapshotMeta(installationKey);
-    const alreadyBuilding = meta?.state === "building";
+    // A stale "building" row does not block a rebuild. Without this, one invocation killed
+    // mid-build leaves the state permanently "building" and silently suppresses every
+    // subsequent refresh -- the button appears to do nothing, with no error to explain it.
+    const alreadyBuilding = meta?.state === "building" && !isWorkflowBuildStale(meta);
     const shouldBuild = Boolean(filters.forceRefresh && !alreadyBuilding);
 
     if (shouldBuild) {
-      await buildWorkflowSnapshot(installationKey);
+      // Queued, not awaited: the build runs in the consumer (timeoutSeconds: 900) because
+      // it cannot fit in this resolver's 25s. The response therefore reports state
+      // "building" with no version yet, and the UI polls until the consumer finishes.
+      await queueWorkflowSnapshotBuild(installationKey);
       meta = await readWorkflowSnapshotMeta(installationKey);
     }
 
@@ -515,30 +522,49 @@ async function getWorkflowInventory({ payload, context }) {
       loadStatusesCatalog(installationKey, meta.version),
     ]);
 
+    // Search and page BEFORE the per-scheme enrichment below, never after.
+    //
+    // Enrichment costs one SQL lookup plus one permission check per scheme. Running it
+    // across every scheme to then return a 10-row page is work proportional to the site
+    // rather than the page: on a 142-scheme site that is 284 round trips per read, which
+    // blew the resolver's 25s limit and hung the tab. Filtering here is equivalent --
+    // search reads only name/description, which come from the scheme row itself, and
+    // enrichment adds fields without ever removing a scheme, so neither the membership
+    // of `searched` nor totalCount depends on it.
+    const searched = search
+      ? schemes.filter((s) =>
+          s.name.toLowerCase().includes(search) || (s.description || "").toLowerCase().includes(search))
+      : schemes;
+
+    const totalCount = searched.length;
+    const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+    const startIndex = (requestedPage - 1) * pageSize;
+    const pageOfSchemes = searched.slice(startIndex, startIndex + pageSize);
+
     // Never surface a scheme's project count as-computed from projects the
     // viewer can't browse — recompute from only the browsable subset, same
     // enforcement point as getFieldInventory / getProjectUsageReport (PR #19).
-    const filteredSchemes = await mapWithConcurrency(schemes, 8, async (scheme) => {
+    const enrichedPage = await mapWithConcurrency(pageOfSchemes, 8, async (scheme) => {
       const projects = await loadWorkflowSchemeProjects(installationKey, meta.version, scheme.id);
       const browsableProjectIds = await getBrowsableProjectIds(
         context?.accountId,
         projects.map((p) => p.projectId)
       );
-      const visibleProjectCount = projects.filter((p) => browsableProjectIds.has(String(p.projectId))).length;
-      return { ...scheme, projectCount: visibleProjectCount };
+      const visibleProjects = projects.filter((p) => browsableProjectIds.has(String(p.projectId)));
+      return {
+        ...scheme,
+        projectCount: visibleProjects.length,
+        // The rows are already loaded and permission-filtered to compute the count, so
+        // returning them costs nothing and saves the UI a round trip per expanded scheme.
+        // Capped because a site-wide default scheme can govern every project, and the
+        // expanded panel is a sample rather than an export.
+        projects: visibleProjects.slice(0, 60),
+        projectsTruncated: visibleProjects.length > 60,
+      };
     });
 
-    const searched = search
-      ? filteredSchemes.filter((s) =>
-          s.name.toLowerCase().includes(search) || (s.description || "").toLowerCase().includes(search))
-      : filteredSchemes;
-
-    const totalCount = searched.length;
-    const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
-    const startIndex = (requestedPage - 1) * pageSize;
-
     return {
-      schemes: searched.slice(startIndex, startIndex + pageSize),
+      schemes: enrichedPage,
       statuses,
       page: requestedPage,
       pageSize,
@@ -1540,6 +1566,49 @@ async function getProjectsView({ payload, context }) {
     }
   );
 
+  // Which workflow scheme governs the selected project, and how many other projects
+  // share it. Best-effort: the workflow snapshot is versioned independently of the field
+  // snapshot and may not have been built at all, in which case the Projects tab simply
+  // omits the panel rather than erroring. Never let a missing workflow snapshot break
+  // the field view, which is the reason anyone opened this tab.
+  const workflowScheme = await (async () => {
+    try {
+      const wfMeta = await readWorkflowSnapshotMeta(installationKey);
+      if (!wfMeta?.version) return null;
+
+      const scheme = await loadWorkflowSchemeForProject(
+        installationKey, wfMeta.version, selectedProject.projectId
+      );
+      if (!scheme) return null;
+
+      // Sharing count is computed from the projects the VIEWER can browse, matching the
+      // enforcement in getWorkflowInventory -- otherwise "shared with 12 projects" leaks
+      // the existence of projects this user cannot see.
+      const schemeProjects = await loadWorkflowSchemeProjects(
+        installationKey, wfMeta.version, scheme.schemeId
+      );
+      const browsable = await getBrowsableProjectIds(
+        context?.accountId, schemeProjects.map((p) => p.projectId)
+      );
+      const visible = schemeProjects.filter((p) => browsable.has(String(p.projectId)));
+
+      return {
+        schemeId: scheme.schemeId,
+        name: scheme.name,
+        description: scheme.description,
+        sharedWithCount: Math.max(0, visible.length - 1),
+        siblingProjects: visible
+          .filter((p) => String(p.projectId) !== String(selectedProject.projectId))
+          .slice(0, 12)
+          .map((p) => ({ projectId: p.projectId, projectKey: p.projectKey, projectName: p.projectName })),
+        refreshedAt: wfMeta.refreshedAt || null,
+      };
+    } catch (error) {
+      console.warn("getProjectsView: workflow scheme lookup failed:", error?.message || error);
+      return null;
+    }
+  })();
+
   const fields = projectFieldsResult.rows.map((field) => ({
     fieldId: field.fieldId,
     fieldName: field.fieldName,
@@ -1567,6 +1636,7 @@ async function getProjectsView({ payload, context }) {
     projects,
     availableTypes,
     selectedProject,
+    workflowScheme,
     fields,
     totalFields,
     page: Math.min(requestedPage, totalPages),

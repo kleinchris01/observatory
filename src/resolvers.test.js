@@ -81,10 +81,15 @@ const mocks = vi.hoisted(() => ({
   readWorkflowSnapshotMeta: vi.fn(),
   loadWorkflowSchemes: vi.fn(),
   loadWorkflowSchemeProjects: vi.fn(),
+  loadWorkflowSchemeForProject: vi.fn().mockResolvedValue(null),
   loadStatusesCatalog: vi.fn(),
 
   // workflow-engine.js
   buildWorkflowSnapshot: vi.fn(),
+  queueWorkflowSnapshotBuild: vi.fn(),
+  // Pure and covered directly in workflow-engine.test.js; mocked here so these tests can
+  // state "the row is stale" as a premise rather than manufacturing timestamps.
+  isWorkflowBuildStale: vi.fn(() => false),
 
   // jira-api.js
   incrMetric: vi.fn(),
@@ -189,11 +194,14 @@ vi.mock("./lib/project-store.js", () => ({
   readWorkflowSnapshotMeta: mocks.readWorkflowSnapshotMeta,
   loadWorkflowSchemes: mocks.loadWorkflowSchemes,
   loadWorkflowSchemeProjects: mocks.loadWorkflowSchemeProjects,
+  loadWorkflowSchemeForProject: mocks.loadWorkflowSchemeForProject,
   loadStatusesCatalog: mocks.loadStatusesCatalog,
 }));
 
 vi.mock("./lib/workflow-engine.js", () => ({
   buildWorkflowSnapshot: mocks.buildWorkflowSnapshot,
+  queueWorkflowSnapshotBuild: mocks.queueWorkflowSnapshotBuild,
+  isWorkflowBuildStale: mocks.isWorkflowBuildStale,
 }));
 
 vi.mock("./lib/jira-api.js", () => ({
@@ -348,6 +356,8 @@ beforeEach(() => {
   mocks.loadWorkflowSchemeProjects.mockResolvedValue([]);
   mocks.loadStatusesCatalog.mockResolvedValue([]);
   mocks.buildWorkflowSnapshot.mockResolvedValue({ version: "v1", schemeCount: 0, statusCount: 0, projectCount: 0 });
+  mocks.queueWorkflowSnapshotBuild.mockResolvedValue(undefined);
+  mocks.isWorkflowBuildStale.mockReturnValue(false);
 });
 
 function ctxWithAccount(accountId = "user-1") {
@@ -651,27 +661,89 @@ describe("getWorkflowInventory", () => {
     expect(result.schemes.map((s) => s.id).sort()).toEqual(["scheme-1", "scheme-2"]);
   });
 
-  test("force-refresh builds a new snapshot and returns fresh data", async () => {
+  // The build is queued to the consumer (timeoutSeconds: 900) rather than run inline: it
+  // walks every project's workflow scheme, which does not fit in a resolver's 25s budget.
+  test("force-refresh queues the build instead of running it in the resolver", async () => {
     mocks.readWorkflowSnapshotMeta
       .mockResolvedValueOnce({ version: null, state: "idle" }) // initial read
-      .mockResolvedValueOnce({ version: "v2", state: "ready", totalSchemes: 1 }); // post-build read
-    mocks.buildWorkflowSnapshot.mockResolvedValue({ version: "v2", schemeCount: 1, statusCount: 1, projectCount: 1 });
+      .mockResolvedValueOnce({ version: null, state: "building" }); // post-queue read
     mocks.loadWorkflowSchemes.mockResolvedValue([workflowScheme()]);
     mocks.loadWorkflowSchemeProjects.mockResolvedValue([]);
     mocks.loadStatusesCatalog.mockResolvedValue([]);
 
     const result = await getWorkflowInventory({ payload: { forceRefresh: true }, context: ctxWithAccount() });
 
-    expect(mocks.buildWorkflowSnapshot).toHaveBeenCalledWith("test-install");
-    expect(result.snapshotStatus.version).toBe("v2");
+    expect(mocks.queueWorkflowSnapshotBuild).toHaveBeenCalledWith("test-install");
+    expect(mocks.buildWorkflowSnapshot).not.toHaveBeenCalled();
+    // Reports the queued build so the UI can poll rather than showing "never built".
+    expect(result.snapshotStatus.state).toBe("building");
   });
 
   test("does not trigger a second build while one is already in progress", async () => {
     mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: null, state: "building" });
+    mocks.isWorkflowBuildStale.mockReturnValue(false);
 
     await getWorkflowInventory({ payload: { forceRefresh: true }, context: ctxWithAccount() });
 
-    expect(mocks.buildWorkflowSnapshot).not.toHaveBeenCalled();
+    expect(mocks.queueWorkflowSnapshotBuild).not.toHaveBeenCalled();
+  });
+
+  // The wedge this fixes: an invocation killed mid-build leaves state "building" with no
+  // catch ever running, and every later refresh was suppressed as "already building" --
+  // the button silently did nothing, forever, with no error to explain it.
+  test("re-queues a build when a stale 'building' row is blocking it", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: null, state: "building" });
+    mocks.isWorkflowBuildStale.mockReturnValue(true);
+
+    await getWorkflowInventory({ payload: { forceRefresh: true }, context: ctxWithAccount() });
+
+    expect(mocks.queueWorkflowSnapshotBuild).toHaveBeenCalledWith("test-install");
+  });
+
+  // Enriching every scheme to return one page is work proportional to the site, not the
+  // page: at 142 schemes it was 284 round trips per read and the resolver hit its 25s
+  // limit, hanging the tab on "Loading...". Cost must track pageSize.
+  test("enriches only the requested page, not every scheme on the site", async () => {
+    const manySchemes = Array.from({ length: 142 }, (_, i) =>
+      workflowScheme({ id: `scheme-${i}`, name: `Scheme ${i}` })
+    );
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready" });
+    mocks.loadWorkflowSchemes.mockResolvedValue(manySchemes);
+    mocks.loadWorkflowSchemeProjects.mockResolvedValue([]);
+    mocks.loadStatusesCatalog.mockResolvedValue([]);
+
+    const result = await getWorkflowInventory({
+      payload: { page: 1, pageSize: 10 },
+      context: ctxWithAccount(),
+    });
+
+    expect(result.schemes).toHaveLength(10);
+    expect(result.totalCount).toBe(142);
+    expect(mocks.loadWorkflowSchemeProjects).toHaveBeenCalledTimes(10);
+    expect(mocks.getBrowsableProjectIds).toHaveBeenCalledTimes(10);
+  });
+
+  test("still reports the full total when a search matches more than one page", async () => {
+    const manySchemes = Array.from({ length: 30 }, (_, i) =>
+      workflowScheme({ id: `scheme-${i}`, name: `Payments ${i}` })
+    );
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready" });
+    mocks.loadWorkflowSchemes.mockResolvedValue([
+      ...manySchemes,
+      workflowScheme({ id: "other", name: "Unrelated" }),
+    ]);
+    mocks.loadWorkflowSchemeProjects.mockResolvedValue([]);
+    mocks.loadStatusesCatalog.mockResolvedValue([]);
+
+    const result = await getWorkflowInventory({
+      payload: { search: "payments", page: 1, pageSize: 10 },
+      context: ctxWithAccount(),
+    });
+
+    // Search must be applied across the whole set even though only a page is enriched.
+    expect(result.totalCount).toBe(30);
+    expect(result.schemes).toHaveLength(10);
+    expect(mocks.loadWorkflowSchemeProjects).toHaveBeenCalledTimes(10);
   });
 
   test("never surfaces a scheme's project count from projects the viewer can't browse", async () => {
@@ -2395,5 +2467,100 @@ describe("getAuditLog", () => {
 
     mocks.callerHasJiraAdmin.mockResolvedValue(false);
     await expect(ADMIN_ONLY_FUNCTIONS.getAuditLog(ADMIN_CTX)).rejects.toThrow(AdminPermissionError);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getProjectsView — workflow correlation
+//
+// Two projects on the same workflow scheme are meant to run the same process, so
+// divergent field usage between them is a standardization signal. Surfacing it means
+// the Projects tab has to carry both, without ever letting the workflow snapshot --
+// which is versioned separately and may not exist -- break the field view.
+// ---------------------------------------------------------------------------
+describe("getProjectsView workflow correlation", () => {
+  function baseProjects() {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: 1, refreshedAt: "2026-01-01T00:00:00Z" });
+    mocks.listSnapshotProjects.mockResolvedValue([
+      { projectId: "10", projectKey: "ABC", projectName: "Alpha" },
+      { projectId: "20", projectKey: "XYZ", projectName: "Zulu" },
+    ]);
+    mocks.readIssueScanMeta.mockResolvedValue(null);
+    mocks.loadSnapshotProjectFields.mockResolvedValue({ rows: [], total: 0 });
+  }
+
+  beforeEach(() => {
+    baseProjects();
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "wf-1", refreshedAt: "2026-07-31T10:00:00Z" });
+    mocks.loadWorkflowSchemeForProject.mockResolvedValue({
+      schemeId: "s1", name: "ADVEV Standard", description: "Engineering default",
+    });
+    mocks.loadWorkflowSchemeProjects.mockResolvedValue([
+      { projectId: "10", projectKey: "ABC", projectName: "Alpha" },
+      { projectId: "20", projectKey: "XYZ", projectName: "Zulu" },
+      { projectId: "30", projectKey: "QRS", projectName: "Quebec" },
+    ]);
+  });
+
+  test("returns the scheme governing the selected project", async () => {
+    const result = await getProjectsView({ payload: {}, context: {} });
+
+    expect(result.workflowScheme.name).toBe("ADVEV Standard");
+    expect(result.workflowScheme.schemeId).toBe("s1");
+  });
+
+  // "Shared with N" must count only projects the viewer can browse, or it discloses
+  // that projects they cannot see exist.
+  test("counts siblings from the viewer's browsable projects only", async () => {
+    mocks.getBrowsableProjectIds.mockResolvedValue(new Set(["10", "20"]));
+
+    const result = await getProjectsView({ payload: {}, context: { accountId: "acct-1" } });
+
+    expect(result.workflowScheme.sharedWithCount).toBe(1);
+    expect(result.workflowScheme.siblingProjects.map((p) => p.projectKey)).toEqual(["XYZ"]);
+  });
+
+  test("excludes the selected project from its own sibling list", async () => {
+    const result = await getProjectsView({ payload: { projectId: "10" }, context: {} });
+
+    expect(result.workflowScheme.siblingProjects.some((p) => p.projectId === "10")).toBe(false);
+  });
+
+  test("reports zero when the scheme governs only this project", async () => {
+    mocks.loadWorkflowSchemeProjects.mockResolvedValue([
+      { projectId: "10", projectKey: "ABC", projectName: "Alpha" },
+    ]);
+
+    const result = await getProjectsView({ payload: {}, context: {} });
+
+    expect(result.workflowScheme.sharedWithCount).toBe(0);
+    expect(result.workflowScheme.siblingProjects).toEqual([]);
+  });
+
+  test("returns null when no workflow snapshot has been built", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue(null);
+
+    const result = await getProjectsView({ payload: {}, context: {} });
+
+    expect(result.workflowScheme).toBeNull();
+    expect(mocks.loadWorkflowSchemeForProject).not.toHaveBeenCalled();
+  });
+
+  test("returns null when the project belongs to no scheme", async () => {
+    mocks.loadWorkflowSchemeForProject.mockResolvedValue(null);
+
+    const result = await getProjectsView({ payload: {}, context: {} });
+    expect(result.workflowScheme).toBeNull();
+  });
+
+  // The field view is the reason anyone opened this tab.
+  test("a workflow lookup failure never breaks the field view", async () => {
+    mocks.loadWorkflowSchemeForProject.mockRejectedValue(new Error("workflow tables missing"));
+
+    const result = await getProjectsView({ payload: {}, context: {} });
+
+    expect(result.workflowScheme).toBeNull();
+    expect(result.selectedProject.projectId).toBe("10");
+    expect(result.projects).toHaveLength(2);
   });
 });

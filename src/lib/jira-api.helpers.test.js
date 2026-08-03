@@ -33,6 +33,7 @@ import {
   collectRecentFieldProjectCandidates,
   getFieldProjectAssociations,
   resetJiraRateLimiterState,
+  extractWorkflowScheme,
   JIRA_REQUEST_HARD_TIMEOUT_MS,
 } from "./jira-api.js";
 
@@ -600,5 +601,39 @@ describe("loadFieldOptionsFromJira", () => {
     const result = await loadFieldOptionsFromJira("customfield_1");
     expect(result[0].options).toEqual([]);
     expect(result[0].fetchError).toBeTruthy();
+  });
+});
+
+// The /workflowscheme/project endpoint returns a container, not a scheme. Reading it wrong
+// is invisible in the UI -- it renders as a plausible-looking inventory of one-project
+// schemes all named "(unnamed workflow scheme)" -- so the shape is pinned here.
+describe("extractWorkflowScheme", () => {
+  it("reads the scheme out of the values[] container", () => {
+    const scheme = extractWorkflowScheme({
+      values: [{ projectIds: ["10000"], workflowScheme: { id: 10000, name: "Ford ADV Scheme" } }],
+    });
+    expect(scheme).toEqual({ id: 10000, name: "Ford ADV Scheme" });
+  });
+
+  it("returns null for the bare container, rather than treating it as a scheme", () => {
+    // This is the regression: the container has no id and no name, so using it as a scheme
+    // fabricated a distinct `unknown-<projectId>` entry for every project on the site.
+    expect(extractWorkflowScheme({ values: [] })).toBeNull();
+    expect(extractWorkflowScheme({ values: [{ projectIds: ["1"] }] })).toBeNull();
+  });
+
+  it("returns null for empty or malformed responses", () => {
+    expect(extractWorkflowScheme(null)).toBeNull();
+    expect(extractWorkflowScheme({})).toBeNull();
+    expect(extractWorkflowScheme({ values: null })).toBeNull();
+  });
+
+  it("accepts a scheme with an id but no name", () => {
+    expect(extractWorkflowScheme({ values: [{ workflowScheme: { id: 7 } }] })).toEqual({ id: 7 });
+  });
+
+  it("falls back to a top-level workflowScheme if the API ever returns one", () => {
+    expect(extractWorkflowScheme({ workflowScheme: { id: 3, name: "Direct" } }))
+      .toEqual({ id: 3, name: "Direct" });
   });
 });

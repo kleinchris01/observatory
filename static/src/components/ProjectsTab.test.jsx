@@ -213,3 +213,78 @@ describe("ProjectsTabView", () => {
     expect(screen.getByRole("button", { name: /restore from field summaries/i })).toBeInTheDocument();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Project <-> workflow correlation
+//
+// Two projects on the same workflow scheme are meant to run the same process, so a
+// divergence in their field usage is a standardization signal that neither the field
+// view nor the workflow view surfaces on its own. This panel is where they meet.
+// ---------------------------------------------------------------------------
+describe("ProjectsTabView workflow correlation", () => {
+  const SCHEME = {
+    schemeId: "s1",
+    name: "ADVEV Standard",
+    description: "Default scheme for engineering projects",
+    sharedWithCount: 2,
+    siblingProjects: [
+      { projectId: "200", projectKey: "BBB", projectName: "Project B" },
+      { projectId: "300", projectKey: "CCC", projectName: "Project C" },
+    ],
+    refreshedAt: "2026-07-31T10:00:00Z",
+  };
+
+  function dataWith(workflowScheme) {
+    return {
+      projects: [{ projectId: "100", projectKey: "AAA", projectName: "Project A", fieldCount: 12, totalIssueCount: 40, uniqueIssueCount: null }],
+      selectedProject: { projectId: "100", projectKey: "AAA", projectName: "Project A", fieldCount: 12, totalIssueCount: 40, uniqueIssueCount: null },
+      workflowScheme,
+      fields: [],
+      page: 1,
+      totalPages: 1,
+      refreshedAt: "2026-07-31T10:00:00Z",
+    };
+  }
+
+  const props = {
+    loading: false,
+    siteOrigin: "https://example.atlassian.net",
+    selectedProjectId: "100",
+    onSelectProject: vi.fn(),
+    projectQuery: "",
+    onProjectQueryChange: vi.fn(),
+    fieldQuery: "",
+    onFieldQueryChange: vi.fn(),
+    fieldType: "all",
+    onFieldTypeChange: vi.fn(),
+    fieldSort: "issues-desc",
+    onFieldSortChange: vi.fn(),
+    onChangePage: vi.fn(),
+    onRestoreProjectUsageCache: vi.fn(),
+    projectUsageRestoring: false,
+  };
+
+  it("names the scheme governing the selected project and who shares it", () => {
+    render(<ProjectsTabView {...props} data={dataWith(SCHEME)} />);
+
+    expect(screen.getByText("ADVEV Standard")).toBeInTheDocument();
+    expect(screen.getByText(/shared with 2 other projects/i)).toBeInTheDocument();
+    expect(screen.getByText("BBB")).toBeInTheDocument();
+    expect(screen.getByText("CCC")).toBeInTheDocument();
+  });
+
+  it("says so plainly when a scheme is unique to this project", () => {
+    render(<ProjectsTabView {...props} data={dataWith({ ...SCHEME, sharedWithCount: 0, siblingProjects: [] })} />);
+
+    expect(screen.getByText(/used only by this project/i)).toBeInTheDocument();
+  });
+
+  // The workflow snapshot is versioned separately from the field snapshot and may not
+  // exist. The field view is the reason anyone opened this tab; it must not depend on it.
+  it("renders the field view unchanged when no workflow snapshot exists", () => {
+    render(<ProjectsTabView {...props} data={dataWith(null)} />);
+
+    expect(screen.queryByText("Workflow scheme")).not.toBeInTheDocument();
+    expect(screen.getByText(/fields with usage/i)).toBeInTheDocument();
+  });
+});

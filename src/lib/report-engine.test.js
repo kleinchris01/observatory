@@ -16,6 +16,8 @@ vi.mock("./project-store.js", () => ({
   loadAllSnapshotProjectUsage: vi.fn().mockResolvedValue([]),
   loadReportJob: vi.fn(),
   replaceReportJob: vi.fn().mockResolvedValue(undefined),
+  readWorkflowSnapshotMeta: vi.fn().mockResolvedValue(null),
+  loadProjectWorkflowSchemeMap: vi.fn().mockResolvedValue(new Map()),
 }));
 
 vi.mock("./snapshot-engine.js", () => ({
@@ -23,6 +25,7 @@ vi.mock("./snapshot-engine.js", () => ({
 }));
 
 import { buildProjectUsageReportResult, processProjectUsageReportJob } from "./report-engine.js";
+import { readWorkflowSnapshotMeta, loadProjectWorkflowSchemeMap } from "./project-store.js";
 import {
   loadSnapshotField,
   loadAllSnapshotProjectUsage,
@@ -342,5 +345,83 @@ describe("processProjectUsageReportJob", () => {
     const log = replaceReportJob.mock.calls[0][2].progressLog;
     expect(log.length).toBeLessThanOrEqual(100);
     expect(log.some((e) => e.msg === "entry 0")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Workflow scheme annotation
+//
+// Two projects on the same workflow scheme are meant to run the same process, so a
+// report showing them with very different field sets is the standardization signal.
+// That only works if the report carries both, which is what these pin.
+//
+// Every path here is best-effort by design: the workflow snapshot is versioned
+// independently of the field snapshot and may not exist at all. A report must never
+// fail because of that -- so these also assert the failure modes stay silent.
+// ---------------------------------------------------------------------------
+describe("workflow scheme annotation", () => {
+  beforeEach(() => {
+    readWorkflowSnapshotMeta.mockResolvedValue({ version: "wf-1" });
+    loadProjectWorkflowSchemeMap.mockResolvedValue(new Map([
+      ["100", { schemeId: "s1", name: "ADVEV Standard" }],
+      ["200", { schemeId: "s1", name: "ADVEV Standard" }],
+    ]));
+    loadSnapshotField.mockResolvedValue({
+      id: "customfield_1", name: "Field One", type: "text", totalIssueCount: 5, activeProjectCount: 2,
+    });
+    loadAllSnapshotProjectUsage.mockResolvedValue([
+      { projectId: "100", projectKey: "AAA", projectName: "Project A", issueCount: 3, jql: "x" },
+      { projectId: "200", projectKey: "BBB", projectName: "Project B", issueCount: 2, jql: "y" },
+      { projectId: "300", projectKey: "CCC", projectName: "Project C", issueCount: 1, jql: "z" },
+    ]);
+  });
+
+  test("annotates each project with its workflow scheme", async () => {
+    const { result } = await buildProjectUsageReportResult("scope-1", "v1", ["customfield_1"]);
+
+    const byKey = Object.fromEntries(result.projects.map((p) => [p.projectKey, p]));
+    expect(byKey.AAA.workflowSchemeName).toBe("ADVEV Standard");
+    expect(byKey.BBB.workflowSchemeName).toBe("ADVEV Standard");
+    expect(byKey.AAA.workflowSchemeId).toBe("s1");
+  });
+
+  test("leaves projects with no scheme unannotated rather than blank-labelled", async () => {
+    const { result } = await buildProjectUsageReportResult("scope-1", "v1", ["customfield_1"]);
+
+    const ccc = result.projects.find((p) => p.projectKey === "CCC");
+    expect(ccc.workflowSchemeName).toBeUndefined();
+    expect(ccc.projectKey).toBe("CCC");
+  });
+
+  test("produces a report unchanged when no workflow snapshot exists", async () => {
+    readWorkflowSnapshotMeta.mockResolvedValue(null);
+
+    const { result } = await buildProjectUsageReportResult("scope-1", "v1", ["customfield_1"]);
+
+    expect(result.projects).toHaveLength(3);
+    expect(result.projects.every((p) => p.workflowSchemeName === undefined)).toBe(true);
+    expect(loadProjectWorkflowSchemeMap).not.toHaveBeenCalled();
+  });
+
+  test("a workflow lookup failure does not fail the report", async () => {
+    loadProjectWorkflowSchemeMap.mockRejectedValue(new Error("workflow tables missing"));
+
+    const { result } = await buildProjectUsageReportResult("scope-1", "v1", ["customfield_1"]);
+
+    expect(result.projects).toHaveLength(3);
+    expect(result.fields).toHaveLength(1);
+  });
+
+  // The map is identical for every batch, so fetching it per chunk would repeat the
+  // same query for no benefit on a report spanning many fields.
+  test("only queries the scheme map on the final chunk", async () => {
+    // Must exceed REPORT_JOB_FIELD_BATCH_SIZE (40), or the first chunk is the only
+    // chunk and isComplete is true on the first call.
+    const manyFields = Array.from({ length: REPORT_JOB_FIELD_BATCH_SIZE + 5 }, (_, i) => `customfield_${i}`);
+
+    const first = await buildProjectUsageReportResult("scope-1", "v1", manyFields, 0);
+
+    expect(first.isComplete).toBe(false);
+    expect(loadProjectWorkflowSchemeMap).not.toHaveBeenCalled();
   });
 });

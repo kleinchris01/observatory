@@ -1,8 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { buildWorkflowSnapshot } from "./workflow-engine.js";
+import {
+  buildWorkflowSnapshot,
+  queueWorkflowSnapshotBuild,
+  isWorkflowBuildStale,
+  WORKFLOW_BUILD_STALE_MS,
+} from "./workflow-engine.js";
 
 // logger.js is left real (console formatting only, no I/O) -- same convention
 // as snapshot-engine.test.js.
+
+vi.mock("./queues.js", () => ({
+  inventorySnapshotQueue: { push: vi.fn().mockResolvedValue({ queued: true }) },
+}));
 
 vi.mock("./jira-api.js", () => ({
   incrMetric: vi.fn(),
@@ -28,6 +37,7 @@ import {
   getWorkflowSchemesForProjects,
 } from "./jira-api.js";
 import { writeWorkflowSnapshotMeta, replaceWorkflowSnapshot } from "./project-store.js";
+import { inventorySnapshotQueue } from "./queues.js";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -120,5 +130,61 @@ describe("buildWorkflowSnapshot", () => {
       { id: "1", name: "Done", statusCategory: "Done" },
       { id: "2", name: "Weird", statusCategory: "new" },
     ]);
+  });
+});
+
+// Regression coverage for the wedge that made the Workflows tab's build button appear to
+// do nothing: a Forge invocation timeout is a hard kill, so buildWorkflowSnapshot's own
+// catch never runs and the row is left at "building" forever. Everything below exists to
+// keep that state recoverable and off the resolver's 25s budget.
+
+describe("isWorkflowBuildStale", () => {
+  const now = Date.parse("2026-08-03T12:00:00.000Z");
+
+  it("is false for states other than building", () => {
+    expect(isWorkflowBuildStale({ state: "ready", startedAt: null }, now)).toBe(false);
+    expect(isWorkflowBuildStale({ state: "failed", startedAt: null }, now)).toBe(false);
+    expect(isWorkflowBuildStale(null, now)).toBe(false);
+  });
+
+  it("is false for a build still within the consumer's timeout", () => {
+    const startedAt = new Date(now - 60_000).toISOString();
+    expect(isWorkflowBuildStale({ state: "building", startedAt }, now)).toBe(false);
+  });
+
+  it("is true once the build outlives what the consumer could possibly run", () => {
+    const startedAt = new Date(now - WORKFLOW_BUILD_STALE_MS - 1000).toISOString();
+    expect(isWorkflowBuildStale({ state: "building", startedAt }, now)).toBe(true);
+  });
+
+  // Rows written before startedAt was recorded, or with a corrupt value, must not become
+  // permanently unrecoverable -- an unprovable build is treated as abandoned.
+  it("is true when startedAt is missing or unparseable", () => {
+    expect(isWorkflowBuildStale({ state: "building", startedAt: null }, now)).toBe(true);
+    expect(isWorkflowBuildStale({ state: "building", startedAt: "not-a-date" }, now)).toBe(true);
+  });
+});
+
+describe("queueWorkflowSnapshotBuild", () => {
+  it("marks the build as building and enqueues it rather than running it inline", async () => {
+    await queueWorkflowSnapshotBuild("install-1");
+
+    expect(writeWorkflowSnapshotMeta).toHaveBeenCalledWith(
+      "install-1",
+      expect.objectContaining({ state: "building", lastError: null })
+    );
+    expect(inventorySnapshotQueue.push).toHaveBeenCalledWith({
+      body: { jobType: "build-workflow-snapshot", installationKey: "install-1" },
+    });
+    // The whole point: no Jira traffic on the caller's invocation.
+    expect(getWorkflowSchemesForProjects).not.toHaveBeenCalled();
+  });
+
+  it("records a startedAt so staleness can be judged later", async () => {
+    await queueWorkflowSnapshotBuild("install-1");
+
+    const [, meta] = writeWorkflowSnapshotMeta.mock.calls[0];
+    expect(Number.isFinite(Date.parse(meta.startedAt))).toBe(true);
+    expect(isWorkflowBuildStale({ state: "building", startedAt: meta.startedAt })).toBe(false);
   });
 });

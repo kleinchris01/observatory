@@ -17,6 +17,9 @@ const ProjectsTabView = React.lazy(() =>
 const RqtIndexView = React.lazy(() =>
   import("./tabs/RqtTab").then((m) => ({ default: m.RqtIndexView }))
 );
+const WorkflowTab = React.lazy(() =>
+  import("./tabs/WorkflowTab").then((m) => ({ default: m.WorkflowTab }))
+);
 const OverviewDashboard = React.lazy(() =>
   import("./components/OverviewDashboard").then((m) => ({ default: m.OverviewDashboard }))
 );
@@ -1561,6 +1564,13 @@ function ReportsTab({ siteOrigin, selectedFieldIds, onSetSelectedFieldIds, autoG
     if (!exportData?.fields?.length) { setError("No report data available to export."); return; }
     const header = ["Field ID", "Field Name", ...exportData.projects.map((p) => p.projectKey)];
     const rows = [];
+    // Second header row, only when workflow data exists. The export is a field x project
+    // matrix, so putting each project's scheme directly under its column is what makes
+    // the correlation readable: columns sharing a scheme are meant to run the same
+    // process, and a field populated in one but not the others is the signal.
+    if (exportData.projects.some((p) => p.workflowSchemeName)) {
+      rows.push(["", "Workflow scheme", ...exportData.projects.map((p) => p.workflowSchemeName || "")]);
+    }
     for (const group of groupReportFieldsByType(exportData.fields)) {
       rows.push([`${group.fieldType.toUpperCase()} FIELDS`, "", ...exportData.projects.map(() => "")]);
       for (const field of group.fields) {
@@ -2628,6 +2638,7 @@ export function AdminApp() {
     { key: "overview", label: "Overview", icon: "barChart" },
     { key: "fields", label: "Field Browser", icon: "layers" },
     { key: "projects", label: "Project Usage", icon: "folder" },
+    { key: "workflows", label: "Workflows", icon: "activity" },
     { key: "reports", label: "Reports", icon: "barChart" },
     { key: "scans", label: "Scans", icon: "zap" },
     { key: "config", label: "Configuration", icon: "settings" },
@@ -2713,6 +2724,10 @@ export function AdminApp() {
             />
           ) : activeTab === "projects" ? (
             <ProjectUsageTab siteOrigin={siteOrigin} />
+          ) : activeTab === "workflows" ? (
+            <React.Suspense fallback={<div className="empty-state">Loading…</div>}>
+              <WorkflowTab />
+            </React.Suspense>
           ) : activeTab === "reports" ? (
             <ReportsTab siteOrigin={siteOrigin} selectedFieldIds={selectedFieldIds} onSetSelectedFieldIds={setSelectedFieldIds} autoGenerate={pendingReportGenerate} onAutoGenerateConsumed={() => setPendingReportGenerate(false)} />
           ) : activeTab === "scans" ? (
