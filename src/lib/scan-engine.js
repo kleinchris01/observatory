@@ -222,15 +222,30 @@ export async function runIssueScanCoordinator(installationKey) {
 
     // Get site-wide issue count for progress tracking
     log("Fetching site-wide issue count...");
+    // Never swallow this failure silently. `null?.count ?? 0` renders a failed count as a
+    // confident "Site-wide issue count: 0", which is indistinguishable from a site that
+    // genuinely has no issues -- and sends whoever reads the log chasing the wrong thing.
+    // jiraRequest already builds a message carrying the HTTP status and response body; the
+    // only reason it was ever invisible is that it was discarded here.
     const globalCountResult = await withTimeout(
       jiraRequest(route`/rest/api/3/search/approximate-count`, {
         method: "POST",
         body: JSON.stringify({ jql: "project is not empty" }),
       }),
       ISSUE_COUNT_TIMEOUT_MS
-    ).catch(() => null);
+    ).catch((error) => {
+      logger.warn("scan.coordinator.global_count_failed", {
+        message: error?.message || String(error),
+        status: error?.status ?? null,
+      });
+      return null;
+    });
     const totalEstimatedIssues = Number(globalCountResult?.count ?? 0);
-    log(`Site-wide issue count: ${totalEstimatedIssues.toLocaleString()}`);
+    log(
+      globalCountResult
+        ? `Site-wide issue count: ${totalEstimatedIssues.toLocaleString()}`
+        : "Site-wide issue count UNAVAILABLE (count API failed) — progress totals will be unreliable"
+    );
 
     // Get per-project approximate counts to load-balance workers.
     // Prefer historical data; fall back to live approximate-count for unknown projects.
@@ -240,6 +255,12 @@ export async function runIssueScanCoordinator(installationKey) {
     if (unknownKeys.length > 0) {
       log(`Fetching approximate counts for ${unknownKeys.length} unknown projects...`);
       const APPROX_BATCH = 8;
+      // Per-key failures fall back to a nominal 100 so bin-packing can still proceed, but
+      // they are counted and reported. Silently substituting 100 for every project turns a
+      // total API outage into a scan that looks like it is working on plausible data.
+      // Aggregated rather than logged per key: 142 identical stack traces bury the signal.
+      let approxFailures = 0;
+      let firstApproxError = null;
       for (let i = 0; i < unknownKeys.length; i += APPROX_BATCH) {
         const batch = unknownKeys.slice(i, i + APPROX_BATCH);
         const results = await Promise.all(
@@ -252,11 +273,25 @@ export async function runIssueScanCoordinator(installationKey) {
               ISSUE_COUNT_TIMEOUT_MS
             )
               .then((r) => [key, Number(r?.count ?? 0)])
-              .catch(() => [key, 100])
+              .catch((error) => {
+                approxFailures++;
+                if (!firstApproxError) {
+                  firstApproxError = { message: error?.message || String(error), status: error?.status ?? null };
+                }
+                return [key, 100];
+              })
           )
         );
         for (const [key, count] of results) issueCountByKey.set(key, count || 1);
         if (i + APPROX_BATCH < unknownKeys.length) await sleep(150);
+      }
+      if (approxFailures > 0) {
+        logger.warn("scan.coordinator.approx_count_failures", {
+          failed: approxFailures,
+          total: unknownKeys.length,
+          firstError: firstApproxError,
+        });
+        log(`Approximate count failed for ${approxFailures}/${unknownKeys.length} projects: ${firstApproxError?.message || "unknown error"}`);
       }
     }
 
