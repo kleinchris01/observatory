@@ -861,10 +861,65 @@ export async function getAllStatuses() {
   return Array.isArray(data) ? data : [];
 }
 
+// Normalize a workflow-search response into [{ name, statusIds }].
+//
+// Exported and shape-agnostic on purpose: Jira has two generations of this endpoint and
+// they disagree about where statuses live.
+//
+//   Deprecated GET /rest/api/3/workflow/search  ->  values[].statuses[].id
+//   Current  POST /rest/api/3/workflows/search  ->  workflows[].statuses[].statusReference,
+//                                                   plus a top-level statuses[] mapping
+//                                                   each reference to a real status id.
+//
+// A statusReference is a UUID, NOT a status id, so resolving it through that lookup is
+// mandatory -- matching references straight against the status catalog silently yields
+// zero overlap, which is indistinguishable from "this scheme has no statuses".
+export function normalizeWorkflowSearchResponse(data) {
+  const idByReference = new Map();
+  for (const status of data?.statuses || []) {
+    const reference = status?.statusReference || status?.id;
+    if (reference && status?.id) idByReference.set(String(reference), String(status.id));
+  }
+
+  const workflows = data?.workflows || data?.values || [];
+  return workflows.map((workflow) => {
+    const name = workflow?.name || workflow?.id?.name || null;
+    const statusIds = [];
+    for (const entry of workflow?.statuses || []) {
+      const direct = entry?.id ?? entry?.statusId;
+      const reference = entry?.statusReference;
+      const resolved = direct != null ? String(direct) : (reference ? idByReference.get(String(reference)) : null);
+      if (resolved) statusIds.push(resolved);
+    }
+    return { name, statusIds };
+  }).filter((workflow) => workflow.name);
+}
+
+// Every workflow on the site with the statuses it can reach.
+//
+// Tries the current endpoint first and falls back to the deprecated one. The fallback is
+// not defensive programming for its own sake: the deprecated GET form returns 401
+// "scope does not match" for an app declaring granular scopes, which is exactly how this
+// failed on staging -- silently, leaving every status looking orphaned.
 export async function getAllWorkflowsWithStatuses() {
-  return paginate(
+  try {
+    const data = await jiraRequest(route`/rest/api/3/workflows/search?expand=statuses`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+    const workflows = normalizeWorkflowSearchResponse(data);
+    if (workflows.length > 0) return workflows;
+    // A successful call returning nothing is worth saying out loud: it means the shape
+    // changed again, not that the site has no workflows.
+    console.warn("getAllWorkflowsWithStatuses: bulk endpoint returned no usable workflows; response keys:", Object.keys(data || {}));
+  } catch (error) {
+    console.warn("getAllWorkflowsWithStatuses: bulk endpoint failed, trying legacy:", error?.message || error);
+  }
+
+  const legacy = await paginate(
     (startAt) => route`/rest/api/3/workflow/search?expand=statuses&startAt=${startAt}&maxResults=${DEFAULT_PAGE_SIZE}`
   );
+  return normalizeWorkflowSearchResponse({ values: legacy });
 }
 
 export async function getWorkflowSchemeForProject(projectId) {

@@ -34,6 +34,8 @@ import {
   getFieldProjectAssociations,
   resetJiraRateLimiterState,
   extractWorkflowScheme,
+  normalizeWorkflowSearchResponse,
+  getAllWorkflowsWithStatuses,
   JIRA_REQUEST_HARD_TIMEOUT_MS,
 } from "./jira-api.js";
 
@@ -635,5 +637,105 @@ describe("extractWorkflowScheme", () => {
   it("falls back to a top-level workflowScheme if the API ever returns one", () => {
     expect(extractWorkflowScheme({ workflowScheme: { id: 3, name: "Direct" } }))
       .toEqual({ id: 3, name: "Direct" });
+  });
+});
+
+// Two generations of Jira's workflow-search endpoint disagree about where statuses live,
+// and the difference is silent: a statusReference is a UUID, not a status id, so matching
+// references straight against the status catalog yields zero overlap -- indistinguishable
+// from a site whose schemes genuinely have no statuses. That is exactly how this failed on
+// staging, leaving all 435 statuses looking unreachable.
+describe("normalizeWorkflowSearchResponse", () => {
+  test("reads the deprecated shape, where statuses carry ids directly", () => {
+    expect(normalizeWorkflowSearchResponse({
+      values: [{ id: { name: "Bug WF" }, statuses: [{ id: "3" }, { id: "5" }] }],
+    })).toEqual([{ name: "Bug WF", statusIds: ["3", "5"] }]);
+  });
+
+  test("resolves statusReference UUIDs through the current shape's lookup table", () => {
+    const result = normalizeWorkflowSearchResponse({
+      workflows: [{ name: "Bug WF", statuses: [{ statusReference: "uuid-a" }, { statusReference: "uuid-b" }] }],
+      statuses: [
+        { statusReference: "uuid-a", id: "3", name: "In Review" },
+        { statusReference: "uuid-b", id: "5", name: "Done" },
+      ],
+    });
+
+    // Real status ids, never the references themselves.
+    expect(result).toEqual([{ name: "Bug WF", statusIds: ["3", "5"] }]);
+  });
+
+  test("drops references it cannot resolve rather than emitting a UUID as a status id", () => {
+    const result = normalizeWorkflowSearchResponse({
+      workflows: [{ name: "Bug WF", statuses: [{ statusReference: "unknown-uuid" }, { statusReference: "uuid-a" }] }],
+      statuses: [{ statusReference: "uuid-a", id: "3" }],
+    });
+
+    expect(result).toEqual([{ name: "Bug WF", statusIds: ["3"] }]);
+  });
+
+  test("skips workflows with no resolvable name", () => {
+    expect(normalizeWorkflowSearchResponse({ workflows: [{ statuses: [{ id: "3" }] }] })).toEqual([]);
+  });
+
+  test("returns an empty list for empty or malformed responses", () => {
+    expect(normalizeWorkflowSearchResponse(null)).toEqual([]);
+    expect(normalizeWorkflowSearchResponse({})).toEqual([]);
+    expect(normalizeWorkflowSearchResponse({ workflows: [] })).toEqual([]);
+  });
+
+  test("tolerates a workflow with no statuses at all", () => {
+    expect(normalizeWorkflowSearchResponse({ workflows: [{ name: "Empty WF" }] }))
+      .toEqual([{ name: "Empty WF", statusIds: [] }]);
+  });
+});
+
+// The endpoint fallback exists because the deprecated GET form returns 401
+// "scope does not match" for an app declaring granular scopes -- which is how the scheme
+// to status mapping silently came back empty on staging, making all 435 statuses look
+// unreachable. These pin the order and the failure handling.
+describe("getAllWorkflowsWithStatuses", () => {
+  test("uses the current bulk endpoint and resolves status references", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({
+      body: {
+        workflows: [{ name: "Bug WF", statuses: [{ statusReference: "uuid-a" }] }],
+        statuses: [{ statusReference: "uuid-a", id: "3" }],
+      },
+    }));
+
+    await expect(getAllWorkflowsWithStatuses()).resolves.toEqual([{ name: "Bug WF", statusIds: ["3"] }]);
+    expect(mockRequestJira).toHaveBeenCalledTimes(1);
+    expect(mockRequestJira.mock.calls[0][0]).toContain("/workflows/search");
+    expect(mockRequestJira.mock.calls[0][1].method).toBe("POST");
+  });
+
+  test("falls back to the legacy endpoint when the bulk one is rejected", async () => {
+    mockRequestJira
+      .mockResolvedValueOnce(jiraResponse({ ok: false, status: 401, text: "Unauthorized; scope does not match" }))
+      .mockResolvedValueOnce(jiraResponse({
+        body: { values: [{ id: { name: "Legacy WF" }, statuses: [{ id: "7" }] }], isLast: true },
+      }));
+
+    const result = await getAllWorkflowsWithStatuses();
+
+    expect(result).toEqual([{ name: "Legacy WF", statusIds: ["7"] }]);
+    expect(mockRequestJira.mock.calls.at(-1)[0]).toContain("/workflow/search");
+  });
+
+  test("falls back when the bulk endpoint succeeds but yields nothing usable", async () => {
+    mockRequestJira
+      .mockResolvedValueOnce(jiraResponse({ body: { somethingElse: true } }))
+      .mockResolvedValueOnce(jiraResponse({
+        body: { values: [{ id: { name: "Legacy WF" }, statuses: [{ id: "7" }] }], isLast: true },
+      }));
+
+    // A 200 that parses to zero workflows means the shape changed, not that the site has
+    // none -- so it must still try the other endpoint rather than report an empty site.
+    await expect(getAllWorkflowsWithStatuses()).resolves.toEqual([{ name: "Legacy WF", statusIds: ["7"] }]);
+  });
+
+  test("propagates the error when both endpoints fail", async () => {
+    mockRequestJira.mockResolvedValue(jiraResponse({ ok: false, status: 500, text: "boom" }));
+    await expect(getAllWorkflowsWithStatuses()).rejects.toThrow();
   });
 });

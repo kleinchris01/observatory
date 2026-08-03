@@ -88,17 +88,15 @@ export async function buildWorkflowSnapshot(installationKey) {
     ]);
 
     // workflow name -> status ids. The scheme association gives workflow NAMES (a default
-    // plus per-issue-type overrides), while statuses hang off the workflow objects, so
-    // the join is by name.
+    // plus per-issue-type overrides), so the join is by name. getAllWorkflowsWithStatuses
+    // has already reconciled the two endpoint generations and resolved status references
+    // to real status ids.
     const statusIdsByWorkflowName = new Map();
     for (const workflow of workflows) {
-      const name = workflow?.id?.name || workflow?.name;
-      if (!name) continue;
-      const ids = (workflow.statuses || [])
-        .map((s) => String(s?.id ?? s?.statusReference ?? ""))
-        .filter(Boolean);
-      if (!statusIdsByWorkflowName.has(name)) statusIdsByWorkflowName.set(name, new Set());
-      for (const id of ids) statusIdsByWorkflowName.get(name).add(id);
+      if (!workflow?.name) continue;
+      if (!statusIdsByWorkflowName.has(workflow.name)) statusIdsByWorkflowName.set(workflow.name, new Set());
+      const target = statusIdsByWorkflowName.get(workflow.name);
+      for (const id of workflow.statusIds || []) target.add(id);
     }
 
     const projectIds = projects.map((p) => String(p.id));

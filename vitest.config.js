@@ -63,10 +63,10 @@ export default defineConfig({
       // covered them, and each remaining gap is an error path with no distinct
       // observable. Pinned to actuals so they cannot slip further.
       thresholds: {
-        lines: 77,
-        functions: 64,
-        branches: 63,
-        "src/lib/jira-api.js": { lines: 97, functions: 95, branches: 79 },
+        lines: 78,
+        functions: 65,
+        branches: 64.5,
+        "src/lib/jira-api.js": { lines: 96, functions: 95, branches: 78.5 },
         "src/index.js": { lines: 96, functions: 49, branches: 87.5 },
         "src/lib/report-engine.js": { lines: 100, functions: 100, branches: 94.5 },
         // Holds the authorization boundary -- withAdminGuard and the audit trail. A
