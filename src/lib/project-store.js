@@ -281,6 +281,40 @@ const CREATE_SNAPSHOT_STATUSES_TABLE = `
   )
 `;
 
+// Which statuses each scheme can reach, resolved from scheme -> workflow -> statuses.
+//
+// Without this the status catalog is a flat list with no way to ask "is anything using
+// this?" -- which is the question behind both orphan detection and per-scheme balance.
+const CREATE_SNAPSHOT_WORKFLOW_STATUSES_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_workflow_statuses (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    scheme_id VARCHAR(191) NOT NULL,
+    status_id VARCHAR(191) NOT NULL,
+    PRIMARY KEY (scope_key, version, scheme_id, status_id)
+  )
+`;
+
+// Issue counts per status per project, accumulated by the universe scan.
+//
+// Unversioned, like the other issue_scan_* tables: it reflects the last completed scan
+// rather than a snapshot version. The project dimension is carried even though the
+// headline number is site-wide, because adding it later would mean a second full re-scan
+// -- and it is what lets a scheme's balance be weighted by real issue volume instead of
+// by how many statuses someone happened to define.
+const CREATE_ISSUE_SCAN_STATUS_TOTALS_TABLE = `
+  CREATE TABLE IF NOT EXISTS issue_scan_status_totals (
+    scope_key VARCHAR(191) NOT NULL,
+    status_id VARCHAR(191) NOT NULL,
+    project_id VARCHAR(191) NOT NULL,
+    status_name TEXT NULL,
+    status_category VARCHAR(64) NULL,
+    project_key VARCHAR(191) NULL,
+    issue_count BIGINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (scope_key, status_id, project_id)
+  )
+`;
+
 const CREATE_WORKFLOW_SNAPSHOT_META_TABLE = `
   CREATE TABLE IF NOT EXISTS workflow_snapshot_meta (
     scope_key VARCHAR(191) NOT NULL,
@@ -383,7 +417,9 @@ const projectStoreMigrations = migrationRunner
   .enqueue("v043_create_snapshot_statuses_table", CREATE_SNAPSHOT_STATUSES_TABLE)
   .enqueue("v044_create_workflow_snapshot_meta_table", CREATE_WORKFLOW_SNAPSHOT_META_TABLE)
   .enqueue("v045_create_audit_log_table", CREATE_AUDIT_LOG_TABLE)
-  .enqueue("v046_create_audit_log_scope_at_index", CREATE_AUDIT_LOG_SCOPE_AT_INDEX);
+  .enqueue("v046_create_audit_log_scope_at_index", CREATE_AUDIT_LOG_SCOPE_AT_INDEX)
+  .enqueue("v047_create_snapshot_workflow_statuses_table", CREATE_SNAPSHOT_WORKFLOW_STATUSES_TABLE)
+  .enqueue("v048_create_issue_scan_status_totals_table", CREATE_ISSUE_SCAN_STATUS_TOTALS_TABLE);
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history
@@ -3034,12 +3070,13 @@ export async function migrateOldScopeKeys(newScopeKey) {
 // Full replace, mirroring replaceSnapshotFields: delete this scope's rows, then
 // insert the fresh set. Workflow schemes/statuses are small site-wide catalogs
 // (no resume/append path needed, unlike the custom-field snapshot).
-export async function replaceWorkflowSnapshot(scopeKey, version, { schemes = [], schemeProjects = [], statuses = [] }) {
+export async function replaceWorkflowSnapshot(scopeKey, version, { schemes = [], schemeProjects = [], statuses = [], schemeStatuses = [] }) {
   await ensureProjectStoreReady();
 
   await withSqlRetry(() => sql.prepare("DELETE FROM snapshot_workflow_schemes WHERE scope_key = ?").bindParams(scopeKey).execute());
   await withSqlRetry(() => sql.prepare("DELETE FROM snapshot_workflow_scheme_projects WHERE scope_key = ?").bindParams(scopeKey).execute());
   await withSqlRetry(() => sql.prepare("DELETE FROM snapshot_statuses WHERE scope_key = ?").bindParams(scopeKey).execute());
+  await withSqlRetry(() => sql.prepare("DELETE FROM snapshot_workflow_statuses WHERE scope_key = ?").bindParams(scopeKey).execute());
 
   for (const batch of chunkArray(schemes, 50)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
@@ -3081,6 +3118,87 @@ export async function replaceWorkflowSnapshot(scopeKey, version, { schemes = [],
       sql.prepare(`
         INSERT INTO snapshot_statuses (scope_key, version, status_id, name, status_category, findings_json)
         VALUES ${valuesSql}
+      `).bindParams(...params).execute()
+    );
+  }
+
+  for (const batch of chunkArray(schemeStatuses, 150)) {
+    const valuesSql = batch.map(() => "(?, ?, ?, ?)").join(", ");
+    const params = batch.flatMap((row) => [scopeKey, version, row.schemeId, row.statusId]);
+    await withSqlRetry(() =>
+      sql.prepare(`
+        INSERT INTO snapshot_workflow_statuses (scope_key, version, scheme_id, status_id)
+        VALUES ${valuesSql}
+      `).bindParams(...params).execute()
+    );
+  }
+}
+
+// Every scheme -> status pair for one snapshot version. Small enough to load whole: it is
+// bounded by schemes x statuses-per-scheme, and the insight functions need the full set to
+// tell a referenced status from an orphaned one.
+export async function loadWorkflowSchemeStatuses(scopeKey, version) {
+  await ensureProjectStoreReady();
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT scheme_id, status_id
+      FROM snapshot_workflow_statuses
+      WHERE scope_key = ? AND version = ?
+    `).bindParams(scopeKey, version).execute()
+  );
+  return (result.rows || []).map((row) => ({ schemeId: row.scheme_id, statusId: row.status_id }));
+}
+
+// status_id -> total issues across every project, from the last completed universe scan.
+// Returns an empty map when no scan has run; callers must treat that as "unknown" rather
+// than "zero", because zero is a claim that a status is safe to delete.
+export async function loadStatusIssueCounts(scopeKey) {
+  await ensureProjectStoreReady();
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT status_id, SUM(issue_count) AS total
+      FROM issue_scan_status_totals
+      WHERE scope_key = ?
+      GROUP BY status_id
+    `).bindParams(scopeKey).execute()
+  );
+  const counts = new Map();
+  for (const row of result.rows || []) {
+    if (row?.status_id) counts.set(String(row.status_id), toNumber(row.total));
+  }
+  return counts;
+}
+
+export async function clearStatusIssueCounts(scopeKey) {
+  await ensureProjectStoreReady();
+  await withSqlRetry(() =>
+    sql.prepare("DELETE FROM issue_scan_status_totals WHERE scope_key = ?").bindParams(scopeKey).execute()
+  );
+}
+
+// Accumulate per-status counts from a worker chunk.
+//
+// ON DUPLICATE KEY UPDATE rather than INSERT: workers run in parallel over disjoint
+// project sets, but a single status is reached from many projects and each worker flushes
+// several times per run, so rows are additive across both dimensions.
+export async function flushIssueScanStatusCounts(scopeKey, statusCounts) {
+  // statusCounts: Map<`statusId|projectId`, { statusId, statusName, statusCategory, projectId, projectKey, count }>
+  await ensureProjectStoreReady();
+  const rows = [...statusCounts.values()].filter((row) => row?.statusId && row?.projectId);
+  if (!rows.length) return;
+
+  for (const batch of chunkArray(rows, 100)) {
+    const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?, ?)").join(", ");
+    const params = batch.flatMap((row) => [
+      scopeKey, row.statusId, row.projectId, row.statusName || null,
+      row.statusCategory || null, row.projectKey || null, row.count,
+    ]);
+    await withSqlRetry(() =>
+      sql.prepare(`
+        INSERT INTO issue_scan_status_totals
+          (scope_key, status_id, project_id, status_name, status_category, project_key, issue_count)
+        VALUES ${valuesSql}
+        ON DUPLICATE KEY UPDATE issue_count = issue_count + VALUES(issue_count)
       `).bindParams(...params).execute()
     );
   }

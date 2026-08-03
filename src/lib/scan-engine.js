@@ -31,6 +31,8 @@ import {
   updateIssueScanWorker,
   replaceFieldOptionsCache,
   flushIssueScanCounts,
+  flushIssueScanStatusCounts,
+  clearStatusIssueCounts,
   finalizeIssueScan,
   clearRqtFieldIndex,
   upsertRqtFieldHits,
@@ -359,6 +361,9 @@ export async function runIssueScanCoordinator(installationKey) {
     log(`Starting ${ISSUE_SCAN_WORKERS} workers across ${allProjectKeys.length} projects (${totalEstimatedIssues.toLocaleString()} issues on site)`);
 
     await clearIssueScanBuffer(installationKey);
+    // Status totals accumulate with ON DUPLICATE KEY UPDATE, so a fresh run must start
+    // from empty -- otherwise a re-scan doubles every count.
+    await clearStatusIssueCounts(installationKey).catch(() => {});
     await clearRqtFieldIndex(installationKey);
     await clearRqtIssueKeys(installationKey);
     await clearRqtValueIndex(installationKey);
@@ -409,6 +414,8 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
   let pendingIssues = 0;
   const fieldProjectCounts = new Map();
   const projectTotals = new Map();
+  // `${statusId}|${projectId}` -> { statusId, statusName, statusCategory, projectId, projectKey, count }
+  const statusCounts = new Map();
   const rqtFieldHits = new Map();
   const rqtIssueBuffer = [];
   const rqtValueBuffer = []; // { rqtValue, issueKey }
@@ -551,6 +558,26 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
         projEntry.count++;
         projectTotals.set(projectId, projEntry);
 
+        // Status is already on every issue -- a universe scan requests "*all" -- so
+        // counting it here costs no extra Jira traffic, only an accumulator. Keyed by
+        // status AND project so a scheme's balance can later be weighted by real issue
+        // volume rather than by how many statuses someone defined.
+        const status = issue.fields?.status;
+        const statusId = status?.id ? String(status.id) : "";
+        if (statusId) {
+          const statusKey = `${statusId}|${projectId}`;
+          const statusEntry = statusCounts.get(statusKey) || {
+            statusId,
+            statusName: status?.name || null,
+            statusCategory: status?.statusCategory?.name || status?.statusCategory?.key || null,
+            projectId,
+            projectKey: projectKey_,
+            count: 0,
+          };
+          statusEntry.count++;
+          statusCounts.set(statusKey, statusEntry);
+        }
+
         for (const [fieldId, value] of Object.entries(issue.fields || {})) {
           if (STRUCTURAL_SYSTEM_FIELDS.has(fieldId)) continue;
           if (!isFieldValueNonEmpty(value)) continue;
@@ -599,6 +626,14 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
 
     if (fieldProjectCounts.size > 0 || projectTotals.size > 0) {
       await flushIssueScanCounts(installationKey, fieldProjectCounts, projectTotals);
+    }
+    if (statusCounts.size > 0) {
+      // Best-effort, like the RQT flushes below: per-status counts power the insights
+      // view, and losing them must never fail a scan whose primary output is field usage.
+      await flushIssueScanStatusCounts(installationKey, statusCounts).catch((e) => {
+        console.error(`${tag}: status count flush error`, e?.message || e);
+      });
+      statusCounts.clear();
     }
     if (rqtFieldHits.size > 0) {
       await upsertRqtFieldHits(installationKey, rqtFieldHits).catch((e) => {

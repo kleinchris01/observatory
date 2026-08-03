@@ -83,6 +83,8 @@ const mocks = vi.hoisted(() => ({
   loadWorkflowSchemeProjects: vi.fn(),
   loadWorkflowSchemeForProject: vi.fn().mockResolvedValue(null),
   loadStatusesCatalog: vi.fn(),
+  loadWorkflowSchemeStatuses: vi.fn(),
+  loadStatusIssueCounts: vi.fn(),
 
   // workflow-engine.js
   buildWorkflowSnapshot: vi.fn(),
@@ -196,6 +198,8 @@ vi.mock("./lib/project-store.js", () => ({
   loadWorkflowSchemeProjects: mocks.loadWorkflowSchemeProjects,
   loadWorkflowSchemeForProject: mocks.loadWorkflowSchemeForProject,
   loadStatusesCatalog: mocks.loadStatusesCatalog,
+  loadWorkflowSchemeStatuses: mocks.loadWorkflowSchemeStatuses,
+  loadStatusIssueCounts: mocks.loadStatusIssueCounts,
 }));
 
 vi.mock("./lib/workflow-engine.js", () => ({
@@ -275,6 +279,7 @@ const {
   checkMacroAccess,
   getFieldInventory,
   getWorkflowInventory,
+  getWorkflowInsights,
   getFieldDetails,
   getFilteredFieldIds,
   getFieldOptions,
@@ -355,6 +360,8 @@ beforeEach(() => {
   mocks.loadWorkflowSchemes.mockResolvedValue([]);
   mocks.loadWorkflowSchemeProjects.mockResolvedValue([]);
   mocks.loadStatusesCatalog.mockResolvedValue([]);
+  mocks.loadWorkflowSchemeStatuses.mockResolvedValue([]);
+  mocks.loadStatusIssueCounts.mockResolvedValue(new Map());
   mocks.buildWorkflowSnapshot.mockResolvedValue({ version: "v1", schemeCount: 0, statusCount: 0, projectCount: 0 });
   mocks.queueWorkflowSnapshotBuild.mockResolvedValue(undefined);
   mocks.isWorkflowBuildStale.mockReturnValue(false);
@@ -2562,5 +2569,95 @@ describe("getProjectsView workflow correlation", () => {
     expect(result.workflowScheme).toBeNull();
     expect(result.selectedProject.projectId).toBe("10");
     expect(result.projects).toHaveLength(2);
+  });
+});
+
+// Insight findings are site-wide by necessity -- a duplicate cannot be spotted from a
+// single page -- so these tests focus on what the resolver is allowed to CLAIM, which is
+// bounded by which upstream data actually exists.
+describe("getWorkflowInsights", () => {
+  const status = (id, name, statusCategory = "In Progress") => ({ statusId: String(id), name, statusCategory });
+
+  test("reports unavailable rather than empty when no snapshot exists", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: null, state: "idle" });
+
+    const result = await getWorkflowInsights({ payload: {}, context: ctxWithAccount() });
+
+    expect(result.available).toBe(false);
+    expect(result.reason).toBe("no-snapshot");
+  });
+
+  test("finds duplicate status names across the catalog", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready" });
+    mocks.loadWorkflowSchemes.mockResolvedValue([]);
+    mocks.loadStatusesCatalog.mockResolvedValue([
+      status(1, "Backlog"), status(2, "Back Log"), status(3, "Delivered"),
+    ]);
+    mocks.loadWorkflowSchemeStatuses.mockResolvedValue([{ schemeId: "s1", statusId: "1" }]);
+
+    const result = await getWorkflowInsights({ payload: {}, context: ctxWithAccount() });
+
+    expect(result.available).toBe(true);
+    expect(result.summary.duplicateGroupCount).toBe(1);
+    expect(result.summary.reducibleStatusCount).toBe(1);
+  });
+
+  // The scan is versioned independently of the workflow snapshot and may never have run.
+  // "No issue counts" must never be reported as "zero issues", because zero is what makes
+  // an unreachable status safe to delete.
+  test("never claims a status is unused when the scan has not run", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready" });
+    mocks.loadWorkflowSchemes.mockResolvedValue([]);
+    mocks.loadStatusesCatalog.mockResolvedValue([status(1, "Orphaned")]);
+    mocks.loadWorkflowSchemeStatuses.mockResolvedValue([{ schemeId: "s1", statusId: "99" }]);
+    mocks.loadStatusIssueCounts.mockResolvedValue(new Map());
+
+    const result = await getWorkflowInsights({ payload: {}, context: ctxWithAccount() });
+
+    expect(result.hasIssueCounts).toBe(false);
+    expect(result.orphans[0].issueCount).toBeNull();
+    expect(result.orphans[0].safeToRemove).toBe(false);
+    expect(result.summary.safeToRemoveCount).toBe(0);
+  });
+
+  test("marks a never-used orphan as safe once scan counts exist", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready" });
+    mocks.loadWorkflowSchemes.mockResolvedValue([]);
+    mocks.loadStatusesCatalog.mockResolvedValue([status(1, "Orphaned"), status(2, "Used Once")]);
+    mocks.loadWorkflowSchemeStatuses.mockResolvedValue([{ schemeId: "s1", statusId: "99" }]);
+    mocks.loadStatusIssueCounts.mockResolvedValue(new Map([["1", 0], ["2", 5]]));
+
+    const result = await getWorkflowInsights({ payload: {}, context: ctxWithAccount() });
+
+    expect(result.hasIssueCounts).toBe(true);
+    expect(result.summary.safeToRemoveCount).toBe(1);
+  });
+
+  // If Jira did not return workflow statuses, EVERY status looks orphaned and EVERY
+  // scheme looks empty. Suppress both rather than publishing confident nonsense.
+  test("suppresses orphan and balance findings when scheme-status data is missing", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready" });
+    mocks.loadWorkflowSchemes.mockResolvedValue([{ id: "s1", name: "Alpha", projectCount: 2 }]);
+    mocks.loadStatusesCatalog.mockResolvedValue([status(1, "A"), status(2, "B")]);
+    mocks.loadWorkflowSchemeStatuses.mockResolvedValue([]);
+
+    const result = await getWorkflowInsights({ payload: {}, context: ctxWithAccount() });
+
+    expect(result.schemeStatusesAvailable).toBe(false);
+    expect(result.orphans).toEqual([]);
+    expect(result.balance).toEqual([]);
+  });
+
+  test("survives the scan count lookup failing", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready" });
+    mocks.loadWorkflowSchemes.mockResolvedValue([]);
+    mocks.loadStatusesCatalog.mockResolvedValue([status(1, "A")]);
+    mocks.loadWorkflowSchemeStatuses.mockResolvedValue([{ schemeId: "s1", statusId: "1" }]);
+    mocks.loadStatusIssueCounts.mockRejectedValue(new Error("sql down"));
+
+    const result = await getWorkflowInsights({ payload: {}, context: ctxWithAccount() });
+
+    expect(result.available).toBe(true);
+    expect(result.hasIssueCounts).toBe(false);
   });
 });

@@ -88,8 +88,16 @@ import {
   loadWorkflowSchemeProjects,
   loadWorkflowSchemeForProject,
   loadStatusesCatalog,
+  loadWorkflowSchemeStatuses,
+  loadStatusIssueCounts,
 } from "./lib/project-store.js";
 import { queueWorkflowSnapshotBuild, isWorkflowBuildStale } from "./lib/workflow-engine.js";
+import {
+  findDuplicateStatusGroups,
+  findOrphanedStatuses,
+  computeSchemeCategoryBalance,
+  summarizeWorkflowInsights,
+} from "./lib/workflow-insights.js";
 import {
   STRUCTURAL_SYSTEM_FIELDS,
   isFieldValueNonEmpty,
@@ -575,6 +583,86 @@ async function getWorkflowInventory({ payload, context }) {
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
     console.error("getWorkflowInventory failed:", error);
+    throw error;
+  }
+}
+
+// Governance findings derived from the workflow snapshot: duplicate status names,
+// statuses no scheme can reach, and schemes whose category balance looks wrong.
+//
+// Site-wide analysis rather than a page: every finding needs the whole catalog to be
+// computed at all -- you cannot tell a duplicate from a unique name by looking at ten
+// rows. The inputs are bounded by the status catalog (hundreds, not millions) and the
+// work is pure computation over already-loaded rows, so this stays inside a resolver.
+//
+// No permission filtering here, deliberately: statuses and schemes are site-level Jira
+// configuration, not project data, and this resolver returns no project names or issue
+// keys. The per-scheme project counts that DO need filtering live in
+// getWorkflowInventory, which enforces them.
+async function getWorkflowInsights({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    await ensureProjectStoreReady();
+    const installationKey = getInstallationKey(context);
+
+    const meta = await readWorkflowSnapshotMeta(installationKey);
+    if (!meta?.version) {
+      return {
+        available: false,
+        reason: "no-snapshot",
+        snapshotStatus: { state: meta?.state || "idle", refreshedAt: null },
+      };
+    }
+
+    const [schemes, statuses, schemeStatuses] = await Promise.all([
+      loadWorkflowSchemes(installationKey, meta.version),
+      loadStatusesCatalog(installationKey, meta.version),
+      loadWorkflowSchemeStatuses(installationKey, meta.version),
+    ]);
+
+    // Issue counts are optional. They come from the universe scan, which is versioned
+    // independently and may never have run -- an empty map means "unknown", and every
+    // downstream claim about a status being safe to delete is suppressed accordingly.
+    const issueCounts = await loadStatusIssueCounts(installationKey).catch(() => new Map());
+    const hasIssueCounts = issueCounts.size > 0;
+
+    const duplicateGroups = findDuplicateStatusGroups(statuses);
+    const orphans = findOrphanedStatuses(statuses, schemeStatuses, hasIssueCounts ? issueCounts : null);
+    const balance = computeSchemeCategoryBalance(schemes, schemeStatuses, statuses);
+
+    // The scheme->status mapping is best-effort in the build: if the workflow expansion
+    // failed, every status looks orphaned and every scheme looks empty. Say so rather
+    // than presenting a confidently wrong catalogue of findings.
+    const schemeStatusesAvailable = schemeStatuses.length > 0;
+
+    return {
+      available: true,
+      schemeStatusesAvailable,
+      hasIssueCounts,
+      summary: summarizeWorkflowInsights({ duplicateGroups, orphans, balance }),
+      duplicateGroups: duplicateGroups.slice(0, 100).map((group) => ({
+        ...group,
+        statuses: group.statuses.map((s) => ({
+          statusId: String(s.statusId ?? s.id),
+          name: s.name,
+          statusCategory: s.statusCategory || null,
+          issueCount: hasIssueCounts ? Number(issueCounts.get(String(s.statusId ?? s.id)) ?? 0) : null,
+        })),
+      })),
+      orphans: schemeStatusesAvailable ? orphans.slice(0, 200) : [],
+      balance: schemeStatusesAvailable ? balance.slice(0, 100) : [],
+      statusTotals: {
+        catalogCount: statuses.length,
+        withIssues: hasIssueCounts ? [...issueCounts.values()].filter((n) => n > 0).length : null,
+      },
+      snapshotStatus: {
+        state: meta.state || "idle",
+        refreshedAt: meta.refreshedAt || null,
+      },
+    };
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("getWorkflowInsights failed:", error);
     throw error;
   }
 }
@@ -2594,6 +2682,7 @@ export const SHARED_RESOLVER_FUNCTIONS = {
   checkMacroAccess,        // Read-only: checks group membership for macro access gating
   getFieldInventory,       // Read-only: returns paginated snapshot of custom field inventory
   getWorkflowInventory,    // Read-only: returns paginated snapshot of workflow scheme / status inventory
+  getWorkflowInsights,     // Read-only: derived governance findings over the workflow snapshot
   getFieldDetails,         // Read-only: returns detailed field data for a single field
   getProjectsView,         // Read-only: returns per-project field usage view
   getFilteredFieldIds,     // Read-only: returns filtered and sorted field ID list

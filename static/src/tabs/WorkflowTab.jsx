@@ -101,8 +101,173 @@ function SchemeRow({ scheme, expanded, onToggle, projects, truncated }) {
   );
 }
 
+const DUPLICATE_KIND_LABEL = {
+  identical: "Same name, defined more than once",
+  spacing: "Differ only by spacing or punctuation",
+  spelling: "Differ by a single character",
+};
+
+// Governance findings over the status catalog and scheme balance.
+//
+// Ordered by what an admin can act on soonest: duplicates are unambiguous cleanup,
+// orphans need a check before deleting, and scheme balance is a judgement call.
+function WorkflowInsights({ insights, loading }) {
+  if (loading && !insights) return <div className="empty-state">Analysing the workflow inventory…</div>;
+  if (!insights) return null;
+
+  if (!insights.available) {
+    return (
+      <div className="empty-state">
+        {insights.reason === "error"
+          ? "Could not analyse the workflow inventory."
+          : "Build the workflow inventory first — these findings are derived from it."}
+      </div>
+    );
+  }
+
+  const { summary, duplicateGroups = [], orphans = [], balance = [], hasIssueCounts, schemeStatusesAvailable } = insights;
+
+  return (
+    <div className="wf-insights">
+      <div className="wf-insight-stats">
+        <div className="wf-insight-stat">
+          <span className="wf-insight-stat__value">{formatNumber(summary.duplicateGroupCount)}</span>
+          <span className="wf-insight-stat__label">
+            Duplicate groups
+            {summary.reducibleStatusCount > 0 && ` · ${formatNumber(summary.reducibleStatusCount)} statuses removable`}
+          </span>
+        </div>
+        <div className="wf-insight-stat">
+          <span className="wf-insight-stat__value">{formatNumber(summary.orphanCount)}</span>
+          <span className="wf-insight-stat__label">
+            Unreachable statuses
+            {hasIssueCounts && ` · ${formatNumber(summary.safeToRemoveCount)} never used`}
+          </span>
+        </div>
+        <div className="wf-insight-stat">
+          <span className="wf-insight-stat__value">{formatNumber(summary.flaggedSchemeCount)}</span>
+          <span className="wf-insight-stat__label">Schemes with a flag</span>
+        </div>
+      </div>
+
+      {!hasIssueCounts && (
+        <p className="wf-insights__note">
+          <Icon name="alertTriangle" size={13} /> No issue counts yet. Run a Universe Scan to
+          learn which of these statuses are actually in use — until then an unreachable status
+          cannot be confirmed safe to delete.
+        </p>
+      )}
+
+      {!schemeStatusesAvailable && (
+        <p className="wf-insights__note">
+          <Icon name="alertTriangle" size={13} /> Jira did not return workflow status data on
+          the last build, so unreachable statuses and scheme balance cannot be assessed.
+          Rebuilding the inventory usually resolves this.
+        </p>
+      )}
+
+      <section className="wf-insight-section">
+        <h3 className="wf-insight-section__title">Duplicate statuses</h3>
+        <p className="wf-insight-section__desc">
+          Statuses that almost certainly mean the same thing. Consolidating a group removes
+          every status in it but one.
+        </p>
+        {duplicateGroups.length === 0 ? (
+          <div className="empty-state empty-state--inline">No duplicate status names found.</div>
+        ) : (
+          <div className="wf-dupe-list">
+            {duplicateGroups.map((group) => (
+              <div key={`${group.kind}-${group.key}`} className="wf-dupe">
+                <div className="wf-dupe__head">
+                  <span className={`wf-chip wf-chip--${group.kind === "identical" ? "alert" : "muted"}`}>
+                    {group.count}×
+                  </span>
+                  <span className="wf-dupe__reason">{DUPLICATE_KIND_LABEL[group.kind]}</span>
+                </div>
+                <div className="wf-dupe__members">
+                  {group.statuses.map((status) => (
+                    <span key={status.statusId} className="wf-dupe__member">
+                      {status.name}
+                      {status.issueCount !== null && status.issueCount !== undefined && (
+                        <span className="wf-dupe__count">{formatNumber(status.issueCount)}</span>
+                      )}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {schemeStatusesAvailable && (
+        <section className="wf-insight-section">
+          <h3 className="wf-insight-section__title">Unreachable statuses</h3>
+          <p className="wf-insight-section__desc">
+            Defined on the site but not reachable from any workflow scheme.
+            {hasIssueCounts && " Those with no issues have never been used and are safe to remove."}
+          </p>
+          {orphans.length === 0 ? (
+            <div className="empty-state empty-state--inline">Every status is reachable from a scheme.</div>
+          ) : (
+            <div className="wf-orphan-grid">
+              {orphans.map((orphan) => (
+                <div key={orphan.statusId} className={`wf-orphan ${orphan.safeToRemove ? "wf-orphan--safe" : ""}`}>
+                  <span className="wf-orphan__name">{orphan.name}</span>
+                  {orphan.issueCount === null ? (
+                    <span className="wf-orphan__count wf-orphan__count--unknown">usage unknown</span>
+                  ) : orphan.issueCount === 0 ? (
+                    <span className="wf-orphan__count wf-orphan__count--safe">never used</span>
+                  ) : (
+                    <span className="wf-orphan__count">{formatNumber(orphan.issueCount)} issues</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {schemeStatusesAvailable && balance.some((entry) => entry.flags.length > 0) && (
+        <section className="wf-insight-section">
+          <h3 className="wf-insight-section__title">Scheme balance</h3>
+          <p className="wf-insight-section__desc">
+            How each scheme&apos;s statuses distribute across Jira&apos;s three categories.
+          </p>
+          <div className="wf-balance-list">
+            {balance.filter((entry) => entry.flags.length > 0).map((entry) => (
+              <div key={entry.schemeId} className="wf-balance">
+                <div className="wf-balance__head">
+                  <span className="wf-balance__name">{entry.name}</span>
+                  <span className="wf-balance__projects">
+                    {formatNumber(entry.projectCount)} {entry.projectCount === 1 ? "project" : "projects"}
+                  </span>
+                </div>
+                <div className="wf-balance__bar" role="img"
+                  aria-label={`${entry.todo} To Do, ${entry.inProgress} In Progress, ${entry.done} Done`}>
+                  {entry.todo > 0 && <span className="wf-balance__seg wf-balance__seg--todo" style={{ flexGrow: entry.todo }}>{entry.todo}</span>}
+                  {entry.inProgress > 0 && <span className="wf-balance__seg wf-balance__seg--progress" style={{ flexGrow: entry.inProgress }}>{entry.inProgress}</span>}
+                  {entry.done > 0 && <span className="wf-balance__seg wf-balance__seg--done" style={{ flexGrow: entry.done }}>{entry.done}</span>}
+                  {entry.uncategorised > 0 && <span className="wf-balance__seg wf-balance__seg--none" style={{ flexGrow: entry.uncategorised }}>{entry.uncategorised}</span>}
+                </div>
+                <ul className="wf-balance__flags">
+                  {entry.flags.map((flag) => (
+                    <li key={flag.code} className={`wf-balance__flag wf-balance__flag--${flag.severity}`}>{flag.message}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
+
 export function WorkflowTab() {
   const [view, setView] = React.useState("schemes");
+  const [insights, setInsights] = React.useState(null);
+  const [insightsLoading, setInsightsLoading] = React.useState(false);
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(false);
   const [building, setBuilding] = React.useState(false);
@@ -157,6 +322,21 @@ export function WorkflowTab() {
     const t = setTimeout(() => { setDeferredSearch(search); setPage(1); }, 350);
     return () => clearTimeout(t);
   }, [search]);
+
+  // Loaded lazily: the insights view is site-wide analysis that most visits never open,
+  // and re-running it on every scheme page change would be pure waste. Re-fetched when the
+  // snapshot's refreshedAt changes, since a rebuild invalidates every finding.
+  const refreshedAt = data?.snapshotStatus?.refreshedAt || null;
+  React.useEffect(() => {
+    if (view !== "insights") return undefined;
+    let cancelled = false;
+    setInsightsLoading(true);
+    invoke("getWorkflowInsights", {})
+      .then((res) => { if (!cancelled) setInsights(res); })
+      .catch(() => { if (!cancelled) setInsights({ available: false, reason: "error" }); })
+      .finally(() => { if (!cancelled) setInsightsLoading(false); });
+    return () => { cancelled = true; };
+  }, [view, refreshedAt]);
 
   const snapshot = data?.snapshotStatus;
   const schemes = data?.schemes || [];
@@ -241,6 +421,22 @@ export function WorkflowTab() {
               >
                 Statuses <span className="wf-viewtab__count">{formatNumber(statuses.length)}</span>
               </button>
+              <button
+                type="button"
+                className={`wf-viewtab ${view === "insights" ? "wf-viewtab--active" : ""}`}
+                onClick={() => setView("insights")}
+              >
+                Insights
+                {insights?.summary && (
+                  <span className="wf-viewtab__count wf-viewtab__count--alert">
+                    {formatNumber(
+                      insights.summary.duplicateGroupCount
+                      + insights.summary.orphanCount
+                      + insights.summary.flaggedSchemeCount
+                    )}
+                  </span>
+                )}
+              </button>
             </div>
 
             {view === "schemes" && (
@@ -277,7 +473,9 @@ export function WorkflowTab() {
             )}
           </div>
 
-          {loading ? (
+          {view === "insights" ? (
+            <WorkflowInsights insights={insights} loading={insightsLoading} />
+          ) : loading ? (
             <div className="empty-state">Loading…</div>
           ) : view === "schemes" ? (
             <>

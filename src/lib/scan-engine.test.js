@@ -53,6 +53,8 @@ vi.mock("./project-store.js", () => ({
   updateIssueScanWorker: vi.fn().mockResolvedValue(undefined),
   replaceFieldOptionsCache: vi.fn().mockResolvedValue({ optionCount: 0 }),
   flushIssueScanCounts: vi.fn().mockResolvedValue(undefined),
+  flushIssueScanStatusCounts: vi.fn().mockResolvedValue(undefined),
+  clearStatusIssueCounts: vi.fn().mockResolvedValue(undefined),
   finalizeIssueScan: vi.fn().mockResolvedValue(undefined),
   clearRqtFieldIndex: vi.fn().mockResolvedValue(undefined),
   upsertRqtFieldHits: vi.fn().mockResolvedValue(undefined),

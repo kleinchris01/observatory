@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { invoke } from "@forge/bridge";
 import { WorkflowTab } from "./WorkflowTab";
@@ -144,5 +144,99 @@ describe("WorkflowTab", () => {
     render(<WorkflowTab />);
 
     expect(await screen.findByText(/jira returned 403/i)).toBeInTheDocument();
+  });
+});
+
+// The insights view makes claims an admin may act on destructively ("safe to remove"),
+// so these tests are mostly about what it must NOT say when the data is incomplete.
+describe("WorkflowTab — insights", () => {
+  const readySnapshot = {
+    schemes: [], statuses: [], page: 1, pageSize: 10, totalCount: 0, totalPages: 1,
+    snapshotStatus: { state: "ready", version: "v1", refreshedAt: "2026-08-03T12:00:00.000Z" },
+  };
+
+  const insights = (overrides = {}) => ({
+    available: true,
+    schemeStatusesAvailable: true,
+    hasIssueCounts: true,
+    summary: {
+      duplicateGroupCount: 1, duplicateStatusCount: 2, reducibleStatusCount: 1,
+      orphanCount: 1, safeToRemoveCount: 1, flaggedSchemeCount: 0,
+    },
+    duplicateGroups: [{
+      key: "backlog", kind: "spacing", count: 2,
+      statuses: [
+        { statusId: "1", name: "Backlog", issueCount: 40 },
+        { statusId: "2", name: "Back Log", issueCount: 0 },
+      ],
+    }],
+    orphans: [{ statusId: "9", name: "Abandoned", issueCount: 0, safeToRemove: true }],
+    balance: [],
+    statusTotals: { catalogCount: 3, withIssues: 1 },
+    snapshotStatus: { state: "ready", refreshedAt: "2026-08-03T12:00:00.000Z" },
+    ...overrides,
+  });
+
+  function routeInvoke(insightPayload) {
+    invoke.mockImplementation((fn) => {
+      if (fn === "getWorkflowInsights") return Promise.resolve(insightPayload);
+      return Promise.resolve(readySnapshot);
+    });
+  }
+
+  test("shows duplicate groups with the number of statuses consolidation would remove", async () => {
+    routeInvoke(insights());
+    render(<WorkflowTab />);
+
+    await userEvent.click(await screen.findByRole("button", { name: /Insights/i }));
+
+    expect(await screen.findByText(/Differ only by spacing or punctuation/i)).toBeInTheDocument();
+    expect(screen.getByText("Backlog")).toBeInTheDocument();
+    expect(screen.getByText("Back Log")).toBeInTheDocument();
+  });
+
+  test("labels a never-used orphan as safe when scan counts exist", async () => {
+    routeInvoke(insights());
+    render(<WorkflowTab />);
+
+    await userEvent.click(await screen.findByRole("button", { name: /Insights/i }));
+
+    const orphan = (await screen.findByText("Abandoned")).closest(".wf-orphan");
+    expect(within(orphan).getByText(/never used/i)).toBeInTheDocument();
+  });
+
+  test("never says 'never used' without scan data, and prompts for a scan instead", async () => {
+    routeInvoke(insights({
+      hasIssueCounts: false,
+      orphans: [{ statusId: "9", name: "Abandoned", issueCount: null, safeToRemove: false }],
+      summary: { ...insights().summary, safeToRemoveCount: 0 },
+    }));
+    render(<WorkflowTab />);
+
+    await userEvent.click(await screen.findByRole("button", { name: /Insights/i }));
+
+    expect(await screen.findByText(/Run a Universe Scan/i)).toBeInTheDocument();
+    const unknownOrphan = (await screen.findByText("Abandoned")).closest(".wf-orphan");
+    expect(within(unknownOrphan).getByText(/usage unknown/i)).toBeInTheDocument();
+    expect(within(unknownOrphan).queryByText(/never used/i)).not.toBeInTheDocument();
+  });
+
+  test("explains itself when Jira returned no workflow status data", async () => {
+    routeInvoke(insights({ schemeStatusesAvailable: false, orphans: [], balance: [] }));
+    render(<WorkflowTab />);
+
+    await userEvent.click(await screen.findByRole("button", { name: /Insights/i }));
+
+    expect(await screen.findByText(/did not return workflow status data/i)).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /Unreachable statuses/i })).not.toBeInTheDocument();
+  });
+
+  test("asks for a build rather than showing empty findings when no snapshot exists", async () => {
+    routeInvoke({ available: false, reason: "no-snapshot", snapshotStatus: { state: "idle" } });
+    render(<WorkflowTab />);
+
+    await userEvent.click(await screen.findByRole("button", { name: /Insights/i }));
+
+    expect(await screen.findByText(/Build the workflow inventory first/i)).toBeInTheDocument();
   });
 });

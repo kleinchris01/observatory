@@ -23,6 +23,7 @@ vi.mock("./jira-api.js", () => ({
   getAllJiraProjects: vi.fn().mockResolvedValue([]),
   getAllStatuses: vi.fn().mockResolvedValue([]),
   getWorkflowSchemesForProjects: vi.fn().mockResolvedValue([]),
+  getAllWorkflowsWithStatuses: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("./project-store.js", () => ({
@@ -35,6 +36,7 @@ import {
   getAllJiraProjects,
   getAllStatuses,
   getWorkflowSchemesForProjects,
+  getAllWorkflowsWithStatuses,
 } from "./jira-api.js";
 import { writeWorkflowSnapshotMeta, replaceWorkflowSnapshot } from "./project-store.js";
 import { inventorySnapshotQueue } from "./queues.js";
@@ -44,6 +46,7 @@ beforeEach(() => {
   getAllJiraProjects.mockResolvedValue([]);
   getAllStatuses.mockResolvedValue([]);
   getWorkflowSchemesForProjects.mockResolvedValue([]);
+  getAllWorkflowsWithStatuses.mockResolvedValue([]);
   writeWorkflowSnapshotMeta.mockResolvedValue(undefined);
   replaceWorkflowSnapshot.mockResolvedValue(undefined);
 });

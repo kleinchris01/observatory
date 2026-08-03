@@ -6,6 +6,7 @@ import {
   getAllJiraProjects,
   getAllStatuses,
   getWorkflowSchemesForProjects,
+  getAllWorkflowsWithStatuses,
 } from "./jira-api.js";
 import {
   ensureProjectStoreReady,
@@ -73,10 +74,32 @@ export async function buildWorkflowSnapshot(installationKey) {
   try {
     const version = String(Date.now());
 
-    const [statuses, projects] = await Promise.all([
+    const [statuses, projects, workflows] = await Promise.all([
       getAllStatuses(),
       getAllJiraProjects(),
+      // Best-effort: the scheme/status inventory is still worth building without the
+      // workflow expansion, it just cannot answer "which statuses does this scheme
+      // reach". Failing the whole snapshot over the insight layer would be the wrong
+      // trade -- the inventory is the thing people came for.
+      getAllWorkflowsWithStatuses().catch((error) => {
+        logger.warn("workflow-snapshot.workflow-statuses-failed", { error: String(error?.message || error) });
+        return [];
+      }),
     ]);
+
+    // workflow name -> status ids. The scheme association gives workflow NAMES (a default
+    // plus per-issue-type overrides), while statuses hang off the workflow objects, so
+    // the join is by name.
+    const statusIdsByWorkflowName = new Map();
+    for (const workflow of workflows) {
+      const name = workflow?.id?.name || workflow?.name;
+      if (!name) continue;
+      const ids = (workflow.statuses || [])
+        .map((s) => String(s?.id ?? s?.statusReference ?? ""))
+        .filter(Boolean);
+      if (!statusIdsByWorkflowName.has(name)) statusIdsByWorkflowName.set(name, new Set());
+      for (const id of ids) statusIdsByWorkflowName.get(name).add(id);
+    }
 
     const projectIds = projects.map((p) => String(p.id));
     const schemeAssociations = await getWorkflowSchemesForProjects(projectIds);
@@ -115,6 +138,28 @@ export async function buildWorkflowSnapshot(installationKey) {
 
     const schemeRows = Array.from(schemesById.values());
 
+    // Resolve each scheme to the union of statuses across every workflow it uses: the
+    // default workflow plus any per-issue-type override. Deduplicated by construction --
+    // one scheme reaching a status through three issue types is still one pair.
+    const schemeStatusRows = [];
+    for (const scheme of schemeRows) {
+      const workflowNames = new Set();
+      if (scheme.defaultWorkflow) workflowNames.add(scheme.defaultWorkflow);
+      const mapping = scheme.issueTypeMapping;
+      if (mapping && typeof mapping === "object") {
+        for (const value of Object.values(mapping)) {
+          if (typeof value === "string" && value) workflowNames.add(value);
+        }
+      }
+      const statusIds = new Set();
+      for (const name of workflowNames) {
+        for (const id of statusIdsByWorkflowName.get(name) || []) statusIds.add(id);
+      }
+      for (const statusId of statusIds) {
+        schemeStatusRows.push({ schemeId: scheme.id, statusId });
+      }
+    }
+
     const statusRows = statuses.map((status) => ({
       id: String(status.id),
       name: status.name,
@@ -125,6 +170,7 @@ export async function buildWorkflowSnapshot(installationKey) {
       schemes: schemeRows,
       schemeProjects: schemeProjectRows,
       statuses: statusRows,
+      schemeStatuses: schemeStatusRows,
     });
 
     const completedAt = new Date().toISOString();
@@ -138,7 +184,13 @@ export async function buildWorkflowSnapshot(installationKey) {
     });
 
     incrMetric(METRIC_NAMES.workflowSnapshotCompleted);
-    return { version, schemeCount: schemeRows.length, statusCount: statusRows.length, projectCount: projects.length };
+    return {
+      version,
+      schemeCount: schemeRows.length,
+      statusCount: statusRows.length,
+      projectCount: projects.length,
+      schemeStatusCount: schemeStatusRows.length,
+    };
   } catch (error) {
     logger.error("workflow-snapshot.failed", { installationKey, error: String(error?.message || error) });
     await writeWorkflowSnapshotMeta(installationKey, {
