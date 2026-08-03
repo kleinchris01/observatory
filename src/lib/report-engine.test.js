@@ -376,6 +376,43 @@ describe("workflow scheme annotation", () => {
     ]);
   });
 
+  // The annotation only runs on the final chunk -- the map is identical for every batch,
+  // so fetching it per chunk would repeat identical work for no gain.
+  test("does not look up schemes on a non-final chunk", async () => {
+    await buildProjectUsageReportResult("scope-1", "v1", ["customfield_1", "customfield_2"], { offset: 0, batchSize: 1 });
+    expect(loadProjectWorkflowSchemeMap).not.toHaveBeenCalled();
+  });
+
+  test("leaves projects unannotated when no workflow snapshot exists", async () => {
+    readWorkflowSnapshotMeta.mockResolvedValue(null);
+
+    const { result } = await buildProjectUsageReportResult("scope-1", "v1", ["customfield_1"]);
+
+    expect(loadProjectWorkflowSchemeMap).not.toHaveBeenCalled();
+    for (const project of result.projects) {
+      expect(project.workflowSchemeName).toBeUndefined();
+    }
+  });
+
+  test("leaves projects unannotated when the snapshot meta has no version", async () => {
+    readWorkflowSnapshotMeta.mockResolvedValue({ version: null, state: "building" });
+
+    const { result } = await buildProjectUsageReportResult("scope-1", "v1", ["customfield_1"]);
+
+    expect(loadProjectWorkflowSchemeMap).not.toHaveBeenCalled();
+    expect(result.projects.every((p) => p.workflowSchemeName === undefined)).toBe(true);
+  });
+
+  test("still returns the report when the scheme lookup throws", async () => {
+    loadProjectWorkflowSchemeMap.mockRejectedValue(new Error("sql down"));
+
+    const { result } = await buildProjectUsageReportResult("scope-1", "v1", ["customfield_1"]);
+
+    // The field data is the reason anyone ran the report; annotation is a bonus.
+    expect(result.projects.length).toBeGreaterThan(0);
+    expect(result.projects.every((p) => p.workflowSchemeName === undefined)).toBe(true);
+  });
+
   test("annotates each project with its workflow scheme", async () => {
     const { result } = await buildProjectUsageReportResult("scope-1", "v1", ["customfield_1"]);
 

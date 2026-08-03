@@ -20,6 +20,10 @@ vi.mock("./lib/jira-api.js", () => ({
   sanitizeCacheKeyPart: vi.fn((v) => String(v || "global")),
 }));
 
+vi.mock("./lib/workflow-engine.js", () => ({
+  buildWorkflowSnapshot: vi.fn().mockResolvedValue({ schemeCount: 2, statusCount: 5, projectCount: 9 }),
+}));
+
 vi.mock("./lib/scan-engine.js", () => ({
   runIssueScanCoordinator: vi.fn().mockResolvedValue(undefined),
   runIssueScanWorkerV2: vi.fn().mockResolvedValue(undefined),
@@ -107,6 +111,7 @@ import {
   cacheFieldOptionsForField,
 } from "./lib/scan-engine.js";
 import { processProjectUsageReportJob } from "./lib/report-engine.js";
+import { buildWorkflowSnapshot } from "./lib/workflow-engine.js";
 import { readAdminConfig, runDeltaIssueScanJob, ADMIN_ONLY_FUNCTIONS, SHARED_RESOLVER_FUNCTIONS } from "./resolvers.js";
 
 const CONTEXT = { installContext: "ari:cloud:jira::site/UUID" };
@@ -339,6 +344,18 @@ describe("consumeSnapshot job routing", () => {
   test("routes run-issue-scan to the coordinator", async () => {
     await consumeSnapshot(event({ jobType: "run-issue-scan" }));
     expect(runIssueScanCoordinator).toHaveBeenCalledWith("scope-1");
+  });
+
+  // The workflow build moved onto the queue because it cannot fit in a 25s resolver;
+  // this is the route that makes that possible.
+  test("routes build-workflow-snapshot to the workflow engine", async () => {
+    await consumeSnapshot(event({ jobType: "build-workflow-snapshot" }));
+    expect(buildWorkflowSnapshot).toHaveBeenCalledWith("scope-1");
+  });
+
+  test("a failing workflow build does not rethrow, so Forge will not retry it forever", async () => {
+    buildWorkflowSnapshot.mockRejectedValueOnce(new Error("jira down"));
+    await expect(consumeSnapshot(event({ jobType: "build-workflow-snapshot" }))).resolves.toBeUndefined();
   });
 
   test("routes run-issue-scan-worker with its worker id", async () => {

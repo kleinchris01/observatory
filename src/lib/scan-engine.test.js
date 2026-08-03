@@ -569,6 +569,107 @@ describe("runIssueScanWorkerV2", () => {
     vi.clearAllMocks();
   });
 
+
+  // The per-issue loop was never exercised: every existing case returns before the first
+  // page is fetched. This feeds real issues through it, which is also the only coverage of
+  // the status accumulation added for the workflow insights -- status arrives on every
+  // issue because a universe scan requests "*all", and is counted rather than discarded.
+  describe("per-issue accumulation", () => {
+    function issuePage(issues, nextPageToken = null) {
+      return { issues, nextPageToken };
+    }
+
+    const issue = (key, projectId, projectKey, statusId, statusName, extra = {}) => ({
+      key,
+      fields: {
+        project: { id: projectId, key: projectKey, name: projectKey },
+        status: { id: statusId, name: statusName, statusCategory: { name: "In Progress" } },
+        ...extra,
+      },
+    });
+
+    // The worker clears the accumulator immediately after flushing -- correct, since it
+    // would otherwise double-count on the next flush -- so the mock must snapshot the Map
+    // rather than hold the reference, which would be empty by assertion time.
+    async function runWorkerOverPage(issues) {
+      const store = await getProjectStoreMock();
+      const jiraApi = await getJiraApiMock();
+      let capturedStatusCounts = new Map();
+      store.readIssueScanMeta.mockResolvedValue({ state: "building" });
+      store.readIssueScanWorker.mockResolvedValue({ status: "queued", jqlFilter: "project = ALPHA", fieldIds: null });
+      store.atomicAccumulateIssueScanProgress.mockResolvedValue({ processedPages: 1, totalPages: 1 });
+      store.flushIssueScanStatusCounts.mockImplementation(async (_key, counts) => {
+        capturedStatusCounts = new Map(counts);
+      });
+      jiraApi.jiraRequest.mockResolvedValue(issuePage(issues));
+
+      await runIssueScanWorkerV2(INSTALLATION_KEY, 0);
+      return { store, statusCounts: capturedStatusCounts };
+    }
+
+    it("counts issues per status and per project, and flushes them", async () => {
+      const { store, statusCounts } = await runWorkerOverPage([
+        issue("ALPHA-1", "10", "ALPHA", "3", "In Review"),
+        issue("ALPHA-2", "10", "ALPHA", "3", "In Review"),
+        issue("ALPHA-3", "10", "ALPHA", "5", "Done"),
+      ]);
+
+      expect(store.flushIssueScanStatusCounts).toHaveBeenCalled();
+      expect(statusCounts.get("3|10")).toMatchObject({ statusId: "3", projectId: "10", count: 2 });
+      expect(statusCounts.get("5|10")).toMatchObject({ statusId: "5", count: 1 });
+    });
+
+    it("keys status counts by project so one status across two projects stays separate", async () => {
+      const { statusCounts } = await runWorkerOverPage([
+        issue("ALPHA-1", "10", "ALPHA", "3", "In Review"),
+        issue("BRAVO-1", "11", "BRAVO", "3", "In Review"),
+      ]);
+
+      expect(statusCounts.get("3|10").count).toBe(1);
+      expect(statusCounts.get("3|11").count).toBe(1);
+    });
+
+    it("skips issues with no status rather than bucketing them under a blank id", async () => {
+      const { statusCounts } = await runWorkerOverPage([
+        { key: "ALPHA-1", fields: { project: { id: "10", key: "ALPHA", name: "Alpha" } } },
+      ]);
+
+      for (const key of statusCounts.keys()) expect(key.startsWith("|")).toBe(false);
+    });
+
+    it("skips issues with no project, which cannot be attributed", async () => {
+      const { statusCounts } = await runWorkerOverPage([
+        { key: "ORPHAN-1", fields: { status: { id: "3", name: "In Review" } } },
+      ]);
+
+      expect(statusCounts.size).toBe(0);
+    });
+
+    // Field usage is the scan's primary output; losing status counts must never fail it.
+    it("does not fail the scan when the status flush throws", async () => {
+      const store = await getProjectStoreMock();
+      const jiraApi = await getJiraApiMock();
+      store.readIssueScanMeta.mockResolvedValue({ state: "building" });
+      store.readIssueScanWorker.mockResolvedValue({ status: "queued", jqlFilter: "project = ALPHA", fieldIds: null });
+      store.atomicAccumulateIssueScanProgress.mockResolvedValue({ processedPages: 1, totalPages: 1 });
+      store.flushIssueScanStatusCounts.mockRejectedValue(new Error("sql down"));
+      jiraApi.jiraRequest.mockResolvedValue(issuePage([issue("ALPHA-1", "10", "ALPHA", "3", "In Review")]));
+
+      await expect(runIssueScanWorkerV2(INSTALLATION_KEY, 0)).resolves.toBeUndefined();
+      expect(store.flushIssueScanCounts).toHaveBeenCalled();
+    });
+
+    it("counts populated custom fields per project alongside statuses", async () => {
+      const { store } = await runWorkerOverPage([
+        issue("ALPHA-1", "10", "ALPHA", "3", "In Review", { customfield_1: "value" }),
+      ]);
+
+      expect(store.flushIssueScanCounts).toHaveBeenCalled();
+      const [, fieldProjectCounts] = store.flushIssueScanCounts.mock.calls.at(-1);
+      expect(fieldProjectCounts.has("customfield_1")).toBe(true);
+    });
+  });
+
   it("returns early when scan state is not building", async () => {
     const store = await getProjectStoreMock();
     const jiraApi = await getJiraApiMock();

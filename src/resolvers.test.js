@@ -1195,6 +1195,102 @@ describe("getAdminOverview", () => {
     }));
   });
 
+
+  // The dashboard-building branch had never executed: every existing case either omitted
+  // the snapshot version or asserted only on findingsSummary. These cover the project
+  // shape analysis and the workflow roll-up that the Overview actually renders.
+  test("builds project insights with distribution, not just leaders", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "ready", version: 5 });
+    mocks.listFieldSummaries.mockResolvedValue([]);
+    mocks.kvsGet.mockResolvedValue(null);
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+    mocks.loadSnapshotFields.mockResolvedValue([snapshotField()]);
+    mocks.listSnapshotProjects.mockResolvedValue([
+      { projectId: "1", projectKey: "A", projectName: "Alpha", fieldCount: 4, totalIssueCount: 900, latestIssueUpdatedAt: new Date().toISOString() },
+      { projectId: "2", projectKey: "B", projectName: "Bravo", fieldCount: 6, totalIssueCount: 400, latestIssueUpdatedAt: new Date().toISOString() },
+      { projectId: "3", projectKey: "C", projectName: "Charlie", fieldCount: 40, totalIssueCount: 2, latestIssueUpdatedAt: new Date().toISOString() },
+      { projectId: "4", projectKey: "D", projectName: "Delta", fieldCount: 3, totalIssueCount: 0, latestIssueUpdatedAt: null },
+    ]);
+
+    const result = await getAdminOverview({ context: {} });
+    const projects = result.dashboard.projects;
+
+    expect(projects.totalProjects).toBe(4);
+    expect(projects.totalIssues).toBe(1302);
+    expect(projects.medianFieldCount).toBeGreaterThan(0);
+    // Fields configured but nothing ever filed -- abandoned or never started.
+    expect(projects.unusedProjects.map((p) => p.projectKey)).toContain("D");
+    // Far above the norm while carrying almost no work.
+    expect(projects.overConfigured.map((p) => p.projectKey)).toContain("C");
+  });
+
+  test("flags projects with no activity in over six months", async () => {
+    const old = new Date(Date.now() - 400 * 24 * 60 * 60 * 1000).toISOString();
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "ready", version: 5 });
+    mocks.listFieldSummaries.mockResolvedValue([]);
+    mocks.kvsGet.mockResolvedValue(null);
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+    mocks.loadSnapshotFields.mockResolvedValue([snapshotField()]);
+    mocks.listSnapshotProjects.mockResolvedValue([
+      { projectId: "1", projectKey: "STALE", projectName: "Stale", fieldCount: 5, totalIssueCount: 100, latestIssueUpdatedAt: old },
+      { projectId: "2", projectKey: "FRESH", projectName: "Fresh", fieldCount: 5, totalIssueCount: 100, latestIssueUpdatedAt: new Date().toISOString() },
+    ]);
+
+    const result = await getAdminOverview({ context: {} });
+
+    expect(result.dashboard.projects.staleProjects.map((p) => p.projectKey)).toEqual(["STALE"]);
+  });
+
+  test("includes a workflow roll-up when a workflow snapshot exists", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "ready", version: 5 });
+    mocks.listFieldSummaries.mockResolvedValue([]);
+    mocks.kvsGet.mockResolvedValue(null);
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready", refreshedAt: "2026-08-03T00:00:00Z" });
+    mocks.loadWorkflowSchemes.mockResolvedValue([
+      { id: "s1", name: "Shared", projectCount: 4 },
+      { id: "s2", name: "Bespoke", projectCount: 1 },
+    ]);
+    mocks.loadStatusesCatalog.mockResolvedValue([
+      { statusId: "1", name: "Backlog", statusCategory: "To Do" },
+      { statusId: "2", name: "Back Log", statusCategory: "To Do" },
+    ]);
+    mocks.loadWorkflowSchemeStatuses.mockResolvedValue([{ schemeId: "s1", statusId: "1" }]);
+
+    const result = await getAdminOverview({ context: {} });
+
+    expect(result.workflow.available).toBe(true);
+    expect(result.workflow.schemeCount).toBe(2);
+    // Only schemes governing more than one project give standardization any leverage.
+    expect(result.workflow.sharedSchemes).toBe(1);
+    expect(result.workflow.duplicateGroupCount).toBe(1);
+  });
+
+  test("reports the workflow roll-up as unavailable when no snapshot has been built", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "ready", version: 5 });
+    mocks.listFieldSummaries.mockResolvedValue([]);
+    mocks.kvsGet.mockResolvedValue(null);
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue(null);
+
+    const result = await getAdminOverview({ context: {} });
+
+    expect(result.workflow).toEqual({ available: false, state: "idle" });
+  });
+
+  // Overview is the landing page: a workflow failure must degrade to a prompt, never an error.
+  test("survives the workflow roll-up throwing", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "ready", version: 5 });
+    mocks.listFieldSummaries.mockResolvedValue([]);
+    mocks.kvsGet.mockResolvedValue(null);
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+    mocks.readWorkflowSnapshotMeta.mockRejectedValue(new Error("sql down"));
+
+    const result = await getAdminOverview({ context: {} });
+
+    expect(result.workflow).toEqual({ available: false, state: "error" });
+  });
+
   test("does not fail the whole overview if the findings computation throws", async () => {
     mocks.readSnapshotMeta.mockResolvedValue({ state: "ready", version: 5 });
     mocks.listFieldSummaries.mockResolvedValue([]);
