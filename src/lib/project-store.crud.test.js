@@ -538,9 +538,38 @@ describe("audit log", () => {
 
   test("listAuditEvents stays scoped to the installation", async () => {
     const calls = mockSqlQueries([[]]);
-    await listAuditEvents("scope", { limit: 50 });
+    await listAuditEvents("scope", 50);
     expect(sqlHas(calls[0], "from audit_log", "scope_key = ?")).toBe(true);
     expect(calls[0].params[0]).toBe("scope");
+  });
+
+  // The audit viewer never worked: Forge SQL rejects a placeholder in LIMIT with an
+  // opaque "Unknown SQL execution error". Nothing caught it because no test executed the
+  // real query -- every caller mocks the store.
+  test("listAuditEvents interpolates LIMIT rather than binding it", async () => {
+    const calls = mockSqlQueries([[]]);
+    await listAuditEvents("scope", 50);
+
+    expect(sqlHas(calls[0], "limit 50")).toBe(true);
+    expect(calls[0].text).not.toMatch(/limit\s+\?/i);
+    // Only the scope key is bound.
+    expect(calls[0].params).toEqual(["scope"]);
+  });
+
+  test("listAuditEvents clamps the limit so it can never reach SQL as free text", async () => {
+    const huge = mockSqlQueries([[]]);
+    await listAuditEvents("scope", 99999);
+    expect(sqlHas(huge[0], "limit 1000")).toBe(true);
+
+    const zero = mockSqlQueries([[]]);
+    await listAuditEvents("scope", 0);
+    expect(sqlHas(zero[0], "limit 200")).toBe(true);
+
+    const nonsense = mockSqlQueries([[]]);
+    await listAuditEvents("scope", "DROP TABLE audit_log");
+    // Non-numeric input collapses to the default, never into the statement.
+    expect(sqlHas(nonsense[0], "limit 200")).toBe(true);
+    expect(nonsense[0].text).not.toMatch(/drop/i);
   });
 });
 

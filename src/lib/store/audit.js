@@ -41,10 +41,15 @@ export async function recordAuditEvent(scopeKey, { actorId, action, outcome, det
 export async function listAuditEvents(scopeKey, limit = 200) {
   await ensureProjectStoreReady();
   const capped = Math.max(1, Math.min(1000, Number(limit) || 200));
+  // LIMIT is interpolated, not bound. Forge SQL rejects a placeholder there with an
+  // opaque "Unknown SQL execution error", which is why the audit viewer never worked --
+  // every other query in this codebase already interpolates its limit. Safe because
+  // `capped` is clamped to an integer between 1 and 1000 above; it never reaches SQL as
+  // caller-controlled text.
   const result = await withSqlRetry(() =>
     sql
-      .prepare("SELECT at, actor_id, action, outcome, detail FROM audit_log WHERE scope_key = ? ORDER BY at DESC LIMIT ?")
-      .bindParams(scopeKey, capped)
+      .prepare(`SELECT at, actor_id, action, outcome, detail FROM audit_log WHERE scope_key = ? ORDER BY at DESC LIMIT ${capped}`)
+      .bindParams(scopeKey)
       .execute()
   );
   return (result?.rows || []).map((row) => ({
@@ -55,10 +60,6 @@ export async function listAuditEvents(scopeKey, limit = 200) {
     detail: row.detail || null,
   }));
 }
-
-// 180 days, far longer than the 7 kept for report jobs: this is the record you reach for
-// when asking "who cleared the snapshot in March", and that question is usually asked
-// long after the fact.
 
 // 180 days, far longer than the 7 kept for report jobs: this is the record you reach for
 // when asking "who cleared the snapshot in March", and that question is usually asked

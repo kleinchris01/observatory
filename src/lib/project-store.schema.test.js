@@ -101,3 +101,27 @@ describe("migration schema consistency", () => {
     expect(creates.get("snapshot_meta").has("job_token")).toBe(true);
   });
 });
+
+// Forge SQL rejects a placeholder in LIMIT, failing with an opaque "Unknown SQL execution
+// error". The audit viewer shipped with `LIMIT ?` and never worked. This scans the
+// storage modules as text so the pattern cannot come back.
+describe("SQL dialect constraints", () => {
+  test("no query binds LIMIT as a parameter", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const dir = "src/lib/store";
+    const offenders = [];
+
+    for (const file of fs.readdirSync(dir)) {
+      if (!file.endsWith(".js")) continue;
+      const text = fs.readFileSync(path.join(dir, file), "utf-8");
+      // Ignore the comment that explains the rule.
+      for (const line of text.split("\n")) {
+        if (line.trim().startsWith("//")) continue;
+        if (/limit\s+\?/i.test(line)) offenders.push(`${file}: ${line.trim()}`);
+      }
+    }
+
+    expect(offenders, `LIMIT must be interpolated from a clamped integer: ${offenders.join(" | ")}`).toEqual([]);
+  });
+});
