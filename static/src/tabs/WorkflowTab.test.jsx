@@ -268,15 +268,18 @@ describe("WorkflowTab — status catalog", () => {
 
   // Status names also appear in the charts above the catalog, so grid assertions are
   // scoped -- otherwise "is Parking Lot visible" silently answers a different question.
-  const inGrid = () => document.querySelector(".wf-status-grid");
-  const gridHas = (name) => within(inGrid()).queryAllByText(name).length > 0;
+  // The catalog is now grouped by category, so there is one grid per group -- a helper
+  // that looked at only the first would quietly answer a different question.
+  const grids = () => [...document.querySelectorAll(".wf-status-grid")];
+  const inGrid = () => grids()[0];
+  const gridHas = (name) => grids().some((g) => within(g).queryAllByText(name).length > 0);
+  const gridText = (text) => grids().flatMap((g) => within(g).queryAllByText(text));
 
   test("shows both measures for each status", async () => {
     await openStatuses();
-    await waitFor(() => expect(inGrid()).not.toBeNull());
-    expect(gridHas("Backlog")).toBe(true);
-    expect(within(inGrid()).getByText("9,423")).toBeInTheDocument();
-    expect(within(inGrid()).getByText("12,000")).toBeInTheDocument();
+    await waitFor(() => expect(gridHas("Backlog")).toBe(true));
+    expect(gridText("9,423")).toHaveLength(1);
+    expect(gridText("12,000")).toHaveLength(1);
   });
 
   test("filters to statuses that are empty now but were used before", async () => {
@@ -319,7 +322,8 @@ describe("WorkflowTab — status catalog", () => {
     }));
     await waitFor(() => expect(gridHas("Unmeasured")).toBe(true));
 
-    expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+    // Scoped to the grid: the key above it also shows an em dash by way of explanation.
+    expect(gridText("—").length).toBeGreaterThan(0);
 
     await userEvent.selectOptions(screen.getByLabelText(/Filter statuses by usage/i), "never");
     expect(gridHas("Unmeasured")).toBe(false);
@@ -345,5 +349,66 @@ describe("WorkflowTab — status catalog", () => {
       "getWorkflowInventory",
       expect.objectContaining({ measureHistory: true })
     ));
+  });
+});
+
+// 433 statuses with the category repeated on every card was unreadable. Grouping makes
+// the category a heading instead, which is the same information at 1/433 the repetition.
+describe("WorkflowTab — status catalog grouping", () => {
+  const payload = {
+    schemes: [], page: 1, pageSize: 10, totalCount: 0, totalPages: 1,
+    snapshotStatus: { state: "ready", version: "v1", refreshedAt: "2026-08-03T12:00:00.000Z" },
+    statuses: [
+      { id: "1", name: "Backlog", statusCategory: "To Do", issueCount: 10, everCount: 20, departedCount: 10 },
+      { id: "2", name: "In Review", statusCategory: "In Progress", issueCount: 5, everCount: 5, departedCount: 0 },
+      { id: "3", name: "Shipped", statusCategory: "Done", issueCount: 1, everCount: 1, departedCount: 0 },
+      { id: "4", name: "Limbo", statusCategory: null, issueCount: 0, everCount: 0, departedCount: 0 },
+    ],
+    statusCounts: { hasCurrentCounts: true, hasHistoryCounts: true },
+  };
+
+  async function open() {
+    invoke.mockImplementation((fn) =>
+      fn === "getWorkflowInventory" ? Promise.resolve(payload) : Promise.resolve({ available: false }));
+    render(<WorkflowTab />);
+    await userEvent.click(await screen.findByRole("button", { name: /Statuses/i }));
+  }
+
+  test("groups statuses under category headings in workflow order", async () => {
+    await open();
+
+    const headings = await screen.findAllByRole("heading", { level: 4 });
+    // To Do -> In Progress -> Done is the direction work travels; uncategorised last.
+    expect(headings.map((h) => h.textContent.replace(/\d+$/, "").trim()))
+      .toEqual(["To Do", "In Progress", "Done", "Uncategorised"]);
+  });
+
+  test("omits a category heading entirely when nothing matches the filter", async () => {
+    await open();
+    await screen.findAllByRole("heading", { level: 4 });
+
+    await userEvent.type(screen.getByLabelText(/Filter statuses by name/i), "backlog");
+
+    const headings = await screen.findAllByRole("heading", { level: 4 });
+    expect(headings.map((h) => h.textContent.replace(/\d+$/, "").trim())).toEqual(["To Do"]);
+  });
+
+  test("falls back to Uncategorised rather than dropping a status with no category", async () => {
+    await open();
+    const headings = await screen.findAllByRole("heading", { level: 4 });
+    const uncategorised = headings.find((h) => h.textContent.includes("Uncategorised"));
+
+    expect(uncategorised).toBeDefined();
+    // The status still renders -- an uncategorised status is a finding, not a thing to hide.
+    expect(screen.getByText("Limbo")).toBeInTheDocument();
+  });
+
+  test("shows a key explaining the three metrics and the unmeasured dash", async () => {
+    await open();
+
+    expect(await screen.findByText(/in it now/i)).toBeInTheDocument();
+    expect(screen.getByText(/ever entered/i)).toBeInTheDocument();
+    expect(screen.getByText(/passed through and left/i)).toBeInTheDocument();
+    expect(screen.getByText(/not measured/i)).toBeInTheDocument();
   });
 });

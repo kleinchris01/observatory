@@ -5970,28 +5970,59 @@ code {
 .wf-mapping__arrow { color: var(--muted); }
 .wf-mapping__workflow { font-family: var(--font-mono); font-size: 0.76rem; color: var(--muted); }
 
+/* Key for the three metrics. Without it the numbers are unreadable, and the em dash for
+   "not measured" means nothing at all. */
+.wf-key {
+  display: flex; flex-wrap: wrap; gap: 6px 18px;
+  padding: 9px 12px; margin-bottom: 14px;
+  border: 1px solid var(--stroke); border-radius: 8px;
+  background: var(--bg-elevated); font-size: 0.75rem; color: var(--muted);
+}
+.wf-key__group { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; }
+.wf-key__item { display: inline-flex; align-items: baseline; gap: 5px; }
+.wf-key__item b { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--text); }
+.wf-key__item--muted b { color: var(--muted); }
+.wf-key__item--departed b { color: #d3a24e; }
+.wf-key__item--unknown b { color: var(--muted); font-style: italic; }
+
+/* Category becomes a section heading rather than a word on all 433 cards. */
+.wf-catgroup { margin-bottom: 18px; }
+.wf-catgroup__head {
+  display: flex; align-items: center; gap: 8px; margin: 0 0 8px;
+  font-size: 0.8rem; font-weight: 650; letter-spacing: 0.01em;
+}
+.wf-catgroup__count {
+  font-size: 0.7rem; font-weight: 600; color: var(--muted);
+  background: var(--bg-elevated); border-radius: 20px; padding: 1px 8px;
+  font-variant-numeric: tabular-nums;
+}
+
 .wf-status-grid {
-  /* Wider minimum so a status name and its three numbers fit without truncating.
-     auto-fill still adds columns on a wide display rather than stretching a few. */
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 7px;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px;
 }
+
+/* Two rows, not one line of competing spans: the name owns the top, the three numbers
+   sit in fixed columns underneath so the eye can scan down a column instead of
+   re-parsing every card. */
 .wf-status {
-  display: flex; align-items: center; gap: 9px; min-width: 0;
-  padding: 8px 12px; border: 1px solid var(--stroke);
-  border-radius: 9px; background: var(--panel);
+  display: flex; flex-direction: column; gap: 4px; min-width: 0;
+  padding: 8px 11px; border: 1px solid var(--stroke);
+  border-radius: 8px; background: var(--panel);
 }
-.wf-status__dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: var(--muted); }
-.wf-status__dot--todo { background: #8993a4; }
-.wf-status__dot--progress { background: var(--cool); }
-.wf-status__dot--done { background: var(--success); }
 .wf-status__name {
-  /* Two lines before truncating. A status name is the identifier -- "Contract Signed at
-     Actual..." tells you nothing, and the whole point of this view is deciding which
-     statuses duplicate each other. */
-  flex: 1; min-width: 0; font-size: 0.85rem;
+  font-size: 0.82rem; line-height: 1.3;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
   overflow: hidden; overflow-wrap: anywhere;
 }
+.wf-status__metrics {
+  display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.wf-status__metric { font-size: 0.75rem; text-align: right; }
+.wf-status__metric:first-child { text-align: left; }
+.wf-status__metric--muted { color: var(--muted); }
+.wf-status__metric--departed { color: #d3a24e; }
+.wf-status__dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
 .wf-status__cat { font-size: 0.7rem; color: var(--muted); white-space: nowrap; }
 
 .wf-pagination { display: flex; align-items: center; justify-content: center; gap: 14px; padding-top: 6px; }

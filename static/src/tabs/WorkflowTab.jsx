@@ -484,6 +484,18 @@ export function WorkflowTab() {
     return sorted;
   }, [statuses, statusCategory, statusSearch, statusUsage, statusSort]);
 
+  // Grouped by category so the label is a heading rather than a word repeated on every
+  // card. Ordered To Do -> In Progress -> Done, which is the direction work travels.
+  const grouped = React.useMemo(() => {
+    const order = ["To Do", "In Progress", "Done", "Uncategorised"];
+    const buckets = new Map(order.map((k) => [k, []]));
+    for (const status of visibleStatuses) {
+      const key = buckets.has(status.statusCategory) ? status.statusCategory : "Uncategorised";
+      buckets.get(key).push(status);
+    }
+    return [...buckets.entries()].filter(([, items]) => items.length > 0);
+  }, [visibleStatuses]);
+
   const statusCounts = data?.statusCounts || {};
 
   const measureHistory = React.useCallback(async () => {
@@ -736,36 +748,53 @@ export function WorkflowTab() {
                 </div>
               )}
 
-              <div className="wf-status-grid">
-                {visibleStatuses.length === 0 ? (
-                  <div className="empty-state">No statuses match these filters.</div>
-                ) : (
-                  visibleStatuses.map((status) => (
-                    <div key={status.id} className="wf-status">
-                      <span className={`wf-status__dot wf-status__dot--${CATEGORY_TONE[status.statusCategory] || "other"}`} aria-hidden="true" />
-                      <span className="wf-status__name">{status.name}</span>
-                      <span className="wf-status__metrics">
-                        {/* Null renders as an em dash, never as 0: an unmeasured status
-                            must not look like an unused one. */}
-                        <span className="wf-status__metric" title="Issues currently in this status">
-                          {status.issueCount === null ? "—" : formatNumber(status.issueCount)}
-                        </span>
-                        <span className="wf-status__metric wf-status__metric--muted" title="Issues that have ever been in this status">
-                          {status.everCount === null ? "—" : formatNumber(status.everCount)}
-                        </span>
-                        {status.departedCount > 0 && (
-                          <span className="wf-status__metric wf-status__metric--departed" title="Issues that passed through and left">
-                            −{formatNumber(status.departedCount)}
-                          </span>
-                        )}
-                      </span>
-                      {status.statusCategory && (
-                        <span className="wf-status__cat">{status.statusCategory}</span>
-                      )}
-                    </div>
-                  ))
-                )}
+              {/* A key, not decoration. Three bare numbers on 433 cards is unreadable
+                  without one, and the em dash for "not measured" is meaningless unless
+                  it is spelled out somewhere. */}
+              <div className="wf-key">
+                <span className="wf-key__group">
+                  <span className="wf-key__item"><b>1,234</b> in it now</span>
+                  <span className="wf-key__item wf-key__item--muted"><b>1,234</b> ever entered</span>
+                  <span className="wf-key__item wf-key__item--departed"><b>−1,234</b> passed through and left</span>
+                  <span className="wf-key__item wf-key__item--unknown"><b>—</b> not measured</span>
+                </span>
               </div>
+
+              {grouped.map(([category, items]) => (
+                <section key={category} className="wf-catgroup">
+                  {/* The category becomes a heading instead of a label repeated on every
+                      card. Same information, 433 fewer repetitions. */}
+                  <h4 className="wf-catgroup__head">
+                    <span className={`wf-status__dot wf-status__dot--${CATEGORY_TONE[category] || "other"}`} aria-hidden="true" />
+                    {category}
+                    <span className="wf-catgroup__count">{formatNumber(items.length)}</span>
+                  </h4>
+                  <div className="wf-status-grid">
+                    {items.map((status) => (
+                      <div key={status.id} className="wf-status">
+                        <span className="wf-status__name" title={status.name}>{status.name}</span>
+                        <span className="wf-status__metrics">
+                          {/* Null renders as an em dash, never as 0: an unmeasured status
+                              must not look like an unused one. */}
+                          <span className="wf-status__metric" title="Issues currently in this status">
+                            {status.issueCount === null ? "—" : formatNumber(status.issueCount)}
+                          </span>
+                          <span className="wf-status__metric wf-status__metric--muted" title="Issues that have ever been in this status">
+                            {status.everCount === null ? "—" : formatNumber(status.everCount)}
+                          </span>
+                          <span className="wf-status__metric wf-status__metric--departed" title="Issues that passed through and left">
+                            {status.departedCount > 0 ? `−${formatNumber(status.departedCount)}` : ""}
+                          </span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ))}
+
+              {visibleStatuses.length === 0 && (
+                <div className="empty-state">No statuses match these filters.</div>
+              )}
             </>
           )}
         </>
