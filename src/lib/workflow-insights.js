@@ -145,6 +145,13 @@ export function findOrphanedStatuses(statuses = [], schemeStatusPairs = [], issu
         issueCount,
         // Only assert safety when the scan actually observed the catalog. A null count
         // means "unknown", which must never render as "safe to delete".
+        //
+        // Note the deliberate limit of this claim: it means no workflow reaches the status
+        // and no issue has ever entered it. It does NOT mean no automation rule references
+        // it. Jira Automation rules cannot be read from a Forge app -- site-relative
+        // endpoints 401 with no declarable scope, the api.atlassian.com gateway rejects the
+        // route, and Forge exposes no automation permission -- so callers must present this
+        // as "no evidence of use" rather than "safe to delete".
         safeToRemove: issueCount === 0,
       };
     })

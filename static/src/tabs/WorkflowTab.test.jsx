@@ -412,3 +412,52 @@ describe("WorkflowTab — status catalog grouping", () => {
     expect(screen.getByText(/not measured/i)).toBeInTheDocument();
   });
 });
+
+// Jira Automation rules cannot be read from a Forge app: site-relative endpoints 401 with
+// no declarable scope, the api.atlassian.com gateway rejects the route, and Forge exposes
+// no automation permission (verified against forge lint). So a rule could still reference
+// a status this app reports as unused, and the UI must not tell anyone it is safe to
+// delete on evidence it does not have.
+describe("WorkflowTab — automation caveat", () => {
+  const insightsPayload = {
+    available: true,
+    schemeStatusesAvailable: true,
+    hasIssueCounts: true,
+    summary: {
+      duplicateGroupCount: 0, duplicateStatusCount: 0, reducibleStatusCount: 0,
+      orphanCount: 1, safeToRemoveCount: 1, flaggedSchemeCount: 0,
+    },
+    duplicateGroups: [],
+    orphans: [{ statusId: "9", name: "Abandoned", issueCount: 0, safeToRemove: true }],
+    balance: [],
+    statusTotals: { catalogCount: 1, withIssues: 0 },
+    snapshotStatus: { state: "ready", refreshedAt: "2026-08-03T12:00:00.000Z" },
+  };
+
+  async function openInsights() {
+    invoke.mockImplementation((fn) => {
+      if (fn === "getWorkflowInsights") return Promise.resolve(insightsPayload);
+      return Promise.resolve({
+        schemes: [], statuses: [], page: 1, pageSize: 10, totalCount: 0, totalPages: 1,
+        snapshotStatus: { state: "ready", version: "v1", refreshedAt: "2026-08-03T12:00:00.000Z" },
+      });
+    });
+    render(<WorkflowTab />);
+    await userEvent.click(await screen.findByRole("button", { name: /Insights/i }));
+  }
+
+  test("warns that automation rules were not consulted", async () => {
+    await openInsights();
+    expect(await screen.findByText(/Automation rules are not included/i)).toBeInTheDocument();
+  });
+
+  test("never tells the reader a status is safe to remove", async () => {
+    await openInsights();
+    await screen.findByText(/Automation rules are not included/i);
+
+    // "Never used" is a statement about evidence. "Safe to remove" is a recommendation the
+    // app cannot support without seeing automation rules.
+    expect(document.body.textContent).not.toMatch(/safe to remove/i);
+    expect(document.body.textContent).not.toMatch(/safe to delete/i);
+  });
+});

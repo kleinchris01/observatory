@@ -115,7 +115,7 @@ export function computeSiteHealth({ fieldUsage, workflow, projects } = {}) {
         ? `${workflow.orphanCount} statuses no scheme reaches, ${workflow.safeToRemoveCount} of them never used.`
         : `${workflow.orphanCount} statuses no scheme reaches. Run a scan to confirm which are unused.`,
       action: workflow.safeToRemoveCount > 0
-        ? `${workflow.safeToRemoveCount} statuses are unreachable and have never held an issue.`
+        ? `${workflow.safeToRemoveCount} statuses are unreachable and have never held an issue. Automation rules are not visible to this app, so confirm before deleting.`
         : null,
     });
   } else {

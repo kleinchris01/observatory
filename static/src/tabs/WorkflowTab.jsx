@@ -209,8 +209,18 @@ function WorkflowInsights({ insights, loading }) {
           <h3 className="wf-insight-section__title">Unreachable statuses</h3>
           <p className="wf-insight-section__desc">
             Defined on the site but not reachable from any workflow scheme.
-            {hasIssueCounts && " Those with no issues have never been used and are safe to remove."}
+            {hasIssueCounts && " Those marked never used have no workflow reaching them and no issue history."}
           </p>
+          {hasIssueCounts && (
+            <p className="wf-insights__note">
+              <Icon name="info" size={13} />
+              <span>
+                Automation rules are not included. Jira does not expose them to Forge apps, so
+                a rule could still reference a status shown here. Check the rule list before
+                deleting anything.
+              </span>
+            </p>
+          )}
           {orphans.length === 0 ? (
             <div className="empty-state empty-state--inline">Every status is reachable from a scheme.</div>
           ) : (

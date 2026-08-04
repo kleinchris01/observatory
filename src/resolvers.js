@@ -94,7 +94,7 @@ import {
 } from "./lib/project-store.js";
 import { queueWorkflowSnapshotBuild, isWorkflowBuildStale, queueStatusHistoryBuild } from "./lib/workflow-engine.js";
 import { computeSiteHealth } from "./lib/health-score.js";
-import { probeEndpoint, getAllJiraProjects } from "./lib/jira-api.js";
+import { probeEndpoint, probeStargateEndpoint, getCloudId, getAllJiraProjects } from "./lib/jira-api.js";
 import {
   findDuplicateStatusGroups,
   findOrphanedStatuses,
@@ -756,16 +756,30 @@ async function probeAutomationApi({ context }) {
       : []),
   ];
 
+  // The automation API lives on api.atlassian.com, not on the site. Every site-relative
+  // path returned 401 because it was asked of the wrong server -- requestJira cannot reach
+  // the gateway, so those go through Stargate instead.
+  const cloudId = getCloudId(context);
+  if (cloudId) {
+    candidates.push(
+      { scope: "global", via: "stargate", path: `https://api.atlassian.com/automation/public/jira/${cloudId}/rest/v1/rule` },
+      { scope: "global", via: "stargate", path: `https://api.atlassian.com/automation/public/jira/${cloudId}/rest/v1/rule/search` },
+      // Gateway-relative as well, in case Stargate prefixes the host itself. One of the
+      // two forms will be accepted and the other will say why it was not.
+      { scope: "global", via: "stargate", path: `/automation/public/jira/${cloudId}/rest/v1/rule` },
+    );
+  }
+
   const results = [];
-  for (const { scope, path } of candidates) {
-    const result = await probeEndpoint(path);
+  for (const { scope, path, via } of candidates) {
+    const result = via === "stargate" ? await probeStargateEndpoint(path) : await probeEndpoint(path);
     // A 200 is not the same as usable JSON -- Jira can answer with an HTML login page or
     // an error envelope. Record whether the body actually looks like a rule collection.
     const looksLikeRules = /"(rules|values|id)"\s*:/.test(result.sample || "");
-    results.push({ ...result, scope, looksLikeRules });
+    results.push({ ...result, scope, via: via || "site", looksLikeRules });
     logger.info("automation-probe.result", {
-      scope, path: result.path, status: result.status, ok: result.ok,
-      ms: result.ms, looksLikeRules, sample: result.sample,
+      scope, via: via || "site", path: result.path, status: result.status,
+      ok: result.ok, ms: result.ms, looksLikeRules, sample: result.sample,
     });
   }
 
@@ -777,7 +791,7 @@ async function probeAutomationApi({ context }) {
     reachablePaths: reachable.map((r) => r.path),
   });
 
-  return { projectId, results, reachable: reachable.map((r) => r.path) };
+  return { projectId, cloudId, results, reachable: reachable.map((r) => r.path) };
 }
 
 async function getFieldDetails({ payload, context }) {

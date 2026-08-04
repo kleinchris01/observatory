@@ -35,9 +35,10 @@ export function AutomationProbePanel() {
     <ConfigSection title="Automation API" icon="zap">
       <p className="admin-config-row__hint" style={{ marginBottom: 10 }}>
         Automation rules are a blind spot in the findings on the Workflows tab: a status can
-        look unreachable while an automation rule still transitions issues into it. Jira&apos;s
-        automation API has historically been undocumented, so this asks which endpoints answer
-        on this site rather than assuming.
+        look unreachable while an automation rule still transitions issues into it. This asks
+        which endpoints answer rather than assuming. Rows marked <b>gateway</b> go to
+        api.atlassian.com, where the documented automation API lives; <b>site</b> rows go to
+        this Jira instance.
       </p>
 
       <button type="button" className="secondary-button" onClick={run} disabled={running}>
@@ -62,12 +63,13 @@ export function AutomationProbePanel() {
           )}
           <table className="probe-results__table">
             <thead>
-              <tr><th>Scope</th><th>Endpoint</th><th>Status</th><th>Response</th></tr>
+              <tr><th>Scope</th><th>Via</th><th>Endpoint</th><th>Status</th><th>Response</th></tr>
             </thead>
             <tbody>
               {result.results.map((row) => (
                 <tr key={row.path} className={row.ok && row.looksLikeRules ? "probe-results__row--ok" : ""}>
                   <td>{row.scope}</td>
+                  <td>{row.via === "stargate" ? "gateway" : "site"}</td>
                   <td className="probe-results__path">{row.path}</td>
                   <td>{row.status === null ? "—" : row.status}</td>
                   <td className="probe-results__sample">{row.sample || "(empty)"}</td>

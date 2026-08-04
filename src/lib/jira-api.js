@@ -1,4 +1,4 @@
-import api, { route } from "@forge/api";
+import api, { route, createRequestStargateAsApp } from "@forge/api";
 import { fallbackOn } from "./logger.js";
 import { internalMetrics } from "@forge/metrics";
 import {
@@ -1210,6 +1210,54 @@ export async function probeEndpoint(path, { method = "GET" } = {}) {
       ok: response.ok,
       ms: Date.now() - started,
       // Enough to tell a rule list from an error envelope; not enough to leak issue data.
+      sample: text.slice(0, 300),
+    };
+  } catch (error) {
+    return {
+      path,
+      status: null,
+      ok: false,
+      ms: Date.now() - started,
+      sample: String(error?.message || error).slice(0, 300),
+    };
+  }
+}
+
+
+// The cloud id, pulled out of the installation ARI.
+//
+// Forge's installContext looks like `ari:cloud:jira::site/<uuid>`, and that uuid IS the
+// cloud id the api.atlassian.com gateway expects. Deriving it here avoids threading a
+// second identifier through every caller.
+export function getCloudId(context) {
+  const key = String(context?.installContext || "");
+  const match = /site\/([0-9a-f-]{36})/i.exec(key);
+  return match ? match[1] : null;
+}
+
+// Probe an api.atlassian.com endpoint through Stargate.
+//
+// Distinct from probeEndpoint, which is site-relative. Every automation path probed
+// earlier returned 401 because they were asked of the wrong server entirely: the
+// automation API lives on the gateway host, not on the site. requestJira cannot reach it,
+// so this uses the Stargate request surface instead.
+export async function probeStargateEndpoint(path) {
+  const started = Date.now();
+  try {
+    // A plain string, not a Route. createRequestStargateAsApp returns
+    // `(url: string, init?) => Promise<Response>` -- wrapping the path in
+    // assumeTrustedRoute produced INVALID_TARGET_URL before the request left the runtime.
+    const requestStargate = createRequestStargateAsApp();
+    const response = await requestStargate(path, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    });
+    const text = await response.text();
+    return {
+      path,
+      status: response.status,
+      ok: response.ok,
+      ms: Date.now() - started,
       sample: text.slice(0, 300),
     };
   } catch (error) {

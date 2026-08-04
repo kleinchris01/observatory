@@ -26,6 +26,8 @@ import { vi, describe, test, expect, beforeEach } from "vitest";
 const mocks = vi.hoisted(() => ({
   getAllJiraProjects: vi.fn(),
   probeEndpoint: vi.fn(),
+  probeStargateEndpoint: vi.fn(),
+  getCloudId: vi.fn(),
   kvsGet: vi.fn(),
   kvsSet: vi.fn(),
   apiAsAppRequestJira: vi.fn(),
@@ -236,6 +238,8 @@ vi.mock("./lib/jira-api.js", () => ({
   getBrowsableProjectIds: mocks.getBrowsableProjectIds,
   getAllJiraProjects: mocks.getAllJiraProjects,
   probeEndpoint: mocks.probeEndpoint,
+  probeStargateEndpoint: mocks.probeStargateEndpoint,
+  getCloudId: mocks.getCloudId,
   PROJECT_USAGE_PAGE_SIZE: 12,
   PROJECTS_VIEW_PAGE_SIZE: 24,
   MAX_ACTIVE_PROJECT_USAGE_JOBS: 3,
@@ -2891,6 +2895,8 @@ describe("probeAutomationApi", () => {
 
   beforeEach(() => {
     mocks.getAllJiraProjects.mockResolvedValue([{ id: "10000", key: "ALPHA", name: "Alpha" }]);
+    mocks.getCloudId.mockReturnValue("11111111-2222-3333-4444-555555555555");
+    mocks.probeStargateEndpoint.mockResolvedValue({ path: "s", status: 404, ok: false, ms: 5, sample: "" });
   });
 
   test("probes both global and project scopes", async () => {
@@ -2906,6 +2912,14 @@ describe("probeAutomationApi", () => {
     const requested = mocks.probeEndpoint.mock.calls.map((c) => c[0]);
     expect(requested.some((path) => path.includes("10000"))).toBe(true);
     expect(requested.some((path) => path.includes("GLOBAL"))).toBe(true);
+
+    // The documented automation API lives on api.atlassian.com, not the site, so it has to
+    // go through Stargate -- asking the site for it is what produced the first round of
+    // 401s.
+    const viaGateway = mocks.probeStargateEndpoint.mock.calls.map((c) => c[0]);
+    expect(viaGateway.some((path) => path.includes("/automation/public/jira/"))).toBe(true);
+    expect(viaGateway.every((path) => path.includes("11111111-2222"))).toBe(true);
+    expect(viaGateway.some((path) => path.startsWith("https://api.atlassian.com/"))).toBe(true);
   });
 
   // A 200 is not the same as usable JSON: Jira can answer with an HTML login page or an
@@ -2941,5 +2955,39 @@ describe("probeAutomationApi", () => {
     expect(result.projectId).toBeNull();
     expect(result.results.length).toBeGreaterThan(0);
     expect(result.results.every((r) => r.scope === "global")).toBe(true);
+  });
+});
+
+
+// The documented automation API is on api.atlassian.com and keyed by cloud id. Probing the
+// site for it is what produced the first round of 401s.
+describe("probeAutomationApi — gateway transport", () => {
+  const probeAutomationApi = __RAW_ADMIN_ONLY_FUNCTIONS.probeAutomationApi;
+
+  test("skips the gateway probes when no cloud id can be derived", async () => {
+    mocks.getAllJiraProjects.mockResolvedValue([]);
+    mocks.getCloudId.mockReturnValue(null);
+    mocks.probeEndpoint.mockResolvedValue({ path: "x", status: 401, ok: false, ms: 5, sample: "" });
+
+    const result = await probeAutomationApi({ context: {} });
+
+    expect(mocks.probeStargateEndpoint).not.toHaveBeenCalled();
+    expect(result.cloudId).toBeNull();
+    // The site-relative probes still run, so the panel is never empty.
+    expect(result.results.length).toBeGreaterThan(0);
+  });
+
+  test("labels each row with the transport that produced it", async () => {
+    mocks.getAllJiraProjects.mockResolvedValue([{ id: "10000" }]);
+    mocks.getCloudId.mockReturnValue("11111111-2222-3333-4444-555555555555");
+    mocks.probeEndpoint.mockResolvedValue({ path: "x", status: 401, ok: false, ms: 5, sample: "" });
+    mocks.probeStargateEndpoint.mockResolvedValue({ path: "s", status: 200, ok: true, ms: 5, sample: '{"values":[]}' });
+
+    const result = await probeAutomationApi({ context: {} });
+
+    // Without this the table cannot explain why two identical-looking paths behave
+    // differently, which is exactly the confusion that cost a round of probing.
+    expect(result.results.some((r) => r.via === "stargate")).toBe(true);
+    expect(result.results.some((r) => r.via === "site")).toBe(true);
   });
 });
