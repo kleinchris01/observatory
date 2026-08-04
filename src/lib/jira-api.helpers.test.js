@@ -37,6 +37,8 @@ import {
   normalizeWorkflowSearchResponse,
   getAllWorkflowsWithStatuses,
   getEverInStatusCounts,
+  getProjectStatuses,
+  getStatusesForProjects,
   JIRA_REQUEST_HARD_TIMEOUT_MS,
 } from "./jira-api.js";
 
@@ -796,6 +798,62 @@ describe("getEverInStatusCounts", () => {
   test("makes no calls at all for an empty status list", async () => {
     const { counts } = await getEverInStatusCounts([]);
     expect(counts.size).toBe(0);
+    expect(mockRequestJira).not.toHaveBeenCalled();
+  });
+});
+
+// The route around the workflow endpoints, which 401 on a fully-upgraded install.
+describe("getProjectStatuses / getStatusesForProjects", () => {
+  test("flattens statuses across issue types and deduplicates", async () => {
+    mockRequestJira.mockResolvedValue(jiraResponse({ body: [
+      { id: "1", name: "Bug", statuses: [{ id: "10" }, { id: "11" }] },
+      { id: "2", name: "Task", statuses: [{ id: "11" }, { id: "12" }] },
+    ] }));
+
+    // 11 appears under both issue types but is one reachable status.
+    await expect(getProjectStatuses("10000")).resolves.toEqual(["10", "11", "12"]);
+  });
+
+  test("returns an empty list for a project with no issue types", async () => {
+    mockRequestJira.mockResolvedValue(jiraResponse({ body: [] }));
+    await expect(getProjectStatuses("10000")).resolves.toEqual([]);
+  });
+
+  test("tolerates a malformed response rather than throwing", async () => {
+    mockRequestJira.mockResolvedValue(jiraResponse({ body: { notAnArray: true } }));
+    await expect(getProjectStatuses("10000")).resolves.toEqual([]);
+  });
+
+  test("maps every project it can read", async () => {
+    mockRequestJira
+      .mockResolvedValueOnce(jiraResponse({ body: [{ statuses: [{ id: "1" }] }] }))
+      .mockResolvedValueOnce(jiraResponse({ body: [{ statuses: [{ id: "2" }] }] }));
+
+    const { byProject, failures } = await getStatusesForProjects(["10", "11"]);
+
+    expect(byProject.get("10")).toEqual(["1"]);
+    expect(byProject.get("11")).toEqual(["2"]);
+    expect(failures).toEqual([]);
+  });
+
+  // One unreadable project must not empty the mapping for the whole site -- that would
+  // make every status look orphaned.
+  test("collects per-project failures instead of failing the batch", async () => {
+    mockRequestJira
+      .mockResolvedValueOnce(jiraResponse({ body: [{ statuses: [{ id: "1" }] }] }))
+      .mockResolvedValue(jiraResponse({ ok: false, status: 403, text: "no permission" }));
+
+    const { byProject, failures } = await getStatusesForProjects(["10", "11"]);
+
+    expect(byProject.get("10")).toEqual(["1"]);
+    expect(byProject.has("11")).toBe(false);
+    expect(failures).toHaveLength(1);
+    expect(failures[0].projectId).toBe("11");
+  });
+
+  test("makes no calls for an empty project list", async () => {
+    const { byProject } = await getStatusesForProjects([]);
+    expect(byProject.size).toBe(0);
     expect(mockRequestJira).not.toHaveBeenCalled();
   });
 });

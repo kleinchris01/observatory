@@ -930,6 +930,55 @@ export async function getAllWorkflowsWithStatuses() {
   return normalizeWorkflowSearchResponse({ values: legacy });
 }
 
+// Statuses reachable in one project, flattened across its issue types.
+//
+// This exists because BOTH workflow-search endpoints return 401 "scope does not match"
+// on an installation that is fully upgraded and declares read:workflow:jira --
+// /rest/api/3/workflow/search (deprecated) and /rest/api/3/workflows/search (current)
+// alike. Consent is not the issue; `forge install --upgrade` reports the site already at
+// the latest version.
+//
+// So the scheme -> status mapping is derived a different way. This endpoint needs only
+// read:status:jira and read:project:jira, both of which demonstrably work on this
+// install, and it answers a slightly better question: which statuses are actually
+// reachable in this project, rather than which statuses a workflow defines.
+//
+// Response is an array of issue types, each carrying its own statuses:
+//   [{ id, name, subtask, statuses: [{ id, name, statusCategory }] }]
+export async function getProjectStatuses(projectIdOrKey) {
+  const data = await jiraRequest(route`/rest/api/3/project/${projectIdOrKey}/statuses`);
+  const ids = new Set();
+  for (const issueType of Array.isArray(data) ? data : []) {
+    for (const status of issueType?.statuses || []) {
+      if (status?.id != null) ids.add(String(status.id));
+    }
+  }
+  return [...ids];
+}
+
+// project id -> reachable status ids, for every project, at bounded concurrency.
+//
+// Per-project failures are collected rather than thrown: one project the app cannot read
+// must not empty the whole mapping and make every status on the site look orphaned.
+export async function getStatusesForProjects(projectIds = [], concurrency = 8) {
+  const byProject = new Map();
+  const failures = [];
+
+  const results = await mapWithConcurrency(projectIds.map(String), concurrency, async (projectId) => {
+    try {
+      return { projectId, statusIds: await getProjectStatuses(projectId), error: null };
+    } catch (error) {
+      return { projectId, statusIds: null, error: String(error?.message || error) };
+    }
+  });
+
+  for (const result of results) {
+    if (result.error) failures.push({ projectId: result.projectId, error: result.error });
+    else byProject.set(result.projectId, result.statusIds);
+  }
+  return { byProject, failures };
+}
+
 // How many issues have EVER been in each status, via JQL's WAS operator.
 //
 // This is the cheap answer to a question that otherwise needs a changelog crawl: on a

@@ -8,6 +8,7 @@ import {
   getWorkflowSchemesForProjects,
   getAllWorkflowsWithStatuses,
   getEverInStatusCounts,
+  getStatusesForProjects,
 } from "./jira-api.js";
 import {
   ensureProjectStoreReady,
@@ -140,11 +141,44 @@ export async function buildWorkflowSnapshot(installationKey) {
 
     const schemeRows = Array.from(schemesById.values());
 
-    // Resolve each scheme to the union of statuses across every workflow it uses: the
-    // default workflow plus any per-issue-type override. Deduplicated by construction --
-    // one scheme reaching a status through three issue types is still one pair.
+    // Resolve each scheme to the statuses it can reach.
+    //
+    // Preferred path is workflow definitions (scheme -> workflow names -> statuses), but
+    // both workflow-search endpoints 401 on installs that fully declare read:workflow:jira,
+    // so that map is frequently empty through no fault of the caller. The fallback goes via
+    // projects instead -- scheme -> its projects -> each project's reachable statuses --
+    // using endpoints that do work. It answers a marginally better question anyway: what is
+    // reachable in practice, not what a workflow defines on paper.
+    const statusIdsByProject = new Map();
+    if (statusIdsByWorkflowName.size === 0 && schemeProjectRows.length > 0) {
+      const projectIdsToProbe = [...new Set(schemeProjectRows.map((row) => String(row.projectId)))];
+      const { byProject, failures } = await getStatusesForProjects(projectIdsToProbe);
+      for (const [projectId, ids] of byProject) statusIdsByProject.set(projectId, ids);
+      if (failures.length > 0) {
+        logger.warn("workflow-snapshot.project-statuses-partial", {
+          failed: failures.length,
+          total: projectIdsToProbe.length,
+          firstError: failures[0]?.error || null,
+        });
+      }
+      logger.info("workflow-snapshot.statuses-via-projects", {
+        projects: byProject.size,
+        reason: "workflow endpoints unavailable",
+      });
+    }
+
+    // Deduplicated by construction -- one scheme reaching a status through three issue
+    // types, or through four of its projects, is still one pair.
     const schemeStatusRows = [];
+    const projectsByScheme = new Map();
+    for (const row of schemeProjectRows) {
+      if (!projectsByScheme.has(row.schemeId)) projectsByScheme.set(row.schemeId, []);
+      projectsByScheme.get(row.schemeId).push(String(row.projectId));
+    }
+
     for (const scheme of schemeRows) {
+      const statusIds = new Set();
+
       const workflowNames = new Set();
       if (scheme.defaultWorkflow) workflowNames.add(scheme.defaultWorkflow);
       const mapping = scheme.issueTypeMapping;
@@ -153,10 +187,16 @@ export async function buildWorkflowSnapshot(installationKey) {
           if (typeof value === "string" && value) workflowNames.add(value);
         }
       }
-      const statusIds = new Set();
       for (const name of workflowNames) {
         for (const id of statusIdsByWorkflowName.get(name) || []) statusIds.add(id);
       }
+
+      if (statusIds.size === 0) {
+        for (const projectId of projectsByScheme.get(scheme.id) || []) {
+          for (const id of statusIdsByProject.get(projectId) || []) statusIds.add(id);
+        }
+      }
+
       for (const statusId of statusIds) {
         schemeStatusRows.push({ schemeId: scheme.id, statusId });
       }

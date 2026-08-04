@@ -27,6 +27,7 @@ vi.mock("./jira-api.js", () => ({
   getWorkflowSchemesForProjects: vi.fn().mockResolvedValue([]),
   getAllWorkflowsWithStatuses: vi.fn().mockResolvedValue([]),
   getEverInStatusCounts: vi.fn().mockResolvedValue({ counts: new Map(), failures: [] }),
+  getStatusesForProjects: vi.fn().mockResolvedValue({ byProject: new Map(), failures: [] }),
 }));
 
 vi.mock("./project-store.js", () => ({
@@ -44,6 +45,7 @@ import {
   getWorkflowSchemesForProjects,
   getAllWorkflowsWithStatuses,
   getEverInStatusCounts,
+  getStatusesForProjects,
 } from "./jira-api.js";
 import {
   writeWorkflowSnapshotMeta,
@@ -61,6 +63,7 @@ beforeEach(() => {
   getWorkflowSchemesForProjects.mockResolvedValue([]);
   getAllWorkflowsWithStatuses.mockResolvedValue([]);
   getEverInStatusCounts.mockResolvedValue({ counts: new Map(), failures: [] });
+  getStatusesForProjects.mockResolvedValue({ byProject: new Map(), failures: [] });
   loadStatusesCatalog.mockResolvedValue([]);
   readWorkflowSnapshotMeta.mockResolvedValue(null);
   upsertStatusHistoryCounts.mockResolvedValue(undefined);
@@ -266,5 +269,77 @@ describe("queueStatusHistoryBuild", () => {
     });
     // Hundreds of history queries cannot fit in a resolver invocation.
     expect(getEverInStatusCounts).not.toHaveBeenCalled();
+  });
+});
+
+
+// Both workflow-search endpoints 401 on installs that fully declare read:workflow:jira,
+// and `forge install --upgrade` reports the site already current -- so the workflow map is
+// routinely empty through no fault of the caller. Without a second route, every status on
+// the site looks unreachable and orphan detection reports nonsense.
+describe("scheme statuses via projects", () => {
+  const projects = [{ id: "10", key: "ALPHA", name: "Alpha" }, { id: "11", key: "BRAVO", name: "Bravo" }];
+  const twoProjectScheme = [
+    { projectId: "10", scheme: { id: "s1", name: "Shared", defaultWorkflow: "WF" }, error: null },
+    { projectId: "11", scheme: { id: "s1", name: "Shared", defaultWorkflow: "WF" }, error: null },
+  ];
+
+  it("falls back to project statuses when the workflow map is empty", async () => {
+    getAllJiraProjects.mockResolvedValue(projects);
+    getWorkflowSchemesForProjects.mockResolvedValue(twoProjectScheme);
+    getAllWorkflowsWithStatuses.mockResolvedValue([]);
+    getStatusesForProjects.mockResolvedValue({
+      byProject: new Map([["10", ["1", "2"]], ["11", ["2", "3"]]]),
+      failures: [],
+    });
+
+    await buildWorkflowSnapshot("install-1");
+
+    const [, , written] = replaceWorkflowSnapshot.mock.calls[0];
+    // Union across the scheme's projects, deduplicated: 1, 2, 3 -- not 2 twice.
+    expect(written.schemeStatuses.map((r) => r.statusId).sort()).toEqual(["1", "2", "3"]);
+    expect(written.schemeStatuses.every((r) => r.schemeId === "s1")).toBe(true);
+  });
+
+  it("prefers workflow definitions and does not probe projects when they are available", async () => {
+    getAllJiraProjects.mockResolvedValue(projects);
+    getWorkflowSchemesForProjects.mockResolvedValue(twoProjectScheme);
+    getAllWorkflowsWithStatuses.mockResolvedValue([{ name: "WF", statusIds: ["7"] }]);
+
+    await buildWorkflowSnapshot("install-1");
+
+    expect(getStatusesForProjects).not.toHaveBeenCalled();
+    const [, , written] = replaceWorkflowSnapshot.mock.calls[0];
+    expect(written.schemeStatuses.map((r) => r.statusId)).toEqual(["7"]);
+  });
+
+  it("keeps the snapshot when some projects cannot be read", async () => {
+    getAllJiraProjects.mockResolvedValue(projects);
+    getWorkflowSchemesForProjects.mockResolvedValue(twoProjectScheme);
+    getAllWorkflowsWithStatuses.mockResolvedValue([]);
+    getStatusesForProjects.mockResolvedValue({
+      byProject: new Map([["10", ["1"]]]),
+      failures: [{ projectId: "11", error: "403" }],
+    });
+
+    await buildWorkflowSnapshot("install-1");
+
+    // One unreadable project must not empty the mapping for the whole site.
+    const [, , written] = replaceWorkflowSnapshot.mock.calls[0];
+    expect(written.schemeStatuses.map((r) => r.statusId)).toEqual(["1"]);
+  });
+
+  it("leaves the mapping empty when neither route yields anything", async () => {
+    getAllJiraProjects.mockResolvedValue(projects);
+    getWorkflowSchemesForProjects.mockResolvedValue(twoProjectScheme);
+    getAllWorkflowsWithStatuses.mockResolvedValue([]);
+    getStatusesForProjects.mockResolvedValue({ byProject: new Map(), failures: [] });
+
+    await buildWorkflowSnapshot("install-1");
+
+    // Empty is honest here; the resolver suppresses orphan findings rather than
+    // reporting every status as unreachable.
+    const [, , written] = replaceWorkflowSnapshot.mock.calls[0];
+    expect(written.schemeStatuses).toEqual([]);
   });
 });
