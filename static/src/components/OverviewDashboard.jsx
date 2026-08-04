@@ -149,6 +149,79 @@ function FindingsPanel({ findings, workflow, onNavigate }) {
   );
 }
 
+
+// ── Site health ─────────────────────────────────────────────────────────────
+//
+// The headline number is a way into the findings, not a finding. So it ships with the
+// dimension that scored worst and what would move it, and it states how many dimensions
+// it could actually score -- a 90 from two inputs is a weaker claim than a 72 from seven,
+// and the reader has to be able to tell.
+
+function HealthPanel({ health, onNavigate }) {
+  if (!health || health.score === null) {
+    return (
+      <Panel title="Site health" icon="activity">
+        <EmptyState>
+          Nothing measured yet. Build a snapshot and the workflow inventory to score the site.
+        </EmptyState>
+      </Panel>
+    );
+  }
+
+  // Both counts come from the dimensions array rather than one from the array and one
+  // from separate metadata -- otherwise the heading and the note can disagree about how
+  // much of the site was actually measured.
+  const scored = health.dimensions.filter((d) => d.available);
+  const missing = health.dimensions.filter((d) => !d.available);
+  const partial = missing.length > 0;
+
+  return (
+    <Panel
+      title="Site health"
+      icon="activity"
+      description={`Scored across ${scored.length} of ${health.dimensions.length} dimensions.`}
+    >
+      <div className="ui-health">
+        <div className="ui-health__hero">
+          <span className={`ui-health__score ui-health__score--${health.grade.toLowerCase()}`}>{health.score}</span>
+          <span className="ui-health__of">/ 100</span>
+          <span className={`ui-health__grade ui-health__grade--${health.grade.toLowerCase()}`}>{health.grade}</span>
+        </div>
+        {health.weakest && (
+          <p className="ui-health__weakest">
+            Weakest: <strong>{health.weakest.label}</strong> at {health.weakest.score}.
+            {health.weakest.action ? ` ${health.weakest.action}` : ""}
+          </p>
+        )}
+      </div>
+
+      <div className="ui-health__dims">
+        {scored.map((dim) => (
+          <div key={dim.key} className="ui-health__dim">
+            <span className="ui-health__dimlabel">{dim.label}</span>
+            <span className="ui-health__dimtrack">
+              <span className="ui-health__dimbar" style={{ width: `${dim.score}%` }} />
+            </span>
+            <span className="ui-health__dimval">{dim.score}</span>
+            <span className="ui-health__dimdetail">{dim.detail}</span>
+          </div>
+        ))}
+      </div>
+
+      {partial && (
+        <p className="ui-note">
+          <Icon name="info" size={13} />
+          <span>
+            {missing.length} dimension{missing.length === 1 ? "" : "s"} could not be scored:{" "}
+            {missing.map((d) => d.label).join(", ")}. The score reflects only what has been
+            measured, so it will move as more data is collected.
+          </span>
+        </p>
+      )}
+    </Panel>
+  );
+}
+
 // ── Workflow ────────────────────────────────────────────────────────────────
 
 function WorkflowPanel({ workflow, onNavigate }) {
@@ -401,7 +474,7 @@ function RqtPanel({ onOpenRqtIndex }) {
   );
 }
 
-export function OverviewDashboard({ dashboard, findingsSummary, workflow, onOpenRqtIndex, onNavigate }) {
+export function OverviewDashboard({ dashboard, findingsSummary, workflow, health, onOpenRqtIndex, onNavigate }) {
   // onNavigate is optional so this stays renderable in isolation; without it the deep
   // links become inert rather than throwing.
   const navigate = onNavigate || (() => {});
@@ -409,6 +482,7 @@ export function OverviewDashboard({ dashboard, findingsSummary, workflow, onOpen
 
   return (
     <div className="ui-dashboard">
+      <HealthPanel health={health} onNavigate={navigate} />
       <FindingsPanel findings={findings} workflow={workflow} onNavigate={navigate} />
       <WorkflowPanel workflow={workflow} onNavigate={navigate} />
       <ProjectsPanel projects={dashboard?.projects} onNavigate={navigate} />

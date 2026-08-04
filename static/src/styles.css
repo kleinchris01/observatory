@@ -6336,3 +6336,33 @@ code {
 .wf-barlist__track { height: 9px; background: rgba(255, 255, 255, 0.06); border-radius: 3px; overflow: hidden; }
 .wf-barlist__bar { display: block; height: 100%; border-radius: 3px; background: #4d8fd6; min-width: 2px; }
 .wf-barlist__value { font-size: 0.73rem; font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
+
+/* ── Site health ─────────────────────────────────────────────────────────────
+   The number is an entry point, so it is large but never alone: the weakest
+   dimension and its remedy sit directly beneath it. */
+.ui-health { display: flex; flex-direction: column; gap: 6px; }
+.ui-health__hero { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.ui-health__score { font-size: 2.6rem; font-weight: 600; line-height: 1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.ui-health__of { font-size: 0.9rem; opacity: 0.5; }
+.ui-health__grade {
+  font-size: 0.78rem; font-weight: 700; letter-spacing: 0.06em;
+  padding: 2px 9px; border-radius: 20px; border: 1px solid currentColor;
+}
+.ui-health__score--a, .ui-health__grade--a { color: #6fae81; }
+.ui-health__score--b, .ui-health__grade--b { color: #8fbf7a; }
+.ui-health__score--c, .ui-health__grade--c { color: #d3a24e; }
+.ui-health__score--d, .ui-health__grade--d { color: #d98f4e; }
+.ui-health__score--e, .ui-health__grade--e { color: #e0796d; }
+.ui-health__weakest { font-size: 0.82rem; opacity: 0.8; margin: 0; max-width: 68ch; line-height: 1.5; }
+
+.ui-health__dims { display: flex; flex-direction: column; gap: 9px; }
+.ui-health__dim {
+  display: grid; grid-template-columns: minmax(8rem, 12rem) minmax(4rem, 1fr) 2.2rem;
+  grid-template-areas: "label track value" "detail detail detail";
+  align-items: center; gap: 4px 10px;
+}
+.ui-health__dimlabel { grid-area: label; font-size: 0.8rem; font-weight: 600; }
+.ui-health__dimtrack { grid-area: track; height: 7px; background: rgba(255,255,255,0.07); border-radius: 3px; overflow: hidden; }
+.ui-health__dimbar { display: block; height: 100%; border-radius: 3px; background: #4d8fd6; min-width: 2px; }
+.ui-health__dimval { grid-area: value; font-size: 0.78rem; text-align: right; font-variant-numeric: tabular-nums; opacity: 0.75; }
+.ui-health__dimdetail { grid-area: detail; font-size: 0.74rem; opacity: 0.55; line-height: 1.4; }

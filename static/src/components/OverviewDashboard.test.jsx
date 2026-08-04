@@ -210,3 +210,58 @@ describe("OverviewDashboard — resilience", () => {
     await waitFor(() => expect(screen.getAllByText("—").length).toBeGreaterThan(0));
   });
 });
+
+// A bare score is useless and a dishonest one is worse. These pin that it always ships
+// with somewhere to go, and that it says when it could not see the whole site.
+describe("OverviewDashboard — site health", () => {
+  const health = (over = {}) => ({
+    score: 72, grade: "C", dimensionsScored: 7, dimensionsTotal: 7,
+    weakest: { key: "status-naming", label: "Status naming", score: 41, action: "Consolidate duplicate statuses in the Workflows tab." },
+    dimensions: [
+      { key: "field-naming", label: "Field naming", available: true, score: 88, detail: "3 groups share a name." },
+      { key: "status-naming", label: "Status naming", available: true, score: 41, detail: "20 of 433 statuses are redundant." },
+    ],
+    ...over,
+  });
+
+  test("leads with the score and names the weakest dimension with its remedy", () => {
+    render(<OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} health={health()} onNavigate={vi.fn()} />);
+
+    expect(screen.getByText("72")).toBeInTheDocument();
+    expect(screen.getByText("C")).toBeInTheDocument();
+    // A number with nowhere to go is not actionable.
+    expect(screen.getByText(/Consolidate duplicate statuses/i)).toBeInTheDocument();
+  });
+
+  test("says which dimensions it could not score", () => {
+    render(<OverviewDashboard
+      dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()}
+      health={health({
+        dimensionsScored: 4, dimensionsTotal: 7,
+        dimensions: [
+          { key: "field-naming", label: "Field naming", available: true, score: 88, detail: "ok" },
+          { key: "status-naming", label: "Status naming", available: false, score: null, reason: "No workflow inventory yet." },
+        ],
+      })}
+      onNavigate={vi.fn()} />);
+
+    // A high score from few inputs is a weaker claim, and the reader must be able to tell.
+    // Asserted on the note's full text: it is assembled from several JSX nodes, so a
+    // regex against a single text node would miss the dimension names entirely.
+    const note = screen.getByText(/could not be scored/i).closest("p");
+    expect(note.textContent).toMatch(/Status naming/);
+    expect(note.textContent).toMatch(/1 dimension could not be scored/i);
+  });
+
+  test("prompts for a build rather than showing a zero when nothing is measured", () => {
+    render(<OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} health={{ score: null }} onNavigate={vi.fn()} />);
+
+    expect(screen.getByText(/Nothing measured yet/i)).toBeInTheDocument();
+    expect(screen.queryByText("0")).not.toBeInTheDocument();
+  });
+
+  test("renders without a health object at all", () => {
+    render(<OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} onNavigate={vi.fn()} />);
+    expect(screen.getByText(/Nothing measured yet/i)).toBeInTheDocument();
+  });
+});

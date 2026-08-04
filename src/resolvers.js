@@ -93,6 +93,7 @@ import {
   loadStatusHistoryCounts,
 } from "./lib/project-store.js";
 import { queueWorkflowSnapshotBuild, isWorkflowBuildStale, queueStatusHistoryBuild } from "./lib/workflow-engine.js";
+import { computeSiteHealth } from "./lib/health-score.js";
 import {
   findDuplicateStatusGroups,
   findOrphanedStatuses,
@@ -2411,6 +2412,11 @@ export async function getAdminOverview({ context }) {
     jobCounts,
     findingsSummary,
     workflow,
+    health: computeSiteHealth({
+      fieldUsage: dashboard?.fieldUsage,
+      workflow,
+      projects: dashboard?.projects,
+    }),
     dashboard,
     totalSummaries: summaries.length,
     legacySummaryCount,
