@@ -24,6 +24,8 @@ import { vi, describe, test, expect, beforeEach } from "vitest";
 // ---------------------------------------------------------------------------
 
 const mocks = vi.hoisted(() => ({
+  getAllJiraProjects: vi.fn(),
+  probeEndpoint: vi.fn(),
   kvsGet: vi.fn(),
   kvsSet: vi.fn(),
   apiAsAppRequestJira: vi.fn(),
@@ -232,6 +234,8 @@ vi.mock("./lib/jira-api.js", () => ({
   collectRecentFieldProjectCandidates: mocks.collectRecentFieldProjectCandidates,
   loadFieldOptionsFromJira: mocks.loadFieldOptionsFromJira,
   getBrowsableProjectIds: mocks.getBrowsableProjectIds,
+  getAllJiraProjects: mocks.getAllJiraProjects,
+  probeEndpoint: mocks.probeEndpoint,
   PROJECT_USAGE_PAGE_SIZE: 12,
   PROJECTS_VIEW_PAGE_SIZE: 24,
   MAX_ACTIVE_PROJECT_USAGE_JOBS: 3,
@@ -264,6 +268,7 @@ import {
   getAdminConfigResolver,
   saveAdminConfigResolver,
   getAdminOverview,
+  __RAW_ADMIN_ONLY_FUNCTIONS,
   runDeltaIssueScanJob,
   rovoSearchFields,
   rovoInspectField,
@@ -2871,5 +2876,70 @@ describe("getWorkflowInsights", () => {
 
     expect(result.available).toBe(true);
     expect(result.hasIssueCounts).toBe(false);
+  });
+});
+
+// Automation is a blind spot in the workflow findings: a status can look unreachable while
+// a rule still transitions issues into it. Jira's automation API is undocumented, so this
+// resolver asks which endpoints answer instead of assuming — and must never fail the page
+// it runs on.
+describe("probeAutomationApi", () => {
+  // Admin-only resolvers are exported wrapped in withAdminGuard + withAuditTrail. The raw
+  // registry exists so a test can exercise the resolver's own logic without standing up a
+  // permission mock.
+  const probeAutomationApi = __RAW_ADMIN_ONLY_FUNCTIONS.probeAutomationApi;
+
+  beforeEach(() => {
+    mocks.getAllJiraProjects.mockResolvedValue([{ id: "10000", key: "ALPHA", name: "Alpha" }]);
+  });
+
+  test("probes both global and project scopes", async () => {
+    mocks.probeEndpoint.mockResolvedValue({ path: "x", status: 404, ok: false, ms: 5, sample: "not found" });
+
+    const result = await probeAutomationApi({ context: {} });
+
+    const scopes = new Set(result.results.map((r) => r.scope));
+    expect(scopes.has("global")).toBe(true);
+    expect(scopes.has("project")).toBe(true);
+    // Asserted on what was REQUESTED, not on the returned row: the stub returns a canned
+    // path, so checking the result would test the mock rather than the resolver.
+    const requested = mocks.probeEndpoint.mock.calls.map((c) => c[0]);
+    expect(requested.some((path) => path.includes("10000"))).toBe(true);
+    expect(requested.some((path) => path.includes("GLOBAL"))).toBe(true);
+  });
+
+  // A 200 is not the same as usable JSON: Jira can answer with an HTML login page or an
+  // error envelope, and treating that as success would report extraction as possible when
+  // it is not.
+  test("counts an endpoint as reachable only when the body looks like rules", async () => {
+    mocks.probeEndpoint
+      .mockResolvedValueOnce({ path: "a", status: 200, ok: true, ms: 5, sample: "<html>login</html>" })
+      .mockResolvedValue({ path: "b", status: 200, ok: true, ms: 5, sample: '{"rules":[{"id":1}]}' });
+
+    const result = await probeAutomationApi({ context: {} });
+
+    expect(result.reachable).not.toContain("a");
+    expect(result.reachable.length).toBeGreaterThan(0);
+  });
+
+  test("reports nothing reachable when every endpoint rejects", async () => {
+    mocks.probeEndpoint.mockResolvedValue({ path: "x", status: 401, ok: false, ms: 5, sample: "scope does not match" });
+
+    const result = await probeAutomationApi({ context: {} });
+
+    expect(result.reachable).toEqual([]);
+    expect(result.results.every((r) => r.looksLikeRules === false)).toBe(true);
+  });
+
+  // A diagnostic that can fail the page it runs on is worse than no diagnostic.
+  test("still probes the global scope when the project lookup fails", async () => {
+    mocks.getAllJiraProjects.mockRejectedValue(new Error("403"));
+    mocks.probeEndpoint.mockResolvedValue({ path: "x", status: 404, ok: false, ms: 5, sample: "" });
+
+    const result = await probeAutomationApi({ context: {} });
+
+    expect(result.projectId).toBeNull();
+    expect(result.results.length).toBeGreaterThan(0);
+    expect(result.results.every((r) => r.scope === "global")).toBe(true);
   });
 });

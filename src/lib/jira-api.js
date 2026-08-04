@@ -1183,3 +1183,42 @@ export async function loadFieldOptionsFromJira(fieldId) {
     })
   );
 }
+
+// ── Endpoint probe ──────────────────────────────────────────────────────────
+//
+// Calls a candidate endpoint and reports exactly what came back, without throwing.
+//
+// This exists because three separate mysteries this week were only settled by making the
+// system say what happened rather than reasoning about it: a 401 whose cause survived two
+// wrong theories, a scan whose 400 is still unexplained, and an "Unknown SQL execution
+// error" that turned out to be a placeholder in a LIMIT clause. Guessing at Atlassian's
+// behaviour has a poor track record here; asking it directly does not.
+//
+// Read-only by construction: GET only, and the body is truncated because the point is the
+// shape of the response, not its contents.
+export async function probeEndpoint(path, { method = "GET" } = {}) {
+  const started = Date.now();
+  try {
+    const response = await api.asApp().requestJira(route([path]), {
+      method,
+      headers: { Accept: "application/json" },
+    });
+    const text = await response.text();
+    return {
+      path,
+      status: response.status,
+      ok: response.ok,
+      ms: Date.now() - started,
+      // Enough to tell a rule list from an error envelope; not enough to leak issue data.
+      sample: text.slice(0, 300),
+    };
+  } catch (error) {
+    return {
+      path,
+      status: null,
+      ok: false,
+      ms: Date.now() - started,
+      sample: String(error?.message || error).slice(0, 300),
+    };
+  }
+}

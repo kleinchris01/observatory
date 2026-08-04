@@ -94,6 +94,7 @@ import {
 } from "./lib/project-store.js";
 import { queueWorkflowSnapshotBuild, isWorkflowBuildStale, queueStatusHistoryBuild } from "./lib/workflow-engine.js";
 import { computeSiteHealth } from "./lib/health-score.js";
+import { probeEndpoint, getAllJiraProjects } from "./lib/jira-api.js";
 import {
   findDuplicateStatusGroups,
   findOrphanedStatuses,
@@ -716,6 +717,67 @@ async function getWorkflowInsights({ context }) {
     console.error("getWorkflowInsights failed:", error);
     throw error;
   }
+}
+
+
+// Probe the endpoints that might expose Jira Automation rules.
+//
+// Automation is a real blind spot in the findings this app produces: "this status is
+// unreachable and never used" is a claim made without looking at automation rules. If a
+// rule transitions issues into that status, or sets that field, the finding is wrong --
+// and someone could delete something load-bearing on our advice.
+//
+// Jira Automation came from the Code Barrel acquisition and its REST surface has
+// historically been undocumented. Rather than assert which path works, this asks, and
+// reports exactly what each one returned. Admin-only, read-only, and it never throws:
+// a diagnostic that can fail the page it runs on is worse than no diagnostic.
+async function probeAutomationApi({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  const installationKey = getInstallationKey(context);
+
+  // One real project id, because the legacy rule endpoint is project-scoped.
+  let projectId = null;
+  try {
+    const projects = await getAllJiraProjects();
+    projectId = projects?.[0]?.id ? String(projects[0].id) : null;
+  } catch (error) {
+    logger.warn("automation-probe.project_lookup_failed", { error: String(error?.message || error) });
+  }
+
+  // Both scopes are probed, because rules live in two places and the goal is to extract
+  // the JSON for all of them. GLOBAL is a pseudo-project id in the legacy Code Barrel
+  // scheme -- global rules are addressed as if they belonged to a project called GLOBAL.
+  const candidates = [
+    { scope: "global", path: "/rest/cb-automation/latest/project/GLOBAL/rule" },
+    { scope: "global", path: "/rest/cb-automation/latest/rule" },
+    { scope: "global", path: "/rest/api/3/automation/rule" },
+    ...(projectId
+      ? [{ scope: "project", path: `/rest/cb-automation/latest/project/${projectId}/rule` }]
+      : []),
+  ];
+
+  const results = [];
+  for (const { scope, path } of candidates) {
+    const result = await probeEndpoint(path);
+    // A 200 is not the same as usable JSON -- Jira can answer with an HTML login page or
+    // an error envelope. Record whether the body actually looks like a rule collection.
+    const looksLikeRules = /"(rules|values|id)"\s*:/.test(result.sample || "");
+    results.push({ ...result, scope, looksLikeRules });
+    logger.info("automation-probe.result", {
+      scope, path: result.path, status: result.status, ok: result.ok,
+      ms: result.ms, looksLikeRules, sample: result.sample,
+    });
+  }
+
+  const reachable = results.filter((r) => r.ok && r.looksLikeRules);
+  logger.info("automation-probe.summary", {
+    installationKey,
+    probed: results.length,
+    reachable: reachable.length,
+    reachablePaths: reachable.map((r) => r.path),
+  });
+
+  return { projectId, results, reachable: reachable.map((r) => r.path) };
 }
 
 async function getFieldDetails({ payload, context }) {
@@ -3068,6 +3130,7 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   getAdminConfig: getAdminConfigResolver,      // Admin read: returns full admin config
   saveAdminConfig: saveAdminConfigResolver,    // Mutating: rewrites thresholds and access control
   getAdminOverview,                            // Admin read: dashboard aggregate
+  probeAutomationApi,                          // Admin read: reports which Jira endpoints answer, for diagnosis
   migrateNamespaceKeys,                        // Mutating: rewrites scope keys across every table
 };
 

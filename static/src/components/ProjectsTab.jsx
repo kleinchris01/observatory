@@ -10,6 +10,7 @@ import {
   toDisplayName,
   formatTimestamp,
   formatNumber,
+  isCustomField,
 } from "../utils";
 import { Icon, useChartPalette } from "./Icons";
 import { SkeletonProjectItem, FindingsStrip, MetricChip } from "./FieldCard";
@@ -64,16 +65,28 @@ export function TopFieldsChart({ fields }) {
 
 export function FieldTypeDonut({ fields }) {
   const palette = useChartPalette();
-  if (!fields.length) return null;
+  // System fields are excluded: they appear on every issue in every project, so counting
+  // them describes Jira rather than this project. They also distort the chart badly --
+  // each contributes its own name as a one-count "type", so a project with 12 custom
+  // fields and 5 system fields renders as five slivers around one dominant wedge.
+  const customFields = fields.filter((f) => isCustomField(f.fieldId));
+  const systemFieldCount = fields.length - customFields.length;
+  if (!customFields.length) return null;
+
   const counts = {};
-  for (const f of fields) {
+  for (const f of customFields) {
     counts[f.fieldType] = (counts[f.fieldType] || 0) + 1;
   }
   const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 7);
   const segments = entries.map(([type, count]) => ({ name: type, value: count }));
   return (
     <div className="project-chart">
-      <div className="chart-title">Field types on this project</div>
+      <div className="chart-title">
+        Custom field types on this project
+        {systemFieldCount > 0 && (
+          <span className="chart-title__note"> · {systemFieldCount} system field{systemFieldCount === 1 ? "" : "s"} excluded</span>
+        )}
+      </div>
       <div className="project-chart__donut-layout">
         <div style={{ width: 120, height: 120, flexShrink: 0 }}>
           <ResponsiveContainer width="100%" height="100%">

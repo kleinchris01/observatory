@@ -7,6 +7,80 @@ import { Toggle, ConfigSection, ConfigRow, InlineThresholdInput } from "../compo
 
 // Governance thresholds, macro access and snapshot scheduling.
 
+
+// Reports which Jira endpoints actually answer, rather than reasoning about which should.
+//
+// Three separate mysteries this week were settled this way and not by argument: a 401 that
+// survived two wrong theories, a scan 400 that is still open, and an "Unknown SQL execution
+// error" that was a placeholder in a LIMIT clause. This makes that move available without
+// a redeploy.
+function AutomationProbePanel() {
+  const [result, setResult] = React.useState(null);
+  const [running, setRunning] = React.useState(false);
+  const [error, setError] = React.useState(null);
+
+  async function run() {
+    setRunning(true);
+    setError(null);
+    try {
+      setResult(await invoke("probeAutomationApi", {}));
+    } catch (err) {
+      setError(err?.message || "Probe failed.");
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  return (
+    <ConfigSection title="Automation API" icon="zap">
+      <p className="admin-config-row__hint" style={{ marginBottom: 10 }}>
+        Automation rules are a blind spot in the findings on the Workflows tab: a status can
+        look unreachable while an automation rule still transitions issues into it. Jira&apos;s
+        automation API has historically been undocumented, so this asks which endpoints answer
+        on this site rather than assuming.
+      </p>
+
+      <button type="button" className="secondary-button" onClick={run} disabled={running}>
+        <Icon name="zap" size={13} />
+        {running ? "Probing…" : "Probe automation endpoints"}
+      </button>
+
+      {error && <div className="danger-zone__error" role="alert">{error}</div>}
+
+      {result && (
+        <div className="probe-results">
+          {result.reachable.length > 0 ? (
+            <p className="probe-results__summary probe-results__summary--ok">
+              {result.reachable.length} endpoint{result.reachable.length === 1 ? "" : "s"} returned
+              usable rule data. Extraction is possible.
+            </p>
+          ) : (
+            <p className="probe-results__summary">
+              No endpoint returned usable rule data. Automation rules cannot be read with the
+              current scopes on this site.
+            </p>
+          )}
+          <table className="probe-results__table">
+            <thead>
+              <tr><th>Scope</th><th>Endpoint</th><th>Status</th><th>Response</th></tr>
+            </thead>
+            <tbody>
+              {result.results.map((row) => (
+                <tr key={row.path} className={row.ok && row.looksLikeRules ? "probe-results__row--ok" : ""}>
+                  <td>{row.scope}</td>
+                  <td className="probe-results__path">{row.path}</td>
+                  <td>{row.status === null ? "—" : row.status}</td>
+                  <td className="probe-results__sample">{row.sample || "(empty)"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </ConfigSection>
+  );
+}
+
 export function ConfigTab({ config, onSave, saving }) {
   const [local, setLocal] = React.useState(() => {
     const c = config || DEFAULT_CONFIG;
@@ -259,6 +333,7 @@ export function ConfigTab({ config, onSave, saving }) {
 
       {/* Below the save footer deliberately: this is a record, not a setting, and it
           should not sit between an admin and the button they came here to press. */}
+      <AutomationProbePanel />
       <AuditLogPanel />
     </div>
   );

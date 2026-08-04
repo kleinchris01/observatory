@@ -68,8 +68,11 @@ describe("FieldTypeDonut", () => {
       { fieldId: "customfield_2", fieldType: "number" },
       { fieldId: "customfield_3", fieldType: "text" },
     ];
-    render(<FieldTypeDonut fields={fields} />);
-    expect(screen.getByText("Field types on this project")).toBeInTheDocument();
+    const { container } = render(<FieldTypeDonut fields={fields} />);
+    // Retitled when system fields were excluded: the chart now describes how the project
+    // is configured, not which fields Jira puts on every issue.
+    expect(container.querySelector(".chart-title").textContent)
+      .toMatch(/Custom field types on this project/);
   });
 
   it("renders SVG donut chart", () => {
@@ -286,5 +289,48 @@ describe("ProjectsTabView workflow correlation", () => {
 
     expect(screen.queryByText("Workflow scheme")).not.toBeInTheDocument();
     expect(screen.getByText(/fields with usage/i)).toBeInTheDocument();
+  });
+});
+
+// System fields appear on every issue in every project, so counting them in a per-project
+// breakdown describes Jira rather than the project. They also wreck the chart: each
+// contributes its own name as a one-count "type", so five of them render as five slivers
+// around one dominant wedge.
+describe("FieldTypeDonut — system field exclusion", () => {
+  const fields = [
+    { fieldId: "customfield_1", fieldName: "Team", fieldType: "select" },
+    { fieldId: "customfield_2", fieldName: "Points", fieldType: "float" },
+    { fieldId: "customfield_3", fieldName: "Effort", fieldType: "float" },
+    { fieldId: "comment", fieldName: "Comment", fieldType: "Comment" },
+    { fieldId: "worklog", fieldName: "Worklog", fieldType: "Worklog" },
+    { fieldId: "priority", fieldName: "Priority", fieldType: "Priority" },
+  ];
+
+  test("counts only custom fields and says how many were excluded", () => {
+    const { container } = render(<FieldTypeDonut fields={fields} />);
+
+    // Asserted on the title's full text: the excluded-count note is a nested span, so a
+    // regex against a single text node would not span both.
+    const title = container.querySelector(".chart-title");
+    expect(title.textContent).toMatch(/Custom field types on this project/i);
+    expect(title.textContent).toMatch(/3 system fields excluded/i);
+  });
+
+  test("does not render a slice for a system field", () => {
+    const { container } = render(<FieldTypeDonut fields={fields} />);
+    // Comment/Worklog/Priority would each be a one-count wedge; only real types remain.
+    expect(container.textContent).not.toMatch(/Worklog/);
+    expect(container.textContent).toMatch(/float/);
+  });
+
+  test("renders nothing when a project has only system fields", () => {
+    const { container } = render(<FieldTypeDonut fields={fields.filter((f) => !f.fieldId.startsWith("customfield_"))} />);
+    // An empty donut is worse than no donut: it implies the project has no configuration.
+    expect(container.firstChild).toBeNull();
+  });
+
+  test("omits the excluded note when every field is custom", () => {
+    const { container } = render(<FieldTypeDonut fields={fields.filter((f) => f.fieldId.startsWith("customfield_"))} />);
+    expect(container.querySelector(".chart-title").textContent).not.toMatch(/system field/i);
   });
 });
