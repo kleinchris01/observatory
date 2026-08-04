@@ -90,8 +90,9 @@ import {
   loadStatusesCatalog,
   loadWorkflowSchemeStatuses,
   loadStatusIssueCounts,
+  loadStatusHistoryCounts,
 } from "./lib/project-store.js";
-import { queueWorkflowSnapshotBuild, isWorkflowBuildStale } from "./lib/workflow-engine.js";
+import { queueWorkflowSnapshotBuild, isWorkflowBuildStale, queueStatusHistoryBuild } from "./lib/workflow-engine.js";
 import {
   findDuplicateStatusGroups,
   findOrphanedStatuses,
@@ -508,6 +509,13 @@ async function getWorkflowInventory({ payload, context }) {
       meta = await readWorkflowSnapshotMeta(installationKey);
     }
 
+    // Measuring "ever been in" is a separate, opt-in cost: one JQL WAS query per status.
+    // Queued for the same reason the workflow build is -- a few hundred history queries
+    // will not fit in a resolver invocation.
+    if (filters.measureHistory && meta?.version) {
+      await queueStatusHistoryBuild(installationKey);
+    }
+
     const snapshotStatus = {
       state: meta?.state || "idle",
       version: meta?.version || null,
@@ -525,10 +533,31 @@ async function getWorkflowInventory({ payload, context }) {
       };
     }
 
-    const [schemes, statuses] = await Promise.all([
+    const [schemes, rawStatuses, currentCounts, history] = await Promise.all([
       loadWorkflowSchemes(installationKey, meta.version),
       loadStatusesCatalog(installationKey, meta.version),
+      // Both are optional and measured by different mechanisms, so each failure degrades
+      // to "unknown" rather than to zero -- zero is what makes a status look deletable.
+      loadStatusIssueCounts(installationKey).catch(() => new Map()),
+      loadStatusHistoryCounts(installationKey).catch(() => ({ counts: new Map(), measuredAt: null })),
     ]);
+
+    const hasCurrentCounts = currentCounts.size > 0;
+    const hasHistoryCounts = history.counts.size > 0;
+    const statuses = rawStatuses.map((status) => {
+      const id = String(status.statusId ?? status.id);
+      const issueCount = hasCurrentCounts ? Number(currentCounts.get(id) ?? 0) : null;
+      const everCount = hasHistoryCounts ? (history.counts.get(id) ?? null) : null;
+      return {
+        ...status,
+        issueCount,
+        everCount,
+        // Issues that passed through and left. Only meaningful when both measures exist,
+        // and floored at zero because the two are sampled at different times and a status
+        // can gain issues between them.
+        departedCount: issueCount !== null && everCount !== null ? Math.max(0, everCount - issueCount) : null,
+      };
+    });
 
     // Search and page BEFORE the per-scheme enrichment below, never after.
     //
@@ -579,6 +608,11 @@ async function getWorkflowInventory({ payload, context }) {
       totalCount,
       totalPages,
       snapshotStatus,
+      statusCounts: {
+        hasCurrentCounts,
+        hasHistoryCounts,
+        historyMeasuredAt: history.measuredAt,
+      },
     };
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
@@ -626,6 +660,12 @@ async function getWorkflowInsights({ context }) {
     const issueCounts = await loadStatusIssueCounts(installationKey).catch(() => new Map());
     const hasIssueCounts = issueCounts.size > 0;
 
+    // "Ever been in" is measured separately from "currently in": the first comes from JQL
+    // WAS queries, the second from the universe scan. They refresh independently, so each
+    // is reported with its own availability flag rather than assumed to arrive together.
+    const history = await loadStatusHistoryCounts(installationKey).catch(() => ({ counts: new Map(), measuredAt: null }));
+    const hasHistoryCounts = history.counts.size > 0;
+
     // The scheme->status mapping is best-effort in the build: if the workflow expansion
     // failed, every status looks orphaned and every scheme looks empty. Say so rather
     // than presenting a confidently wrong catalogue of findings.
@@ -646,6 +686,8 @@ async function getWorkflowInsights({ context }) {
       available: true,
       schemeStatusesAvailable,
       hasIssueCounts,
+      hasHistoryCounts,
+      historyMeasuredAt: history.measuredAt,
       summary: summarizeWorkflowInsights({ duplicateGroups, orphans, balance }),
       duplicateGroups: duplicateGroups.slice(0, 100).map((group) => ({
         ...group,
@@ -654,6 +696,7 @@ async function getWorkflowInsights({ context }) {
           name: s.name,
           statusCategory: s.statusCategory || null,
           issueCount: hasIssueCounts ? Number(issueCounts.get(String(s.statusId ?? s.id)) ?? 0) : null,
+          everCount: hasHistoryCounts ? (history.counts.get(String(s.statusId ?? s.id)) ?? null) : null,
         })),
       })),
       orphans: orphans.slice(0, 200),

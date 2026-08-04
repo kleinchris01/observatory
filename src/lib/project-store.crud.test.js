@@ -70,6 +70,8 @@ import {
   loadStatusIssueCounts,
   clearStatusIssueCounts,
   flushIssueScanStatusCounts,
+  loadStatusHistoryCounts,
+  upsertStatusHistoryCounts,
   readWorkflowSnapshotMeta,
   writeWorkflowSnapshotMeta,
   clearSnapshotVersion,
@@ -280,6 +282,44 @@ describe("status issue counts", () => {
       ["worse", { statusId: "1", projectId: "", count: 1 }],
     ]));
     expect(calls.filter((c) => sqlHas(c, "insert into issue_scan_status_totals"))).toHaveLength(0);
+  });
+
+  test("loadStatusHistoryCounts returns counts and the newest measurement date", async () => {
+    const calls = mockSqlQueries([[
+      { status_id: "1", ever_count: "4000", measured_at: "2026-08-01T00:00:00Z" },
+      { status_id: "2", ever_count: 0, measured_at: "2026-08-03T00:00:00Z" },
+    ]]);
+
+    const { counts, measuredAt } = await loadStatusHistoryCounts("scope");
+
+    expect(counts.get("1")).toBe(4000);
+    expect(counts.get("2")).toBe(0);
+    expect(measuredAt).toBe("2026-08-03T00:00:00Z");
+    expect(sqlHas(calls[0], "from status_history_totals", "scope_key = ?")).toBe(true);
+  });
+
+  test("loadStatusHistoryCounts returns an empty map when never measured", async () => {
+    mockSqlQueries([[]]);
+    const { counts, measuredAt } = await loadStatusHistoryCounts("scope");
+    expect(counts.size).toBe(0);
+    expect(measuredAt).toBeNull();
+  });
+
+  // Upsert, not replace: a partial run must not delete counts it did not re-measure.
+  test("upsertStatusHistoryCounts overwrites measured rows and leaves the rest", async () => {
+    const calls = mockSqlQueries();
+    await upsertStatusHistoryCounts("scope", new Map([["1", 4000]]), "2026-08-03T00:00:00Z");
+
+    const insert = calls.find((c) => sqlHas(c, "insert into status_history_totals"));
+    expect(insert).toBeDefined();
+    expect(sqlHas(insert, "on duplicate key update", "ever_count = values(ever_count)")).toBe(true);
+    expect(sqlHas(insert, "delete from")).toBe(false);
+  });
+
+  test("upsertStatusHistoryCounts writes nothing for an empty map", async () => {
+    const calls = mockSqlQueries();
+    await upsertStatusHistoryCounts("scope", new Map(), "x");
+    expect(calls.filter((c) => sqlHas(c, "insert into status_history_totals"))).toHaveLength(0);
   });
 
   test("clearStatusIssueCounts scopes its delete", async () => {

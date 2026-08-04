@@ -18,7 +18,7 @@ import {
   requeueStaleSnapshotBuild,
 } from "./lib/snapshot-engine.js";
 import { processProjectUsageReportJob } from "./lib/report-engine.js";
-import { buildWorkflowSnapshot } from "./lib/workflow-engine.js";
+import { buildWorkflowSnapshot, buildStatusHistorySnapshot } from "./lib/workflow-engine.js";
 import {
   ensureProjectStoreReady,
   readSnapshotMeta,
@@ -244,6 +244,12 @@ export async function consumeSnapshot(event) {
     if (jobType === "run-delta-issue-scan") {
       const windowHours = Number(event?.body?.windowHours || DELTA_ISSUE_SCAN_DEFAULT_WINDOW_HOURS);
       await runDeltaIssueScanJob(installationKey, windowHours);
+      return;
+    }
+
+    if (jobType === "build-status-history") {
+      const result = await buildStatusHistorySnapshot(installationKey);
+      console.log(`build-status-history: measured ${result?.measured ?? 0} statuses, ${result?.failed ?? 0} failed`);
       return;
     }
 

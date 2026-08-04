@@ -7,11 +7,15 @@ import {
   getAllStatuses,
   getWorkflowSchemesForProjects,
   getAllWorkflowsWithStatuses,
+  getEverInStatusCounts,
 } from "./jira-api.js";
 import {
   ensureProjectStoreReady,
   writeWorkflowSnapshotMeta,
   replaceWorkflowSnapshot,
+  loadStatusesCatalog,
+  readWorkflowSnapshotMeta,
+  upsertStatusHistoryCounts,
 } from "./project-store.js";
 
 // A "building" row older than this is treated as abandoned rather than in-flight.
@@ -198,4 +202,52 @@ export async function buildWorkflowSnapshot(installationKey) {
     incrMetric(METRIC_NAMES.workflowSnapshotFailed);
     throw error;
   }
+}
+
+
+// Measure how many issues have ever been in each status, using JQL's WAS operator.
+//
+// The cheap alternative to a changelog crawl: one approximate-count per status rather
+// than re-reading every issue with expand=changelog, which on a 317k-issue site is the
+// difference between minutes and hours.
+//
+// Runs on the queue consumer, not a resolver: a few hundred history queries will not fit
+// in 25 seconds, and WAS queries are slower than plain status filters because they hit
+// Jira's issue-history index.
+export async function buildStatusHistorySnapshot(installationKey) {
+  await ensureProjectStoreReady();
+
+  const meta = await readWorkflowSnapshotMeta(installationKey);
+  if (!meta?.version) {
+    // Nothing to measure against: the status catalog comes from the workflow snapshot.
+    logger.warn("status-history.skipped", { reason: "no-workflow-snapshot" });
+    return { measured: 0, failed: 0, skipped: true };
+  }
+
+  const statuses = await loadStatusesCatalog(installationKey, meta.version);
+  const statusIds = statuses.map((status) => String(status.statusId ?? status.id)).filter(Boolean);
+  if (!statusIds.length) return { measured: 0, failed: 0, skipped: true };
+
+  const { counts, failures } = await getEverInStatusCounts(statusIds);
+  const measuredAt = new Date().toISOString();
+  await upsertStatusHistoryCounts(installationKey, counts, measuredAt);
+
+  // Partial results are kept and dated. A status whose query failed keeps whatever it had
+  // rather than being written as zero -- zero is what makes a status look safe to delete.
+  if (failures.length > 0) {
+    logger.warn("status-history.partial", {
+      measured: counts.size,
+      failed: failures.length,
+      firstError: failures[0]?.error || null,
+    });
+  }
+
+  return { measured: counts.size, failed: failures.length, measuredAt };
+}
+
+export async function queueStatusHistoryBuild(installationKey) {
+  await ensureProjectStoreReady();
+  await inventorySnapshotQueue.push({
+    body: { jobType: "build-status-history", installationKey },
+  });
 }

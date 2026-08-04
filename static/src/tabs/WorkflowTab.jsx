@@ -277,6 +277,10 @@ export function WorkflowTab() {
   const [page, setPage] = React.useState(1);
   const [openSchemeId, setOpenSchemeId] = React.useState(null);
   const [statusCategory, setStatusCategory] = React.useState("all");
+  const [statusSearch, setStatusSearch] = React.useState("");
+  const [statusUsage, setStatusUsage] = React.useState("all");
+  const [statusSort, setStatusSort] = React.useState("name");
+  const [measuring, setMeasuring] = React.useState(false);
 
   const load = React.useCallback(async ({ forceRefresh = false } = {}) => {
     if (forceRefresh) setBuilding(true); else setLoading(true);
@@ -357,10 +361,54 @@ export function WorkflowTab() {
     return groups;
   }, [statuses]);
 
+  // Filters compose by intersection, matching the field browser: each control narrows,
+  // none widens. Usage bands are expressed against whichever measures exist -- a status
+  // with unknown usage is never classified as "unused", because unknown is not zero.
   const visibleStatuses = React.useMemo(() => {
-    if (statusCategory === "all") return statuses;
-    return statuses.filter((s) => (s.statusCategory || "Uncategorised") === statusCategory);
-  }, [statuses, statusCategory]);
+    const term = statusSearch.trim().toLowerCase();
+    let next = statuses;
+
+    if (statusCategory !== "all") {
+      next = next.filter((s) => (s.statusCategory || "Uncategorised") === statusCategory);
+    }
+    if (term) {
+      next = next.filter((s) => String(s.name || "").toLowerCase().includes(term));
+    }
+    if (statusUsage === "active") {
+      next = next.filter((s) => (s.issueCount ?? 0) > 0);
+    } else if (statusUsage === "empty") {
+      // Currently empty but provably used before -- the "people escaped this" signal.
+      next = next.filter((s) => s.issueCount === 0 && (s.everCount ?? 0) > 0);
+    } else if (statusUsage === "never") {
+      // Only assertable when BOTH measures exist and both are zero.
+      next = next.filter((s) => s.issueCount === 0 && s.everCount === 0);
+    } else if (statusUsage === "unknown") {
+      next = next.filter((s) => s.issueCount === null || s.everCount === null);
+    }
+
+    const sorted = [...next];
+    if (statusSort === "current") sorted.sort((a, b) => (b.issueCount ?? -1) - (a.issueCount ?? -1));
+    else if (statusSort === "ever") sorted.sort((a, b) => (b.everCount ?? -1) - (a.everCount ?? -1));
+    else if (statusSort === "departed") sorted.sort((a, b) => (b.departedCount ?? -1) - (a.departedCount ?? -1));
+    else sorted.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    return sorted;
+  }, [statuses, statusCategory, statusSearch, statusUsage, statusSort]);
+
+  const statusCounts = data?.statusCounts || {};
+
+  const measureHistory = React.useCallback(async () => {
+    setMeasuring(true);
+    try {
+      const res = await invoke("getWorkflowInventory", {
+        page, pageSize: PAGE_SIZE, search: deferredSearch, measureHistory: true,
+      });
+      setData(res);
+    } catch (err) {
+      setError(err?.message || "Could not start the status history measurement.");
+    } finally {
+      setMeasuring(false);
+    }
+  }, [page, deferredSearch]);
 
   return (
     <div className="admin-workflow-tab">
@@ -523,21 +571,99 @@ export function WorkflowTab() {
               )}
             </>
           ) : (
-            <div className="wf-status-grid">
-              {visibleStatuses.length === 0 ? (
-                <div className="empty-state">No statuses in this category.</div>
-              ) : (
-                visibleStatuses.map((status) => (
-                  <div key={status.id} className="wf-status">
-                    <span className={`wf-status__dot wf-status__dot--${CATEGORY_TONE[status.statusCategory] || "other"}`} aria-hidden="true" />
-                    <span className="wf-status__name">{status.name}</span>
-                    {status.statusCategory && (
-                      <span className="wf-status__cat">{status.statusCategory}</span>
-                    )}
-                  </div>
-                ))
+            <>
+              <div className="wf-statusbar">
+                <input
+                  type="search"
+                  className="wf-search"
+                  placeholder="Filter statuses…"
+                  value={statusSearch}
+                  onChange={(e) => setStatusSearch(e.target.value)}
+                  aria-label="Filter statuses by name"
+                />
+                <select
+                  className="wf-select"
+                  value={statusUsage}
+                  onChange={(e) => setStatusUsage(e.target.value)}
+                  aria-label="Filter statuses by usage"
+                >
+                  <option value="all">Any usage</option>
+                  <option value="active">Has issues now</option>
+                  <option value="empty">Empty now, used before</option>
+                  <option value="never">Never used</option>
+                  <option value="unknown">Usage unknown</option>
+                </select>
+                <select
+                  className="wf-select"
+                  value={statusSort}
+                  onChange={(e) => setStatusSort(e.target.value)}
+                  aria-label="Sort statuses"
+                >
+                  <option value="name">Sort by name</option>
+                  <option value="current">Sort by issues now</option>
+                  <option value="ever">Sort by issues ever</option>
+                  <option value="departed">Sort by issues departed</option>
+                </select>
+                <span className="wf-statusbar__count">
+                  {formatNumber(visibleStatuses.length)} of {formatNumber(statuses.length)}
+                </span>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={measureHistory}
+                  disabled={measuring || !snapshot?.version}
+                  title="Runs one JQL history query per status. Takes a few minutes; no issue re-scan needed."
+                >
+                  <Icon name="clock" size={13} />
+                  {measuring ? "Queued…" : statusCounts.hasHistoryCounts ? "Re-measure history" : "Measure history"}
+                </button>
+              </div>
+
+              {!statusCounts.hasCurrentCounts && (
+                <p className="wf-insights__note">
+                  <Icon name="alertTriangle" size={13} /> No current issue counts yet — run a
+                  Universe Scan to see how many issues sit in each status today.
+                </p>
               )}
-            </div>
+              {!statusCounts.hasHistoryCounts && (
+                <p className="wf-insights__note">
+                  <Icon name="info" size={13} /> Historical usage not measured yet. &ldquo;Measure
+                  history&rdquo; asks Jira how many issues have <em>ever</em> been in each status —
+                  a few minutes, and far cheaper than re-scanning every issue.
+                </p>
+              )}
+
+              <div className="wf-status-grid">
+                {visibleStatuses.length === 0 ? (
+                  <div className="empty-state">No statuses match these filters.</div>
+                ) : (
+                  visibleStatuses.map((status) => (
+                    <div key={status.id} className="wf-status">
+                      <span className={`wf-status__dot wf-status__dot--${CATEGORY_TONE[status.statusCategory] || "other"}`} aria-hidden="true" />
+                      <span className="wf-status__name">{status.name}</span>
+                      <span className="wf-status__metrics">
+                        {/* Null renders as an em dash, never as 0: an unmeasured status
+                            must not look like an unused one. */}
+                        <span className="wf-status__metric" title="Issues currently in this status">
+                          {status.issueCount === null ? "—" : formatNumber(status.issueCount)}
+                        </span>
+                        <span className="wf-status__metric wf-status__metric--muted" title="Issues that have ever been in this status">
+                          {status.everCount === null ? "—" : formatNumber(status.everCount)}
+                        </span>
+                        {status.departedCount > 0 && (
+                          <span className="wf-status__metric wf-status__metric--departed" title="Issues that passed through and left">
+                            −{formatNumber(status.departedCount)}
+                          </span>
+                        )}
+                      </span>
+                      {status.statusCategory && (
+                        <span className="wf-status__cat">{status.statusCategory}</span>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </>
           )}
         </>
       )}

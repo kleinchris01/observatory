@@ -315,6 +315,25 @@ const CREATE_ISSUE_SCAN_STATUS_TOTALS_TABLE = `
   )
 `;
 
+// How many issues have EVER been in each status, from JQL's WAS operator.
+//
+// Separate from issue_scan_status_totals, which counts issues CURRENTLY in a status: the
+// two are measured by different mechanisms, refresh independently, and the gap between
+// them is itself the signal -- a status with no current issues but tens of thousands
+// historically is a bottleneck people escaped, not a status nobody uses.
+//
+// measured_at is per row rather than per table so a partial run (some statuses timed out)
+// leaves the successful rows usable and dated.
+const CREATE_STATUS_HISTORY_TOTALS_TABLE = `
+  CREATE TABLE IF NOT EXISTS status_history_totals (
+    scope_key VARCHAR(191) NOT NULL,
+    status_id VARCHAR(191) NOT NULL,
+    ever_count BIGINT NOT NULL DEFAULT 0,
+    measured_at VARCHAR(64) NULL,
+    PRIMARY KEY (scope_key, status_id)
+  )
+`;
+
 const CREATE_WORKFLOW_SNAPSHOT_META_TABLE = `
   CREATE TABLE IF NOT EXISTS workflow_snapshot_meta (
     scope_key VARCHAR(191) NOT NULL,
@@ -419,7 +438,8 @@ const projectStoreMigrations = migrationRunner
   .enqueue("v045_create_audit_log_table", CREATE_AUDIT_LOG_TABLE)
   .enqueue("v046_create_audit_log_scope_at_index", CREATE_AUDIT_LOG_SCOPE_AT_INDEX)
   .enqueue("v047_create_snapshot_workflow_statuses_table", CREATE_SNAPSHOT_WORKFLOW_STATUSES_TABLE)
-  .enqueue("v048_create_issue_scan_status_totals_table", CREATE_ISSUE_SCAN_STATUS_TOTALS_TABLE);
+  .enqueue("v048_create_issue_scan_status_totals_table", CREATE_ISSUE_SCAN_STATUS_TOTALS_TABLE)
+  .enqueue("v049_create_status_history_totals_table", CREATE_STATUS_HISTORY_TOTALS_TABLE);
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history
@@ -3167,6 +3187,47 @@ export async function loadStatusIssueCounts(scopeKey) {
     if (row?.status_id) counts.set(String(row.status_id), toNumber(row.total));
   }
   return counts;
+}
+
+// status_id -> issues that have ever been in it. Empty map means "never measured", which
+// callers must not render as zero.
+export async function loadStatusHistoryCounts(scopeKey) {
+  await ensureProjectStoreReady();
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT status_id, ever_count, measured_at
+      FROM status_history_totals
+      WHERE scope_key = ?
+    `).bindParams(scopeKey).execute()
+  );
+  const counts = new Map();
+  let measuredAt = null;
+  for (const row of result.rows || []) {
+    if (!row?.status_id) continue;
+    counts.set(String(row.status_id), toNumber(row.ever_count));
+    if (row.measured_at && (!measuredAt || row.measured_at > measuredAt)) measuredAt = row.measured_at;
+  }
+  return { counts, measuredAt };
+}
+
+// Upsert rather than replace: a run where some statuses timed out must not delete the
+// counts it did not re-measure.
+export async function upsertStatusHistoryCounts(scopeKey, counts, measuredAt) {
+  await ensureProjectStoreReady();
+  const rows = [...counts.entries()].filter(([statusId]) => statusId);
+  if (!rows.length) return;
+
+  for (const batch of chunkArray(rows, 100)) {
+    const valuesSql = batch.map(() => "(?, ?, ?, ?)").join(", ");
+    const params = batch.flatMap(([statusId, count]) => [scopeKey, String(statusId), Number(count) || 0, measuredAt]);
+    await withSqlRetry(() =>
+      sql.prepare(`
+        INSERT INTO status_history_totals (scope_key, status_id, ever_count, measured_at)
+        VALUES ${valuesSql}
+        ON DUPLICATE KEY UPDATE ever_count = VALUES(ever_count), measured_at = VALUES(measured_at)
+      `).bindParams(...params).execute()
+    );
+  }
 }
 
 export async function clearStatusIssueCounts(scopeKey) {

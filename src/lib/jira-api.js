@@ -45,6 +45,9 @@ export const ISSUE_SCAN_WORKERS = 5;          // parallel Forge workers; keep lo
 // sustained 429s the limiter absorbs it and recovers on its own; this constant is not the
 // mechanism that protects Jira, it just makes the scan slower and more expensive.
 export const ISSUE_SCAN_INTER_PAGE_DELAY_MS = 200;
+// WAS queries hit Jira's issue-history index, which is slower than a plain status filter.
+// Given more headroom than the 8s per-project count budget for that reason.
+export const STATUS_HISTORY_TIMEOUT_MS = 15000;
 // Flush field counts + checkpoint the worker every N pages. Set to match
 // ISSUE_SCAN_CHUNK_PAGES so the mid-loop flush never fires and each invocation flushes
 // exactly once, at the end of its chunk.
@@ -920,6 +923,48 @@ export async function getAllWorkflowsWithStatuses() {
     (startAt) => route`/rest/api/3/workflow/search?expand=statuses&startAt=${startAt}&maxResults=${DEFAULT_PAGE_SIZE}`
   );
   return normalizeWorkflowSearchResponse({ values: legacy });
+}
+
+// How many issues have EVER been in each status, via JQL's WAS operator.
+//
+// This is the cheap answer to a question that otherwise needs a changelog crawl: on a
+// 317k-issue site, re-reading every issue with expand=changelog is hours, while one
+// approximate-count per status is a few hundred queries and minutes.
+//
+// Queried by status ID, never by name. A site with "Done" defined five times would give
+// `status WAS "Done"` one meaningless number covering all of them; `status WAS 10001` is
+// unambiguous.
+//
+// Returns Map<statusId, count> plus the failures, because a status whose count could not
+// be measured must not be presented as zero -- zero is what makes a status look safe to
+// delete.
+export async function getEverInStatusCounts(statusIds = [], concurrency = 8) {
+  const counts = new Map();
+  const failures = [];
+  const ids = [...new Set(statusIds.filter((id) => id !== null && id !== undefined && id !== "").map(String))];
+
+  const results = await mapWithConcurrency(ids, concurrency, async (statusId) => {
+    try {
+      const data = await withTimeout(
+        jiraRequest(route`/rest/api/3/search/approximate-count`, {
+          method: "POST",
+          // Numeric id, unquoted: quoting makes Jira resolve it as a name.
+          body: JSON.stringify({ jql: `status WAS ${statusId}` }),
+        }),
+        STATUS_HISTORY_TIMEOUT_MS
+      );
+      return { statusId, count: Number(data?.count ?? 0), error: null };
+    } catch (error) {
+      return { statusId, count: null, error: String(error?.message || error) };
+    }
+  });
+
+  for (const result of results) {
+    if (result.error) failures.push({ statusId: result.statusId, error: result.error });
+    else counts.set(result.statusId, result.count);
+  }
+
+  return { counts, failures };
 }
 
 export async function getWorkflowSchemeForProject(projectId) {

@@ -240,3 +240,104 @@ describe("WorkflowTab — insights", () => {
     expect(await screen.findByText(/Build the workflow inventory first/i)).toBeInTheDocument();
   });
 });
+
+// The status catalog now carries two independently-measured numbers: how many issues are
+// in a status now, and how many have ever been. Filters compose by intersection, and an
+// unmeasured status must never be classified as unused.
+describe("WorkflowTab — status catalog", () => {
+  const statusesPayload = (overrides = {}) => ({
+    schemes: [], page: 1, pageSize: 10, totalCount: 0, totalPages: 1,
+    snapshotStatus: { state: "ready", version: "v1", refreshedAt: "2026-08-03T12:00:00.000Z" },
+    statuses: [
+      { id: "1", name: "Backlog", statusCategory: "To Do", issueCount: 9423, everCount: 12000, departedCount: 2577 },
+      { id: "2", name: "Parking Lot", statusCategory: "To Do", issueCount: 0, everCount: 4000, departedCount: 4000 },
+      { id: "3", name: "Ghost Status", statusCategory: "Done", issueCount: 0, everCount: 0, departedCount: 0 },
+    ],
+    statusCounts: { hasCurrentCounts: true, hasHistoryCounts: true, historyMeasuredAt: "2026-08-03T12:00:00.000Z" },
+    ...overrides,
+  });
+
+  async function openStatuses(payload = statusesPayload()) {
+    invoke.mockImplementation((fn) => {
+      if (fn === "getWorkflowInventory") return Promise.resolve(payload);
+      return Promise.resolve({ available: false });
+    });
+    render(<WorkflowTab />);
+    await userEvent.click(await screen.findByRole("button", { name: /Statuses/i }));
+  }
+
+  test("shows both measures for each status", async () => {
+    await openStatuses();
+    expect(await screen.findByText("Backlog")).toBeInTheDocument();
+    expect(screen.getByText("9,423")).toBeInTheDocument();
+    expect(screen.getByText("12,000")).toBeInTheDocument();
+  });
+
+  test("filters to statuses that are empty now but were used before", async () => {
+    await openStatuses();
+    await screen.findByText("Backlog");
+
+    await userEvent.selectOptions(screen.getByLabelText(/Filter statuses by usage/i), "empty");
+
+    // The signal: nothing sits here now, but 4,000 issues passed through.
+    expect(screen.getByText("Parking Lot")).toBeInTheDocument();
+    expect(screen.queryByText("Backlog")).not.toBeInTheDocument();
+    expect(screen.queryByText("Ghost Status")).not.toBeInTheDocument();
+  });
+
+  test("filters to statuses no issue has ever entered", async () => {
+    await openStatuses();
+    await screen.findByText("Backlog");
+
+    await userEvent.selectOptions(screen.getByLabelText(/Filter statuses by usage/i), "never");
+
+    expect(screen.getByText("Ghost Status")).toBeInTheDocument();
+    expect(screen.queryByText("Parking Lot")).not.toBeInTheDocument();
+  });
+
+  test("text filter narrows by name", async () => {
+    await openStatuses();
+    await screen.findByText("Backlog");
+
+    await userEvent.type(screen.getByLabelText(/Filter statuses by name/i), "parking");
+
+    expect(screen.getByText("Parking Lot")).toBeInTheDocument();
+    expect(screen.queryByText("Backlog")).not.toBeInTheDocument();
+  });
+
+  // Unmeasured is not unused: an em dash, never a zero.
+  test("renders unmeasured usage as a dash and never classifies it as never-used", async () => {
+    await openStatuses(statusesPayload({
+      statuses: [{ id: "1", name: "Unmeasured", statusCategory: "To Do", issueCount: null, everCount: null, departedCount: null }],
+      statusCounts: { hasCurrentCounts: false, hasHistoryCounts: false },
+    }));
+    await screen.findByText("Unmeasured");
+
+    expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+
+    await userEvent.selectOptions(screen.getByLabelText(/Filter statuses by usage/i), "never");
+    expect(screen.queryByText("Unmeasured")).not.toBeInTheDocument();
+  });
+
+  test("prompts to measure history when it has never been run", async () => {
+    await openStatuses(statusesPayload({
+      statusCounts: { hasCurrentCounts: true, hasHistoryCounts: false },
+    }));
+
+    expect(await screen.findByText(/Historical usage not measured yet/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Measure history/i })).toBeInTheDocument();
+  });
+
+  test("requests the history measurement without re-scanning issues", async () => {
+    await openStatuses(statusesPayload({
+      statusCounts: { hasCurrentCounts: true, hasHistoryCounts: false },
+    }));
+
+    await userEvent.click(await screen.findByRole("button", { name: /Measure history/i }));
+
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith(
+      "getWorkflowInventory",
+      expect.objectContaining({ measureHistory: true })
+    ));
+  });
+});

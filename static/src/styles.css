@@ -6219,3 +6219,17 @@ code {
   .ui-stale { grid-template-columns: 4rem 1fr; }
   .ui-stale__when { grid-column: 2; }
 }
+
+/* Status catalog filtering and the two usage measures. */
+.wf-statusbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+.wf-statusbar__count { font-size: 0.75rem; opacity: 0.6; font-variant-numeric: tabular-nums; margin-left: auto; }
+.wf-select {
+  font-size: 0.8rem; padding: 0.32rem 0.5rem; border-radius: 4px;
+  background: var(--ds-surface-sunken, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--ds-border, rgba(255, 255, 255, 0.12));
+  color: inherit;
+}
+.wf-status__metrics { display: inline-flex; align-items: center; gap: 0.35rem; margin-left: auto; }
+.wf-status__metric { font-size: 0.72rem; font-variant-numeric: tabular-nums; opacity: 0.85; }
+.wf-status__metric--muted { opacity: 0.5; }
+.wf-status__metric--departed { color: #d3a24e; opacity: 0.9; }

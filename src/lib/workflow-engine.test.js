@@ -4,6 +4,8 @@ import {
   queueWorkflowSnapshotBuild,
   isWorkflowBuildStale,
   WORKFLOW_BUILD_STALE_MS,
+  buildStatusHistorySnapshot,
+  queueStatusHistoryBuild,
 } from "./workflow-engine.js";
 
 // logger.js is left real (console formatting only, no I/O) -- same convention
@@ -24,12 +26,16 @@ vi.mock("./jira-api.js", () => ({
   getAllStatuses: vi.fn().mockResolvedValue([]),
   getWorkflowSchemesForProjects: vi.fn().mockResolvedValue([]),
   getAllWorkflowsWithStatuses: vi.fn().mockResolvedValue([]),
+  getEverInStatusCounts: vi.fn().mockResolvedValue({ counts: new Map(), failures: [] }),
 }));
 
 vi.mock("./project-store.js", () => ({
   ensureProjectStoreReady: vi.fn().mockResolvedValue(undefined),
   writeWorkflowSnapshotMeta: vi.fn().mockResolvedValue(undefined),
   replaceWorkflowSnapshot: vi.fn().mockResolvedValue(undefined),
+  loadStatusesCatalog: vi.fn().mockResolvedValue([]),
+  readWorkflowSnapshotMeta: vi.fn().mockResolvedValue(null),
+  upsertStatusHistoryCounts: vi.fn().mockResolvedValue(undefined),
 }));
 
 import {
@@ -37,8 +43,15 @@ import {
   getAllStatuses,
   getWorkflowSchemesForProjects,
   getAllWorkflowsWithStatuses,
+  getEverInStatusCounts,
 } from "./jira-api.js";
-import { writeWorkflowSnapshotMeta, replaceWorkflowSnapshot } from "./project-store.js";
+import {
+  writeWorkflowSnapshotMeta,
+  replaceWorkflowSnapshot,
+  loadStatusesCatalog,
+  readWorkflowSnapshotMeta,
+  upsertStatusHistoryCounts,
+} from "./project-store.js";
 import { inventorySnapshotQueue } from "./queues.js";
 
 beforeEach(() => {
@@ -47,6 +60,10 @@ beforeEach(() => {
   getAllStatuses.mockResolvedValue([]);
   getWorkflowSchemesForProjects.mockResolvedValue([]);
   getAllWorkflowsWithStatuses.mockResolvedValue([]);
+  getEverInStatusCounts.mockResolvedValue({ counts: new Map(), failures: [] });
+  loadStatusesCatalog.mockResolvedValue([]);
+  readWorkflowSnapshotMeta.mockResolvedValue(null);
+  upsertStatusHistoryCounts.mockResolvedValue(undefined);
   writeWorkflowSnapshotMeta.mockResolvedValue(undefined);
   replaceWorkflowSnapshot.mockResolvedValue(undefined);
 });
@@ -189,5 +206,65 @@ describe("queueWorkflowSnapshotBuild", () => {
     const [, meta] = writeWorkflowSnapshotMeta.mock.calls[0];
     expect(Number.isFinite(Date.parse(meta.startedAt))).toBe(true);
     expect(isWorkflowBuildStale({ state: "building", startedAt: meta.startedAt })).toBe(false);
+  });
+});
+
+describe("buildStatusHistorySnapshot", () => {
+  test("measures every status in the catalog and stores the counts", async () => {
+    readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1" });
+    loadStatusesCatalog.mockResolvedValue([{ id: "1", name: "Done" }, { id: "2", name: "Backlog" }]);
+    getEverInStatusCounts.mockResolvedValue({ counts: new Map([["1", 4000], ["2", 900]]), failures: [] });
+
+    const result = await buildStatusHistorySnapshot("install-1");
+
+    expect(getEverInStatusCounts).toHaveBeenCalledWith(["1", "2"]);
+    expect(upsertStatusHistoryCounts).toHaveBeenCalledWith("install-1", expect.any(Map), expect.any(String));
+    expect(result).toMatchObject({ measured: 2, failed: 0 });
+  });
+
+  // Partial results are kept and dated. A status whose query failed keeps whatever it had
+  // rather than being overwritten with zero.
+  test("stores the successes and reports the failures", async () => {
+    readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1" });
+    loadStatusesCatalog.mockResolvedValue([{ id: "1" }, { id: "2" }]);
+    getEverInStatusCounts.mockResolvedValue({
+      counts: new Map([["1", 4000]]),
+      failures: [{ statusId: "2", error: "timeout" }],
+    });
+
+    const result = await buildStatusHistorySnapshot("install-1");
+
+    expect(result).toMatchObject({ measured: 1, failed: 1 });
+    const [, storedCounts] = upsertStatusHistoryCounts.mock.calls[0];
+    expect(storedCounts.has("2")).toBe(false);
+  });
+
+  test("skips when no workflow snapshot exists to take the catalog from", async () => {
+    readWorkflowSnapshotMeta.mockResolvedValue(null);
+
+    const result = await buildStatusHistorySnapshot("install-1");
+
+    expect(result).toMatchObject({ skipped: true });
+    expect(getEverInStatusCounts).not.toHaveBeenCalled();
+  });
+
+  test("skips when the catalog is empty", async () => {
+    readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1" });
+    loadStatusesCatalog.mockResolvedValue([]);
+
+    expect(await buildStatusHistorySnapshot("install-1")).toMatchObject({ skipped: true });
+    expect(getEverInStatusCounts).not.toHaveBeenCalled();
+  });
+});
+
+describe("queueStatusHistoryBuild", () => {
+  test("enqueues the job rather than running the queries inline", async () => {
+    await queueStatusHistoryBuild("install-1");
+
+    expect(inventorySnapshotQueue.push).toHaveBeenCalledWith({
+      body: { jobType: "build-status-history", installationKey: "install-1" },
+    });
+    // Hundreds of history queries cannot fit in a resolver invocation.
+    expect(getEverInStatusCounts).not.toHaveBeenCalled();
   });
 });

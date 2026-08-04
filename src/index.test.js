@@ -22,6 +22,7 @@ vi.mock("./lib/jira-api.js", () => ({
 
 vi.mock("./lib/workflow-engine.js", () => ({
   buildWorkflowSnapshot: vi.fn().mockResolvedValue({ schemeCount: 2, statusCount: 5, projectCount: 9 }),
+  buildStatusHistorySnapshot: vi.fn().mockResolvedValue({ measured: 40, failed: 0 }),
 }));
 
 vi.mock("./lib/scan-engine.js", () => ({
@@ -111,7 +112,7 @@ import {
   cacheFieldOptionsForField,
 } from "./lib/scan-engine.js";
 import { processProjectUsageReportJob } from "./lib/report-engine.js";
-import { buildWorkflowSnapshot } from "./lib/workflow-engine.js";
+import { buildWorkflowSnapshot, buildStatusHistorySnapshot } from "./lib/workflow-engine.js";
 import { readAdminConfig, runDeltaIssueScanJob, ADMIN_ONLY_FUNCTIONS, SHARED_RESOLVER_FUNCTIONS } from "./resolvers.js";
 
 const CONTEXT = { installContext: "ari:cloud:jira::site/UUID" };
@@ -356,6 +357,18 @@ describe("consumeSnapshot job routing", () => {
   test("a failing workflow build does not rethrow, so Forge will not retry it forever", async () => {
     buildWorkflowSnapshot.mockRejectedValueOnce(new Error("jira down"));
     await expect(consumeSnapshot(event({ jobType: "build-workflow-snapshot" }))).resolves.toBeUndefined();
+  });
+
+  // Measuring "ever been in" is its own queued job so it never competes with the
+  // universe scan and can be run on demand.
+  test("routes build-status-history to the status history builder", async () => {
+    await consumeSnapshot(event({ jobType: "build-status-history" }));
+    expect(buildStatusHistorySnapshot).toHaveBeenCalledWith("scope-1");
+  });
+
+  test("a failing status history build does not rethrow", async () => {
+    buildStatusHistorySnapshot.mockRejectedValueOnce(new Error("jira down"));
+    await expect(consumeSnapshot(event({ jobType: "build-status-history" }))).resolves.toBeUndefined();
   });
 
   test("routes run-issue-scan-worker with its worker id", async () => {

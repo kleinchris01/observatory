@@ -36,11 +36,15 @@ import {
   extractWorkflowScheme,
   normalizeWorkflowSearchResponse,
   getAllWorkflowsWithStatuses,
+  getEverInStatusCounts,
   JIRA_REQUEST_HARD_TIMEOUT_MS,
 } from "./jira-api.js";
 
 // Not exported by the module; mirrored here so the timer mock can recognise it.
 const ISSUE_COUNT_TIMEOUT_MS = 8000;
+// Same reason: getEverInStatusCounts wraps each WAS query in this budget, and firing it
+// would make every request look like a timeout.
+const STATUS_HISTORY_TIMEOUT_MS = 15000;
 
 function jiraResponse({ ok = true, status = 200, body = {}, text = "" } = {}) {
   return {
@@ -64,7 +68,7 @@ beforeEach(() => {
   // Collapse delays, leave deadlines pending. The two deadlines in this module are
   // the 8s per-count budget and the 12s hard request deadline; firing either would
   // make it win its race and turn every result into a timeout.
-  const DEADLINES = new Set([ISSUE_COUNT_TIMEOUT_MS, JIRA_REQUEST_HARD_TIMEOUT_MS]);
+  const DEADLINES = new Set([ISSUE_COUNT_TIMEOUT_MS, STATUS_HISTORY_TIMEOUT_MS, JIRA_REQUEST_HARD_TIMEOUT_MS]);
   vi.spyOn(globalThis, "setTimeout").mockImplementation((fn, ms) => {
     if (!DEADLINES.has(ms)) fn();
     return 0;
@@ -737,5 +741,61 @@ describe("getAllWorkflowsWithStatuses", () => {
   test("propagates the error when both endpoints fail", async () => {
     mockRequestJira.mockResolvedValue(jiraResponse({ ok: false, status: 500, text: "boom" }));
     await expect(getAllWorkflowsWithStatuses()).rejects.toThrow();
+  });
+});
+
+// "Ever been in a status" via JQL's WAS operator: one approximate-count per status
+// instead of re-reading every issue with expand=changelog, which on a 317k-issue site is
+// the difference between minutes and hours.
+describe("getEverInStatusCounts", () => {
+  test("queries by status ID, unquoted, so duplicate names stay distinguishable", async () => {
+    mockRequestJira.mockResolvedValue(jiraResponse({ body: { count: 4000 } }));
+
+    await getEverInStatusCounts(["10001"]);
+
+    const sent = JSON.parse(mockRequestJira.mock.calls[0][1].body);
+    // A site with "Done" five times would give `status WAS "Done"` one meaningless total.
+    expect(sent.jql).toBe("status WAS 10001");
+  });
+
+  test("returns a count per status", async () => {
+    mockRequestJira
+      .mockResolvedValueOnce(jiraResponse({ body: { count: 4000 } }))
+      .mockResolvedValueOnce(jiraResponse({ body: { count: 0 } }));
+
+    const { counts, failures } = await getEverInStatusCounts(["1", "2"]);
+
+    expect(counts.get("1")).toBe(4000);
+    expect(counts.get("2")).toBe(0);
+    expect(failures).toEqual([]);
+  });
+
+  // A status whose query failed must be absent from the map, not present as zero: zero is
+  // exactly what marks a status safe to delete.
+  test("reports failures separately instead of recording them as zero", async () => {
+    mockRequestJira
+      .mockResolvedValueOnce(jiraResponse({ body: { count: 12 } }))
+      .mockResolvedValue(jiraResponse({ ok: false, status: 400, text: "bad jql" }));
+
+    const { counts, failures } = await getEverInStatusCounts(["1", "2"]);
+
+    expect(counts.get("1")).toBe(12);
+    expect(counts.has("2")).toBe(false);
+    expect(failures).toHaveLength(1);
+    expect(failures[0].statusId).toBe("2");
+  });
+
+  test("deduplicates and ignores blank ids", async () => {
+    mockRequestJira.mockResolvedValue(jiraResponse({ body: { count: 1 } }));
+
+    await getEverInStatusCounts(["1", "1", "", null, undefined]);
+
+    expect(mockRequestJira).toHaveBeenCalledTimes(1);
+  });
+
+  test("makes no calls at all for an empty status list", async () => {
+    const { counts } = await getEverInStatusCounts([]);
+    expect(counts.size).toBe(0);
+    expect(mockRequestJira).not.toHaveBeenCalled();
   });
 });

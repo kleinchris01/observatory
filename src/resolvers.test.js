@@ -85,10 +85,12 @@ const mocks = vi.hoisted(() => ({
   loadStatusesCatalog: vi.fn(),
   loadWorkflowSchemeStatuses: vi.fn(),
   loadStatusIssueCounts: vi.fn(),
+  loadStatusHistoryCounts: vi.fn(),
 
   // workflow-engine.js
   buildWorkflowSnapshot: vi.fn(),
   queueWorkflowSnapshotBuild: vi.fn(),
+  queueStatusHistoryBuild: vi.fn(),
   // Pure and covered directly in workflow-engine.test.js; mocked here so these tests can
   // state "the row is stale" as a premise rather than manufacturing timestamps.
   isWorkflowBuildStale: vi.fn(() => false),
@@ -200,11 +202,13 @@ vi.mock("./lib/project-store.js", () => ({
   loadStatusesCatalog: mocks.loadStatusesCatalog,
   loadWorkflowSchemeStatuses: mocks.loadWorkflowSchemeStatuses,
   loadStatusIssueCounts: mocks.loadStatusIssueCounts,
+  loadStatusHistoryCounts: mocks.loadStatusHistoryCounts,
 }));
 
 vi.mock("./lib/workflow-engine.js", () => ({
   buildWorkflowSnapshot: mocks.buildWorkflowSnapshot,
   queueWorkflowSnapshotBuild: mocks.queueWorkflowSnapshotBuild,
+  queueStatusHistoryBuild: mocks.queueStatusHistoryBuild,
   isWorkflowBuildStale: mocks.isWorkflowBuildStale,
 }));
 
@@ -362,8 +366,10 @@ beforeEach(() => {
   mocks.loadStatusesCatalog.mockResolvedValue([]);
   mocks.loadWorkflowSchemeStatuses.mockResolvedValue([]);
   mocks.loadStatusIssueCounts.mockResolvedValue(new Map());
+  mocks.loadStatusHistoryCounts.mockResolvedValue({ counts: new Map(), measuredAt: null });
   mocks.buildWorkflowSnapshot.mockResolvedValue({ version: "v1", schemeCount: 0, statusCount: 0, projectCount: 0 });
   mocks.queueWorkflowSnapshotBuild.mockResolvedValue(undefined);
+  mocks.queueStatusHistoryBuild.mockResolvedValue(undefined);
   mocks.isWorkflowBuildStale.mockReturnValue(false);
 });
 
@@ -650,7 +656,12 @@ describe("getWorkflowInventory", () => {
     expect(result.totalCount).toBe(2);
     expect(result.schemes).toHaveLength(1);
     expect(result.totalPages).toBe(2);
-    expect(result.statuses).toEqual([{ id: "1", name: "To Do", statusCategory: "To Do" }]);
+    // Statuses now carry both usage measures. Null rather than 0 for each: they are
+    // measured by separate jobs and neither had run here, so "unknown" is the truth.
+    expect(result.statuses).toEqual([{
+      id: "1", name: "To Do", statusCategory: "To Do",
+      issueCount: null, everCount: null, departedCount: null,
+    }]);
   });
 
   test("filters search by scheme name and description", async () => {
@@ -751,6 +762,82 @@ describe("getWorkflowInventory", () => {
     expect(result.totalCount).toBe(30);
     expect(result.schemes).toHaveLength(10);
     expect(mocks.loadWorkflowSchemeProjects).toHaveBeenCalledTimes(10);
+  });
+
+
+  // "Currently in" and "ever been in" come from different jobs (the universe scan and JQL
+  // WAS queries) and refresh independently, so each is reported with its own availability
+  // flag. Reporting an unmeasured status as 0 is what would make it look safe to delete.
+  test("reports both usage measures on each status when both have been measured", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready" });
+    mocks.loadWorkflowSchemes.mockResolvedValue([]);
+    mocks.loadStatusesCatalog.mockResolvedValue([{ id: "1", name: "Parking Lot", statusCategory: "To Do" }]);
+    mocks.loadStatusIssueCounts.mockResolvedValue(new Map([["1", 792]]));
+    mocks.loadStatusHistoryCounts.mockResolvedValue({ counts: new Map([["1", 4000]]), measuredAt: "2026-08-03T12:00:00Z" });
+
+    const result = await getWorkflowInventory({ payload: {}, context: ctxWithAccount() });
+
+    expect(result.statuses[0]).toMatchObject({ issueCount: 792, everCount: 4000, departedCount: 3208 });
+    expect(result.statusCounts).toMatchObject({ hasCurrentCounts: true, hasHistoryCounts: true });
+  });
+
+  test("leaves the historical measure unknown when only the scan has run", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready" });
+    mocks.loadWorkflowSchemes.mockResolvedValue([]);
+    mocks.loadStatusesCatalog.mockResolvedValue([{ id: "1", name: "Backlog", statusCategory: "To Do" }]);
+    mocks.loadStatusIssueCounts.mockResolvedValue(new Map([["1", 9423]]));
+
+    const result = await getWorkflowInventory({ payload: {}, context: ctxWithAccount() });
+
+    expect(result.statuses[0]).toMatchObject({ issueCount: 9423, everCount: null, departedCount: null });
+    expect(result.statusCounts.hasHistoryCounts).toBe(false);
+  });
+
+  // The two measures are sampled at different times, so a status can gain issues between
+  // them. A negative "departed" would be nonsense on screen.
+  test("floors departed at zero when the current count exceeds the historical one", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready" });
+    mocks.loadWorkflowSchemes.mockResolvedValue([]);
+    mocks.loadStatusesCatalog.mockResolvedValue([{ id: "1", name: "Active", statusCategory: "In Progress" }]);
+    mocks.loadStatusIssueCounts.mockResolvedValue(new Map([["1", 50]]));
+    mocks.loadStatusHistoryCounts.mockResolvedValue({ counts: new Map([["1", 40]]), measuredAt: "x" });
+
+    const result = await getWorkflowInventory({ payload: {}, context: ctxWithAccount() });
+
+    expect(result.statuses[0].departedCount).toBe(0);
+  });
+
+  test("queues the history measurement only when asked and a snapshot exists", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready" });
+    mocks.loadWorkflowSchemes.mockResolvedValue([]);
+    mocks.loadStatusesCatalog.mockResolvedValue([]);
+
+    await getWorkflowInventory({ payload: { measureHistory: true }, context: ctxWithAccount() });
+    expect(mocks.queueStatusHistoryBuild).toHaveBeenCalledWith("test-install");
+
+    mocks.queueStatusHistoryBuild.mockClear();
+    await getWorkflowInventory({ payload: {}, context: ctxWithAccount() });
+    expect(mocks.queueStatusHistoryBuild).not.toHaveBeenCalled();
+  });
+
+  test("does not queue a history measurement with no snapshot to measure against", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: null, state: "idle" });
+
+    await getWorkflowInventory({ payload: { measureHistory: true }, context: ctxWithAccount() });
+
+    expect(mocks.queueStatusHistoryBuild).not.toHaveBeenCalled();
+  });
+
+  test("degrades to unknown when the count lookups fail", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready" });
+    mocks.loadWorkflowSchemes.mockResolvedValue([]);
+    mocks.loadStatusesCatalog.mockResolvedValue([{ id: "1", name: "Done", statusCategory: "Done" }]);
+    mocks.loadStatusIssueCounts.mockRejectedValue(new Error("sql down"));
+    mocks.loadStatusHistoryCounts.mockRejectedValue(new Error("sql down"));
+
+    const result = await getWorkflowInventory({ payload: {}, context: ctxWithAccount() });
+
+    expect(result.statuses[0]).toMatchObject({ issueCount: null, everCount: null });
   });
 
   test("never surfaces a scheme's project count from projects the viewer can't browse", async () => {
