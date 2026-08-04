@@ -268,6 +268,92 @@ function WorkflowInsights({ insights, loading }) {
   );
 }
 
+
+// ── Status distribution charts ──────────────────────────────────────────────
+//
+// Two questions the catalog list cannot answer at a glance: how the site's statuses split
+// across Jira's three categories, and which statuses carry the most abandoned history.
+//
+// Both are magnitude, so both use one hue with the value labelled on every mark -- identity
+// never rests on colour alone. Category is the exception: it is a fixed three-way split
+// where the categories are the point, so it gets a stacked bar with a legend.
+
+function CategoryBar({ statuses }) {
+  const counts = { "To Do": 0, "In Progress": 0, Done: 0, Uncategorised: 0 };
+  for (const status of statuses) {
+    const key = counts[status.statusCategory] !== undefined ? status.statusCategory : "Uncategorised";
+    counts[key] += 1;
+  }
+  const total = statuses.length;
+  if (!total) return null;
+
+  const segments = [
+    { key: "To Do", tone: "todo" },
+    { key: "In Progress", tone: "progress" },
+    { key: "Done", tone: "done" },
+    { key: "Uncategorised", tone: "other" },
+  ].filter((seg) => counts[seg.key] > 0);
+
+  return (
+    <div className="wf-chart">
+      <div className="wf-chart__title">Status categories</div>
+      <div className="wf-catbar" role="img"
+        aria-label={segments.map((s) => `${counts[s.key]} ${s.key}`).join(", ")}>
+        {segments.map((seg) => (
+          <span
+            key={seg.key}
+            className={`wf-catbar__seg wf-catbar__seg--${seg.tone}`}
+            style={{ flexGrow: counts[seg.key] }}
+            data-tip={`${seg.key}: ${formatNumber(counts[seg.key])}`}
+          >
+            {counts[seg.key] / total > 0.08 ? formatNumber(counts[seg.key]) : ""}
+          </span>
+        ))}
+      </div>
+      <div className="wf-chart__legend">
+        {segments.map((seg) => (
+          <span key={seg.key} className="wf-chart__legenditem">
+            <span className={`wf-chart__swatch wf-chart__swatch--${seg.tone}`} />
+            {seg.key} — {formatNumber(counts[seg.key])}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Statuses issues passed through and left. This is the finding the "ever been in" measure
+// exists to produce, and a ranked bar is the fastest way to see where the volume sits.
+function DepartedChart({ statuses }) {
+  const ranked = statuses
+    .filter((s) => (s.departedCount ?? 0) > 0)
+    .sort((a, b) => b.departedCount - a.departedCount)
+    .slice(0, 8);
+  if (ranked.length === 0) return null;
+
+  const max = Math.max(...ranked.map((s) => s.departedCount), 1);
+
+  return (
+    <div className="wf-chart">
+      <div className="wf-chart__title">Most passed through, then left</div>
+      <p className="wf-chart__desc">
+        Issues that entered a status and moved on. Empty now, heavily used before.
+      </p>
+      <div className="wf-barlist">
+        {ranked.map((status) => (
+          <div key={status.id} className="wf-barlist__row">
+            <span className="wf-barlist__label" title={status.name}>{status.name}</span>
+            <span className="wf-barlist__track">
+              <span className="wf-barlist__bar" style={{ width: `${(status.departedCount / max) * 100}%` }} />
+            </span>
+            <span className="wf-barlist__value">{formatNumber(status.departedCount)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function WorkflowTab() {
   const [view, setView] = React.useState("schemes");
   const [insights, setInsights] = React.useState(null);
@@ -641,6 +727,13 @@ export function WorkflowTab() {
                     cheaper than re-scanning every issue.
                   </span>
                 </p>
+              )}
+
+              {statuses.length > 0 && (
+                <div className="wf-charts">
+                  <CategoryBar statuses={statuses} />
+                  <DepartedChart statuses={statuses} />
+                </div>
               )}
 
               <div className="wf-status-grid">

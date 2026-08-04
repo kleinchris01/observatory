@@ -266,43 +266,49 @@ describe("WorkflowTab — status catalog", () => {
     await userEvent.click(await screen.findByRole("button", { name: /Statuses/i }));
   }
 
+  // Status names also appear in the charts above the catalog, so grid assertions are
+  // scoped -- otherwise "is Parking Lot visible" silently answers a different question.
+  const inGrid = () => document.querySelector(".wf-status-grid");
+  const gridHas = (name) => within(inGrid()).queryAllByText(name).length > 0;
+
   test("shows both measures for each status", async () => {
     await openStatuses();
-    expect(await screen.findByText("Backlog")).toBeInTheDocument();
-    expect(screen.getByText("9,423")).toBeInTheDocument();
-    expect(screen.getByText("12,000")).toBeInTheDocument();
+    await waitFor(() => expect(inGrid()).not.toBeNull());
+    expect(gridHas("Backlog")).toBe(true);
+    expect(within(inGrid()).getByText("9,423")).toBeInTheDocument();
+    expect(within(inGrid()).getByText("12,000")).toBeInTheDocument();
   });
 
   test("filters to statuses that are empty now but were used before", async () => {
     await openStatuses();
-    await screen.findByText("Backlog");
+    await waitFor(() => expect(gridHas("Backlog")).toBe(true));
 
     await userEvent.selectOptions(screen.getByLabelText(/Filter statuses by usage/i), "empty");
 
     // The signal: nothing sits here now, but 4,000 issues passed through.
-    expect(screen.getByText("Parking Lot")).toBeInTheDocument();
-    expect(screen.queryByText("Backlog")).not.toBeInTheDocument();
-    expect(screen.queryByText("Ghost Status")).not.toBeInTheDocument();
+    expect(gridHas("Parking Lot")).toBe(true);
+    expect(gridHas("Backlog")).toBe(false);
+    expect(gridHas("Ghost Status")).toBe(false);
   });
 
   test("filters to statuses no issue has ever entered", async () => {
     await openStatuses();
-    await screen.findByText("Backlog");
+    await waitFor(() => expect(gridHas("Backlog")).toBe(true));
 
     await userEvent.selectOptions(screen.getByLabelText(/Filter statuses by usage/i), "never");
 
-    expect(screen.getByText("Ghost Status")).toBeInTheDocument();
-    expect(screen.queryByText("Parking Lot")).not.toBeInTheDocument();
+    expect(gridHas("Ghost Status")).toBe(true);
+    expect(gridHas("Parking Lot")).toBe(false);
   });
 
   test("text filter narrows by name", async () => {
     await openStatuses();
-    await screen.findByText("Backlog");
+    await waitFor(() => expect(gridHas("Backlog")).toBe(true));
 
     await userEvent.type(screen.getByLabelText(/Filter statuses by name/i), "parking");
 
-    expect(screen.getByText("Parking Lot")).toBeInTheDocument();
-    expect(screen.queryByText("Backlog")).not.toBeInTheDocument();
+    expect(gridHas("Parking Lot")).toBe(true);
+    expect(gridHas("Backlog")).toBe(false);
   });
 
   // Unmeasured is not unused: an em dash, never a zero.
@@ -311,12 +317,12 @@ describe("WorkflowTab — status catalog", () => {
       statuses: [{ id: "1", name: "Unmeasured", statusCategory: "To Do", issueCount: null, everCount: null, departedCount: null }],
       statusCounts: { hasCurrentCounts: false, hasHistoryCounts: false },
     }));
-    await screen.findByText("Unmeasured");
+    await waitFor(() => expect(gridHas("Unmeasured")).toBe(true));
 
     expect(screen.getAllByText("—").length).toBeGreaterThan(0);
 
     await userEvent.selectOptions(screen.getByLabelText(/Filter statuses by usage/i), "never");
-    expect(screen.queryByText("Unmeasured")).not.toBeInTheDocument();
+    expect(gridHas("Unmeasured")).toBe(false);
   });
 
   test("prompts to measure history when it has never been run", async () => {
