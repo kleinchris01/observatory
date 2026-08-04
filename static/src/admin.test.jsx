@@ -3,7 +3,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { invoke, view, router, rovo } from "@forge/bridge";
-import { AdminApp, ClearSnapshotControl, AuditLogPanel } from "./admin";
+import { AdminApp } from "./admin";
+import { ClearSnapshotControl } from "./tabs/ScansTab";
+import { AuditLogPanel } from "./components/admin/AuditLogPanel";
 
 // ---------------------------------------------------------------------------
 // Helpers
