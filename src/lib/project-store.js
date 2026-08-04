@@ -1,4 +1,5 @@
 import { sql, migrationRunner } from "@forge/sql";
+import { fallbackOn } from "./logger.js";
 
 const CREATE_SNAPSHOT_FIELDS_TABLE = `
   CREATE TABLE IF NOT EXISTS snapshot_fields (
@@ -2531,7 +2532,7 @@ export async function atomicAccumulateIssueScanProgress(scopeKey, pages, issues)
 // Appends a single log entry to progress_log without touching numeric counters.
 // Concurrent callers may occasionally overwrite each other's entry — acceptable for display-only data.
 export async function appendIssueScanLogEntry(scopeKey, msg) {
-  const meta = await readIssueScanMeta(scopeKey).catch(() => null);
+  const meta = await readIssueScanMeta(scopeKey).catch(fallbackOn("store.scan_meta_read_failed", null, { scopeKey }));
   if (!meta) return;
   const log = Array.isArray(meta.progressLog) ? meta.progressLog : [];
   const updated = [...log, { t: new Date().toISOString(), msg }].slice(-100);

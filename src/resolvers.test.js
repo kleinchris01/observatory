@@ -1378,6 +1378,35 @@ describe("getAdminOverview", () => {
     expect(result.workflow).toEqual({ available: false, state: "error" });
   });
 
+
+  // The worst silent handler in the codebase was a bare `catch {}` around this build:
+  // an empty dashboard and a site with no data render identically, so the difference
+  // has to exist in the logs.
+  test("logs and still returns an overview when the dashboard build throws", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "ready", version: 5 });
+    mocks.listFieldSummaries.mockResolvedValue([]);
+    mocks.kvsGet.mockResolvedValue(null);
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+    mocks.loadSnapshotFields.mockRejectedValue(new Error("sql down"));
+
+    const result = await getAdminOverview({ context: {} });
+
+    // Job counts and config still render; only the dashboard degrades.
+    expect(result.jobCounts).toBeDefined();
+    expect(result.dashboard).toBeDefined();
+  });
+
+  test("degrades the legacy row count without failing the overview", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "idle" });
+    mocks.listFieldSummaries.mockResolvedValue([]);
+    mocks.kvsGet.mockResolvedValue(null);
+    mocks.countOldScopeKeyRows.mockRejectedValue(new Error("sql down"));
+
+    const result = await getAdminOverview({ context: {} });
+
+    expect(result.legacySummaryCount).toBe(0);
+  });
+
   test("does not fail the whole overview if the findings computation throws", async () => {
     mocks.readSnapshotMeta.mockResolvedValue({ state: "ready", version: 5 });
     mocks.listFieldSummaries.mockResolvedValue([]);

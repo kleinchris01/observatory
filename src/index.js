@@ -1,4 +1,5 @@
 import { makeResolver } from "@forge/resolver";
+import { logger, fallbackOn, ignoreWith } from "./lib/logger.js";
 import {
   incrMetric,
   METRIC_NAMES,
@@ -268,7 +269,7 @@ export async function consumeSnapshot(event) {
     // here regardless, because Forge would retry the message indefinitely.
     if (jobType === "build-field-summary") {
       const fieldId = String(event?.body?.fieldId || "");
-      const existing = fieldId ? await loadFieldSummary(installationKey, fieldId).catch(() => null) : null;
+      const existing = fieldId ? await loadFieldSummary(installationKey, fieldId).catch(fallbackOn("consumer.summary_load_failed", null, { fieldId })) : null;
       if (existing) {
         const message = String(error?.message || "Unknown error");
         const isRecoverableQueuePressure =
@@ -290,7 +291,7 @@ export async function consumeSnapshot(event) {
                 : `${jobType === "refresh-field-project-delta" ? "Incremental refresh failed" : "Job failed"}: ${message}`,
             },
           ].slice(-100),
-        }).catch(() => {});
+        }).catch(ignoreWith("consumer.summary_failure_write_failed", { installationKey }));
         if (!isRecoverableQueuePressure) {
           incrMetric(METRIC_NAMES.projectUsageJobFailed);
         }
@@ -298,7 +299,7 @@ export async function consumeSnapshot(event) {
     }
     if (jobType === "build-project-usage-report") {
       const jobId = String(event?.body?.jobId || "");
-      const existing = jobId ? await loadReportJob(installationKey, jobId).catch(() => null) : null;
+      const existing = jobId ? await loadReportJob(installationKey, jobId).catch(fallbackOn("consumer.report_job_load_failed", null, { jobId })) : null;
       if (existing) {
         const message = String(error?.message || "Unknown error");
         await replaceReportJob(installationKey, jobId, {
@@ -311,7 +312,7 @@ export async function consumeSnapshot(event) {
             ...(existing.progressLog || []),
             { t: new Date().toISOString(), msg: `Report job failed: ${message}` },
           ].slice(-100),
-        }).catch(() => {});
+        }).catch(ignoreWith("consumer.report_failure_write_failed", { installationKey }));
         incrMetric(METRIC_NAMES.reportJobFailed);
       }
     }

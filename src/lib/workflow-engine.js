@@ -1,4 +1,4 @@
-import { logger } from "./logger.js";
+import { logger, ignoreWith } from "./logger.js";
 import { inventorySnapshotQueue } from "./queues.js";
 import {
   incrMetric,
@@ -198,7 +198,7 @@ export async function buildWorkflowSnapshot(installationKey) {
     await writeWorkflowSnapshotMeta(installationKey, {
       state: "failed",
       lastError: String(error?.message || error),
-    }).catch(() => {});
+    }).catch(ignoreWith("workflow.failure_state_write_failed", { installationKey }));
     incrMetric(METRIC_NAMES.workflowSnapshotFailed);
     throw error;
   }

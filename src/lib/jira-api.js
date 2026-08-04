@@ -1,4 +1,5 @@
 import api, { route } from "@forge/api";
+import { fallbackOn } from "./logger.js";
 import { internalMetrics } from "@forge/metrics";
 import {
   buildFieldJql,
@@ -190,6 +191,10 @@ export async function withTimeout(promise, ms) {
     timer = setTimeout(() => reject(new Error(`timed out after ${ms}ms`)), ms);
   });
   // Suppress unhandled rejection on the abandoned promise when timeout wins the race
+  // Deliberately silent, and the one place in this file that should be. The caller
+  // still holds this promise and will surface its rejection; this attachment exists
+  // only so an abandoned copy does not trip an unhandled-rejection warning. Logging
+  // here would double-report every timeout.
   promise.catch(() => {});
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
@@ -689,8 +694,8 @@ export async function getFieldContextIssueTypeMappings(fieldId) {
 export async function loadFieldContexts(fieldId) {
   const [contexts, projectMappings, issueTypeMappings] = await Promise.all([
     getFieldContexts(fieldId),
-    getFieldContextProjectMappings(fieldId).catch(() => []),
-    getFieldContextIssueTypeMappings(fieldId).catch(() => []),
+    getFieldContextProjectMappings(fieldId).catch(fallbackOn("jira.context_project_mappings_failed", () => [], { fieldId })),
+    getFieldContextIssueTypeMappings(fieldId).catch(fallbackOn("jira.context_issuetype_mappings_failed", () => [], { fieldId })),
   ]);
 
   const projectIds = Array.from(

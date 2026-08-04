@@ -1,5 +1,5 @@
 import { inventorySnapshotQueue } from "./queues.js";
-import { logger } from "./logger.js";
+import { logger, fallbackOn, ignoreWith } from "./logger.js";
 import {
   incrMetric,
   METRIC_NAMES,
@@ -317,7 +317,7 @@ export async function topOffDeferredFieldSummaryJobs(installationKey, version, j
       break;
     }
 
-    const fullJob = await loadFieldSummary(installationKey, job.fieldId).catch(() => job);
+    const fullJob = await loadFieldSummary(installationKey, job.fieldId).catch(fallbackOn("snapshot.summary_load_failed", () => job, { fieldId: job.fieldId }));
     const updatedJob = {
       ...fullJob,
       fieldId: job.fieldId,
@@ -365,7 +365,7 @@ export async function ensureFieldSummaryJobRunning(installationKey, version, fie
     return summary;
   }
 
-  const fieldRecord = snapshotField || summary.field || await loadSnapshotField(installationKey, version, fieldId).catch(() => null);
+  const fieldRecord = snapshotField || summary.field || await loadSnapshotField(installationKey, version, fieldId).catch(fallbackOn("snapshot.field_load_failed", null, { fieldId }));
   if (!fieldRecord) {
     return summary;
   }
@@ -722,7 +722,7 @@ function isExpiredPageTokenError(error) {
 export async function fetchFieldCatalog() {
   const [customFields, systemFields] = await Promise.all([
     getAllCustomFields(),
-    getAllSystemFields().catch(() => []),
+    getAllSystemFields().catch(fallbackOn("snapshot.system_fields_load_failed", () => [])),
   ]);
   return [
     ...customFields,
@@ -890,7 +890,16 @@ export async function runSnapshot(installationKey) {
         totalFields: totalCount,
         progressLog: [...progressLog],
       });
-    } catch {}
+    } catch (error) {
+      // Progress reporting only; the build continues either way. Debug rather than warn
+      // because this fires on a timer and a transient failure is expected under load --
+      // but a run where it fails EVERY time looks like a frozen progress bar, and this
+      // is the only thing that would explain it.
+      logger.debug("snapshot.progress_write_failed", {
+        installationKey,
+        error: String(error?.message || error),
+      });
+    }
   }
 
   async function flushPendingFieldRecords() {
@@ -959,7 +968,7 @@ export async function runSnapshot(installationKey) {
     }
 
     progressInterval = setInterval(() => {
-      flushProgress().catch(() => {});
+      flushProgress().catch(ignoreWith("snapshot.progress_flush_failed", { installationKey }));
     }, SNAPSHOT_PROGRESS_FLUSH_INTERVAL_MS);
 
     const allFields = await fetchFieldCatalog();
@@ -1130,7 +1139,15 @@ export async function runSnapshot(installationKey) {
     logger.info("snapshot.complete", { installationKey, version, processedFields: totalCount, skipped: skipCount });
     try {
       await inventorySnapshotQueue.push({ body: { jobType: "run-delta-issue-scan", installationKey } });
-    } catch { /* non-critical */ }
+    } catch (error) {
+      // The snapshot itself is complete and committed; only the follow-on delta scan was
+      // lost. Worth a warning: usage counts then quietly stop refreshing until the next
+      // full build, which presents as stale data rather than as a failure.
+      logger.warn("snapshot.delta_queue_failed", {
+        installationKey,
+        error: String(error?.message || error),
+      });
+    }
   } catch (err) {
     if (progressInterval) {
       clearInterval(progressInterval);
@@ -1138,7 +1155,7 @@ export async function runSnapshot(installationKey) {
     }
     // Before writing back, verify we still own the build slot.
     // A newer build may have taken over — don't clobber its state.
-    const finalMeta = await readSnapshotMeta(installationKey).catch(() => null);
+    const finalMeta = await readSnapshotMeta(installationKey).catch(fallbackOn("snapshot.final_meta_read_failed", null, { installationKey }));
     const stillOwner = finalMeta?.buildingVersion === version;
 
     if (err?.isCancelError) {
@@ -1150,7 +1167,7 @@ export async function runSnapshot(installationKey) {
           lastError: null,
           processedFields: processedCount,
           progressLog: [...progressLog],
-        }).catch(() => {});
+        }).catch(ignoreWith("snapshot.failure_state_write_failed", { installationKey }));
       }
     } else {
       logger.error("snapshot.failed", { installationKey, version, error: err?.message });
@@ -1162,7 +1179,7 @@ export async function runSnapshot(installationKey) {
           lastError: err?.message || String(err),
           processedFields: processedCount,
           progressLog: [...progressLog],
-        }).catch(() => {});
+        }).catch(ignoreWith("snapshot.failure_state_write_failed", { installationKey }));
       }
     }
   } finally {

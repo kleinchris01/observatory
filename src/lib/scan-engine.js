@@ -1,5 +1,5 @@
 import { inventorySnapshotQueue } from "./queues.js";
-import { logger } from "./logger.js";
+import { logger, fallbackOn, ignoreWith } from "./logger.js";
 import {
   jiraRequest,
   sleep,
@@ -94,7 +94,7 @@ export async function queueIssueScanChunk(installationKey, progressLog = [], nex
         nextStartAt: nextStartAt || (Date.now() + delayMs),
         lastError: null,
         progressLog: queuedLog,
-      }).catch(() => {});
+      }).catch(ignoreWith("scan.backpressure_meta_write_failed", { installationKey }));
       return false;
     }
   }
@@ -132,7 +132,8 @@ export async function completeIssueScanFinalization(installationKey, tag, worker
       // is "not yet crawled," not "confirmed zero," and treating it as the latter would
       // erase good data from a previous run.
       const workers = await Promise.all(
-        Array.from({ length: ISSUE_SCAN_WORKERS }, (_, workerId) => readIssueScanWorker(installationKey, workerId).catch(() => null))
+        Array.from({ length: ISSUE_SCAN_WORKERS }, (_, workerId) =>
+          readIssueScanWorker(installationKey, workerId).catch(fallbackOn("scan.worker_read_failed", null, { workerId })))
       );
       const scanCoverageComplete = workers.every((worker) => !worker || worker.status === "done");
 
@@ -178,7 +179,7 @@ export async function completeIssueScanFinalization(installationKey, tag, worker
     const message = error?.message || String(error);
     logger.error("scan.finalization_failed", { installationKey, error: message });
     console.error(`${tag}: finalization failed:`, message);
-    const finalMeta = await readIssueScanMeta(installationKey).catch(() => null);
+    const finalMeta = await readIssueScanMeta(installationKey).catch(fallbackOn("scan.final_meta_read_failed", null, { installationKey }));
     await writeIssueScanMeta(installationKey, {
       state: "failed",
       completedAt: new Date().toISOString(),
@@ -189,7 +190,7 @@ export async function completeIssueScanFinalization(installationKey, tag, worker
         ...((finalMeta?.progressLog || []).slice(-40)),
         { t: new Date().toISOString(), msg: `Finalization failed - ${message}` },
       ],
-    }).catch(() => {});
+    }).catch(ignoreWith("scan.finalization_failure_write_failed", { installationKey }));
   }
 }
 
@@ -251,7 +252,7 @@ export async function runIssueScanCoordinator(installationKey) {
 
     // Get per-project approximate counts to load-balance workers.
     // Prefer historical data; fall back to live approximate-count for unknown projects.
-    const knownTotals = await loadIssueScanProjectTotals(installationKey).catch(() => []);
+    const knownTotals = await loadIssueScanProjectTotals(installationKey).catch(fallbackOn("scan.project_totals_load_failed", () => [], { installationKey }));
     const issueCountByKey = new Map(knownTotals.map((r) => [r.projectKey, r.uniqueIssueCount]));
     const unknownKeys = allProjectKeys.filter((k) => !issueCountByKey.has(k));
     if (unknownKeys.length > 0) {
@@ -363,7 +364,7 @@ export async function runIssueScanCoordinator(installationKey) {
     await clearIssueScanBuffer(installationKey);
     // Status totals accumulate with ON DUPLICATE KEY UPDATE, so a fresh run must start
     // from empty -- otherwise a re-scan doubles every count.
-    await clearStatusIssueCounts(installationKey).catch(() => {});
+    await clearStatusIssueCounts(installationKey).catch(ignoreWith("scan.status_totals_clear_failed", { installationKey }));
     await clearRqtFieldIndex(installationKey);
     await clearRqtIssueKeys(installationKey);
     await clearRqtValueIndex(installationKey);
@@ -405,7 +406,7 @@ export async function runIssueScanCoordinator(installationKey) {
       state: "failed",
       completedAt: new Date().toISOString(),
       lastError: error?.message || String(error),
-    }).catch(() => {});
+    }).catch(ignoreWith("scan.coordinator_failure_write_failed", { installationKey }));
   }
 }
 
@@ -447,10 +448,10 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
     if (!worker.jqlFilter) {
       console.log(`${tag}: no projects assigned, marking done`);
       await updateIssueScanWorker(installationKey, workerId, { status: "done", nextPageToken: null, lastError: null });
-      const updatedMeta = await atomicAccumulateIssueScanProgress(installationKey, 1, 0).catch(() => null);
+      const updatedMeta = await atomicAccumulateIssueScanProgress(installationKey, 1, 0).catch(fallbackOn("scan.progress_accumulate_failed", null, { installationKey }));
       if (updatedMeta && updatedMeta.processedPages >= updatedMeta.totalPages && updatedMeta.totalPages > 0) {
         const claimToken = makeJobToken();
-        const claimed = await tryClaimIssueScanFinalization(installationKey, claimToken).catch(() => false);
+        const claimed = await tryClaimIssueScanFinalization(installationKey, claimToken).catch(fallbackOn("scan.finalization_claim_failed", false, { installationKey }));
         if (claimed) await completeIssueScanFinalization(installationKey, tag);
       }
       return;
@@ -474,16 +475,16 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
           projectTotals.clear();
         }
         if (rqtFieldHits.size > 0) {
-          await upsertRqtFieldHits(installationKey, rqtFieldHits).catch(() => {});
+          await upsertRqtFieldHits(installationKey, rqtFieldHits).catch(ignoreWith("scan.rqt_field_flush_failed", { installationKey }));
           rqtFieldHits.clear();
         }
         if (pendingIssues > 0) {
-          const updMid = await atomicAccumulateIssueScanProgress(installationKey, 0, pendingIssues).catch(() => null);
+          const updMid = await atomicAccumulateIssueScanProgress(installationKey, 0, pendingIssues).catch(fallbackOn("scan.progress_accumulate_failed", null, { installationKey }));
           if (updMid) {
             const cur = updMid.processedIssues ?? 0;
             const prev = cur - pendingIssues;
             if (Math.floor(prev / 5000) < Math.floor(cur / 5000)) {
-              await appendIssueScanLogEntry(installationKey, `${cur.toLocaleString()} issues scanned`).catch(() => {});
+              await appendIssueScanLogEntry(installationKey, `${cur.toLocaleString()} issues scanned`).catch(ignoreWith("scan.log_append_failed", { installationKey }));
             }
           }
           worker = await updateIssueScanWorker(installationKey, workerId, {
@@ -527,18 +528,18 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
         if (is400 && currentNextPageToken) {
           // Cursor token expired — flush buffered data and restart this worker from the beginning
           console.warn(`${tag}: 400 on paginated search — nextPageToken likely expired; flushing and restarting worker`);
-          await appendIssueScanLogEntry(installationKey, `Worker ${workerId}: page token expired (400), restarting from page 1`).catch(() => {});
+          await appendIssueScanLogEntry(installationKey, `Worker ${workerId}: page token expired (400), restarting from page 1`).catch(ignoreWith("scan.log_append_failed", { workerId }));
           if (fieldProjectCounts.size > 0 || projectTotals.size > 0) {
-            await flushIssueScanCounts(installationKey, fieldProjectCounts, projectTotals).catch(() => {});
+            await flushIssueScanCounts(installationKey, fieldProjectCounts, projectTotals).catch(ignoreWith("scan.count_flush_failed_on_token_reset", { workerId }));
             fieldProjectCounts.clear(); projectTotals.clear();
           }
-          if (rqtFieldHits.size > 0) { await upsertRqtFieldHits(installationKey, rqtFieldHits).catch(() => {}); rqtFieldHits.clear(); }
-          if (rqtIssueBuffer.length > 0) { await upsertRqtIssueKeys(installationKey, rqtIssueBuffer).catch(() => {}); rqtIssueBuffer.length = 0; }
-          if (rqtValueBuffer.length > 0) { await upsertRqtValueIssueKeys(installationKey, rqtValueBuffer).catch(() => {}); rqtValueBuffer.length = 0; }
-          if (rqtFieldIssueBuffer.length > 0) { await upsertRqtFieldIssueKeys(installationKey, rqtFieldIssueBuffer).catch(() => {}); rqtFieldIssueBuffer.length = 0; }
+          if (rqtFieldHits.size > 0) { await upsertRqtFieldHits(installationKey, rqtFieldHits).catch(ignoreWith("scan.rqt_field_flush_failed", { workerId })); rqtFieldHits.clear(); }
+          if (rqtIssueBuffer.length > 0) { await upsertRqtIssueKeys(installationKey, rqtIssueBuffer).catch(ignoreWith("scan.rqt_issue_flush_failed", { workerId })); rqtIssueBuffer.length = 0; }
+          if (rqtValueBuffer.length > 0) { await upsertRqtValueIssueKeys(installationKey, rqtValueBuffer).catch(ignoreWith("scan.rqt_value_flush_failed", { workerId })); rqtValueBuffer.length = 0; }
+          if (rqtFieldIssueBuffer.length > 0) { await upsertRqtFieldIssueKeys(installationKey, rqtFieldIssueBuffer).catch(ignoreWith("scan.rqt_field_issue_flush_failed", { workerId })); rqtFieldIssueBuffer.length = 0; }
           await updateIssueScanWorker(installationKey, workerId, {
             status: "queued", nextPageToken: null, lastError: "Page token expired; restarting from beginning",
-          }).catch(() => {});
+          }).catch(ignoreWith("scan.token_reset_write_failed", { workerId }));
           await queueIssueScanWorker(installationKey, workerId);
           return;
         }
@@ -685,14 +686,14 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
   } catch (error) {
     const errMsg = error?.message || String(error);
     console.error(`${tag} failed:`, errMsg);
-    await updateIssueScanWorker(installationKey, workerId, { status: "failed", lastError: errMsg }).catch(() => {});
-    await appendIssueScanLogEntry(installationKey, `Worker ${workerId} failed - ${errMsg}`).catch(() => {});
+    await updateIssueScanWorker(installationKey, workerId, { status: "failed", lastError: errMsg }).catch(ignoreWith("scan.worker_failure_write_failed", { workerId }));
+    await appendIssueScanLogEntry(installationKey, `Worker ${workerId} failed - ${errMsg}`).catch(ignoreWith("scan.log_append_failed", { workerId }));
     await writeIssueScanMeta(installationKey, {
       state: "failed",
       completedAt: new Date().toISOString(),
       nextPageToken: null,
       nextStartAt: 0,
       lastError: `Worker ${workerId} failed - ${errMsg}`,
-    }).catch(() => {});
+    }).catch(ignoreWith("scan.worker_failure_meta_write_failed", { workerId }));
   }
 }

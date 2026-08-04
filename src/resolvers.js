@@ -122,7 +122,7 @@ import {
   getFieldNumericId,
 } from "./lib/transform.js";
 import { inventorySnapshotQueue } from "./lib/queues.js";
-import { logger } from "./lib/logger.js";
+import { logger, fallbackOn, ignoreWith } from "./lib/logger.js";
 import {
   requireNonEmptyString,
   requirePositiveInt,
@@ -413,8 +413,8 @@ async function getFieldInventory({ payload, context }) {
     // Load from last good version — works for "ready", "building" (shows stale), and "failed"
     const [snapshotFields, fieldSummaries, issueSumsMap] = await Promise.all([
       loadSnapshotFields(installationKey, meta.version),
-      listFieldSummaries(installationKey, 5000).catch(() => []),
-      loadSnapshotFieldIssueSums(installationKey, meta.version).catch(() => new Map()),
+      listFieldSummaries(installationKey, 5000).catch(fallbackOn("inventory.summaries_load_failed", () => [], { installationKey })),
+      loadSnapshotFieldIssueSums(installationKey, meta.version).catch(fallbackOn("inventory.issue_sums_load_failed", () => new Map(), { installationKey })),
     ]);
     const summaryByFieldId = new Map(fieldSummaries.map((summary) => [summary.fieldId, summary]));
     const duplicateNameCounts = buildDuplicateNameCountMap(snapshotFields);
@@ -538,8 +538,8 @@ async function getWorkflowInventory({ payload, context }) {
       loadStatusesCatalog(installationKey, meta.version),
       // Both are optional and measured by different mechanisms, so each failure degrades
       // to "unknown" rather than to zero -- zero is what makes a status look deletable.
-      loadStatusIssueCounts(installationKey).catch(() => new Map()),
-      loadStatusHistoryCounts(installationKey).catch(() => ({ counts: new Map(), measuredAt: null })),
+      loadStatusIssueCounts(installationKey).catch(fallbackOn("workflow.status_counts_load_failed", () => new Map(), { installationKey })),
+      loadStatusHistoryCounts(installationKey).catch(fallbackOn("workflow.status_history_load_failed", () => ({ counts: new Map(), measuredAt: null }), { installationKey })),
     ]);
 
     const hasCurrentCounts = currentCounts.size > 0;
@@ -657,13 +657,13 @@ async function getWorkflowInsights({ context }) {
     // Issue counts are optional. They come from the universe scan, which is versioned
     // independently and may never have run -- an empty map means "unknown", and every
     // downstream claim about a status being safe to delete is suppressed accordingly.
-    const issueCounts = await loadStatusIssueCounts(installationKey).catch(() => new Map());
+    const issueCounts = await loadStatusIssueCounts(installationKey).catch(fallbackOn("insights.status_counts_load_failed", () => new Map(), { installationKey }));
     const hasIssueCounts = issueCounts.size > 0;
 
     // "Ever been in" is measured separately from "currently in": the first comes from JQL
     // WAS queries, the second from the universe scan. They refresh independently, so each
     // is reported with its own availability flag rather than assumed to arrive together.
-    const history = await loadStatusHistoryCounts(installationKey).catch(() => ({ counts: new Map(), measuredAt: null }));
+    const history = await loadStatusHistoryCounts(installationKey).catch(fallbackOn("insights.status_history_load_failed", () => ({ counts: new Map(), measuredAt: null }), { installationKey }));
     const hasHistoryCounts = history.counts.size > 0;
 
     // The scheme->status mapping is best-effort in the build: if the workflow expansion
@@ -969,7 +969,7 @@ async function refreshRecentProjectUsage({ payload, context }) {
   const hours = Math.max(1, Math.min(168, Math.trunc(Number(payload?.hours)) || 24));
   const maxIssues = Math.max(50, Math.min(2000, Math.trunc(Number(payload?.maxIssues)) || 500));
   const recent = await collectRecentFieldProjectCandidates(hours, maxIssues);
-  const allSummaries = await listFieldSummaries(installationKey, 5000).catch(() => []);
+  const allSummaries = await listFieldSummaries(installationKey, 5000).catch(fallbackOn("resolver.summaries_load_failed", () => [], { installationKey }));
   const summaryByFieldId = new Map(allSummaries.map((summary) => [summary.fieldId, summary]));
 
   let queuedCount = 0;
@@ -978,7 +978,7 @@ async function refreshRecentProjectUsage({ payload, context }) {
     const fieldId = String(candidate.fieldId || "").trim();
     if (!fieldId) continue;
 
-    const snapshotField = await loadSnapshotField(installationKey, meta.version, fieldId).catch(() => null);
+    const snapshotField = await loadSnapshotField(installationKey, meta.version, fieldId).catch(fallbackOn("resolver.snapshot_field_load_failed", null, { fieldId }));
     if (!snapshotField) continue;
 
     const summary = summaryByFieldId.get(fieldId) || null;
@@ -1204,7 +1204,7 @@ async function ensureProjectUsageJobQueued(installationKey, version, snapshotFie
   }
 
   const fieldId = snapshotField.id;
-  const summary = existingSummary || await loadFieldSummary(installationKey, fieldId).catch(() => null);
+  const summary = existingSummary || await loadFieldSummary(installationKey, fieldId).catch(fallbackOn("resolver.field_summary_load_failed", null, { fieldId }));
   if (summary?.summaryStatus === "queued" || summary?.summaryStatus === "building") {
     return { queued: false, reason: "already-running" };
   }
@@ -1284,7 +1284,7 @@ async function ensureDeferredProjectUsageJobRecorded(installationKey, snapshotFi
   }
 
   const fieldId = snapshotField.id;
-  const summary = existingSummary || await loadFieldSummary(installationKey, fieldId).catch(() => null);
+  const summary = existingSummary || await loadFieldSummary(installationKey, fieldId).catch(fallbackOn("resolver.field_summary_load_failed", null, { fieldId }));
   if (summary?.summaryStatus === "queued" || summary?.summaryStatus === "building" || summary?.summaryStatus === "ready") {
     return;
   }
@@ -1388,14 +1388,14 @@ async function getProjectUsageReport({ payload, context }) {
   }
 
   const pendingFields = [];
-  const allSummaries = await listFieldSummaries(installationKey, 5000).catch(() => []);
+  const allSummaries = await listFieldSummaries(installationKey, 5000).catch(fallbackOn("resolver.summaries_load_failed", () => [], { installationKey }));
   const summaryByFieldId = new Map(allSummaries.map((summary) => [summary.fieldId, summary]));
   const queueCandidates = [];
   const rows = await Promise.all(fieldIds.map(async (fieldId) => {
     const [field, projectUsage, fieldSummary] = await Promise.all([
       loadSnapshotField(installationKey, meta.version, fieldId),
       loadAllSnapshotProjectUsage(installationKey, meta.version, fieldId),
-      loadFieldSummary(installationKey, fieldId).catch(() => summaryByFieldId.get(fieldId) || null),
+      loadFieldSummary(installationKey, fieldId).catch(fallbackOn("resolver.field_summary_load_failed", () => summaryByFieldId.get(fieldId) || null, { fieldId })),
     ]);
     if (!field) {
       return null;
@@ -1406,7 +1406,7 @@ async function getProjectUsageReport({ payload, context }) {
     // 2. field_summaries.activeProjects (populated by Field Usage Jobs)
     let finalProjects = projectUsage;
     if (!finalProjects.length) {
-      finalProjects = await loadAnySnapshotProjectUsage(installationKey, fieldId).catch(() => []);
+      finalProjects = await loadAnySnapshotProjectUsage(installationKey, fieldId).catch(fallbackOn("resolver.any_project_usage_load_failed", () => [], { fieldId }));
     }
     if (!finalProjects.length) {
       finalProjects = (fieldSummary?.activeProjects || []).map((p) => ({
@@ -1652,7 +1652,7 @@ async function getProjectsView({ payload, context }) {
 
   const [allProjects, issueScanMeta] = await Promise.all([
     listSnapshotProjects(installationKey, meta.version, projectQuery),
-    readIssueScanMeta(installationKey).catch(() => null),
+    readIssueScanMeta(installationKey).catch(fallbackOn("resolver.scan_meta_read_failed", null, { installationKey })),
   ]);
 
   // Only show projects the CALLING user actually has Browse Projects
@@ -1820,7 +1820,7 @@ async function getFilteredFieldIds({ payload, context }) {
   const duplicateNamesOnly = Boolean(payload?.duplicateNamesOnly);
   const hasDescription = payload?.hasDescription || "all";
   const snapshotFields = await loadSnapshotFields(installationKey, meta.version);
-  const fieldSummaries = await listFieldSummaries(installationKey, 5000).catch(() => []);
+  const fieldSummaries = await listFieldSummaries(installationKey, 5000).catch(fallbackOn("resolver.summaries_load_failed", () => [], { installationKey }));
   const summaryByFieldId = new Map(fieldSummaries.map((summary) => [summary.fieldId, summary]));
   const duplicateNameCounts = buildDuplicateNameCountMap(snapshotFields);
   const allFields = snapshotFields.map((field) => {
@@ -1909,7 +1909,7 @@ async function startIssueScan({ context }) {
       completedAt: new Date().toISOString(),
       lastError: `Queue push failed: ${pushError?.message || String(pushError)}`,
       progressLog: [{ t: new Date().toISOString(), msg: `Failed to queue scan: ${pushError?.message || String(pushError)}` }],
-    }).catch(() => {});
+    }).catch(ignoreWith("scan.queue_failure_write_failed", { installationKey }));
     throw pushError;
   }
 
@@ -1950,12 +1950,12 @@ async function resumeIssueScan({ context }) {
   const queueErrors = [];
   let anyRequeued = false;
   for (let workerId = 0; workerId < ISSUE_SCAN_WORKERS; workerId++) {
-    const worker = await readIssueScanWorker(installationKey, workerId).catch(() => null);
+    const worker = await readIssueScanWorker(installationKey, workerId).catch(fallbackOn("scan.worker_read_failed", null, { workerId }));
     if (!worker || worker.status === "done") continue;
     anyRequeued = true;
     // Reset failed workers back to queued so they can run again
     if (worker.status === "failed") {
-      await updateIssueScanWorker(installationKey, workerId, { status: "queued", lastError: null }).catch(() => {});
+      await updateIssueScanWorker(installationKey, workerId, { status: "queued", lastError: null }).catch(ignoreWith("scan.worker_requeue_write_failed", { workerId }));
     }
     try {
       await queueIssueScanWorker(installationKey, workerId);
@@ -1966,7 +1966,7 @@ async function resumeIssueScan({ context }) {
 
   if (queueErrors.length > 0) {
     const errMsg = `Resume partially failed: ${queueErrors.join("; ")}`;
-    await writeIssueScanMeta(installationKey, { state: "failed", lastError: errMsg }).catch(() => {});
+    await writeIssueScanMeta(installationKey, { state: "failed", lastError: errMsg }).catch(ignoreWith("scan.resume_failure_write_failed", { installationKey }));
     throw new Error(errMsg);
   }
 
@@ -2313,7 +2313,7 @@ async function buildWorkflowOverview(installationKey) {
       loadStatusesCatalog(installationKey, meta.version),
       loadWorkflowSchemeStatuses(installationKey, meta.version),
     ]);
-    const issueCounts = await loadStatusIssueCounts(installationKey).catch(() => new Map());
+    const issueCounts = await loadStatusIssueCounts(installationKey).catch(fallbackOn("resolver.status_counts_load_failed", () => new Map(), { installationKey }));
     const hasIssueCounts = issueCounts.size > 0;
     const schemeStatusesAvailable = schemeStatuses.length > 0;
 
@@ -2351,9 +2351,9 @@ export async function getAdminOverview({ context }) {
   const installationKey = getInstallationKey(context);
   const [meta, summaries, config, legacySummaryCount, workflow] = await Promise.all([
     readSnapshotMeta(installationKey),
-    listFieldSummaries(installationKey, 5000).catch(() => []),
+    listFieldSummaries(installationKey, 5000).catch(fallbackOn("overview.summaries_load_failed", () => [], { installationKey })),
     readAdminConfig(),
-    countOldScopeKeyRows(installationKey).catch(() => 0),
+    countOldScopeKeyRows(installationKey).catch(fallbackOn("overview.legacy_row_count_failed", 0, { installationKey })),
     buildWorkflowOverview(installationKey),
   ]);
 
@@ -2381,7 +2381,16 @@ export async function getAdminOverview({ context }) {
         fieldUsage: buildFieldUsageInsights(hydrated),
         projects: buildProjectInsights(projects),
       };
-    } catch {}
+    } catch (error) {
+      // Overview must still render its job counts and config if the dashboard build
+      // fails -- but an empty dashboard and a site with no data look identical on
+      // screen, so the difference has to exist in the logs.
+      logger.warn("overview.dashboard_build_failed", {
+        installationKey,
+        version: meta.version,
+        error: String(error?.message || error),
+      });
+    }
   }
 
   return {
@@ -2454,7 +2463,15 @@ export async function runDeltaIssueScanJob(installationKey, windowHours = DELTA_
         body: JSON.stringify({ jql, maxResults: 0, fields: [] }),
       });
       totalDeltaIssues = Number(countData?.total ?? 0);
-    } catch { /* non-critical */ }
+    } catch (error) {
+      // Progress totals only -- the delta scan runs regardless. Logged because a zero
+      // total makes the progress bar claim completion immediately, which reads as a
+      // finished scan rather than an unknown one.
+      logger.warn("delta.total_count_failed", {
+        installationKey: deltaScopeKey,
+        error: String(error?.message || error),
+      });
+    }
 
     const totalDeltaPages = Math.ceil(totalDeltaIssues / ISSUE_SCAN_PAGE_SIZE);
     logEntry(`${totalDeltaIssues.toLocaleString()} issues created/updated in last ${windowDays}d (${totalDeltaPages} pages)`);
@@ -2551,7 +2568,7 @@ export async function runDeltaIssueScanJob(installationKey, windowHours = DELTA_
           processedIssues: issuesScanned,
           processedPages: pagesScanned,
           progressLog: [...progressLog],
-        }).catch(() => {});
+        }).catch(ignoreWith("delta.progress_write_failed", { installationKey }));
       }
 
       if (!cursorToken || issues.length === 0) break;
@@ -2680,7 +2697,7 @@ export async function runDeltaIssueScanJob(installationKey, windowHours = DELTA_
       completedAt: new Date().toISOString(),
       lastError: error?.message || String(error),
       progressLog: [...progressLog, { t: new Date().toISOString(), msg: `Delta scan failed: ${error?.message || error}` }],
-    }).catch(() => {});
+    }).catch(ignoreWith("delta.failure_write_failed", { installationKey }));
     console.error("runDeltaIssueScanJob failed:", error?.message || error);
   }
 }
@@ -2708,7 +2725,7 @@ async function startDeltaIssueScan({ context }) {
     await writeIssueScanMeta(deltaScopeKey, {
       state: "failed",
       lastError: `Queue push failed: ${pushError?.message || pushError}`,
-    }).catch(() => {});
+    }).catch(ignoreWith("delta.completion_write_failed", { installationKey }));
     throw pushError;
   }
 }
@@ -2743,8 +2760,12 @@ async function getRqtIndex({ context }) {
       for (const r of rqtFields) {
         if (nameMap[r.fieldId]) r.fieldName = nameMap[r.fieldId];
       }
-    } catch {
-      // Name enrichment is best-effort
+    } catch (error) {
+      // Best-effort: the RQT index is usable with raw field ids, just less readable.
+      logger.warn("rqt.name_enrichment_failed", {
+        installationKey,
+        error: String(error?.message || error),
+      });
     }
   }
 
