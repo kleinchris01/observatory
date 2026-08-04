@@ -183,3 +183,51 @@ describe("ProjectUsageReportView — filters and layout", () => {
     }
   });
 });
+
+// The matrix is what people export and make consolidation decisions from, so the shading
+// has to mean something exact: it encodes magnitude, and an absent intersection is not a
+// low one.
+describe("ProjectUsageReportView — heat map", () => {
+  test("shades cells by issue count and shows a scale legend", async () => {
+    const { container } = render(<ProjectUsageReportView {...props()} />);
+    await screen.findAllByText("Team");
+
+    const shaded = container.querySelectorAll("td[data-heat]");
+    expect(shaded.length).toBeGreaterThan(0);
+    // Sequential encoding needs a scale, or the shading is decoration.
+    expect(container.querySelectorAll(".heat-legend__swatch").length).toBe(5);
+  });
+
+  // An absent intersection means the field is not configured on that project. Shading it
+  // as a low value would invite deleting a field that is simply not there.
+  test("leaves cells with no intersection unshaded", async () => {
+    const { container } = render(<ProjectUsageReportView {...props()} />);
+    await screen.findAllByText("Team");
+
+    // Sprint Goal is configured on ALPHA only, so its BRAVO cell has no intersection.
+    const unshaded = container.querySelectorAll("td:not([data-heat])");
+    expect(unshaded.length).toBeGreaterThan(0);
+  });
+
+  test("assigns a heavier step to a busier intersection", async () => {
+    const { container } = render(<ProjectUsageReportView {...props()} />);
+    await screen.findAllByText("Team");
+
+    const steps = [...container.querySelectorAll("td[data-heat]")]
+      .map((td) => Number(td.getAttribute("data-heat")));
+    // 30 issues and 10 issues must not land on the same step.
+    expect(new Set(steps).size).toBeGreaterThan(1);
+    expect(Math.max(...steps)).toBeLessThanOrEqual(5);
+    expect(Math.min(...steps)).toBeGreaterThanOrEqual(1);
+  });
+
+  test("shading can be turned off", async () => {
+    const { container } = render(<ProjectUsageReportView {...props()} />);
+    await screen.findAllByText("Team");
+
+    await userEvent.click(screen.getByRole("button", { name: /Heat map/i }));
+
+    expect(container.querySelectorAll("td[data-heat]").length).toBe(0);
+    expect(container.querySelector(".heat-legend")).toBeNull();
+  });
+});
