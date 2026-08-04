@@ -39,6 +39,7 @@ import {
   getEverInStatusCounts,
   getProjectStatuses,
   getStatusesForProjects,
+  STATUS_HISTORY_TIMEOUT_MS,
   JIRA_REQUEST_HARD_TIMEOUT_MS,
 } from "./jira-api.js";
 
@@ -855,5 +856,46 @@ describe("getProjectStatuses / getStatusesForProjects", () => {
     const { byProject } = await getStatusesForProjects([]);
     expect(byProject.size).toBe(0);
     expect(mockRequestJira).not.toHaveBeenCalled();
+  });
+});
+
+// A real run measured 270 of 433 statuses and lost 163 to timeouts while a universe scan
+// saturated the same limiter. These pin the two things that made that recoverable.
+describe("getEverInStatusCounts — timeout behaviour", () => {
+  test("retries a failed status once before giving up on it", async () => {
+    mockRequestJira
+      .mockResolvedValueOnce(jiraResponse({ ok: false, status: 500, text: "timed out" }))
+      .mockResolvedValueOnce(jiraResponse({ body: { count: 900 } }));
+
+    const { counts, failures } = await getEverInStatusCounts(["1"]);
+
+    // The retry pass recovers it, so it is a count rather than a gap.
+    expect(counts.get("1")).toBe(900);
+    expect(failures).toEqual([]);
+  });
+
+  test("reports a status still failing after the retry, rather than recording zero", async () => {
+    mockRequestJira.mockResolvedValue(jiraResponse({ ok: false, status: 500, text: "timed out" }));
+
+    const { counts, failures } = await getEverInStatusCounts(["1"]);
+
+    // Absent, not zero. Zero is what marks a status safe to delete.
+    expect(counts.has("1")).toBe(false);
+    expect(failures).toHaveLength(1);
+  });
+
+  test("does not retry statuses that succeeded first time", async () => {
+    mockRequestJira.mockResolvedValue(jiraResponse({ body: { count: 5 } }));
+
+    await getEverInStatusCounts(["1", "2"]);
+
+    // Two statuses, two calls -- a retry pass over clean results would double the cost of
+    // every healthy run.
+    expect(mockRequestJira).toHaveBeenCalledTimes(2);
+  });
+
+  test("the history budget cannot exceed the hard request deadline", () => {
+    // An outer budget above the inner deadline is dead code: the inner one always wins.
+    expect(STATUS_HISTORY_TIMEOUT_MS).toBeLessThanOrEqual(JIRA_REQUEST_HARD_TIMEOUT_MS);
   });
 });

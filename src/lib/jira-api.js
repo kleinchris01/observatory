@@ -46,9 +46,18 @@ export const ISSUE_SCAN_WORKERS = 5;          // parallel Forge workers; keep lo
 // sustained 429s the limiter absorbs it and recovers on its own; this constant is not the
 // mechanism that protects Jira, it just makes the scan slower and more expensive.
 export const ISSUE_SCAN_INTER_PAGE_DELAY_MS = 200;
-// WAS queries hit Jira's issue-history index, which is slower than a plain status filter.
-// Given more headroom than the 8s per-project count budget for that reason.
-export const STATUS_HISTORY_TIMEOUT_MS = 15000;
+// WAS queries hit Jira's issue-history index and are markedly slower than a plain status
+// filter. This is pinned to the hard request deadline rather than above it: an outer
+// budget larger than JIRA_REQUEST_HARD_TIMEOUT_MS can never fire, because the inner
+// deadline wins first. A 15s value here looked generous and was simply dead code -- the
+// real ceiling was always 12s, which is what the logs reported.
+export const STATUS_HISTORY_TIMEOUT_MS = JIRA_REQUEST_HARD_TIMEOUT_MS;
+
+// Lower than the 8 used for per-project counts. On a real site, 163 of 433 status history
+// queries timed out while a 5-worker universe scan was saturating the same rate limiter --
+// these are the slowest queries the app issues, and racing them against each other makes
+// every one of them slower.
+export const STATUS_HISTORY_CONCURRENCY = 4;
 // Flush field counts + checkpoint the worker every N pages. Set to match
 // ISSUE_SCAN_CHUNK_PAGES so the mid-loop flush never fires and each invocation flushes
 // exactly once, at the end of its chunk.
@@ -992,7 +1001,7 @@ export async function getStatusesForProjects(projectIds = [], concurrency = 8) {
 // Returns Map<statusId, count> plus the failures, because a status whose count could not
 // be measured must not be presented as zero -- zero is what makes a status look safe to
 // delete.
-export async function getEverInStatusCounts(statusIds = [], concurrency = 8) {
+export async function getEverInStatusCounts(statusIds = [], concurrency = STATUS_HISTORY_CONCURRENCY) {
   const counts = new Map();
   const failures = [];
   const ids = [...new Set(statusIds.filter((id) => id !== null && id !== undefined && id !== "").map(String))];
@@ -1013,9 +1022,36 @@ export async function getEverInStatusCounts(statusIds = [], concurrency = 8) {
     }
   });
 
+  const probe = async (statusId) => {
+    try {
+      const data = await withTimeout(
+        jiraRequest(route`/rest/api/3/search/approximate-count`, {
+          method: "POST",
+          body: JSON.stringify({ jql: `status WAS ${statusId}` }),
+        }),
+        STATUS_HISTORY_TIMEOUT_MS
+      );
+      return { statusId, count: Number(data?.count ?? 0), error: null };
+    } catch (error) {
+      return { statusId, count: null, error: String(error?.message || error) };
+    }
+  };
+
   for (const result of results) {
     if (result.error) failures.push({ statusId: result.statusId, error: result.error });
     else counts.set(result.statusId, result.count);
+  }
+
+  // One retry pass, serially, over the stragglers only. These failures are contention
+  // rather than permanent errors -- the first pass ran alongside a universe scan -- so a
+  // slow second attempt recovers most of them without doubling the cost of a clean run.
+  if (failures.length > 0) {
+    const stragglers = failures.splice(0, failures.length);
+    for (const { statusId } of stragglers) {
+      const retry = await probe(statusId);
+      if (retry.error) failures.push({ statusId, error: retry.error });
+      else counts.set(statusId, retry.count);
+    }
   }
 
   return { counts, failures };
