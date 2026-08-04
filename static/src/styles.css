@@ -6017,6 +6017,10 @@ code {
 .wf-insight-stat__value { font-size: 1.5rem; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; }
 .wf-insight-stat__label { font-size: 0.75rem; opacity: 0.7; line-height: 1.35; }
 
+/* Icon + prose. The prose MUST be wrapped in a single element: a flex container makes
+   every child its own item, so an inline <em> inside bare text splits the sentence into
+   three items with a gap between each -- which is exactly how this broke. The rules below
+   keep the icon from shrinking and let the text wrap normally within its own item. */
 .wf-insights__note {
   display: flex; align-items: flex-start; gap: 0.5rem;
   font-size: 0.82rem; opacity: 0.8; margin: 0;
@@ -6024,7 +6028,10 @@ code {
   border-left: 2px solid var(--ds-border-warning, #c9860a);
   background: rgba(201, 134, 10, 0.07);
   border-radius: 0 4px 4px 0;
+  line-height: 1.5;
 }
+.wf-insights__note > svg { flex: 0 0 auto; margin-top: 0.15rem; }
+.wf-insights__note > span { flex: 1 1 auto; min-width: 0; }
 
 .wf-insight-section { display: flex; flex-direction: column; gap: 0.6rem; }
 .wf-insight-section__title { font-size: 0.95rem; font-weight: 650; margin: 0; }
@@ -6153,10 +6160,13 @@ code {
 }
 .ui-empty--inline { padding: 0.6rem 0.75rem; font-size: 0.8rem; }
 
+/* Same contract as .wf-insights__note: wrap the prose in one element. */
 .ui-note {
   display: flex; align-items: flex-start; gap: 0.5rem; margin: 0;
-  font-size: 0.8rem; opacity: 0.75;
+  font-size: 0.8rem; opacity: 0.75; line-height: 1.5;
 }
+.ui-note > svg { flex: 0 0 auto; margin-top: 0.15rem; }
+.ui-note > span { flex: 1 1 auto; min-width: 0; }
 
 .ui-subhead { font-size: 0.8rem; font-weight: 650; margin: 0 0 0.45rem; opacity: 0.85; }
 .ui-subhead__desc { font-size: 0.76rem; opacity: 0.6; margin: -0.25rem 0 0.5rem; max-width: 56ch; }

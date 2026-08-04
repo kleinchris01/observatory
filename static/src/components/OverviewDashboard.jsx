@@ -203,8 +203,11 @@ function WorkflowPanel({ workflow, onNavigate }) {
           shared, per-scheme comparison has no leverage and it is better to say so. */}
       {workflow.sharedSchemes === 0 && workflow.schemeCount > 0 && (
         <p className="ui-note">
-          <Icon name="info" size={13} /> No scheme governs more than one project, so there is
-          no shared process to compare field usage against.
+          <Icon name="info" size={13} />
+          <span>
+            No scheme governs more than one project, so there is no shared process to compare
+            field usage against.
+          </span>
         </p>
       )}
     </Panel>

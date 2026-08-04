@@ -152,17 +152,21 @@ function WorkflowInsights({ insights, loading }) {
 
       {!hasIssueCounts && (
         <p className="wf-insights__note">
-          <Icon name="alertTriangle" size={13} /> No issue counts yet. Run a Universe Scan to
-          learn which of these statuses are actually in use — until then an unreachable status
-          cannot be confirmed safe to delete.
+          <Icon name="alertTriangle" size={13} />
+          <span>
+            No issue counts yet. Run a Universe Scan to learn which of these statuses are
+            actually in use — until then an unreachable status cannot be confirmed safe to delete.
+          </span>
         </p>
       )}
 
       {!schemeStatusesAvailable && (
         <p className="wf-insights__note">
-          <Icon name="alertTriangle" size={13} /> Jira did not return workflow status data on
-          the last build, so unreachable statuses and scheme balance cannot be assessed.
-          Rebuilding the inventory usually resolves this.
+          <Icon name="alertTriangle" size={13} />
+          <span>
+            Jira did not return workflow status data on the last build, so unreachable statuses
+            and scheme balance cannot be assessed. Rebuilding the inventory usually resolves this.
+          </span>
         </p>
       )}
 
@@ -621,15 +625,21 @@ export function WorkflowTab() {
 
               {!statusCounts.hasCurrentCounts && (
                 <p className="wf-insights__note">
-                  <Icon name="alertTriangle" size={13} /> No current issue counts yet — run a
-                  Universe Scan to see how many issues sit in each status today.
+                  <Icon name="alertTriangle" size={13} />
+                  <span>
+                    No current issue counts yet — run a Universe Scan to see how many issues
+                    sit in each status today.
+                  </span>
                 </p>
               )}
               {!statusCounts.hasHistoryCounts && (
                 <p className="wf-insights__note">
-                  <Icon name="info" size={13} /> Historical usage not measured yet. &ldquo;Measure
-                  history&rdquo; asks Jira how many issues have <em>ever</em> been in each status —
-                  a few minutes, and far cheaper than re-scanning every issue.
+                  <Icon name="info" size={13} />
+                  <span>
+                    Historical usage not measured yet. &ldquo;Measure history&rdquo; asks Jira how
+                    many issues have <em>ever</em> been in each status — a few minutes, and far
+                    cheaper than re-scanning every issue.
+                  </span>
                 </p>
               )}
 
