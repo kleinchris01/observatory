@@ -1,6 +1,6 @@
 import React from "react";
 import { AuditLogPanel } from "../components/admin/AuditLogPanel";
-import { view } from "@forge/bridge";
+import { invoke, view } from "@forge/bridge";
 import { Icon } from "../components/Icons";
 import { DEFAULT_THRESHOLDS, DEFAULT_MACRO_ACCESS, DEFAULT_CONFIG } from "../admin-defaults";
 import { Toggle, ConfigSection, ConfigRow, InlineThresholdInput } from "../components/admin/primitives";
@@ -14,7 +14,7 @@ import { Toggle, ConfigSection, ConfigRow, InlineThresholdInput } from "../compo
 // survived two wrong theories, a scan 400 that is still open, and an "Unknown SQL execution
 // error" that was a placeholder in a LIMIT clause. This makes that move available without
 // a redeploy.
-function AutomationProbePanel() {
+export function AutomationProbePanel() {
   const [result, setResult] = React.useState(null);
   const [running, setRunning] = React.useState(false);
   const [error, setError] = React.useState(null);
