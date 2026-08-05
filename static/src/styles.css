@@ -1916,16 +1916,14 @@ code {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  align-self: flex-start;
-}
-
-.projects-rail__list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 60vh;
-  overflow-y: auto;
-  padding-right: 4px;
+  /* Sticky rather than align-self: flex-start. The rail used to be a short column that
+     simply ended partway down the page, so scrolling to a field lower in the list left
+     the project switcher off-screen -- switching project meant scrolling back up first.
+     It now travels with the reader. */
+  position: sticky;
+  top: 12px;
+  align-self: start;
+  max-height: calc(100vh - 24px);
 }
 
 .projects-rail__item {
@@ -3564,92 +3562,64 @@ code {
   gap: 16px;
 }
 
-/* ── Configuration: rail + pane ────────────────────────────────────────────
-   One area at a time, chosen from a rail. The previous layout stacked five
-   sections into a single scroll, which put nine threshold rules between an
-   admin and the Save button, and gave settings, records and diagnostics the
-   same weight -- so nothing signalled which of them could change behaviour. */
+/* Two local elements the shared primitives do not cover, and should not: a set of related
+   project keys, and a type-distribution strip. Everything else on this page now uses
+   ui.jsx -- the rail is SubNavLayout, the tiles are StatTile, the bars are BarList. */
 
-.cfg {
-  display: grid;
-  grid-template-columns: 232px minmax(0, 1fr);
-  gap: 20px;
-  align-items: start;
+.project-cxn__peers { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+
+.project-cxn__peer {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(255,255,255,0.06);
+  color: var(--muted);
 }
 
-.cfg__rail {
+.project-cxn__mix {
   display: flex;
-  flex-direction: column;
   gap: 2px;
-  position: sticky;
-  top: 12px;
-  border: 1px solid var(--stroke);
-  border-radius: var(--radius-md);
-  background: var(--panel);
-  padding: 6px;
+  height: 6px;
+  margin-top: 9px;
+  border-radius: 3px;
+  overflow: hidden;
 }
+.project-cxn__mixseg { min-width: 3px; border-radius: 2px; }
 
-.cfg__railitem {
+/* ── Shared: page header and sticky actions ───────────────────────────────── */
+
+.ui-pagehead {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 10px 11px;
-  border: 0;
-  border-radius: calc(var(--radius-md) - 3px);
-  background: transparent;
-  color: var(--muted);
-  text-align: left;
-  cursor: pointer;
-  font: inherit;
-  width: 100%;
-  transition: background 0.12s ease, color 0.12s ease;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
-.cfg__railitem:hover { background: rgba(255,255,255,0.04); color: var(--text); }
-.cfg__railitem:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.ui-pagehead__titles { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 
-.cfg__railitem--active {
-  background: rgba(255,255,255,0.06);
-  color: var(--text);
-  box-shadow: inset 2px 0 0 var(--accent);
-}
-
-.cfg__railitem svg { flex: none; margin-top: 1px; }
-
-.cfg__railitem-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-
-.cfg__railitem-label { font-size: 13px; font-weight: 600; }
-
-.cfg__railitem-desc {
-  font-size: 11px;
-  color: var(--muted);
-  line-height: 1.35;
-}
-
-.cfg__railitem--active .cfg__railitem-desc { color: var(--muted); }
-
-.cfg__pane { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-
-.cfg__head { display: flex; flex-direction: column; gap: 5px; }
-
-.cfg__title {
+.ui-pagehead__title {
   margin: 0;
   font-size: 17px;
   font-weight: 700;
   letter-spacing: -0.01em;
 }
 
-.cfg__blurb {
+.ui-pagehead__desc {
   margin: 0;
   font-size: 12.5px;
   color: var(--muted);
   line-height: 1.55;
-  max-width: 66ch;
+  max-width: 68ch;
 }
 
-/* Sticks to the bottom of the viewport so Save is reachable from anywhere in a
-   long rules list, rather than only after scrolling past all of it. */
-.cfg__actions {
+.ui-pagehead__actions { display: flex; gap: 8px; flex: none; }
+
+/* Sticks to the bottom of the viewport so the primary action stays reachable from
+   anywhere in a long form, rather than only after scrolling past all of it. */
+.ui-actions {
   position: sticky;
   bottom: 0;
   display: flex;
@@ -3665,25 +3635,8 @@ code {
   backdrop-filter: blur(6px);
 }
 
-.cfg__dirty {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--muted);
-}
-
-.cfg__dirty--on { color: var(--warm); }
-
-@media (max-width: 900px) {
-  .cfg { grid-template-columns: minmax(0, 1fr); }
-  .cfg__rail {
-    position: static;
-    flex-direction: row;
-    flex-wrap: wrap;
-  }
-  .cfg__railitem { width: auto; flex: 1 1 auto; }
-  .cfg__railitem--active { box-shadow: inset 0 -2px 0 var(--accent); }
-  .cfg__railitem-desc { display: none; }
-}
+.ui-actions__status { font-size: 12px; font-weight: 600; color: var(--muted); }
+.ui-actions__status--alert { color: var(--warm); }
 
 .admin-config-section {
   border: 1px solid var(--stroke);
@@ -6555,3 +6508,5 @@ code {
   :root:not([data-theme="light"]) .heat-legend__swatch[data-heat="4"] { background: #6da7ec; }
   :root:not([data-theme="light"]) .heat-legend__swatch[data-heat="5"] { background: #9ec5f4; }
 }
+
+
