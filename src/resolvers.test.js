@@ -47,6 +47,7 @@ const mocks = vi.hoisted(() => ({
   loadAllSnapshotProjectUsage: vi.fn(),
   loadAnySnapshotProjectUsage: vi.fn(),
   listSnapshotProjects: vi.fn(),
+  loadIssueScanProjectTotals: vi.fn(),
   loadSnapshotProjectFields: vi.fn(),
   countSnapshotProjectUsage: vi.fn(),
   loadFieldSummary: vi.fn(),
@@ -164,6 +165,7 @@ vi.mock("./lib/project-store.js", () => ({
   loadAllSnapshotProjectUsage: mocks.loadAllSnapshotProjectUsage,
   loadAnySnapshotProjectUsage: mocks.loadAnySnapshotProjectUsage,
   listSnapshotProjects: mocks.listSnapshotProjects,
+  loadIssueScanProjectTotals: mocks.loadIssueScanProjectTotals,
   loadSnapshotProjectFields: mocks.loadSnapshotProjectFields,
   countSnapshotProjectUsage: mocks.countSnapshotProjectUsage,
   loadFieldSummary: mocks.loadFieldSummary,
@@ -355,6 +357,9 @@ beforeEach(() => {
   mocks.writeSnapshotMeta.mockResolvedValue(undefined);
   mocks.replaceFieldSummary.mockResolvedValue(undefined);
   mocks.listFieldSummaries.mockResolvedValue([]);
+  // Default: no Universal Scan has measured distinct issues. Every existing case then
+  // exercises the unmeasured path, which is the one that must never present fills as issues.
+  mocks.loadIssueScanProjectTotals.mockResolvedValue([]);
   mocks.searchFieldOptionsCache.mockResolvedValue([]);
   mocks.loadSnapshotFieldIssueSums.mockResolvedValue(new Map());
   mocks.sumSnapshotFieldIssueCount.mockResolvedValue(0);
@@ -1225,7 +1230,11 @@ describe("getProjectsView", () => {
 
     const result = await getProjectsView({ payload: {}, context: ctxWithAccount() });
 
-    expect(result.projects).toEqual([{ projectId: "10", projectKey: "ABC", projectName: "Alpha" }]);
+    // objectContaining, because the shape now also carries uniqueIssueCount. This test is
+    // about which projects survive the permission filter, not about their field set.
+    expect(result.projects).toEqual([
+      expect.objectContaining({ projectId: "10", projectKey: "ABC", projectName: "Alpha" }),
+    ]);
     expect(result.projects.some((p) => p.projectKey === "SECRET")).toBe(false);
   });
 
@@ -1312,12 +1321,119 @@ describe("getAdminOverview", () => {
     const projects = result.dashboard.projects;
 
     expect(projects.totalProjects).toBe(4);
-    expect(projects.totalIssues).toBe(1302);
+    expect(projects.totalFieldFills).toBe(1302);
     expect(projects.medianFieldCount).toBeGreaterThan(0);
     // Fields configured but nothing ever filed -- abandoned or never started.
     expect(projects.unusedProjects.map((p) => p.projectKey)).toContain("D");
     // Far above the norm while carrying almost no work.
     expect(projects.overConfigured.map((p) => p.projectKey)).toContain("C");
+  });
+
+  // ── Field fills are not issues ────────────────────────────────────────────
+  //
+  // snapshot_project_usage holds one row per field x project, so SUM(issue_count) counts
+  // an issue once for every populated field on it. The Overview presented that sum as
+  // "Issues covered", overstating a 317k-issue site as 19.7 million.
+
+  test("reports field fills and distinct issues as separate figures", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "ready", version: 5 });
+    mocks.kvsGet.mockResolvedValue(null);
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+    mocks.loadSnapshotFields.mockResolvedValue([snapshotField()]);
+    mocks.listSnapshotProjects.mockResolvedValue([
+      { projectId: "1", projectKey: "A", projectName: "Alpha", fieldCount: 90, totalIssueCount: 90000, latestIssueUpdatedAt: null },
+      { projectId: "2", projectKey: "B", projectName: "Bravo", fieldCount: 40, totalIssueCount: 20000, latestIssueUpdatedAt: null },
+    ]);
+    mocks.loadIssueScanProjectTotals.mockResolvedValue([
+      { projectId: "1", projectKey: "A", projectName: "Alpha", uniqueIssueCount: 1000 },
+      { projectId: "2", projectKey: "B", projectName: "Bravo", uniqueIssueCount: 500 },
+    ]);
+
+    const projects = (await getAdminOverview({ context: {} })).dashboard.projects;
+
+    expect(projects.hasUniqueCounts).toBe(true);
+    expect(projects.totalUniqueIssues).toBe(1500);
+    expect(projects.totalFieldFills).toBe(110000);
+    // The old key is gone deliberately: "totalIssues" is the name that let a fills figure
+    // be rendered as an issue count without anyone noticing.
+    expect(projects.totalIssues).toBeUndefined();
+  });
+
+  test("marks issue counts unmeasured rather than substituting fills", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "ready", version: 5 });
+    mocks.kvsGet.mockResolvedValue(null);
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+    mocks.loadSnapshotFields.mockResolvedValue([snapshotField()]);
+    mocks.listSnapshotProjects.mockResolvedValue([
+      { projectId: "1", projectKey: "A", projectName: "Alpha", fieldCount: 90, totalIssueCount: 90000, latestIssueUpdatedAt: null },
+    ]);
+    mocks.loadIssueScanProjectTotals.mockResolvedValue([]);
+
+    const projects = (await getAdminOverview({ context: {} })).dashboard.projects;
+
+    expect(projects.hasUniqueCounts).toBe(false);
+    expect(projects.totalUniqueIssues).toBeNull();
+    expect(projects.totalFieldFills).toBe(90000);
+  });
+
+  test("ranks the volume list by distinct issues once they are measured", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "ready", version: 5 });
+    mocks.kvsGet.mockResolvedValue(null);
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+    mocks.loadSnapshotFields.mockResolvedValue([snapshotField()]);
+    // BIG has more fills but fewer issues -- it simply has more fields configured. Ranking
+    // on fills puts the wrong project at the top of a list titled "highest issue volume".
+    mocks.listSnapshotProjects.mockResolvedValue([
+      { projectId: "1", projectKey: "BIG", projectName: "Big", fieldCount: 200, totalIssueCount: 200000, latestIssueUpdatedAt: null },
+      { projectId: "2", projectKey: "BUSY", projectName: "Busy", fieldCount: 10, totalIssueCount: 50000, latestIssueUpdatedAt: null },
+    ]);
+    mocks.loadIssueScanProjectTotals.mockResolvedValue([
+      { projectId: "1", projectKey: "BIG", projectName: "Big", uniqueIssueCount: 1000 },
+      { projectId: "2", projectKey: "BUSY", projectName: "Busy", uniqueIssueCount: 5000 },
+    ]);
+
+    const projects = (await getAdminOverview({ context: {} })).dashboard.projects;
+
+    expect(projects.topByIssueVolume.map((p) => p.projectKey)).toEqual(["BUSY", "BIG"]);
+    expect(projects.topByIssueVolume[0].volume).toBe(5000);
+  });
+
+  test("treats a project the scan never reached as unmeasured, not as zero", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "ready", version: 5 });
+    mocks.kvsGet.mockResolvedValue(null);
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+    mocks.loadSnapshotFields.mockResolvedValue([snapshotField()]);
+    mocks.listSnapshotProjects.mockResolvedValue([
+      { projectId: "1", projectKey: "SEEN", projectName: "Seen", fieldCount: 10, totalIssueCount: 5000, latestIssueUpdatedAt: null },
+      { projectId: "2", projectKey: "MISSED", projectName: "Missed", fieldCount: 10, totalIssueCount: 4000, latestIssueUpdatedAt: null },
+    ]);
+    mocks.loadIssueScanProjectTotals.mockResolvedValue([
+      { projectId: "1", projectKey: "SEEN", projectName: "Seen", uniqueIssueCount: 300 },
+    ]);
+
+    const projects = (await getAdminOverview({ context: {} })).dashboard.projects;
+
+    const missed = projects.topByIssueVolume.find((p) => p.projectKey === "MISSED");
+    expect(missed.uniqueIssueCount).toBeNull();
+    // Excluded from the site total rather than contributing a fabricated zero.
+    expect(projects.totalUniqueIssues).toBe(300);
+  });
+
+  test("survives the project-totals lookup failing", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "ready", version: 5 });
+    mocks.kvsGet.mockResolvedValue(null);
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+    mocks.loadSnapshotFields.mockResolvedValue([snapshotField()]);
+    mocks.listSnapshotProjects.mockResolvedValue([
+      { projectId: "1", projectKey: "A", projectName: "Alpha", fieldCount: 5, totalIssueCount: 100, latestIssueUpdatedAt: null },
+    ]);
+    mocks.loadIssueScanProjectTotals.mockRejectedValue(new Error("SQL unavailable"));
+
+    const projects = (await getAdminOverview({ context: {} })).dashboard.projects;
+
+    // Degrades to unmeasured. A failed lookup must not silently promote fills to issues.
+    expect(projects.hasUniqueCounts).toBe(false);
+    expect(projects.totalFieldFills).toBe(100);
   });
 
   test("flags projects with no activity in over six months", async () => {

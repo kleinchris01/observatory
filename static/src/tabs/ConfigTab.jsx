@@ -135,8 +135,225 @@ export function ConfigTab({ config, onSave, saving }) {
 
   const t = local.governanceThresholds || DEFAULT_THRESHOLDS;
 
+  // One pane at a time, chosen from a rail, rather than five sections stacked into a
+  // single scroll. The old layout put nine threshold rules between an admin and the Save
+  // button they came here to press, and gave settings, records and diagnostics the same
+  // visual weight -- so nothing signalled which of them could change the app's behaviour.
+  const [area, setArea] = React.useState("access");
+
   return (
-    <div className="admin-config-tab">
+    <div className="cfg">
+      <nav className="cfg__rail" aria-label="Configuration areas">
+        {CONFIG_AREAS.map((a) => (
+          <button
+            key={a.key}
+            type="button"
+            className={`cfg__railitem ${area === a.key ? "cfg__railitem--active" : ""}`}
+            onClick={() => setArea(a.key)}
+            aria-current={area === a.key ? "page" : undefined}
+          >
+            <Icon name={a.icon} size={15} />
+            <span className="cfg__railitem-text">
+              <span className="cfg__railitem-label">{a.label}</span>
+              <span className="cfg__railitem-desc">{a.desc}</span>
+            </span>
+          </button>
+        ))}
+      </nav>
+
+      <div className="cfg__pane">
+        <ConfigAreas
+          area={area}
+          local={local}
+          t={t}
+          set={set}
+          setThreshold={setThreshold}
+          setMacroAccess={setMacroAccess}
+        />
+
+        {/* Diagnostics change nothing, so the save bar would be noise there. */}
+        {area !== "diagnostics" && (
+          <div className="cfg__actions">
+            <span className={`cfg__dirty ${dirty ? "cfg__dirty--on" : ""}`}>
+              {dirty ? "Unsaved changes" : "All changes saved"}
+            </span>
+            <button
+              className="primary-button"
+              type="button"
+              onClick={handleSave}
+              disabled={saving || !dirty}
+            >
+              <Icon name="check" size={14} />
+              {saving ? "Saving…" : "Save configuration"}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// The four areas, in the order an admin meets them: who gets in, how hard the app works,
+// what it flags, and what it can tell you about itself.
+const CONFIG_AREAS = [
+  { key: "access", label: "Access", icon: "lock", desc: "Who can see the macro" },
+  { key: "scanning", label: "Scanning", icon: "clock", desc: "Load and schedule" },
+  { key: "rules", label: "Governance rules", icon: "alertTriangle", desc: "Thresholds behind findings" },
+  { key: "diagnostics", label: "Diagnostics", icon: "activity", desc: "Records and probes" },
+];
+
+function ConfigAreas({ area, local, t, set, setThreshold, setMacroAccess }) {
+  if (area === "access") {
+    return (
+      <>
+        <AreaHead
+          title="Access"
+          blurb="The admin page is gated by Jira at the platform level and is not affected by
+                 anything here. These settings govern the Confluence macro."
+        />
+        <AccessArea local={local} set={set} setMacroAccess={setMacroAccess} />
+      </>
+    );
+  }
+
+  if (area === "scanning") {
+    return (
+      <>
+        <AreaHead
+          title="Scanning"
+          blurb="How much load Observatory puts on Jira, and how often it refreshes without
+                 being asked."
+        />
+        <ScanningArea local={local} set={set} />
+      </>
+    );
+  }
+
+  if (area === "rules") {
+    return (
+      <>
+        <AreaHead
+          title="Governance rules"
+          blurb="Every finding in the app comes from one of the rules below. Edit the numbers
+                 inline — changes apply on the next inventory load, with no snapshot rebuild."
+        />
+        <RulesArea t={t} setThreshold={setThreshold} />
+      </>
+    );
+  }
+
+  return (
+    <>
+      <AreaHead
+        title="Diagnostics"
+        blurb="Records and probes. Nothing on this page changes how the app behaves — it
+               reports what already happened, or asks Jira what it will answer."
+      />
+      <ScreenCostProbePanel />
+      <AutomationProbePanel />
+      <AuditLogPanel />
+    </>
+  );
+}
+
+// Reports what a full screen inventory would cost, before one is built.
+//
+// The screen pipeline's cost turns on tabs-per-screen, which no amount of reasoning
+// produces -- only the site can answer it. This asks, by sampling.
+export function ScreenCostProbePanel() {
+  const [result, setResult] = React.useState(null);
+  const [running, setRunning] = React.useState(false);
+  const [error, setError] = React.useState(null);
+
+  async function run() {
+    setRunning(true);
+    setError(null);
+    try {
+      const res = await invoke("probeScreenFetchCost", { sampleSize: 25 });
+      if (res?.ok === false) {
+        setError(res.hint ? `${res.error} — ${res.hint}` : res.error);
+        setResult(null);
+      } else {
+        setResult(res);
+      }
+    } catch (err) {
+      setError(err?.message || "Probe failed.");
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  return (
+    <ConfigSection title="Screen inventory cost" icon="barChart">
+      <p className="admin-config-row__hint" style={{ marginBottom: 10 }}>
+        Fields-on-a-tab is one Jira call per <em>tab</em>, so the cost of a full screen
+        inventory depends on how many tabs this site's screens have — a number only the site
+        can answer. This samples 25 screens and extrapolates, rather than walking all of
+        them, which would be the expensive thing it exists to avoid committing to.
+      </p>
+
+      <button type="button" className="secondary-button" onClick={run} disabled={running}>
+        <Icon name="barChart" size={13} />
+        {running ? "Measuring…" : "Measure screen fetch cost"}
+      </button>
+
+      {error && <div className="danger-zone__error" role="alert">{error}</div>}
+
+      {result && (
+        <div className="probe-results">
+          {result.totalScreens === 0 ? (
+            <p className="probe-results__summary">{result.note}</p>
+          ) : (
+            <>
+              <p className={`probe-results__summary ${result.fitsOneInvocation ? "probe-results__summary--ok" : ""}`}>
+                {result.fitsOneInvocation
+                  ? `A full pass projects to ~${result.projectedCalls.toLocaleString()} calls and ~${result.projectedMinutes} min — inside one queue invocation.`
+                  : `A full pass projects to ~${result.projectedCalls.toLocaleString()} calls and ~${result.projectedMinutes} min — too long for one invocation. Resumability is required, not optional.`}
+              </p>
+              <table className="probe-results__table">
+                <tbody>
+                  <tr><td>Screens on site</td><td>{result.totalScreens.toLocaleString()}</td></tr>
+                  <tr><td>Sampled</td><td>{result.sampledScreens}</td></tr>
+                  <tr><td>Tabs per screen — mean</td><td>{result.meanTabsPerScreen}</td></tr>
+                  <tr><td>Tabs per screen — median</td><td>{result.medianTabsPerScreen}</td></tr>
+                  {/* The tail, not the mean, is what decides whether batching is needed. */}
+                  <tr><td>Tabs per screen — 90th pct</td><td>{result.p90TabsPerScreen}</td></tr>
+                  <tr><td>Tabs per screen — max</td><td>{result.maxTabsPerScreen}</td></tr>
+                  <tr><td>Fields per screen — mean</td><td>{result.meanFieldsPerScreen}</td></tr>
+                  <tr><td>Observed ms per call</td><td>{result.msPerCall}</td></tr>
+                  <tr><td>Calls made by this probe</td><td>{result.measuredCalls.toLocaleString()}</td></tr>
+                  <tr><td>Rate limited (429)</td><td>{result.rateLimit.hit429}</td></tr>
+                  <tr><td>Retries</td><td>{result.rateLimit.retries}</td></tr>
+                  {result.failureCount > 0 && (
+                    <tr><td>Reads that failed</td><td>{result.failureCount}</td></tr>
+                  )}
+                </tbody>
+              </table>
+              <p className="admin-config-row__hint">
+                Projection assumes one tabs call plus one fields call per tab, at the observed
+                per-call cost. The sample is random, so two runs will differ slightly — the
+                figure to act on is the order of magnitude and the tail, not the exact number.
+              </p>
+            </>
+          )}
+        </div>
+      )}
+    </ConfigSection>
+  );
+}
+
+function AreaHead({ title, blurb }) {
+  return (
+    <header className="cfg__head">
+      <h2 className="cfg__title">{title}</h2>
+      <p className="cfg__blurb">{blurb}</p>
+    </header>
+  );
+}
+
+function AccessArea({ local, set, setMacroAccess }) {
+  return (
+    <>
       <ConfigSection title="Macro access" icon="lock">
         <ConfigRow
           label="Read-only mode"
@@ -179,7 +396,13 @@ export function ConfigTab({ config, onSave, saving }) {
           </ConfigRow>
         )}
       </ConfigSection>
+    </>
+  );
+}
 
+function ScanningArea({ local, set }) {
+  return (
+    <>
       <ConfigSection title="API settings" icon="sliders">
         <ConfigRow
           label="Scan concurrency"
@@ -218,10 +441,19 @@ export function ConfigTab({ config, onSave, saving }) {
           </ConfigRow>
         )}
       </ConfigSection>
+    </>
+  );
+}
 
-      <ConfigSection title="Governance thresholds" icon="alertTriangle">
+// Grouped by what the finding means, not listed flat. Nine rules in one undifferentiated
+// column reads as a wall; the same nine under three headings read as three decisions.
+function RulesArea({ t, setThreshold }) {
+  return (
+    <>
+      <ConfigSection title="Risk" icon="alertTriangle">
         <p className="admin-config-section__desc">
-          Each rule below controls one specific finding. Edit the numbers inline — changes apply on the next inventory load with no snapshot rebuild required.
+          Fields where a change or a removal carries consequences. These raise attention, not
+          cleanup — a field flagged here is usually one to leave alone.
         </p>
         <div className="admin-threshold-rules">
 
@@ -245,6 +477,16 @@ export function ConfigTab({ config, onSave, saving }) {
             </span>
           </div>
 
+        </div>
+      </ConfigSection>
+
+      <ConfigSection title="Cleanup" icon="scissors">
+        <p className="admin-config-section__desc">
+          Fields that cost something and return little. The largest group, and the one where
+          thresholds matter most — set them too loose and every field on the site is flagged.
+        </p>
+        <div className="admin-threshold-rules">
+
           <div className="admin-threshold-rule">
             <span className="admin-threshold-rule__badge admin-threshold-rule__badge--cleanup">Cleanup</span>
             <span className="admin-threshold-rule__sentence">
@@ -259,9 +501,20 @@ export function ConfigTab({ config, onSave, saving }) {
           <div className="admin-threshold-rule">
             <span className="admin-threshold-rule__badge admin-threshold-rule__badge--cleanup">Cleanup</span>
             <span className="admin-threshold-rule__sentence">
-              <strong>Configured but unused:</strong> Flag when added to{" "}
+              {/*
+                Was "added to N or more project screens". It is not screens -- the rule reads
+                broadScopeMinProjects, which counts projects a field's CONTEXT applies to.
+                Observatory holds no screen data today, so the sentence described evidence
+                that was never gathered. Reworded to what the rule actually measures.
+
+                When the screen inventory ships this becomes a real choice: keep it as
+                contexts, or repoint the rule at screen reachability, which would make it a
+                materially stronger finding. Either way the words and the rule must agree --
+                see ConfigTab.test.jsx, which now asserts exactly that.
+              */}
+              <strong>Configured but unused:</strong> Flag when a field's context covers{" "}
               <InlineThresholdInput value={t.broadScopeMinProjects} onChange={(v) => setThreshold("broadScopeMinProjects", v)} min={1} max={500} />{" "}
-              or more project screens but has zero issues with a value — likely never adopted.
+              or more projects but no issue anywhere has a value — likely never adopted.
             </span>
           </div>
 
@@ -294,6 +547,16 @@ export function ConfigTab({ config, onSave, saving }) {
             </span>
           </div>
 
+        </div>
+      </ConfigSection>
+
+      <ConfigSection title="Standardize" icon="layers">
+        <p className="admin-config-section__desc">
+          Fields that make the catalog harder to maintain without being wrong in themselves.
+          The lowest-urgency group, and the one most worth tuning to your site's size.
+        </p>
+        <div className="admin-threshold-rules">
+
           <div className="admin-threshold-rule">
             <span className="admin-threshold-rule__badge admin-threshold-rule__badge--standardize">Standardize</span>
             <span className="admin-threshold-rule__sentence">
@@ -319,24 +582,6 @@ export function ConfigTab({ config, onSave, saving }) {
           <strong>Admin Attention</strong> is applied automatically to any field with a high-severity finding, or when the combined priority score of its findings reaches 35 or higher.
         </p>
       </ConfigSection>
-
-      <div className="admin-config-footer">
-        {dirty && <span className="admin-config-footer__unsaved">Unsaved changes</span>}
-        <button
-          className="primary-button"
-          type="button"
-          onClick={handleSave}
-          disabled={saving || !dirty}
-        >
-          <Icon name="check" size={14} />
-          {saving ? "Saving…" : "Save configuration"}
-        </button>
-      </div>
-
-      {/* Below the save footer deliberately: this is a record, not a setting, and it
-          should not sit between an admin and the button they came here to press. */}
-      <AutomationProbePanel />
-      <AuditLogPanel />
-    </div>
+    </>
   );
 }

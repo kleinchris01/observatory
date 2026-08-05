@@ -48,6 +48,7 @@ import {
   loadAllSnapshotProjectUsage,
   loadAnySnapshotProjectUsage,
   listSnapshotProjects,
+  loadIssueScanProjectTotals,
   loadSnapshotProjectFields,
   countSnapshotProjectUsage,
   loadFieldSummary,
@@ -93,6 +94,7 @@ import {
   loadStatusHistoryCounts,
 } from "./lib/project-store.js";
 import { queueWorkflowSnapshotBuild, isWorkflowBuildStale, queueStatusHistoryBuild } from "./lib/workflow-engine.js";
+import { measureScreenFetchCost, DEFAULT_SAMPLE_SIZE } from "./lib/screen-probe.js";
 import { computeSiteHealth } from "./lib/health-score.js";
 import { probeEndpoint, probeStargateEndpoint, getCloudId, getAllJiraProjects } from "./lib/jira-api.js";
 import {
@@ -729,6 +731,34 @@ async function getWorkflowInsights({ context }) {
 //
 // Jira Automation came from the Code Barrel acquisition and its REST surface has
 // historically been undocumented. Rather than assert which path works, this asks, and
+// Answers what a full screen inventory pass would cost, by sampling rather than doing one.
+//
+// Exists because the screen pipeline's cost turns on tabs-per-screen, which is unknowable
+// without asking the site. Building the fetcher first and discovering the number afterwards
+// means building it twice. Read-only, admin-only, and it never throws -- like the
+// automation probe, a diagnostic that can fail the page it runs on is worse than none.
+async function probeScreenFetchCost({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  const requested = Math.trunc(Number(payload?.sampleSize)) || DEFAULT_SAMPLE_SIZE;
+  // Bounded: below 5 the tail is invisible, and above 100 the probe becomes the expense it
+  // was written to avoid.
+  const sampleSize = Math.max(5, Math.min(100, requested));
+
+  try {
+    return await measureScreenFetchCost({ sampleSize });
+  } catch (error) {
+    logger.warn("screen-probe.failed", { error: String(error?.message || error) });
+    return {
+      ok: false,
+      error: String(error?.message || error),
+      // Named explicitly because it is the likely cause on first run and the least obvious
+      // from the error text alone: the scopes ship in the manifest but are not granted on an
+      // installation until the app is upgraded and the consent screen is accepted.
+      hint: "If this is a 401, the five screen scopes are declared but not yet granted on this installation. Upgrade the app and accept the consent screen, then retry.",
+    };
+  }
+}
+
 // reports exactly what each one returned. Admin-only, read-only, and it never throws:
 // a diagnostic that can fail the page it runs on is worse than no diagnostic.
 async function probeAutomationApi({ context }) {
@@ -1727,10 +1757,15 @@ async function getProjectsView({ payload, context }) {
   const sortBy = String(payload?.sortBy || "issues-desc").trim() || "issues-desc";
   const requestedPage = Math.max(1, Math.trunc(Number(payload?.page)) || 1);
 
-  const [allProjects, issueScanMeta] = await Promise.all([
+  const [rawProjects, issueScanMeta] = await Promise.all([
     listSnapshotProjects(installationKey, meta.version, projectQuery),
     readIssueScanMeta(installationKey).catch(fallbackOn("resolver.scan_meta_read_failed", null, { installationKey })),
   ]);
+
+  // ProjectsTab has always been written to prefer uniqueIssueCount and fall back to
+  // "fills" -- but nothing ever populated it, so the fallback was permanent and the
+  // correct branch was unreachable. Attach it here.
+  const allProjects = await attachUniqueIssueCounts(installationKey, rawProjects);
 
   // Only show projects the CALLING user actually has Browse Projects
   // permission on -- never surface another project's name/existence to
@@ -2295,6 +2330,35 @@ function buildFieldUsageInsights(hydratedFields) {
   };
 }
 
+// Attach the distinct-issue count per project, where the Universal Scan has measured one.
+//
+// listSnapshotProjects returns SUM(issue_count) over snapshot_project_usage, which holds
+// one row per field x project. That sum is FIELD FILLS, not issues: an issue carrying 90
+// populated fields contributes 90. On a site whose median project has 90 fields that
+// inflates by roughly two orders of magnitude, which is how a few hundred thousand issues
+// render as twenty million.
+//
+// issue_scan_project_totals.unique_issue_count is the real figure -- distinct issues seen
+// per project during the scan. It is only populated by a Universal Scan, so uniqueIssueCount
+// stays null on sites that have only run per-field summary builds. Callers must treat null
+// as "not measured" and say so, rather than falling back to the fills figure under an
+// issue-shaped label.
+async function attachUniqueIssueCounts(installationKey, projects) {
+  const totals = await loadIssueScanProjectTotals(installationKey)
+    .catch(fallbackOn("overview.project_totals_load_failed", () => [], { installationKey }));
+
+  if (!totals.length) return projects.map((p) => ({ ...p, uniqueIssueCount: null }));
+
+  const byProjectId = new Map(totals.map((t) => [String(t.projectId), t.uniqueIssueCount]));
+  return projects.map((project) => {
+    const measured = byProjectId.get(String(project.projectId));
+    return {
+      ...project,
+      uniqueIssueCount: Number.isFinite(measured) ? measured : null,
+    };
+  });
+}
+
 function percentile(sortedValues, fraction) {
   if (!sortedValues.length) return 0;
   const index = Math.min(sortedValues.length - 1, Math.floor(sortedValues.length * fraction));
@@ -2302,10 +2366,25 @@ function percentile(sortedValues, fraction) {
 }
 
 function buildProjectInsights(projects) {
+  // True when the Universal Scan has measured distinct issues for at least one project.
+  // Partial coverage still counts: a project the scan has not reached keeps a null and is
+  // rendered as unmeasured rather than as zero.
+  const hasUniqueCounts = projects.some((p) => p.uniqueIssueCount != null);
+
+  // The figure every downstream number should be built on. Falls back to fills only when
+  // nothing has been measured, and `hasUniqueCounts` tells the caller which it is looking at.
+  const volumeOf = (p) => (hasUniqueCounts ? (p.uniqueIssueCount ?? 0) : p.totalIssueCount);
+
   const topByIssueVolume = [...projects]
-    .sort((a, b) => b.totalIssueCount - a.totalIssueCount)
+    .sort((a, b) => volumeOf(b) - volumeOf(a))
     .slice(0, DASHBOARD_TOP_N)
-    .map((p) => ({ projectKey: p.projectKey, projectName: p.projectName, totalIssueCount: p.totalIssueCount }));
+    .map((p) => ({
+      projectKey: p.projectKey,
+      projectName: p.projectName,
+      totalIssueCount: p.totalIssueCount,
+      uniqueIssueCount: p.uniqueIssueCount ?? null,
+      volume: volumeOf(p),
+    }));
 
   const topByFieldCount = [...projects]
     .sort((a, b) => b.fieldCount - a.fieldCount)
@@ -2318,15 +2397,25 @@ function buildProjectInsights(projects) {
   const fieldCounts = projects.map((p) => p.fieldCount).sort((a, b) => a - b);
   const medianFieldCount = percentile(fieldCounts, 0.5);
   const p90FieldCount = percentile(fieldCounts, 0.9);
-  const totalIssues = projects.reduce((sum, p) => sum + p.totalIssueCount, 0);
+  // Sum of field fills across the site. Kept and reported, but never labelled as issues.
+  const totalFieldFills = projects.reduce((sum, p) => sum + p.totalIssueCount, 0);
+  const totalUniqueIssues = hasUniqueCounts
+    ? projects.reduce((sum, p) => sum + (p.uniqueIssueCount ?? 0), 0)
+    : null;
 
   // Configured well past the site norm while carrying little actual work. These are where
   // field governance conversations start, because the cost is real and the usage is not.
   // Guarded against a degenerate median: on a site where the median project has one field,
   // "twice the median" is noise, so require an absolute floor as well.
+  //
+  // The volume side must use volumeOf, not the fills sum. Against fills the absolute floor
+  // of 50 could never bind -- an average project's fills run to six figures -- so the test
+  // silently collapsed to the relative term alone.
+  const totalVolume = projects.reduce((sum, p) => sum + volumeOf(p), 0);
   const overConfiguredFloor = Math.max(10, medianFieldCount * 2);
+  const lightVolumeCeiling = Math.max(50, totalVolume / Math.max(1, projects.length) / 4);
   const overConfigured = projects
-    .filter((p) => p.fieldCount >= overConfiguredFloor && p.totalIssueCount < Math.max(50, totalIssues / Math.max(1, projects.length) / 4))
+    .filter((p) => p.fieldCount >= overConfiguredFloor && volumeOf(p) < lightVolumeCeiling)
     .sort((a, b) => b.fieldCount - a.fieldCount)
     .slice(0, DASHBOARD_TOP_N)
     .map((p) => ({
@@ -2334,6 +2423,8 @@ function buildProjectInsights(projects) {
       projectName: p.projectName,
       fieldCount: p.fieldCount,
       totalIssueCount: p.totalIssueCount,
+      uniqueIssueCount: p.uniqueIssueCount ?? null,
+      volume: volumeOf(p),
     }));
 
   // Fields configured, no issues recorded at all -- either abandoned or never started.
@@ -2363,7 +2454,12 @@ function buildProjectInsights(projects) {
 
   return {
     totalProjects: projects.length,
-    totalIssues,
+    // Both figures, named for what they are. `hasUniqueCounts` tells the UI which one it
+    // may present as issues -- there is deliberately no single `totalIssues` key, because
+    // that name is what let field fills be rendered as an issue count in the first place.
+    totalFieldFills,
+    totalUniqueIssues,
+    hasUniqueCounts,
     medianFieldCount,
     p90FieldCount,
     topByIssueVolume,
@@ -2445,10 +2541,11 @@ export async function getAdminOverview({ context }) {
   let dashboard = EMPTY_DASHBOARD;
   if (meta?.version) {
     try {
-      const [fields, projects] = await Promise.all([
+      const [fields, rawProjects] = await Promise.all([
         loadSnapshotFields(installationKey, meta.version),
         listSnapshotProjects(installationKey, meta.version),
       ]);
+      const projects = await attachUniqueIssueCounts(installationKey, rawProjects);
       const dup = buildDuplicateNameCountMap(fields);
       const hydrated = fields.map((f) =>
         hydrateFieldForGovernance(f, null, dup.get(normalizeFieldName(f.name)) ?? 1, config.governanceThresholds)
@@ -3145,6 +3242,7 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   saveAdminConfig: saveAdminConfigResolver,    // Mutating: rewrites thresholds and access control
   getAdminOverview,                            // Admin read: dashboard aggregate
   probeAutomationApi,                          // Admin read: reports which Jira endpoints answer, for diagnosis
+  probeScreenFetchCost,                        // Admin read: samples the cost of a full screen inventory pass
   migrateNamespaceKeys,                        // Mutating: rewrites scope keys across every table
 };
 

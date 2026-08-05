@@ -306,7 +306,27 @@ function ProjectsPanel({ projects, onNavigate }) {
     >
       <StatRow>
         <StatTile label="Projects with field usage" value={formatNumber(projects.totalProjects)} icon="folder" />
-        <StatTile label="Issues covered" value={formatNumber(projects.totalIssues)} icon="barChart" />
+        {/*
+          Two different measures, never one label. totalFieldFills counts field VALUES --
+          an issue with 90 populated fields contributes 90 -- so presenting it as "issues"
+          overstates by roughly the median field count. Only the Universal Scan measures
+          distinct issues, so when it has not run the tile says what it is actually showing.
+        */}
+        {projects.hasUniqueCounts ? (
+          <StatTile
+            label="Issues covered"
+            value={formatNumber(projects.totalUniqueIssues)}
+            hint="distinct issues, from the universe scan"
+            icon="barChart"
+          />
+        ) : (
+          <StatTile
+            label="Field fills"
+            value={formatNumber(projects.totalFieldFills)}
+            hint="field values, not issues — run a universe scan for issue counts"
+            icon="barChart"
+          />
+        )}
         <StatTile
           label="Median fields per project"
           value={formatNumber(projects.medianFieldCount)}
@@ -323,11 +343,13 @@ function ProjectsPanel({ projects, onNavigate }) {
 
       <div className="ui-split">
         <div className="ui-split__col">
-          <h4 className="ui-subhead">Highest issue volume</h4>
+          <h4 className="ui-subhead">
+            {projects.hasUniqueCounts ? "Highest issue volume" : "Most field fills"}
+          </h4>
           <BarList
             items={projects.topByIssueVolume}
             labelKey="projectKey"
-            valueKey="totalIssueCount"
+            valueKey="volume"
             formatValue={formatNumber}
             emptyMessage="No issue data yet"
           />

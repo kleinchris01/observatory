@@ -29,10 +29,12 @@ const dashboard = (overrides = {}) => ({
   },
   projects: {
     totalProjects: 3,
-    totalIssues: 1000,
+    totalFieldFills: 90000,
+    totalUniqueIssues: 1000,
+    hasUniqueCounts: true,
     medianFieldCount: 5,
     p90FieldCount: 30,
-    topByIssueVolume: [{ projectKey: "ALPHA", projectName: "Alpha", totalIssueCount: 900 }],
+    topByIssueVolume: [{ projectKey: "ALPHA", projectName: "Alpha", totalIssueCount: 81000, uniqueIssueCount: 900, volume: 900 }],
     topByFieldCount: [{ projectKey: "CHARLIE", projectName: "Charlie", fieldCount: 40 }],
     overConfigured: [{ projectKey: "CHARLIE", projectName: "Charlie", fieldCount: 40, totalIssueCount: 2 }],
     unusedProjects: [{ projectKey: "DELTA", projectName: "Delta", fieldCount: 3 }],
@@ -188,6 +190,47 @@ describe("OverviewDashboard — projects panel", () => {
       onNavigate={vi.fn()}
     />);
     expect(screen.getByText(/No project usage data yet/i)).toBeInTheDocument();
+  });
+
+  // The defect this guards: field fills were rendered under an "Issues covered" label.
+  // snapshot_project_usage carries one row per field x project, so the sum counts an issue
+  // once per populated field -- on a site with 90 fields per project that is a ~90x
+  // overstatement presented as a precise figure.
+  test("shows distinct issues, not field fills, when the scan has measured them", () => {
+    render(<OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} onNavigate={vi.fn()} />);
+
+    expect(screen.getByText("Issues covered")).toBeInTheDocument();
+    expect(screen.getByText("1,000")).toBeInTheDocument();
+    // The fills figure must not appear anywhere in the panel under any label.
+    expect(screen.queryByText("90,000")).not.toBeInTheDocument();
+  });
+
+  test("labels the figure as field fills when no scan has measured issues", () => {
+    const noScan = dashboard({
+      projects: { ...dashboard().projects, hasUniqueCounts: false, totalUniqueIssues: null },
+    });
+    render(<OverviewDashboard dashboard={noScan} findingsSummary={findingsSummary} workflow={workflow()} onNavigate={vi.fn()} />);
+
+    // Says what it is, and says how to get the real number -- rather than presenting
+    // an unmeasurable quantity under an issue-shaped label.
+    expect(screen.getByText("Field fills")).toBeInTheDocument();
+    expect(screen.getByText("90,000")).toBeInTheDocument();
+    expect(screen.queryByText("Issues covered")).not.toBeInTheDocument();
+    expect(screen.getByText(/run a universe scan for issue counts/i)).toBeInTheDocument();
+  });
+
+  test("retitles the volume list to match whichever measure it is plotting", () => {
+    const { unmount } = render(
+      <OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} onNavigate={vi.fn()} />
+    );
+    expect(screen.getByText("Highest issue volume")).toBeInTheDocument();
+    unmount();
+
+    const noScan = dashboard({
+      projects: { ...dashboard().projects, hasUniqueCounts: false, totalUniqueIssues: null },
+    });
+    render(<OverviewDashboard dashboard={noScan} findingsSummary={findingsSummary} workflow={workflow()} onNavigate={vi.fn()} />);
+    expect(screen.getByText("Most field fills")).toBeInTheDocument();
   });
 });
 

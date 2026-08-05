@@ -16,12 +16,18 @@ export function StatCard({ label, value, icon, variant = "neutral" }) {
   );
 }
 
-export function Toggle({ checked, onChange, disabled }) {
+// `labelledBy` is supplied by ConfigRow, which owns the visible label. `label` is the
+// escape hatch for a Toggle used outside a ConfigRow. A switch with neither announces
+// itself as "switch, on" and nothing else, which is why the association is not optional
+// in practice even though the prop is.
+export function Toggle({ checked, onChange, disabled, labelledBy, label }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
+      aria-labelledby={labelledBy}
+      aria-label={labelledBy ? undefined : label}
       className={`admin-toggle ${checked ? "admin-toggle--on" : ""}`}
       onClick={() => onChange(!checked)}
       disabled={disabled}
@@ -43,14 +49,28 @@ export function ConfigSection({ title, icon, children }) {
   );
 }
 
+// The label is named here, so the control inside it can borrow that name rather than
+// every call site restating it. Toggle renders a role="switch" button, which cannot be
+// associated by <label for> the way an input can -- without aria-labelledby a screen
+// reader announces "switch, on" and nothing about what it switches.
+let configRowSeq = 0;
+
 export function ConfigRow({ label, hint, children }) {
+  const labelId = React.useMemo(() => `cfgrow-${++configRowSeq}`, []);
+
   return (
     <div className="admin-config-row">
       <div className="admin-config-row__label">
-        <span className="admin-config-row__name">{label}</span>
+        <span className="admin-config-row__name" id={labelId}>{label}</span>
         {hint && <span className="admin-config-row__hint">{hint}</span>}
       </div>
-      <div className="admin-config-row__control">{children}</div>
+      <div className="admin-config-row__control">
+        {React.Children.map(children, (child) =>
+          React.isValidElement(child) && child.type === Toggle
+            ? React.cloneElement(child, { labelledBy: labelId })
+            : child
+        )}
+      </div>
     </div>
   );
 }

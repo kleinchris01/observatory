@@ -872,6 +872,28 @@ export async function getAllJiraProjects() {
   );
 }
 
+// ----- Screens -----
+//
+// The three reads at the bottom of the screen chain. Fields-per-tab is the expensive one:
+// it is a call per TAB, not per screen, so its cost scales with a number nobody knows until
+// it is measured. That is what screen-probe.js exists to find out before the full pipeline
+// is built on an assumption about it.
+
+export async function getAllScreens() {
+  return paginate((startAt) => route`/rest/api/3/screens?maxResults=100&startAt=${startAt}`);
+}
+
+// Flat array, like /status -- no {values, isLast} wrapper.
+export async function getScreenTabs(screenId) {
+  const data = await jiraRequest(route`/rest/api/3/screens/${screenId}/tabs`);
+  return Array.isArray(data) ? data : [];
+}
+
+export async function getScreenTabFields(screenId, tabId) {
+  const data = await jiraRequest(route`/rest/api/3/screens/${screenId}/tabs/${tabId}/fields`);
+  return Array.isArray(data) ? data : [];
+}
+
 // GET /rest/api/3/status returns a flat array, not the usual {values, isLast} wrapper.
 export async function getAllStatuses() {
   const data = await jiraRequest(route`/rest/api/3/status`);

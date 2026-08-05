@@ -3564,6 +3564,127 @@ code {
   gap: 16px;
 }
 
+/* ── Configuration: rail + pane ────────────────────────────────────────────
+   One area at a time, chosen from a rail. The previous layout stacked five
+   sections into a single scroll, which put nine threshold rules between an
+   admin and the Save button, and gave settings, records and diagnostics the
+   same weight -- so nothing signalled which of them could change behaviour. */
+
+.cfg {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.cfg__rail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  position: sticky;
+  top: 12px;
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-md);
+  background: var(--panel);
+  padding: 6px;
+}
+
+.cfg__railitem {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 11px;
+  border: 0;
+  border-radius: calc(var(--radius-md) - 3px);
+  background: transparent;
+  color: var(--muted);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  width: 100%;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.cfg__railitem:hover { background: rgba(255,255,255,0.04); color: var(--text); }
+.cfg__railitem:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+.cfg__railitem--active {
+  background: rgba(255,255,255,0.06);
+  color: var(--text);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.cfg__railitem svg { flex: none; margin-top: 1px; }
+
+.cfg__railitem-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+
+.cfg__railitem-label { font-size: 13px; font-weight: 600; }
+
+.cfg__railitem-desc {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.cfg__railitem--active .cfg__railitem-desc { color: var(--muted); }
+
+.cfg__pane { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+.cfg__head { display: flex; flex-direction: column; gap: 5px; }
+
+.cfg__title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.cfg__blurb {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.55;
+  max-width: 66ch;
+}
+
+/* Sticks to the bottom of the viewport so Save is reachable from anywhere in a
+   long rules list, rather than only after scrolling past all of it. */
+.cfg__actions {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  padding: 12px 14px;
+  margin-top: 4px;
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-md);
+  background: var(--panel);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+.cfg__dirty {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.cfg__dirty--on { color: var(--warm); }
+
+@media (max-width: 900px) {
+  .cfg { grid-template-columns: minmax(0, 1fr); }
+  .cfg__rail {
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .cfg__railitem { width: auto; flex: 1 1 auto; }
+  .cfg__railitem--active { box-shadow: inset 0 -2px 0 var(--accent); }
+  .cfg__railitem-desc { display: none; }
+}
+
 .admin-config-section {
   border: 1px solid var(--stroke);
   border-radius: var(--radius-md);

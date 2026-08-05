@@ -175,9 +175,10 @@ describe("AdminApp tab navigation", () => {
     await user.click(within(adminNav).getByText("Scans"));
     await waitFor(() => expect(document.querySelector(".admin-scans-tab")).toBeTruthy());
 
-    // Configuration
+    // Configuration. Root is .cfg since the tab moved to a rail-and-pane layout; the old
+    // .admin-config-tab wrapper was a plain vertical stack and no longer exists.
     await user.click(within(adminNav).getByText("Configuration"));
-    await waitFor(() => expect(document.querySelector(".admin-config-tab")).toBeTruthy());
+    await waitFor(() => expect(document.querySelector(".cfg")).toBeTruthy());
   });
 
   it("marks the active tab button with the active class", async () => {
