@@ -66,8 +66,28 @@ jobs:
       - name: Install Forge CLI
         run: npm install -g @forge/cli@latest
 
+      # A scope change makes Forge request MAJOR_VERSION_RULE approval before it will
+      # deploy, because installs will need an administrator to accept a new consent screen.
+      #
+      # Auto-acknowledged for DEVELOPMENT only, and deliberately not for staging or
+      # production. Development is where a scope change is tested, and blocking the one
+      # environment whose purpose is to try things means a scope change cannot be exercised
+      # before it is promoted -- which is the wrong way round.
+      #
+      # Staging and production keep the prompt. They are workflow_dispatch-only, so a human
+      # is already at the keyboard; that human should have to type the flag and think about
+      # what re-consent means for every existing install. If this is ever relaxed there,
+      # the guard is gone entirely.
+      #
+      # The change stays visible either way: ci.yml writes the approval into the PR's job
+      # summary, so it is reviewed before it reaches this workflow.
       - name: Deploy to Forge
-        run: forge deploy --environment ${{ env.FORGE_ENV }} --non-interactive
+        run: |
+          if [ "${{ env.FORGE_ENV }}" = "development" ]; then
+            forge deploy --environment development --non-interactive --approve MAJOR_VERSION_RULE
+          else
+            forge deploy --environment ${{ env.FORGE_ENV }} --non-interactive
+          fi
         env:
           FORGE_EMAIL: ${{ secrets.FORGE_EMAIL }}
           FORGE_API_TOKEN: ${{ secrets.FORGE_API_TOKEN }}
