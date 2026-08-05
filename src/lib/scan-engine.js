@@ -1,5 +1,5 @@
 import { inventorySnapshotQueue } from "./queues.js";
-import { logger } from "./logger.js";
+import { logger, fallbackOn, ignoreWith } from "./logger.js";
 import {
   jiraRequest,
   sleep,
@@ -31,6 +31,8 @@ import {
   updateIssueScanWorker,
   replaceFieldOptionsCache,
   flushIssueScanCounts,
+  flushIssueScanStatusCounts,
+  clearStatusIssueCounts,
   finalizeIssueScan,
   clearRqtFieldIndex,
   upsertRqtFieldHits,
@@ -92,7 +94,7 @@ export async function queueIssueScanChunk(installationKey, progressLog = [], nex
         nextStartAt: nextStartAt || (Date.now() + delayMs),
         lastError: null,
         progressLog: queuedLog,
-      }).catch(() => {});
+      }).catch(ignoreWith("scan.backpressure_meta_write_failed", { installationKey }));
       return false;
     }
   }
@@ -130,7 +132,8 @@ export async function completeIssueScanFinalization(installationKey, tag, worker
       // is "not yet crawled," not "confirmed zero," and treating it as the latter would
       // erase good data from a previous run.
       const workers = await Promise.all(
-        Array.from({ length: ISSUE_SCAN_WORKERS }, (_, workerId) => readIssueScanWorker(installationKey, workerId).catch(() => null))
+        Array.from({ length: ISSUE_SCAN_WORKERS }, (_, workerId) =>
+          readIssueScanWorker(installationKey, workerId).catch(fallbackOn("scan.worker_read_failed", null, { workerId })))
       );
       const scanCoverageComplete = workers.every((worker) => !worker || worker.status === "done");
 
@@ -176,7 +179,7 @@ export async function completeIssueScanFinalization(installationKey, tag, worker
     const message = error?.message || String(error);
     logger.error("scan.finalization_failed", { installationKey, error: message });
     console.error(`${tag}: finalization failed:`, message);
-    const finalMeta = await readIssueScanMeta(installationKey).catch(() => null);
+    const finalMeta = await readIssueScanMeta(installationKey).catch(fallbackOn("scan.final_meta_read_failed", null, { installationKey }));
     await writeIssueScanMeta(installationKey, {
       state: "failed",
       completedAt: new Date().toISOString(),
@@ -187,7 +190,7 @@ export async function completeIssueScanFinalization(installationKey, tag, worker
         ...((finalMeta?.progressLog || []).slice(-40)),
         { t: new Date().toISOString(), msg: `Finalization failed - ${message}` },
       ],
-    }).catch(() => {});
+    }).catch(ignoreWith("scan.finalization_failure_write_failed", { installationKey }));
   }
 }
 
@@ -222,24 +225,45 @@ export async function runIssueScanCoordinator(installationKey) {
 
     // Get site-wide issue count for progress tracking
     log("Fetching site-wide issue count...");
+    // Never swallow this failure silently. `null?.count ?? 0` renders a failed count as a
+    // confident "Site-wide issue count: 0", which is indistinguishable from a site that
+    // genuinely has no issues -- and sends whoever reads the log chasing the wrong thing.
+    // jiraRequest already builds a message carrying the HTTP status and response body; the
+    // only reason it was ever invisible is that it was discarded here.
     const globalCountResult = await withTimeout(
       jiraRequest(route`/rest/api/3/search/approximate-count`, {
         method: "POST",
         body: JSON.stringify({ jql: "project is not empty" }),
       }),
       ISSUE_COUNT_TIMEOUT_MS
-    ).catch(() => null);
+    ).catch((error) => {
+      logger.warn("scan.coordinator.global_count_failed", {
+        message: error?.message || String(error),
+        status: error?.status ?? null,
+      });
+      return null;
+    });
     const totalEstimatedIssues = Number(globalCountResult?.count ?? 0);
-    log(`Site-wide issue count: ${totalEstimatedIssues.toLocaleString()}`);
+    log(
+      globalCountResult
+        ? `Site-wide issue count: ${totalEstimatedIssues.toLocaleString()}`
+        : "Site-wide issue count UNAVAILABLE (count API failed) — progress totals will be unreliable"
+    );
 
     // Get per-project approximate counts to load-balance workers.
     // Prefer historical data; fall back to live approximate-count for unknown projects.
-    const knownTotals = await loadIssueScanProjectTotals(installationKey).catch(() => []);
+    const knownTotals = await loadIssueScanProjectTotals(installationKey).catch(fallbackOn("scan.project_totals_load_failed", () => [], { installationKey }));
     const issueCountByKey = new Map(knownTotals.map((r) => [r.projectKey, r.uniqueIssueCount]));
     const unknownKeys = allProjectKeys.filter((k) => !issueCountByKey.has(k));
     if (unknownKeys.length > 0) {
       log(`Fetching approximate counts for ${unknownKeys.length} unknown projects...`);
       const APPROX_BATCH = 8;
+      // Per-key failures fall back to a nominal 100 so bin-packing can still proceed, but
+      // they are counted and reported. Silently substituting 100 for every project turns a
+      // total API outage into a scan that looks like it is working on plausible data.
+      // Aggregated rather than logged per key: 142 identical stack traces bury the signal.
+      let approxFailures = 0;
+      let firstApproxError = null;
       for (let i = 0; i < unknownKeys.length; i += APPROX_BATCH) {
         const batch = unknownKeys.slice(i, i + APPROX_BATCH);
         const results = await Promise.all(
@@ -252,11 +276,25 @@ export async function runIssueScanCoordinator(installationKey) {
               ISSUE_COUNT_TIMEOUT_MS
             )
               .then((r) => [key, Number(r?.count ?? 0)])
-              .catch(() => [key, 100])
+              .catch((error) => {
+                approxFailures++;
+                if (!firstApproxError) {
+                  firstApproxError = { message: error?.message || String(error), status: error?.status ?? null };
+                }
+                return [key, 100];
+              })
           )
         );
         for (const [key, count] of results) issueCountByKey.set(key, count || 1);
         if (i + APPROX_BATCH < unknownKeys.length) await sleep(150);
+      }
+      if (approxFailures > 0) {
+        logger.warn("scan.coordinator.approx_count_failures", {
+          failed: approxFailures,
+          total: unknownKeys.length,
+          firstError: firstApproxError,
+        });
+        log(`Approximate count failed for ${approxFailures}/${unknownKeys.length} projects: ${firstApproxError?.message || "unknown error"}`);
       }
     }
 
@@ -324,6 +362,9 @@ export async function runIssueScanCoordinator(installationKey) {
     log(`Starting ${ISSUE_SCAN_WORKERS} workers across ${allProjectKeys.length} projects (${totalEstimatedIssues.toLocaleString()} issues on site)`);
 
     await clearIssueScanBuffer(installationKey);
+    // Status totals accumulate with ON DUPLICATE KEY UPDATE, so a fresh run must start
+    // from empty -- otherwise a re-scan doubles every count.
+    await clearStatusIssueCounts(installationKey).catch(ignoreWith("scan.status_totals_clear_failed", { installationKey }));
     await clearRqtFieldIndex(installationKey);
     await clearRqtIssueKeys(installationKey);
     await clearRqtValueIndex(installationKey);
@@ -365,7 +406,7 @@ export async function runIssueScanCoordinator(installationKey) {
       state: "failed",
       completedAt: new Date().toISOString(),
       lastError: error?.message || String(error),
-    }).catch(() => {});
+    }).catch(ignoreWith("scan.coordinator_failure_write_failed", { installationKey }));
   }
 }
 
@@ -374,6 +415,8 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
   let pendingIssues = 0;
   const fieldProjectCounts = new Map();
   const projectTotals = new Map();
+  // `${statusId}|${projectId}` -> { statusId, statusName, statusCategory, projectId, projectKey, count }
+  const statusCounts = new Map();
   const rqtFieldHits = new Map();
   const rqtIssueBuffer = [];
   const rqtValueBuffer = []; // { rqtValue, issueKey }
@@ -405,10 +448,10 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
     if (!worker.jqlFilter) {
       console.log(`${tag}: no projects assigned, marking done`);
       await updateIssueScanWorker(installationKey, workerId, { status: "done", nextPageToken: null, lastError: null });
-      const updatedMeta = await atomicAccumulateIssueScanProgress(installationKey, 1, 0).catch(() => null);
+      const updatedMeta = await atomicAccumulateIssueScanProgress(installationKey, 1, 0).catch(fallbackOn("scan.progress_accumulate_failed", null, { installationKey }));
       if (updatedMeta && updatedMeta.processedPages >= updatedMeta.totalPages && updatedMeta.totalPages > 0) {
         const claimToken = makeJobToken();
-        const claimed = await tryClaimIssueScanFinalization(installationKey, claimToken).catch(() => false);
+        const claimed = await tryClaimIssueScanFinalization(installationKey, claimToken).catch(fallbackOn("scan.finalization_claim_failed", false, { installationKey }));
         if (claimed) await completeIssueScanFinalization(installationKey, tag);
       }
       return;
@@ -432,16 +475,16 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
           projectTotals.clear();
         }
         if (rqtFieldHits.size > 0) {
-          await upsertRqtFieldHits(installationKey, rqtFieldHits).catch(() => {});
+          await upsertRqtFieldHits(installationKey, rqtFieldHits).catch(ignoreWith("scan.rqt_field_flush_failed", { installationKey }));
           rqtFieldHits.clear();
         }
         if (pendingIssues > 0) {
-          const updMid = await atomicAccumulateIssueScanProgress(installationKey, 0, pendingIssues).catch(() => null);
+          const updMid = await atomicAccumulateIssueScanProgress(installationKey, 0, pendingIssues).catch(fallbackOn("scan.progress_accumulate_failed", null, { installationKey }));
           if (updMid) {
             const cur = updMid.processedIssues ?? 0;
             const prev = cur - pendingIssues;
             if (Math.floor(prev / 5000) < Math.floor(cur / 5000)) {
-              await appendIssueScanLogEntry(installationKey, `${cur.toLocaleString()} issues scanned`).catch(() => {});
+              await appendIssueScanLogEntry(installationKey, `${cur.toLocaleString()} issues scanned`).catch(ignoreWith("scan.log_append_failed", { installationKey }));
             }
           }
           worker = await updateIssueScanWorker(installationKey, workerId, {
@@ -485,18 +528,18 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
         if (is400 && currentNextPageToken) {
           // Cursor token expired — flush buffered data and restart this worker from the beginning
           console.warn(`${tag}: 400 on paginated search — nextPageToken likely expired; flushing and restarting worker`);
-          await appendIssueScanLogEntry(installationKey, `Worker ${workerId}: page token expired (400), restarting from page 1`).catch(() => {});
+          await appendIssueScanLogEntry(installationKey, `Worker ${workerId}: page token expired (400), restarting from page 1`).catch(ignoreWith("scan.log_append_failed", { workerId }));
           if (fieldProjectCounts.size > 0 || projectTotals.size > 0) {
-            await flushIssueScanCounts(installationKey, fieldProjectCounts, projectTotals).catch(() => {});
+            await flushIssueScanCounts(installationKey, fieldProjectCounts, projectTotals).catch(ignoreWith("scan.count_flush_failed_on_token_reset", { workerId }));
             fieldProjectCounts.clear(); projectTotals.clear();
           }
-          if (rqtFieldHits.size > 0) { await upsertRqtFieldHits(installationKey, rqtFieldHits).catch(() => {}); rqtFieldHits.clear(); }
-          if (rqtIssueBuffer.length > 0) { await upsertRqtIssueKeys(installationKey, rqtIssueBuffer).catch(() => {}); rqtIssueBuffer.length = 0; }
-          if (rqtValueBuffer.length > 0) { await upsertRqtValueIssueKeys(installationKey, rqtValueBuffer).catch(() => {}); rqtValueBuffer.length = 0; }
-          if (rqtFieldIssueBuffer.length > 0) { await upsertRqtFieldIssueKeys(installationKey, rqtFieldIssueBuffer).catch(() => {}); rqtFieldIssueBuffer.length = 0; }
+          if (rqtFieldHits.size > 0) { await upsertRqtFieldHits(installationKey, rqtFieldHits).catch(ignoreWith("scan.rqt_field_flush_failed", { workerId })); rqtFieldHits.clear(); }
+          if (rqtIssueBuffer.length > 0) { await upsertRqtIssueKeys(installationKey, rqtIssueBuffer).catch(ignoreWith("scan.rqt_issue_flush_failed", { workerId })); rqtIssueBuffer.length = 0; }
+          if (rqtValueBuffer.length > 0) { await upsertRqtValueIssueKeys(installationKey, rqtValueBuffer).catch(ignoreWith("scan.rqt_value_flush_failed", { workerId })); rqtValueBuffer.length = 0; }
+          if (rqtFieldIssueBuffer.length > 0) { await upsertRqtFieldIssueKeys(installationKey, rqtFieldIssueBuffer).catch(ignoreWith("scan.rqt_field_issue_flush_failed", { workerId })); rqtFieldIssueBuffer.length = 0; }
           await updateIssueScanWorker(installationKey, workerId, {
             status: "queued", nextPageToken: null, lastError: "Page token expired; restarting from beginning",
-          }).catch(() => {});
+          }).catch(ignoreWith("scan.token_reset_write_failed", { workerId }));
           await queueIssueScanWorker(installationKey, workerId);
           return;
         }
@@ -515,6 +558,26 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
         const projEntry = projectTotals.get(projectId) || { count: 0, key: projectKey_, name: projectName };
         projEntry.count++;
         projectTotals.set(projectId, projEntry);
+
+        // Status is already on every issue -- a universe scan requests "*all" -- so
+        // counting it here costs no extra Jira traffic, only an accumulator. Keyed by
+        // status AND project so a scheme's balance can later be weighted by real issue
+        // volume rather than by how many statuses someone defined.
+        const status = issue.fields?.status;
+        const statusId = status?.id ? String(status.id) : "";
+        if (statusId) {
+          const statusKey = `${statusId}|${projectId}`;
+          const statusEntry = statusCounts.get(statusKey) || {
+            statusId,
+            statusName: status?.name || null,
+            statusCategory: status?.statusCategory?.name || status?.statusCategory?.key || null,
+            projectId,
+            projectKey: projectKey_,
+            count: 0,
+          };
+          statusEntry.count++;
+          statusCounts.set(statusKey, statusEntry);
+        }
 
         for (const [fieldId, value] of Object.entries(issue.fields || {})) {
           if (STRUCTURAL_SYSTEM_FIELDS.has(fieldId)) continue;
@@ -564,6 +627,14 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
 
     if (fieldProjectCounts.size > 0 || projectTotals.size > 0) {
       await flushIssueScanCounts(installationKey, fieldProjectCounts, projectTotals);
+    }
+    if (statusCounts.size > 0) {
+      // Best-effort, like the RQT flushes below: per-status counts power the insights
+      // view, and losing them must never fail a scan whose primary output is field usage.
+      await flushIssueScanStatusCounts(installationKey, statusCounts).catch((e) => {
+        console.error(`${tag}: status count flush error`, e?.message || e);
+      });
+      statusCounts.clear();
     }
     if (rqtFieldHits.size > 0) {
       await upsertRqtFieldHits(installationKey, rqtFieldHits).catch((e) => {
@@ -615,14 +686,14 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
   } catch (error) {
     const errMsg = error?.message || String(error);
     console.error(`${tag} failed:`, errMsg);
-    await updateIssueScanWorker(installationKey, workerId, { status: "failed", lastError: errMsg }).catch(() => {});
-    await appendIssueScanLogEntry(installationKey, `Worker ${workerId} failed - ${errMsg}`).catch(() => {});
+    await updateIssueScanWorker(installationKey, workerId, { status: "failed", lastError: errMsg }).catch(ignoreWith("scan.worker_failure_write_failed", { workerId }));
+    await appendIssueScanLogEntry(installationKey, `Worker ${workerId} failed - ${errMsg}`).catch(ignoreWith("scan.log_append_failed", { workerId }));
     await writeIssueScanMeta(installationKey, {
       state: "failed",
       completedAt: new Date().toISOString(),
       nextPageToken: null,
       nextStartAt: 0,
       lastError: `Worker ${workerId} failed - ${errMsg}`,
-    }).catch(() => {});
+    }).catch(ignoreWith("scan.worker_failure_meta_write_failed", { workerId }));
   }
 }

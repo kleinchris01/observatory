@@ -33,11 +33,21 @@ import {
   collectRecentFieldProjectCandidates,
   getFieldProjectAssociations,
   resetJiraRateLimiterState,
+  extractWorkflowScheme,
+  normalizeWorkflowSearchResponse,
+  getAllWorkflowsWithStatuses,
+  getEverInStatusCounts,
+  getProjectStatuses,
+  getStatusesForProjects,
+  STATUS_HISTORY_TIMEOUT_MS,
   JIRA_REQUEST_HARD_TIMEOUT_MS,
 } from "./jira-api.js";
 
 // Not exported by the module; mirrored here so the timer mock can recognise it.
 const ISSUE_COUNT_TIMEOUT_MS = 8000;
+// Same reason: getEverInStatusCounts wraps each WAS query in this budget, and firing it
+// would make every request look like a timeout.
+const STATUS_HISTORY_TIMEOUT_MS = 15000;
 
 function jiraResponse({ ok = true, status = 200, body = {}, text = "" } = {}) {
   return {
@@ -61,7 +71,7 @@ beforeEach(() => {
   // Collapse delays, leave deadlines pending. The two deadlines in this module are
   // the 8s per-count budget and the 12s hard request deadline; firing either would
   // make it win its race and turn every result into a timeout.
-  const DEADLINES = new Set([ISSUE_COUNT_TIMEOUT_MS, JIRA_REQUEST_HARD_TIMEOUT_MS]);
+  const DEADLINES = new Set([ISSUE_COUNT_TIMEOUT_MS, STATUS_HISTORY_TIMEOUT_MS, JIRA_REQUEST_HARD_TIMEOUT_MS]);
   vi.spyOn(globalThis, "setTimeout").mockImplementation((fn, ms) => {
     if (!DEADLINES.has(ms)) fn();
     return 0;
@@ -600,5 +610,292 @@ describe("loadFieldOptionsFromJira", () => {
     const result = await loadFieldOptionsFromJira("customfield_1");
     expect(result[0].options).toEqual([]);
     expect(result[0].fetchError).toBeTruthy();
+  });
+});
+
+// The /workflowscheme/project endpoint returns a container, not a scheme. Reading it wrong
+// is invisible in the UI -- it renders as a plausible-looking inventory of one-project
+// schemes all named "(unnamed workflow scheme)" -- so the shape is pinned here.
+describe("extractWorkflowScheme", () => {
+  it("reads the scheme out of the values[] container", () => {
+    const scheme = extractWorkflowScheme({
+      values: [{ projectIds: ["10000"], workflowScheme: { id: 10000, name: "Ford ADV Scheme" } }],
+    });
+    expect(scheme).toEqual({ id: 10000, name: "Ford ADV Scheme" });
+  });
+
+  it("returns null for the bare container, rather than treating it as a scheme", () => {
+    // This is the regression: the container has no id and no name, so using it as a scheme
+    // fabricated a distinct `unknown-<projectId>` entry for every project on the site.
+    expect(extractWorkflowScheme({ values: [] })).toBeNull();
+    expect(extractWorkflowScheme({ values: [{ projectIds: ["1"] }] })).toBeNull();
+  });
+
+  it("returns null for empty or malformed responses", () => {
+    expect(extractWorkflowScheme(null)).toBeNull();
+    expect(extractWorkflowScheme({})).toBeNull();
+    expect(extractWorkflowScheme({ values: null })).toBeNull();
+  });
+
+  it("accepts a scheme with an id but no name", () => {
+    expect(extractWorkflowScheme({ values: [{ workflowScheme: { id: 7 } }] })).toEqual({ id: 7 });
+  });
+
+  it("falls back to a top-level workflowScheme if the API ever returns one", () => {
+    expect(extractWorkflowScheme({ workflowScheme: { id: 3, name: "Direct" } }))
+      .toEqual({ id: 3, name: "Direct" });
+  });
+});
+
+// Two generations of Jira's workflow-search endpoint disagree about where statuses live,
+// and the difference is silent: a statusReference is a UUID, not a status id, so matching
+// references straight against the status catalog yields zero overlap -- indistinguishable
+// from a site whose schemes genuinely have no statuses. That is exactly how this failed on
+// staging, leaving all 435 statuses looking unreachable.
+describe("normalizeWorkflowSearchResponse", () => {
+  test("reads the deprecated shape, where statuses carry ids directly", () => {
+    expect(normalizeWorkflowSearchResponse({
+      values: [{ id: { name: "Bug WF" }, statuses: [{ id: "3" }, { id: "5" }] }],
+    })).toEqual([{ name: "Bug WF", statusIds: ["3", "5"] }]);
+  });
+
+  test("resolves statusReference UUIDs through the current shape's lookup table", () => {
+    const result = normalizeWorkflowSearchResponse({
+      workflows: [{ name: "Bug WF", statuses: [{ statusReference: "uuid-a" }, { statusReference: "uuid-b" }] }],
+      statuses: [
+        { statusReference: "uuid-a", id: "3", name: "In Review" },
+        { statusReference: "uuid-b", id: "5", name: "Done" },
+      ],
+    });
+
+    // Real status ids, never the references themselves.
+    expect(result).toEqual([{ name: "Bug WF", statusIds: ["3", "5"] }]);
+  });
+
+  test("drops references it cannot resolve rather than emitting a UUID as a status id", () => {
+    const result = normalizeWorkflowSearchResponse({
+      workflows: [{ name: "Bug WF", statuses: [{ statusReference: "unknown-uuid" }, { statusReference: "uuid-a" }] }],
+      statuses: [{ statusReference: "uuid-a", id: "3" }],
+    });
+
+    expect(result).toEqual([{ name: "Bug WF", statusIds: ["3"] }]);
+  });
+
+  test("skips workflows with no resolvable name", () => {
+    expect(normalizeWorkflowSearchResponse({ workflows: [{ statuses: [{ id: "3" }] }] })).toEqual([]);
+  });
+
+  test("returns an empty list for empty or malformed responses", () => {
+    expect(normalizeWorkflowSearchResponse(null)).toEqual([]);
+    expect(normalizeWorkflowSearchResponse({})).toEqual([]);
+    expect(normalizeWorkflowSearchResponse({ workflows: [] })).toEqual([]);
+  });
+
+  test("tolerates a workflow with no statuses at all", () => {
+    expect(normalizeWorkflowSearchResponse({ workflows: [{ name: "Empty WF" }] }))
+      .toEqual([{ name: "Empty WF", statusIds: [] }]);
+  });
+});
+
+// The endpoint fallback exists because the deprecated GET form returns 401
+// "scope does not match" for an app declaring granular scopes -- which is how the scheme
+// to status mapping silently came back empty on staging, making all 435 statuses look
+// unreachable. These pin the order and the failure handling.
+describe("getAllWorkflowsWithStatuses", () => {
+  test("uses the current bulk endpoint and resolves status references", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({
+      body: {
+        workflows: [{ name: "Bug WF", statuses: [{ statusReference: "uuid-a" }] }],
+        statuses: [{ statusReference: "uuid-a", id: "3" }],
+      },
+    }));
+
+    await expect(getAllWorkflowsWithStatuses()).resolves.toEqual([{ name: "Bug WF", statusIds: ["3"] }]);
+    expect(mockRequestJira).toHaveBeenCalledTimes(1);
+    expect(mockRequestJira.mock.calls[0][0]).toContain("/workflows/search");
+    expect(mockRequestJira.mock.calls[0][1].method).toBe("POST");
+  });
+
+  test("falls back to the legacy endpoint when the bulk one is rejected", async () => {
+    mockRequestJira
+      .mockResolvedValueOnce(jiraResponse({ ok: false, status: 401, text: "Unauthorized; scope does not match" }))
+      .mockResolvedValueOnce(jiraResponse({
+        body: { values: [{ id: { name: "Legacy WF" }, statuses: [{ id: "7" }] }], isLast: true },
+      }));
+
+    const result = await getAllWorkflowsWithStatuses();
+
+    expect(result).toEqual([{ name: "Legacy WF", statusIds: ["7"] }]);
+    expect(mockRequestJira.mock.calls.at(-1)[0]).toContain("/workflow/search");
+  });
+
+  test("falls back when the bulk endpoint succeeds but yields nothing usable", async () => {
+    mockRequestJira
+      .mockResolvedValueOnce(jiraResponse({ body: { somethingElse: true } }))
+      .mockResolvedValueOnce(jiraResponse({
+        body: { values: [{ id: { name: "Legacy WF" }, statuses: [{ id: "7" }] }], isLast: true },
+      }));
+
+    // A 200 that parses to zero workflows means the shape changed, not that the site has
+    // none -- so it must still try the other endpoint rather than report an empty site.
+    await expect(getAllWorkflowsWithStatuses()).resolves.toEqual([{ name: "Legacy WF", statusIds: ["7"] }]);
+  });
+
+  test("propagates the error when both endpoints fail", async () => {
+    mockRequestJira.mockResolvedValue(jiraResponse({ ok: false, status: 500, text: "boom" }));
+    await expect(getAllWorkflowsWithStatuses()).rejects.toThrow();
+  });
+});
+
+// "Ever been in a status" via JQL's WAS operator: one approximate-count per status
+// instead of re-reading every issue with expand=changelog, which on a 317k-issue site is
+// the difference between minutes and hours.
+describe("getEverInStatusCounts", () => {
+  test("queries by status ID, unquoted, so duplicate names stay distinguishable", async () => {
+    mockRequestJira.mockResolvedValue(jiraResponse({ body: { count: 4000 } }));
+
+    await getEverInStatusCounts(["10001"]);
+
+    const sent = JSON.parse(mockRequestJira.mock.calls[0][1].body);
+    // A site with "Done" five times would give `status WAS "Done"` one meaningless total.
+    expect(sent.jql).toBe("status WAS 10001");
+  });
+
+  test("returns a count per status", async () => {
+    mockRequestJira
+      .mockResolvedValueOnce(jiraResponse({ body: { count: 4000 } }))
+      .mockResolvedValueOnce(jiraResponse({ body: { count: 0 } }));
+
+    const { counts, failures } = await getEverInStatusCounts(["1", "2"]);
+
+    expect(counts.get("1")).toBe(4000);
+    expect(counts.get("2")).toBe(0);
+    expect(failures).toEqual([]);
+  });
+
+  // A status whose query failed must be absent from the map, not present as zero: zero is
+  // exactly what marks a status safe to delete.
+  test("reports failures separately instead of recording them as zero", async () => {
+    mockRequestJira
+      .mockResolvedValueOnce(jiraResponse({ body: { count: 12 } }))
+      .mockResolvedValue(jiraResponse({ ok: false, status: 400, text: "bad jql" }));
+
+    const { counts, failures } = await getEverInStatusCounts(["1", "2"]);
+
+    expect(counts.get("1")).toBe(12);
+    expect(counts.has("2")).toBe(false);
+    expect(failures).toHaveLength(1);
+    expect(failures[0].statusId).toBe("2");
+  });
+
+  test("deduplicates and ignores blank ids", async () => {
+    mockRequestJira.mockResolvedValue(jiraResponse({ body: { count: 1 } }));
+
+    await getEverInStatusCounts(["1", "1", "", null, undefined]);
+
+    expect(mockRequestJira).toHaveBeenCalledTimes(1);
+  });
+
+  test("makes no calls at all for an empty status list", async () => {
+    const { counts } = await getEverInStatusCounts([]);
+    expect(counts.size).toBe(0);
+    expect(mockRequestJira).not.toHaveBeenCalled();
+  });
+});
+
+// The route around the workflow endpoints, which 401 on a fully-upgraded install.
+describe("getProjectStatuses / getStatusesForProjects", () => {
+  test("flattens statuses across issue types and deduplicates", async () => {
+    mockRequestJira.mockResolvedValue(jiraResponse({ body: [
+      { id: "1", name: "Bug", statuses: [{ id: "10" }, { id: "11" }] },
+      { id: "2", name: "Task", statuses: [{ id: "11" }, { id: "12" }] },
+    ] }));
+
+    // 11 appears under both issue types but is one reachable status.
+    await expect(getProjectStatuses("10000")).resolves.toEqual(["10", "11", "12"]);
+  });
+
+  test("returns an empty list for a project with no issue types", async () => {
+    mockRequestJira.mockResolvedValue(jiraResponse({ body: [] }));
+    await expect(getProjectStatuses("10000")).resolves.toEqual([]);
+  });
+
+  test("tolerates a malformed response rather than throwing", async () => {
+    mockRequestJira.mockResolvedValue(jiraResponse({ body: { notAnArray: true } }));
+    await expect(getProjectStatuses("10000")).resolves.toEqual([]);
+  });
+
+  test("maps every project it can read", async () => {
+    mockRequestJira
+      .mockResolvedValueOnce(jiraResponse({ body: [{ statuses: [{ id: "1" }] }] }))
+      .mockResolvedValueOnce(jiraResponse({ body: [{ statuses: [{ id: "2" }] }] }));
+
+    const { byProject, failures } = await getStatusesForProjects(["10", "11"]);
+
+    expect(byProject.get("10")).toEqual(["1"]);
+    expect(byProject.get("11")).toEqual(["2"]);
+    expect(failures).toEqual([]);
+  });
+
+  // One unreadable project must not empty the mapping for the whole site -- that would
+  // make every status look orphaned.
+  test("collects per-project failures instead of failing the batch", async () => {
+    mockRequestJira
+      .mockResolvedValueOnce(jiraResponse({ body: [{ statuses: [{ id: "1" }] }] }))
+      .mockResolvedValue(jiraResponse({ ok: false, status: 403, text: "no permission" }));
+
+    const { byProject, failures } = await getStatusesForProjects(["10", "11"]);
+
+    expect(byProject.get("10")).toEqual(["1"]);
+    expect(byProject.has("11")).toBe(false);
+    expect(failures).toHaveLength(1);
+    expect(failures[0].projectId).toBe("11");
+  });
+
+  test("makes no calls for an empty project list", async () => {
+    const { byProject } = await getStatusesForProjects([]);
+    expect(byProject.size).toBe(0);
+    expect(mockRequestJira).not.toHaveBeenCalled();
+  });
+});
+
+// A real run measured 270 of 433 statuses and lost 163 to timeouts while a universe scan
+// saturated the same limiter. These pin the two things that made that recoverable.
+describe("getEverInStatusCounts — timeout behaviour", () => {
+  test("retries a failed status once before giving up on it", async () => {
+    mockRequestJira
+      .mockResolvedValueOnce(jiraResponse({ ok: false, status: 500, text: "timed out" }))
+      .mockResolvedValueOnce(jiraResponse({ body: { count: 900 } }));
+
+    const { counts, failures } = await getEverInStatusCounts(["1"]);
+
+    // The retry pass recovers it, so it is a count rather than a gap.
+    expect(counts.get("1")).toBe(900);
+    expect(failures).toEqual([]);
+  });
+
+  test("reports a status still failing after the retry, rather than recording zero", async () => {
+    mockRequestJira.mockResolvedValue(jiraResponse({ ok: false, status: 500, text: "timed out" }));
+
+    const { counts, failures } = await getEverInStatusCounts(["1"]);
+
+    // Absent, not zero. Zero is what marks a status safe to delete.
+    expect(counts.has("1")).toBe(false);
+    expect(failures).toHaveLength(1);
+  });
+
+  test("does not retry statuses that succeeded first time", async () => {
+    mockRequestJira.mockResolvedValue(jiraResponse({ body: { count: 5 } }));
+
+    await getEverInStatusCounts(["1", "2"]);
+
+    // Two statuses, two calls -- a retry pass over clean results would double the cost of
+    // every healthy run.
+    expect(mockRequestJira).toHaveBeenCalledTimes(2);
+  });
+
+  test("the history budget cannot exceed the hard request deadline", () => {
+    // An outer budget above the inner deadline is dead code: the inner one always wins.
+    expect(STATUS_HISTORY_TIMEOUT_MS).toBeLessThanOrEqual(JIRA_REQUEST_HARD_TIMEOUT_MS);
   });
 });

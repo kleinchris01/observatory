@@ -35,8 +35,45 @@ jobs:
           npm run build:admin
       - name: Install Forge CLI
         run: npm install -g @forge/cli@latest
+      # `forge lint` exits 1 for three different outcomes: errors, warnings, and APPROVALS.
+      # An approval is not a defect -- it is Forge reporting that the change will require
+      # admin re-consent on upgrade, which is information, not a fault. Treating all three
+      # as failure meant any deliberate scope change was unmergeable.
+      #
+      # So: fail on errors or warnings, surface an approval loudly and continue.
+      #
+      # The approval line is worth reading rather than suppressing. It is the closest thing
+      # this repo currently has to the manifest drift detection tracked by CONNECT-3887 --
+      # an unintended scope escalation shows up here first, and printing it into the job
+      # summary is most of what that story asks for.
       - name: Forge manifest lint
-        run: forge lint
+        run: |
+          set +e
+          output=$(forge lint 2>&1)
+          status=$?
+          echo "$output"
+
+          if echo "$output" | grep -qE '[1-9][0-9]* error|[1-9][0-9]* warning'; then
+            echo "::error::forge lint reported errors or warnings"
+            exit 1
+          fi
+
+          if echo "$output" | grep -q 'approval'; then
+            echo "::warning::Manifest change requires admin approval on upgrade — review the scope diff below"
+            {
+              echo "### Forge manifest approval required"
+              echo ""
+              echo "This change alters the app's declared scopes or permissions, so installs"
+              echo "will need an administrator to accept an updated consent screen."
+              echo ""
+              echo '```'
+              echo "$output" | grep -A 2 'approval'
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          exit $status
         env:
           FORGE_EMAIL: ${{ secrets.FORGE_EMAIL }}
           FORGE_API_TOKEN: ${{ secrets.FORGE_API_TOKEN }}

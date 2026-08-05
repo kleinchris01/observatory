@@ -10,6 +10,7 @@ import {
   toDisplayName,
   formatTimestamp,
   formatNumber,
+  isCustomField,
 } from "../utils";
 import { Icon, useChartPalette } from "./Icons";
 import { SkeletonProjectItem, FindingsStrip, MetricChip } from "./FieldCard";
@@ -64,16 +65,28 @@ export function TopFieldsChart({ fields }) {
 
 export function FieldTypeDonut({ fields }) {
   const palette = useChartPalette();
-  if (!fields.length) return null;
+  // System fields are excluded: they appear on every issue in every project, so counting
+  // them describes Jira rather than this project. They also distort the chart badly --
+  // each contributes its own name as a one-count "type", so a project with 12 custom
+  // fields and 5 system fields renders as five slivers around one dominant wedge.
+  const customFields = fields.filter((f) => isCustomField(f.fieldId));
+  const systemFieldCount = fields.length - customFields.length;
+  if (!customFields.length) return null;
+
   const counts = {};
-  for (const f of fields) {
+  for (const f of customFields) {
     counts[f.fieldType] = (counts[f.fieldType] || 0) + 1;
   }
   const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 7);
   const segments = entries.map(([type, count]) => ({ name: type, value: count }));
   return (
     <div className="project-chart">
-      <div className="chart-title">Field types on this project</div>
+      <div className="chart-title">
+        Custom field types on this project
+        {systemFieldCount > 0 && (
+          <span className="chart-title__note"> · {systemFieldCount} system field{systemFieldCount === 1 ? "" : "s"} excluded</span>
+        )}
+      </div>
       <div className="project-chart__donut-layout">
         <div style={{ width: 120, height: 120, flexShrink: 0 }}>
           <ResponsiveContainer width="100%" height="100%">
@@ -106,6 +119,57 @@ export function FieldTypeDonut({ fields }) {
         </div>
       </div>
     </div>
+  );
+}
+
+// Which workflow scheme governs this project, and which other projects share it.
+//
+// The correlation this enables is the point: two projects on the same workflow scheme are
+// meant to run the same process, so a large divergence in their custom field usage is a
+// standardization signal that neither the field view nor the workflow view shows alone.
+// Rendered only when a workflow snapshot exists -- the field view must never depend on it.
+function ProjectWorkflowPanel({ scheme, fieldCount }) {
+  if (!scheme) return null;
+
+  const shared = scheme.sharedWithCount || 0;
+
+  return (
+    <section className="project-workflow">
+      <div className="project-workflow__head">
+        <span className="project-workflow__label">Workflow scheme</span>
+        <span className="project-workflow__name">{scheme.name}</span>
+        {shared > 0 && (
+          <span className="project-workflow__shared">
+            shared with {shared} other {shared === 1 ? "project" : "projects"}
+          </span>
+        )}
+        {shared === 0 && <span className="project-workflow__shared">used only by this project</span>}
+      </div>
+
+      {scheme.description && <p className="project-workflow__desc">{scheme.description}</p>}
+
+      {shared > 0 && (
+        <>
+          <p className="project-workflow__hint">
+            These projects run the same process. Comparing their field usage against this
+            project&apos;s {formatNumber(fieldCount)} fields is where standardization
+            opportunities show up.
+          </p>
+          <div className="project-workflow__siblings">
+            {scheme.siblingProjects?.map((sibling) => (
+              <span key={sibling.projectId} className="project-workflow__sibling" title={sibling.projectName}>
+                {sibling.projectKey}
+              </span>
+            ))}
+            {shared > (scheme.siblingProjects?.length || 0) && (
+              <span className="project-workflow__sibling project-workflow__sibling--more">
+                +{shared - (scheme.siblingProjects?.length || 0)} more
+              </span>
+            )}
+          </div>
+        </>
+      )}
+    </section>
   );
 }
 
@@ -270,6 +334,8 @@ export function ProjectsTabView({
                   </article>
                 )}
               </div>
+
+              <ProjectWorkflowPanel scheme={data?.workflowScheme} fieldCount={selectedProject.fieldCount} />
 
               {fields.length > 0 && (
                 <div className="project-charts-row">

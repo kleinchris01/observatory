@@ -9,6 +9,8 @@ import {
   loadAllSnapshotProjectUsage,
   loadReportJob,
   replaceReportJob,
+  readWorkflowSnapshotMeta,
+  loadProjectWorkflowSchemeMap,
 } from "./project-store.js";
 import { queueReportBuild } from "./snapshot-engine.js";
 import { buildOverallFieldJql } from "./transform.js";
@@ -65,10 +67,34 @@ export async function buildProjectUsageReportResult(installationKey, version, fi
   const nextOffset = offset + batchFieldIds.length;
   const isComplete = nextOffset >= fieldIds.length;
 
+  // Annotate each project with the workflow scheme governing it. Two projects on the same
+  // scheme are meant to run the same process, so a report showing them with very different
+  // field sets is the standardization signal -- which is only visible when the report
+  // carries both. One bulk query, and only on the final chunk: the map is the same for
+  // every batch, so fetching it per chunk would repeat identical work.
+  //
+  // Best-effort throughout. The workflow snapshot is versioned separately and may not
+  // exist; a report must never fail because of that.
+  let projects = Array.from(projectMap.values());
+  if (isComplete) {
+    try {
+      const wfMeta = await readWorkflowSnapshotMeta(installationKey);
+      if (wfMeta?.version) {
+        const schemeByProject = await loadProjectWorkflowSchemeMap(installationKey, wfMeta.version);
+        projects = projects.map((project) => {
+          const scheme = schemeByProject.get(String(project.projectId));
+          return scheme ? { ...project, workflowSchemeId: scheme.schemeId, workflowSchemeName: scheme.name } : project;
+        });
+      }
+    } catch (error) {
+      console.warn("buildProjectUsageReportResult: workflow scheme annotation failed:", error?.message || error);
+    }
+  }
+
   return {
     result: {
       fields,
-      projects: Array.from(projectMap.values()).sort(
+      projects: projects.sort(
         (left, right) => left.projectKey.localeCompare(right.projectKey) || left.projectName.localeCompare(right.projectName)
       ),
       pendingFields,

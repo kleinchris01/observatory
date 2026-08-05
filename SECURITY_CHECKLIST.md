@@ -206,7 +206,7 @@ user input is concatenated into SQL.
 
 ## 6. Permission scopes
 
-The app requests 15 OAuth scopes, all read-only against Jira. See `README.md` for the
+The app requests 20 OAuth scopes, all read-only against Jira. See `README.md` for the
 full table and per-scope justification.
 
 **`manage:jira-configuration` deserves specific attention on any install review.** It is
@@ -214,11 +214,28 @@ the broadest scope requested and it sounds like a write scope. Forge requires it
 surface a `jira:adminPage` module; Observatory exercises no configuration-write capability
 under it. This is verifiable via §3.1.
 
-> **Open item.** Three scopes — `read:workflow:jira`, `read:workflow-scheme:jira`,
-> `read:status:jira` — support the workflow/status inventory backend, which currently has
-> **no user interface**. Users are being asked to grant three permissions for a feature
-> they cannot see. Either ship the UI or drop the scopes; leaving it as-is is a consent
-> screen asking for more than the product delivers.
+**Closed 4 Aug 2026.** The three workflow scopes (`read:workflow:jira`,
+`read:workflow-scheme:jira`, `read:status:jira`) were previously flagged here as supporting
+a backend with no user interface — users granting permissions for a feature they could not
+see. The Workflows tab now ships, so the consent screen and the product agree.
+
+> **Open item — five new screen scopes, added 4 Aug 2026, feature not yet shipped.**
+>
+> `read:screen:jira`, `read:screen-tab:jira`, `read:screen-field:jira`,
+> `read:screen-scheme:jira`, `read:issue-type-screen-scheme:jira`.
+>
+> These support the screen and field presentation inventory, which is at the first story of
+> its initiative. Until a Screens tab ships, this is the same consent-screen debt the
+> workflow scopes just cleared: five permissions requested for something a user cannot see.
+> All five names verified with `forge lint` on 4 Aug — they are correct, not merely
+> plausible.
+>
+> The five are not substitutable. Each hop of the chain (project → issue type screen scheme
+> → screen scheme → screen → tab → field) is gated by a different scope, so dropping one
+> breaks the traversal rather than narrowing it. The choice is all five or none.
+>
+> Revisit if the initiative stalls. Carrying five unused read scopes indefinitely is worse
+> than deferring the fetch work.
 
 ---
 

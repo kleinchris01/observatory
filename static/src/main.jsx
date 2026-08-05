@@ -484,6 +484,12 @@ export function App() {
 
     const header = ["Field ID", "Field Name", ...exportData.projects.map((project) => project.projectKey)];
     const rows = [];
+    // Second header row, only when workflow data exists. See the matching comment in
+    // admin.jsx -- columns sharing a scheme are meant to run the same process, so a field
+    // populated in one but not the others is the standardization signal.
+    if (exportData.projects.some((project) => project.workflowSchemeName)) {
+      rows.push(["", "Workflow scheme", ...exportData.projects.map((project) => project.workflowSchemeName || "")]);
+    }
     for (const group of groupReportFieldsByType(exportData.fields)) {
       rows.push([`${group.fieldType.toUpperCase()} FIELDS`, "", ...exportData.projects.map(() => "")]);
       for (const field of group.fields) {

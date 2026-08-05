@@ -281,6 +281,42 @@ function FieldTypeDonut({ fields }) {
   );
 }
 
+
+// ── Matrix heat map ─────────────────────────────────────────────────────────
+//
+// Sequential encoding: one hue, light to dark, because the value is magnitude rather
+// than identity. Five steps rather than a continuous gradient -- a reader compares cells
+// against the legend, and they cannot resolve more gradations than that.
+//
+// The ramps were run through the dataviz validator against these exact surfaces: both
+// are monotone in lightness with visible step gaps, and the step nearest the surface
+// still clears 2:1 so a low-but-nonzero cell never disappears into the table.
+//
+// An empty cell is NOT step 0. A field that is not configured on a project has no
+// intersection at all, which is a different statement from "configured and holding zero
+// issues" -- and this table is used to decide what to delete.
+const HEAT_STEPS = 5;
+
+function heatStep(count, max) {
+  if (!Number.isFinite(count) || count <= 0 || !max) return 0;
+  // Log scale: issue counts across a real site span several orders of magnitude, and a
+  // linear ramp would put everything except the largest project in the lightest step.
+  const ratio = Math.log10(count + 1) / Math.log10(max + 1);
+  return Math.max(1, Math.min(HEAT_STEPS, Math.ceil(ratio * HEAT_STEPS)));
+}
+
+function HeatLegend({ max }) {
+  return (
+    <div className="heat-legend" role="img" aria-label={`Cell shading runs from 1 issue to ${formatNumber(max)}`}>
+      <span className="heat-legend__label">Fewer</span>
+      {Array.from({ length: HEAT_STEPS }, (_, i) => (
+        <span key={i} className="heat-legend__swatch" data-heat={i + 1} />
+      ))}
+      <span className="heat-legend__label">More · up to {formatNumber(max)}</span>
+    </div>
+  );
+}
+
 export function ProjectUsageReportView({
   reportData,
   reportName,
@@ -304,6 +340,7 @@ export function ProjectUsageReportView({
   const [tableSortMode, setTableSortMode] = React.useState("type");
   const [tableOrientation, setTableOrientation] = React.useState("fields");
   const [optionsModal, setOptionsModal] = React.useState(null);
+  const [heatMap, setHeatMap] = React.useState(true);
 
   React.useEffect(() => {
     setReportFieldTypeFilter("all");
@@ -349,6 +386,19 @@ export function ProjectUsageReportView({
       }))
       .filter((field) => !normalizedProjectFilter || field.projects.length > 0);
   }, [fields, filteredProjectIds, reportFieldTypeFilter, normalizedProjectFilter]);
+
+  // The busiest single intersection anchors the scale. Computed across every cell in the
+  // filtered set, so the shading stays comparable as filters change the visible rows.
+  const heatMax = React.useMemo(() => {
+    let max = 0;
+    for (const field of filteredFields) {
+      for (const project of field.projects || []) {
+        const count = Number(project.issueCount) || 0;
+        if (count > max) max = count;
+      }
+    }
+    return max;
+  }, [filteredFields]);
 
   const flatFieldsSorted = React.useMemo(() => {
     if (tableSortMode === "type") return [];
@@ -530,6 +580,19 @@ export function ProjectUsageReportView({
                 </button>
               </div>
             </div>
+            <div className="toolbar__field">
+              <span>Shading</span>
+              <div className="toolbar__segmented">
+                <button
+                  className={`secondary-button secondary-button--small ${heatMap ? "secondary-button--active" : ""}`}
+                  type="button"
+                  aria-pressed={heatMap}
+                  onClick={() => setHeatMap((on) => !on)}
+                >
+                  Heat map
+                </button>
+              </div>
+            </div>
             <label className="toolbar__field">
               <span>Projects</span>
               <input
@@ -672,6 +735,8 @@ export function ProjectUsageReportView({
           </div>
           ) : null}
           {fields.length ? (
+          <>
+          {heatMap && heatMax > 0 && <HeatLegend max={heatMax} />}
           <ScrollableTableWrap colCount={filteredProjects.length}>
             <table className="report-table">
               {tableOrientation === "projects" ? (
@@ -704,7 +769,8 @@ export function ProjectUsageReportView({
                           const cell = (field.projects || []).find((p) => p.projectId === project.projectId);
                           const href = buildJiraSearchUrl(siteOrigin, cell?.jql);
                           return (
-                            <td key={`${project.projectId}-${field.fieldId}`}>
+                            <td key={`${project.projectId}-${field.fieldId}`}
+                              data-heat={heatMap && cell ? heatStep(cell.issueCount, heatMax) : undefined}>
                               {cell && href ? (
                                 <a className="smart-link-card smart-link-card--compact" href={href} target="_blank" rel="noreferrer" onClick={(e) => handleJiraLinkClick(e, href)}>
                                   <span className="smart-link-card__title">{cell.issueCount} issues</span>
@@ -753,7 +819,8 @@ export function ProjectUsageReportView({
                                 const cell = cellByProjectId.get(project.projectId);
                                 const href = buildJiraSearchUrl(siteOrigin, cell?.jql);
                                 return (
-                                  <td key={`${field.fieldId}-${project.projectId}`}>
+                                  <td key={`${field.fieldId}-${project.projectId}`}
+                                    data-heat={heatMap && cell ? heatStep(cell.issueCount, heatMax) : undefined}>
                                     {cell && href ? (
                                       <a className="smart-link-card smart-link-card--compact" href={href} target="_blank" rel="noreferrer" onClick={(e) => handleJiraLinkClick(e, href)}>
                                         <span className="smart-link-card__title">{cell.issueCount} issues</span>
@@ -787,7 +854,8 @@ export function ProjectUsageReportView({
                             const cell = cellByProjectId.get(project.projectId);
                             const href = buildJiraSearchUrl(siteOrigin, cell?.jql);
                             return (
-                              <td key={`${field.fieldId}-${project.projectId}`}>
+                              <td key={`${field.fieldId}-${project.projectId}`}
+                                data-heat={heatMap && cell ? heatStep(cell.issueCount, heatMax) : undefined}>
                                 {cell && href ? (
                                   <a className="smart-link-card smart-link-card--compact" href={href} target="_blank" rel="noreferrer" onClick={(e) => handleJiraLinkClick(e, href)}>
                                     <span className="smart-link-card__title">{cell.issueCount} issues</span>
@@ -804,6 +872,7 @@ export function ProjectUsageReportView({
               )}
             </table>
           </ScrollableTableWrap>
+          </>
           ) : reportJob && (reportJob.status === "queued" || reportJob.status === "building") ? (
             <div className="empty-state empty-state--inline">Report data will appear here as soon as the background build completes.</div>
           ) : null}
