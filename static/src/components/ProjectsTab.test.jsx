@@ -203,7 +203,9 @@ describe("ProjectsTabView", () => {
     };
     render(<ProjectsTabView {...defaultProps} data={data} selectedProjectId="P1" />);
     expect(screen.getByText("DEMO project usage")).toBeInTheDocument();
-    expect(screen.getByText("Fields with usage")).toBeInTheDocument();
+    // Renamed with the connection-map redesign -- the field count is now stated as a
+    // relationship of the project rather than as a standalone stat card.
+    expect(screen.getByText(/fields in use/i)).toBeInTheDocument();
   });
 
   it("shows the 'Restore from field summaries' button when handler is provided", () => {
@@ -288,7 +290,9 @@ describe("ProjectsTabView workflow correlation", () => {
     render(<ProjectsTabView {...props} data={dataWith(null)} />);
 
     expect(screen.queryByText("Workflow scheme")).not.toBeInTheDocument();
-    expect(screen.getByText(/fields with usage/i)).toBeInTheDocument();
+    // Label changed with the connection-map redesign: the field count is now a
+    // relationship of the project ("fields in use") rather than a standalone stat card.
+    expect(screen.getByText(/fields in use/i)).toBeInTheDocument();
   });
 });
 

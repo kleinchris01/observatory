@@ -14,7 +14,11 @@ import { Icon } from "./Icons";
 
 // A labelled number. `tone` carries meaning, not decoration: use "alert" only when the
 // value is something a person should act on, or it stops meaning anything.
-export function StatTile({ label, value, hint, tone = "neutral", icon }) {
+//
+// `children` renders below the hint, for the cases where a tile needs to carry something
+// structured -- a set of related keys, a distribution strip. Added rather than letting the
+// Projects tab invent a parallel tile; that is how this file came to be needed.
+export function StatTile({ label, value, hint, tone = "neutral", icon, children }) {
   return (
     <div className={`ui-stat ui-stat--${tone}`}>
       <div className="ui-stat__head">
@@ -23,6 +27,34 @@ export function StatTile({ label, value, hint, tone = "neutral", icon }) {
       </div>
       <span className="ui-stat__value">{value}</span>
       {hint && <span className="ui-stat__hint">{hint}</span>}
+      {children}
+    </div>
+  );
+}
+
+// The title block every tab opens with. Each tab had been writing its own -- `wf-header`,
+// `cfg__head`, a bare h2 -- at four different sizes and three different colours for the
+// same job.
+export function PageHeader({ title, description, actions }) {
+  return (
+    <header className="ui-pagehead">
+      <div className="ui-pagehead__titles">
+        <h2 className="ui-pagehead__title">{title}</h2>
+        {description && <p className="ui-pagehead__desc">{description}</p>}
+      </div>
+      {actions && <div className="ui-pagehead__actions">{actions}</div>}
+    </header>
+  );
+}
+
+// A footer that stays reachable while its form scrolls. `status` is the state of the thing
+// being edited, stated in both directions -- "saved" is information a reader wants, and a
+// bar that only appears when dirty leaves them checking whether it registered.
+export function StickyActions({ status, tone = "neutral", children }) {
+  return (
+    <div className="ui-actions">
+      {status && <span className={`ui-actions__status ui-actions__status--${tone}`}>{status}</span>}
+      {children}
     </div>
   );
 }

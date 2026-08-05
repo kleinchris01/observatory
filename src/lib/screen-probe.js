@@ -20,7 +20,49 @@ import {
   getScreenTabFields,
   getScanTelemetry,
   mapWithConcurrency,
+  probeEndpoint,
 } from "./jira-api.js";
+
+// Which endpoint answers, and which does not.
+//
+// Added after the first live run returned 401 "scope does not match" on a site whose
+// install was already upgraded to the version carrying the scopes -- so the obvious
+// explanation was wrong, and reasoning about which scope covers which endpoint produced
+// three plausible theories and no answer.
+//
+// This is the same move that settled the automation-rule question: ask each endpoint
+// directly and report exactly what came back, rather than arguing about it. Every scope
+// name is confirmed present in Atlassian's registry, so the question is not whether they
+// exist but which of these three reads each one actually authorizes.
+export async function probeScreenEndpoints() {
+  const candidates = [
+    { label: "screens", scope: "read:screen:jira", path: "/rest/api/3/screens?maxResults=1" },
+    // Tabs and fields need a real screen id, which is only available if the first call
+    // works. Probed anyway with id 1: a 404 is a materially different answer from a 401,
+    // because it proves the scope was accepted and only the id was wrong.
+    { label: "screen tabs", scope: "read:screen-tab:jira", path: "/rest/api/3/screens/1/tabs" },
+    { label: "tab fields", scope: "read:screen-field:jira", path: "/rest/api/3/screens/1/tabs/1/fields" },
+    { label: "screen schemes", scope: "read:screen-scheme:jira", path: "/rest/api/3/screenscheme?maxResults=1" },
+    { label: "issue type screen schemes", scope: "read:issue-type-screen-scheme:jira", path: "/rest/api/3/issuetypescreenscheme?maxResults=1" },
+  ];
+
+  const results = [];
+  for (const candidate of candidates) {
+    const probe = await probeEndpoint(candidate.path);
+    results.push({
+      ...candidate,
+      status: probe.status,
+      ok: probe.ok,
+      // A 404 means the scope was accepted and the id was not found -- which for the tab
+      // and field probes is a PASS, not a failure. Distinguishing the two is the whole
+      // point of probing with a deliberately invalid id.
+      scopeAccepted: probe.status !== 401 && probe.status !== 403,
+      sample: probe.sample,
+    });
+  }
+
+  return results;
+}
 
 // Enough screens to see a tail without the probe itself becoming the cost it is measuring.
 // At 4 tabs a screen this is ~125 calls, comfortably inside one invocation.

@@ -3,7 +3,8 @@ import { AuditLogPanel } from "../components/admin/AuditLogPanel";
 import { invoke, view } from "@forge/bridge";
 import { Icon } from "../components/Icons";
 import { DEFAULT_THRESHOLDS, DEFAULT_MACRO_ACCESS, DEFAULT_CONFIG } from "../admin-defaults";
-import { Toggle, ConfigSection, ConfigRow, InlineThresholdInput } from "../components/admin/primitives";
+import { Toggle, ConfigSection, ConfigRow, InlineThresholdInput, SubNavLayout } from "../components/admin/primitives";
+import { PageHeader, StickyActions } from "../components/ui";
 
 // Governance thresholds, macro access and snapshot scheduling.
 
@@ -141,74 +142,57 @@ export function ConfigTab({ config, onSave, saving }) {
   // visual weight -- so nothing signalled which of them could change the app's behaviour.
   const [area, setArea] = React.useState("access");
 
+  // SubNavLayout, not a bespoke rail. It already existed in admin/primitives.jsx and the
+  // Scans tab already used it; building a second one here is precisely how this app came
+  // to have eight parallel vocabularies for the same handful of widgets.
   return (
-    <div className="cfg">
-      <nav className="cfg__rail" aria-label="Configuration areas">
-        {CONFIG_AREAS.map((a) => (
+    <SubNavLayout items={CONFIG_AREAS} activeKey={area} onSelect={setArea}>
+      <ConfigAreas
+        area={area}
+        local={local}
+        t={t}
+        set={set}
+        setThreshold={setThreshold}
+        setMacroAccess={setMacroAccess}
+      />
+
+      {/* Diagnostics change nothing, so the save bar would be noise there. */}
+      {area !== "diagnostics" && (
+        <StickyActions
+          status={dirty ? "Unsaved changes" : "All changes saved"}
+          tone={dirty ? "alert" : "neutral"}
+        >
           <button
-            key={a.key}
+            className="primary-button"
             type="button"
-            className={`cfg__railitem ${area === a.key ? "cfg__railitem--active" : ""}`}
-            onClick={() => setArea(a.key)}
-            aria-current={area === a.key ? "page" : undefined}
+            onClick={handleSave}
+            disabled={saving || !dirty}
           >
-            <Icon name={a.icon} size={15} />
-            <span className="cfg__railitem-text">
-              <span className="cfg__railitem-label">{a.label}</span>
-              <span className="cfg__railitem-desc">{a.desc}</span>
-            </span>
+            <Icon name="check" size={14} />
+            {saving ? "Saving…" : "Save configuration"}
           </button>
-        ))}
-      </nav>
-
-      <div className="cfg__pane">
-        <ConfigAreas
-          area={area}
-          local={local}
-          t={t}
-          set={set}
-          setThreshold={setThreshold}
-          setMacroAccess={setMacroAccess}
-        />
-
-        {/* Diagnostics change nothing, so the save bar would be noise there. */}
-        {area !== "diagnostics" && (
-          <div className="cfg__actions">
-            <span className={`cfg__dirty ${dirty ? "cfg__dirty--on" : ""}`}>
-              {dirty ? "Unsaved changes" : "All changes saved"}
-            </span>
-            <button
-              className="primary-button"
-              type="button"
-              onClick={handleSave}
-              disabled={saving || !dirty}
-            >
-              <Icon name="check" size={14} />
-              {saving ? "Saving…" : "Save configuration"}
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
+        </StickyActions>
+      )}
+    </SubNavLayout>
   );
 }
 
 // The four areas, in the order an admin meets them: who gets in, how hard the app works,
 // what it flags, and what it can tell you about itself.
 const CONFIG_AREAS = [
-  { key: "access", label: "Access", icon: "lock", desc: "Who can see the macro" },
-  { key: "scanning", label: "Scanning", icon: "clock", desc: "Load and schedule" },
-  { key: "rules", label: "Governance rules", icon: "alertTriangle", desc: "Thresholds behind findings" },
-  { key: "diagnostics", label: "Diagnostics", icon: "activity", desc: "Records and probes" },
+  { key: "access", label: "Access", icon: "lock" },
+  { key: "scanning", label: "Scanning", icon: "clock" },
+  { key: "rules", label: "Governance rules", icon: "alertTriangle" },
+  { key: "diagnostics", label: "Diagnostics", icon: "activity" },
 ];
 
 function ConfigAreas({ area, local, t, set, setThreshold, setMacroAccess }) {
   if (area === "access") {
     return (
       <>
-        <AreaHead
+        <PageHeader
           title="Access"
-          blurb="The admin page is gated by Jira at the platform level and is not affected by
+          description="The admin page is gated by Jira at the platform level and is not affected by
                  anything here. These settings govern the Confluence macro."
         />
         <AccessArea local={local} set={set} setMacroAccess={setMacroAccess} />
@@ -219,9 +203,9 @@ function ConfigAreas({ area, local, t, set, setThreshold, setMacroAccess }) {
   if (area === "scanning") {
     return (
       <>
-        <AreaHead
+        <PageHeader
           title="Scanning"
-          blurb="How much load Observatory puts on Jira, and how often it refreshes without
+          description="How much load Observatory puts on Jira, and how often it refreshes without
                  being asked."
         />
         <ScanningArea local={local} set={set} />
@@ -232,9 +216,9 @@ function ConfigAreas({ area, local, t, set, setThreshold, setMacroAccess }) {
   if (area === "rules") {
     return (
       <>
-        <AreaHead
+        <PageHeader
           title="Governance rules"
-          blurb="Every finding in the app comes from one of the rules below. Edit the numbers
+          description="Every finding in the app comes from one of the rules below. Edit the numbers
                  inline — changes apply on the next inventory load, with no snapshot rebuild."
         />
         <RulesArea t={t} setThreshold={setThreshold} />
@@ -244,9 +228,9 @@ function ConfigAreas({ area, local, t, set, setThreshold, setMacroAccess }) {
 
   return (
     <>
-      <AreaHead
+      <PageHeader
         title="Diagnostics"
-        blurb="Records and probes. Nothing on this page changes how the app behaves — it
+        description="Records and probes. Nothing on this page changes how the app behaves — it
                reports what already happened, or asks Jira what it will answer."
       />
       <ScreenCostProbePanel />
@@ -272,7 +256,9 @@ export function ScreenCostProbePanel() {
       const res = await invoke("probeScreenFetchCost", { sampleSize: 25 });
       if (res?.ok === false) {
         setError(res.hint ? `${res.error} — ${res.hint}` : res.error);
-        setResult(null);
+        // Keep the endpoint breakdown even on failure: on an authorization error it is
+        // the only useful output, and the reason the probe ran at all.
+        setResult(res.endpoints ? { endpointsOnly: true, endpoints: res.endpoints } : null);
       } else {
         setResult(res);
       }
@@ -299,7 +285,31 @@ export function ScreenCostProbePanel() {
 
       {error && <div className="danger-zone__error" role="alert">{error}</div>}
 
-      {result && (
+      {result?.endpointsOnly && (
+        <div className="probe-results">
+          <p className="probe-results__summary">
+            Which endpoints accept the app's scopes. A <b>404 is a pass</b> — it means the
+            scope was accepted and only the placeholder id was wrong.
+          </p>
+          <table className="probe-results__table">
+            <thead>
+              <tr><th>Endpoint</th><th>Declared scope</th><th>Status</th><th>Scope accepted</th></tr>
+            </thead>
+            <tbody>
+              {result.endpoints.map((row) => (
+                <tr key={row.path} className={row.scopeAccepted ? "probe-results__row--ok" : ""}>
+                  <td>{row.label}</td>
+                  <td className="probe-results__path">{row.scope}</td>
+                  <td>{row.status === null ? "—" : row.status}</td>
+                  <td>{row.scopeAccepted ? "yes" : "no"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {result && !result.endpointsOnly && (
         <div className="probe-results">
           {result.totalScreens === 0 ? (
             <p className="probe-results__summary">{result.note}</p>
@@ -339,15 +349,6 @@ export function ScreenCostProbePanel() {
         </div>
       )}
     </ConfigSection>
-  );
-}
-
-function AreaHead({ title, blurb }) {
-  return (
-    <header className="cfg__head">
-      <h2 className="cfg__title">{title}</h2>
-      <p className="cfg__blurb">{blurb}</p>
-    </header>
   );
 }
 

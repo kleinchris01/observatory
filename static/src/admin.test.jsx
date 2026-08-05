@@ -175,10 +175,11 @@ describe("AdminApp tab navigation", () => {
     await user.click(within(adminNav).getByText("Scans"));
     await waitFor(() => expect(document.querySelector(".admin-scans-tab")).toBeTruthy());
 
-    // Configuration. Root is .cfg since the tab moved to a rail-and-pane layout; the old
-    // .admin-config-tab wrapper was a plain vertical stack and no longer exists.
+    // Configuration renders through the shared SubNavLayout, like Scans. It briefly had a
+    // bespoke .cfg rail; that was the same widget rebuilt a second time and is now gone.
     await user.click(within(adminNav).getByText("Configuration"));
-    await waitFor(() => expect(document.querySelector(".cfg")).toBeTruthy());
+    await waitFor(() => expect(document.querySelector(".sub-nav-layout")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Governance rules")).toBeTruthy());
   });
 
   it("marks the active tab button with the active class", async () => {

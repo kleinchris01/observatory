@@ -14,6 +14,7 @@ import {
 } from "../utils";
 import { Icon, useChartPalette } from "./Icons";
 import { SkeletonProjectItem, FindingsStrip, MetricChip } from "./FieldCard";
+import { Panel, StatRow, StatTile, BarList } from "./ui";
 
 function ChartTooltip({ active, payload }) {
   if (!active || !payload?.length) return null;
@@ -122,56 +123,160 @@ export function FieldTypeDonut({ fields }) {
   );
 }
 
-// Which workflow scheme governs this project, and which other projects share it.
+// ── Connection map ──────────────────────────────────────────────────────────
 //
-// The correlation this enables is the point: two projects on the same workflow scheme are
-// meant to run the same process, so a large divergence in their custom field usage is a
-// standardization signal that neither the field view nor the workflow view shows alone.
-// Rendered only when a workflow snapshot exists -- the field view must never depend on it.
-function ProjectWorkflowPanel({ scheme, fieldCount }) {
-  if (!scheme) return null;
+// The page had no spine. Five stat cards, a workflow band, two charts and a field list
+// were stacked with nothing saying how any of them related -- and one of the cards
+// ("projects in snapshot") was a SITE figure sitting among project figures, which is a
+// category error rather than a layout problem.
+//
+// A project is a hub with exactly three relationships, and this states them in that shape:
+// the process it runs, the volume it carries, and the shape of the form people fill in.
+// Everything else on the page is a drill-down into one of the three.
 
-  const shared = scheme.sharedWithCount || 0;
+// Built from the shared primitives, not a parallel set. The hub and the type strip are
+// genuinely specific to this view and stay local; the three relationship tiles are
+// StatTile, because "labelled value with a qualifier" is the most-rebuilt widget in this
+// app and already has a home.
+function ProjectConnectionMap({ project, scheme, fields }) {
+  const palette = useChartPalette();
+
+  // System fields excluded for the same reason the donut excluded them: they appear on
+  // every issue in every project, so counting them describes Jira rather than this project.
+  const typeMix = React.useMemo(() => {
+    const counts = {};
+    for (const f of fields.filter((f) => isCustomField(f.fieldId))) {
+      counts[f.fieldType] = (counts[f.fieldType] || 0) + 1;
+    }
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 7)
+      .map(([name, value]) => ({ name, value }));
+  }, [fields]);
+
+  const unique = project.uniqueIssueCount;
+  const fills = project.totalIssueCount;
+  const perIssue = unique > 0 ? (fills / unique) : null;
 
   return (
-    <section className="project-workflow">
-      <div className="project-workflow__head">
-        <span className="project-workflow__label">Workflow scheme</span>
-        <span className="project-workflow__name">{scheme.name}</span>
-        {shared > 0 && (
-          <span className="project-workflow__shared">
-            shared with {shared} other {shared === 1 ? "project" : "projects"}
-          </span>
-        )}
-        {shared === 0 && <span className="project-workflow__shared">used only by this project</span>}
-      </div>
+    <Panel
+      title={`${project.projectKey} · ${project.projectName}`}
+      icon="folder"
+      description="How this project connects: the process it runs, the volume it carries, and the shape of the form people fill in."
+    >
+      <StatRow>
+        <StatTile
+          label="Process"
+          icon="activity"
+          value={scheme ? scheme.name : "Not inventoried"}
+          hint={
+            scheme
+              ? (scheme.sharedWithCount > 0
+                  ? `shared with ${scheme.sharedWithCount} other ${scheme.sharedWithCount === 1 ? "project" : "projects"}`
+                  : "used only by this project")
+              : "Build the workflow inventory to connect this"
+          }
+        >
+          {/* Kept alongside the peer bars below: the bars need each sibling to resolve in
+              the projects list to show a field count, the chips only need the key. */}
+          {scheme?.siblingProjects?.length > 0 && (
+            <div className="project-cxn__peers">
+              {scheme.siblingProjects.map((sibling) => (
+                <span key={sibling.projectId} className="project-cxn__peer" title={sibling.projectName}>
+                  {sibling.projectKey}
+                </span>
+              ))}
+            </div>
+          )}
+        </StatTile>
 
-      {scheme.description && <p className="project-workflow__desc">{scheme.description}</p>}
+        <StatTile
+          label="Volume"
+          icon="barChart"
+          value={formatNumber(unique != null ? unique : fills)}
+          hint={
+            unique != null
+              ? `distinct issues · ${formatNumber(fills)} field values`
+              : "field values — run a universe scan for issue counts"
+          }
+        />
 
-      {shared > 0 && (
-        <>
-          <p className="project-workflow__hint">
-            These projects run the same process. Comparing their field usage against this
-            project&apos;s {formatNumber(fieldCount)} fields is where standardization
-            opportunities show up.
-          </p>
-          <div className="project-workflow__siblings">
-            {scheme.siblingProjects?.map((sibling) => (
-              <span key={sibling.projectId} className="project-workflow__sibling" title={sibling.projectName}>
-                {sibling.projectKey}
-              </span>
-            ))}
-            {shared > (scheme.siblingProjects?.length || 0) && (
-              <span className="project-workflow__sibling project-workflow__sibling--more">
-                +{shared - (scheme.siblingProjects?.length || 0)} more
-              </span>
-            )}
-          </div>
-        </>
-      )}
-    </section>
+        <StatTile
+          label="Form shape"
+          icon="layers"
+          value={formatNumber(project.fieldCount)}
+          hint={
+            perIssue != null
+              ? `fields in use · ${perIssue.toFixed(1)} per issue`
+              : "fields in use"
+          }
+        >
+          {typeMix.length > 0 && (
+            <div
+              className="project-cxn__mix"
+              role="img"
+              aria-label={typeMix.map((t) => `${t.value} ${t.name}`).join(", ")}
+            >
+              {typeMix.map((seg, i) => (
+                <span
+                  key={seg.name}
+                  className="project-cxn__mixseg"
+                  style={{ flexGrow: seg.value, background: palette[i % palette.length] }}
+                  data-tip={`${seg.name}: ${seg.value}`}
+                />
+              ))}
+            </div>
+          )}
+        </StatTile>
+      </StatRow>
+    </Panel>
   );
 }
+
+// The comparison the workflow band used to describe and never show. Sibling field counts
+// join off the projects list already in the payload, so it costs no extra request.
+function SchemePeerBars({ scheme, project, allProjects }) {
+  if (!scheme || !scheme.siblingProjects?.length) return null;
+
+  const byId = new Map(allProjects.map((p) => [String(p.projectId), p]));
+  const peers = scheme.siblingProjects
+    .map((sibling) => byId.get(String(sibling.projectId)))
+    .filter(Boolean);
+
+  if (!peers.length) return null;
+
+  const rows = [project, ...peers]
+    .map((p) => ({ projectKey: p.projectKey, projectName: p.projectName, fieldCount: p.fieldCount }))
+    .sort((a, b) => b.fieldCount - a.fieldCount);
+
+  const sorted = [...rows].sort((a, b) => a.fieldCount - b.fieldCount);
+  const median = sorted[Math.floor(sorted.length / 2)].fieldCount;
+
+  return (
+    <Panel
+      title={`Field count across ${scheme.name}`}
+      icon="layers"
+      description={`These projects run the same process, so a wide spread is a standardization opportunity rather than a fact of life. Median ${formatNumber(median)}.`}
+    >
+      <BarList
+        items={rows}
+        labelKey="projectKey"
+        valueKey="fieldCount"
+        formatValue={formatNumber}
+        emptyMessage="No peer projects visible to you"
+      />
+    </Panel>
+  );
+}
+
+// NOTE: TopFieldsChart and FieldTypeDonut are still exported and tested, but the Projects
+// tab no longer renders either. TopFieldsChart plotted one visible bar on this site --
+// fields present on every issue and on most issues differ by less than a pixel at 59k --
+// and the donut's information now lives in the connection map's inline type strip.
+//
+// Left exported rather than deleted mid-redesign: the donut is general-purpose and may be
+// wanted elsewhere. If neither is picked up, delete both with their tests rather than
+// leaving them to read as live code.
 
 export function ProjectsTabView({
   data,
@@ -239,9 +344,12 @@ export function ProjectsTabView({
                 >
                   <div className="projects-rail__item-top">
                     <strong>{project.projectKey}</strong>
+                    {/* Both, when both are known. The rail is where projects get compared,
+                        and issues alone hide that one project asks 50 fields per issue and
+                        its neighbour on the same scheme asks 8. */}
                     <span>
                       {project.uniqueIssueCount != null
-                        ? `${formatNumber(project.uniqueIssueCount)} issues`
+                        ? `${formatNumber(project.uniqueIssueCount)} issues · ${formatNumber(project.totalIssueCount)} fills`
                         : `${formatNumber(project.totalIssueCount)} fills`}
                     </span>
                   </div>
@@ -309,40 +417,29 @@ export function ProjectsTabView({
 
           {selectedProject ? (
             <>
-              <div className="report-dashboard__metric-grid report-dashboard__metric-grid--3">
-                <article className="report-insight-card">
-                  <div className="report-insight-card__label">Projects in snapshot</div>
-                  <div className="report-insight-card__value">{formatNumber(projects.length)}</div>
-                  <div className="report-insight-card__meta">Quick switch between every cached project</div>
-                </article>
-                <article className="report-insight-card">
-                  <div className="report-insight-card__label">Fields with usage</div>
-                  <div className="report-insight-card__value">{formatNumber(selectedProject.fieldCount)}</div>
-                  <div className="report-insight-card__meta">Fields where at least one issue has a populated value on this project</div>
-                </article>
-                {selectedProject.uniqueIssueCount != null ? (
-                  <article className="report-insight-card">
-                    <div className="report-insight-card__label">Unique issues</div>
-                    <div className="report-insight-card__value">{formatNumber(selectedProject.uniqueIssueCount)}</div>
-                    <div className="report-insight-card__meta">Distinct issues in this project from the universe scan</div>
-                  </article>
-                ) : (
-                  <article className="report-insight-card">
-                    <div className="report-insight-card__label">Field fills</div>
-                    <div className="report-insight-card__value">{formatNumber(selectedProject.totalIssueCount)}</div>
-                    <div className="report-insight-card__meta">Sum of issue counts across all fields — run a universe scan for unique issue counts</div>
-                  </article>
-                )}
-              </div>
+              {/*
+                One hero that states the three relationships, replacing five stat cards, a
+                workflow band and two charts. What went, and why:
 
-              <ProjectWorkflowPanel scheme={data?.workflowScheme} fieldCount={selectedProject.fieldCount} />
+                * "Projects in snapshot" was a SITE figure among project figures. It now
+                  labels the rail, which is the thing it actually describes.
+                * "Top fields by issue count" plotted one visible bar on this site, because
+                  a field present on every issue and a field present on most of them differ
+                  by less than a pixel at this scale. It was chart-shaped, not informative.
+                * The donut became the inline type strip -- same information, a tenth of
+                  the space, and adjacent to the field count it qualifies.
+              */}
+              <ProjectConnectionMap
+                project={selectedProject}
+                scheme={data?.workflowScheme}
+                fields={fields}
+              />
 
-              {fields.length > 0 && (
-                <div className="project-charts-row">
-                  <TopFieldsChart fields={fields} />
-                  <FieldTypeDonut fields={fields} />
-                </div>
-              )}
+              <SchemePeerBars
+                scheme={data?.workflowScheme}
+                project={selectedProject}
+                allProjects={projects}
+              />
 
               <section className="report-filters">
                 <label className="toolbar__field">

@@ -94,7 +94,7 @@ import {
   loadStatusHistoryCounts,
 } from "./lib/project-store.js";
 import { queueWorkflowSnapshotBuild, isWorkflowBuildStale, queueStatusHistoryBuild } from "./lib/workflow-engine.js";
-import { measureScreenFetchCost, DEFAULT_SAMPLE_SIZE } from "./lib/screen-probe.js";
+import { measureScreenFetchCost, probeScreenEndpoints, DEFAULT_SAMPLE_SIZE } from "./lib/screen-probe.js";
 import { computeSiteHealth } from "./lib/health-score.js";
 import { probeEndpoint, probeStargateEndpoint, getCloudId, getAllJiraProjects } from "./lib/jira-api.js";
 import {
@@ -747,14 +747,31 @@ async function probeScreenFetchCost({ payload, context }) {
   try {
     return await measureScreenFetchCost({ sampleSize });
   } catch (error) {
-    logger.warn("screen-probe.failed", { error: String(error?.message || error) });
+    const message = String(error?.message || error);
+    logger.warn("screen-probe.failed", { error: message });
+
+    // On an authorization failure, stop guessing and ask each endpoint directly.
+    //
+    // The first live run failed with 401 "scope does not match" and this returned a hint
+    // saying the install needed upgrading. That was wrong -- the install was already on the
+    // version carrying the scopes. A hint that confidently names the wrong cause is worse
+    // than no hint, because it sends the reader somewhere that cannot help.
+    //
+    // Every scope name is confirmed present in Atlassian's registry, so the open question
+    // is which endpoint each one authorizes. Probing answers that; reasoning did not.
+    const isAuthFailure = /\b401\b|\b403\b|scope does not match/i.test(message);
+    let endpoints = null;
+    if (isAuthFailure) {
+      endpoints = await probeScreenEndpoints().catch(() => null);
+    }
+
     return {
       ok: false,
-      error: String(error?.message || error),
-      // Named explicitly because it is the likely cause on first run and the least obvious
-      // from the error text alone: the scopes ship in the manifest but are not granted on an
-      // installation until the app is upgraded and the consent screen is accepted.
-      hint: "If this is a 401, the five screen scopes are declared but not yet granted on this installation. Upgrade the app and accept the consent screen, then retry.",
+      error: message,
+      endpoints,
+      hint: isAuthFailure
+        ? "Authorization failure. The table below shows which screen endpoints accept the app's scopes and which reject them — a 404 is a pass, since it means the scope was accepted and only the placeholder id was wrong."
+        : null,
     };
   }
 }
