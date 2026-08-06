@@ -103,6 +103,7 @@ import {
   computeSchemeCategoryBalance,
   summarizeWorkflowInsights,
 } from "./lib/workflow-insights.js";
+import { readAutomationAnalysis } from "./lib/store/automation.js";
 import {
   STRUCTURAL_SYSTEM_FIELDS,
   isFieldValueNonEmpty,
@@ -717,6 +718,52 @@ async function getWorkflowInsights({ context }) {
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
     console.error("getWorkflowInsights failed:", error);
+    throw error;
+  }
+}
+
+
+// Governance findings over the site's automation rules.
+//
+// Admin-only, unlike getWorkflowInsights. Workflow insights describe configuration shared
+// with every user; this returns rule names, the projects they act on, and the external
+// hosts they post to -- an inventory of the site's outbound integrations, which is not
+// something an arbitrary authenticated user should be able to enumerate.
+//
+// Reads the stored analysis rather than computing one. Deriving it needs every rule, and
+// the rules are neither held here nor cheap to fetch; the build path writes the document
+// this reads. No document means the analysis has never been built, which is the normal
+// state on a fresh install and renders as an empty state rather than an error.
+async function getAutomationInsights({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const installationKey = getInstallationKey(context);
+    const analysis = await readAutomationAnalysis(installationKey);
+
+    if (!analysis) {
+      return {
+        available: false,
+        reason: "no-analysis",
+        refreshedAt: null,
+      };
+    }
+
+    return {
+      available: true,
+      refreshedAt: analysis.refreshedAt ?? null,
+      source: analysis.source ?? "unknown",
+      estate: analysis.estate ?? null,
+      findings: analysis.findings ?? [],
+      // The stored lists are truncated. Sending the totals alongside them lets the tab say
+      // "showing 300 of 468" instead of quietly presenting a partial list as complete.
+      findingsTotal: analysis.findingsTotal ?? (analysis.findings?.length ?? 0),
+      cascades: analysis.cascades ?? [],
+      cascadesTotal: analysis.cascadesTotal ?? (analysis.cascades?.length ?? 0),
+      selfTriggeringTotal: analysis.selfTriggeringTotal ?? 0,
+    };
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("getAutomationInsights failed:", error);
     throw error;
   }
 }
@@ -3229,6 +3276,9 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   // Snapshot lifecycle
   cancelSnapshot,          // Mutating: cancels in-progress snapshot build
   clearSnapshot,           // Mutating: irreversibly deletes all derived snapshot data
+
+  // Automation rule analysis
+  getAutomationInsights,   // Admin read: enumerates rule names, project scope and outbound hosts
 
   // Project usage job management
   getProjectUsageJobs,     // Admin read: lists all field-level project-usage jobs with logs

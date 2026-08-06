@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   color-scheme: dark;
   --bg: #f3efe7;
   --bg-accent: radial-gradient(circle at top left, rgba(214, 151, 73, 0.28), transparent 28rem),
@@ -1006,7 +1006,7 @@ select {
   gap: 8px;
 }
 
-/* The field id itself is the copy target — it inherits the id line's type and color so it
+/* The field id itself is the copy target â€” it inherits the id line's type and color so it
    reads as the value, not as a button. Only the trailing icon signals the affordance.
    Sits inside the card-header button, so it is a role="button" span rather than a nested
    <button>. Negative margins cancel the padding so the id stays optically aligned. */
@@ -2075,7 +2075,7 @@ code {
   margin-top: 4px;
 }
 
-/* ── Universe Scan Panel (full-width redesign) ────────────────────────────── */
+/* â”€â”€ Universe Scan Panel (full-width redesign) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .universe-scan-panel {
   display: flex;
   flex-direction: column;
@@ -3087,13 +3087,13 @@ code {
   flex-shrink: 0;
 }
 
-/* ── Admin page ──────────────────────────────────────────────────────────── */
+/* â”€â”€ Admin page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 .admin-shell {
   padding-bottom: 60px;
 }
 
-/* ── Admin two-column layout ─────────────────────────────────────────────── */
+/* â”€â”€ Admin two-column layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 .admin-layout {
   display: grid;
@@ -3588,7 +3588,7 @@ code {
 }
 .project-cxn__mixseg { min-width: 3px; border-radius: 2px; }
 
-/* ── Shared: page header and sticky actions ───────────────────────────────── */
+/* â”€â”€ Shared: page header and sticky actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 .ui-pagehead {
   display: flex;
@@ -3903,7 +3903,7 @@ code {
   font-weight: 600;
 }
 
-/* ── Field type tag (flat sort modes in report table) ── */
+/* â”€â”€ Field type tag (flat sort modes in report table) â”€â”€ */
 .field-type-tag {
   display: inline-block;
   margin: 2px 0 3px;
@@ -3918,7 +3918,7 @@ code {
   border: 1px solid rgba(121, 184, 255, 0.25);
 }
 
-/* ── Report table: field name cell ── */
+/* â”€â”€ Report table: field name cell â”€â”€ */
 .report-table__field-name {
   font-weight: 600;
   line-height: 1.3;
@@ -3944,7 +3944,7 @@ code {
   text-decoration-color: currentColor;
 }
 
-/* ── Field options modal overlay ── */
+/* â”€â”€ Field options modal overlay â”€â”€ */
 .field-options-overlay {
   position: fixed;
   inset: 0;
@@ -4077,7 +4077,7 @@ code {
   text-align: right;
 }
 
-/* ── Inline options chip grid (FieldCard Options section) ── */
+/* â”€â”€ Inline options chip grid (FieldCard Options section) â”€â”€ */
 .inline-options {
   margin-bottom: 10px;
 }
@@ -4128,7 +4128,7 @@ code {
 }
 .inline-options__more:hover { border-color: var(--accent, #5ba4cf); }
 
-/* ── Access gate (checking / denied) ── */
+/* â”€â”€ Access gate (checking / denied) â”€â”€ */
 .access-gate {
   display: flex;
   flex-direction: column;
@@ -4172,7 +4172,7 @@ code {
   line-height: 1.5;
 }
 
-/* ── Admin group allowlist input ── */
+/* â”€â”€ Admin group allowlist input â”€â”€ */
 .admin-group-input-wrap {
   width: 100%;
 }
@@ -4247,7 +4247,7 @@ code {
   gap: 8px;
 }
 
-/* ── Issue range filter ──────────────────────────────────────────────────── */
+/* â”€â”€ Issue range filter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 .toolbar__range-inputs {
   display: flex;
@@ -4266,7 +4266,7 @@ code {
   flex-shrink: 0;
 }
 
-/* ── Page size selector ───────────────────────────────────────────────────── */
+/* â”€â”€ Page size selector â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 .pagination-bar__page-size {
   display: flex;
@@ -4308,7 +4308,7 @@ code {
   color: #fff;
 }
 
-/* ── Admin project usage tab ─────────────────────────────────────────────── */
+/* â”€â”€ Admin project usage tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 .admin-projects-tab {
   display: flex;
@@ -4458,7 +4458,7 @@ code {
   overflow-x: auto;
 }
 
-/* ── Admin field browser ─────────────────────────────────────────────────── */
+/* â”€â”€ Admin field browser â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 .admin-field-browser {
   display: flex;
@@ -4700,7 +4700,7 @@ code {
   color: var(--muted);
 }
 
-/* ── Field rows ───────────────────────────────────────────────────────────── */
+/* â”€â”€ Field rows â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 .admin-field-list {
   display: flex;
@@ -4812,7 +4812,7 @@ code {
   align-items: center;
 }
 
-/* Upgraded card layout — primary column + stats column */
+/* Upgraded card layout â€” primary column + stats column */
 
 .admin-field-row__header {
   align-items: flex-start;
@@ -4959,7 +4959,7 @@ code {
   font-weight: 700;
 }
 
-/* ── Field detail panel ───────────────────────────────────────────────────── */
+/* â”€â”€ Field detail panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 .admin-field-detail {
   border-top: 1px solid var(--stroke);
@@ -5092,7 +5092,7 @@ code {
   font-size: 11px;
 }
 
-/* ── Admin usage table ────────────────────────────────────────────────────── */
+/* â”€â”€ Admin usage table â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 .admin-usage-table {
   width: 100%;
@@ -5129,7 +5129,7 @@ code {
   font-variant-numeric: tabular-nums;
 }
 
-/* ── Admin pagination ─────────────────────────────────────────────────────── */
+/* â”€â”€ Admin pagination â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 .admin-pagination {
   display: flex;
@@ -5143,7 +5143,7 @@ code {
   color: var(--muted);
 }
 
-/* ── Developer console links ──────────────────────────────────────────────── */
+/* â”€â”€ Developer console links â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 .admin-dev-links {
   display: flex;
@@ -5675,7 +5675,7 @@ code {
   padding: 2px 0 2px 4px;
 }
 
-/* ── Danger zone (snapshot clear) ──────────────────────────────────────────── */
+/* â”€â”€ Danger zone (snapshot clear) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 .danger-zone {
   margin-top: 18px;
@@ -5793,7 +5793,7 @@ code {
   .danger-button { transition: none; }
 }
 
-/* ── Audit log panel ───────────────────────────────────────────────────────── */
+/* â”€â”€ Audit log panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 .audit-panel { display: flex; flex-direction: column; gap: 12px; }
 
@@ -5915,7 +5915,7 @@ code {
 .audit-outcome--denied  { color: var(--danger);  background: var(--danger-bg); }
 .audit-outcome--failed  { color: var(--warm);    background: rgba(139, 94, 46, 0.12); }
 
-/* ── Workflow & status inventory ───────────────────────────────────────────── */
+/* â”€â”€ Workflow & status inventory â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 .admin-workflow-tab { display: flex; flex-direction: column; gap: 16px; }
 
@@ -6102,7 +6102,7 @@ code {
 .wf-pagination { display: flex; align-items: center; justify-content: center; gap: 14px; padding-top: 6px; }
 .wf-pagination__label { font-size: 0.8rem; color: var(--muted); }
 
-/* ── Project ↔ workflow correlation ───────────────────────────────────────── */
+/* â”€â”€ Project â†” workflow correlation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 .project-workflow {
   margin: 14px 0 0; padding: 13px 16px;
@@ -6131,7 +6131,7 @@ code {
   .wf-scheme__caret { transition: none; }
 }
 
-/* ── Workflow insights ───────────────────────────────────────────────────── */
+/* â”€â”€ Workflow insights â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 /* Findings over the workflow snapshot. Reuses the existing semantic tones so a
    status category reads the same here as it does in the status catalog above. */
 
@@ -6231,7 +6231,7 @@ code {
 
 .wf-viewtab__count--alert { background: rgba(201, 96, 90, 0.2); }
 
-/* ── Shared UI primitives ────────────────────────────────────────────────────
+/* â”€â”€ Shared UI primitives â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    One canonical vocabulary for widgets that appear on more than one tab. These
    replace four separate stat-card idioms (scan-stat-card, rqt-stat,
    wf-insight-stat, admin-stat-row) and three chart-card idioms that had drifted
@@ -6379,7 +6379,7 @@ code {
 .wf-status__metric--muted { opacity: 0.5; }
 .wf-status__metric--departed { color: #d3a24e; opacity: 0.9; }
 
-/* ── Workflow tab charts ─────────────────────────────────────────────────────
+/* â”€â”€ Workflow tab charts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    Magnitude gets one hue with every value labelled; the category split gets its
    three semantic tones plus a legend, because there the categories ARE the data. */
 .wf-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; margin-bottom: 16px; }
@@ -6411,7 +6411,7 @@ code {
 .wf-barlist__bar { display: block; height: 100%; border-radius: 3px; background: #4d8fd6; min-width: 2px; }
 .wf-barlist__value { font-size: 0.73rem; font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
 
-/* ── Site health ─────────────────────────────────────────────────────────────
+/* â”€â”€ Site health â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    The number is an entry point, so it is large but never alone: the weakest
    dimension and its remedy sit directly beneath it. */
 .ui-health { display: flex; flex-direction: column; gap: 6px; }
@@ -6441,7 +6441,7 @@ code {
 .ui-health__dimval { grid-area: value; font-size: 0.78rem; text-align: right; font-variant-numeric: tabular-nums; opacity: 0.75; }
 .ui-health__dimdetail { grid-area: detail; font-size: 0.74rem; opacity: 0.55; line-height: 1.4; }
 
-/* ── Endpoint probe results ──────────────────────────────────────────────── */
+/* â”€â”€ Endpoint probe results â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .probe-results { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
 .probe-results__summary { font-size: 0.82rem; margin: 0; opacity: 0.85; }
 .probe-results__summary--ok { color: #6fae81; }
@@ -6460,7 +6460,7 @@ code {
 }
 .chart-title__note { font-weight: 400; opacity: 0.55; font-size: 0.92em; }
 
-/* ── Report matrix heat map ──────────────────────────────────────────────────
+/* â”€â”€ Report matrix heat map â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    Sequential encoding: one hue, light to dark, five steps. Both ramps were run
    through the dataviz validator against these surfaces -- monotone lightness,
    visible step gaps, and the step nearest the surface clears 2:1 so a low but
@@ -6510,3 +6510,47 @@ code {
 }
 
 
+
+/* ── Automation tab ──────────────────────────────────────────────────────── */
+
+.automation-tab { display: flex; flex-direction: column; gap: 1rem; }
+
+.automation-tab__meta { font-size: 0.75rem; opacity: 0.6; }
+
+.automation-tab__controls { display: flex; gap: 0.5rem; align-items: center; }
+
+.automation-tab__search,
+.automation-tab__filter {
+  background: var(--panel-2, rgba(255,255,255,0.04));
+  border: 1px solid var(--border, rgba(255,255,255,0.1));
+  border-radius: 6px;
+  color: inherit;
+  font-size: 0.78rem;
+  padding: 0.3rem 0.5rem;
+}
+
+.automation-tab__search { min-width: 12rem; }
+
+.automation-tab__truncation {
+  font-size: 0.74rem; opacity: 0.6; padding-top: 0.5rem;
+}
+
+.automation-cascades { list-style: none; margin: 0.75rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+
+.automation-cascades__row {
+  display: grid;
+  grid-template-columns: auto 10rem 1fr;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.78rem;
+}
+
+.automation-cascades__field { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.automation-cascades__rules { opacity: 0.7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.automation-finding__risks { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.3rem; }
+
+@media (max-width: 720px) {
+  .automation-cascades__row { grid-template-columns: 1fr; gap: 0.15rem; }
+}
