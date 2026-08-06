@@ -420,3 +420,15 @@ export function buildReportRovoPrompt({ reportName, fields, projects, pendingFie
     "Explain the dominant usage patterns across this collection of fields, call out cleanup or standardization opportunities, identify risk concentrations, and recommend the next administrative actions for this report as a whole.",
   ].join(" ");
 }
+
+
+// True for a Jira custom field, false for a system field.
+//
+// Jira custom fields are always `customfield_NNNNN`; everything else (comment, worklog,
+// priority, reporter, status, summary, labels...) is a system field present on every
+// issue in every project. Counting those in a per-project breakdown says nothing about
+// how a project is configured -- they are there whether anyone configured anything or
+// not -- and on a small project they can outnumber the real custom fields.
+export function isCustomField(fieldId) {
+  return String(fieldId || "").startsWith("customfield_");
+}

@@ -1,0 +1,618 @@
+import React from "react";
+import { invoke, view } from "@forge/bridge";
+import { openFieldExpertRovo, buildFieldRovoPrompt, buildProjectRovoPrompt, buildReportRovoPrompt } from "../utils";
+import { Icon } from "../components/Icons";
+import { FieldCard } from "../components/FieldCard";
+
+// The custom field inventory: filters, findings and per-field detail.
+// The largest single tab, and the one most worth testing in isolation.
+
+export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSelectedFieldIds, onGoToReport, siteOrigin }) {
+  const selectedSet = React.useMemo(() => new Set(selectedFieldIds), [selectedFieldIds]);
+  const [pageSize, setPageSize] = React.useState(() => {
+    const saved = Number(localStorage.getItem("admin-field-pagesize"));
+    return [10, 25, 50].includes(saved) ? saved : 25;
+  });
+  const [query, setQuery] = React.useState("");
+  const [deferredQuery, setDeferredQuery] = React.useState("");
+  const [typeFilter, setTypeFilter] = React.useState("all");
+  const [fieldOrigin, setFieldOrigin] = React.useState("all");
+  const [findingsFilter, setFindingsFilter] = React.useState("all");
+  const [sortBy, setSortBy] = React.useState("usage-desc");
+  const [page, setPage] = React.useState(1);
+
+  // Advanced filters
+  const [projectUsageFilter, setProjectUsageFilter] = React.useState("all");
+  const [hasDescription, setHasDescription] = React.useState("all");
+  const [duplicateNamesOnly, setDuplicateNamesOnly] = React.useState(false);
+  const [minIssues, setMinIssues] = React.useState("");
+  const [maxIssues, setMaxIssues] = React.useState("");
+  const [minActiveProjects, setMinActiveProjects] = React.useState("");
+  const [maxActiveProjects, setMaxActiveProjects] = React.useState("");
+  const [minContexts, setMinContexts] = React.useState("");
+  const [maxContexts, setMaxContexts] = React.useState("");
+  const [filtersOpen, setFiltersOpen] = React.useState(false);
+  const filterPanelRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (!filtersOpen) return;
+    function handleClickOutside(e) {
+      if (filterPanelRef.current && !filterPanelRef.current.contains(e.target)) {
+        setFiltersOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [filtersOpen]);
+
+  const [deferredMinIssues, setDeferredMinIssues] = React.useState("");
+  const [deferredMaxIssues, setDeferredMaxIssues] = React.useState("");
+  const [deferredMinActiveProjects, setDeferredMinActiveProjects] = React.useState("");
+  const [deferredMaxActiveProjects, setDeferredMaxActiveProjects] = React.useState("");
+  const [deferredMinContexts, setDeferredMinContexts] = React.useState("");
+  const [deferredMaxContexts, setDeferredMaxContexts] = React.useState("");
+  const [data, setData] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+  const [loadError, setLoadError] = React.useState("");
+  const [openFieldId, setOpenFieldId] = React.useState(null);
+  const [fieldDetails, setFieldDetails] = React.useState({});
+  const [detailLoading, setDetailLoading] = React.useState(false);
+  const [detailError, setDetailError] = React.useState("");
+  const [rovoEnabled, setRovoEnabled] = React.useState(false);
+
+  React.useEffect(() => {
+    view.getContext().then(() => setRovoEnabled(true)).catch(() => {});
+  }, []);
+
+  React.useEffect(() => {
+    const t = setTimeout(() => { setDeferredQuery(query); setPage(1); }, 350);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  // Debounce the numeric range filters the same way the search query is debounced,
+  // so typing in a min/max box doesn't fire a request per keystroke.
+  React.useEffect(() => {
+    const t = setTimeout(() => {
+      setDeferredMinIssues(minIssues);
+      setDeferredMaxIssues(maxIssues);
+      setDeferredMinActiveProjects(minActiveProjects);
+      setDeferredMaxActiveProjects(maxActiveProjects);
+      setDeferredMinContexts(minContexts);
+      setDeferredMaxContexts(maxContexts);
+      setPage(1);
+    }, 350);
+    return () => clearTimeout(t);
+  }, [minIssues, maxIssues, minActiveProjects, maxActiveProjects, minContexts, maxContexts]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setLoadError("");
+    invoke("getFieldInventory", {
+      query: deferredQuery,
+      type: typeFilter,
+      fieldOrigin,
+      findingsFilter,
+      sortBy,
+      page,
+      pageSize,
+      projectUsageFilter,
+      hasDescription,
+      duplicateNamesOnly,
+      minIssuesWithValue: deferredMinIssues,
+      maxIssuesWithValue: deferredMaxIssues,
+      minActiveProjects: deferredMinActiveProjects,
+      maxActiveProjects: deferredMaxActiveProjects,
+      minContexts: deferredMinContexts,
+      maxContexts: deferredMaxContexts,
+    }).then((result) => {
+      if (!cancelled) setData(result);
+    }).catch((err) => {
+      if (!cancelled) setLoadError(err.message || "Failed to load field inventory.");
+    }).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [
+    deferredQuery,
+    typeFilter,
+    fieldOrigin,
+    findingsFilter,
+    sortBy,
+    page,
+    pageSize,
+    projectUsageFilter,
+    hasDescription,
+    duplicateNamesOnly,
+    deferredMinIssues,
+    deferredMaxIssues,
+    deferredMinActiveProjects,
+    deferredMaxActiveProjects,
+    deferredMinContexts,
+    deferredMaxContexts,
+  ]);
+
+  function openField(fieldId) {
+    if (openFieldId === fieldId) { setOpenFieldId(null); return; }
+    setOpenFieldId(fieldId);
+    setDetailError("");
+    if (!fieldDetails[fieldId]) {
+      setDetailLoading(true);
+      invoke("getFieldDetails", { fieldId, usagePage: 1 }).then((result) => {
+        setFieldDetails((prev) => ({ ...prev, [fieldId]: result }));
+      }).catch((err) => {
+        setDetailError(err.message || "Failed to load field details.");
+      }).finally(() => setDetailLoading(false));
+    }
+  }
+
+  function loadDetailPage(fieldId, pg) {
+    setDetailLoading(true);
+    invoke("getFieldDetails", { fieldId, usagePage: pg }).then((result) => {
+      setFieldDetails((prev) => ({ ...prev, [fieldId]: result }));
+    }).catch((err) => {
+      setDetailError(err.message || "Failed to load.");
+    }).finally(() => setDetailLoading(false));
+  }
+
+  function refreshProjectUsage(fieldId, pg) {
+    loadDetailPage(fieldId, pg);
+  }
+
+  const [selectingAll, setSelectingAll] = React.useState(false);
+
+  async function selectAllFiltered() {
+    setSelectingAll(true);
+    try {
+      const result = await invoke("getFilteredFieldIds", {
+        query: deferredQuery,
+        type: typeFilter,
+        fieldOrigin,
+        findingsFilter,
+        sortBy,
+        projectUsageFilter,
+        hasDescription,
+        duplicateNamesOnly,
+        minIssuesWithValue: deferredMinIssues,
+        maxIssuesWithValue: deferredMaxIssues,
+        minActiveProjects: deferredMinActiveProjects,
+        maxActiveProjects: deferredMaxActiveProjects,
+        minContexts: deferredMinContexts,
+        maxContexts: deferredMaxContexts,
+      });
+      onSetSelectedFieldIds?.(result.fieldIds || []);
+    } catch {
+      // silently fail — user can select manually
+    } finally {
+      setSelectingAll(false);
+    }
+  }
+
+  const activeFilterCount = React.useMemo(() => {
+    let count = 0;
+    if (typeFilter !== "all") count++;
+    if (fieldOrigin !== "all") count++;
+    if (projectUsageFilter !== "all") count++;
+    if (hasDescription !== "all") count++;
+    if (duplicateNamesOnly === true) count++;
+    if (minIssues !== "") count++;
+    if (maxIssues !== "") count++;
+    if (minActiveProjects !== "") count++;
+    if (maxActiveProjects !== "") count++;
+    if (minContexts !== "") count++;
+    if (maxContexts !== "") count++;
+    return count;
+  }, [
+    typeFilter,
+    fieldOrigin,
+    projectUsageFilter,
+    hasDescription,
+    duplicateNamesOnly,
+    minIssues,
+    maxIssues,
+    minActiveProjects,
+    maxActiveProjects,
+    minContexts,
+    maxContexts,
+  ]);
+
+  function clearAllFilters() {
+    setTypeFilter("all");
+    setFieldOrigin("all");
+    setProjectUsageFilter("all");
+    setHasDescription("all");
+    setDuplicateNamesOnly(false);
+    setMinIssues("");
+    setMaxIssues("");
+    setMinActiveProjects("");
+    setMaxActiveProjects("");
+    setMinContexts("");
+    setMaxContexts("");
+    setDeferredMinIssues("");
+    setDeferredMaxIssues("");
+    setDeferredMinActiveProjects("");
+    setDeferredMaxActiveProjects("");
+    setDeferredMinContexts("");
+    setDeferredMaxContexts("");
+    setQuery("");
+    setDeferredQuery("");
+    setFindingsFilter("all");
+    setPage(1);
+  }
+
+  const fields = data?.fields || [];
+  const totalPages = data?.totalPages || 1;
+  const total = data?.total || 0;
+  const availableTypes = data?.availableTypes || [];
+  const summary = data?.findingsSummary || { adminAttention: 0, risky: 0, cleanup: 0, standardize: 0 };
+
+  const startItem = total > 0 ? (page - 1) * pageSize + 1 : 0;
+  const endItem = Math.min(page * pageSize, total);
+
+  const findingsChips = [
+    { key: "all", label: "All fields" },
+    { key: "admin-attention", label: "Admin attention", count: summary.adminAttention },
+    { key: "risky", label: "Risk", count: summary.risky },
+    { key: "cleanup", label: "Cleanup", count: summary.cleanup },
+    { key: "standardize", label: "Standardize", count: summary.standardize },
+  ];
+
+  function PaginationBar({ top }) {
+    return (
+      <div className={`admin-field-browser__pagebar${top ? " admin-field-browser__pagebar--top" : ""}`}>
+        <span className="admin-pagination__info">
+          {total > 0
+            ? `Showing ${startItem}–${endItem} of ${total.toLocaleString()} fields`
+            : loading ? "Loading…" : "No fields match the current filter"}
+        </span>
+        {top && (
+          <div className="admin-field-browser__pagesize">
+            <span>Per page:</span>
+            {[10, 25, 50].map((n) => (
+              <button
+                key={n}
+                type="button"
+                className={`admin-field-browser__pagesize-btn${pageSize === n ? " admin-field-browser__pagesize-btn--active" : ""}`}
+                onClick={() => { localStorage.setItem("admin-field-pagesize", n); setPageSize(n); setPage(1); }}
+              >{n}</button>
+            ))}
+          </div>
+        )}
+        <div className="admin-field-browser__page-nav">
+          <button disabled={page <= 1} className="secondary-button secondary-button--small" type="button" onClick={() => setPage(1)}>First</button>
+          <button disabled={page <= 1} className="secondary-button secondary-button--small" type="button" onClick={() => setPage((p) => p - 1)}>Previous</button>
+          <button disabled={page >= totalPages} className="secondary-button secondary-button--small" type="button" onClick={() => setPage((p) => p + 1)}>Next</button>
+          <button disabled={page >= totalPages} className="secondary-button secondary-button--small" type="button" onClick={() => setPage(totalPages)}>Last</button>
+        </div>
+      </div>
+    );
+  }
+
+  // Build active filter chips list
+  const activeFilterChips = React.useMemo(() => {
+    const chips = [];
+    if (fieldOrigin !== "all") {
+      const label = fieldOrigin === "user-created" ? "User-created" : "Jira built-in";
+      chips.push({ id: "fieldOrigin", label: `Origin: ${label}`, clear: () => { setFieldOrigin("all"); setPage(1); } });
+    }
+    if (projectUsageFilter !== "all") {
+      const labels = { "not-built": "not-built", "built": "built", "building": "building", "incomplete": "incomplete" };
+      chips.push({ id: "projectUsageFilter", label: `Build: ${labels[projectUsageFilter] || projectUsageFilter}`, clear: () => { setProjectUsageFilter("all"); setPage(1); } });
+    }
+    if (hasDescription !== "all") {
+      chips.push({ id: "hasDescription", label: `Has description: ${hasDescription === "yes" ? "Yes" : "No"}`, clear: () => { setHasDescription("all"); setPage(1); } });
+    }
+    if (duplicateNamesOnly) {
+      chips.push({ id: "duplicateNamesOnly", label: "Duplicate names only", clear: () => { setDuplicateNamesOnly(false); setPage(1); } });
+    }
+    if (minIssues !== "" || maxIssues !== "") {
+      const range = [minIssues || "0", maxIssues || "∞"].join("–");
+      chips.push({ id: "issues", label: `Issues: ${range}`, clear: () => { setMinIssues(""); setMaxIssues(""); setPage(1); } });
+    }
+    if (minActiveProjects !== "" || maxActiveProjects !== "") {
+      const range = [minActiveProjects || "0", maxActiveProjects || "∞"].join("–");
+      chips.push({ id: "activeProjects", label: `Active projects: ${range}`, clear: () => { setMinActiveProjects(""); setMaxActiveProjects(""); setPage(1); } });
+    }
+    if (minContexts !== "" || maxContexts !== "") {
+      const range = [minContexts || "0", maxContexts || "∞"].join("–");
+      chips.push({ id: "contexts", label: `Contexts: ${range}`, clear: () => { setMinContexts(""); setMaxContexts(""); setPage(1); } });
+    }
+    if (findingsFilter !== "all") {
+      chips.push({ id: "findingsFilter", label: `Findings: Admin attention`, clear: () => { setFindingsFilter("all"); setPage(1); } });
+    }
+    return chips;
+  }, [fieldOrigin, projectUsageFilter, hasDescription, duplicateNamesOnly, minIssues, maxIssues, minActiveProjects, maxActiveProjects, minContexts, maxContexts, findingsFilter]);
+
+  return (
+    <div className="admin-field-browser">
+      {/* Primary toolbar */}
+      <div className="admin-field-browser__toolbar">
+        <input
+          type="search"
+          placeholder="Field name, ID, or description…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="admin-jobs-search"
+          aria-label="Search fields"
+        />
+        <select
+          aria-label="Field type"
+          value={typeFilter}
+          onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }}
+        >
+          <option value="all">All types</option>
+          {availableTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+        </select>
+        <select
+          aria-label="Sort by"
+          value={sortBy}
+          onChange={(e) => { setSortBy(e.target.value); setPage(1); }}
+        >
+          <option value="name-asc">Name A–Z</option>
+          <option value="name-desc">Name Z–A</option>
+          <option value="usage-desc">Most issues with value</option>
+          <option value="usage-asc">Fewest issues with value</option>
+          <option value="active-projects-desc">Most active projects</option>
+          <option value="active-projects-asc">Fewest active projects</option>
+          <option value="contexts-desc">Most contexts</option>
+          <option value="contexts-asc">Fewest contexts</option>
+          <option value="priority-desc">Highest priority</option>
+        </select>
+        <div className="admin-field-browser__filter-anchor" ref={filterPanelRef}>
+          <button
+            type="button"
+            className={`admin-field-browser__filter-toggle${filtersOpen ? " admin-field-browser__filter-toggle--active" : ""}`}
+            onClick={() => setFiltersOpen((v) => !v)}
+            aria-expanded={filtersOpen}
+          >
+            Filters
+            {activeFilterCount > 0 && (
+              <span className="admin-field-browser__filter-badge">{activeFilterCount}</span>
+            )}
+          </button>
+
+          {/* Floating filter popover */}
+          {filtersOpen && (
+            <div className="admin-field-browser__filter-panel">
+              <div className="admin-field-browser__filter-group">
+                <span className="admin-field-browser__filter-group-label">Origin &amp; status</span>
+                <div className="admin-field-browser__filter-group-controls">
+                  <select
+                    aria-label="Field origin"
+                    value={fieldOrigin}
+                    onChange={(e) => { setFieldOrigin(e.target.value); setPage(1); }}
+                  >
+                    <option value="all">All fields</option>
+                    <option value="user-created">User-created</option>
+                    <option value="jira-builtin">Jira built-in</option>
+                  </select>
+                  <select
+                    aria-label="Project usage build status"
+                    value={projectUsageFilter}
+                    onChange={(e) => { setProjectUsageFilter(e.target.value); setPage(1); }}
+                  >
+                    <option value="all">Any build status</option>
+                    <option value="not-built">Not built</option>
+                    <option value="built">Built</option>
+                    <option value="building">Building</option>
+                    <option value="incomplete">Incomplete</option>
+                  </select>
+                  <select
+                    aria-label="Has description"
+                    value={hasDescription}
+                    onChange={(e) => { setHasDescription(e.target.value); setPage(1); }}
+                  >
+                    <option value="all">Description: any</option>
+                    <option value="yes">Has description</option>
+                    <option value="no">No description</option>
+                  </select>
+                  <label className="admin-field-browser__checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={duplicateNamesOnly}
+                      onChange={(e) => { setDuplicateNamesOnly(e.target.checked); setPage(1); }}
+                    />
+                    Duplicate names only
+                  </label>
+                </div>
+              </div>
+
+              <div className="admin-field-browser__filter-group">
+                <span className="admin-field-browser__filter-group-label">Issues with value</span>
+                <div className="admin-field-browser__range-inputs">
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="Min"
+                    aria-label="Minimum issues with value"
+                    value={minIssues}
+                    onChange={(e) => setMinIssues(e.target.value)}
+                  />
+                  <span className="admin-field-browser__range-sep">–</span>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="Max"
+                    aria-label="Maximum issues with value"
+                    value={maxIssues}
+                    onChange={(e) => setMaxIssues(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="admin-field-browser__filter-group">
+                <span className="admin-field-browser__filter-group-label">Active projects</span>
+                <div className="admin-field-browser__range-inputs">
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="Min"
+                    aria-label="Minimum active projects"
+                    value={minActiveProjects}
+                    onChange={(e) => setMinActiveProjects(e.target.value)}
+                  />
+                  <span className="admin-field-browser__range-sep">–</span>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="Max"
+                    aria-label="Maximum active projects"
+                    value={maxActiveProjects}
+                    onChange={(e) => setMaxActiveProjects(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="admin-field-browser__filter-group">
+                <span className="admin-field-browser__filter-group-label">Contexts</span>
+                <div className="admin-field-browser__range-inputs">
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="Min"
+                    aria-label="Minimum contexts"
+                    value={minContexts}
+                    onChange={(e) => setMinContexts(e.target.value)}
+                  />
+                  <span className="admin-field-browser__range-sep">–</span>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="Max"
+                    aria-label="Maximum contexts"
+                    value={maxContexts}
+                    onChange={(e) => setMaxContexts(e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+        {activeFilterCount > 0 && (
+          <button
+            type="button"
+            className="admin-field-browser__clear-filters"
+            onClick={clearAllFilters}
+          >
+            Clear all
+          </button>
+        )}
+      </div>
+
+      {/* Active filter chips */}
+      {activeFilterChips.length > 0 && (
+        <div className="admin-field-browser__active-filters">
+          {activeFilterChips.map((chip) => (
+            <button
+              key={chip.id}
+              type="button"
+              className="admin-field-browser__filter-chip"
+              onClick={chip.clear}
+            >
+              <span>{chip.label}</span>
+              <span className="admin-field-browser__filter-chip__remove">×</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Findings filter chips */}
+      <div className="findings-filter-bar" style={{ marginTop: 4 }}>
+        {findingsChips.map((chip) => (
+          <button
+            key={chip.key}
+            type="button"
+            className={`findings-filter-button${findingsFilter === chip.key ? " findings-filter-button--active" : ""}`}
+            onClick={() => { setFindingsFilter(chip.key); setPage(1); }}
+          >
+            <span>{chip.label}</span>
+            {typeof chip.count === "number" ? <strong>{chip.count}</strong> : null}
+          </button>
+        ))}
+      </div>
+
+      {loadError && <div className="error-banner">{loadError}</div>}
+
+      <div className="admin-field-browser__report-bar">
+        <span className="admin-field-browser__report-selection">
+          {selectedFieldIds.length > 0
+            ? `${selectedFieldIds.length} ${selectedFieldIds.length === 1 ? "field" : "fields"} selected for report`
+            : "No fields selected"}
+        </span>
+        <div className="admin-field-browser__report-actions">
+          <button
+            className="secondary-button secondary-button--small"
+            type="button"
+            onClick={selectAllFiltered}
+            disabled={selectingAll || loading || !total}
+          >
+            {selectingAll ? "Selecting…" : "Select filtered"}
+          </button>
+          {selectedFieldIds.length > 0 && (
+            <button
+              className="secondary-button secondary-button--small"
+              type="button"
+              onClick={() => onSetSelectedFieldIds?.([])}
+            >
+              Clear
+            </button>
+          )}
+          <button
+            className="primary-button"
+            type="button"
+            onClick={onGoToReport}
+            disabled={!selectedFieldIds.length}
+          >
+            <Icon name="barChart" size={13} />
+            {`Generate report (${selectedFieldIds.length})`}
+          </button>
+        </div>
+      </div>
+
+      <PaginationBar top />
+
+      {loading && !fields.length ? (
+        <div className="empty-state">Loading fields…</div>
+      ) : fields.length === 0 && !loading ? (
+        <div className="empty-state">No fields match the current filter.</div>
+      ) : (
+        <div className="admin-field-list">
+          {fields.map((field) => {
+            const isOpen = openFieldId === field.id;
+            const detail = fieldDetails[field.id] || null;
+            return (
+              <FieldCard
+                key={field.id}
+                field={field}
+                details={isOpen ? detail : null}
+                expanded={isOpen}
+                loading={isOpen && detailLoading && !detail}
+                selected={selectedSet.has(field.id)}
+                onSelectChange={(id, checked) => onToggleField?.(id, checked)}
+                onToggle={() => openField(field.id)}
+                onProjectUsagePageChange={loadDetailPage}
+                onRefreshProjectUsage={refreshProjectUsage}
+                // Positional arguments, NOT a wrapper object. buildReportRovoPrompt in the
+                // same module does take a destructured object, and passing one here
+                // instead produced a prompt reading "Field id: undefined. Field name:
+                // undefined" with every count zeroed -- the field object ended up bound to
+                // the `field` parameter's own `field` property, and `details` to nothing.
+                // Rovo then answered confidently about a nonexistent "ghost field".
+                onAskField={() => {
+                  openFieldExpertRovo(buildFieldRovoPrompt(field, fieldDetails[field.id])).catch(() => {});
+                }}
+                onAskProject={(project) => {
+                  openFieldExpertRovo(buildProjectRovoPrompt(field, fieldDetails[field.id], project)).catch(() => {});
+                }}
+                siteOrigin={siteOrigin}
+                rovoEnabled={rovoEnabled}
+              />
+            );
+          })}
+        </div>
+      )}
+
+      {total > 0 && <PaginationBar />}
+    </div>
+  );
+}

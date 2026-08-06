@@ -40,21 +40,60 @@ jobs:
           npm run build:admin
       - name: Install Forge CLI
         run: npm install -g @forge/cli@latest
-      # `forge lint` requires an authenticated CLI even though it only validates the
-      # manifest statically, so it cannot run without credentials. Dependabot pull
-      # requests use the Dependabot secret store rather than Actions secrets, so these
-      # resolve to empty there and the CLI exits with "Not logged in" -- which failed
-      # the job, failed CI Gate, and left every Dependabot PR red regardless of content,
-      # including ones touching nothing but .github/workflows.
+      # Two separate problems are handled here, and both fixes are needed. Dropping either
+      # one re-breaks the case the other was written for.
+      #
+      # WHEN IT RUNS: `forge lint` requires an authenticated CLI even though it only
+      # validates the manifest statically. Dependabot pull requests use the Dependabot
+      # secret store rather than Actions secrets, so these resolve to empty there and the
+      # CLI exits with "Not logged in" -- which failed the job, failed CI Gate, and left
+      # every Dependabot PR red regardless of content, including ones touching nothing but
+      # .github/workflows.
       #
       # Skipping rather than granting Dependabot access to the credentials is deliberate.
       # A dependency-bump branch is the one place where third-party code arrives in CI;
       # deploy credentials do not belong in that blast radius. The steps above -- npm ci
       # against the proposed lockfile, plus both Vite builds -- are the part that actually
       # validates a dependency change, and they need no credentials at all.
+      #
+      # WHAT COUNTS AS FAILURE: `forge lint` exits 1 for three different outcomes -- errors,
+      # warnings, and APPROVALS. An approval is not a defect; it is Forge reporting that the
+      # change will require admin re-consent on upgrade, which is information. Treating all
+      # three as failure made any deliberate scope change unmergeable.
+      #
+      # So: fail on errors or warnings, surface an approval loudly and continue. The
+      # approval line is worth reading rather than suppressing -- it is the closest thing
+      # this repo has to the manifest drift detection tracked by CONNECT-3887, since an
+      # unintended scope escalation shows up here first.
       - name: Forge manifest lint
         if: env.HAS_FORGE_CREDENTIALS == 'true'
-        run: forge lint
+        run: |
+          set +e
+          output=$(forge lint 2>&1)
+          status=$?
+          echo "$output"
+
+          if echo "$output" | grep -qE '[1-9][0-9]* error|[1-9][0-9]* warning'; then
+            echo "::error::forge lint reported errors or warnings"
+            exit 1
+          fi
+
+          if echo "$output" | grep -q 'approval'; then
+            echo "::warning::Manifest change requires admin approval on upgrade — review the scope diff below"
+            {
+              echo "### Forge manifest approval required"
+              echo ""
+              echo "This change alters the app's declared scopes or permissions, so installs"
+              echo "will need an administrator to accept an updated consent screen."
+              echo ""
+              echo '```'
+              echo "$output" | grep -A 2 'approval'
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          exit $status
         env:
           FORGE_EMAIL: ${{ secrets.FORGE_EMAIL }}
           FORGE_API_TOKEN: ${{ secrets.FORGE_API_TOKEN }}

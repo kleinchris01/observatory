@@ -10,6 +10,8 @@ import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
 const mockRequestJira = vi.fn();
 const mockRequestJiraAsUser = vi.fn();
 
+const mockRequestStargate = vi.fn();
+
 vi.mock("@forge/api", () => ({
   default: {
     asApp: () => ({ requestJira: mockRequestJira }),
@@ -18,6 +20,9 @@ vi.mock("@forge/api", () => ({
   // The real `route` is a tagged template that escapes interpolated values. The
   // stub keeps the assembled string so tests can assert on the path that was built.
   route: (strings, ...values) => strings.reduce((acc, s, i) => acc + s + (values[i] ?? ""), ""),
+  // The gateway transport. Distinct from requestJira: it takes a plain URL string rather
+  // than a Route, which is the distinction that made the automation probe work at all.
+  createRequestStargateAsApp: () => mockRequestStargate,
 }));
 
 const mockCounter = { incr: vi.fn(), incrBy: vi.fn() };
@@ -54,6 +59,12 @@ import {
   getFieldContexts,
   getAllJiraProjects,
   getAllStatuses,
+  probeEndpoint,
+  probeStargateEndpoint,
+  getCloudId,
+  getAllScreens,
+  getScreenTabs,
+  getScreenTabFields,
   getWorkflowSchemesForProjects,
   getAllJiraProjectKeys,
   BASE_JIRA_REQUEST_INTERVAL_MS,
@@ -743,6 +754,124 @@ describe("getAllStatuses", () => {
   test("returns an empty array if Jira sends an envelope instead of an array", async () => {
     mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: { values: [] } }));
     await expect(getAllStatuses()).resolves.toEqual([]);
+  });
+});
+
+// ── Endpoint probes ───────────────────────────────────────────────────────────
+//
+// CONNECT-4124. The automation probe added these three to this module without tests,
+// which broke the per-file coverage floor -- the ratchet doing exactly its job. They are
+// also the paths that established automation rules are unreadable from Forge, so the
+// evidence behind a Won't Pursue decision rests on them behaving as described.
+
+describe("probeEndpoint", () => {
+  test("reports what came back rather than throwing", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ status: 401, ok: false, text: "scope does not match" }));
+
+    const result = await probeEndpoint("/rest/cb-automation/latest/rule");
+
+    expect(result).toMatchObject({ path: "/rest/cb-automation/latest/rule", status: 401, ok: false });
+    expect(result.sample).toContain("scope does not match");
+  });
+
+  // A probe that throws is a probe that cannot report the failure it was built to find.
+  test("returns a null status instead of throwing when the request itself fails", async () => {
+    mockRequestJira.mockRejectedValueOnce(new Error("INVALID_TARGET_URL"));
+
+    const result = await probeEndpoint("/rest/api/3/automation/rule");
+
+    expect(result.status).toBeNull();
+    expect(result.ok).toBe(false);
+    expect(result.sample).toContain("INVALID_TARGET_URL");
+  });
+
+  // Enough to tell a rule list from an error envelope, not enough to leak issue data.
+  test("truncates the response body", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ status: 200, ok: true, text: "x".repeat(5000) }));
+
+    const result = await probeEndpoint("/rest/api/3/automation/rule");
+
+    expect(result.sample).toHaveLength(300);
+  });
+});
+
+describe("probeStargateEndpoint", () => {
+  test("goes through the gateway transport, not requestJira", async () => {
+    mockRequestStargate.mockResolvedValueOnce(jiraResponse({ status: 200, ok: true, text: "{\"rules\":[]}" }));
+
+    const path = "https://api.atlassian.com/automation/public/jira/abc/rest/v1/rule";
+    const result = await probeStargateEndpoint(path);
+
+    expect(mockRequestStargate).toHaveBeenCalledWith(path, expect.objectContaining({ method: "GET" }));
+    // The distinction that made this work: every site-relative attempt 401'd because it
+    // was asked of the wrong server, and requestJira cannot reach the gateway at all.
+    expect(mockRequestJira).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ status: 200, ok: true });
+  });
+
+  test("returns a null status instead of throwing", async () => {
+    mockRequestStargate.mockRejectedValueOnce(new Error("gateway rejected the route"));
+
+    const result = await probeStargateEndpoint("https://api.atlassian.com/x");
+
+    expect(result.status).toBeNull();
+    expect(result.ok).toBe(false);
+    expect(result.sample).toContain("gateway rejected");
+  });
+});
+
+describe("getCloudId", () => {
+  // The uuid in the installation ARI IS the cloud id the gateway expects, which is why no
+  // second identifier has to be threaded through every caller.
+  test("extracts the cloud id from the installation ARI", () => {
+    const context = { installContext: "ari:cloud:jira::site/11111111-2222-3333-4444-555555555555" };
+    expect(getCloudId(context)).toBe("11111111-2222-3333-4444-555555555555");
+  });
+
+  test("matches the normalized ARI form as well", () => {
+    const context = { installContext: "ari:cloud:::site/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" };
+    expect(getCloudId(context)).toBe("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+  });
+
+  // Null, not a throw and not a partial string: the caller uses it to decide whether to
+  // probe the gateway at all, and a malformed value would build an unresolvable URL.
+  test("returns null rather than guessing when there is no site segment", () => {
+    expect(getCloudId({ installContext: "ari:cloud:jira::something-else" })).toBeNull();
+    expect(getCloudId({})).toBeNull();
+    expect(getCloudId(undefined)).toBeNull();
+  });
+});
+
+// The three reads at the bottom of the screen chain. Thin, but they carry the per-file
+// coverage floor on this module, and the tabs/fields pair is the expensive hop the whole
+// screen pipeline's cost turns on -- worth pinning their response handling.
+describe("screen fetchers", () => {
+  test("getAllScreens paginates the screen catalog", async () => {
+    mockRequestJira
+      .mockResolvedValueOnce(jiraResponse({ body: { values: [{ id: 1 }, { id: 2 }], total: 3 } }))
+      .mockResolvedValueOnce(jiraResponse({ body: { values: [{ id: 3 }], total: 3 } }));
+
+    await expect(getAllScreens()).resolves.toEqual([{ id: 1 }, { id: 2 }, { id: 3 }]);
+    expect(mockRequestJira).toHaveBeenCalledTimes(2);
+  });
+
+  // Like /status, tabs and fields come back as bare arrays rather than the usual envelope.
+  test("getScreenTabs returns the flat tab array", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: [{ id: 10, name: "Field Tab" }] }));
+    await expect(getScreenTabs("1")).resolves.toEqual([{ id: 10, name: "Field Tab" }]);
+  });
+
+  test("getScreenTabFields returns the flat field array", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: [{ id: "summary" }] }));
+    await expect(getScreenTabFields("1", "10")).resolves.toEqual([{ id: "summary" }]);
+  });
+
+  // An envelope where an array was expected must not read as a populated result. A screen
+  // reported with phantom tabs would inflate the cost projection the probe exists to make.
+  test("both degrade to an empty array if Jira sends an envelope", async () => {
+    mockRequestJira.mockResolvedValue(jiraResponse({ body: { values: [] } }));
+    await expect(getScreenTabs("1")).resolves.toEqual([]);
+    await expect(getScreenTabFields("1", "10")).resolves.toEqual([]);
   });
 });
 

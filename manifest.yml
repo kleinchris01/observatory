@@ -142,6 +142,18 @@ permissions:
     - read:workflow:jira
     - read:workflow-scheme:jira
     - read:status:jira
+    # Screen inventory. All read-only: Observatory reports what a form contains, it never
+    # edits a screen, moves a field between tabs, or changes a mapping.
+    #
+    # Five scopes for one capability is a lot to put on a consent screen, and they are not
+    # substitutable -- the chain runs project -> issue type screen scheme -> screen scheme
+    # -> screen -> tab -> field, and each hop is gated separately. Dropping any one of them
+    # breaks the traversal rather than degrading it.
+    - read:screen:jira
+    - read:screen-tab:jira
+    - read:screen-field:jira
+    - read:screen-scheme:jira
+    - read:issue-type-screen-scheme:jira
     - manage:jira-configuration
     - read:jira-user
     - read:chat:rovo

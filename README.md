@@ -52,22 +52,41 @@ Filters: free-text search, field type, sort order, project usage state, max issu
 
 Governance findings are *not* shown in the macro — see the surface split above. The macro is for browsing and reporting.
 
-### Jira admin page — six tabs
+### Jira admin page — seven tabs
 
 **Overview.** Dashboard summarising snapshot state, catalog size, and the governance findings breakdown.
 
 **Field Browser.** The Inventory view plus everything admin-only: finding badges on each card, a findings filter bar (admin attention / risk / cleanup / standardize), and per-field usage refresh.
 
-**Project Usage.** The Projects view with admin controls.
+**Project Usage.** The Projects view with admin controls, including the workflow scheme governing each project and its sibling projects on that scheme.
 
-**Reports.** Report generation and saved-report management.
+**Workflows.** Workflow scheme and status inventory, plus derived governance findings — duplicate statuses, statuses no scheme can reach, and per-scheme category balance. See below.
+
+**Reports.** Report generation and saved-report management. Exports carry each project's workflow scheme as a second header row, so a field populated in one project but not its scheme-siblings is visible in the CSV.
 
 **Scans.** Five sub-views over the data pipeline — Snapshot, Universe Scan, Quick Scan, RQT Index, and Field Usage Jobs — each with live progress, job tokens, per-item logs, and start/cancel/restart control.
 
 **Configuration.** Governance thresholds, macro access groups, read-only mode, and retention settings.
 
 ### Workflow & status inventory
-The same inventory treatment applied to workflow schemes and statuses: which schemes exist, which projects each is assigned to, and the full status catalog with the workflows using each one. Built by `src/lib/workflow-engine.js` on its own snapshot version, independent of the field snapshot.
+Which schemes exist, which projects each governs, and the full status catalog. Built by `src/lib/workflow-engine.js` on its own snapshot version, independent of the field snapshot, and queued to the consumer rather than run in a resolver — walking every project's scheme does not fit in a 25-second invocation.
+
+**Governance findings** (`src/lib/workflow-insights.js`, pure functions over loaded rows):
+
+- **Duplicate statuses** — three kinds, reported separately because they carry different confidence: the same name defined more than once, names differing only by spacing (`Back Log` / `Backlog`), and single-character spelling variants (`Cancelled` / `Canceled`). Enumerated series are deliberately excluded — `CP3/CP4/CP5 Sign Off Complete` are one edit apart and completely distinct, so a pair that becomes identical once digits are removed is never grouped.
+- **Unreachable statuses** — defined on the site but not reachable from any scheme.
+- **Scheme balance** — per-scheme category distribution, flagging schemes with no Done status, In Progress-heavy shapes, and uncategorised statuses that break Jira roll-up reporting.
+
+**Two usage measures per status**, deliberately kept separate because they are produced by different jobs and refresh independently:
+
+| Measure | Source | Meaning |
+|---|---|---|
+| Currently in | universe scan | Issues sitting in the status now |
+| Ever been in | JQL `status WAS <id>` | Issues that have ever entered it |
+
+The gap between them is the signal: a status with no current issues but tens of thousands historically is a stage people escaped, not one nobody uses. `WAS` is queried by status ID, never name — a site with `Done` defined five times would give `status WAS "Done"` one meaningless total. It is also why this does not need a changelog crawl: one approximate-count per status is minutes, where re-reading 300k+ issues with `expand=changelog` is hours.
+
+**A status whose usage was never measured is reported as unknown, never as zero.** Zero is what marks a status safe to delete, so it is only ever asserted when a scan actually observed the catalog.
 
 ### Rovo AI agent
 An embedded Rovo agent ("Observatory Field Expert") with two callable actions:
@@ -90,12 +109,13 @@ Forge backend (Node.js 22)
   ├── admin-resolver     index.adminHandler   admin invoke()  — shared + admin-only
   ├── snapshot-consumer  index.consumeSnapshot        queue consumer, 900s timeout
   ├── auto-snapshot      index.autoSnapshotCheck      scheduled trigger, daily
+  ├── retention-cleanup  index.runRetentionCleanup    scheduled trigger, weekly
   ├── rovo-search-fields index.rovoSearchFields       Rovo agent action
   ├── rovo-inspect-field index.rovoInspectField       Rovo agent action
   └── sql-migrate        index.runProjectStorageMigrations
 
 Storage
-  └── @forge/sql (MySQL) — 19 tables, 44 migration steps
+  └── @forge/sql (MySQL) — 23 tables, 49 migration steps
 ```
 
 Two resolvers, one codebase. `SHARED_RESOLVER_FUNCTIONS` are registered on both
@@ -103,6 +123,46 @@ handlers; `ADMIN_ONLY_FUNCTIONS` only on `adminHandler`. A function omitted from
 the shared set is not merely hidden from the macro UI — it is not registered on
 that resolver at all, so a crafted `invoke()` from the macro iframe fails to
 resolve rather than executing. New mutating functions belong in the admin set.
+
+### Module layout
+
+The two largest modules were split by domain; both keep a compatibility entry point so
+existing imports and tests are untouched.
+
+```
+src/lib/store/          storage layer, split by domain — import these directly in new code
+  core.js               sql handle, schema, migrations, shared helpers  (no domain imports)
+  snapshot.js           field snapshots and per-project usage
+  scan.js               universe and delta scan state
+  workflow.js           schemes, status catalog, usage counts
+  rqt.js                the RQT value index
+  reports.js            saved reports and async report jobs
+  audit.js              privileged-action record
+src/lib/project-store.js   barrel re-exporting the above (compatibility, not the entry point)
+
+static/src/tabs/        one module per admin tab, components individually exported
+static/src/components/admin/   primitives, JobsPanel, AuditLogPanel
+static/src/components/ui.jsx   shared presentation primitives used across tabs
+static/src/admin.jsx    AdminApp composition only
+```
+
+Domain modules import from `core.js`; `core.js` imports none of them. One arrow, so there
+are no cycles to reason about.
+
+### Error handling
+
+Two helpers in `src/lib/logger.js` replace anonymous `.catch(() => value)` handlers, and
+the distinction between them is deliberate:
+
+| Helper | Level | Use when |
+|---|---|---|
+| `fallbackOn(event, fallback, context)` | `warn` | A read degrades to a default. The caller is about to treat a fabricated value as real data. |
+| `ignoreWith(event, context)` | `debug` | A cleanup write fails while another error is already being handled and there is nothing further to do. |
+
+Anonymous handlers are not acceptable in new code. Degrading gracefully is right;
+degrading *invisibly* is what turns a bug into a mystery — a failed count once rendered as
+a confident `Site-wide issue count: 0` on a site holding 317,907 issues. Silence is still
+available, but it has to be named, which forces the author to say what was lost.
 
 ### Data pipeline
 
@@ -179,7 +239,16 @@ Two deliberate exclusions worth knowing about:
 
 ## SQL schema
 
-Nineteen tables managed by a 44-step migration runner (`@forge/sql` + `migrationRunner`). All tables are namespaced by `scope_key` (derived from the Forge site context).
+Twenty-three tables managed by a 49-step migration runner (`@forge/sql` + `migrationRunner`). All tables are namespaced by `scope_key` (derived from the Forge site context).
+
+**Every `ADD COLUMN` migration is written `IF NOT EXISTS`, without exception.** The
+`CREATE TABLE` constants describe each table's *current* shape, so a column added later
+appears in both the CREATE and a later ALTER. On an existing database the ALTER does the
+work; on a fresh one the CREATE already produced the column and a bare ALTER fails with a
+duplicate-column error, halting the runner so every later migration never runs. This was
+not hypothetical — it made every fresh install fatal until it was fixed, and went
+unnoticed only because every environment had a pre-existing database.
+`project-store.schema.test.js` enforces the rule mechanically.
 
 **Field snapshot**
 
@@ -198,6 +267,7 @@ Nineteen tables managed by a 44-step migration runner (`@forge/sql` + `migration
 | `issue_scan_meta` | Scan state, cursor, and progress for the site-wide scan |
 | `issue_scan_workers` | Per-worker partition assignment and resume position |
 | `issue_scan_buffer` | Staging rows written by workers, promoted into `snapshot_project_usage` in batches |
+| `issue_scan_status_totals` | Issues per status per project, accumulated during the scan. Status arrives on every issue already (`fields=*all`), so this costs no extra Jira calls |
 | `issue_scan_project_totals` | Per-project issue totals accumulated during the scan |
 
 **RQT index**
@@ -298,7 +368,15 @@ npm run test:coverage # with coverage report
 
 Tests are colocated with their source (`src/lib/analysis.test.js` sits next to `analysis.js`). The suite is split into two Vitest projects — `backend` runs in Node, `frontend` in jsdom with `@forge/bridge` aliased to a mock.
 
-Coverage thresholds are enforced in `vitest.config.js` and set just below current actuals, so they act as a ratchet: coverage can rise freely, but a drop fails the run. Per-file floors pin the two modules whose failure modes are hardest to diagnose in production — `src/lib/jira-api.js` (rate limiting, retry, cursor pagination) and `src/index.js` (the queue job router, where an unrecognised job type would otherwise fail silently).
+Coverage thresholds are enforced in `vitest.config.js` and set just below current actuals, so they act as a ratchet: coverage can rise freely, but a drop fails the run. Per-file floors pin the modules whose failure modes are hardest to diagnose in production — `src/lib/jira-api.js` (rate limiting, retry, cursor pagination), `src/index.js` (the queue job router, where an unrecognised job type would otherwise fail silently), `src/lib/report-engine.js`, and `src/resolvers.js`, which holds the authorization boundary: a regression there is a security regression, not a coverage statistic.
+
+The storage layer is tested directly rather than only through its callers. Every other
+suite mocks `project-store` wholesale, so nothing exercised the real SQL construction or
+row mapping — which is exactly where a wrong column alias or an unscoped `DELETE` hides.
+`project-store.crud.test.js` and `project-store.writes.test.js` assert query shape and row
+mapping against a mocked Forge SQL, including that **every `DELETE` carries a `scope_key`
+predicate** — in a multi-tenant Forge app an unscoped delete destroys another customer's
+data, and no test that mocks the store could ever catch one.
 
 Raising the thresholds is a deliberate edit to that config, not something that happens by accident.
 

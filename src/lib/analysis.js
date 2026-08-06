@@ -384,9 +384,13 @@ export function buildGovernanceFindings(field, metrics = {}, thresholds = {}) {
     reasons.push({
       category: "cleanup", severity: "medium",
       title: "No field activity in over a year",
+      // The clause "or removing it from active screens" was dropped on 4 Aug 2026.
+      // Observatory holds no screen data, so it cannot know whether this field is on a
+      // screen, let alone an active one -- the advice named evidence the app had never
+      // gathered. Restore a screen-aware recommendation when the screen inventory ships.
       detail: `${totalIssueCount.toLocaleString()} issues carry a value, but the most recent recorded change was ${
         years >= 2 ? `${Math.floor(years)} years` : `${staleDays} days`
-      } ago. The data is historical — consider retiring the field or removing it from active screens.`,
+      } ago. The data is historical — consider retiring the field.`,
     });
     priorityScore += 20;
   }

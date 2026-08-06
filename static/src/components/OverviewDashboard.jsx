@@ -1,166 +1,471 @@
 import React from "react";
 import { invoke } from "@forge/bridge";
-import {
-  BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList,
-} from "recharts";
-import { Icon, useChartPalette } from "./Icons";
+import { Icon } from "./Icons";
+import { formatNumber, formatRelativeTime } from "../utils";
+import { StatTile, StatRow, Panel, EmptyState, BarList, FindingRow, LinkButton } from "./ui";
 
-// ── Shared chart primitives ─────────────────────────────────────────────────
+// The admin landing page.
 //
-// Deliberately small, fresh components rather than importing RqtTab's/ProjectsTab's
-// near-identical copies -- those live in separately lazy-loaded chunks (Scans/RQT,
-// Project Usage) and cross-importing between lazy chunks isn't worth the coupling for
-// two ~20-line components. All three files independently follow the same dataviz-skill
-// palette/tooltip conventions.
+// Its job is to route attention, not to display everything. Every other tab answers a
+// question you already have; this one tells you which question to ask. So findings that
+// need action come first and deep-link to the tab that resolves them, and the descriptive
+// charts sit below where they inform rather than compete.
 
-function DashboardChartTooltip({ active, payload }) {
-  if (!active || !payload?.length) return null;
-  const { name, value } = payload[0];
-  return (
-    <div className="chart-tooltip">
-      <span className="chart-tooltip__label">{name}</span>
-      <span className="chart-tooltip__value">{Number(value).toLocaleString()}</span>
-    </div>
-  );
+// ── Findings ────────────────────────────────────────────────────────────────
+//
+// Assembled from three independent sources (field governance, project shape, workflow
+// health), each of which may be unavailable. Anything whose source has not been built is
+// omitted rather than rendered as zero, because "0 duplicate statuses" and "we have never
+// looked for duplicate statuses" are completely different statements.
+
+function buildFindings({ findingsSummary, dashboard, workflow, onNavigate }) {
+  const findings = [];
+
+  if (findingsSummary?.adminAttention > 0) {
+    findings.push({
+      key: "admin-attention",
+      tone: "critical",
+      count: findingsSummary.adminAttention,
+      title: "Fields need admin attention",
+      detail: "Configuration problems that affect how these fields behave in Jira.",
+      onOpen: () => onNavigate("fields"),
+      openLabel: "Field Browser",
+    });
+  }
+
+  if (findingsSummary?.risky > 0) {
+    findings.push({
+      key: "risky",
+      tone: "warning",
+      count: findingsSummary.risky,
+      title: "Fields flagged as risky",
+      detail: "Global contexts or broad scope that make changes hard to reason about.",
+      onOpen: () => onNavigate("fields"),
+      openLabel: "Field Browser",
+    });
+  }
+
+  if (workflow?.available && workflow.duplicateGroupCount > 0) {
+    findings.push({
+      key: "duplicate-statuses",
+      tone: "warning",
+      count: workflow.duplicateGroupCount,
+      title: "Groups of duplicate statuses",
+      detail: workflow.reducibleStatusCount > 0
+        ? `Consolidating them removes ${formatNumber(workflow.reducibleStatusCount)} statuses from the site.`
+        : "Statuses that almost certainly mean the same thing.",
+      onOpen: () => onNavigate("workflows"),
+      openLabel: "Workflows",
+    });
+  }
+
+  // Only offered as a cleanup when the scan has confirmed the statuses are unused.
+  // Without counts this is a list to review, not an action, so it is not a finding.
+  if (workflow?.available && workflow.safeToRemoveCount > 0) {
+    findings.push({
+      key: "unused-statuses",
+      tone: "info",
+      count: workflow.safeToRemoveCount,
+      title: "Statuses with no evidence of use",
+      detail: "No workflow reaches them and no issue has ever been in one. Automation rules are not visible to this app, so check those before deleting.",
+      onOpen: () => onNavigate("workflows"),
+      openLabel: "Workflows",
+    });
+  }
+
+  if (workflow?.available && workflow.flaggedSchemeCount > 0) {
+    findings.push({
+      key: "scheme-balance",
+      tone: "warning",
+      count: workflow.flaggedSchemeCount,
+      title: "Workflow schemes with a structural flag",
+      detail: "Missing a Done status, heavily weighted to In Progress, or oversized.",
+      onOpen: () => onNavigate("workflows"),
+      openLabel: "Workflows",
+    });
+  }
+
+  if (dashboard?.projects?.overConfigured?.length > 0) {
+    findings.push({
+      key: "over-configured",
+      tone: "info",
+      count: dashboard.projects.overConfigured.length,
+      title: "Projects configured well past the site norm",
+      detail: `Median project carries ${formatNumber(dashboard.projects.medianFieldCount)} fields; these carry far more with little issue volume.`,
+      onOpen: () => onNavigate("projects"),
+      openLabel: "Project Usage",
+    });
+  }
+
+  if (findingsSummary?.cleanup > 0) {
+    findings.push({
+      key: "cleanup",
+      tone: "info",
+      count: findingsSummary.cleanup,
+      title: "Fields suggested for cleanup",
+      detail: "Unused, unpopulated, or superseded by another field.",
+      onOpen: () => onNavigate("fields"),
+      openLabel: "Field Browser",
+    });
+  }
+
+  return findings;
 }
 
-function DashboardHBarChart({ items, labelKey, valueKey, color = "#3987e5", maxItems = 8, emptyMsg = "No data yet", labelWidth = 140 }) {
-  if (!items?.length) return <div className="dashboard-chart-empty">{emptyMsg}</div>;
-  const rows = items.slice(0, maxItems).map((row) => ({ name: String(row[labelKey]), value: row[valueKey] }));
-  const height = Math.max(120, rows.length * 26);
-  return (
-    <div style={{ width: "100%", height }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={rows} layout="vertical" margin={{ top: 2, right: 40, bottom: 2, left: 2 }}>
-          <XAxis type="number" hide />
-          <YAxis type="category" dataKey="name" width={labelWidth} tick={{ fontSize: 11, fill: "var(--muted)" }} tickLine={false} axisLine={false} />
-          <Tooltip content={<DashboardChartTooltip />} cursor={{ fill: "var(--stroke)" }} />
-          <Bar dataKey="value" fill={color} radius={[0, 2, 2, 0]} maxBarSize={16} opacity={0.85}>
-            <LabelList dataKey="value" position="right" fontSize={11} fill="var(--muted)" formatter={(v) => v.toLocaleString()} />
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
-    </div>
-  );
-}
+function FindingsPanel({ findings, workflow, onNavigate }) {
+  if (!findings.length) {
+    return (
+      <Panel title="What needs attention" icon="checkCircle">
+        <EmptyState
+          action={!workflow?.available ? <LinkButton onClick={() => onNavigate("workflows")}>Build workflow inventory</LinkButton> : null}
+        >
+          {workflow?.available
+            ? "Nothing flagged. Field governance, project shape and workflow health all look clean."
+            : "Nothing flagged in the field data. Build the workflow inventory to check status and scheme health too."}
+        </EmptyState>
+      </Panel>
+    );
+  }
 
-function DashboardDonutChart({ items }) {
-  const palette = useChartPalette();
-  if (!items?.length) return <div className="dashboard-chart-empty">No data yet</div>;
-  const total = items.reduce((s, d) => s + d.value, 0);
-  if (!total) return <div className="dashboard-chart-empty">No data yet</div>;
   return (
-    <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
-      <div style={{ width: 120, height: 120, flexShrink: 0, position: "relative" }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie data={items} dataKey="value" nameKey="label" innerRadius={32} outerRadius={48} paddingAngle={2} stroke="none">
-              {items.map((entry, i) => <Cell key={entry.label} fill={palette[i % palette.length]} />)}
-            </Pie>
-            <Tooltip content={<DashboardChartTooltip />} />
-          </PieChart>
-        </ResponsiveContainer>
-        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
-          <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text)" }}>{total.toLocaleString()}</span>
-        </div>
+    <Panel
+      title="What needs attention"
+      icon="alertTriangle"
+      description="Ordered by severity. Each opens the tab that resolves it."
+    >
+      <div className="ui-finding-list">
+        {findings.map((finding) => (
+          <FindingRow
+            key={finding.key}
+            tone={finding.tone}
+            count={formatNumber(finding.count)}
+            title={finding.title}
+            detail={finding.detail}
+            action={<LinkButton onClick={finding.onOpen}>{finding.openLabel}</LinkButton>}
+          />
+        ))}
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: "0.77rem" }}>
-        {items.map((d, i) => (
-          <div key={d.label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ width: 9, height: 9, borderRadius: 2, background: palette[i % palette.length], flexShrink: 0 }} />
-            <span style={{ color: "var(--muted)" }}>{d.label}</span>
-            <span style={{ marginLeft: "auto", color: "var(--text)", fontWeight: 600, paddingLeft: 8 }}>{d.value.toLocaleString()}</span>
+    </Panel>
+  );
+}
+
+
+// ── Site health ─────────────────────────────────────────────────────────────
+//
+// The headline number is a way into the findings, not a finding. So it ships with the
+// dimension that scored worst and what would move it, and it states how many dimensions
+// it could actually score -- a 90 from two inputs is a weaker claim than a 72 from seven,
+// and the reader has to be able to tell.
+
+function HealthPanel({ health, onNavigate }) {
+  if (!health || health.score === null) {
+    return (
+      <Panel title="Site health" icon="activity">
+        <EmptyState>
+          Nothing measured yet. Build a snapshot and the workflow inventory to score the site.
+        </EmptyState>
+      </Panel>
+    );
+  }
+
+  // Both counts come from the dimensions array rather than one from the array and one
+  // from separate metadata -- otherwise the heading and the note can disagree about how
+  // much of the site was actually measured.
+  const scored = health.dimensions.filter((d) => d.available);
+  const missing = health.dimensions.filter((d) => !d.available);
+  const partial = missing.length > 0;
+
+  return (
+    <Panel
+      title="Site health"
+      icon="activity"
+      description={`Scored across ${scored.length} of ${health.dimensions.length} dimensions.`}
+    >
+      <div className="ui-health">
+        <div className="ui-health__hero">
+          <span className={`ui-health__score ui-health__score--${health.grade.toLowerCase()}`}>{health.score}</span>
+          <span className="ui-health__of">/ 100</span>
+          <span className={`ui-health__grade ui-health__grade--${health.grade.toLowerCase()}`}>{health.grade}</span>
+        </div>
+        {health.weakest && (
+          <p className="ui-health__weakest">
+            Weakest: <strong>{health.weakest.label}</strong> at {health.weakest.score}.
+            {health.weakest.action ? ` ${health.weakest.action}` : ""}
+          </p>
+        )}
+      </div>
+
+      <div className="ui-health__dims">
+        {scored.map((dim) => (
+          <div key={dim.key} className="ui-health__dim">
+            <span className="ui-health__dimlabel">{dim.label}</span>
+            <span className="ui-health__dimtrack">
+              <span className="ui-health__dimbar" style={{ width: `${dim.score}%` }} />
+            </span>
+            <span className="ui-health__dimval">{dim.score}</span>
+            <span className="ui-health__dimdetail">{dim.detail}</span>
           </div>
         ))}
       </div>
-    </div>
+
+      {partial && (
+        <p className="ui-note">
+          <Icon name="info" size={13} />
+          <span>
+            {missing.length} dimension{missing.length === 1 ? "" : "s"} could not be scored:{" "}
+            {missing.map((d) => d.label).join(", ")}. The score reflects only what has been
+            measured, so it will move as more data is collected.
+          </span>
+        </p>
+      )}
+    </Panel>
   );
 }
 
-function DashStat({ label, value, icon, variant = "neutral" }) {
+// ── Workflow ────────────────────────────────────────────────────────────────
+
+function WorkflowPanel({ workflow, onNavigate }) {
+  if (!workflow?.available) {
+    return (
+      <Panel title="Workflows and statuses" icon="activity">
+        <EmptyState action={<LinkButton onClick={() => onNavigate("workflows")}>Open Workflows</LinkButton>}>
+          {workflow?.state === "building"
+            ? "Building the workflow inventory…"
+            : "No workflow inventory yet. Build one to see scheme sharing and status health."}
+        </EmptyState>
+      </Panel>
+    );
+  }
+
   return (
-    <div className={`admin-stat-card admin-stat-card--${variant}`}>
-      <div className="admin-stat-card__icon"><Icon name={icon} size={18} /></div>
-      <div className="admin-stat-card__body">
-        <span className="admin-stat-card__value">{value ?? "—"}</span>
-        <span className="admin-stat-card__label">{label}</span>
+    <Panel
+      title="Workflows and statuses"
+      icon="activity"
+      description={workflow.refreshedAt ? `Built ${formatRelativeTime(workflow.refreshedAt)}` : undefined}
+      action={<LinkButton onClick={() => onNavigate("workflows")}>Open Workflows</LinkButton>}
+    >
+      <StatRow>
+        <StatTile
+          label="Workflow schemes"
+          value={formatNumber(workflow.schemeCount)}
+          hint={`${formatNumber(workflow.sharedSchemes)} shared by more than one project`}
+          icon="activity"
+        />
+        <StatTile label="Statuses" value={formatNumber(workflow.statusCount)} icon="layers" />
+        <StatTile
+          label="Duplicate groups"
+          value={formatNumber(workflow.duplicateGroupCount)}
+          hint={workflow.reducibleStatusCount > 0 ? `${formatNumber(workflow.reducibleStatusCount)} removable` : undefined}
+          tone={workflow.duplicateGroupCount > 0 ? "warning" : "neutral"}
+        />
+        <StatTile
+          label="Unreachable"
+          value={workflow.schemeStatusesAvailable ? formatNumber(workflow.orphanCount) : "—"}
+          hint={
+            !workflow.schemeStatusesAvailable
+              ? "workflow status data unavailable"
+              : workflow.hasIssueCounts
+                ? `${formatNumber(workflow.safeToRemoveCount)} never used`
+                : "run a scan to confirm usage"
+          }
+          tone={workflow.schemeStatusesAvailable && workflow.orphanCount > 0 ? "warning" : "neutral"}
+        />
+      </StatRow>
+
+      {/* Scheme sharing is the premise the whole correlation rests on. If nothing is
+          shared, per-scheme comparison has no leverage and it is better to say so. */}
+      {workflow.sharedSchemes === 0 && workflow.schemeCount > 0 && (
+        <p className="ui-note">
+          <Icon name="info" size={13} />
+          <span>
+            No scheme governs more than one project, so there is no shared process to compare
+            field usage against.
+          </span>
+        </p>
+      )}
+    </Panel>
+  );
+}
+
+// ── Projects ────────────────────────────────────────────────────────────────
+
+function ProjectsPanel({ projects, onNavigate }) {
+  if (!projects || !projects.totalProjects) {
+    return (
+      <Panel title="Projects" icon="folder">
+        <EmptyState>No project usage data yet. Run a scan to populate it.</EmptyState>
+      </Panel>
+    );
+  }
+
+  return (
+    <Panel
+      title="Projects"
+      icon="folder"
+      action={<LinkButton onClick={() => onNavigate("projects")}>Open Project Usage</LinkButton>}
+    >
+      <StatRow>
+        <StatTile label="Projects with field usage" value={formatNumber(projects.totalProjects)} icon="folder" />
+        {/*
+          Two different measures, never one label. totalFieldFills counts field VALUES --
+          an issue with 90 populated fields contributes 90 -- so presenting it as "issues"
+          overstates by roughly the median field count. Only the Universal Scan measures
+          distinct issues, so when it has not run the tile says what it is actually showing.
+        */}
+        {projects.hasUniqueCounts ? (
+          <StatTile
+            label="Issues covered"
+            value={formatNumber(projects.totalUniqueIssues)}
+            hint="distinct issues, from the universe scan"
+            icon="barChart"
+          />
+        ) : (
+          <StatTile
+            label="Field fills"
+            value={formatNumber(projects.totalFieldFills)}
+            hint="field values, not issues — run a universe scan for issue counts"
+            icon="barChart"
+          />
+        )}
+        <StatTile
+          label="Median fields per project"
+          value={formatNumber(projects.medianFieldCount)}
+          hint={`90th percentile ${formatNumber(projects.p90FieldCount)}`}
+          icon="layers"
+        />
+        <StatTile
+          label="No issues recorded"
+          value={formatNumber(projects.unusedProjects?.length ?? 0)}
+          hint="fields configured, nothing filed"
+          tone={projects.unusedProjects?.length ? "warning" : "neutral"}
+        />
+      </StatRow>
+
+      <div className="ui-split">
+        <div className="ui-split__col">
+          <h4 className="ui-subhead">
+            {projects.hasUniqueCounts ? "Highest issue volume" : "Most field fills"}
+          </h4>
+          <BarList
+            items={projects.topByIssueVolume}
+            labelKey="projectKey"
+            valueKey="volume"
+            formatValue={formatNumber}
+            emptyMessage="No issue data yet"
+          />
+        </div>
+        <div className="ui-split__col">
+          <h4 className="ui-subhead">Most fields configured</h4>
+          <BarList
+            items={projects.topByFieldCount}
+            labelKey="projectKey"
+            valueKey="fieldCount"
+            formatValue={formatNumber}
+            tone="warn"
+            emptyMessage="No field data yet"
+          />
+        </div>
       </div>
-    </div>
+
+      {projects.overConfigured?.length > 0 && (
+        <div className="ui-split__col">
+          <h4 className="ui-subhead">Configured past the norm, low volume</h4>
+          <p className="ui-subhead__desc">
+            Well above the median field count while carrying little work — the cost is real
+            and the usage is not.
+          </p>
+          <BarList
+            items={projects.overConfigured}
+            labelKey="projectKey"
+            valueKey="fieldCount"
+            formatValue={formatNumber}
+            tone="warn"
+          />
+        </div>
+      )}
+
+      {projects.staleProjects?.length > 0 && (
+        <div className="ui-split__col">
+          <h4 className="ui-subhead">No activity in over six months</h4>
+          <div className="ui-stale-list">
+            {projects.staleProjects.map((project) => (
+              <div key={project.projectKey} className="ui-stale">
+                <span className="ui-stale__key">{project.projectKey}</span>
+                <span className="ui-stale__name">{project.projectName}</span>
+                <span className="ui-stale__when">{formatRelativeTime(project.latestIssueUpdatedAt)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </Panel>
   );
 }
 
-function DashboardSection({ title, icon, children }) {
-  return (
-    <div className="admin-section">
-      <h2 className="admin-section__title"><Icon name={icon} size={16} /> {title}</h2>
-      {children}
-    </div>
-  );
-}
+// ── Fields ──────────────────────────────────────────────────────────────────
 
-// ── Field Usage pillar ───────────────────────────────────────────────────────
-
-function FieldUsageSection({ fieldUsage }) {
+function FieldsPanel({ fieldUsage, onNavigate }) {
   const severity = fieldUsage?.findingsBySeverity || { high: 0, medium: 0, low: 0 };
   const origin = fieldUsage?.origin || { builtin: 0, appProvided: 0, custom: 0 };
 
   return (
-    <DashboardSection title="Field Usage" icon="layers">
-      <div className="admin-stat-row" style={{ marginBottom: 16 }}>
-        <DashStat label="High severity" value={severity.high} icon="alertTriangle" variant={severity.high > 0 ? "danger" : "neutral"} />
-        <DashStat label="Medium severity" value={severity.medium} icon="alertTriangle" variant={severity.medium > 0 ? "warn" : "neutral"} />
-        <DashStat label="Low severity" value={severity.low} icon="info" variant="neutral" />
-        <DashStat label="Duplicate-name clusters" value={fieldUsage?.duplicateClusters ?? 0} icon="scissors" variant="neutral" />
-      </div>
-      <div className="rqt-charts-grid">
-        <div className="rqt-chart-card">
-          <div className="rqt-chart-card__title">Top finding types</div>
-          <DashboardHBarChart items={fieldUsage?.findingsByType} labelKey="title" valueKey="count" color="#d55181" emptyMsg="No governance findings yet" />
+    <Panel
+      title="Field usage"
+      icon="layers"
+      action={<LinkButton onClick={() => onNavigate("fields")}>Open Field Browser</LinkButton>}
+    >
+      <StatRow>
+        <StatTile
+          label="High severity"
+          value={formatNumber(severity.high)}
+          tone={severity.high > 0 ? "critical" : "neutral"}
+          icon="alertTriangle"
+        />
+        <StatTile
+          label="Medium severity"
+          value={formatNumber(severity.medium)}
+          tone={severity.medium > 0 ? "warning" : "neutral"}
+          icon="alertTriangle"
+        />
+        <StatTile label="Low severity" value={formatNumber(severity.low)} icon="info" />
+        <StatTile
+          label="Duplicate-name clusters"
+          value={formatNumber(fieldUsage?.duplicateClusters ?? 0)}
+          hint={`${formatNumber(origin.custom)} custom fields total`}
+          icon="scissors"
+        />
+      </StatRow>
+
+      <div className="ui-split">
+        <div className="ui-split__col">
+          <h4 className="ui-subhead">Most common findings</h4>
+          <BarList
+            items={fieldUsage?.findingsByType}
+            labelKey="title"
+            valueKey="count"
+            formatValue={formatNumber}
+            tone="warn"
+            emptyMessage="No governance findings yet"
+          />
         </div>
-        <div className="rqt-chart-card">
-          <div className="rqt-chart-card__title">Field types</div>
-          <DashboardHBarChart items={fieldUsage?.fieldTypeBreakdown} labelKey="type" valueKey="count" color="#3987e5" />
-        </div>
-        <div className="rqt-chart-card">
-          <div className="rqt-chart-card__title">Field origin</div>
-          <DashboardDonutChart
-            items={[
-              { label: "Custom", value: origin.custom },
-              { label: "Jira built-in", value: origin.builtin },
-              { label: "App-provided", value: origin.appProvided },
-            ].filter((d) => d.value > 0)}
+        <div className="ui-split__col">
+          <h4 className="ui-subhead">Field types</h4>
+          <BarList
+            items={fieldUsage?.fieldTypeBreakdown}
+            labelKey="type"
+            valueKey="count"
+            formatValue={formatNumber}
+            emptyMessage="No field data yet"
           />
         </div>
       </div>
-    </DashboardSection>
+    </Panel>
   );
 }
 
-// ── Projects pillar ──────────────────────────────────────────────────────────
+// ── RQT ─────────────────────────────────────────────────────────────────────
 
-function ProjectsSection({ projects }) {
-  return (
-    <DashboardSection title="Projects" icon="folder">
-      <div className="admin-stat-row" style={{ marginBottom: 16 }}>
-        <DashStat label="Projects with field usage" value={projects?.totalProjects ?? 0} icon="folder" variant="neutral" />
-      </div>
-      <div className="rqt-charts-grid">
-        <div className="rqt-chart-card">
-          <div className="rqt-chart-card__title">Top projects by issue volume</div>
-          <DashboardHBarChart items={projects?.topByIssueVolume} labelKey="projectKey" valueKey="totalIssueCount" color="#199e70" emptyMsg="No project usage data yet" />
-        </div>
-        <div className="rqt-chart-card">
-          <div className="rqt-chart-card__title">Top projects by field count</div>
-          <DashboardHBarChart items={projects?.topByFieldCount} labelKey="projectKey" valueKey="fieldCount" color="#c98500" emptyMsg="No project usage data yet" />
-        </div>
-      </div>
-    </DashboardSection>
-  );
-}
-
-// ── RQT pillar (compact summary, deep-links into the full RQT Index tab) ────
-
-function RqtSummaryCard({ onOpenRqtIndex }) {
+function RqtPanel({ onOpenRqtIndex }) {
   const [rqt, setRqt] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState(false);
@@ -174,28 +479,37 @@ function RqtSummaryCard({ onOpenRqtIndex }) {
     return () => { cancelled = true; };
   }, []);
 
+  const show = (value) => (loading ? "…" : error ? "—" : formatNumber(value ?? 0));
+
   return (
-    <DashboardSection title="RQT Values" icon="barChart">
-      <div className="admin-stat-row">
-        <DashStat label="Unique issues" value={loading ? "…" : error ? "—" : (rqt?.totalUniqueIssues ?? 0).toLocaleString()} icon="barChart" variant="neutral" />
-        <DashStat label="Fields with RQT values" value={loading ? "…" : error ? "—" : rqt?.fieldCount ?? 0} icon="layers" variant="neutral" />
-        <DashStat label="Unique values" value={loading ? "…" : error ? "—" : (rqt?.uniqueValues?.length ?? 0).toLocaleString()} icon="scissors" variant="neutral" />
-      </div>
-      <button type="button" className="secondary-button" style={{ marginTop: 12 }} onClick={onOpenRqtIndex}>
-        Open full RQT Index <Icon name="zap" size={13} />
-      </button>
-    </DashboardSection>
+    <Panel
+      title="RQT values"
+      icon="zap"
+      action={<LinkButton onClick={onOpenRqtIndex}>Open RQT Index</LinkButton>}
+    >
+      <StatRow>
+        <StatTile label="Unique issues" value={show(rqt?.totalUniqueIssues)} icon="barChart" />
+        <StatTile label="Fields with RQT values" value={show(rqt?.fieldCount)} icon="layers" />
+        <StatTile label="Unique values" value={show(rqt?.uniqueValues?.length)} icon="scissors" />
+      </StatRow>
+    </Panel>
   );
 }
 
-// ── Top-level export, lazy-loaded from OverviewTab ──────────────────────────
+export function OverviewDashboard({ dashboard, findingsSummary, workflow, health, onOpenRqtIndex, onNavigate }) {
+  // onNavigate is optional so this stays renderable in isolation; without it the deep
+  // links become inert rather than throwing.
+  const navigate = onNavigate || (() => {});
+  const findings = buildFindings({ findingsSummary, dashboard, workflow, onNavigate: navigate });
 
-export function OverviewDashboard({ dashboard, onOpenRqtIndex }) {
   return (
-    <>
-      <FieldUsageSection fieldUsage={dashboard?.fieldUsage} />
-      <ProjectsSection projects={dashboard?.projects} />
-      <RqtSummaryCard onOpenRqtIndex={onOpenRqtIndex} />
-    </>
+    <div className="ui-dashboard">
+      <HealthPanel health={health} onNavigate={navigate} />
+      <FindingsPanel findings={findings} workflow={workflow} onNavigate={navigate} />
+      <WorkflowPanel workflow={workflow} onNavigate={navigate} />
+      <ProjectsPanel projects={dashboard?.projects} onNavigate={navigate} />
+      <FieldsPanel fieldUsage={dashboard?.fieldUsage} onNavigate={navigate} />
+      <RqtPanel onOpenRqtIndex={onOpenRqtIndex} />
+    </div>
   );
 }

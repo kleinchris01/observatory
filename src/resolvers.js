@@ -48,6 +48,7 @@ import {
   loadAllSnapshotProjectUsage,
   loadAnySnapshotProjectUsage,
   listSnapshotProjects,
+  loadIssueScanProjectTotals,
   loadSnapshotProjectFields,
   countSnapshotProjectUsage,
   loadFieldSummary,
@@ -86,9 +87,22 @@ import {
   readWorkflowSnapshotMeta,
   loadWorkflowSchemes,
   loadWorkflowSchemeProjects,
+  loadWorkflowSchemeForProject,
   loadStatusesCatalog,
+  loadWorkflowSchemeStatuses,
+  loadStatusIssueCounts,
+  loadStatusHistoryCounts,
 } from "./lib/project-store.js";
-import { buildWorkflowSnapshot } from "./lib/workflow-engine.js";
+import { queueWorkflowSnapshotBuild, isWorkflowBuildStale, queueStatusHistoryBuild } from "./lib/workflow-engine.js";
+import { measureScreenFetchCost, probeScreenEndpoints, DEFAULT_SAMPLE_SIZE } from "./lib/screen-probe.js";
+import { computeSiteHealth } from "./lib/health-score.js";
+import { probeEndpoint, probeStargateEndpoint, getCloudId, getAllJiraProjects } from "./lib/jira-api.js";
+import {
+  findDuplicateStatusGroups,
+  findOrphanedStatuses,
+  computeSchemeCategoryBalance,
+  summarizeWorkflowInsights,
+} from "./lib/workflow-insights.js";
 import {
   STRUCTURAL_SYSTEM_FIELDS,
   isFieldValueNonEmpty,
@@ -112,7 +126,7 @@ import {
   getFieldNumericId,
 } from "./lib/transform.js";
 import { inventorySnapshotQueue } from "./lib/queues.js";
-import { logger } from "./lib/logger.js";
+import { logger, fallbackOn, ignoreWith } from "./lib/logger.js";
 import {
   requireNonEmptyString,
   requirePositiveInt,
@@ -403,8 +417,8 @@ async function getFieldInventory({ payload, context }) {
     // Load from last good version — works for "ready", "building" (shows stale), and "failed"
     const [snapshotFields, fieldSummaries, issueSumsMap] = await Promise.all([
       loadSnapshotFields(installationKey, meta.version),
-      listFieldSummaries(installationKey, 5000).catch(() => []),
-      loadSnapshotFieldIssueSums(installationKey, meta.version).catch(() => new Map()),
+      listFieldSummaries(installationKey, 5000).catch(fallbackOn("inventory.summaries_load_failed", () => [], { installationKey })),
+      loadSnapshotFieldIssueSums(installationKey, meta.version).catch(fallbackOn("inventory.issue_sums_load_failed", () => new Map(), { installationKey })),
     ]);
     const summaryByFieldId = new Map(fieldSummaries.map((summary) => [summary.fieldId, summary]));
     const duplicateNameCounts = buildDuplicateNameCountMap(snapshotFields);
@@ -485,12 +499,25 @@ async function getWorkflowInventory({ payload, context }) {
     const search = String(filters.search || "").trim().toLowerCase();
 
     let meta = await readWorkflowSnapshotMeta(installationKey);
-    const alreadyBuilding = meta?.state === "building";
+    // A stale "building" row does not block a rebuild. Without this, one invocation killed
+    // mid-build leaves the state permanently "building" and silently suppresses every
+    // subsequent refresh -- the button appears to do nothing, with no error to explain it.
+    const alreadyBuilding = meta?.state === "building" && !isWorkflowBuildStale(meta);
     const shouldBuild = Boolean(filters.forceRefresh && !alreadyBuilding);
 
     if (shouldBuild) {
-      await buildWorkflowSnapshot(installationKey);
+      // Queued, not awaited: the build runs in the consumer (timeoutSeconds: 900) because
+      // it cannot fit in this resolver's 25s. The response therefore reports state
+      // "building" with no version yet, and the UI polls until the consumer finishes.
+      await queueWorkflowSnapshotBuild(installationKey);
       meta = await readWorkflowSnapshotMeta(installationKey);
+    }
+
+    // Measuring "ever been in" is a separate, opt-in cost: one JQL WAS query per status.
+    // Queued for the same reason the workflow build is -- a few hundred history queries
+    // will not fit in a resolver invocation.
+    if (filters.measureHistory && meta?.version) {
+      await queueStatusHistoryBuild(installationKey);
     }
 
     const snapshotStatus = {
@@ -510,47 +537,308 @@ async function getWorkflowInventory({ payload, context }) {
       };
     }
 
-    const [schemes, statuses] = await Promise.all([
+    const [schemes, rawStatuses, currentCounts, history] = await Promise.all([
       loadWorkflowSchemes(installationKey, meta.version),
       loadStatusesCatalog(installationKey, meta.version),
+      // Both are optional and measured by different mechanisms, so each failure degrades
+      // to "unknown" rather than to zero -- zero is what makes a status look deletable.
+      loadStatusIssueCounts(installationKey).catch(fallbackOn("workflow.status_counts_load_failed", () => new Map(), { installationKey })),
+      loadStatusHistoryCounts(installationKey).catch(fallbackOn("workflow.status_history_load_failed", () => ({ counts: new Map(), measuredAt: null }), { installationKey })),
     ]);
+
+    const hasCurrentCounts = currentCounts.size > 0;
+    const hasHistoryCounts = history.counts.size > 0;
+    const statuses = rawStatuses.map((status) => {
+      const id = String(status.statusId ?? status.id);
+      const issueCount = hasCurrentCounts ? Number(currentCounts.get(id) ?? 0) : null;
+      const everCount = hasHistoryCounts ? (history.counts.get(id) ?? null) : null;
+      return {
+        ...status,
+        issueCount,
+        everCount,
+        // Issues that passed through and left. Only meaningful when both measures exist,
+        // and floored at zero because the two are sampled at different times and a status
+        // can gain issues between them.
+        departedCount: issueCount !== null && everCount !== null ? Math.max(0, everCount - issueCount) : null,
+      };
+    });
+
+    // Search and page BEFORE the per-scheme enrichment below, never after.
+    //
+    // Enrichment costs one SQL lookup plus one permission check per scheme. Running it
+    // across every scheme to then return a 10-row page is work proportional to the site
+    // rather than the page: on a 142-scheme site that is 284 round trips per read, which
+    // blew the resolver's 25s limit and hung the tab. Filtering here is equivalent --
+    // search reads only name/description, which come from the scheme row itself, and
+    // enrichment adds fields without ever removing a scheme, so neither the membership
+    // of `searched` nor totalCount depends on it.
+    const searched = search
+      ? schemes.filter((s) =>
+          s.name.toLowerCase().includes(search) || (s.description || "").toLowerCase().includes(search))
+      : schemes;
+
+    const totalCount = searched.length;
+    const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+    const startIndex = (requestedPage - 1) * pageSize;
+    const pageOfSchemes = searched.slice(startIndex, startIndex + pageSize);
 
     // Never surface a scheme's project count as-computed from projects the
     // viewer can't browse — recompute from only the browsable subset, same
     // enforcement point as getFieldInventory / getProjectUsageReport (PR #19).
-    const filteredSchemes = await mapWithConcurrency(schemes, 8, async (scheme) => {
+    const enrichedPage = await mapWithConcurrency(pageOfSchemes, 8, async (scheme) => {
       const projects = await loadWorkflowSchemeProjects(installationKey, meta.version, scheme.id);
       const browsableProjectIds = await getBrowsableProjectIds(
         context?.accountId,
         projects.map((p) => p.projectId)
       );
-      const visibleProjectCount = projects.filter((p) => browsableProjectIds.has(String(p.projectId))).length;
-      return { ...scheme, projectCount: visibleProjectCount };
+      const visibleProjects = projects.filter((p) => browsableProjectIds.has(String(p.projectId)));
+      return {
+        ...scheme,
+        projectCount: visibleProjects.length,
+        // The rows are already loaded and permission-filtered to compute the count, so
+        // returning them costs nothing and saves the UI a round trip per expanded scheme.
+        // Capped because a site-wide default scheme can govern every project, and the
+        // expanded panel is a sample rather than an export.
+        projects: visibleProjects.slice(0, 60),
+        projectsTruncated: visibleProjects.length > 60,
+      };
     });
 
-    const searched = search
-      ? filteredSchemes.filter((s) =>
-          s.name.toLowerCase().includes(search) || (s.description || "").toLowerCase().includes(search))
-      : filteredSchemes;
-
-    const totalCount = searched.length;
-    const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
-    const startIndex = (requestedPage - 1) * pageSize;
-
     return {
-      schemes: searched.slice(startIndex, startIndex + pageSize),
+      schemes: enrichedPage,
       statuses,
       page: requestedPage,
       pageSize,
       totalCount,
       totalPages,
       snapshotStatus,
+      statusCounts: {
+        hasCurrentCounts,
+        hasHistoryCounts,
+        historyMeasuredAt: history.measuredAt,
+      },
     };
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
     console.error("getWorkflowInventory failed:", error);
     throw error;
   }
+}
+
+// Governance findings derived from the workflow snapshot: duplicate status names,
+// statuses no scheme can reach, and schemes whose category balance looks wrong.
+//
+// Site-wide analysis rather than a page: every finding needs the whole catalog to be
+// computed at all -- you cannot tell a duplicate from a unique name by looking at ten
+// rows. The inputs are bounded by the status catalog (hundreds, not millions) and the
+// work is pure computation over already-loaded rows, so this stays inside a resolver.
+//
+// No permission filtering here, deliberately: statuses and schemes are site-level Jira
+// configuration, not project data, and this resolver returns no project names or issue
+// keys. The per-scheme project counts that DO need filtering live in
+// getWorkflowInventory, which enforces them.
+async function getWorkflowInsights({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    await ensureProjectStoreReady();
+    const installationKey = getInstallationKey(context);
+
+    const meta = await readWorkflowSnapshotMeta(installationKey);
+    if (!meta?.version) {
+      return {
+        available: false,
+        reason: "no-snapshot",
+        snapshotStatus: { state: meta?.state || "idle", refreshedAt: null },
+      };
+    }
+
+    const [schemes, statuses, schemeStatuses] = await Promise.all([
+      loadWorkflowSchemes(installationKey, meta.version),
+      loadStatusesCatalog(installationKey, meta.version),
+      loadWorkflowSchemeStatuses(installationKey, meta.version),
+    ]);
+
+    // Issue counts are optional. They come from the universe scan, which is versioned
+    // independently and may never have run -- an empty map means "unknown", and every
+    // downstream claim about a status being safe to delete is suppressed accordingly.
+    const issueCounts = await loadStatusIssueCounts(installationKey).catch(fallbackOn("insights.status_counts_load_failed", () => new Map(), { installationKey }));
+    const hasIssueCounts = issueCounts.size > 0;
+
+    // "Ever been in" is measured separately from "currently in": the first comes from JQL
+    // WAS queries, the second from the universe scan. They refresh independently, so each
+    // is reported with its own availability flag rather than assumed to arrive together.
+    const history = await loadStatusHistoryCounts(installationKey).catch(fallbackOn("insights.status_history_load_failed", () => ({ counts: new Map(), measuredAt: null }), { installationKey }));
+    const hasHistoryCounts = history.counts.size > 0;
+
+    // The scheme->status mapping is best-effort in the build: if the workflow expansion
+    // failed, every status looks orphaned and every scheme looks empty. Say so rather
+    // than presenting a confidently wrong catalogue of findings.
+    const schemeStatusesAvailable = schemeStatuses.length > 0;
+
+    const duplicateGroups = findDuplicateStatusGroups(statuses);
+    // Computed only when the underlying data supports them. Deriving these and then
+    // hiding the lists still leaked the numbers into the summary, which rendered
+    // "435 unreachable statuses" directly above a warning saying the data was missing.
+    const orphans = schemeStatusesAvailable
+      ? findOrphanedStatuses(statuses, schemeStatuses, hasIssueCounts ? issueCounts : null)
+      : [];
+    const balance = schemeStatusesAvailable
+      ? computeSchemeCategoryBalance(schemes, schemeStatuses, statuses)
+      : [];
+
+    return {
+      available: true,
+      schemeStatusesAvailable,
+      hasIssueCounts,
+      hasHistoryCounts,
+      historyMeasuredAt: history.measuredAt,
+      summary: summarizeWorkflowInsights({ duplicateGroups, orphans, balance }),
+      duplicateGroups: duplicateGroups.slice(0, 100).map((group) => ({
+        ...group,
+        statuses: group.statuses.map((s) => ({
+          statusId: String(s.statusId ?? s.id),
+          name: s.name,
+          statusCategory: s.statusCategory || null,
+          issueCount: hasIssueCounts ? Number(issueCounts.get(String(s.statusId ?? s.id)) ?? 0) : null,
+          everCount: hasHistoryCounts ? (history.counts.get(String(s.statusId ?? s.id)) ?? null) : null,
+        })),
+      })),
+      orphans: orphans.slice(0, 200),
+      balance: balance.slice(0, 100),
+      statusTotals: {
+        catalogCount: statuses.length,
+        withIssues: hasIssueCounts ? [...issueCounts.values()].filter((n) => n > 0).length : null,
+      },
+      snapshotStatus: {
+        state: meta.state || "idle",
+        refreshedAt: meta.refreshedAt || null,
+      },
+    };
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("getWorkflowInsights failed:", error);
+    throw error;
+  }
+}
+
+
+// Probe the endpoints that might expose Jira Automation rules.
+//
+// Automation is a real blind spot in the findings this app produces: "this status is
+// unreachable and never used" is a claim made without looking at automation rules. If a
+// rule transitions issues into that status, or sets that field, the finding is wrong --
+// and someone could delete something load-bearing on our advice.
+//
+// Jira Automation came from the Code Barrel acquisition and its REST surface has
+// historically been undocumented. Rather than assert which path works, this asks, and
+// Answers what a full screen inventory pass would cost, by sampling rather than doing one.
+//
+// Exists because the screen pipeline's cost turns on tabs-per-screen, which is unknowable
+// without asking the site. Building the fetcher first and discovering the number afterwards
+// means building it twice. Read-only, admin-only, and it never throws -- like the
+// automation probe, a diagnostic that can fail the page it runs on is worse than none.
+async function probeScreenFetchCost({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  const requested = Math.trunc(Number(payload?.sampleSize)) || DEFAULT_SAMPLE_SIZE;
+  // Bounded: below 5 the tail is invisible, and above 100 the probe becomes the expense it
+  // was written to avoid.
+  const sampleSize = Math.max(5, Math.min(100, requested));
+
+  try {
+    return await measureScreenFetchCost({ sampleSize });
+  } catch (error) {
+    const message = String(error?.message || error);
+    logger.warn("screen-probe.failed", { error: message });
+
+    // On an authorization failure, stop guessing and ask each endpoint directly.
+    //
+    // The first live run failed with 401 "scope does not match" and this returned a hint
+    // saying the install needed upgrading. That was wrong -- the install was already on the
+    // version carrying the scopes. A hint that confidently names the wrong cause is worse
+    // than no hint, because it sends the reader somewhere that cannot help.
+    //
+    // Every scope name is confirmed present in Atlassian's registry, so the open question
+    // is which endpoint each one authorizes. Probing answers that; reasoning did not.
+    const isAuthFailure = /\b401\b|\b403\b|scope does not match/i.test(message);
+    let endpoints = null;
+    if (isAuthFailure) {
+      endpoints = await probeScreenEndpoints().catch(() => null);
+    }
+
+    return {
+      ok: false,
+      error: message,
+      endpoints,
+      hint: isAuthFailure
+        ? "Authorization failure. The table below shows which screen endpoints accept the app's scopes and which reject them — a 404 is a pass, since it means the scope was accepted and only the placeholder id was wrong."
+        : null,
+    };
+  }
+}
+
+// reports exactly what each one returned. Admin-only, read-only, and it never throws:
+// a diagnostic that can fail the page it runs on is worse than no diagnostic.
+async function probeAutomationApi({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  const installationKey = getInstallationKey(context);
+
+  // One real project id, because the legacy rule endpoint is project-scoped.
+  let projectId = null;
+  try {
+    const projects = await getAllJiraProjects();
+    projectId = projects?.[0]?.id ? String(projects[0].id) : null;
+  } catch (error) {
+    logger.warn("automation-probe.project_lookup_failed", { error: String(error?.message || error) });
+  }
+
+  // Both scopes are probed, because rules live in two places and the goal is to extract
+  // the JSON for all of them. GLOBAL is a pseudo-project id in the legacy Code Barrel
+  // scheme -- global rules are addressed as if they belonged to a project called GLOBAL.
+  const candidates = [
+    { scope: "global", path: "/rest/cb-automation/latest/project/GLOBAL/rule" },
+    { scope: "global", path: "/rest/cb-automation/latest/rule" },
+    { scope: "global", path: "/rest/api/3/automation/rule" },
+    ...(projectId
+      ? [{ scope: "project", path: `/rest/cb-automation/latest/project/${projectId}/rule` }]
+      : []),
+  ];
+
+  // The automation API lives on api.atlassian.com, not on the site. Every site-relative
+  // path returned 401 because it was asked of the wrong server -- requestJira cannot reach
+  // the gateway, so those go through Stargate instead.
+  const cloudId = getCloudId(context);
+  if (cloudId) {
+    candidates.push(
+      { scope: "global", via: "stargate", path: `https://api.atlassian.com/automation/public/jira/${cloudId}/rest/v1/rule` },
+      { scope: "global", via: "stargate", path: `https://api.atlassian.com/automation/public/jira/${cloudId}/rest/v1/rule/search` },
+      // Gateway-relative as well, in case Stargate prefixes the host itself. One of the
+      // two forms will be accepted and the other will say why it was not.
+      { scope: "global", via: "stargate", path: `/automation/public/jira/${cloudId}/rest/v1/rule` },
+    );
+  }
+
+  const results = [];
+  for (const { scope, path, via } of candidates) {
+    const result = via === "stargate" ? await probeStargateEndpoint(path) : await probeEndpoint(path);
+    // A 200 is not the same as usable JSON -- Jira can answer with an HTML login page or
+    // an error envelope. Record whether the body actually looks like a rule collection.
+    const looksLikeRules = /"(rules|values|id)"\s*:/.test(result.sample || "");
+    results.push({ ...result, scope, via: via || "site", looksLikeRules });
+    logger.info("automation-probe.result", {
+      scope, via: via || "site", path: result.path, status: result.status,
+      ok: result.ok, ms: result.ms, looksLikeRules, sample: result.sample,
+    });
+  }
+
+  const reachable = results.filter((r) => r.ok && r.looksLikeRules);
+  logger.info("automation-probe.summary", {
+    installationKey,
+    probed: results.length,
+    reachable: reachable.length,
+    reachablePaths: reachable.map((r) => r.path),
+  });
+
+  return { projectId, cloudId, results, reachable: reachable.map((r) => r.path) };
 }
 
 async function getFieldDetails({ payload, context }) {
@@ -805,7 +1093,7 @@ async function refreshRecentProjectUsage({ payload, context }) {
   const hours = Math.max(1, Math.min(168, Math.trunc(Number(payload?.hours)) || 24));
   const maxIssues = Math.max(50, Math.min(2000, Math.trunc(Number(payload?.maxIssues)) || 500));
   const recent = await collectRecentFieldProjectCandidates(hours, maxIssues);
-  const allSummaries = await listFieldSummaries(installationKey, 5000).catch(() => []);
+  const allSummaries = await listFieldSummaries(installationKey, 5000).catch(fallbackOn("resolver.summaries_load_failed", () => [], { installationKey }));
   const summaryByFieldId = new Map(allSummaries.map((summary) => [summary.fieldId, summary]));
 
   let queuedCount = 0;
@@ -814,7 +1102,7 @@ async function refreshRecentProjectUsage({ payload, context }) {
     const fieldId = String(candidate.fieldId || "").trim();
     if (!fieldId) continue;
 
-    const snapshotField = await loadSnapshotField(installationKey, meta.version, fieldId).catch(() => null);
+    const snapshotField = await loadSnapshotField(installationKey, meta.version, fieldId).catch(fallbackOn("resolver.snapshot_field_load_failed", null, { fieldId }));
     if (!snapshotField) continue;
 
     const summary = summaryByFieldId.get(fieldId) || null;
@@ -1040,7 +1328,7 @@ async function ensureProjectUsageJobQueued(installationKey, version, snapshotFie
   }
 
   const fieldId = snapshotField.id;
-  const summary = existingSummary || await loadFieldSummary(installationKey, fieldId).catch(() => null);
+  const summary = existingSummary || await loadFieldSummary(installationKey, fieldId).catch(fallbackOn("resolver.field_summary_load_failed", null, { fieldId }));
   if (summary?.summaryStatus === "queued" || summary?.summaryStatus === "building") {
     return { queued: false, reason: "already-running" };
   }
@@ -1120,7 +1408,7 @@ async function ensureDeferredProjectUsageJobRecorded(installationKey, snapshotFi
   }
 
   const fieldId = snapshotField.id;
-  const summary = existingSummary || await loadFieldSummary(installationKey, fieldId).catch(() => null);
+  const summary = existingSummary || await loadFieldSummary(installationKey, fieldId).catch(fallbackOn("resolver.field_summary_load_failed", null, { fieldId }));
   if (summary?.summaryStatus === "queued" || summary?.summaryStatus === "building" || summary?.summaryStatus === "ready") {
     return;
   }
@@ -1224,14 +1512,14 @@ async function getProjectUsageReport({ payload, context }) {
   }
 
   const pendingFields = [];
-  const allSummaries = await listFieldSummaries(installationKey, 5000).catch(() => []);
+  const allSummaries = await listFieldSummaries(installationKey, 5000).catch(fallbackOn("resolver.summaries_load_failed", () => [], { installationKey }));
   const summaryByFieldId = new Map(allSummaries.map((summary) => [summary.fieldId, summary]));
   const queueCandidates = [];
   const rows = await Promise.all(fieldIds.map(async (fieldId) => {
     const [field, projectUsage, fieldSummary] = await Promise.all([
       loadSnapshotField(installationKey, meta.version, fieldId),
       loadAllSnapshotProjectUsage(installationKey, meta.version, fieldId),
-      loadFieldSummary(installationKey, fieldId).catch(() => summaryByFieldId.get(fieldId) || null),
+      loadFieldSummary(installationKey, fieldId).catch(fallbackOn("resolver.field_summary_load_failed", () => summaryByFieldId.get(fieldId) || null, { fieldId })),
     ]);
     if (!field) {
       return null;
@@ -1242,7 +1530,7 @@ async function getProjectUsageReport({ payload, context }) {
     // 2. field_summaries.activeProjects (populated by Field Usage Jobs)
     let finalProjects = projectUsage;
     if (!finalProjects.length) {
-      finalProjects = await loadAnySnapshotProjectUsage(installationKey, fieldId).catch(() => []);
+      finalProjects = await loadAnySnapshotProjectUsage(installationKey, fieldId).catch(fallbackOn("resolver.any_project_usage_load_failed", () => [], { fieldId }));
     }
     if (!finalProjects.length) {
       finalProjects = (fieldSummary?.activeProjects || []).map((p) => ({
@@ -1486,10 +1774,15 @@ async function getProjectsView({ payload, context }) {
   const sortBy = String(payload?.sortBy || "issues-desc").trim() || "issues-desc";
   const requestedPage = Math.max(1, Math.trunc(Number(payload?.page)) || 1);
 
-  const [allProjects, issueScanMeta] = await Promise.all([
+  const [rawProjects, issueScanMeta] = await Promise.all([
     listSnapshotProjects(installationKey, meta.version, projectQuery),
-    readIssueScanMeta(installationKey).catch(() => null),
+    readIssueScanMeta(installationKey).catch(fallbackOn("resolver.scan_meta_read_failed", null, { installationKey })),
   ]);
+
+  // ProjectsTab has always been written to prefer uniqueIssueCount and fall back to
+  // "fills" -- but nothing ever populated it, so the fallback was permanent and the
+  // correct branch was unreachable. Attach it here.
+  const allProjects = await attachUniqueIssueCounts(installationKey, rawProjects);
 
   // Only show projects the CALLING user actually has Browse Projects
   // permission on -- never surface another project's name/existence to
@@ -1540,6 +1833,49 @@ async function getProjectsView({ payload, context }) {
     }
   );
 
+  // Which workflow scheme governs the selected project, and how many other projects
+  // share it. Best-effort: the workflow snapshot is versioned independently of the field
+  // snapshot and may not have been built at all, in which case the Projects tab simply
+  // omits the panel rather than erroring. Never let a missing workflow snapshot break
+  // the field view, which is the reason anyone opened this tab.
+  const workflowScheme = await (async () => {
+    try {
+      const wfMeta = await readWorkflowSnapshotMeta(installationKey);
+      if (!wfMeta?.version) return null;
+
+      const scheme = await loadWorkflowSchemeForProject(
+        installationKey, wfMeta.version, selectedProject.projectId
+      );
+      if (!scheme) return null;
+
+      // Sharing count is computed from the projects the VIEWER can browse, matching the
+      // enforcement in getWorkflowInventory -- otherwise "shared with 12 projects" leaks
+      // the existence of projects this user cannot see.
+      const schemeProjects = await loadWorkflowSchemeProjects(
+        installationKey, wfMeta.version, scheme.schemeId
+      );
+      const browsable = await getBrowsableProjectIds(
+        context?.accountId, schemeProjects.map((p) => p.projectId)
+      );
+      const visible = schemeProjects.filter((p) => browsable.has(String(p.projectId)));
+
+      return {
+        schemeId: scheme.schemeId,
+        name: scheme.name,
+        description: scheme.description,
+        sharedWithCount: Math.max(0, visible.length - 1),
+        siblingProjects: visible
+          .filter((p) => String(p.projectId) !== String(selectedProject.projectId))
+          .slice(0, 12)
+          .map((p) => ({ projectId: p.projectId, projectKey: p.projectKey, projectName: p.projectName })),
+        refreshedAt: wfMeta.refreshedAt || null,
+      };
+    } catch (error) {
+      console.warn("getProjectsView: workflow scheme lookup failed:", error?.message || error);
+      return null;
+    }
+  })();
+
   const fields = projectFieldsResult.rows.map((field) => ({
     fieldId: field.fieldId,
     fieldName: field.fieldName,
@@ -1567,6 +1903,7 @@ async function getProjectsView({ payload, context }) {
     projects,
     availableTypes,
     selectedProject,
+    workflowScheme,
     fields,
     totalFields,
     page: Math.min(requestedPage, totalPages),
@@ -1612,7 +1949,7 @@ async function getFilteredFieldIds({ payload, context }) {
   const duplicateNamesOnly = Boolean(payload?.duplicateNamesOnly);
   const hasDescription = payload?.hasDescription || "all";
   const snapshotFields = await loadSnapshotFields(installationKey, meta.version);
-  const fieldSummaries = await listFieldSummaries(installationKey, 5000).catch(() => []);
+  const fieldSummaries = await listFieldSummaries(installationKey, 5000).catch(fallbackOn("resolver.summaries_load_failed", () => [], { installationKey }));
   const summaryByFieldId = new Map(fieldSummaries.map((summary) => [summary.fieldId, summary]));
   const duplicateNameCounts = buildDuplicateNameCountMap(snapshotFields);
   const allFields = snapshotFields.map((field) => {
@@ -1701,7 +2038,7 @@ async function startIssueScan({ context }) {
       completedAt: new Date().toISOString(),
       lastError: `Queue push failed: ${pushError?.message || String(pushError)}`,
       progressLog: [{ t: new Date().toISOString(), msg: `Failed to queue scan: ${pushError?.message || String(pushError)}` }],
-    }).catch(() => {});
+    }).catch(ignoreWith("scan.queue_failure_write_failed", { installationKey }));
     throw pushError;
   }
 
@@ -1742,12 +2079,12 @@ async function resumeIssueScan({ context }) {
   const queueErrors = [];
   let anyRequeued = false;
   for (let workerId = 0; workerId < ISSUE_SCAN_WORKERS; workerId++) {
-    const worker = await readIssueScanWorker(installationKey, workerId).catch(() => null);
+    const worker = await readIssueScanWorker(installationKey, workerId).catch(fallbackOn("scan.worker_read_failed", null, { workerId }));
     if (!worker || worker.status === "done") continue;
     anyRequeued = true;
     // Reset failed workers back to queued so they can run again
     if (worker.status === "failed") {
-      await updateIssueScanWorker(installationKey, workerId, { status: "queued", lastError: null }).catch(() => {});
+      await updateIssueScanWorker(installationKey, workerId, { status: "queued", lastError: null }).catch(ignoreWith("scan.worker_requeue_write_failed", { workerId }));
     }
     try {
       await queueIssueScanWorker(installationKey, workerId);
@@ -1758,7 +2095,7 @@ async function resumeIssueScan({ context }) {
 
   if (queueErrors.length > 0) {
     const errMsg = `Resume partially failed: ${queueErrors.join("; ")}`;
-    await writeIssueScanMeta(installationKey, { state: "failed", lastError: errMsg }).catch(() => {});
+    await writeIssueScanMeta(installationKey, { state: "failed", lastError: errMsg }).catch(ignoreWith("scan.resume_failure_write_failed", { installationKey }));
     throw new Error(errMsg);
   }
 
@@ -2010,28 +2347,204 @@ function buildFieldUsageInsights(hydratedFields) {
   };
 }
 
+// Attach the distinct-issue count per project, where the Universal Scan has measured one.
+//
+// listSnapshotProjects returns SUM(issue_count) over snapshot_project_usage, which holds
+// one row per field x project. That sum is FIELD FILLS, not issues: an issue carrying 90
+// populated fields contributes 90. On a site whose median project has 90 fields that
+// inflates by roughly two orders of magnitude, which is how a few hundred thousand issues
+// render as twenty million.
+//
+// issue_scan_project_totals.unique_issue_count is the real figure -- distinct issues seen
+// per project during the scan. It is only populated by a Universal Scan, so uniqueIssueCount
+// stays null on sites that have only run per-field summary builds. Callers must treat null
+// as "not measured" and say so, rather than falling back to the fills figure under an
+// issue-shaped label.
+async function attachUniqueIssueCounts(installationKey, projects) {
+  const totals = await loadIssueScanProjectTotals(installationKey)
+    .catch(fallbackOn("overview.project_totals_load_failed", () => [], { installationKey }));
+
+  if (!totals.length) return projects.map((p) => ({ ...p, uniqueIssueCount: null }));
+
+  const byProjectId = new Map(totals.map((t) => [String(t.projectId), t.uniqueIssueCount]));
+  return projects.map((project) => {
+    const measured = byProjectId.get(String(project.projectId));
+    return {
+      ...project,
+      uniqueIssueCount: Number.isFinite(measured) ? measured : null,
+    };
+  });
+}
+
+function percentile(sortedValues, fraction) {
+  if (!sortedValues.length) return 0;
+  const index = Math.min(sortedValues.length - 1, Math.floor(sortedValues.length * fraction));
+  return sortedValues[index];
+}
+
 function buildProjectInsights(projects) {
+  // True when the Universal Scan has measured distinct issues for at least one project.
+  // Partial coverage still counts: a project the scan has not reached keeps a null and is
+  // rendered as unmeasured rather than as zero.
+  const hasUniqueCounts = projects.some((p) => p.uniqueIssueCount != null);
+
+  // The figure every downstream number should be built on. Falls back to fills only when
+  // nothing has been measured, and `hasUniqueCounts` tells the caller which it is looking at.
+  const volumeOf = (p) => (hasUniqueCounts ? (p.uniqueIssueCount ?? 0) : p.totalIssueCount);
+
   const topByIssueVolume = [...projects]
-    .sort((a, b) => b.totalIssueCount - a.totalIssueCount)
+    .sort((a, b) => volumeOf(b) - volumeOf(a))
     .slice(0, DASHBOARD_TOP_N)
-    .map((p) => ({ projectKey: p.projectKey, projectName: p.projectName, totalIssueCount: p.totalIssueCount }));
+    .map((p) => ({
+      projectKey: p.projectKey,
+      projectName: p.projectName,
+      totalIssueCount: p.totalIssueCount,
+      uniqueIssueCount: p.uniqueIssueCount ?? null,
+      volume: volumeOf(p),
+    }));
 
   const topByFieldCount = [...projects]
     .sort((a, b) => b.fieldCount - a.fieldCount)
     .slice(0, DASHBOARD_TOP_N)
     .map((p) => ({ projectKey: p.projectKey, projectName: p.projectName, fieldCount: p.fieldCount }));
 
-  return { totalProjects: projects.length, topByIssueVolume, topByFieldCount };
+  // Distribution, not just leaders. A "top 8 by field count" list is unreadable without
+  // knowing what normal looks like: 40 fields is unremarkable on a site whose median is 38
+  // and a serious outlier on one whose median is 6.
+  const fieldCounts = projects.map((p) => p.fieldCount).sort((a, b) => a - b);
+  const medianFieldCount = percentile(fieldCounts, 0.5);
+  const p90FieldCount = percentile(fieldCounts, 0.9);
+  // Sum of field fills across the site. Kept and reported, but never labelled as issues.
+  const totalFieldFills = projects.reduce((sum, p) => sum + p.totalIssueCount, 0);
+  const totalUniqueIssues = hasUniqueCounts
+    ? projects.reduce((sum, p) => sum + (p.uniqueIssueCount ?? 0), 0)
+    : null;
+
+  // Configured well past the site norm while carrying little actual work. These are where
+  // field governance conversations start, because the cost is real and the usage is not.
+  // Guarded against a degenerate median: on a site where the median project has one field,
+  // "twice the median" is noise, so require an absolute floor as well.
+  //
+  // The volume side must use volumeOf, not the fills sum. Against fills the absolute floor
+  // of 50 could never bind -- an average project's fills run to six figures -- so the test
+  // silently collapsed to the relative term alone.
+  const totalVolume = projects.reduce((sum, p) => sum + volumeOf(p), 0);
+  const overConfiguredFloor = Math.max(10, medianFieldCount * 2);
+  const lightVolumeCeiling = Math.max(50, totalVolume / Math.max(1, projects.length) / 4);
+  const overConfigured = projects
+    .filter((p) => p.fieldCount >= overConfiguredFloor && volumeOf(p) < lightVolumeCeiling)
+    .sort((a, b) => b.fieldCount - a.fieldCount)
+    .slice(0, DASHBOARD_TOP_N)
+    .map((p) => ({
+      projectKey: p.projectKey,
+      projectName: p.projectName,
+      fieldCount: p.fieldCount,
+      totalIssueCount: p.totalIssueCount,
+      uniqueIssueCount: p.uniqueIssueCount ?? null,
+      volume: volumeOf(p),
+    }));
+
+  // Fields configured, no issues recorded at all -- either abandoned or never started.
+  const unusedProjects = projects
+    .filter((p) => p.fieldCount > 0 && p.totalIssueCount === 0)
+    .sort((a, b) => b.fieldCount - a.fieldCount)
+    .slice(0, DASHBOARD_TOP_N)
+    .map((p) => ({ projectKey: p.projectKey, projectName: p.projectName, fieldCount: p.fieldCount }));
+
+  // Staleness is a per-project signal the field view never surfaces: a project can carry
+  // 60 fields and 40,000 issues and still have had nothing touched in a year.
+  const now = Date.now();
+  const STALE_MS = 180 * 24 * 60 * 60 * 1000;
+  const staleProjects = projects
+    .filter((p) => {
+      const at = Date.parse(p.latestIssueUpdatedAt || "");
+      return p.totalIssueCount > 0 && Number.isFinite(at) && now - at > STALE_MS;
+    })
+    .sort((a, b) => Date.parse(a.latestIssueUpdatedAt) - Date.parse(b.latestIssueUpdatedAt))
+    .slice(0, DASHBOARD_TOP_N)
+    .map((p) => ({
+      projectKey: p.projectKey,
+      projectName: p.projectName,
+      fieldCount: p.fieldCount,
+      latestIssueUpdatedAt: p.latestIssueUpdatedAt,
+    }));
+
+  return {
+    totalProjects: projects.length,
+    // Both figures, named for what they are. `hasUniqueCounts` tells the UI which one it
+    // may present as issues -- there is deliberately no single `totalIssues` key, because
+    // that name is what let field fills be rendered as an issue count in the first place.
+    totalFieldFills,
+    totalUniqueIssues,
+    hasUniqueCounts,
+    medianFieldCount,
+    p90FieldCount,
+    topByIssueVolume,
+    topByFieldCount,
+    overConfigured,
+    unusedProjects,
+    staleProjects,
+  };
+}
+
+// Workflow health for the Overview, as a summary rather than a second inventory.
+//
+// Entirely best-effort and entirely optional: the workflow snapshot is versioned
+// separately from the field snapshot and may never have been built. Overview is the
+// landing page, so nothing here may throw and nothing may block -- a missing workflow
+// snapshot renders as a prompt to build one, not as an error.
+async function buildWorkflowOverview(installationKey) {
+  try {
+    const meta = await readWorkflowSnapshotMeta(installationKey);
+    if (!meta?.version) return { available: false, state: meta?.state || "idle" };
+
+    const [schemes, statuses, schemeStatuses] = await Promise.all([
+      loadWorkflowSchemes(installationKey, meta.version),
+      loadStatusesCatalog(installationKey, meta.version),
+      loadWorkflowSchemeStatuses(installationKey, meta.version),
+    ]);
+    const issueCounts = await loadStatusIssueCounts(installationKey).catch(fallbackOn("resolver.status_counts_load_failed", () => new Map(), { installationKey }));
+    const hasIssueCounts = issueCounts.size > 0;
+    const schemeStatusesAvailable = schemeStatuses.length > 0;
+
+    const duplicateGroups = findDuplicateStatusGroups(statuses);
+    const orphans = schemeStatusesAvailable
+      ? findOrphanedStatuses(statuses, schemeStatuses, hasIssueCounts ? issueCounts : null)
+      : [];
+    const balance = schemeStatusesAvailable
+      ? computeSchemeCategoryBalance(schemes, schemeStatuses, statuses)
+      : [];
+
+    // Schemes governing more than one project are where standardization has any leverage:
+    // a scheme used once is a bespoke process by definition.
+    const sharedSchemes = schemes.filter((s) => (s.projectCount ?? 0) > 1).length;
+
+    return {
+      available: true,
+      state: meta.state || "idle",
+      refreshedAt: meta.refreshedAt || null,
+      schemeCount: schemes.length,
+      statusCount: statuses.length,
+      sharedSchemes,
+      schemeStatusesAvailable,
+      hasIssueCounts,
+      ...summarizeWorkflowInsights({ duplicateGroups, orphans, balance }),
+    };
+  } catch (error) {
+    console.warn("buildWorkflowOverview failed:", error?.message || error);
+    return { available: false, state: "error" };
+  }
 }
 
 export async function getAdminOverview({ context }) {
   await ensureProjectStoreReady();
   const installationKey = getInstallationKey(context);
-  const [meta, summaries, config, legacySummaryCount] = await Promise.all([
+  const [meta, summaries, config, legacySummaryCount, workflow] = await Promise.all([
     readSnapshotMeta(installationKey),
-    listFieldSummaries(installationKey, 5000).catch(() => []),
+    listFieldSummaries(installationKey, 5000).catch(fallbackOn("overview.summaries_load_failed", () => [], { installationKey })),
     readAdminConfig(),
-    countOldScopeKeyRows(installationKey).catch(() => 0),
+    countOldScopeKeyRows(installationKey).catch(fallbackOn("overview.legacy_row_count_failed", 0, { installationKey })),
+    buildWorkflowOverview(installationKey),
   ]);
 
   const jobCounts = { queued: 0, building: 0, ready: 0, failed: 0, cancelled: 0, unbuilt: 0 };
@@ -2045,10 +2558,11 @@ export async function getAdminOverview({ context }) {
   let dashboard = EMPTY_DASHBOARD;
   if (meta?.version) {
     try {
-      const [fields, projects] = await Promise.all([
+      const [fields, rawProjects] = await Promise.all([
         loadSnapshotFields(installationKey, meta.version),
         listSnapshotProjects(installationKey, meta.version),
       ]);
+      const projects = await attachUniqueIssueCounts(installationKey, rawProjects);
       const dup = buildDuplicateNameCountMap(fields);
       const hydrated = fields.map((f) =>
         hydrateFieldForGovernance(f, null, dup.get(normalizeFieldName(f.name)) ?? 1, config.governanceThresholds)
@@ -2058,7 +2572,16 @@ export async function getAdminOverview({ context }) {
         fieldUsage: buildFieldUsageInsights(hydrated),
         projects: buildProjectInsights(projects),
       };
-    } catch {}
+    } catch (error) {
+      // Overview must still render its job counts and config if the dashboard build
+      // fails -- but an empty dashboard and a site with no data look identical on
+      // screen, so the difference has to exist in the logs.
+      logger.warn("overview.dashboard_build_failed", {
+        installationKey,
+        version: meta.version,
+        error: String(error?.message || error),
+      });
+    }
   }
 
   return {
@@ -2078,6 +2601,12 @@ export async function getAdminOverview({ context }) {
     },
     jobCounts,
     findingsSummary,
+    workflow,
+    health: computeSiteHealth({
+      fieldUsage: dashboard?.fieldUsage,
+      workflow,
+      projects: dashboard?.projects,
+    }),
     dashboard,
     totalSummaries: summaries.length,
     legacySummaryCount,
@@ -2130,7 +2659,15 @@ export async function runDeltaIssueScanJob(installationKey, windowHours = DELTA_
         body: JSON.stringify({ jql, maxResults: 0, fields: [] }),
       });
       totalDeltaIssues = Number(countData?.total ?? 0);
-    } catch { /* non-critical */ }
+    } catch (error) {
+      // Progress totals only -- the delta scan runs regardless. Logged because a zero
+      // total makes the progress bar claim completion immediately, which reads as a
+      // finished scan rather than an unknown one.
+      logger.warn("delta.total_count_failed", {
+        installationKey: deltaScopeKey,
+        error: String(error?.message || error),
+      });
+    }
 
     const totalDeltaPages = Math.ceil(totalDeltaIssues / ISSUE_SCAN_PAGE_SIZE);
     logEntry(`${totalDeltaIssues.toLocaleString()} issues created/updated in last ${windowDays}d (${totalDeltaPages} pages)`);
@@ -2227,7 +2764,7 @@ export async function runDeltaIssueScanJob(installationKey, windowHours = DELTA_
           processedIssues: issuesScanned,
           processedPages: pagesScanned,
           progressLog: [...progressLog],
-        }).catch(() => {});
+        }).catch(ignoreWith("delta.progress_write_failed", { installationKey }));
       }
 
       if (!cursorToken || issues.length === 0) break;
@@ -2356,7 +2893,7 @@ export async function runDeltaIssueScanJob(installationKey, windowHours = DELTA_
       completedAt: new Date().toISOString(),
       lastError: error?.message || String(error),
       progressLog: [...progressLog, { t: new Date().toISOString(), msg: `Delta scan failed: ${error?.message || error}` }],
-    }).catch(() => {});
+    }).catch(ignoreWith("delta.failure_write_failed", { installationKey }));
     console.error("runDeltaIssueScanJob failed:", error?.message || error);
   }
 }
@@ -2384,7 +2921,7 @@ async function startDeltaIssueScan({ context }) {
     await writeIssueScanMeta(deltaScopeKey, {
       state: "failed",
       lastError: `Queue push failed: ${pushError?.message || pushError}`,
-    }).catch(() => {});
+    }).catch(ignoreWith("delta.completion_write_failed", { installationKey }));
     throw pushError;
   }
 }
@@ -2419,8 +2956,12 @@ async function getRqtIndex({ context }) {
       for (const r of rqtFields) {
         if (nameMap[r.fieldId]) r.fieldName = nameMap[r.fieldId];
       }
-    } catch {
-      // Name enrichment is best-effort
+    } catch (error) {
+      // Best-effort: the RQT index is usable with raw field ids, just less readable.
+      logger.warn("rqt.name_enrichment_failed", {
+        installationKey,
+        error: String(error?.message || error),
+      });
     }
   }
 
@@ -2524,6 +3065,7 @@ export const SHARED_RESOLVER_FUNCTIONS = {
   checkMacroAccess,        // Read-only: checks group membership for macro access gating
   getFieldInventory,       // Read-only: returns paginated snapshot of custom field inventory
   getWorkflowInventory,    // Read-only: returns paginated snapshot of workflow scheme / status inventory
+  getWorkflowInsights,     // Read-only: derived governance findings over the workflow snapshot
   getFieldDetails,         // Read-only: returns detailed field data for a single field
   getProjectsView,         // Read-only: returns per-project field usage view
   getFilteredFieldIds,     // Read-only: returns filtered and sorted field ID list
@@ -2716,6 +3258,8 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   getAdminConfig: getAdminConfigResolver,      // Admin read: returns full admin config
   saveAdminConfig: saveAdminConfigResolver,    // Mutating: rewrites thresholds and access control
   getAdminOverview,                            // Admin read: dashboard aggregate
+  probeAutomationApi,                          // Admin read: reports which Jira endpoints answer, for diagnosis
+  probeScreenFetchCost,                        // Admin read: samples the cost of a full screen inventory pass
   migrateNamespaceKeys,                        // Mutating: rewrites scope keys across every table
 };
 

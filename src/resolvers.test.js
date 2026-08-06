@@ -24,6 +24,10 @@ import { vi, describe, test, expect, beforeEach } from "vitest";
 // ---------------------------------------------------------------------------
 
 const mocks = vi.hoisted(() => ({
+  getAllJiraProjects: vi.fn(),
+  probeEndpoint: vi.fn(),
+  probeStargateEndpoint: vi.fn(),
+  getCloudId: vi.fn(),
   kvsGet: vi.fn(),
   kvsSet: vi.fn(),
   apiAsAppRequestJira: vi.fn(),
@@ -43,6 +47,7 @@ const mocks = vi.hoisted(() => ({
   loadAllSnapshotProjectUsage: vi.fn(),
   loadAnySnapshotProjectUsage: vi.fn(),
   listSnapshotProjects: vi.fn(),
+  loadIssueScanProjectTotals: vi.fn(),
   loadSnapshotProjectFields: vi.fn(),
   countSnapshotProjectUsage: vi.fn(),
   loadFieldSummary: vi.fn(),
@@ -81,10 +86,19 @@ const mocks = vi.hoisted(() => ({
   readWorkflowSnapshotMeta: vi.fn(),
   loadWorkflowSchemes: vi.fn(),
   loadWorkflowSchemeProjects: vi.fn(),
+  loadWorkflowSchemeForProject: vi.fn().mockResolvedValue(null),
   loadStatusesCatalog: vi.fn(),
+  loadWorkflowSchemeStatuses: vi.fn(),
+  loadStatusIssueCounts: vi.fn(),
+  loadStatusHistoryCounts: vi.fn(),
 
   // workflow-engine.js
   buildWorkflowSnapshot: vi.fn(),
+  queueWorkflowSnapshotBuild: vi.fn(),
+  queueStatusHistoryBuild: vi.fn(),
+  // Pure and covered directly in workflow-engine.test.js; mocked here so these tests can
+  // state "the row is stale" as a premise rather than manufacturing timestamps.
+  isWorkflowBuildStale: vi.fn(() => false),
 
   // jira-api.js
   incrMetric: vi.fn(),
@@ -151,6 +165,7 @@ vi.mock("./lib/project-store.js", () => ({
   loadAllSnapshotProjectUsage: mocks.loadAllSnapshotProjectUsage,
   loadAnySnapshotProjectUsage: mocks.loadAnySnapshotProjectUsage,
   listSnapshotProjects: mocks.listSnapshotProjects,
+  loadIssueScanProjectTotals: mocks.loadIssueScanProjectTotals,
   loadSnapshotProjectFields: mocks.loadSnapshotProjectFields,
   countSnapshotProjectUsage: mocks.countSnapshotProjectUsage,
   loadFieldSummary: mocks.loadFieldSummary,
@@ -189,11 +204,18 @@ vi.mock("./lib/project-store.js", () => ({
   readWorkflowSnapshotMeta: mocks.readWorkflowSnapshotMeta,
   loadWorkflowSchemes: mocks.loadWorkflowSchemes,
   loadWorkflowSchemeProjects: mocks.loadWorkflowSchemeProjects,
+  loadWorkflowSchemeForProject: mocks.loadWorkflowSchemeForProject,
   loadStatusesCatalog: mocks.loadStatusesCatalog,
+  loadWorkflowSchemeStatuses: mocks.loadWorkflowSchemeStatuses,
+  loadStatusIssueCounts: mocks.loadStatusIssueCounts,
+  loadStatusHistoryCounts: mocks.loadStatusHistoryCounts,
 }));
 
 vi.mock("./lib/workflow-engine.js", () => ({
   buildWorkflowSnapshot: mocks.buildWorkflowSnapshot,
+  queueWorkflowSnapshotBuild: mocks.queueWorkflowSnapshotBuild,
+  queueStatusHistoryBuild: mocks.queueStatusHistoryBuild,
+  isWorkflowBuildStale: mocks.isWorkflowBuildStale,
 }));
 
 vi.mock("./lib/jira-api.js", () => ({
@@ -216,6 +238,10 @@ vi.mock("./lib/jira-api.js", () => ({
   collectRecentFieldProjectCandidates: mocks.collectRecentFieldProjectCandidates,
   loadFieldOptionsFromJira: mocks.loadFieldOptionsFromJira,
   getBrowsableProjectIds: mocks.getBrowsableProjectIds,
+  getAllJiraProjects: mocks.getAllJiraProjects,
+  probeEndpoint: mocks.probeEndpoint,
+  probeStargateEndpoint: mocks.probeStargateEndpoint,
+  getCloudId: mocks.getCloudId,
   PROJECT_USAGE_PAGE_SIZE: 12,
   PROJECTS_VIEW_PAGE_SIZE: 24,
   MAX_ACTIVE_PROJECT_USAGE_JOBS: 3,
@@ -248,6 +274,7 @@ import {
   getAdminConfigResolver,
   saveAdminConfigResolver,
   getAdminOverview,
+  __RAW_ADMIN_ONLY_FUNCTIONS,
   runDeltaIssueScanJob,
   rovoSearchFields,
   rovoInspectField,
@@ -267,6 +294,7 @@ const {
   checkMacroAccess,
   getFieldInventory,
   getWorkflowInventory,
+  getWorkflowInsights,
   getFieldDetails,
   getFilteredFieldIds,
   getFieldOptions,
@@ -329,6 +357,9 @@ beforeEach(() => {
   mocks.writeSnapshotMeta.mockResolvedValue(undefined);
   mocks.replaceFieldSummary.mockResolvedValue(undefined);
   mocks.listFieldSummaries.mockResolvedValue([]);
+  // Default: no Universal Scan has measured distinct issues. Every existing case then
+  // exercises the unmeasured path, which is the one that must never present fills as issues.
+  mocks.loadIssueScanProjectTotals.mockResolvedValue([]);
   mocks.searchFieldOptionsCache.mockResolvedValue([]);
   mocks.loadSnapshotFieldIssueSums.mockResolvedValue(new Map());
   mocks.sumSnapshotFieldIssueCount.mockResolvedValue(0);
@@ -347,7 +378,13 @@ beforeEach(() => {
   mocks.loadWorkflowSchemes.mockResolvedValue([]);
   mocks.loadWorkflowSchemeProjects.mockResolvedValue([]);
   mocks.loadStatusesCatalog.mockResolvedValue([]);
+  mocks.loadWorkflowSchemeStatuses.mockResolvedValue([]);
+  mocks.loadStatusIssueCounts.mockResolvedValue(new Map());
+  mocks.loadStatusHistoryCounts.mockResolvedValue({ counts: new Map(), measuredAt: null });
   mocks.buildWorkflowSnapshot.mockResolvedValue({ version: "v1", schemeCount: 0, statusCount: 0, projectCount: 0 });
+  mocks.queueWorkflowSnapshotBuild.mockResolvedValue(undefined);
+  mocks.queueStatusHistoryBuild.mockResolvedValue(undefined);
+  mocks.isWorkflowBuildStale.mockReturnValue(false);
 });
 
 function ctxWithAccount(accountId = "user-1") {
@@ -633,7 +670,12 @@ describe("getWorkflowInventory", () => {
     expect(result.totalCount).toBe(2);
     expect(result.schemes).toHaveLength(1);
     expect(result.totalPages).toBe(2);
-    expect(result.statuses).toEqual([{ id: "1", name: "To Do", statusCategory: "To Do" }]);
+    // Statuses now carry both usage measures. Null rather than 0 for each: they are
+    // measured by separate jobs and neither had run here, so "unknown" is the truth.
+    expect(result.statuses).toEqual([{
+      id: "1", name: "To Do", statusCategory: "To Do",
+      issueCount: null, everCount: null, departedCount: null,
+    }]);
   });
 
   test("filters search by scheme name and description", async () => {
@@ -651,27 +693,165 @@ describe("getWorkflowInventory", () => {
     expect(result.schemes.map((s) => s.id).sort()).toEqual(["scheme-1", "scheme-2"]);
   });
 
-  test("force-refresh builds a new snapshot and returns fresh data", async () => {
+  // The build is queued to the consumer (timeoutSeconds: 900) rather than run inline: it
+  // walks every project's workflow scheme, which does not fit in a resolver's 25s budget.
+  test("force-refresh queues the build instead of running it in the resolver", async () => {
     mocks.readWorkflowSnapshotMeta
       .mockResolvedValueOnce({ version: null, state: "idle" }) // initial read
-      .mockResolvedValueOnce({ version: "v2", state: "ready", totalSchemes: 1 }); // post-build read
-    mocks.buildWorkflowSnapshot.mockResolvedValue({ version: "v2", schemeCount: 1, statusCount: 1, projectCount: 1 });
+      .mockResolvedValueOnce({ version: null, state: "building" }); // post-queue read
     mocks.loadWorkflowSchemes.mockResolvedValue([workflowScheme()]);
     mocks.loadWorkflowSchemeProjects.mockResolvedValue([]);
     mocks.loadStatusesCatalog.mockResolvedValue([]);
 
     const result = await getWorkflowInventory({ payload: { forceRefresh: true }, context: ctxWithAccount() });
 
-    expect(mocks.buildWorkflowSnapshot).toHaveBeenCalledWith("test-install");
-    expect(result.snapshotStatus.version).toBe("v2");
+    expect(mocks.queueWorkflowSnapshotBuild).toHaveBeenCalledWith("test-install");
+    expect(mocks.buildWorkflowSnapshot).not.toHaveBeenCalled();
+    // Reports the queued build so the UI can poll rather than showing "never built".
+    expect(result.snapshotStatus.state).toBe("building");
   });
 
   test("does not trigger a second build while one is already in progress", async () => {
     mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: null, state: "building" });
+    mocks.isWorkflowBuildStale.mockReturnValue(false);
 
     await getWorkflowInventory({ payload: { forceRefresh: true }, context: ctxWithAccount() });
 
-    expect(mocks.buildWorkflowSnapshot).not.toHaveBeenCalled();
+    expect(mocks.queueWorkflowSnapshotBuild).not.toHaveBeenCalled();
+  });
+
+  // The wedge this fixes: an invocation killed mid-build leaves state "building" with no
+  // catch ever running, and every later refresh was suppressed as "already building" --
+  // the button silently did nothing, forever, with no error to explain it.
+  test("re-queues a build when a stale 'building' row is blocking it", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: null, state: "building" });
+    mocks.isWorkflowBuildStale.mockReturnValue(true);
+
+    await getWorkflowInventory({ payload: { forceRefresh: true }, context: ctxWithAccount() });
+
+    expect(mocks.queueWorkflowSnapshotBuild).toHaveBeenCalledWith("test-install");
+  });
+
+  // Enriching every scheme to return one page is work proportional to the site, not the
+  // page: at 142 schemes it was 284 round trips per read and the resolver hit its 25s
+  // limit, hanging the tab on "Loading...". Cost must track pageSize.
+  test("enriches only the requested page, not every scheme on the site", async () => {
+    const manySchemes = Array.from({ length: 142 }, (_, i) =>
+      workflowScheme({ id: `scheme-${i}`, name: `Scheme ${i}` })
+    );
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready" });
+    mocks.loadWorkflowSchemes.mockResolvedValue(manySchemes);
+    mocks.loadWorkflowSchemeProjects.mockResolvedValue([]);
+    mocks.loadStatusesCatalog.mockResolvedValue([]);
+
+    const result = await getWorkflowInventory({
+      payload: { page: 1, pageSize: 10 },
+      context: ctxWithAccount(),
+    });
+
+    expect(result.schemes).toHaveLength(10);
+    expect(result.totalCount).toBe(142);
+    expect(mocks.loadWorkflowSchemeProjects).toHaveBeenCalledTimes(10);
+    expect(mocks.getBrowsableProjectIds).toHaveBeenCalledTimes(10);
+  });
+
+  test("still reports the full total when a search matches more than one page", async () => {
+    const manySchemes = Array.from({ length: 30 }, (_, i) =>
+      workflowScheme({ id: `scheme-${i}`, name: `Payments ${i}` })
+    );
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready" });
+    mocks.loadWorkflowSchemes.mockResolvedValue([
+      ...manySchemes,
+      workflowScheme({ id: "other", name: "Unrelated" }),
+    ]);
+    mocks.loadWorkflowSchemeProjects.mockResolvedValue([]);
+    mocks.loadStatusesCatalog.mockResolvedValue([]);
+
+    const result = await getWorkflowInventory({
+      payload: { search: "payments", page: 1, pageSize: 10 },
+      context: ctxWithAccount(),
+    });
+
+    // Search must be applied across the whole set even though only a page is enriched.
+    expect(result.totalCount).toBe(30);
+    expect(result.schemes).toHaveLength(10);
+    expect(mocks.loadWorkflowSchemeProjects).toHaveBeenCalledTimes(10);
+  });
+
+
+  // "Currently in" and "ever been in" come from different jobs (the universe scan and JQL
+  // WAS queries) and refresh independently, so each is reported with its own availability
+  // flag. Reporting an unmeasured status as 0 is what would make it look safe to delete.
+  test("reports both usage measures on each status when both have been measured", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready" });
+    mocks.loadWorkflowSchemes.mockResolvedValue([]);
+    mocks.loadStatusesCatalog.mockResolvedValue([{ id: "1", name: "Parking Lot", statusCategory: "To Do" }]);
+    mocks.loadStatusIssueCounts.mockResolvedValue(new Map([["1", 792]]));
+    mocks.loadStatusHistoryCounts.mockResolvedValue({ counts: new Map([["1", 4000]]), measuredAt: "2026-08-03T12:00:00Z" });
+
+    const result = await getWorkflowInventory({ payload: {}, context: ctxWithAccount() });
+
+    expect(result.statuses[0]).toMatchObject({ issueCount: 792, everCount: 4000, departedCount: 3208 });
+    expect(result.statusCounts).toMatchObject({ hasCurrentCounts: true, hasHistoryCounts: true });
+  });
+
+  test("leaves the historical measure unknown when only the scan has run", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready" });
+    mocks.loadWorkflowSchemes.mockResolvedValue([]);
+    mocks.loadStatusesCatalog.mockResolvedValue([{ id: "1", name: "Backlog", statusCategory: "To Do" }]);
+    mocks.loadStatusIssueCounts.mockResolvedValue(new Map([["1", 9423]]));
+
+    const result = await getWorkflowInventory({ payload: {}, context: ctxWithAccount() });
+
+    expect(result.statuses[0]).toMatchObject({ issueCount: 9423, everCount: null, departedCount: null });
+    expect(result.statusCounts.hasHistoryCounts).toBe(false);
+  });
+
+  // The two measures are sampled at different times, so a status can gain issues between
+  // them. A negative "departed" would be nonsense on screen.
+  test("floors departed at zero when the current count exceeds the historical one", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready" });
+    mocks.loadWorkflowSchemes.mockResolvedValue([]);
+    mocks.loadStatusesCatalog.mockResolvedValue([{ id: "1", name: "Active", statusCategory: "In Progress" }]);
+    mocks.loadStatusIssueCounts.mockResolvedValue(new Map([["1", 50]]));
+    mocks.loadStatusHistoryCounts.mockResolvedValue({ counts: new Map([["1", 40]]), measuredAt: "x" });
+
+    const result = await getWorkflowInventory({ payload: {}, context: ctxWithAccount() });
+
+    expect(result.statuses[0].departedCount).toBe(0);
+  });
+
+  test("queues the history measurement only when asked and a snapshot exists", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready" });
+    mocks.loadWorkflowSchemes.mockResolvedValue([]);
+    mocks.loadStatusesCatalog.mockResolvedValue([]);
+
+    await getWorkflowInventory({ payload: { measureHistory: true }, context: ctxWithAccount() });
+    expect(mocks.queueStatusHistoryBuild).toHaveBeenCalledWith("test-install");
+
+    mocks.queueStatusHistoryBuild.mockClear();
+    await getWorkflowInventory({ payload: {}, context: ctxWithAccount() });
+    expect(mocks.queueStatusHistoryBuild).not.toHaveBeenCalled();
+  });
+
+  test("does not queue a history measurement with no snapshot to measure against", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: null, state: "idle" });
+
+    await getWorkflowInventory({ payload: { measureHistory: true }, context: ctxWithAccount() });
+
+    expect(mocks.queueStatusHistoryBuild).not.toHaveBeenCalled();
+  });
+
+  test("degrades to unknown when the count lookups fail", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready" });
+    mocks.loadWorkflowSchemes.mockResolvedValue([]);
+    mocks.loadStatusesCatalog.mockResolvedValue([{ id: "1", name: "Done", statusCategory: "Done" }]);
+    mocks.loadStatusIssueCounts.mockRejectedValue(new Error("sql down"));
+    mocks.loadStatusHistoryCounts.mockRejectedValue(new Error("sql down"));
+
+    const result = await getWorkflowInventory({ payload: {}, context: ctxWithAccount() });
+
+    expect(result.statuses[0]).toMatchObject({ issueCount: null, everCount: null });
   });
 
   test("never surfaces a scheme's project count from projects the viewer can't browse", async () => {
@@ -1050,7 +1230,11 @@ describe("getProjectsView", () => {
 
     const result = await getProjectsView({ payload: {}, context: ctxWithAccount() });
 
-    expect(result.projects).toEqual([{ projectId: "10", projectKey: "ABC", projectName: "Alpha" }]);
+    // objectContaining, because the shape now also carries uniqueIssueCount. This test is
+    // about which projects survive the permission filter, not about their field set.
+    expect(result.projects).toEqual([
+      expect.objectContaining({ projectId: "10", projectKey: "ABC", projectName: "Alpha" }),
+    ]);
     expect(result.projects.some((p) => p.projectKey === "SECRET")).toBe(false);
   });
 
@@ -1114,6 +1298,238 @@ describe("getAdminOverview", () => {
     expect(result.findingsSummary).toEqual(expect.objectContaining({
       adminAttention: expect.any(Number), risky: expect.any(Number), cleanup: expect.any(Number), standardize: expect.any(Number),
     }));
+  });
+
+
+  // The dashboard-building branch had never executed: every existing case either omitted
+  // the snapshot version or asserted only on findingsSummary. These cover the project
+  // shape analysis and the workflow roll-up that the Overview actually renders.
+  test("builds project insights with distribution, not just leaders", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "ready", version: 5 });
+    mocks.listFieldSummaries.mockResolvedValue([]);
+    mocks.kvsGet.mockResolvedValue(null);
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+    mocks.loadSnapshotFields.mockResolvedValue([snapshotField()]);
+    mocks.listSnapshotProjects.mockResolvedValue([
+      { projectId: "1", projectKey: "A", projectName: "Alpha", fieldCount: 4, totalIssueCount: 900, latestIssueUpdatedAt: new Date().toISOString() },
+      { projectId: "2", projectKey: "B", projectName: "Bravo", fieldCount: 6, totalIssueCount: 400, latestIssueUpdatedAt: new Date().toISOString() },
+      { projectId: "3", projectKey: "C", projectName: "Charlie", fieldCount: 40, totalIssueCount: 2, latestIssueUpdatedAt: new Date().toISOString() },
+      { projectId: "4", projectKey: "D", projectName: "Delta", fieldCount: 3, totalIssueCount: 0, latestIssueUpdatedAt: null },
+    ]);
+
+    const result = await getAdminOverview({ context: {} });
+    const projects = result.dashboard.projects;
+
+    expect(projects.totalProjects).toBe(4);
+    expect(projects.totalFieldFills).toBe(1302);
+    expect(projects.medianFieldCount).toBeGreaterThan(0);
+    // Fields configured but nothing ever filed -- abandoned or never started.
+    expect(projects.unusedProjects.map((p) => p.projectKey)).toContain("D");
+    // Far above the norm while carrying almost no work.
+    expect(projects.overConfigured.map((p) => p.projectKey)).toContain("C");
+  });
+
+  // ── Field fills are not issues ────────────────────────────────────────────
+  //
+  // snapshot_project_usage holds one row per field x project, so SUM(issue_count) counts
+  // an issue once for every populated field on it. The Overview presented that sum as
+  // "Issues covered", overstating a 317k-issue site as 19.7 million.
+
+  test("reports field fills and distinct issues as separate figures", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "ready", version: 5 });
+    mocks.kvsGet.mockResolvedValue(null);
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+    mocks.loadSnapshotFields.mockResolvedValue([snapshotField()]);
+    mocks.listSnapshotProjects.mockResolvedValue([
+      { projectId: "1", projectKey: "A", projectName: "Alpha", fieldCount: 90, totalIssueCount: 90000, latestIssueUpdatedAt: null },
+      { projectId: "2", projectKey: "B", projectName: "Bravo", fieldCount: 40, totalIssueCount: 20000, latestIssueUpdatedAt: null },
+    ]);
+    mocks.loadIssueScanProjectTotals.mockResolvedValue([
+      { projectId: "1", projectKey: "A", projectName: "Alpha", uniqueIssueCount: 1000 },
+      { projectId: "2", projectKey: "B", projectName: "Bravo", uniqueIssueCount: 500 },
+    ]);
+
+    const projects = (await getAdminOverview({ context: {} })).dashboard.projects;
+
+    expect(projects.hasUniqueCounts).toBe(true);
+    expect(projects.totalUniqueIssues).toBe(1500);
+    expect(projects.totalFieldFills).toBe(110000);
+    // The old key is gone deliberately: "totalIssues" is the name that let a fills figure
+    // be rendered as an issue count without anyone noticing.
+    expect(projects.totalIssues).toBeUndefined();
+  });
+
+  test("marks issue counts unmeasured rather than substituting fills", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "ready", version: 5 });
+    mocks.kvsGet.mockResolvedValue(null);
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+    mocks.loadSnapshotFields.mockResolvedValue([snapshotField()]);
+    mocks.listSnapshotProjects.mockResolvedValue([
+      { projectId: "1", projectKey: "A", projectName: "Alpha", fieldCount: 90, totalIssueCount: 90000, latestIssueUpdatedAt: null },
+    ]);
+    mocks.loadIssueScanProjectTotals.mockResolvedValue([]);
+
+    const projects = (await getAdminOverview({ context: {} })).dashboard.projects;
+
+    expect(projects.hasUniqueCounts).toBe(false);
+    expect(projects.totalUniqueIssues).toBeNull();
+    expect(projects.totalFieldFills).toBe(90000);
+  });
+
+  test("ranks the volume list by distinct issues once they are measured", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "ready", version: 5 });
+    mocks.kvsGet.mockResolvedValue(null);
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+    mocks.loadSnapshotFields.mockResolvedValue([snapshotField()]);
+    // BIG has more fills but fewer issues -- it simply has more fields configured. Ranking
+    // on fills puts the wrong project at the top of a list titled "highest issue volume".
+    mocks.listSnapshotProjects.mockResolvedValue([
+      { projectId: "1", projectKey: "BIG", projectName: "Big", fieldCount: 200, totalIssueCount: 200000, latestIssueUpdatedAt: null },
+      { projectId: "2", projectKey: "BUSY", projectName: "Busy", fieldCount: 10, totalIssueCount: 50000, latestIssueUpdatedAt: null },
+    ]);
+    mocks.loadIssueScanProjectTotals.mockResolvedValue([
+      { projectId: "1", projectKey: "BIG", projectName: "Big", uniqueIssueCount: 1000 },
+      { projectId: "2", projectKey: "BUSY", projectName: "Busy", uniqueIssueCount: 5000 },
+    ]);
+
+    const projects = (await getAdminOverview({ context: {} })).dashboard.projects;
+
+    expect(projects.topByIssueVolume.map((p) => p.projectKey)).toEqual(["BUSY", "BIG"]);
+    expect(projects.topByIssueVolume[0].volume).toBe(5000);
+  });
+
+  test("treats a project the scan never reached as unmeasured, not as zero", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "ready", version: 5 });
+    mocks.kvsGet.mockResolvedValue(null);
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+    mocks.loadSnapshotFields.mockResolvedValue([snapshotField()]);
+    mocks.listSnapshotProjects.mockResolvedValue([
+      { projectId: "1", projectKey: "SEEN", projectName: "Seen", fieldCount: 10, totalIssueCount: 5000, latestIssueUpdatedAt: null },
+      { projectId: "2", projectKey: "MISSED", projectName: "Missed", fieldCount: 10, totalIssueCount: 4000, latestIssueUpdatedAt: null },
+    ]);
+    mocks.loadIssueScanProjectTotals.mockResolvedValue([
+      { projectId: "1", projectKey: "SEEN", projectName: "Seen", uniqueIssueCount: 300 },
+    ]);
+
+    const projects = (await getAdminOverview({ context: {} })).dashboard.projects;
+
+    const missed = projects.topByIssueVolume.find((p) => p.projectKey === "MISSED");
+    expect(missed.uniqueIssueCount).toBeNull();
+    // Excluded from the site total rather than contributing a fabricated zero.
+    expect(projects.totalUniqueIssues).toBe(300);
+  });
+
+  test("survives the project-totals lookup failing", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "ready", version: 5 });
+    mocks.kvsGet.mockResolvedValue(null);
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+    mocks.loadSnapshotFields.mockResolvedValue([snapshotField()]);
+    mocks.listSnapshotProjects.mockResolvedValue([
+      { projectId: "1", projectKey: "A", projectName: "Alpha", fieldCount: 5, totalIssueCount: 100, latestIssueUpdatedAt: null },
+    ]);
+    mocks.loadIssueScanProjectTotals.mockRejectedValue(new Error("SQL unavailable"));
+
+    const projects = (await getAdminOverview({ context: {} })).dashboard.projects;
+
+    // Degrades to unmeasured. A failed lookup must not silently promote fills to issues.
+    expect(projects.hasUniqueCounts).toBe(false);
+    expect(projects.totalFieldFills).toBe(100);
+  });
+
+  test("flags projects with no activity in over six months", async () => {
+    const old = new Date(Date.now() - 400 * 24 * 60 * 60 * 1000).toISOString();
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "ready", version: 5 });
+    mocks.listFieldSummaries.mockResolvedValue([]);
+    mocks.kvsGet.mockResolvedValue(null);
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+    mocks.loadSnapshotFields.mockResolvedValue([snapshotField()]);
+    mocks.listSnapshotProjects.mockResolvedValue([
+      { projectId: "1", projectKey: "STALE", projectName: "Stale", fieldCount: 5, totalIssueCount: 100, latestIssueUpdatedAt: old },
+      { projectId: "2", projectKey: "FRESH", projectName: "Fresh", fieldCount: 5, totalIssueCount: 100, latestIssueUpdatedAt: new Date().toISOString() },
+    ]);
+
+    const result = await getAdminOverview({ context: {} });
+
+    expect(result.dashboard.projects.staleProjects.map((p) => p.projectKey)).toEqual(["STALE"]);
+  });
+
+  test("includes a workflow roll-up when a workflow snapshot exists", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "ready", version: 5 });
+    mocks.listFieldSummaries.mockResolvedValue([]);
+    mocks.kvsGet.mockResolvedValue(null);
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready", refreshedAt: "2026-08-03T00:00:00Z" });
+    mocks.loadWorkflowSchemes.mockResolvedValue([
+      { id: "s1", name: "Shared", projectCount: 4 },
+      { id: "s2", name: "Bespoke", projectCount: 1 },
+    ]);
+    mocks.loadStatusesCatalog.mockResolvedValue([
+      { statusId: "1", name: "Backlog", statusCategory: "To Do" },
+      { statusId: "2", name: "Back Log", statusCategory: "To Do" },
+    ]);
+    mocks.loadWorkflowSchemeStatuses.mockResolvedValue([{ schemeId: "s1", statusId: "1" }]);
+
+    const result = await getAdminOverview({ context: {} });
+
+    expect(result.workflow.available).toBe(true);
+    expect(result.workflow.schemeCount).toBe(2);
+    // Only schemes governing more than one project give standardization any leverage.
+    expect(result.workflow.sharedSchemes).toBe(1);
+    expect(result.workflow.duplicateGroupCount).toBe(1);
+  });
+
+  test("reports the workflow roll-up as unavailable when no snapshot has been built", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "ready", version: 5 });
+    mocks.listFieldSummaries.mockResolvedValue([]);
+    mocks.kvsGet.mockResolvedValue(null);
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue(null);
+
+    const result = await getAdminOverview({ context: {} });
+
+    expect(result.workflow).toEqual({ available: false, state: "idle" });
+  });
+
+  // Overview is the landing page: a workflow failure must degrade to a prompt, never an error.
+  test("survives the workflow roll-up throwing", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "ready", version: 5 });
+    mocks.listFieldSummaries.mockResolvedValue([]);
+    mocks.kvsGet.mockResolvedValue(null);
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+    mocks.readWorkflowSnapshotMeta.mockRejectedValue(new Error("sql down"));
+
+    const result = await getAdminOverview({ context: {} });
+
+    expect(result.workflow).toEqual({ available: false, state: "error" });
+  });
+
+
+  // The worst silent handler in the codebase was a bare `catch {}` around this build:
+  // an empty dashboard and a site with no data render identically, so the difference
+  // has to exist in the logs.
+  test("logs and still returns an overview when the dashboard build throws", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "ready", version: 5 });
+    mocks.listFieldSummaries.mockResolvedValue([]);
+    mocks.kvsGet.mockResolvedValue(null);
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+    mocks.loadSnapshotFields.mockRejectedValue(new Error("sql down"));
+
+    const result = await getAdminOverview({ context: {} });
+
+    // Job counts and config still render; only the dashboard degrades.
+    expect(result.jobCounts).toBeDefined();
+    expect(result.dashboard).toBeDefined();
+  });
+
+  test("degrades the legacy row count without failing the overview", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "idle" });
+    mocks.listFieldSummaries.mockResolvedValue([]);
+    mocks.kvsGet.mockResolvedValue(null);
+    mocks.countOldScopeKeyRows.mockRejectedValue(new Error("sql down"));
+
+    const result = await getAdminOverview({ context: {} });
+
+    expect(result.legacySummaryCount).toBe(0);
   });
 
   test("does not fail the whole overview if the findings computation throws", async () => {
@@ -2395,5 +2811,299 @@ describe("getAuditLog", () => {
 
     mocks.callerHasJiraAdmin.mockResolvedValue(false);
     await expect(ADMIN_ONLY_FUNCTIONS.getAuditLog(ADMIN_CTX)).rejects.toThrow(AdminPermissionError);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getProjectsView — workflow correlation
+//
+// Two projects on the same workflow scheme are meant to run the same process, so
+// divergent field usage between them is a standardization signal. Surfacing it means
+// the Projects tab has to carry both, without ever letting the workflow snapshot --
+// which is versioned separately and may not exist -- break the field view.
+// ---------------------------------------------------------------------------
+describe("getProjectsView workflow correlation", () => {
+  function baseProjects() {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: 1, refreshedAt: "2026-01-01T00:00:00Z" });
+    mocks.listSnapshotProjects.mockResolvedValue([
+      { projectId: "10", projectKey: "ABC", projectName: "Alpha" },
+      { projectId: "20", projectKey: "XYZ", projectName: "Zulu" },
+    ]);
+    mocks.readIssueScanMeta.mockResolvedValue(null);
+    mocks.loadSnapshotProjectFields.mockResolvedValue({ rows: [], total: 0 });
+  }
+
+  beforeEach(() => {
+    baseProjects();
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "wf-1", refreshedAt: "2026-07-31T10:00:00Z" });
+    mocks.loadWorkflowSchemeForProject.mockResolvedValue({
+      schemeId: "s1", name: "ADVEV Standard", description: "Engineering default",
+    });
+    mocks.loadWorkflowSchemeProjects.mockResolvedValue([
+      { projectId: "10", projectKey: "ABC", projectName: "Alpha" },
+      { projectId: "20", projectKey: "XYZ", projectName: "Zulu" },
+      { projectId: "30", projectKey: "QRS", projectName: "Quebec" },
+    ]);
+  });
+
+  test("returns the scheme governing the selected project", async () => {
+    const result = await getProjectsView({ payload: {}, context: {} });
+
+    expect(result.workflowScheme.name).toBe("ADVEV Standard");
+    expect(result.workflowScheme.schemeId).toBe("s1");
+  });
+
+  // "Shared with N" must count only projects the viewer can browse, or it discloses
+  // that projects they cannot see exist.
+  test("counts siblings from the viewer's browsable projects only", async () => {
+    mocks.getBrowsableProjectIds.mockResolvedValue(new Set(["10", "20"]));
+
+    const result = await getProjectsView({ payload: {}, context: { accountId: "acct-1" } });
+
+    expect(result.workflowScheme.sharedWithCount).toBe(1);
+    expect(result.workflowScheme.siblingProjects.map((p) => p.projectKey)).toEqual(["XYZ"]);
+  });
+
+  test("excludes the selected project from its own sibling list", async () => {
+    const result = await getProjectsView({ payload: { projectId: "10" }, context: {} });
+
+    expect(result.workflowScheme.siblingProjects.some((p) => p.projectId === "10")).toBe(false);
+  });
+
+  test("reports zero when the scheme governs only this project", async () => {
+    mocks.loadWorkflowSchemeProjects.mockResolvedValue([
+      { projectId: "10", projectKey: "ABC", projectName: "Alpha" },
+    ]);
+
+    const result = await getProjectsView({ payload: {}, context: {} });
+
+    expect(result.workflowScheme.sharedWithCount).toBe(0);
+    expect(result.workflowScheme.siblingProjects).toEqual([]);
+  });
+
+  test("returns null when no workflow snapshot has been built", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue(null);
+
+    const result = await getProjectsView({ payload: {}, context: {} });
+
+    expect(result.workflowScheme).toBeNull();
+    expect(mocks.loadWorkflowSchemeForProject).not.toHaveBeenCalled();
+  });
+
+  test("returns null when the project belongs to no scheme", async () => {
+    mocks.loadWorkflowSchemeForProject.mockResolvedValue(null);
+
+    const result = await getProjectsView({ payload: {}, context: {} });
+    expect(result.workflowScheme).toBeNull();
+  });
+
+  // The field view is the reason anyone opened this tab.
+  test("a workflow lookup failure never breaks the field view", async () => {
+    mocks.loadWorkflowSchemeForProject.mockRejectedValue(new Error("workflow tables missing"));
+
+    const result = await getProjectsView({ payload: {}, context: {} });
+
+    expect(result.workflowScheme).toBeNull();
+    expect(result.selectedProject.projectId).toBe("10");
+    expect(result.projects).toHaveLength(2);
+  });
+});
+
+// Insight findings are site-wide by necessity -- a duplicate cannot be spotted from a
+// single page -- so these tests focus on what the resolver is allowed to CLAIM, which is
+// bounded by which upstream data actually exists.
+describe("getWorkflowInsights", () => {
+  const status = (id, name, statusCategory = "In Progress") => ({ statusId: String(id), name, statusCategory });
+
+  test("reports unavailable rather than empty when no snapshot exists", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: null, state: "idle" });
+
+    const result = await getWorkflowInsights({ payload: {}, context: ctxWithAccount() });
+
+    expect(result.available).toBe(false);
+    expect(result.reason).toBe("no-snapshot");
+  });
+
+  test("finds duplicate status names across the catalog", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready" });
+    mocks.loadWorkflowSchemes.mockResolvedValue([]);
+    mocks.loadStatusesCatalog.mockResolvedValue([
+      status(1, "Backlog"), status(2, "Back Log"), status(3, "Delivered"),
+    ]);
+    mocks.loadWorkflowSchemeStatuses.mockResolvedValue([{ schemeId: "s1", statusId: "1" }]);
+
+    const result = await getWorkflowInsights({ payload: {}, context: ctxWithAccount() });
+
+    expect(result.available).toBe(true);
+    expect(result.summary.duplicateGroupCount).toBe(1);
+    expect(result.summary.reducibleStatusCount).toBe(1);
+  });
+
+  // The scan is versioned independently of the workflow snapshot and may never have run.
+  // "No issue counts" must never be reported as "zero issues", because zero is what makes
+  // an unreachable status safe to delete.
+  test("never claims a status is unused when the scan has not run", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready" });
+    mocks.loadWorkflowSchemes.mockResolvedValue([]);
+    mocks.loadStatusesCatalog.mockResolvedValue([status(1, "Orphaned")]);
+    mocks.loadWorkflowSchemeStatuses.mockResolvedValue([{ schemeId: "s1", statusId: "99" }]);
+    mocks.loadStatusIssueCounts.mockResolvedValue(new Map());
+
+    const result = await getWorkflowInsights({ payload: {}, context: ctxWithAccount() });
+
+    expect(result.hasIssueCounts).toBe(false);
+    expect(result.orphans[0].issueCount).toBeNull();
+    expect(result.orphans[0].safeToRemove).toBe(false);
+    expect(result.summary.safeToRemoveCount).toBe(0);
+  });
+
+  test("marks a never-used orphan as safe once scan counts exist", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready" });
+    mocks.loadWorkflowSchemes.mockResolvedValue([]);
+    mocks.loadStatusesCatalog.mockResolvedValue([status(1, "Orphaned"), status(2, "Used Once")]);
+    mocks.loadWorkflowSchemeStatuses.mockResolvedValue([{ schemeId: "s1", statusId: "99" }]);
+    mocks.loadStatusIssueCounts.mockResolvedValue(new Map([["1", 0], ["2", 5]]));
+
+    const result = await getWorkflowInsights({ payload: {}, context: ctxWithAccount() });
+
+    expect(result.hasIssueCounts).toBe(true);
+    expect(result.summary.safeToRemoveCount).toBe(1);
+  });
+
+  // If Jira did not return workflow statuses, EVERY status looks orphaned and EVERY
+  // scheme looks empty. Suppress both rather than publishing confident nonsense.
+  test("suppresses orphan and balance findings when scheme-status data is missing", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready" });
+    mocks.loadWorkflowSchemes.mockResolvedValue([{ id: "s1", name: "Alpha", projectCount: 2 }]);
+    mocks.loadStatusesCatalog.mockResolvedValue([status(1, "A"), status(2, "B")]);
+    mocks.loadWorkflowSchemeStatuses.mockResolvedValue([]);
+
+    const result = await getWorkflowInsights({ payload: {}, context: ctxWithAccount() });
+
+    expect(result.schemeStatusesAvailable).toBe(false);
+    expect(result.orphans).toEqual([]);
+    expect(result.balance).toEqual([]);
+  });
+
+  test("survives the scan count lookup failing", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready" });
+    mocks.loadWorkflowSchemes.mockResolvedValue([]);
+    mocks.loadStatusesCatalog.mockResolvedValue([status(1, "A")]);
+    mocks.loadWorkflowSchemeStatuses.mockResolvedValue([{ schemeId: "s1", statusId: "1" }]);
+    mocks.loadStatusIssueCounts.mockRejectedValue(new Error("sql down"));
+
+    const result = await getWorkflowInsights({ payload: {}, context: ctxWithAccount() });
+
+    expect(result.available).toBe(true);
+    expect(result.hasIssueCounts).toBe(false);
+  });
+});
+
+// Automation is a blind spot in the workflow findings: a status can look unreachable while
+// a rule still transitions issues into it. Jira's automation API is undocumented, so this
+// resolver asks which endpoints answer instead of assuming — and must never fail the page
+// it runs on.
+describe("probeAutomationApi", () => {
+  // Admin-only resolvers are exported wrapped in withAdminGuard + withAuditTrail. The raw
+  // registry exists so a test can exercise the resolver's own logic without standing up a
+  // permission mock.
+  const probeAutomationApi = __RAW_ADMIN_ONLY_FUNCTIONS.probeAutomationApi;
+
+  beforeEach(() => {
+    mocks.getAllJiraProjects.mockResolvedValue([{ id: "10000", key: "ALPHA", name: "Alpha" }]);
+    mocks.getCloudId.mockReturnValue("11111111-2222-3333-4444-555555555555");
+    mocks.probeStargateEndpoint.mockResolvedValue({ path: "s", status: 404, ok: false, ms: 5, sample: "" });
+  });
+
+  test("probes both global and project scopes", async () => {
+    mocks.probeEndpoint.mockResolvedValue({ path: "x", status: 404, ok: false, ms: 5, sample: "not found" });
+
+    const result = await probeAutomationApi({ context: {} });
+
+    const scopes = new Set(result.results.map((r) => r.scope));
+    expect(scopes.has("global")).toBe(true);
+    expect(scopes.has("project")).toBe(true);
+    // Asserted on what was REQUESTED, not on the returned row: the stub returns a canned
+    // path, so checking the result would test the mock rather than the resolver.
+    const requested = mocks.probeEndpoint.mock.calls.map((c) => c[0]);
+    expect(requested.some((path) => path.includes("10000"))).toBe(true);
+    expect(requested.some((path) => path.includes("GLOBAL"))).toBe(true);
+
+    // The documented automation API lives on api.atlassian.com, not the site, so it has to
+    // go through Stargate -- asking the site for it is what produced the first round of
+    // 401s.
+    const viaGateway = mocks.probeStargateEndpoint.mock.calls.map((c) => c[0]);
+    expect(viaGateway.some((path) => path.includes("/automation/public/jira/"))).toBe(true);
+    expect(viaGateway.every((path) => path.includes("11111111-2222"))).toBe(true);
+    expect(viaGateway.some((path) => path.startsWith("https://api.atlassian.com/"))).toBe(true);
+  });
+
+  // A 200 is not the same as usable JSON: Jira can answer with an HTML login page or an
+  // error envelope, and treating that as success would report extraction as possible when
+  // it is not.
+  test("counts an endpoint as reachable only when the body looks like rules", async () => {
+    mocks.probeEndpoint
+      .mockResolvedValueOnce({ path: "a", status: 200, ok: true, ms: 5, sample: "<html>login</html>" })
+      .mockResolvedValue({ path: "b", status: 200, ok: true, ms: 5, sample: '{"rules":[{"id":1}]}' });
+
+    const result = await probeAutomationApi({ context: {} });
+
+    expect(result.reachable).not.toContain("a");
+    expect(result.reachable.length).toBeGreaterThan(0);
+  });
+
+  test("reports nothing reachable when every endpoint rejects", async () => {
+    mocks.probeEndpoint.mockResolvedValue({ path: "x", status: 401, ok: false, ms: 5, sample: "scope does not match" });
+
+    const result = await probeAutomationApi({ context: {} });
+
+    expect(result.reachable).toEqual([]);
+    expect(result.results.every((r) => r.looksLikeRules === false)).toBe(true);
+  });
+
+  // A diagnostic that can fail the page it runs on is worse than no diagnostic.
+  test("still probes the global scope when the project lookup fails", async () => {
+    mocks.getAllJiraProjects.mockRejectedValue(new Error("403"));
+    mocks.probeEndpoint.mockResolvedValue({ path: "x", status: 404, ok: false, ms: 5, sample: "" });
+
+    const result = await probeAutomationApi({ context: {} });
+
+    expect(result.projectId).toBeNull();
+    expect(result.results.length).toBeGreaterThan(0);
+    expect(result.results.every((r) => r.scope === "global")).toBe(true);
+  });
+});
+
+
+// The documented automation API is on api.atlassian.com and keyed by cloud id. Probing the
+// site for it is what produced the first round of 401s.
+describe("probeAutomationApi — gateway transport", () => {
+  const probeAutomationApi = __RAW_ADMIN_ONLY_FUNCTIONS.probeAutomationApi;
+
+  test("skips the gateway probes when no cloud id can be derived", async () => {
+    mocks.getAllJiraProjects.mockResolvedValue([]);
+    mocks.getCloudId.mockReturnValue(null);
+    mocks.probeEndpoint.mockResolvedValue({ path: "x", status: 401, ok: false, ms: 5, sample: "" });
+
+    const result = await probeAutomationApi({ context: {} });
+
+    expect(mocks.probeStargateEndpoint).not.toHaveBeenCalled();
+    expect(result.cloudId).toBeNull();
+    // The site-relative probes still run, so the panel is never empty.
+    expect(result.results.length).toBeGreaterThan(0);
+  });
+
+  test("labels each row with the transport that produced it", async () => {
+    mocks.getAllJiraProjects.mockResolvedValue([{ id: "10000" }]);
+    mocks.getCloudId.mockReturnValue("11111111-2222-3333-4444-555555555555");
+    mocks.probeEndpoint.mockResolvedValue({ path: "x", status: 401, ok: false, ms: 5, sample: "" });
+    mocks.probeStargateEndpoint.mockResolvedValue({ path: "s", status: 200, ok: true, ms: 5, sample: '{"values":[]}' });
+
+    const result = await probeAutomationApi({ context: {} });
+
+    // Without this the table cannot explain why two identical-looking paths behave
+    // differently, which is exactly the confusion that cost a round of probing.
+    expect(result.results.some((r) => r.via === "stargate")).toBe(true);
+    expect(result.results.some((r) => r.via === "site")).toBe(true);
   });
 });

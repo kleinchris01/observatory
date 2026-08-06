@@ -1,4 +1,5 @@
-import api, { route } from "@forge/api";
+import api, { route, createRequestStargateAsApp } from "@forge/api";
+import { fallbackOn } from "./logger.js";
 import { internalMetrics } from "@forge/metrics";
 import {
   buildFieldJql,
@@ -45,6 +46,18 @@ export const ISSUE_SCAN_WORKERS = 5;          // parallel Forge workers; keep lo
 // sustained 429s the limiter absorbs it and recovers on its own; this constant is not the
 // mechanism that protects Jira, it just makes the scan slower and more expensive.
 export const ISSUE_SCAN_INTER_PAGE_DELAY_MS = 200;
+// WAS queries hit Jira's issue-history index and are markedly slower than a plain status
+// filter. This is pinned to the hard request deadline rather than above it: an outer
+// budget larger than JIRA_REQUEST_HARD_TIMEOUT_MS can never fire, because the inner
+// deadline wins first. A 15s value here looked generous and was simply dead code -- the
+// real ceiling was always 12s, which is what the logs reported.
+export const STATUS_HISTORY_TIMEOUT_MS = JIRA_REQUEST_HARD_TIMEOUT_MS;
+
+// Lower than the 8 used for per-project counts. On a real site, 163 of 433 status history
+// queries timed out while a 5-worker universe scan was saturating the same rate limiter --
+// these are the slowest queries the app issues, and racing them against each other makes
+// every one of them slower.
+export const STATUS_HISTORY_CONCURRENCY = 4;
 // Flush field counts + checkpoint the worker every N pages. Set to match
 // ISSUE_SCAN_CHUNK_PAGES so the mid-loop flush never fires and each invocation flushes
 // exactly once, at the end of its chunk.
@@ -187,6 +200,10 @@ export async function withTimeout(promise, ms) {
     timer = setTimeout(() => reject(new Error(`timed out after ${ms}ms`)), ms);
   });
   // Suppress unhandled rejection on the abandoned promise when timeout wins the race
+  // Deliberately silent, and the one place in this file that should be. The caller
+  // still holds this promise and will surface its rejection; this attachment exists
+  // only so an abandoned copy does not trip an unhandled-rejection warning. Logging
+  // here would double-report every timeout.
   promise.catch(() => {});
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
@@ -686,8 +703,8 @@ export async function getFieldContextIssueTypeMappings(fieldId) {
 export async function loadFieldContexts(fieldId) {
   const [contexts, projectMappings, issueTypeMappings] = await Promise.all([
     getFieldContexts(fieldId),
-    getFieldContextProjectMappings(fieldId).catch(() => []),
-    getFieldContextIssueTypeMappings(fieldId).catch(() => []),
+    getFieldContextProjectMappings(fieldId).catch(fallbackOn("jira.context_project_mappings_failed", () => [], { fieldId })),
+    getFieldContextIssueTypeMappings(fieldId).catch(fallbackOn("jira.context_issuetype_mappings_failed", () => [], { fieldId })),
   ]);
 
   const projectIds = Array.from(
@@ -855,20 +872,231 @@ export async function getAllJiraProjects() {
   );
 }
 
+// ----- Screens -----
+//
+// The three reads at the bottom of the screen chain. Fields-per-tab is the expensive one:
+// it is a call per TAB, not per screen, so its cost scales with a number nobody knows until
+// it is measured. That is what screen-probe.js exists to find out before the full pipeline
+// is built on an assumption about it.
+
+export async function getAllScreens() {
+  return paginate((startAt) => route`/rest/api/3/screens?maxResults=100&startAt=${startAt}`);
+}
+
+// Flat array, like /status -- no {values, isLast} wrapper.
+export async function getScreenTabs(screenId) {
+  const data = await jiraRequest(route`/rest/api/3/screens/${screenId}/tabs`);
+  return Array.isArray(data) ? data : [];
+}
+
+export async function getScreenTabFields(screenId, tabId) {
+  const data = await jiraRequest(route`/rest/api/3/screens/${screenId}/tabs/${tabId}/fields`);
+  return Array.isArray(data) ? data : [];
+}
+
 // GET /rest/api/3/status returns a flat array, not the usual {values, isLast} wrapper.
 export async function getAllStatuses() {
   const data = await jiraRequest(route`/rest/api/3/status`);
   return Array.isArray(data) ? data : [];
 }
 
+// Normalize a workflow-search response into [{ name, statusIds }].
+//
+// Exported and shape-agnostic on purpose: Jira has two generations of this endpoint and
+// they disagree about where statuses live.
+//
+//   Deprecated GET /rest/api/3/workflow/search  ->  values[].statuses[].id
+//   Current  POST /rest/api/3/workflows/search  ->  workflows[].statuses[].statusReference,
+//                                                   plus a top-level statuses[] mapping
+//                                                   each reference to a real status id.
+//
+// A statusReference is a UUID, NOT a status id, so resolving it through that lookup is
+// mandatory -- matching references straight against the status catalog silently yields
+// zero overlap, which is indistinguishable from "this scheme has no statuses".
+export function normalizeWorkflowSearchResponse(data) {
+  const idByReference = new Map();
+  for (const status of data?.statuses || []) {
+    const reference = status?.statusReference || status?.id;
+    if (reference && status?.id) idByReference.set(String(reference), String(status.id));
+  }
+
+  const workflows = data?.workflows || data?.values || [];
+  return workflows.map((workflow) => {
+    const name = workflow?.name || workflow?.id?.name || null;
+    const statusIds = [];
+    for (const entry of workflow?.statuses || []) {
+      const direct = entry?.id ?? entry?.statusId;
+      const reference = entry?.statusReference;
+      const resolved = direct != null ? String(direct) : (reference ? idByReference.get(String(reference)) : null);
+      if (resolved) statusIds.push(resolved);
+    }
+    return { name, statusIds };
+  }).filter((workflow) => workflow.name);
+}
+
+// Every workflow on the site with the statuses it can reach.
+//
+// Tries the current endpoint first and falls back to the deprecated one. The fallback is
+// not defensive programming for its own sake: the deprecated GET form returns 401
+// "scope does not match" for an app declaring granular scopes, which is exactly how this
+// failed on staging -- silently, leaving every status looking orphaned.
 export async function getAllWorkflowsWithStatuses() {
-  return paginate(
+  try {
+    const data = await jiraRequest(route`/rest/api/3/workflows/search?expand=statuses`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+    const workflows = normalizeWorkflowSearchResponse(data);
+    if (workflows.length > 0) return workflows;
+    // A successful call returning nothing is worth saying out loud: it means the shape
+    // changed again, not that the site has no workflows.
+    console.warn("getAllWorkflowsWithStatuses: bulk endpoint returned no usable workflows; response keys:", Object.keys(data || {}));
+  } catch (error) {
+    console.warn("getAllWorkflowsWithStatuses: bulk endpoint failed, trying legacy:", error?.message || error);
+  }
+
+  const legacy = await paginate(
     (startAt) => route`/rest/api/3/workflow/search?expand=statuses&startAt=${startAt}&maxResults=${DEFAULT_PAGE_SIZE}`
   );
+  return normalizeWorkflowSearchResponse({ values: legacy });
+}
+
+// Statuses reachable in one project, flattened across its issue types.
+//
+// This exists because BOTH workflow-search endpoints return 401 "scope does not match"
+// on an installation that is fully upgraded and declares read:workflow:jira --
+// /rest/api/3/workflow/search (deprecated) and /rest/api/3/workflows/search (current)
+// alike. Consent is not the issue; `forge install --upgrade` reports the site already at
+// the latest version.
+//
+// So the scheme -> status mapping is derived a different way. This endpoint needs only
+// read:status:jira and read:project:jira, both of which demonstrably work on this
+// install, and it answers a slightly better question: which statuses are actually
+// reachable in this project, rather than which statuses a workflow defines.
+//
+// Response is an array of issue types, each carrying its own statuses:
+//   [{ id, name, subtask, statuses: [{ id, name, statusCategory }] }]
+export async function getProjectStatuses(projectIdOrKey) {
+  const data = await jiraRequest(route`/rest/api/3/project/${projectIdOrKey}/statuses`);
+  const ids = new Set();
+  for (const issueType of Array.isArray(data) ? data : []) {
+    for (const status of issueType?.statuses || []) {
+      if (status?.id != null) ids.add(String(status.id));
+    }
+  }
+  return [...ids];
+}
+
+// project id -> reachable status ids, for every project, at bounded concurrency.
+//
+// Per-project failures are collected rather than thrown: one project the app cannot read
+// must not empty the whole mapping and make every status on the site look orphaned.
+export async function getStatusesForProjects(projectIds = [], concurrency = 8) {
+  const byProject = new Map();
+  const failures = [];
+
+  const results = await mapWithConcurrency(projectIds.map(String), concurrency, async (projectId) => {
+    try {
+      return { projectId, statusIds: await getProjectStatuses(projectId), error: null };
+    } catch (error) {
+      return { projectId, statusIds: null, error: String(error?.message || error) };
+    }
+  });
+
+  for (const result of results) {
+    if (result.error) failures.push({ projectId: result.projectId, error: result.error });
+    else byProject.set(result.projectId, result.statusIds);
+  }
+  return { byProject, failures };
+}
+
+// How many issues have EVER been in each status, via JQL's WAS operator.
+//
+// This is the cheap answer to a question that otherwise needs a changelog crawl: on a
+// 317k-issue site, re-reading every issue with expand=changelog is hours, while one
+// approximate-count per status is a few hundred queries and minutes.
+//
+// Queried by status ID, never by name. A site with "Done" defined five times would give
+// `status WAS "Done"` one meaningless number covering all of them; `status WAS 10001` is
+// unambiguous.
+//
+// Returns Map<statusId, count> plus the failures, because a status whose count could not
+// be measured must not be presented as zero -- zero is what makes a status look safe to
+// delete.
+export async function getEverInStatusCounts(statusIds = [], concurrency = STATUS_HISTORY_CONCURRENCY) {
+  const counts = new Map();
+  const failures = [];
+  const ids = [...new Set(statusIds.filter((id) => id !== null && id !== undefined && id !== "").map(String))];
+
+  const results = await mapWithConcurrency(ids, concurrency, async (statusId) => {
+    try {
+      const data = await withTimeout(
+        jiraRequest(route`/rest/api/3/search/approximate-count`, {
+          method: "POST",
+          // Numeric id, unquoted: quoting makes Jira resolve it as a name.
+          body: JSON.stringify({ jql: `status WAS ${statusId}` }),
+        }),
+        STATUS_HISTORY_TIMEOUT_MS
+      );
+      return { statusId, count: Number(data?.count ?? 0), error: null };
+    } catch (error) {
+      return { statusId, count: null, error: String(error?.message || error) };
+    }
+  });
+
+  const probe = async (statusId) => {
+    try {
+      const data = await withTimeout(
+        jiraRequest(route`/rest/api/3/search/approximate-count`, {
+          method: "POST",
+          body: JSON.stringify({ jql: `status WAS ${statusId}` }),
+        }),
+        STATUS_HISTORY_TIMEOUT_MS
+      );
+      return { statusId, count: Number(data?.count ?? 0), error: null };
+    } catch (error) {
+      return { statusId, count: null, error: String(error?.message || error) };
+    }
+  };
+
+  for (const result of results) {
+    if (result.error) failures.push({ statusId: result.statusId, error: result.error });
+    else counts.set(result.statusId, result.count);
+  }
+
+  // One retry pass, serially, over the stragglers only. These failures are contention
+  // rather than permanent errors -- the first pass ran alongside a universe scan -- so a
+  // slow second attempt recovers most of them without doubling the cost of a clean run.
+  if (failures.length > 0) {
+    const stragglers = failures.splice(0, failures.length);
+    for (const { statusId } of stragglers) {
+      const retry = await probe(statusId);
+      if (retry.error) failures.push({ statusId, error: retry.error });
+      else counts.set(statusId, retry.count);
+    }
+  }
+
+  return { counts, failures };
 }
 
 export async function getWorkflowSchemeForProject(projectId) {
   return jiraRequest(route`/rest/api/3/workflowscheme/project?projectId=${projectId}`);
+}
+
+// Pull the scheme out of the endpoint's container shape:
+//   { values: [ { projectIds: [...], workflowScheme: {...} } ] }
+//
+// Returns null rather than guessing when the shape is unrecognized. The previous
+// `data?.workflowScheme || data` fallback handed back the whole container, which has no
+// id and no name -- so every project produced a distinct scheme named
+// "(unnamed workflow scheme)" keyed `unknown-<projectId>`. A 142-project site rendered as
+// 142 one-project schemes, and the "projects sharing a scheme" correlation could never
+// fire. A null here is logged as a lookup failure and skipped, which is visible; a
+// half-parsed object is not.
+export function extractWorkflowScheme(data) {
+  const entry = Array.isArray(data?.values) ? data.values[0] : null;
+  const scheme = entry?.workflowScheme || data?.workflowScheme || null;
+  return scheme && (scheme.id != null || scheme.name) ? scheme : null;
 }
 
 // One call per project (no confirmed bulk form for scheme<->project association at
@@ -877,7 +1105,12 @@ export async function getWorkflowSchemesForProjects(projectIds, concurrency = 8)
   return mapWithConcurrency(projectIds, concurrency, async (projectId) => {
     try {
       const data = await getWorkflowSchemeForProject(projectId);
-      return { projectId, scheme: data?.workflowScheme || data || null, error: null };
+      const scheme = extractWorkflowScheme(data);
+      return {
+        projectId,
+        scheme,
+        error: scheme ? null : "workflow scheme missing from response",
+      };
     } catch (error) {
       return { projectId, scheme: null, error: String(error?.message || error) };
     }
@@ -971,4 +1204,91 @@ export async function loadFieldOptionsFromJira(fieldId) {
       }
     })
   );
+}
+
+// ── Endpoint probe ──────────────────────────────────────────────────────────
+//
+// Calls a candidate endpoint and reports exactly what came back, without throwing.
+//
+// This exists because three separate mysteries this week were only settled by making the
+// system say what happened rather than reasoning about it: a 401 whose cause survived two
+// wrong theories, a scan whose 400 is still unexplained, and an "Unknown SQL execution
+// error" that turned out to be a placeholder in a LIMIT clause. Guessing at Atlassian's
+// behaviour has a poor track record here; asking it directly does not.
+//
+// Read-only by construction: GET only, and the body is truncated because the point is the
+// shape of the response, not its contents.
+export async function probeEndpoint(path, { method = "GET" } = {}) {
+  const started = Date.now();
+  try {
+    const response = await api.asApp().requestJira(route([path]), {
+      method,
+      headers: { Accept: "application/json" },
+    });
+    const text = await response.text();
+    return {
+      path,
+      status: response.status,
+      ok: response.ok,
+      ms: Date.now() - started,
+      // Enough to tell a rule list from an error envelope; not enough to leak issue data.
+      sample: text.slice(0, 300),
+    };
+  } catch (error) {
+    return {
+      path,
+      status: null,
+      ok: false,
+      ms: Date.now() - started,
+      sample: String(error?.message || error).slice(0, 300),
+    };
+  }
+}
+
+
+// The cloud id, pulled out of the installation ARI.
+//
+// Forge's installContext looks like `ari:cloud:jira::site/<uuid>`, and that uuid IS the
+// cloud id the api.atlassian.com gateway expects. Deriving it here avoids threading a
+// second identifier through every caller.
+export function getCloudId(context) {
+  const key = String(context?.installContext || "");
+  const match = /site\/([0-9a-f-]{36})/i.exec(key);
+  return match ? match[1] : null;
+}
+
+// Probe an api.atlassian.com endpoint through Stargate.
+//
+// Distinct from probeEndpoint, which is site-relative. Every automation path probed
+// earlier returned 401 because they were asked of the wrong server entirely: the
+// automation API lives on the gateway host, not on the site. requestJira cannot reach it,
+// so this uses the Stargate request surface instead.
+export async function probeStargateEndpoint(path) {
+  const started = Date.now();
+  try {
+    // A plain string, not a Route. createRequestStargateAsApp returns
+    // `(url: string, init?) => Promise<Response>` -- wrapping the path in
+    // assumeTrustedRoute produced INVALID_TARGET_URL before the request left the runtime.
+    const requestStargate = createRequestStargateAsApp();
+    const response = await requestStargate(path, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    });
+    const text = await response.text();
+    return {
+      path,
+      status: response.status,
+      ok: response.ok,
+      ms: Date.now() - started,
+      sample: text.slice(0, 300),
+    };
+  } catch (error) {
+    return {
+      path,
+      status: null,
+      ok: false,
+      ms: Date.now() - started,
+      sample: String(error?.message || error).slice(0, 300),
+    };
+  }
 }
