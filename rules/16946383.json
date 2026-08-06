@@ -1,0 +1,505 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:10e644de-d96b-4816-9029-d6cf8f0aec37",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555652312",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": null,
+          "type": "ID",
+          "value": "10106"
+        },
+        "comparison": "EQUALS",
+        "selectedField": {
+          "type": "ID",
+          "value": "issuetype"
+        },
+        "selectedFieldType": "issuetype"
+      }
+    },
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555652314",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": null,
+          "type": "NAME",
+          "value": "P833_2027"
+        },
+        "comparison": "EQUALS",
+        "selectedField": {
+          "type": "NAME",
+          "value": "ADVEV Vehicle Program"
+        },
+        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555652315",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.refresh.issue",
+      "value": {
+        "delayMs": null
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555652318",
+          "parentId": "555652317",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "VALUE",
+              "value": "FA_DPA5-CK4447302"
+            },
+            "comparison": "EQUALS",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Verification Request #"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555652319",
+          "parentId": "555652317",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": "{\n    \"update\": {\n        \"Plant\": [\n        {\n            \"set\": {\"value\": \"VO\" , \"child\": { \"value\" : \"LAP (Louisville Assembly)\"} }\n         }\n      ] ,\n         \"Functional Area\": [\n         {\n            \"set\": {\"value\": \"VME - Final Assembly Engineering\"}\n         }\n      ]\n    }\n}",
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Un/Up"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "SET",
+                "value": {
+                  "type": "NAME",
+                  "value": "Underbody"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Base Part Number"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                "type": "SET",
+                "value": "7B000"
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Lead PMT"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "SET",
+                "value": {
+                  "type": "NAME",
+                  "value": "4 - Powertrain"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "TC End Item and Revision"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                "type": "SET",
+                "value": "prd-87428874-00344770/31-CE1 DRIVE UNIT; FRONT"
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Lead CPSC"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "SET",
+                "value": {
+                  "type": "NAME",
+                  "value": "050304 Front Drive Unit"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "CBG"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "SET",
+                "value": {
+                  "type": "NAME",
+                  "value": "NA"
+                }
+              }
+            ],
+            "sendNotifications": false
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555652317",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555652321",
+          "parentId": "555652320",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "VALUE",
+              "value": "FA_DPA5 4449024"
+            },
+            "comparison": "EQUALS",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Verification Request #"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555652322",
+          "parentId": "555652320",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": "{\n    \"update\": {\n        \"Plant\": [\n        {\n            \"set\": {\"value\": \"VO\" , \"child\": { \"value\" : \"LAP (Louisville Assembly)\"} }\n         }\n      ] ,\n         \"Functional Area\": [\n         {\n            \"set\": {\"value\": \"VME - Final Assembly Engineering\"}\n         }\n      ]\n    }\n}",
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Un/Up"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "SET",
+                "value": {
+                  "type": "NAME",
+                  "value": "Underbody"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Base Part Number"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                "type": "SET",
+                "value": ""
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Lead PMT"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "SET",
+                "value": {
+                  "type": "NAME",
+                  "value": "1 - Body Exterior"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "TC End Item and Revision"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                "type": "SET",
+                "value": "prd-87428874-00341835/1;1-P833 FRONT SUBFRAME CRUSH CANS"
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Lead CPSC"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "SET",
+                "value": {
+                  "type": "NAME",
+                  "value": "010201 Front Structure"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "CBG"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "SET",
+                "value": {
+                  "type": "NAME",
+                  "value": "NA"
+                }
+              }
+            ],
+            "sendNotifications": false
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555652320",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555652324",
+          "parentId": "555652323",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "VALUE",
+              "value": "FA_DPA5 4449024"
+            },
+            "comparison": "EQUALS",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Verification Request #"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555652326",
+          "parentId": "555652323",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": "{\n    \"update\": {\n        \"Plant\": [\n        {\n            \"set\": {\"value\": \"VO\" , \"child\": { \"value\" : \"LAP (Louisville Assembly)\"} }\n         }\n      ] ,\n         \"Functional Area\": [\n         {\n            \"set\": {\"value\": \"VME - Final Assembly Engineering\"}\n         }\n      ]\n    }\n}",
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Un/Up"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "SET",
+                "value": {
+                  "type": "NAME",
+                  "value": "Underbody"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Base Part Number"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                "type": "SET",
+                "value": ""
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Lead PMT"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "SET",
+                "value": {
+                  "type": "NAME",
+                  "value": "1 - Body Exterior"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "TC End Item and Revision"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                "type": "SET",
+                "value": "prd-87428874-00341835/1;1-P833 FRONT SUBFRAME CRUSH CANS"
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Lead CPSC"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "SET",
+                "value": {
+                  "type": "NAME",
+                  "value": "010201 Front Structure"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "CBG"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "SET",
+                "value": {
+                  "type": "NAME",
+                  "value": "NA"
+                }
+              }
+            ],
+            "sendNotifications": false
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555652323",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1702308594093,
+  "description": "",
+  "id": 16946383,
+  "idUuid": "018c597f-c1ad-7b56-8541-f7247880b27d",
+  "labels": [],
+  "name": "DPA5 - Issue Created",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10044"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10044"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "555652309",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1705073909402,
+  "writeAccessType": "UNRESTRICTED"
+}

@@ -1,0 +1,187 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "ddaf0c22-1b6e-40d9-9471-828fffaf13a3",
+      "parentId": null,
+      "schemaVersion": 2,
+      "type": "jira.issue.link",
+      "value": {
+        "issue": {
+          "type": "SMART",
+          "value": "{{destinationIssue}}"
+        },
+        "linkType": "outward:10030"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "7205ad38-a5a3-4cde-b382-89e7b70e0e6c",
+      "parentId": null,
+      "schemaVersion": 2,
+      "type": "jira.issue.comment",
+      "value": {
+        "addCommentOnce": false,
+        "comment": "{{initiator.displayName}} attempted to remove a link involving this CE1 Issue, which is not allowed. This link is required for traceability and system integrity, and cannot be removed manually.\n\nThe attempt to remove it has been automatically reversed.\n\nIf this action was in error or support is needed, please contact the [ADVEV Helpdesk support team|https://ford-advev.atlassian.net/servicedesk/customer/portal/3].",
+        "commentVisibility": null,
+        "publicComment": false,
+        "sendNotifications": true
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "021016d7-98cb-4507-a022-0864704361d1",
+          "parentId": "350260ad-d9a5-4ac3-8bde-f5df454458c3",
+          "schemaVersion": 2,
+          "type": "jira.issue.comment",
+          "value": {
+            "addCommentOnce": false,
+            "comment": "{{initiator.displayName}} attempted to remove a link involving a CE1 Issue, which is not allowed. This link is required for traceability and system integrity, and cannot be removed manually.\n\nThe attempt to remove it has been automatically reversed.\n\nIf this action was in error or support is needed, please contact the [ADVEV Helpdesk support team|https://ford-advev.atlassian.net/servicedesk/customer/portal/3].",
+            "commentVisibility": null,
+            "publicComment": false,
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "350260ad-d9a5-4ac3-8bde-f5df454458c3",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "destination",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1778755132914,
+  "description": "Since work item link deletions cannot be restricted, this automation acts as a workaround. When a link to a Concern Ticket is deleted, the automation automatically restores the link and adds a comment to notify the user of the action.",
+  "id": 33272548,
+  "idUuid": "019e2611-5df2-7f84-9c18-02c3cb7b7a75",
+  "labels": [],
+  "name": "SOLVE: Issue - Relink Deleted CT Work Item Link",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "5e5b9b40-9e9c-4872-8eb5-a6079e89ddd5",
+        "conditions": [],
+        "connectionId": null,
+        "id": "4426ff2b-c4a5-431f-b8a3-b6debc0df458",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "13141"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "project"
+          },
+          "selectedFieldType": "project"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "5e5b9b40-9e9c-4872-8eb5-a6079e89ddd5",
+        "conditions": [],
+        "connectionId": null,
+        "id": "65ec50db-b85c-4dcb-ac07-0ef9c1e33faf",
+        "parentId": null,
+        "schemaVersion": 6,
+        "type": "jira.user.condition",
+        "value": {
+          "conditions": [
+            {
+              "check": "NOT_IN_ROLE",
+              "criteria": [
+                {
+                  "type": "NAME",
+                  "value": "Administrators"
+                },
+                {
+                  "type": "NAME",
+                  "value": "Administrators-EXTERNAL"
+                }
+              ],
+              "field": "initiator"
+            }
+          ],
+          "operator": "OR"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "5e5b9b40-9e9c-4872-8eb5-a6079e89ddd5",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:link_deleted",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+      ],
+      "linkTypes": [
+        "Polaris work item link"
+      ]
+    }
+  },
+  "updated": 1780216841630,
+  "writeAccessType": "UNRESTRICTED"
+}

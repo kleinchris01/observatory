@@ -1,0 +1,285 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:c9c3dfc4-eef5-4087-8b1a-8ee188485a9b",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "a636ead2-7ad2-42ef-90d7-a5cff401419c",
+          "parentId": "b0d823fb-7940-4718-8d5d-c00c3d19a4e1",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "ADVEV Vehicle Program"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "COPY",
+                "value": {
+                  "copyOptions": [],
+                  "sourceField": {
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "NAME",
+                    "value": "ADVEV Vehicle Program"
+                  },
+                  "sourceIssue": "parent"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "ADVEV Checkpoints & Milestones"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "COPY",
+                "value": {
+                  "copyOptions": [],
+                  "sourceField": {
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "NAME",
+                    "value": "ADVEV Checkpoints & Milestones"
+                  },
+                  "sourceIssue": "parent"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Requirement Type"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "COPY",
+                "value": {
+                  "copyOptions": [],
+                  "sourceField": {
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "NAME",
+                    "value": "Requirement Type"
+                  },
+                  "sourceIssue": "parent"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Test Type"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "COPY",
+                "value": {
+                  "copyOptions": [],
+                  "sourceField": {
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "NAME",
+                    "value": "Test Type"
+                  },
+                  "sourceIssue": "parent"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Test Number"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                "type": "COPY",
+                "value": {
+                  "copyOptions": [],
+                  "sourceField": {
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                    "type": "NAME",
+                    "value": "Test Number"
+                  },
+                  "sourceIssue": "parent"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "labels"
+                },
+                "fieldType": "labels",
+                "type": "COPY",
+                "value": {
+                  "copyOptions": [
+                    "ADD"
+                  ],
+                  "sourceField": {
+                    "fieldType": "labels",
+                    "type": "ID",
+                    "value": "labels"
+                  },
+                  "sourceIssue": "parent"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Collaborators"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                "type": "COPY",
+                "value": {
+                  "copyOptions": [],
+                  "sourceField": {
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                    "type": "NAME",
+                    "value": "Collaborators"
+                  },
+                  "sourceIssue": "parent"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Applicable_Market"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                "type": "COPY",
+                "value": {
+                  "copyOptions": [],
+                  "sourceField": {
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                    "type": "NAME",
+                    "value": "Applicable_Market"
+                  },
+                  "sourceIssue": "parent"
+                }
+              }
+            ],
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "b0d823fb-7940-4718-8d5d-c00c3d19a4e1",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "children",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1779252568321,
+  "description": "",
+  "id": 33345359,
+  "idUuid": "019e43b7-a101-75bf-81c2-86de43fdc0d5",
+  "labels": [
+    1060524
+  ],
+  "name": "[Manual] Copy field values from TEST ACTIVITY→ ACTION ITEM/INCIDENT for CAEPT",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11112"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11112"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "d7abe4c6-b423-420a-ac24-17beb2bffd3c",
+        "conditions": [],
+        "connectionId": null,
+        "id": "a32ec670-6aa4-494b-af79-bf08ed3d1b82",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "11112"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "project"
+          },
+          "selectedFieldType": "project"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "d7abe4c6-b423-420a-ac24-17beb2bffd3c",
+        "conditions": [],
+        "connectionId": null,
+        "id": "c7f19158-1e55-4cbf-8e93-772275c42f5b",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "11189"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "d7abe4c6-b423-420a-ac24-17beb2bffd3c",
+    "parentId": null,
+    "schemaVersion": 3,
+    "type": "jira.manual.trigger.issue",
+    "value": {
+      "groups": [],
+      "inputFromUsers": false,
+      "inputPrompts": [],
+      "issueFilter": null,
+      "jQLFilter": null
+    }
+  },
+  "updated": 1779252568321,
+  "writeAccessType": "OWNER_ONLY"
+}

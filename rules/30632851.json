@@ -1,0 +1,108 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:2aeda333-f7c5-4fdd-ae05-c23729740bfc",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "15fe6d11-9c40-4f22-be2f-e27af62c739d",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Completed date"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:datepicker",
+            "type": "SET",
+            "value": "{{now}}"
+          }
+        ],
+        "sendNotifications": true
+      }
+    }
+  ],
+  "created": 1761500697765,
+  "description": "",
+  "id": 30632851,
+  "idUuid": "019a219f-94a5-7c14-984e-830b1c06e808",
+  "labels": [],
+  "name": "Auto Complete Date",
+  "notifyOnError": "EVERYERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10125"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10125"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "2e0d945f-dc15-473e-bb64-e5154a612bb9",
+        "conditions": [],
+        "connectionId": null,
+        "id": "1a7a6e02-931b-45d7-a4a3-f3eceb38b0c1",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": true,
+            "source": null,
+            "type": "NAME",
+            "value": "[\"Closed\",\"Completed\",\"Cancelled\",\"Test Canceled\",\"Test Passed - Complete\"]"
+          },
+          "comparison": "ONE_OF",
+          "selectedField": {
+            "type": "ID",
+            "value": "status"
+          },
+          "selectedFieldType": "status"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "2e0d945f-dc15-473e-bb64-e5154a612bb9",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10125"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1761501079679,
+  "writeAccessType": "UNRESTRICTED"
+}

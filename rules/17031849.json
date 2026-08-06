@@ -1,0 +1,149 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "374086009",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.condition.query",
+      "value": {
+        "cmdbField": "customfield_11471",
+        "cmdbQuery": "objectType = Reservation",
+        "type": "OBJECT"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "374086010",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.lookup.objects",
+      "value": {
+        "customSmartValue": {
+          "id": "_customsmartvalue_id_1702921302114",
+          "lazy": false,
+          "name": {
+            "type": "FREE",
+            "value": "lookupObjects"
+          },
+          "query": {
+            "type": "SMART",
+            "value": " objectType = Reservation AND \"Name\" LIKE \"{{Equipment.Name}}\" "
+          },
+          "type": "IQL"
+        },
+        "schemaId": "6",
+        "searchResultsLimit": 100,
+        "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "374086011",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "Object is: {{lookupObjects.Name}}"
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "374086013",
+          "parentId": "374086012",
+          "schemaVersion": 1,
+          "type": "cmdb.object.edit.attributes",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": null,
+                "name": "Reservation",
+                "value": "({{Reservation.Name}} - {{Reservation.testDate}} - {{Reservation.reservedBy.displayName}})"
+              }
+            ]
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "374086012",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.object.related",
+      "value": {
+        "cmdbQuery": " objectType = Equipment AND \"Name\" LIKE \"{{Reservation.Name}}\"",
+        "schemaId": "6",
+        "schemaLabel": "Prototype Testing Schema",
+        "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+      }
+    }
+  ],
+  "created": 1702921529122,
+  "description": "",
+  "id": 17031849,
+  "idUuid": "018c7e08-6722-78c9-a844-04fcb46d6d9b",
+  "labels": [],
+  "name": "Link Reservation to Equipment",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "374086008",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "cmdb.object.trigger",
+    "value": {
+      "operation": "CREATED",
+      "schemaId": "6",
+      "schemaLabel": "Prototype Testing Schema",
+      "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+    }
+  },
+  "updated": 1703012263220,
+  "writeAccessType": "UNRESTRICTED"
+}

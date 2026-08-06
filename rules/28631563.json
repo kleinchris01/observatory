@@ -1,0 +1,435 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:10e644de-d96b-4816-9029-d6cf8f0aec37",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [
+    "712020:85f2fb94-1e54-45c4-a961-b4af65b3ae3c",
+    "712020:10e644de-d96b-4816-9029-d6cf8f0aec37",
+    "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6"
+  ],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "713406842",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.outgoing.webhook",
+      "value": {
+        "contentType": "empty",
+        "continueOnErrorEnabled": false,
+        "customBody": "{\n  \"user\": [\n    \"{{issue.reporter}}\"\n  ]\n}",
+        "headers": [
+          {
+            "headerSecure": false,
+            "id": "_header_1699931012220",
+            "name": "Accept",
+            "value": "application/json"
+          },
+          {
+            "headerSecure": false,
+            "id": "_header_1699931470666",
+            "name": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "headerSecure": false,
+            "id": "_header_1699931494446",
+            "name": "Authorization",
+            "value": "Basic anBvbG1hbjFAZm9yZC5jb206QVRBVFQzeEZmR0YwdnVfWFBhSHZicjhqWkxCY0FGZ2NWZmNPUHYxUzhFQWpBbWQtbG10T3hCZGNPMnNBS1F0c2liZi02MWdyeVJYQ1l3elRtNGIxWXM5WjhBU1dnV3ZwVEkxdFFRS09kY1k1WE1xTUpuX2tDU1BGMEp0MmhlWjFRQjBpNTd6dW1aRTNGdnlNa0UwZllqaXcxWHY3SlpXOGpGUkh6S21WazF5ZGxqaDdZRTJjX1prPTlGQkE1NDU5"
+          }
+        ],
+        "method": "GET",
+        "responseEnabled": true,
+        "sendIssue": false,
+        "url": "https://ford-advev.atlassian.net/rest/api/3/project/ATT/role/10008",
+        "urlSecure": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "713409840",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1747856278864",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "dev"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{webhookResponse}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "713409844",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.outgoing.webhook",
+      "value": {
+        "contentType": "empty",
+        "continueOnErrorEnabled": false,
+        "customBody": "{\n  \"user\": [\n    \"{{issue.reporter}}\"\n  ]\n}",
+        "headers": [
+          {
+            "headerSecure": false,
+            "id": "_header_1699931012220",
+            "name": "Accept",
+            "value": "application/json"
+          },
+          {
+            "headerSecure": false,
+            "id": "_header_1699931470666",
+            "name": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "headerSecure": false,
+            "id": "_header_1699931494446",
+            "name": "Authorization",
+            "value": "Basic anBvbG1hbjFAZm9yZC5jb206QVRBVFQzeEZmR0YwdnVfWFBhSHZicjhqWkxCY0FGZ2NWZmNPUHYxUzhFQWpBbWQtbG10T3hCZGNPMnNBS1F0c2liZi02MWdyeVJYQ1l3elRtNGIxWXM5WjhBU1dnV3ZwVEkxdFFRS09kY1k1WE1xTUpuX2tDU1BGMEp0MmhlWjFRQjBpNTd6dW1aRTNGdnlNa0UwZllqaXcxWHY3SlpXOGpGUkh6S21WazF5ZGxqaDdZRTJjX1prPTlGQkE1NDU5"
+          }
+        ],
+        "method": "GET",
+        "responseEnabled": true,
+        "sendIssue": false,
+        "url": "https://ford-advev.atlassian.net/rest/api/3/project/ATT/role/10002",
+        "urlSecure": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "713409845",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1747856278864",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "admin"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{webhookResponse}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "713409841",
+              "parentId": "713410353",
+              "schemaVersion": 1,
+              "type": "jira.issue.outgoing.webhook",
+              "value": {
+                "contentType": "empty",
+                "continueOnErrorEnabled": false,
+                "customBody": "{\n  \"user\": [\n    \"{{issue.reporter}}\"\n  ]\n}",
+                "headers": [
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1699931012220",
+                    "name": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1699931470666",
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1699931494446",
+                    "name": "Authorization",
+                    "value": "Basic anBvbG1hbjFAZm9yZC5jb206QVRBVFQzeEZmR0YwdnVfWFBhSHZicjhqWkxCY0FGZ2NWZmNPUHYxUzhFQWpBbWQtbG10T3hCZGNPMnNBS1F0c2liZi02MWdyeVJYQ1l3elRtNGIxWXM5WjhBU1dnV3ZwVEkxdFFRS09kY1k1WE1xTUpuX2tDU1BGMEp0MmhlWjFRQjBpNTd6dW1aRTNGdnlNa0UwZllqaXcxWHY3SlpXOGpGUkh6S21WazF5ZGxqaDdZRTJjX1prPTlGQkE1NDU5"
+                  }
+                ],
+                "method": "DELETE",
+                "responseEnabled": true,
+                "sendIssue": false,
+                "url": "https://ford-advev.atlassian.net/rest/api/3/project/ATT/role/10008?user=712020:b3ce70e6-7267-48b5-b3ea-56a554b0f4d0",
+                "urlSecure": false
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "713409842",
+              "parentId": "713410353",
+              "schemaVersion": 5,
+              "type": "jira.issue.outgoing.email",
+              "value": {
+                "bcc": [],
+                "body": "Dante has been found in the Admin project role and has been removed succesfully.  This tool can not check what placed him in that role, please check Jira system audit log to confirm how this happened.",
+                "cc": [],
+                "convertLineBreaks": true,
+                "fromName": "",
+                "mimeType": "text/html",
+                "replyTo": "",
+                "subject": "Dante has been removed from ATT",
+                "to": [
+                  {
+                    "type": "FREE",
+                    "value": "jpolman1@ford.com"
+                  },
+                  {
+                    "type": "FREE",
+                    "value": "cklein50@ford.com"
+                  },
+                  {
+                    "type": "FREE",
+                    "value": "rkhatcha@ford.com"
+                  }
+                ]
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "713410353",
+              "conditions": [],
+              "connectionId": null,
+              "id": "713410354",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{dev}}",
+                "operator": "CONTAINS",
+                "second": "712020:b3ce70e6-7267-48b5-b3ea-56a554b0f4d0"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "713410353",
+          "parentId": "713410352",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "713410352",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "713409847",
+              "parentId": "713410356",
+              "schemaVersion": 1,
+              "type": "jira.issue.outgoing.webhook",
+              "value": {
+                "contentType": "empty",
+                "continueOnErrorEnabled": false,
+                "customBody": "{\n  \"user\": [\n    \"{{issue.reporter}}\"\n  ]\n}",
+                "headers": [
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1699931012220",
+                    "name": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1699931470666",
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1699931494446",
+                    "name": "Authorization",
+                    "value": "Basic anBvbG1hbjFAZm9yZC5jb206QVRBVFQzeEZmR0YwdnVfWFBhSHZicjhqWkxCY0FGZ2NWZmNPUHYxUzhFQWpBbWQtbG10T3hCZGNPMnNBS1F0c2liZi02MWdyeVJYQ1l3elRtNGIxWXM5WjhBU1dnV3ZwVEkxdFFRS09kY1k1WE1xTUpuX2tDU1BGMEp0MmhlWjFRQjBpNTd6dW1aRTNGdnlNa0UwZllqaXcxWHY3SlpXOGpGUkh6S21WazF5ZGxqaDdZRTJjX1prPTlGQkE1NDU5"
+                  }
+                ],
+                "method": "DELETE",
+                "responseEnabled": true,
+                "sendIssue": false,
+                "url": "https://ford-advev.atlassian.net/rest/api/3/project/ATT/role/10002?user=712020:b3ce70e6-7267-48b5-b3ea-56a554b0f4d0",
+                "urlSecure": false
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "713409848",
+              "parentId": "713410356",
+              "schemaVersion": 5,
+              "type": "jira.issue.outgoing.email",
+              "value": {
+                "bcc": [],
+                "body": "Dante has been found in the Admin project role and has been removed succesfully.  This tool can not check what placed him in that role, please check Jira system audit log to confirm how this happened.",
+                "cc": [],
+                "convertLineBreaks": true,
+                "fromName": "",
+                "mimeType": "text/html",
+                "replyTo": "",
+                "subject": "Dante has been removed from ATT",
+                "to": [
+                  {
+                    "type": "FREE",
+                    "value": "jpolman1@ford.com"
+                  },
+                  {
+                    "type": "FREE",
+                    "value": "cklein50@ford.com"
+                  }
+                ]
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "713410356",
+              "conditions": [],
+              "connectionId": null,
+              "id": "713410357",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{admin}}",
+                "operator": "CONTAINS",
+                "second": "712020:b3ce70e6-7267-48b5-b3ea-56a554b0f4d0"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "713410356",
+          "parentId": "713410355",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "713410355",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1747855025347,
+  "description": "",
+  "id": 28631563,
+  "idUuid": "0196f447-24c3-7fd2-8c06-66f54ba3d74b",
+  "labels": [
+    758924,
+    911815
+  ],
+  "name": "Project Access Auditor - Dante",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "713406837",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "nosearch",
+      "jql": "issuetype = \"ADVEV Access\" and Status = \"Access Check\" and \"Employee Type\" = Internal",
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "0 0 9,13 ? * MON-FRI",
+        "method": "CRON",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/Denver:20240402T170355\nRRULE:FREQ=HOURLY;INTERVAL=1;BYSECOND=0\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1747859808596,
+  "writeAccessType": "SPECIFIED_USERS"
+}

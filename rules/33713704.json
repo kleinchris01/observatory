@@ -1,0 +1,435 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:9b52b270-bb29-4f87-880d-7c4412cc01b8",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "ee0a2a67-1904-4abf-a793-f6e06c2418bf",
+              "parentId": "730d8b54-0be0-4ea6-92be-cef55ad7ab22",
+              "schemaVersion": 5,
+              "type": "jira.issue.assign",
+              "value": {
+                "assignType": "SPECIFY_USER",
+                "assignee": {
+                  "type": "ID",
+                  "value": "712020:922add9f-493d-4b05-8ef7-816db7d6f87d"
+                },
+                "excludedUsers": [],
+                "fieldToCopy": null,
+                "group": null,
+                "issueToCopy": null,
+                "itsmOpsOncall": null,
+                "jql": null,
+                "listAssignMethod": null,
+                "peopleTeamsCustomFieldId": null,
+                "restrictedToGroup": null,
+                "role": null,
+                "smartValue": null,
+                "userList": []
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "730d8b54-0be0-4ea6-92be-cef55ad7ab22",
+              "conditions": [],
+              "connectionId": null,
+              "id": "c8e50a65-355b-4345-8b74-fa25f83acdbe",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "APG (Arizona Proving Grounds)"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Test Location"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "730d8b54-0be0-4ea6-92be-cef55ad7ab22",
+          "parentId": "d5f1df50-a5bd-40ce-bdca-9551931adfcd",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "7919d462-25b2-4b24-bb66-647fcc345a90",
+              "parentId": "86e85118-7c10-4c6f-ae2c-8ce5f98247a7",
+              "schemaVersion": 5,
+              "type": "jira.issue.assign",
+              "value": {
+                "assignType": "SPECIFY_USER",
+                "assignee": {
+                  "type": "ID",
+                  "value": "60f9b85b33876e0068ef12f0"
+                },
+                "excludedUsers": [],
+                "fieldToCopy": null,
+                "group": null,
+                "issueToCopy": null,
+                "itsmOpsOncall": null,
+                "jql": null,
+                "listAssignMethod": null,
+                "peopleTeamsCustomFieldId": null,
+                "restrictedToGroup": null,
+                "role": null,
+                "smartValue": null,
+                "userList": []
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "86e85118-7c10-4c6f-ae2c-8ce5f98247a7",
+              "conditions": [],
+              "connectionId": null,
+              "id": "18d1c45a-ad0e-47d3-afc1-d286b4ebe033",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "GFL-D (Palo Alto, CA)"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Test Location"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "86e85118-7c10-4c6f-ae2c-8ce5f98247a7",
+          "parentId": "d5f1df50-a5bd-40ce-bdca-9551931adfcd",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "8a40f2ec-f873-4edd-9377-e3494a99a135",
+              "parentId": "15807e9b-f2ec-409c-a00b-3be3be20cc5a",
+              "schemaVersion": 5,
+              "type": "jira.issue.assign",
+              "value": {
+                "assignType": "SPECIFY_USER",
+                "assignee": {
+                  "type": "ID",
+                  "value": "712020:9a3c4f45-409e-4856-8c4f-c6a70e3d48b4"
+                },
+                "excludedUsers": [],
+                "fieldToCopy": null,
+                "group": null,
+                "issueToCopy": null,
+                "itsmOpsOncall": null,
+                "jql": null,
+                "listAssignMethod": null,
+                "peopleTeamsCustomFieldId": null,
+                "restrictedToGroup": null,
+                "role": null,
+                "smartValue": null,
+                "userList": []
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "15807e9b-f2ec-409c-a00b-3be3be20cc5a",
+              "conditions": [],
+              "connectionId": null,
+              "id": "aded6cda-abf1-429e-9ff8-0a6d29d567cf",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "EVDC (Long Beach, CA)"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Test Location"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "15807e9b-f2ec-409c-a00b-3be3be20cc5a",
+          "parentId": "d5f1df50-a5bd-40ce-bdca-9551931adfcd",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "9b500484-c080-41ff-b0d4-dfa5036ffe37",
+              "parentId": "57b8719f-5116-4dd0-be4f-d4435e89bff2",
+              "schemaVersion": 5,
+              "type": "jira.issue.assign",
+              "value": {
+                "assignType": "SPECIFY_USER",
+                "assignee": {
+                  "type": "ID",
+                  "value": "60f9b85b33876e0068ef12f0"
+                },
+                "excludedUsers": [],
+                "fieldToCopy": null,
+                "group": null,
+                "issueToCopy": null,
+                "itsmOpsOncall": null,
+                "jql": null,
+                "listAssignMethod": null,
+                "peopleTeamsCustomFieldId": null,
+                "restrictedToGroup": null,
+                "role": null,
+                "smartValue": null,
+                "userList": []
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "520a104c-f8c4-4f94-99e4-133b63bff0d6",
+              "parentId": "57b8719f-5116-4dd0-be4f-d4435e89bff2",
+              "schemaVersion": 1,
+              "type": "action.wait.for.time.duration",
+              "value": {
+                "randomWaitInterval": null,
+                "waitTimeInSeconds": 15
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "d9a1e80a-4248-4678-ba8a-ebc7852e2034",
+              "parentId": "57b8719f-5116-4dd0-be4f-d4435e89bff2",
+              "schemaVersion": 1,
+              "type": "action.send-templated-email",
+              "value": {
+                "cc": [
+                  {
+                    "type": "COPY",
+                    "value": "assignee"
+                  }
+                ],
+                "convertLineBreaks": false,
+                "legacyConfig": true,
+                "sendGroupedEmails": true,
+                "templateContextData": {
+                  "body": "Hello, {{issue.reporter.displayName}}  \n\nThis is a confirmation that your Travel Request ({{issue.key}}) has been successfully created.\n\nIssue Details:\n- **Issue Key & Summary:** {{issue.key}} — {{issue.summary}}  \n- **Test Location** {{issue.Test Location}} \n- **Arrival Date** {{issue.start date}}  \n\n- **If there are any questions or changes to your request contact:** {{issue.assignee.displayName}}  \n\nYou can view the issue here: {{issue.toUrl}}\n",
+                  "bodyType": "HTML",
+                  "emailName": "Travel Request Confirmation",
+                  "fromEmailAddress": "jira@ford-advev.atlassian.net",
+                  "fromName": "",
+                  "subject": "Travel Request Confirmation to {{issue.Test Location}} "
+                },
+                "to": [
+                  {
+                    "additional": "INITIATOR",
+                    "type": "REFERENCE",
+                    "value": "INITIATOR"
+                  }
+                ]
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "57b8719f-5116-4dd0-be4f-d4435e89bff2",
+              "conditions": [],
+              "connectionId": null,
+              "id": "e81c7532-3e55-4b96-bef0-ce5a7e296bac",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "MPG (Michigan Proving Ground)"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Test Location"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "57b8719f-5116-4dd0-be4f-d4435e89bff2",
+          "parentId": "d5f1df50-a5bd-40ce-bdca-9551931adfcd",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "d5f1df50-a5bd-40ce-bdca-9551931adfcd",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1782143273444,
+  "description": "",
+  "id": 33713704,
+  "idUuid": "019ef004-49e4-7b4c-9df0-6d905374e193",
+  "labels": [],
+  "name": "PVFM Travel Request assignment & Email Confirmation",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "9170f89e-f9b3-43f1-9127-987d487526cf",
+        "conditions": [],
+        "connectionId": null,
+        "id": "b33628ad-9aa1-40d6-8605-4a747821054a",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "13430"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "9170f89e-f9b3-43f1-9127-987d487526cf",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1782144912588,
+  "writeAccessType": "UNRESTRICTED"
+}

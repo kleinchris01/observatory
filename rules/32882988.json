@@ -1,0 +1,89 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "712020:a5106eb0-ee8a-4483-9412-763feaa0ef93"
+  },
+  "authorAccountId": "712020:897adc12-97c1-4e79-a8a9-93d2367c358c",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "58894457-4686-4566-a405-e6db47a48969",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Change Type"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "SET",
+            "value": {
+              "type": "NAME",
+              "value": "Manufacturing Process/Quality"
+            }
+          }
+        ],
+        "sendNotifications": false
+      }
+    }
+  ],
+  "created": 1776268874783,
+  "description": "",
+  "id": 32882988,
+  "idUuid": "019d91e0-141f-738f-a19b-1f7efe4bd2b6",
+  "labels": [],
+  "name": "Update_Mismatch_Summary_SIMPSN",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "ddd153ac-1a30-4f3c-a8b6-d6a9cbaab6b1",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "key in (ECM-1132)",
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=Asia/Calcutta:20260415T221733\nRRULE:FREQ=WEEKLY;BYHOUR=9;BYMINUTE=0;BYSECOND=0;BYDAY=WE;INTERVAL=1\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1776271869020,
+  "writeAccessType": "OWNER_ONLY"
+}

@@ -1,0 +1,112 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "565390699",
+          "parentId": "565390698",
+          "schemaVersion": 5,
+          "type": "jira.issue.outgoing.email",
+          "value": {
+            "bcc": [],
+            "body": "{{filterList}}",
+            "cc": [],
+            "convertLineBreaks": true,
+            "fromName": "",
+            "mimeType": "text/html",
+            "replyTo": "",
+            "subject": "Test Filter",
+            "to": [
+              {
+                "type": "FREE",
+                "value": "advev-dassault-contractors@groups.ford.com"
+              }
+            ]
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "565390698",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.smart.values.branch",
+      "value": {
+        "id": "_customsmartvalue_id_1704951117732",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "filterList"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{issue.key}}"
+        },
+        "type": "SMART"
+      }
+    }
+  ],
+  "created": 1704951232058,
+  "description": "",
+  "id": 17264052,
+  "idUuid": "018cf703-363a-736d-9601-755bf13b7af4",
+  "labels": [],
+  "name": "Contractors filter email",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "565390697",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "assignee = advev-dassault-contractors",
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/Los_Angeles:20240110T213137\nRRULE:FREQ=DAILY;BYHOUR=9;BYMINUTE=0;BYSECOND=0;INTERVAL=1\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1704951232058,
+  "writeAccessType": "UNRESTRICTED"
+}

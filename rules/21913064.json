@@ -1,0 +1,231 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:363be9ef-0a71-463d-b9ea-bdf9f8fb9249",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "591490619",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": null,
+          "type": "ID",
+          "value": "10022"
+        },
+        "comparison": "EQUALS",
+        "selectedField": {
+          "type": "ID",
+          "value": "issuetype"
+        },
+        "selectedFieldType": "issuetype"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "591490621",
+          "parentId": "591490620",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": null,
+            "comparison": "EMPTY",
+            "selectedField": {
+              "type": "ID",
+              "value": "labels"
+            },
+            "selectedFieldType": "labels"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "591490622",
+          "parentId": "591490620",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "labels"
+                },
+                "fieldType": "labels",
+                "type": "COPY",
+                "value": {
+                  "copyOptions": [
+                    "ADD"
+                  ],
+                  "sourceField": {
+                    "fieldType": "labels",
+                    "type": "ID",
+                    "value": "labels"
+                  },
+                  "sourceIssue": "parent"
+                }
+              }
+            ],
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "591490620",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "591490624",
+          "parentId": "591490623",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": null,
+            "comparison": "EMPTY",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Area"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "591490625",
+          "parentId": "591490623",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Area"
+                },
+                "fieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype",
+                "type": "COPY",
+                "value": {
+                  "copyOptions": [],
+                  "sourceField": {
+                    "fieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype",
+                    "type": "NAME",
+                    "value": "Area"
+                  },
+                  "sourceIssue": "parent"
+                }
+              }
+            ],
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "591490623",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1726494394589,
+  "description": "",
+  "id": 21913064,
+  "idUuid": "0191fb15-c8dd-79c8-ae5b-3192ae3b31eb",
+  "labels": [],
+  "name": "When new sub-task created Copy fields area from patent down to sub-task",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10042"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10042"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "591490618",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10042"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1726496132732,
+  "writeAccessType": "UNRESTRICTED"
+}

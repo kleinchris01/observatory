@@ -1,0 +1,269 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:c9c3dfc4-eef5-4087-8b1a-8ee188485a9b",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "75321910-0eab-45a9-9c4f-47fed255255f",
+          "parentId": "1d31f6ae-b481-4329-8c9c-b838e9ae7c05",
+          "schemaVersion": 1,
+          "type": "jira.lookup.issues",
+          "value": {
+            "id": "_customsmartvalue_id_1773979410690",
+            "lazy": false,
+            "name": {
+              "type": "FREE",
+              "value": "lookupIssues"
+            },
+            "query": {
+              "type": "SMART",
+              "value": "parent = {{issue.key}}"
+            },
+            "type": "JQL"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "16574b70-d8fe-4ba6-a485-5aa4bd8f21cf",
+          "parentId": "1d31f6ae-b481-4329-8c9c-b838e9ae7c05",
+          "schemaVersion": 1,
+          "type": "jira.create.variable",
+          "value": {
+            "id": "_customsmartvalue_id_1773982532497",
+            "lazy": false,
+            "name": {
+              "type": "FREE",
+              "value": "TotalCount"
+            },
+            "query": {
+              "type": "SMART",
+              "value": "{{lookupIssues.size}}"
+            },
+            "type": "SMART"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "8d66312c-bb80-4d41-b6c4-659dfaebd221",
+          "parentId": "1d31f6ae-b481-4329-8c9c-b838e9ae7c05",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "{{TotalCount}}"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "dce0b5aa-93ec-4f41-9e98-1835555196b4",
+          "parentId": "1d31f6ae-b481-4329-8c9c-b838e9ae7c05",
+          "schemaVersion": 1,
+          "type": "jira.lookup.issues",
+          "value": {
+            "id": "_customsmartvalue_id_1773979456291",
+            "lazy": false,
+            "name": {
+              "type": "FREE",
+              "value": "lookupIssues"
+            },
+            "query": {
+              "type": "SMART",
+              "value": "parent = {{issue.key}} AND status = Done"
+            },
+            "type": "JQL"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "dc925dda-e291-442c-8587-81c0ebca75d6",
+          "parentId": "1d31f6ae-b481-4329-8c9c-b838e9ae7c05",
+          "schemaVersion": 1,
+          "type": "jira.create.variable",
+          "value": {
+            "id": "_customsmartvalue_id_1773982680138",
+            "lazy": false,
+            "name": {
+              "type": "FREE",
+              "value": "DoneCount"
+            },
+            "query": {
+              "type": "SMART",
+              "value": "{{lookupIssues.size}}"
+            },
+            "type": "SMART"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "f6c69d3c-0fb1-4fed-a3eb-fbb3eb30a52a",
+          "parentId": "1d31f6ae-b481-4329-8c9c-b838e9ae7c05",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "{{DoneCount}}"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "3ccddc80-9e08-4e95-b7af-4d312244cdf3",
+          "parentId": "1d31f6ae-b481-4329-8c9c-b838e9ae7c05",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Child Completion %"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+                "type": "SET",
+                "value": " {{#=}}{{DoneCount}} / {{TotalCount}}{{/}} "
+              }
+            ],
+            "sendNotifications": true
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "030690b1-bdef-457d-92db-925d1bd11d07",
+          "parentId": "1d31f6ae-b481-4329-8c9c-b838e9ae7c05",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": " {{#=}}{{DoneCount}} / {{TotalCount}}{{/}} "
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "1d31f6ae-b481-4329-8c9c-b838e9ae7c05",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "parent",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1773983698450,
+  "description": "When Sub tasks under a Parent move away from Done to other status, calculate the % Completion of sub tasks for the parent.",
+  "id": 32516841,
+  "idUuid": "019d09ab-0f14-70b6-9060-b1f17739e5cd",
+  "labels": [
+    1047628
+  ],
+  "name": "Set Child Completion % for parent based on Child (subtasks) move from Done to other status",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10584"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10584"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "d46a8b37-3778-4407-865b-fdf8af6f7ff5",
+        "conditions": [],
+        "connectionId": null,
+        "id": "a6496f50-8bb5-4ba3-a27b-eac87a3934c2",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "10022"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "d46a8b37-3778-4407-865b-fdf8af6f7ff5",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:transitioned",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10584"
+      ],
+      "eventKey": "jira:issue_updated",
+      "fromStatus": [
+        {
+          "type": "NAME",
+          "value": "Done"
+        }
+      ],
+      "issueEvent": "issue_generic",
+      "toStatus": []
+    }
+  },
+  "updated": 1773983719155,
+  "writeAccessType": "OWNER_ONLY"
+}

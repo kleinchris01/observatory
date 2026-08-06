@@ -1,0 +1,120 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": "6fcb17ca-ec04-46aa-9cd0-bdce0a5bb473",
+      "id": "163862af-4d37-4ff2-9e5f-672628c69180",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "ai.generate-response.action",
+      "value": {
+        "prompt": "Please generate a comment mentioning the user in the {{issue.customfield_21669}} that this ticket has been flagged as ready for implementation"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "afbfb3a4-f1ab-4f3e-9918-5dbd30a45a86",
+      "parentId": null,
+      "schemaVersion": 2,
+      "type": "jira.issue.comment",
+      "value": {
+        "addCommentOnce": true,
+        "comment": "{{rovoResponse}}",
+        "commentVisibility": null,
+        "publicComment": false,
+        "sendNotifications": true
+      }
+    }
+  ],
+  "created": 1782748556615,
+  "description": "",
+  "id": 33761771,
+  "idUuid": "019f1418-2d47-7383-978a-6e795615369f",
+  "labels": [],
+  "name": "Add comment to notify IT assignee",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11475"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11475"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "623cefe2-4d3f-4de1-834d-6935c4ecf579",
+        "conditions": [],
+        "connectionId": null,
+        "id": "60568fc8-3c25-45c5-9df4-d5d76f22df97",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": true,
+            "source": null,
+            "type": "ID",
+            "value": "[\"712020:85f2fb94-1e54-45c4-a961-b4af65b3ae3c\"]"
+          },
+          "comparison": "NOT_ONE_OF",
+          "selectedField": {
+            "type": "NAME",
+            "value": "IT Assignee"
+          },
+          "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "623cefe2-4d3f-4de1-834d-6935c4ecf579",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11475"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "IT Assignee"
+        }
+      ]
+    }
+  },
+  "updated": 1783454713446,
+  "writeAccessType": "OWNER_ONLY"
+}

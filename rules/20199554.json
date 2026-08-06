@@ -1,0 +1,446 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "602018753",
+          "parentId": "602018752",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": true,
+              "source": null,
+              "type": "NAME",
+              "value": "[\"Program\"]"
+            },
+            "comparison": "CONTAINS_ANY",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Build Approvers"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "602018754",
+          "parentId": "602018752",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Reviewers"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                "type": "SET",
+                "value": [
+                  {
+                    "type": "ID",
+                    "value": "62a4d5e61be00a0068b03ee9"
+                  }
+                ]
+              }
+            ],
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "602018752",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "602018756",
+          "parentId": "602018755",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": true,
+              "source": null,
+              "type": "NAME",
+              "value": "[\"Integration\"]"
+            },
+            "comparison": "CONTAINS_ANY",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Build Approvers"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "602018757",
+          "parentId": "602018755",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Reviewers"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                "type": "SET",
+                "value": [
+                  {
+                    "type": "ID",
+                    "value": "712020:7be31c63-856d-4a44-a903-b8e09bbd5e22"
+                  }
+                ]
+              }
+            ],
+            "sendNotifications": false
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "602018755",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "602018759",
+          "parentId": "602018758",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": true,
+              "source": null,
+              "type": "NAME",
+              "value": "[\"Purchasing\"]"
+            },
+            "comparison": "CONTAINS_ANY",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Build Approvers"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "602018760",
+          "parentId": "602018758",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Reviewers"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                "type": "SET",
+                "value": [
+                  {
+                    "type": "ID",
+                    "value": "6206e7cb1fec260068c36e1e"
+                  }
+                ]
+              }
+            ],
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "602018758",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "602018762",
+          "parentId": "602018761",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": true,
+              "source": null,
+              "type": "NAME",
+              "value": "[\"Finance\"]"
+            },
+            "comparison": "CONTAINS_ANY",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Build Approvers"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "602018763",
+          "parentId": "602018761",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Reviewers"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                "type": "SET",
+                "value": [
+                  {
+                    "type": "ID",
+                    "value": "712020:06362a5c-9212-4627-817b-1413648200dd"
+                  }
+                ]
+              }
+            ],
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "602018761",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "602018765",
+          "parentId": "602018764",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": true,
+              "source": null,
+              "type": "NAME",
+              "value": "[\"TDM\"]"
+            },
+            "comparison": "CONTAINS_ANY",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Build Approvers"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "602018766",
+          "parentId": "602018764",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Reviewers"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                "type": "SET",
+                "value": [
+                  {
+                    "type": "ID",
+                    "value": "712020:9c5d62e4-d831-4974-9a13-4bccfc4b97ef"
+                  }
+                ]
+              }
+            ],
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "602018764",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1719534564637,
+  "description": "",
+  "id": 20199554,
+  "idUuid": "01905c3f-351d-7cf9-916f-9caa5760db9e",
+  "labels": [],
+  "name": "Update Reviewers",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10097"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10097"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "602018751",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "VALUE_ADDED",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10097"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Build Approvers"
+        }
+      ]
+    }
+  },
+  "updated": 1727896047023,
+  "writeAccessType": "UNRESTRICTED"
+}

@@ -1,0 +1,147 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:9b52b270-bb29-4f87-880d-7c4412cc01b8",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [
+    "712020:9b52b270-bb29-4f87-880d-7c4412cc01b8",
+    "712020:fde609ac-4e54-4959-81dc-aee37494db64",
+    "712020:6a112087-baee-4101-a6ee-f8884fad3cdc",
+    "62a4d77e451c00006968630f"
+  ],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "45004384-10ad-4402-9493-b70b6e3249e6",
+          "parentId": "b5f18ee1-17dd-4a12-a06e-cfb6cad8e98e",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Testing Location"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:labels",
+                "type": "COPY",
+                "value": {
+                  "copyOptions": [],
+                  "sourceField": {
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:labels",
+                    "type": "NAME",
+                    "value": "Testing Location"
+                  },
+                  "sourceIssue": "current"
+                }
+              }
+            ],
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "b5f18ee1-17dd-4a12-a06e-cfb6cad8e98e",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "subtasks",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1785521537124,
+  "description": "",
+  "id": 34074616,
+  "idUuid": "019fb960-8064-76f9-ac26-107832730e3a",
+  "labels": [],
+  "name": "Copies Testing Location Field  from TEST REQUEST issues ==> Experiment Subtasks",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13578"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13578"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "095464de-abed-4899-84d4-b5b61d88495d",
+        "conditions": [],
+        "connectionId": null,
+        "id": "8e2bf517-7cdd-4a04-b475-96686abc1bea",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "10111"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "095464de-abed-4899-84d4-b5b61d88495d",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13578"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Testing Location"
+        }
+      ]
+    }
+  },
+  "updated": 1785521537124,
+  "writeAccessType": "SPECIFIED_USERS"
+}

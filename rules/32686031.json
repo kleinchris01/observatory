@@ -1,0 +1,97 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:7b1a40d2-238f-459b-84d8-a79358548d83",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "93d26a39-6ded-439c-a4f7-9cd6cf94e66d",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "Recipient/s: {{webhookData.emailAddress}} | Subject: {{webhookData.subject}}"
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "94e247c7-f97c-4c45-858a-677f8839cc03",
+      "parentId": null,
+      "schemaVersion": 5,
+      "type": "jira.issue.outgoing.email",
+      "value": {
+        "bcc": [],
+        "body": "{{webhookData.emailBody}}",
+        "cc": [],
+        "convertLineBreaks": true,
+        "fromName": "",
+        "mimeType": "text/html",
+        "replyTo": "",
+        "subject": "{{webhookData.subject}}",
+        "to": [
+          {
+            "type": "SMART",
+            "value": "{{webhookData.emailAddress}}"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1775021761395,
+  "description": "",
+  "id": 32686031,
+  "idUuid": "019d478a-a373-7aec-a2ea-6e86cb0cef9a",
+  "labels": [],
+  "name": "SOLVE: Webhook to Trigger Email",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [
+    {
+      "tagType": "WEBHOOK_TOKEN",
+      "tagValue": "[[REDACTED:a087041b]]"
+    }
+  ],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "7f93bd31-4b6d-49b4-93de-4b8c27b2bc0d",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.incoming.webhook",
+    "value": {
+      "jql": null,
+      "searchOrProvide": "none",
+      "webhookToken": "[[REDACTED:a087041b]]"
+    }
+  },
+  "updated": 1775021841189,
+  "writeAccessType": "OWNER_ONLY"
+}

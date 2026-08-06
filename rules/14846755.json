@@ -1,0 +1,249 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555667606",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.create",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": "Recruiter Notes - {{triggerIssue.summary}}"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "project"
+            },
+            "fieldType": "project",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "fieldType": "issuetype",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10052"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "assignee"
+            },
+            "fieldType": "assignee",
+            "type": "SET",
+            "value": {
+              "type": "SMART",
+              "value": "{{triggerIssue.Recruiter}}"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Recruiter Notes"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+            "type": "SET",
+            "value": "Please input your private notes here."
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Hiring Manager"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                "type": "NAME",
+                "value": "Hiring Manager"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Recruiter"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                "type": "NAME",
+                "value": "Recruiter"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "security"
+            },
+            "fieldType": "security",
+            "type": "SET",
+            "value": {
+              "type": "NAME",
+              "value": "Private Notes"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Recruiting Coordinator"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                "type": "NAME",
+                "value": "Recruiting Coordinator"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "LinkedIn Profile"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:url",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:url",
+                "type": "NAME",
+                "value": "LinkedIn Profile"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuelinks"
+            },
+            "fieldType": "issuelinks",
+            "type": "SET",
+            "value": {
+              "issue": {
+                "type": "COPY",
+                "value": "trigger"
+              },
+              "linkType": "outward:10015"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Epic Link"
+            },
+            "fieldType": "com.pyxis.greenhopper.jira:gh-epic-link",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "trigger"
+            }
+          }
+        ],
+        "sendNotifications": false
+      }
+    }
+  ],
+  "created": 1694842758035,
+  "description": "",
+  "id": 14846755,
+  "idUuid": "018a9c80-2393-72f5-9ea5-3d0f30d8aa9a",
+  "labels": [
+    423960
+  ],
+  "name": "Recruiter Private Notes",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10041",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10016"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "555667605",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:transitioned",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10016",
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10041"
+      ],
+      "eventKey": "jira:issue_updated",
+      "fromStatus": [
+        {
+          "type": "NAME",
+          "value": "Application Review"
+        }
+      ],
+      "issueEvent": "issue_generic",
+      "toStatus": [
+        {
+          "type": "NAME",
+          "value": "Recruiter Screen"
+        }
+      ]
+    }
+  },
+  "updated": 1695948574865,
+  "writeAccessType": "UNRESTRICTED"
+}

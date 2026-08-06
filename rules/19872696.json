@@ -1,0 +1,298 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "669177260",
+          "parentId": "669177259",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "ID",
+              "value": "10022"
+            },
+            "comparison": "NOT_EQUAL",
+            "selectedField": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "selectedFieldType": "issuetype"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "669177261",
+          "parentId": "669177259",
+          "schemaVersion": 1,
+          "type": "jira.issues.related.condition",
+          "value": {
+            "compareJql": "",
+            "compareValue": 0,
+            "jql": "",
+            "linkTypes": [],
+            "operator": "present",
+            "relatedJql": "",
+            "relatedType": "parent",
+            "similarityLimit": 40
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "669177262",
+          "parentId": "669177259",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": null,
+            "comparison": "EMPTY",
+            "selectedField": {
+              "type": "ID",
+              "value": "components"
+            },
+            "selectedFieldType": "components"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "669177263",
+          "parentId": "669177259",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "components"
+                },
+                "fieldType": "components",
+                "type": "COPY",
+                "value": {
+                  "copyOptions": [
+                    "ADD"
+                  ],
+                  "sourceField": {
+                    "fieldType": "components",
+                    "type": "ID",
+                    "value": "components"
+                  },
+                  "sourceIssue": "parent"
+                }
+              }
+            ],
+            "sendNotifications": false
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "669177259",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "669177265",
+          "parentId": "669177264",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": null,
+            "comparison": "EMPTY",
+            "selectedField": {
+              "type": "ID",
+              "value": "components"
+            },
+            "selectedFieldType": "components"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "669177266",
+          "parentId": "669177264",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "ID",
+              "value": "10022"
+            },
+            "comparison": "NOT_EQUAL",
+            "selectedField": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "selectedFieldType": "issuetype"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "669177267",
+          "parentId": "669177264",
+          "schemaVersion": 1,
+          "type": "jira.issues.related.condition",
+          "value": {
+            "compareJql": "",
+            "compareValue": 0,
+            "jql": "",
+            "linkTypes": [],
+            "operator": "notpresent",
+            "relatedJql": "",
+            "relatedType": "parent",
+            "similarityLimit": 40
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "669177268",
+          "parentId": "669177264",
+          "schemaVersion": 5,
+          "type": "jira.issue.outgoing.email",
+          "value": {
+            "bcc": [],
+            "body": "Hello,\n\nPlease populate the Component field on {{issue.key}}, otherwise, your issue will not be included in any of the boards.\n\n<a href=\"{{issue.toUrl}}\">{{issue.summary}}</a>\n\nAutomation for Jira",
+            "cc": [],
+            "convertLineBreaks": true,
+            "fromName": "",
+            "mimeType": "text/html",
+            "replyTo": "",
+            "subject": "{{issue.summary}} - {{issue.key}} Component is missing",
+            "to": [
+              {
+                "type": "COPY",
+                "value": "assignee"
+              },
+              {
+                "type": "COPY",
+                "value": "reporter"
+              }
+            ]
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "669177264",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1718061903586,
+  "description": "",
+  "id": 19872696,
+  "idUuid": "01900478-2ee2-74a9-9df9-d40284733ef5",
+  "labels": [],
+  "name": "1) Inherit Component from Parent",
+  "notifyOnError": "NEVER",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10104",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10120"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "669177258",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10104",
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10120"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1776951524430,
+  "writeAccessType": "UNRESTRICTED"
+}

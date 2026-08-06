@@ -1,0 +1,103 @@
+{
+  "actor": {
+    "type": "EVENT_INITIATOR",
+    "value": null
+  },
+  "authorAccountId": "712020:9b52b270-bb29-4f87-880d-7c4412cc01b8",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "acb0503f-2728-4f02-a675-e0836abbc3fa",
+      "parentId": null,
+      "schemaVersion": 5,
+      "type": "action.send-templated-email",
+      "value": {
+        "cc": [
+          {
+            "type": "FREE",
+            "value": "ekooinga@ford.com"
+          }
+        ],
+        "convertLineBreaks": true,
+        "legacyConfig": true,
+        "sendGroupedEmails": true,
+        "templateContextData": {
+          "body": "Hello {{issue.creator.displayName}},\n\nThe issue {{issue.key}} has been transitioned to the Parking Lot status and does not meet the definition of Ready for Testing.\n\nPlease review the issue details here and update the issue for additional reveiw:\n\n{{issue.customfield_20174}}\n\nLink: {{issue.toUrl}}.\n\nBest regards,\nJIRA Automation ",
+          "bodyType": "HTML",
+          "emailName": "Issue Moved to Parking Lot Status",
+          "fromEmailAddress": "automation@ford-advev.atlassian.net",
+          "fromName": "Jira automation",
+          "subject": "{{issue.key}} Transitioned to \"Parking Lot\" due to being incomplete"
+        },
+        "to": [
+          {
+            "type": "SMART",
+            "value": "{{issue.creator.emailAddress}}"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1773771122888,
+  "description": "This rule notifies the issue creator and the space owner when an issue in the RAP project transitions to the Parking Lot status.",
+  "id": 32472087,
+  "idUuid": "019cfcff-68c8-750f-8771-1f48270a5668",
+  "labels": [],
+  "name": "RAP: Notify Creator and Space Owner on Parking Lot Transition",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13578"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13578"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "5a7b2bea-133f-4fdd-91a9-e9a3b60a8f77",
+    "parentId": null,
+    "schemaVersion": -1,
+    "type": "jira.issue.event.trigger:transitioned",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13578"
+      ],
+      "eventKey": "jira:issue_updated",
+      "fromStatus": [
+        {
+          "type": "NAME",
+          "value": "Triage"
+        }
+      ],
+      "issueEvent": "issue_generic",
+      "toStatus": [
+        {
+          "type": "NAME",
+          "value": "Parking Lot"
+        }
+      ]
+    }
+  },
+  "updated": 1784146211707,
+  "writeAccessType": "UNRESTRICTED"
+}

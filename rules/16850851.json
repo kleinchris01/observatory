@@ -1,0 +1,104 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "63c70cb19d59ec705fec629d",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555680915",
+      "parentId": null,
+      "schemaVersion": 5,
+      "type": "jira.issue.assign",
+      "value": {
+        "assignType": "INITIATOR",
+        "assignee": null,
+        "excludedUsers": [],
+        "fieldToCopy": null,
+        "group": null,
+        "issueToCopy": null,
+        "itsmOpsOncall": null,
+        "jql": null,
+        "listAssignMethod": null,
+        "peopleTeamsCustomFieldId": null,
+        "restrictedToGroup": null,
+        "role": null,
+        "smartValue": null,
+        "userList": []
+      }
+    }
+  ],
+  "created": 1701543198951,
+  "description": null,
+  "id": 16850851,
+  "idUuid": "018c2be0-c0e7-7485-9c27-3b7de909959c",
+  "labels": [],
+  "name": "When an issue is transitioned → then automatically assign",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [
+    {
+      "projectId": "10019",
+      "projectTypeKey": "software"
+    }
+  ],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10019"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10019"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [
+    {
+      "tagType": "CREATION_TYPE",
+      "tagValue": "RECOMMENDED"
+    },
+    {
+      "tagType": "SAMPLE_RULE",
+      "tagValue": "business"
+    },
+    {
+      "tagType": "TEMPLATE_ID",
+      "tagValue": "business_template_1"
+    }
+  ],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "555680913",
+    "parentId": null,
+    "schemaVersion": -1,
+    "type": "jira.issue.event.trigger:transitioned",
+    "value": {
+      "eventKey": "jira:issue_updated",
+      "fromStatus": [],
+      "issueEvent": "issue_generic",
+      "toStatus": [
+        {
+          "type": "ID",
+          "value": "3"
+        }
+      ]
+    }
+  },
+  "updated": 1701543198951,
+  "writeAccessType": "UNRESTRICTED"
+}

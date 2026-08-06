@@ -1,0 +1,372 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:10e644de-d96b-4816-9029-d6cf8f0aec37",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [
+    "712020:10e644de-d96b-4816-9029-d6cf8f0aec37",
+    "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6"
+  ],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "714151510",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1747162512810",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "varLoopValues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "NULL"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "714151511",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1747162694901",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "varLoopValues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{#varLoopValues.rightPad(varLoopValues.length.plus(userInputs.cloneValue), \"X\").remove(\"NULL\").replaceAll(\"X\",\"X,\").substringBeforeLast(\",\").split(\",\")}}{{#=}}{{index}}+1{{/}}{{^last}},{{/}}{{/}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "714151516",
+                  "parentId": "714151515",
+                  "schemaVersion": 1,
+                  "type": "codebarrel.action.log",
+                  "value": "The varLoopVariable is {{varLoopVariable}}"
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "714151517",
+                  "parentId": "714151515",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.clone",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "project"
+                        },
+                        "fieldType": "project",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "issuetype"
+                        },
+                        "fieldType": "issuetype",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "summary"
+                        },
+                        "fieldType": "summary",
+                        "type": "SET",
+                        "value": "{{triggerIssue.summary}}"
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                }
+              ],
+              "component": "BRANCH",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "714151515",
+              "parentId": "714151513",
+              "schemaVersion": 1,
+              "type": "jira.smart.values.branch",
+              "value": {
+                "id": "_customsmartvalue_id_1747163426305",
+                "lazy": false,
+                "name": {
+                  "type": "FREE",
+                  "value": "varLoopVariable"
+                },
+                "query": {
+                  "type": "SMART",
+                  "value": "{{varLoopValues.split(\",\")}}"
+                },
+                "type": "SMART"
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "714151513",
+              "conditions": [],
+              "connectionId": null,
+              "id": "714151514",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{userInputs.cloneTitle}}",
+                "operator": "EQUALS",
+                "second": ""
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "714151513",
+          "parentId": "714151512",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "714151521",
+                  "parentId": "714151520",
+                  "schemaVersion": 1,
+                  "type": "codebarrel.action.log",
+                  "value": "The varLoopVariable is {{varLoopVariable}}"
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "714151522",
+                  "parentId": "714151520",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.clone",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "project"
+                        },
+                        "fieldType": "project",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "issuetype"
+                        },
+                        "fieldType": "issuetype",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "summary"
+                        },
+                        "fieldType": "summary",
+                        "type": "SET",
+                        "value": "{{userInputs.cloneTitle}}"
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                }
+              ],
+              "component": "BRANCH",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "714151520",
+              "parentId": "714151518",
+              "schemaVersion": 1,
+              "type": "jira.smart.values.branch",
+              "value": {
+                "id": "_customsmartvalue_id_1747163384646",
+                "lazy": false,
+                "name": {
+                  "type": "FREE",
+                  "value": "varLoopVariable"
+                },
+                "query": {
+                  "type": "SMART",
+                  "value": "{{varLoopValues.split(\",\")}}"
+                },
+                "type": "SMART"
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "714151518",
+              "conditions": [],
+              "connectionId": null,
+              "id": "714151519",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{userInputs.cloneTitle}}",
+                "operator": "NOT_EQUALS",
+                "second": ""
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "714151518",
+          "parentId": "714151512",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "714151512",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1748364957252,
+  "description": "",
+  "id": 28777979,
+  "idUuid": "019712ac-1645-74ac-92b1-8f5557551c22",
+  "labels": [],
+  "name": "Attack of the Clones 👾",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10125"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10125"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "714151509",
+    "parentId": null,
+    "schemaVersion": 3,
+    "type": "jira.manual.trigger.issue",
+    "value": {
+      "groups": [],
+      "inputFromUsers": true,
+      "inputPrompts": [
+        {
+          "defaultValue": "",
+          "displayName": "Title of Clone? // Leave blank if you want the same name as the trigger issue.",
+          "inputType": "TEXT",
+          "required": false,
+          "variableName": "cloneTitle"
+        },
+        {
+          "defaultValue": 0,
+          "displayName": "How Many Clones? // This will create issues based off this value. [Limit = 500]",
+          "inputType": "NUMBER",
+          "required": true,
+          "variableName": "cloneValue"
+        }
+      ],
+      "issueFilter": null,
+      "jQLFilter": null
+    }
+  },
+  "updated": 1749741183882,
+  "writeAccessType": "SPECIFIED_USERS"
+}

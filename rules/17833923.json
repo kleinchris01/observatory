@@ -1,0 +1,141 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:10e644de-d96b-4816-9029-d6cf8f0aec37",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "667249436",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": true,
+          "source": null,
+          "type": "ID",
+          "value": "[\"10020\"]"
+        },
+        "comparison": "ONE_OF",
+        "selectedField": {
+          "type": "ID",
+          "value": "issuetype"
+        },
+        "selectedFieldType": "issuetype"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "667249438",
+          "parentId": "667249437",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "ADVEV Vehicle Program"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "COPY",
+                "value": {
+                  "copyOptions": [],
+                  "sourceField": {
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "NAME",
+                    "value": "ADVEV Vehicle Program"
+                  },
+                  "sourceIssue": "parent"
+                }
+              }
+            ],
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "667249437",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "subtasks",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1708028612907,
+  "description": "",
+  "id": 17833923,
+  "idUuid": "018dae70-512b-7f6e-adf0-074d684fc614",
+  "labels": [],
+  "name": "ADVEV Vehicle Program Down to Subtasks",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10042"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10042"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "667249435",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10042"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "ADVEV Vehicle Program"
+        }
+      ]
+    }
+  },
+  "updated": 1736807640524,
+  "writeAccessType": "UNRESTRICTED"
+}

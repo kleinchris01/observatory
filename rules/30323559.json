@@ -1,0 +1,166 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "623d205d562ab90069f94743",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "724681845",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.create",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "project"
+            },
+            "fieldType": "project",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "11409"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "fieldType": "issuetype",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10022"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "parent"
+            },
+            "fieldType": "parent",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": "HW specific TSRs for Applications"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "description"
+            },
+            "fieldType": "description",
+            "type": "SET",
+            "value": "This task is used to track the ECV deliverables for (i) Safety Goal completion and alignment and (ii) HW TSRs completion for Features.\n\nDefinition of Done:\n1) SGs are aligned with Enterprise ratings.\n2) TSRs are allocated to HW in Jama and pushed to review."
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "duedate"
+            },
+            "fieldType": "duedate",
+            "type": "SET",
+            "value": "2025-09-17"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "assignee"
+            },
+            "fieldType": "assignee",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "parent"
+            }
+          }
+        ],
+        "sendNotifications": false
+      }
+    }
+  ],
+  "created": 1758834649022,
+  "description": "",
+  "id": 30323559,
+  "idUuid": "019982b6-e7be-7609-b371-19c310a5beae",
+  "labels": [],
+  "name": "HW TSR sign off for ECV task creation",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11409"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11409"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "724681843",
+        "conditions": [],
+        "connectionId": null,
+        "id": "724681844",
+        "parentId": null,
+        "schemaVersion": 1,
+        "type": "jira.jql.condition",
+        "value": "issuetype = Story AND \"Epic Link\" = \"FuSa-278\""
+      }
+    ],
+    "connectionId": null,
+    "id": "724681843",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11409"
+      ],
+      "fields": [
+        {
+          "type": "field",
+          "value": "duedate"
+        }
+      ]
+    }
+  },
+  "updated": 1758834649022,
+  "writeAccessType": "UNRESTRICTED"
+}

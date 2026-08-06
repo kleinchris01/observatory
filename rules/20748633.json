@@ -1,0 +1,71 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:e1b33b48-88ef-45ef-8f6b-5db22d126084",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555677774",
+      "parentId": null,
+      "schemaVersion": 2,
+      "type": "jira.issue.comment",
+      "value": {
+        "addCommentOnce": true,
+        "comment": "Hello",
+        "commentVisibility": null,
+        "publicComment": false,
+        "sendNotifications": true
+      }
+    }
+  ],
+  "created": 1722026068835,
+  "description": "",
+  "id": 20748633,
+  "idUuid": "0190f0c0-8b63-77e9-aa64-35a1c526fc5a",
+  "labels": [],
+  "name": "Test Automation",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10139"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10139"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "555677772",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:link",
+    "value": {
+      "linkTypes": [
+        "Polaris issue link"
+      ]
+    }
+  },
+  "updated": 1722026068835,
+  "writeAccessType": "UNRESTRICTED"
+}

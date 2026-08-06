@@ -1,0 +1,101 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "6aa4c744-2370-46eb-b532-a2808754f1e5",
+          "parentId": "55b21f5b-109a-49b0-9d17-e166faae0fe3",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Completed date"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:datepicker",
+                "type": "SET",
+                "value": null
+              }
+            ],
+            "sendNotifications": false
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "55b21f5b-109a-49b0-9d17-e166faae0fe3",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "project = ECM AND status = \"Solution In-Progress\" AND \"Completed date[Date]\" is not EMPTY",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "jql",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1773985585293,
+  "description": "",
+  "id": 32516995,
+  "idUuid": "019d09c7-d88b-71ff-b5b3-8bc0e47e1808",
+  "labels": [],
+  "name": "CE1 - Completed date bulk update [TEMP]",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "deceb568-a8e3-430a-8b9e-e43ed6fd1bc2",
+    "parentId": null,
+    "schemaVersion": 3,
+    "type": "jira.manual.trigger.issue",
+    "value": {
+      "groups": [],
+      "inputFromUsers": false,
+      "inputPrompts": [],
+      "issueFilter": null,
+      "jQLFilter": null
+    }
+  },
+  "updated": 1773993262081,
+  "writeAccessType": "OWNER_ONLY"
+}

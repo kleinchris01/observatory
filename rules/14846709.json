@@ -1,0 +1,111 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "62a4e2b5932059006f92cd8a",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555668820",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": true,
+          "source": null,
+          "type": "ID",
+          "value": "[\"10021\",\"10022\"]"
+        },
+        "comparison": "ONE_OF",
+        "selectedField": {
+          "type": "ID",
+          "value": "issuetype"
+        },
+        "selectedFieldType": "issuetype"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555668822",
+      "parentId": null,
+      "schemaVersion": 11,
+      "type": "jira.issue.transition",
+      "value": {
+        "advancedFields": null,
+        "destinationStatus": {
+          "type": "NAME",
+          "value": "New"
+        },
+        "operations": [],
+        "sendNotifications": true,
+        "transitionMatch": ""
+      }
+    }
+  ],
+  "created": 1694842757877,
+  "description": null,
+  "id": 14846709,
+  "idUuid": "018a9c80-22f5-7789-a29f-a0c8d13a87eb",
+  "labels": [
+    423969,
+    844607
+  ],
+  "name": "[Retired] Change Status to New",
+  "notifyOnError": "EVERYERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "555668818",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [
+        "create",
+        "edit"
+      ],
+      "changeType": "ANY_CHANGE",
+      "fields": [
+        {
+          "type": "field",
+          "value": "description"
+        }
+      ]
+    }
+  },
+  "updated": 1722960424489,
+  "writeAccessType": "UNRESTRICTED"
+}

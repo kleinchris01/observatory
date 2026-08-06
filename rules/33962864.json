@@ -1,0 +1,174 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:fde609ac-4e54-4959-81dc-aee37494db64",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "2afaa566-e898-4c5c-bd13-d9e1463aca00",
+          "parentId": "884a7e3d-a82e-455d-869a-656fe43601b3",
+          "schemaVersion": 12,
+          "type": "jira.issue.create",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "project"
+                },
+                "fieldType": "project",
+                "type": "SET",
+                "value": {
+                  "type": "ID",
+                  "value": "13578"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "summary"
+                },
+                "fieldType": "summary",
+                "type": "SET",
+                "value": "Equipment Calibration & Service"
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "issuetype"
+                },
+                "fieldType": "issuetype",
+                "type": "SET",
+                "value": {
+                  "type": "ID",
+                  "value": "10000"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "description"
+                },
+                "fieldType": "description",
+                "type": "SET",
+                "value": "Fill in the ticket description here"
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "assignee"
+                },
+                "fieldType": "assignee",
+                "type": "SET",
+                "value": {
+                  "type": "ID",
+                  "value": "62a4d77e451c00006968630f"
+                }
+              }
+            ],
+            "sendNotifications": false
+          }
+        }
+      ],
+      "component": "ORCHESTRATION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "884a7e3d-a82e-455d-869a-656fe43601b3",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "automation.orchestration.fragment",
+      "value": {
+        "inputProjections": [],
+        "isOptional": false,
+        "name": "Group 1",
+        "outputProjections": []
+      }
+    }
+  ],
+  "created": 1784566188530,
+  "description": "Speed up work flow by making recurring ticket creation automatic",
+  "id": 33962864,
+  "idUuid": "019f806f-09f2-702b-ab4d-aea448f89cbb",
+  "labels": [],
+  "name": "Schedule a recurring ticket (calibration)",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13578"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13578"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [
+    {
+      "tagType": "CREATION_TYPE",
+      "tagValue": "USER"
+    },
+    {
+      "tagType": "ORCHESTRATION_CONFIG_ID",
+      "tagValue": "05b45241-845b-11f1-87ac-9389fd426ebf"
+    },
+    {
+      "tagType": "ORCHESTRATION_VERSION",
+      "tagValue": "1"
+    },
+    {
+      "tagType": "ORCHESTRATION",
+      "tagValue": null
+    },
+    {
+      "tagType": "SAMPLE_RULE",
+      "tagValue": "global"
+    },
+    {
+      "tagType": "TEMPLATE_ID",
+      "tagValue": "software_template_27"
+    }
+  ],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "0cd8d6a4-d045-450a-9266-a12cc9518ff7",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "nosearch",
+      "jql": null,
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/Los_Angeles:20260228T090000\nRRULE:FREQ=MONTHLY;INTERVAL=12;BYHOUR=9;BYMINUTE=0;BYSECOND=0;BYMONTHDAY=1\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1784566188530,
+  "writeAccessType": "UNRESTRICTED"
+}

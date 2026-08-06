@@ -1,0 +1,160 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:10e644de-d96b-4816-9029-d6cf8f0aec37",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555648216",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": null,
+          "type": "ID",
+          "value": "10027"
+        },
+        "comparison": "EQUALS",
+        "selectedField": {
+          "type": "ID",
+          "value": "issuetype"
+        },
+        "selectedFieldType": "issuetype"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555648220",
+          "parentId": "555648218",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "NAME",
+              "value": "Screening"
+            },
+            "comparison": "NOT_EQUAL",
+            "selectedField": {
+              "type": "ID",
+              "value": "status"
+            },
+            "selectedFieldType": "status"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555648222",
+          "parentId": "555648218",
+          "schemaVersion": 11,
+          "type": "jira.issue.transition",
+          "value": {
+            "advancedFields": null,
+            "destinationStatus": {
+              "type": "NAME",
+              "value": "Screening"
+            },
+            "operations": [],
+            "sendNotifications": true,
+            "transitionMatch": ""
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555648218",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "epic",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1694842757921,
+  "description": "",
+  "id": 14846721,
+  "idUuid": "018a9c80-2321-7d78-b5eb-0d92abd5a436",
+  "labels": [
+    423960,
+    447046
+  ],
+  "name": "Copy of Epic Workflow - Negotiating",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10016",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10041"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "555648215",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:transitioned",
+    "value": {
+      "eventKey": "jira:issue_updated",
+      "fromStatus": [],
+      "issueEvent": "issue_generic",
+      "toStatus": [
+        {
+          "type": "NAME",
+          "value": "Comp Negotiation"
+        },
+        {
+          "type": "NAME",
+          "value": "Offer Sent"
+        }
+      ]
+    }
+  },
+  "updated": 1694908834377,
+  "writeAccessType": "UNRESTRICTED"
+}

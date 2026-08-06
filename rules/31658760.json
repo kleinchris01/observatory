@@ -1,0 +1,136 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "712020:124473c3-5939-407b-8c9a-3494a6c791be"
+  },
+  "authorAccountId": "712020:124473c3-5939-407b-8c9a-3494a6c791be",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "56a0e06d-8cc9-420a-8fa4-49b34a1273f2",
+          "parentId": "a61afe60-c90a-4d04-9c1c-6ef6b6f38328",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "ID",
+              "value": null
+            },
+            "comparison": "NOT_EMPTY",
+            "selectedField": {
+              "type": "ID",
+              "value": "assignee"
+            },
+            "selectedFieldType": "assignee"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "339e9048-663c-4a99-a7e0-3dcfeb4445fb",
+          "parentId": "a61afe60-c90a-4d04-9c1c-6ef6b6f38328",
+          "schemaVersion": 5,
+          "type": "jira.issue.outgoing.email",
+          "value": {
+            "bcc": [],
+            "body": "Hi {{issue.assignee.displayName}},\n\nThis is a reminder that the due date for the issue {{issue.key}} is approaching. Please ensure that the necessary actions are taken to meet the deadline.\n\nBest regards,\n{{issue.reporter.displayName}}",
+            "cc": [],
+            "convertLineBreaks": true,
+            "mimeType": "text/html",
+            "subject": "Reminder: Approaching Due Date for {{issue.key}}",
+            "to": [
+              {
+                "type": "SMART",
+                "value": "{{issue.assignee.emailAddress}}"
+              }
+            ]
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "a61afe60-c90a-4d04-9c1c-6ef6b6f38328",
+      "parentId": null,
+      "schemaVersion": -1,
+      "type": "jira.smart.values.branch",
+      "value": {
+        "id": "id",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "issue"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{issues}}"
+        },
+        "type": "SMART"
+      }
+    }
+  ],
+  "created": 1769132438363,
+  "description": "This rule sends automatic reminders to assignees when the due date of an issue is approaching.",
+  "id": 31658760,
+  "idUuid": "019be882-b35b-78a5-9cc9-a347cd37ca69",
+  "labels": [],
+  "name": "Automatic Due Date Reminder",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10008"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10008"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "462c42e5-1cfc-4878-8ed6-9eb387d34b22",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "status != Done AND duedate <= endOfDay(\"+1\")",
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=US/Pacific:20230415T132800\nRRULE:FREQ=DAILY;BYHOUR=9;BYMINUTE=0;BYSECOND=0;INTERVAL=1\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1769132438363,
+  "writeAccessType": "UNRESTRICTED"
+}

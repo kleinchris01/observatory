@@ -1,0 +1,105 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555653977",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.jql.condition",
+      "value": "statusCategory != Done AND duedate is not EMPTY AND duedate < startOfDay()"
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555653982",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Flagged"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes",
+            "type": "SET",
+            "value": [
+              {
+                "type": "NAME",
+                "value": "Behind Schedule"
+              }
+            ]
+          }
+        ],
+        "sendNotifications": false
+      }
+    }
+  ],
+  "created": 1705518765093,
+  "description": "",
+  "id": 17354797,
+  "idUuid": "018d18d7-1425-7bff-96b4-cf129d1d59a8",
+  "labels": [],
+  "name": "Flag behind schedule issues",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10056",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10061",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "555653974",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "statusCategory != Done AND duedate is not EMPTY AND duedate < startOfDay() and flagged is empty",
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/Los_Angeles:20240117T111057\nRRULE:FREQ=DAILY;BYHOUR=9;BYMINUTE=0;BYSECOND=0;INTERVAL=1\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1721411786124,
+  "writeAccessType": "UNRESTRICTED"
+}

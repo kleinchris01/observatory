@@ -1,0 +1,148 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "aa7b486e-01f8-4660-93f8-aec13810f39d",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.comparator.condition",
+      "value": {
+        "first": "{{approval.decision}}",
+        "operator": "EQUALS",
+        "second": "Declined"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "e08a11d1-3526-4482-96bd-f1219d63f6f5",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "{{approval.decision}}"
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "18ac053a-1316-48a5-aec1-344a2bac1b38",
+      "parentId": null,
+      "schemaVersion": 2,
+      "type": "jira.issue.comment",
+      "value": {
+        "addCommentOnce": false,
+        "comment": "Approver {{initiator.displayName}} has rejected the Eng. Requirement Deviation request. Please review and provide additional details, [~accountid:{{reporter.accountId}}].",
+        "commentVisibility": null,
+        "publicComment": true,
+        "sendNotifications": true
+      }
+    }
+  ],
+  "created": 1763545161721,
+  "description": "This automation adds a comment to the work item when an approver \"rejects\" an Eng. Requirement Deviation ticket",
+  "id": 30855918,
+  "idUuid": "019a9b7b-9ffb-7a7a-918f-cc6aae8046ca",
+  "labels": [],
+  "name": "SOLVE: Eng. Requirement Deviation - Auto-comment when an approver \"rejects\" a ticket",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "a4f82c64-d11a-4152-a859-109805f589da",
+        "conditions": [],
+        "connectionId": null,
+        "id": "d9f9c2c4-503a-4ac5-a3cf-827c691b21e7",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "12621"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "a4f82c64-d11a-4152-a859-109805f589da",
+        "conditions": [],
+        "connectionId": null,
+        "id": "59de1781-f628-4738-8aa1-6b9d3c813071",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "13141"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "project"
+          },
+          "selectedFieldType": "project"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "a4f82c64-d11a-4152-a859-109805f589da",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.approval.completed.trigger",
+    "value": {}
+  },
+  "updated": 1782742921316,
+  "writeAccessType": "UNRESTRICTED"
+}

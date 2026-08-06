@@ -1,0 +1,315 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:9b52b270-bb29-4f87-880d-7c4412cc01b8",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [
+    "62a4d77e451c00006968630f",
+    "712020:6a112087-baee-4101-a6ee-f8884fad3cdc",
+    "712020:fde609ac-4e54-4959-81dc-aee37494db64",
+    "712020:9b52b270-bb29-4f87-880d-7c4412cc01b8"
+  ],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "31a9bc2a-a0f0-4342-9c78-fad30828024f",
+          "parentId": "bd6a2086-5fa9-48be-9cfc-ebf7c9af1b8c",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Facility Location"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "COPY",
+                "value": {
+                  "copyOptions": [],
+                  "sourceField": {
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "NAME",
+                    "value": "Facility Location"
+                  },
+                  "sourceIssue": "trigger"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Model Year "
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                "type": "COPY",
+                "value": {
+                  "copyOptions": [],
+                  "sourceField": {
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                    "type": "NAME",
+                    "value": "Model Year "
+                  },
+                  "sourceIssue": "trigger"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "ADVEV Vehicle Platform"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                "type": "COPY",
+                "value": {
+                  "copyOptions": [],
+                  "sourceField": {
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                    "type": "NAME",
+                    "value": "ADVEV Vehicle Platform"
+                  },
+                  "sourceIssue": "trigger"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "ADVEV Vehicle Program"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "COPY",
+                "value": {
+                  "copyOptions": [],
+                  "sourceField": {
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "NAME",
+                    "value": "ADVEV Vehicle Program"
+                  },
+                  "sourceIssue": "trigger"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "ADVEV Checkpoints & Milestones"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "COPY",
+                "value": {
+                  "copyOptions": [],
+                  "sourceField": {
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "NAME",
+                    "value": "ADVEV Checkpoints & Milestones"
+                  },
+                  "sourceIssue": "trigger"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "priority"
+                },
+                "fieldType": "priority",
+                "type": "COPY",
+                "value": {
+                  "copyOptions": [],
+                  "sourceField": {
+                    "fieldType": "priority",
+                    "type": "ID",
+                    "value": "priority"
+                  },
+                  "sourceIssue": "trigger"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "assignee"
+                },
+                "fieldType": "assignee",
+                "type": "COPY",
+                "value": {
+                  "copyOptions": [],
+                  "sourceField": {
+                    "fieldType": "assignee",
+                    "type": "ID",
+                    "value": "assignee"
+                  },
+                  "sourceIssue": "trigger"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Vehicle ID"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                "type": "COPY",
+                "value": {
+                  "copyOptions": [],
+                  "sourceField": {
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                    "type": "NAME",
+                    "value": "Vehicle ID"
+                  },
+                  "sourceIssue": "trigger"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Vehicle Location"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "COPY",
+                "value": {
+                  "copyOptions": [],
+                  "sourceField": {
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "NAME",
+                    "value": "Vehicle Location"
+                  },
+                  "sourceIssue": "trigger"
+                }
+              }
+            ],
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "bd6a2086-5fa9-48be-9cfc-ebf7c9af1b8c",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "subtasks",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1784143549042,
+  "description": "",
+  "id": 33912511,
+  "idUuid": "019f673e-1272-7127-8bb5-6380ea4e1c5a",
+  "labels": [],
+  "name": "Copies Custom fields from work issues ==> Subtasks",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13578"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13578"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "4b1c1c00-139f-470c-ae0f-2333b0b898d1",
+        "conditions": [],
+        "connectionId": null,
+        "id": "bff3472f-ea3c-4973-a97c-102e0adeb5ba",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": true,
+            "source": null,
+            "type": "ID",
+            "value": "[\"10111\",\"14535\",\"10147\",\"10086\"]"
+          },
+          "comparison": "ONE_OF",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "4b1c1c00-139f-470c-ae0f-2333b0b898d1",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13578"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Facility Location"
+        },
+        {
+          "type": "fieldName",
+          "value": "Model Year "
+        },
+        {
+          "type": "fieldName",
+          "value": "ADVEV Vehicle Platform"
+        },
+        {
+          "type": "fieldName",
+          "value": "ADVEV Vehicle Program"
+        },
+        {
+          "type": "fieldName",
+          "value": "ADVEV Checkpoints & Milestones"
+        },
+        {
+          "type": "field",
+          "value": "priority"
+        },
+        {
+          "type": "field",
+          "value": "assignee"
+        },
+        {
+          "type": "fieldName",
+          "value": "Vehicle ID"
+        },
+        {
+          "type": "fieldName",
+          "value": "Vehicle Location"
+        }
+      ]
+    }
+  },
+  "updated": 1784143874938,
+  "writeAccessType": "SPECIFIED_USERS"
+}

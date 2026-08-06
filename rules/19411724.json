@@ -1,0 +1,191 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "565390733",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.version.create",
+      "value": {
+        "description": "Checkpoint 0 for P833 vehicle program",
+        "overrideReleaseDate": "SET_ON_EMPTY",
+        "project": {
+          "type": "COPY",
+          "value": "trigger"
+        },
+        "releaseDate": "2023-06-02",
+        "startDate": null,
+        "versionName": "P833 CP0"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "565390734",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.version.create",
+      "value": {
+        "description": "Checkpoint 1 for P833 vehicle program",
+        "overrideReleaseDate": "SET_ON_EMPTY",
+        "project": {
+          "type": "COPY",
+          "value": "trigger"
+        },
+        "releaseDate": "2023-08-07",
+        "startDate": null,
+        "versionName": "P833 CP1"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "565390735",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.version.create",
+      "value": {
+        "description": "Checkpoint 2 for P833 vehicle program",
+        "overrideReleaseDate": "SET_ON_EMPTY",
+        "project": {
+          "type": "COPY",
+          "value": "trigger"
+        },
+        "releaseDate": "2023-10-27",
+        "startDate": null,
+        "versionName": "P833 CP2"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "565390736",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.version.create",
+      "value": {
+        "description": "Checkpoint 3 for P833 vehicle program",
+        "overrideReleaseDate": "SET_ON_EMPTY",
+        "project": {
+          "type": "COPY",
+          "value": "trigger"
+        },
+        "releaseDate": "2024-02-12",
+        "startDate": null,
+        "versionName": "P833 CP3"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "565390737",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.version.create",
+      "value": {
+        "description": "Checkpoint 4 for P833 vehicle program",
+        "overrideReleaseDate": "SET_ON_EMPTY",
+        "project": {
+          "type": "COPY",
+          "value": "trigger"
+        },
+        "releaseDate": "2024-06-15",
+        "startDate": null,
+        "versionName": "P833 CP4"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "565390738",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.version.create",
+      "value": {
+        "description": "Checkpoint 5 for P833 vehicle program",
+        "overrideReleaseDate": "SET_ON_EMPTY",
+        "project": {
+          "type": "COPY",
+          "value": "trigger"
+        },
+        "releaseDate": "2025-01-29",
+        "startDate": null,
+        "versionName": "P833 CP5"
+      }
+    }
+  ],
+  "created": 1715809633276,
+  "description": "",
+  "id": 19411724,
+  "idUuid": "018f7e39-43fc-718f-b792-c6dfdde8d53b",
+  "labels": [
+    788304
+  ],
+  "name": "Create Checkpoint Releases",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "565390732",
+    "parentId": null,
+    "schemaVersion": 3,
+    "type": "jira.manual.trigger.issue",
+    "value": {
+      "groups": [
+        "84c13f0c-36c1-40e7-85e0-734222270883"
+      ],
+      "inputFromUsers": false,
+      "inputPrompts": [],
+      "issueFilter": null,
+      "jQLFilter": null
+    }
+  },
+  "updated": 1715817578857,
+  "writeAccessType": "UNRESTRICTED"
+}

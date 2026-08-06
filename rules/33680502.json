@@ -1,0 +1,135 @@
+{
+  "actor": {
+    "type": "EVENT_INITIATOR",
+    "value": null
+  },
+  "authorAccountId": "712020:9b52b270-bb29-4f87-880d-7c4412cc01b8",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "32b03891-4f03-4750-a205-54b669156b2f",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.outgoing.webhook",
+      "value": {
+        "contentType": "empty",
+        "continueOnErrorEnabled": false,
+        "customBody": null,
+        "headers": [
+          {
+            "headerSecure": false,
+            "id": "_header_1781814586997",
+            "name": "",
+            "value": ""
+          }
+        ],
+        "method": "POST",
+        "responseEnabled": false,
+        "sendIssue": false,
+        "url": "https://ford-advev.atlassian.net/jira/core/projects/PT2/form/197",
+        "urlSecure": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "e4e99c17-4414-4d43-b39d-63d5a2077d2f",
+      "parentId": null,
+      "schemaVersion": 2,
+      "type": "jira.issue.link",
+      "value": {
+        "issue": {
+          "type": "COPY",
+          "value": "trigger"
+        },
+        "linkType": "inward:10069"
+      }
+    }
+  ],
+  "created": 1781814735225,
+  "description": "",
+  "id": 33680502,
+  "idUuid": "019edc6f-3179-71b6-846d-f1cf1d7417b6",
+  "labels": [],
+  "name": "Open Logistic request form in PT2",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "b9cb767a-d46c-4242-a561-77756aa194be",
+        "conditions": [],
+        "connectionId": null,
+        "id": "1197993b-1db9-46d3-9f6b-022974906744",
+        "parentId": null,
+        "schemaVersion": 1,
+        "type": "jira.jql.condition",
+        "value": "     filter = \"Tech Teams for PT2 & PVFM\""
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "b9cb767a-d46c-4242-a561-77756aa194be",
+        "conditions": [],
+        "connectionId": null,
+        "id": "77f85d77-7a82-48ba-874e-a7038249a0a8",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": null,
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "status"
+          },
+          "selectedFieldType": "status"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "b9cb767a-d46c-4242-a561-77756aa194be",
+    "parentId": null,
+    "schemaVersion": 3,
+    "type": "jira.manual.trigger.issue",
+    "value": {
+      "groups": [],
+      "inputFromUsers": false,
+      "inputPrompts": [],
+      "issueFilter": null,
+      "jQLFilter": null
+    }
+  },
+  "updated": 1781814960752,
+  "writeAccessType": "UNRESTRICTED"
+}

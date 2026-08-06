@@ -1,0 +1,125 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555642551",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": true,
+          "source": null,
+          "type": "NAME",
+          "value": "[\"Resolved\",\"Closed\",\"Done\",\"Canceled\",\"Completed\",\"Won't Pursue\",\"Rejected (no hire)\",\"Offer Accepted\",\"Finished\",\"Pending Start\",\"Rejected\",\"Hired\",\"WONT INTERVIEW\",\"Not Integrated\",\"Initial Password Sent to IT\",\"Agreement Complete\",\"Integrated\",\"Wind Tunnel Test\",\"Cancelled\"]"
+        },
+        "comparison": "NOT_ONE_OF",
+        "selectedField": {
+          "type": "ID",
+          "value": "status"
+        },
+        "selectedFieldType": "status"
+      }
+    },
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555642553",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issues.related.condition",
+      "value": {
+        "compareJql": "",
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [
+          "is blocked by"
+        ],
+        "operator": "notpresent",
+        "relatedJql": "",
+        "relatedType": "linked",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555642554",
+      "parentId": null,
+      "schemaVersion": 11,
+      "type": "jira.issue.transition",
+      "value": {
+        "advancedFields": null,
+        "destinationStatus": {
+          "type": "NAME",
+          "value": "Waiting for support"
+        },
+        "operations": [],
+        "sendNotifications": true,
+        "transitionMatch": ""
+      }
+    }
+  ],
+  "created": 1700183970334,
+  "description": "",
+  "id": 16309053,
+  "idUuid": "018bdadc-921e-732e-909b-46c84541a726",
+  "labels": [
+    671536
+  ],
+  "name": "Blocking link deleted, send to waiting for support",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "555642550",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:link_deleted",
+    "value": {
+      "linkTypes": [
+        "Blocks"
+      ]
+    }
+  },
+  "updated": 1700183994393,
+  "writeAccessType": "UNRESTRICTED"
+}

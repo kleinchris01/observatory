@@ -1,0 +1,95 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:10e644de-d96b-4816-9029-d6cf8f0aec37",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "565391345",
+      "parentId": null,
+      "schemaVersion": 5,
+      "type": "jira.issue.outgoing.email",
+      "value": {
+        "bcc": [],
+        "body": "This is a reminder that the following Jira Issue has a due date set to one week from today.\n\nIssue: {{issue.summary}}\nLink: {{issue.url}}",
+        "cc": [],
+        "convertLineBreaks": true,
+        "fromName": "",
+        "mimeType": "text/html",
+        "replyTo": "",
+        "subject": "Reminder - {{issue.key}} is due in One Week",
+        "to": [
+          {
+            "type": "COPY",
+            "value": "assignee"
+          },
+          {
+            "type": "COPY",
+            "value": "reporter"
+          },
+          {
+            "type": "COPY",
+            "value": "customfield_11090"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1699471271033,
+  "description": "",
+  "id": 16103219,
+  "idUuid": "018bb061-a479-7b41-8903-2d7019c0139d",
+  "labels": [],
+  "name": "Due in One Week",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10044"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10044"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "565391343",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "due = 7d",
+      "onlyUpdatedIssues": true,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/Denver:20231108T121634\nRRULE:FREQ=WEEKLY;BYHOUR=4;BYMINUTE=0;BYSECOND=0;BYDAY=WE;INTERVAL=1\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1699471271033,
+  "writeAccessType": "UNRESTRICTED"
+}

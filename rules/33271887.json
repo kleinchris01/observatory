@@ -1,0 +1,298 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "ec9ff72a-9f5a-4f41-8109-c3abee2db812",
+              "parentId": "b5e15cc1-cfb7-45e2-9103-3964654aa3b8",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Solution Owner (SIT/MFG Lead)"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{issue.customfield_15640.Manufacturing Lead}}"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "b5e15cc1-cfb7-45e2-9103-3964654aa3b8",
+              "conditions": [],
+              "connectionId": null,
+              "id": "7326cf68-a51a-40b1-b240-10371d6c971d",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "Manufacturing Process/Quality"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Change Type"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "b5e15cc1-cfb7-45e2-9103-3964654aa3b8",
+          "parentId": "61d1d347-f034-4126-8b7b-5ab9f053e8ca",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "e1298dc7-7c91-44ec-a9de-2b96f0a0e7cc",
+              "parentId": "980bdb6a-f3d3-4bbf-b2fb-121ca410a021",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Solution Owner (SIT/MFG Lead)"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{issue.customfield_12893}}"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "980bdb6a-f3d3-4bbf-b2fb-121ca410a021",
+              "conditions": [],
+              "connectionId": null,
+              "id": "293cac90-ab16-4350-8f6c-a1f9e057f1fe",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "Supplier Quality"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Change Type"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "980bdb6a-f3d3-4bbf-b2fb-121ca410a021",
+          "parentId": "61d1d347-f034-4126-8b7b-5ab9f053e8ca",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "d27ac6d7-55c3-47bb-9667-c101e009d62e",
+              "parentId": "df4ac492-f2be-4f38-81aa-5141f54d8305",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Solution Owner (SIT/MFG Lead)"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{issue.customfield_15640.Lead}}"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "df4ac492-f2be-4f38-81aa-5141f54d8305",
+          "parentId": "61d1d347-f034-4126-8b7b-5ab9f053e8ca",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "61d1d347-f034-4126-8b7b-5ab9f053e8ca",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1778750301129,
+  "description": "This automation updates the solution Owner based on the Change Type",
+  "id": 33271887,
+  "idUuid": "019e25c7-a3c9-7b5f-8696-07685c78c566",
+  "labels": [],
+  "name": "SOLVE: Issue - Solution Owner (SIT/MFG Lead) Mapping",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "7a76e917-966c-4761-bba9-bd77400f9500",
+        "conditions": [],
+        "connectionId": null,
+        "id": "5577aaa0-e26c-429d-bf0f-63f95ed2284c",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "13364"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "7a76e917-966c-4761-bba9-bd77400f9500",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [
+        "edit",
+        "create"
+      ],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Change Type"
+        },
+        {
+          "type": "fieldName",
+          "value": "Production Buyer / GSM"
+        },
+        {
+          "type": "fieldName",
+          "value": "SIT/Attribute (Assets)"
+        }
+      ]
+    }
+  },
+  "updated": 1782748012513,
+  "writeAccessType": "UNRESTRICTED"
+}

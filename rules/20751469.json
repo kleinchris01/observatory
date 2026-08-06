@@ -1,0 +1,83 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:02c3b8ad-46cf-4d2c-8e83-13a48c029d42",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "565394775",
+      "parentId": null,
+      "schemaVersion": 5,
+      "type": "jira.issue.outgoing.email",
+      "value": {
+        "bcc": [],
+        "body": "Priority changed",
+        "cc": [],
+        "convertLineBreaks": true,
+        "fromName": "",
+        "mimeType": "text/html",
+        "replyTo": "",
+        "subject": "Issue {{IssueKey}} was just updated",
+        "to": [
+          {
+            "type": "COPY",
+            "value": "customfield_11090"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1722050940359,
+  "description": "",
+  "id": 20751469,
+  "idUuid": "0190f23c-0dc7-7a77-b64a-c521a07e53c8",
+  "labels": [],
+  "name": "Test priority change",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10100"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10100"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "565394774",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:commented",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10100"
+      ],
+      "eventTypes": [
+        "TRANSITION"
+      ]
+    }
+  },
+  "updated": 1722065641227,
+  "writeAccessType": "OWNER_ONLY"
+}

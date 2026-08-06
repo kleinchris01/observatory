@@ -1,0 +1,715 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "692002632",
+              "parentId": "692002630",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "SIT Number"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "SIT 1 - Interior"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "692002630",
+              "conditions": [],
+              "connectionId": null,
+              "id": "692002631",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "[\"Interior\",\"Interiors\"]"
+                },
+                "comparison": "CONTAINS_ANY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "SIT/Attribute"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "692002630",
+          "parentId": "692002629",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "692002635",
+              "parentId": "692002633",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "SIT Number"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "SIT 2 - Seats"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "692002633",
+              "conditions": [],
+              "connectionId": null,
+              "id": "692002634",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "[\"Seats\"]"
+                },
+                "comparison": "CONTAINS_ANY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "SIT/Attribute"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "692002633",
+          "parentId": "692002629",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "692002638",
+              "parentId": "692002636",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "SIT Number"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "SIT 3 - Exterior"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "692002636",
+              "conditions": [],
+              "connectionId": null,
+              "id": "692002637",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "[\"Exterior\",\"Exteriors\"]"
+                },
+                "comparison": "CONTAINS_ANY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "SIT/Attribute"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "692002636",
+          "parentId": "692002629",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "692002641",
+              "parentId": "692002639",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "SIT Number"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "SIT 4 - Thermal"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "692002639",
+              "conditions": [],
+              "connectionId": null,
+              "id": "692002640",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "[\"Thermal\",\"Thermals\"]"
+                },
+                "comparison": "CONTAINS_ANY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "SIT/Attribute"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "692002639",
+          "parentId": "692002629",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "692002644",
+              "parentId": "692002642",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "SIT Number"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "SIT 5 - Powertrain"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "692002642",
+              "conditions": [],
+              "connectionId": null,
+              "id": "692002643",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "[\"Battery\",\"Powertrain\"]"
+                },
+                "comparison": "CONTAINS_ANY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "SIT/Attribute"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "692002642",
+          "parentId": "692002629",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "692002647",
+              "parentId": "692002645",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "SIT Number"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "SIT 6 - Chassis"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "692002645",
+              "conditions": [],
+              "connectionId": null,
+              "id": "692002646",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "[\"Chassis\"]"
+                },
+                "comparison": "CONTAINS_ANY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "SIT/Attribute"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "692002645",
+          "parentId": "692002629",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "692002650",
+              "parentId": "692002648",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "SIT Number"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "SIT 7 - Closure"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "692002648",
+              "conditions": [],
+              "connectionId": null,
+              "id": "692002649",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "[\"Closures\"]"
+                },
+                "comparison": "CONTAINS_ANY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "SIT/Attribute"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "692002648",
+          "parentId": "692002629",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "692002653",
+              "parentId": "692002651",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "SIT Number"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "SIT 8 - Electrical"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "692002651",
+              "conditions": [],
+              "connectionId": null,
+              "id": "692002652",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "[\"Electrical\"]"
+                },
+                "comparison": "CONTAINS_ANY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "SIT/Attribute"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "692002651",
+          "parentId": "692002629",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "692002656",
+              "parentId": "692002654",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "SIT Number"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "SIT 9 - Body Structures"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "692002654",
+              "conditions": [],
+              "connectionId": null,
+              "id": "692002655",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "[\"Body Structures\",\"Body\"]"
+                },
+                "comparison": "CONTAINS_ANY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "SIT/Attribute"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "692002654",
+          "parentId": "692002629",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "692002629",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1739387576002,
+  "description": "",
+  "id": 25135147,
+  "idUuid": "0194fb94-1ec2-7498-90d1-a36cf11b4828",
+  "labels": [],
+  "name": "Update Sit number",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-core::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11046",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10518"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "692002628",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10518",
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11046"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "SIT/Attribute"
+        }
+      ]
+    }
+  },
+  "updated": 1774294137700,
+  "writeAccessType": "UNRESTRICTED"
+}

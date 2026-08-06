@@ -1,0 +1,221 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555656194",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": null,
+          "type": "NAME",
+          "value": "N/A"
+        },
+        "comparison": "EQUALS",
+        "selectedField": {
+          "type": "NAME",
+          "value": "Savings or Loss?"
+        },
+        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555656195",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "BOM Quantity [EA]"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+            "type": "SET",
+            "value": ""
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Current Estimated Piece Price [$]"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+            "type": "SET",
+            "value": ""
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Current Status Indicator"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "SET",
+            "value": null
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "New Estimated Piece Price [$]"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+            "type": "SET",
+            "value": ""
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Annual Volume [EA/Year]"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+            "type": "SET",
+            "value": ""
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Annual Savings / Penalty per Part [$]"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+            "type": "SET",
+            "value": ""
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Landed Piece Price [$]"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+            "type": "SET",
+            "value": ""
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Gap from Target [$]"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+            "type": "SET",
+            "value": ""
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Current Estimated BOM Cost [$]"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+            "type": "SET",
+            "value": ""
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "New Estimated BOM Cost [$]"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+            "type": "SET",
+            "value": ""
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "New Status Indicator"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "SET",
+            "value": null
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Estimated Savings / Penalty per Part [$]"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+            "type": "SET",
+            "value": ""
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Landed BOM Cost [$]"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+            "type": "SET",
+            "value": ""
+          }
+        ],
+        "sendNotifications": false
+      }
+    }
+  ],
+  "created": 1717629263215,
+  "description": "",
+  "id": 19798035,
+  "idUuid": "018feaae-9d6f-70d1-859c-0b72bcb34b11",
+  "labels": [],
+  "name": "If set to N/A, clear all cost detail fields",
+  "notifyOnError": "NEVER",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10025"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10025"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "555656193",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10025"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Savings or Loss?"
+        }
+      ]
+    }
+  },
+  "updated": 1717629501847,
+  "writeAccessType": "UNRESTRICTED"
+}

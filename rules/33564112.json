@@ -1,0 +1,103 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:71883438-7923-418e-95ff-ba7baf490c5b",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "aa8988e0-d170-4b3b-90b4-88b2852b5eed",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "msteams.notification",
+      "value": {
+        "body": "Details:\n\n- **Test Request & Summary:** {{issue.key}} — {{issue.summary}} \n- **Priority:** {{issue.priority.name}}\n- **Assigned to:** {{assignee.displayName}}\n- **Reporter by:** {{issue.reporter.displayName}} \n- **Vehicle ID:** {{issue.customfield_15903.first.value}}\n- **Due Date:** {{issue.dueDate}}\n- **SW Version:** {{issue.customfield_20443.child.value}}\n- **Tech Support Required?:** {{issue.customfield_18236}}\n- **Driver Training Required?:** {{issue.customfield_17934}}\n\nYou can view the issue here: {{issue.toUrl}}",
+        "imageUrl": "https://d283vu6e5qi87p.cloudfront.net/automation/prod/automation-logo.svg",
+        "includeIssueSummary": false,
+        "subTitle": "",
+        "teamsWorkflowURL": "https://defaultc990bb7a51f4439bbd369c07fb1041.c0.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/57b5f576cbf44e27b5b7ebb94381adda/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=Xn43l3WwLnJ9h7RSmOgcamjB8knK0XRZvElx0o2NM4w",
+        "teamsWorkflowUrlSecure": false,
+        "title": "A New Test Request Has Been Created by {{issue.reporter.displayName}}",
+        "webhookUrl": ""
+      }
+    }
+  ],
+  "created": 1780944443654,
+  "description": "Post P833 Test Requests to Teams",
+  "id": 33564112,
+  "idUuid": "019ea88f-9906-71d3-baf1-ca36ef4acdb4",
+  "labels": [],
+  "name": "Post P833 Test Requests to Teams",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10816"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10816"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "f6a06877-7288-478d-ba12-e6221d19b9ec",
+        "conditions": [],
+        "connectionId": null,
+        "id": "896ccd24-09e8-4120-adb0-0e09d6e79a40",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "10111"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "f6a06877-7288-478d-ba12-e6221d19b9ec",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10816"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1782423928132,
+  "writeAccessType": "OWNER_ONLY"
+}

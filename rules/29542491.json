@@ -1,0 +1,109 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "6206e14e506317006b09a777",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "718119347",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": null,
+          "type": "ID",
+          "value": "10396"
+        },
+        "comparison": "EQUALS",
+        "selectedField": {
+          "type": "ID",
+          "value": "issuetype"
+        },
+        "selectedFieldType": "issuetype"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "718119348",
+      "parentId": null,
+      "schemaVersion": 11,
+      "type": "jira.issue.transition",
+      "value": {
+        "advancedFields": null,
+        "destinationStatus": {
+          "type": "NAME",
+          "value": "Ready for Purchasing"
+        },
+        "operations": [],
+        "sendNotifications": true,
+        "transitionMatch": ""
+      }
+    }
+  ],
+  "created": 1751394389850,
+  "description": "",
+  "id": 29542491,
+  "idUuid": "0197c73d-8f5a-77fc-a0ee-265361bda2ed",
+  "labels": [],
+  "name": "Approved --> Ready for Purchasing",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10551"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10551"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "718119346",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:transitioned",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10551"
+      ],
+      "eventKey": "jira:issue_updated",
+      "fromStatus": [],
+      "issueEvent": "issue_generic",
+      "toStatus": [
+        {
+          "type": "NAME",
+          "value": "Approved"
+        }
+      ]
+    }
+  },
+  "updated": 1751394399475,
+  "writeAccessType": "UNRESTRICTED"
+}

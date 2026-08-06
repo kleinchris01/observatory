@@ -1,0 +1,213 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "eb0bdb67-dcc4-4944-a5ba-d9e292fb1108",
+              "parentId": "ee4df1b2-a734-4aaa-867b-f182f7a808cb",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Total Resolution"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+                    "type": "SET",
+                    "value": ""
+                  }
+                ],
+                "sendNotifications": false
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "ee4df1b2-a734-4aaa-867b-f182f7a808cb",
+              "conditions": [],
+              "connectionId": null,
+              "id": "6841f7aa-6a1c-4730-ab8f-2a2ffed7c8b9",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "[\"Rejected\",\"Cancelled\",\"Completed\"]"
+                },
+                "comparison": "NOT_ONE_OF",
+                "selectedField": {
+                  "type": "ID",
+                  "value": "status"
+                },
+                "selectedFieldType": "status"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "ee4df1b2-a734-4aaa-867b-f182f7a808cb",
+          "parentId": "472c1c16-eb16-4f99-b971-74b33f9fc774",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "6858eb92-83ed-4025-be95-9c9d2d1dcb92",
+              "parentId": "f05dc9c5-c6c7-4188-836d-0be9ab4260e3",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Total Resolution"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+                    "type": "SET",
+                    "value": "{{issue.created.diff(issue.resolutiondate).days}}"
+                  }
+                ],
+                "sendNotifications": false
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "f05dc9c5-c6c7-4188-836d-0be9ab4260e3",
+          "parentId": "472c1c16-eb16-4f99-b971-74b33f9fc774",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "472c1c16-eb16-4f99-b971-74b33f9fc774",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1778744423171,
+  "description": "This automation calculates the difference between an issue has been created and resolved. This is used as a workaround to calculate metrics for email reports.",
+  "id": 33271194,
+  "idUuid": "019e256d-f302-7ada-ab7b-a7a0b46cbaa8",
+  "labels": [],
+  "name": "SOLVE: Issue - Calculate the difference between resolved and created date",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "b3fb2d72-a80b-4618-8aa5-e2a3a1acac62",
+        "conditions": [],
+        "connectionId": null,
+        "id": "d3256f96-bac4-477c-8bf7-81ed58bf56a0",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "13364"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "b3fb2d72-a80b-4618-8aa5-e2a3a1acac62",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [
+        "edit",
+        "transition"
+      ],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+      ],
+      "fields": [
+        {
+          "type": "field",
+          "value": "status"
+        }
+      ]
+    }
+  },
+  "updated": 1782743943050,
+  "writeAccessType": "UNRESTRICTED"
+}

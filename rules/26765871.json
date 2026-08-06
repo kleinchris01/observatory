@@ -1,0 +1,139 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "712020:30cc410c-c9d8-4f38-a5e3-27229cc46efa"
+  },
+  "authorAccountId": "712020:30cc410c-c9d8-4f38-a5e3-27229cc46efa",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "702048340",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.lookup.issues",
+      "value": {
+        "id": "_customsmartvalue_id_1743124214741",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "lookupIssues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "\"External Jira Project Key\" is not Empty"
+        },
+        "type": "JQL"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "702048342",
+          "parentId": "702048341",
+          "schemaVersion": 1,
+          "type": "jira.issue.outgoing.webhook",
+          "value": {
+            "contentType": "empty",
+            "continueOnErrorEnabled": false,
+            "customBody": null,
+            "headers": [
+              {
+                "headerSecure": false,
+                "id": "_header_1743124485157",
+                "name": "Authorization",
+                "value": "Basic YXZpbmRlbmlAZm9yZC5jb206QVRBVFQzeEZmR0YwMzh0ejktbjhHa0dDYjF0d1QtcUphMk1wRFVKdHo5bWJpZV9ieEpYV3lLSnVPaHpWYU12NGhQQ3FvQXZudjFUUVdaSTZfbG5ycnR5TXpaRG5KNW1SNHcwcXY3UlpZT09CcnJoSHhwWTVkZWh6T1FubHZ4QlI3SVNSc0dLbEM5TzdZU1JUenBtb3hPUGNzRUV4bXpXSTlJWnVrSHRiRjVlMEdTZS0zVDBNWGdvPThBOUJDOTc3"
+              },
+              {
+                "headerSecure": false,
+                "id": "_header_1743124954994",
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "method": "GET",
+            "responseEnabled": true,
+            "sendIssue": false,
+            "url": "https://ford-advev.atlassian.net/rest/api/3/issue/{{issue.customfield_12835}}",
+            "urlSecure": false
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "702048341",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1743124461460,
+  "description": "",
+  "id": 26765871,
+  "idUuid": "0195da50-7794-736f-ad47-740e1162f557",
+  "labels": [],
+  "name": "test",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10019"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10019"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "702048339",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "nosearch",
+      "jql": "",
+      "onlyUpdatedIssues": true,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/Los_Angeles:20250327T180938\nRRULE:FREQ=WEEKLY;BYHOUR=9;BYMINUTE=0;BYSECOND=0;BYDAY=TH;INTERVAL=1\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1743125266888,
+  "writeAccessType": "UNRESTRICTED"
+}

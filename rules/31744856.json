@@ -1,0 +1,168 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "746280b3-8006-48aa-915b-c67571d3d9cb",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.lookup.issues",
+      "value": {
+        "id": "_customsmartvalue_id_1769551822764",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "lookupIssues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "project = AETS and summary ~ \"{{issue.summary}}\" and created <= 5m"
+        },
+        "type": "JQL"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "0496322f-1d81-4ff7-9eb3-92fe8fdc0bed",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "AETS Merlin issue: {{lookupIssues.summary}}"
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "e35f9e76-1b97-4088-aab8-eeb94d43f93e",
+      "parentId": null,
+      "schemaVersion": 2,
+      "type": "jira.issue.link",
+      "value": {
+        "issue": {
+          "type": "SMART",
+          "value": "{{lookupIssues.key}}"
+        },
+        "linkType": "inward:10030"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "28a78ddc-4817-4f5c-b718-b717b1d877f7",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "parent"
+            },
+            "fieldType": "parent",
+            "type": "SET",
+            "value": {
+              "type": "FREE",
+              "value": "AST-7428"
+            }
+          }
+        ],
+        "sendNotifications": true
+      }
+    }
+  ],
+  "created": 1769551658025,
+  "description": null,
+  "id": 31744856,
+  "idUuid": "019c017f-7c29-7cf3-ab00-bcd61ede5605",
+  "labels": [],
+  "name": "Link Merlin Issues to AST feature request",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10056"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10056"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [
+    {
+      "tagType": "CREATION_TYPE",
+      "tagValue": "PUBLIC_API"
+    },
+    {
+      "tagType": "SAMPLE_RULE",
+      "tagValue": "service_desk"
+    },
+    {
+      "tagType": "TEMPLATE_ID",
+      "tagValue": "general_jsm_template_4"
+    }
+  ],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "da6c7811-3c8c-4c1c-8972-137970f83494",
+        "conditions": [],
+        "connectionId": null,
+        "id": "45c2c0dd-ee99-4fad-b48a-1c1b24c43942",
+        "parentId": null,
+        "schemaVersion": 1,
+        "type": "jira.comparator.condition",
+        "value": {
+          "first": "{{issue.ADT Tool(s)}}",
+          "operator": "EQUALS",
+          "second": "Merlin"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "da6c7811-3c8c-4c1c-8972-137970f83494",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10056"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1769552793271,
+  "writeAccessType": "UNRESTRICTED"
+}

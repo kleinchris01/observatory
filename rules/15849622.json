@@ -1,0 +1,1547 @@
+{
+  "actor": {
+    "type": "EVENT_INITIATOR",
+    "value": null
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555651036",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.version.create",
+      "value": {
+        "description": "{{triggerIssue.summary}} MVP implementation. ",
+        "overrideReleaseDate": "SET_ON_EMPTY",
+        "project": {
+          "additional": "software",
+          "type": "ID",
+          "value": "10014"
+        },
+        "releaseDate": "{{now.plusBusinessDays(12)}}",
+        "startDate": "{{now}}",
+        "versionName": "{{triggerIssue.summary}} v1.0 - {{now.shortDate}}"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555651041",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.create",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": "{{triggerIssue.summary}} 1.0] P1s: MVP Requirements"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "description"
+            },
+            "fieldType": "description",
+            "type": "SET",
+            "value": "Project Details: \n- What sort of project would you like? (i.e Software, Service Management, Marketing, Personal)\n\n- What's the objective or end goal of this project? \n\n- Are there any specific milestones or deadlines we should be aware of?\n\n- How will this project make your life easier?\n\nUsers and Roles: \n\nThe current Ford standard project roles include Administrators, Developers, Creators, Editors, Commenters, and Viewers, each with different levels of permissions. \n- Are you okay with sticking to this scheme?\n\n- How many users do you expect to have in each role? \n\n- Should any roles have restricted access to certain information?\n\n- Are there external stakeholders or consultants who need limited access? \n\nIssue Types: \n\n- What are the main issue types you would need for the project?\n\n- Are there sub-categories within your main issue types?\n\n- Do you foresee any custom issue types being added in the future?\n\nWorkflows: \n- Imagine your ticket life cycle. Is it simple, requiring only a few statuses, or something more complex?\n\n- Would you like to set any conditions or validations during transitions?\n\n- Are there specific roles responsible for moving an issue from one stage to another?\n\n- Do any stages require approval processes?\n\nCustom Fields: \n- What custom fields would you need for the MVP?\n\n- Will any custom fields require data validation?\n\n- Do you need any fields to be mandatory during issue creation?\n\nScreen Schemes: \n- What would you like the UI to look like for your issues? Are there any particular fields that are essential for your work?\n\n- Do you want different screens for different roles or issue functions (create vs view)?\n\n- Would any fields need dynamic behavior, like showing/hiding based on other field values?\n\nIssue Priorities: \nThe global priority scheme is based on P0 to P5, with P0 being a critical blocker and P5 being a very low-priority issue.\n- Are you okay prioritizing your work this way?\n\nIssue Linking: \n- Do you need to link issues to a different Jira instance (i.e ford.jira.basic@atlassian.com)?\n\n- How do you foresee using issue linking to manage dependencies?\n\n- Will there be a need to track parent-child relationships between issues?\n\nNotifications:  \n- How would you like to handle in-app notifications? Notifications for every update or only the most critical changes to an issue, like when something is created or finished? Somewhere in the middle?\n\n- Are there any specific notification channels you'd prefer (e.g., email, in-app, Slack)?\n\n- Would you want to set up notification digests for less critical updates?\n\nComponents: \n- Do you plan on using components and what would you need as components on your project?\n\n- Will components have designated leads?\n\n- How granular do you want to break down the components (sub-components, modules)?\n\nVersions: \n- Do you plan on having alpha/beta releases before the final version?\n\n- How will versions relate to your overall product roadmap?\n\nAgile Boards: \n- Do you want to use Scrum, Kanban, or a hybrid approach?\n\n- Are there specific metrics (e.g., lead time, cycle time) you'd like to track on the board?\n\nReports and Dashboards: \n- What would you like to see out of your dashboards? Any specific metrics or graphs?\n\n- Would you like any custom reports not provided by default in Jira?\n\nAutomations\n\n- Any critical automations you would need for the project? Changing assignees based on status transitions, automatic due dates, etc.\n\nAdditional Configuration: \n\n- How frequently do you anticipate changes to the project's configuration?\n\n- Are there any specific automations or post-functions you'd like to set up?\n\nMigration & Import: \n\n- Do you have data to import to the project?\n\n- If so, what formats is your current data in? \n\n- Are there any specific data integrity checks you'd like to perform post-migration?\n\nTraining & Documentation: \n\n- What's the Jira proficiency level of the majority of your team?\n\n- Would you like documentation to be video-based, written, or both?\n\nMaintenance: \n\n- Would you prefer a proactive or reactive approach to maintenance? \n\n- Are there any specific team members who should be alerted in case of configuration issues or errors?\n"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "project"
+            },
+            "fieldType": "project",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "fieldType": "issuetype",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10000"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "parent"
+            },
+            "fieldType": "parent",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "duedate"
+            },
+            "fieldType": "duedate",
+            "type": "SET",
+            "value": "{{now.plusBusinessDays(10)}}"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "fixVersions"
+            },
+            "fieldType": "fixVersions",
+            "type": "SET",
+            "value": [
+              {
+                "type": "REFERENCE",
+                "value": "NEXT_UNRELEASED_VERSION"
+              }
+            ]
+          }
+        ],
+        "sendNotifications": false
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555651052",
+          "parentId": "555651049",
+          "schemaVersion": 12,
+          "type": "jira.issue.create",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "summary"
+                },
+                "fieldType": "summary",
+                "type": "SET",
+                "value": "Schedule Project Kickoff"
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "description"
+                },
+                "fieldType": "description",
+                "type": "SET",
+                "value": "Please schedule a project kick off meeting with the appropriate stakeholders of the project for introductions and to discuss P1 requirements."
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "project"
+                },
+                "fieldType": "project",
+                "type": "SET",
+                "value": {
+                  "type": "COPY",
+                  "value": "current"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "issuetype"
+                },
+                "fieldType": "issuetype",
+                "type": "SET",
+                "value": {
+                  "type": "ID",
+                  "value": "10023"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Epic Link"
+                },
+                "fieldType": "com.pyxis.greenhopper.jira:gh-epic-link",
+                "type": "SET",
+                "value": {
+                  "type": "SMART",
+                  "value": "{{issue.key}}"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "priority"
+                },
+                "fieldType": "priority",
+                "type": "SET",
+                "value": {
+                  "type": "ID",
+                  "value": "2"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "fixVersions"
+                },
+                "fieldType": "fixVersions",
+                "type": "COPY",
+                "value": {
+                  "copyOptions": [
+                    "ADD"
+                  ],
+                  "sourceField": {
+                    "fieldType": "fixVersions",
+                    "type": "ID",
+                    "value": "fixVersions"
+                  },
+                  "sourceIssue": "current"
+                }
+              }
+            ],
+            "sendNotifications": false
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555651058",
+          "parentId": "555651049",
+          "schemaVersion": 12,
+          "type": "jira.issue.create",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "summary"
+                },
+                "fieldType": "summary",
+                "type": "SET",
+                "value": "Schedule Reoccurring Working Sessions"
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "description"
+                },
+                "fieldType": "description",
+                "type": "SET",
+                "value": "This task is to establish a regular cadence for demos and reviews with the customer. Standard cadence is twice per week."
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "project"
+                },
+                "fieldType": "project",
+                "type": "SET",
+                "value": {
+                  "type": "COPY",
+                  "value": "current"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "issuetype"
+                },
+                "fieldType": "issuetype",
+                "type": "SET",
+                "value": {
+                  "type": "ID",
+                  "value": "10023"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Epic Link"
+                },
+                "fieldType": "com.pyxis.greenhopper.jira:gh-epic-link",
+                "type": "SET",
+                "value": {
+                  "type": "SMART",
+                  "value": "{{issue.key}}"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "priority"
+                },
+                "fieldType": "priority",
+                "type": "SET",
+                "value": {
+                  "type": "ID",
+                  "value": "2"
+                }
+              }
+            ],
+            "sendNotifications": false
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555651064",
+          "parentId": "555651049",
+          "schemaVersion": 12,
+          "type": "jira.issue.create",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "summary"
+                },
+                "fieldType": "summary",
+                "type": "SET",
+                "value": "Complete Intake Questionnaire"
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "description"
+                },
+                "fieldType": "description",
+                "type": "SET",
+                "value": "This task is to be assigned to the main Point of contact on the project to better capture requirements and understand critical components of the implementation."
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "project"
+                },
+                "fieldType": "project",
+                "type": "SET",
+                "value": {
+                  "type": "COPY",
+                  "value": "current"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "issuetype"
+                },
+                "fieldType": "issuetype",
+                "type": "SET",
+                "value": {
+                  "type": "ID",
+                  "value": "10023"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Epic Link"
+                },
+                "fieldType": "com.pyxis.greenhopper.jira:gh-epic-link",
+                "type": "SET",
+                "value": {
+                  "type": "SMART",
+                  "value": "{{issue.key}}"
+                }
+              }
+            ],
+            "sendNotifications": false
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555651068",
+          "parentId": "555651049",
+          "schemaVersion": 12,
+          "type": "jira.issue.create",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "summary"
+                },
+                "fieldType": "summary",
+                "type": "SET",
+                "value": "Confirm all P1s have been identified"
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "description"
+                },
+                "fieldType": "description",
+                "type": "SET",
+                "value": "Following the project kick off meeting and completion of the intake questionnaire, confirm with the main PoC that all P1 requirements have been confirmed."
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "project"
+                },
+                "fieldType": "project",
+                "type": "SET",
+                "value": {
+                  "type": "COPY",
+                  "value": "current"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "issuetype"
+                },
+                "fieldType": "issuetype",
+                "type": "SET",
+                "value": {
+                  "type": "ID",
+                  "value": "10023"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Epic Link"
+                },
+                "fieldType": "com.pyxis.greenhopper.jira:gh-epic-link",
+                "type": "SET",
+                "value": {
+                  "type": "SMART",
+                  "value": "{{issue.key}}"
+                }
+              }
+            ],
+            "sendNotifications": false
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555651072",
+          "parentId": "555651049",
+          "schemaVersion": 12,
+          "type": "jira.issue.create",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "summary"
+                },
+                "fieldType": "summary",
+                "type": "SET",
+                "value": "Add target start and due dates for all P1s"
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "description"
+                },
+                "fieldType": "description",
+                "type": "SET",
+                "value": "For tasks missing the target start date, please add a value and confirm the due date."
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "project"
+                },
+                "fieldType": "project",
+                "type": "SET",
+                "value": {
+                  "type": "COPY",
+                  "value": "current"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "issuetype"
+                },
+                "fieldType": "issuetype",
+                "type": "SET",
+                "value": {
+                  "type": "ID",
+                  "value": "10023"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Epic Link"
+                },
+                "fieldType": "com.pyxis.greenhopper.jira:gh-epic-link",
+                "type": "SET",
+                "value": {
+                  "type": "SMART",
+                  "value": "{{issue.key}}"
+                }
+              }
+            ],
+            "sendNotifications": false
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555651073",
+          "parentId": "555651049",
+          "schemaVersion": 12,
+          "type": "jira.issue.create",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "summary"
+                },
+                "fieldType": "summary",
+                "type": "SET",
+                "value": "Create Project Shell"
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "description"
+                },
+                "fieldType": "description",
+                "type": "SET",
+                "value": "Create the project shell using the desired project template, name the project appropriately, and adjust the project key and project lead values as needed."
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "project"
+                },
+                "fieldType": "project",
+                "type": "SET",
+                "value": {
+                  "type": "COPY",
+                  "value": "current"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "issuetype"
+                },
+                "fieldType": "issuetype",
+                "type": "SET",
+                "value": {
+                  "type": "ID",
+                  "value": "10023"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Epic Link"
+                },
+                "fieldType": "com.pyxis.greenhopper.jira:gh-epic-link",
+                "type": "SET",
+                "value": {
+                  "type": "SMART",
+                  "value": "{{issue.key}}"
+                }
+              }
+            ],
+            "sendNotifications": false
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555651077",
+          "parentId": "555651049",
+          "schemaVersion": 12,
+          "type": "jira.issue.create",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "summary"
+                },
+                "fieldType": "summary",
+                "type": "SET",
+                "value": "Configure Users and Roles"
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "description"
+                },
+                "fieldType": "description",
+                "type": "SET",
+                "value": "Please add the necessary users that require initial project access into the appropriate project roles as defined in the project questionnaire."
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "project"
+                },
+                "fieldType": "project",
+                "type": "SET",
+                "value": {
+                  "type": "COPY",
+                  "value": "current"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "issuetype"
+                },
+                "fieldType": "issuetype",
+                "type": "SET",
+                "value": {
+                  "type": "ID",
+                  "value": "10023"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Epic Link"
+                },
+                "fieldType": "com.pyxis.greenhopper.jira:gh-epic-link",
+                "type": "SET",
+                "value": {
+                  "type": "SMART",
+                  "value": "{{issue.key}}"
+                }
+              }
+            ],
+            "sendNotifications": false
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555651080",
+          "parentId": "555651049",
+          "schemaVersion": 12,
+          "type": "jira.issue.create",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "summary"
+                },
+                "fieldType": "summary",
+                "type": "SET",
+                "value": "Configure Issue Type Schema"
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "description"
+                },
+                "fieldType": "description",
+                "type": "SET",
+                "value": "Please use the appropriate issue type schema template or create a custom issue type schema to meet the project requirements."
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "project"
+                },
+                "fieldType": "project",
+                "type": "SET",
+                "value": {
+                  "type": "COPY",
+                  "value": "current"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "issuetype"
+                },
+                "fieldType": "issuetype",
+                "type": "SET",
+                "value": {
+                  "type": "ID",
+                  "value": "10023"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Epic Link"
+                },
+                "fieldType": "com.pyxis.greenhopper.jira:gh-epic-link",
+                "type": "SET",
+                "value": {
+                  "type": "SMART",
+                  "value": "{{issue.key}}"
+                }
+              }
+            ],
+            "sendNotifications": false
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555651081",
+          "parentId": "555651049",
+          "schemaVersion": 12,
+          "type": "jira.issue.create",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "summary"
+                },
+                "fieldType": "summary",
+                "type": "SET",
+                "value": "Configure Workflow Schema"
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "description"
+                },
+                "fieldType": "description",
+                "type": "SET",
+                "value": "Please leverage an appropriate workflow schema template and customize as needed to meet the requirements of the project."
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "project"
+                },
+                "fieldType": "project",
+                "type": "SET",
+                "value": {
+                  "type": "COPY",
+                  "value": "current"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "issuetype"
+                },
+                "fieldType": "issuetype",
+                "type": "SET",
+                "value": {
+                  "type": "ID",
+                  "value": "10023"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Epic Link"
+                },
+                "fieldType": "com.pyxis.greenhopper.jira:gh-epic-link",
+                "type": "SET",
+                "value": {
+                  "type": "SMART",
+                  "value": "{{issue.key}}"
+                }
+              }
+            ],
+            "sendNotifications": false
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555651084",
+          "parentId": "555651049",
+          "schemaVersion": 12,
+          "type": "jira.issue.create",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "summary"
+                },
+                "fieldType": "summary",
+                "type": "SET",
+                "value": "Configure Custom Fields"
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "description"
+                },
+                "fieldType": "description",
+                "type": "SET",
+                "value": "Create any additional custom fields that are needed for the MVP. Please try to leverage existing fields if they address the needs from the end user for scalability purposes."
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "project"
+                },
+                "fieldType": "project",
+                "type": "SET",
+                "value": {
+                  "type": "COPY",
+                  "value": "current"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "issuetype"
+                },
+                "fieldType": "issuetype",
+                "type": "SET",
+                "value": {
+                  "type": "ID",
+                  "value": "10023"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Epic Link"
+                },
+                "fieldType": "com.pyxis.greenhopper.jira:gh-epic-link",
+                "type": "SET",
+                "value": {
+                  "type": "SMART",
+                  "value": "{{issue.key}}"
+                }
+              }
+            ],
+            "sendNotifications": false
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555651088",
+          "parentId": "555651049",
+          "schemaVersion": 12,
+          "type": "jira.issue.create",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "summary"
+                },
+                "fieldType": "summary",
+                "type": "SET",
+                "value": "Configure Screen Schema"
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "description"
+                },
+                "fieldType": "description",
+                "type": "SET",
+                "value": "Create the appropriate screen schema to match the requirements from the questionnaire. "
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "project"
+                },
+                "fieldType": "project",
+                "type": "SET",
+                "value": {
+                  "type": "COPY",
+                  "value": "current"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "issuetype"
+                },
+                "fieldType": "issuetype",
+                "type": "SET",
+                "value": {
+                  "type": "ID",
+                  "value": "10023"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Epic Link"
+                },
+                "fieldType": "com.pyxis.greenhopper.jira:gh-epic-link",
+                "type": "SET",
+                "value": {
+                  "type": "SMART",
+                  "value": "{{issue.key}}"
+                }
+              }
+            ],
+            "sendNotifications": false
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555651090",
+          "parentId": "555651049",
+          "schemaVersion": 12,
+          "type": "jira.issue.create",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "summary"
+                },
+                "fieldType": "summary",
+                "type": "SET",
+                "value": "Configure Board(s)"
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "description"
+                },
+                "fieldType": "description",
+                "type": "SET",
+                "value": "Complete all the MVP board configurations including columns, swimlanes, card colors, quick filters, and card layout."
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "project"
+                },
+                "fieldType": "project",
+                "type": "SET",
+                "value": {
+                  "type": "COPY",
+                  "value": "current"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "issuetype"
+                },
+                "fieldType": "issuetype",
+                "type": "SET",
+                "value": {
+                  "type": "ID",
+                  "value": "10023"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Epic Link"
+                },
+                "fieldType": "com.pyxis.greenhopper.jira:gh-epic-link",
+                "type": "SET",
+                "value": {
+                  "type": "SMART",
+                  "value": "{{issue.key}}"
+                }
+              }
+            ],
+            "sendNotifications": false
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555651093",
+          "parentId": "555651049",
+          "schemaVersion": 12,
+          "type": "jira.issue.create",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "summary"
+                },
+                "fieldType": "summary",
+                "type": "SET",
+                "value": "Create Project Plan in Advanced Roadmaps"
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "description"
+                },
+                "fieldType": "description",
+                "type": "SET",
+                "value": "Create a project plan in Advanced Roadmaps for the MVP. Please configure all the necessary plan issue sources, permissions, and create a lightweight plan for the MVP."
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "project"
+                },
+                "fieldType": "project",
+                "type": "SET",
+                "value": {
+                  "type": "COPY",
+                  "value": "current"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "issuetype"
+                },
+                "fieldType": "issuetype",
+                "type": "SET",
+                "value": {
+                  "type": "ID",
+                  "value": "10023"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Epic Link"
+                },
+                "fieldType": "com.pyxis.greenhopper.jira:gh-epic-link",
+                "type": "SET",
+                "value": {
+                  "type": "SMART",
+                  "value": "{{issue.key}}"
+                }
+              }
+            ],
+            "sendNotifications": false
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555651100",
+          "parentId": "555651049",
+          "schemaVersion": 12,
+          "type": "jira.issue.create",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "summary"
+                },
+                "fieldType": "summary",
+                "type": "SET",
+                "value": "Validate All P1s have been completed"
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "description"
+                },
+                "fieldType": "description",
+                "type": "SET",
+                "value": "Final MVP review with the customer following the initial implementation. Any additional P1s will be added to the Fast Follows epic."
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "project"
+                },
+                "fieldType": "project",
+                "type": "SET",
+                "value": {
+                  "type": "COPY",
+                  "value": "current"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "issuetype"
+                },
+                "fieldType": "issuetype",
+                "type": "SET",
+                "value": {
+                  "type": "ID",
+                  "value": "10023"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Epic Link"
+                },
+                "fieldType": "com.pyxis.greenhopper.jira:gh-epic-link",
+                "type": "SET",
+                "value": {
+                  "type": "SMART",
+                  "value": "{{issue.key}}"
+                }
+              }
+            ],
+            "sendNotifications": false
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555651102",
+          "parentId": "555651049",
+          "schemaVersion": 12,
+          "type": "jira.issue.create",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "summary"
+                },
+                "fieldType": "summary",
+                "type": "SET",
+                "value": "Send Comms for MVP Go-Live"
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "description"
+                },
+                "fieldType": "description",
+                "type": "SET",
+                "value": "Draft, review, and send out a comms email highlighting the launch of the MVP."
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "project"
+                },
+                "fieldType": "project",
+                "type": "SET",
+                "value": {
+                  "type": "COPY",
+                  "value": "current"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "issuetype"
+                },
+                "fieldType": "issuetype",
+                "type": "SET",
+                "value": {
+                  "type": "ID",
+                  "value": "10075"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Epic Link"
+                },
+                "fieldType": "com.pyxis.greenhopper.jira:gh-epic-link",
+                "type": "SET",
+                "value": {
+                  "type": "SMART",
+                  "value": "{{issue.key}}"
+                }
+              }
+            ],
+            "sendNotifications": false
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555651049",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "recentlycreated",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555651105",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.create",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": "{{triggerIssue.summary}}1.0 Post-Launch P1s"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "description"
+            },
+            "fieldType": "description",
+            "type": "SET",
+            "value": "Please add any additional P1 requirements following the launch of the MVP for the following 2 weeks."
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "project"
+            },
+            "fieldType": "project",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "fieldType": "issuetype",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10000"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "duedate"
+            },
+            "fieldType": "duedate",
+            "type": "SET",
+            "value": "{{now.plusBusinessDays(20)}}"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "parent"
+            },
+            "fieldType": "parent",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "trigger"
+            }
+          }
+        ],
+        "sendNotifications": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555651108",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.create",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": "{{triggerIssue.summary}}1.1 P2: \"Nice to Have\" Requirements"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "description"
+            },
+            "fieldType": "description",
+            "type": "SET",
+            "value": "Please input any P2 \"Nice to have\" requirements that would need to be implemented for version 1.1."
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "project"
+            },
+            "fieldType": "project",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "fieldType": "issuetype",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10000"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "duedate"
+            },
+            "fieldType": "duedate",
+            "type": "SET",
+            "value": "{{now.plusBusinessDays(30)}}"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "parent"
+            },
+            "fieldType": "parent",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "trigger"
+            }
+          }
+        ],
+        "sendNotifications": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555651110",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.create",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": "{{triggerIssue.summary}} 2.0 P3 Requirements"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "description"
+            },
+            "fieldType": "description",
+            "type": "SET",
+            "value": "Please input any longer-term requirements including integrations with specific 3rd party applications or other proprietary tools. These will likely be in the further out and be included in the next large version release. "
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "project"
+            },
+            "fieldType": "project",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "fieldType": "issuetype",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10000"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "duedate"
+            },
+            "fieldType": "duedate",
+            "type": "SET",
+            "value": "{{now.plusBusinessDays(60)}}"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "parent"
+            },
+            "fieldType": "parent",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "trigger"
+            }
+          }
+        ],
+        "sendNotifications": false
+      }
+    }
+  ],
+  "created": 1698714642776,
+  "description": "",
+  "id": 15849622,
+  "idUuid": "018b8348-6958-746b-bb5d-46ebc69398bd",
+  "labels": [],
+  "name": "Create New Project Template Issues",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10014"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10014"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "555651033",
+    "parentId": null,
+    "schemaVersion": 3,
+    "type": "jira.manual.trigger.issue",
+    "value": {
+      "groups": [
+        "c2df1656-bde6-4686-95f1-1126829dc639"
+      ],
+      "inputFromUsers": false,
+      "inputPrompts": [],
+      "issueFilter": {
+        "filterType": "ISSUE_TYPE",
+        "value": [
+          "Initiative"
+        ]
+      },
+      "jQLFilter": null
+    }
+  },
+  "updated": 1700005021935,
+  "writeAccessType": "UNRESTRICTED"
+}

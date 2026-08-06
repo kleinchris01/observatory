@@ -1,0 +1,108 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "643807600",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": null,
+          "type": "NAME",
+          "value": "To Do"
+        },
+        "comparison": "EQUALS",
+        "selectedField": {
+          "type": "ID",
+          "value": "status"
+        },
+        "selectedFieldType": "status"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "643807601",
+      "parentId": null,
+      "schemaVersion": 11,
+      "type": "jira.issue.transition",
+      "value": {
+        "advancedFields": null,
+        "destinationStatus": {
+          "type": "NAME",
+          "value": "Scheduled"
+        },
+        "operations": [],
+        "sendNotifications": true,
+        "transitionMatch": ""
+      }
+    }
+  ],
+  "created": 1733258026375,
+  "description": "",
+  "id": 23323630,
+  "idUuid": "01938e3a-9d87-7df1-9114-9b835ba8b4e5",
+  "labels": [],
+  "name": "Transitioned to scheduled from to do when due date set",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10584"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10584"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "643807599",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "VALUE_ADDED",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10584"
+      ],
+      "fields": [
+        {
+          "type": "field",
+          "value": "duedate"
+        }
+      ]
+    }
+  },
+  "updated": 1742228940498,
+  "writeAccessType": "UNRESTRICTED"
+}

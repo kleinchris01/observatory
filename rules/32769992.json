@@ -1,0 +1,129 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:9b52b270-bb29-4f87-880d-7c4412cc01b8",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "f9d0cae2-ee37-4938-b6b4-5b93cb22f818",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": null,
+          "type": "ID",
+          "value": "10147"
+        },
+        "comparison": "EQUALS",
+        "selectedField": {
+          "type": "ID",
+          "value": "issuetype"
+        },
+        "selectedFieldType": "issuetype"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "8be695b9-aa78-4859-9466-68bad7d52aa7",
+      "parentId": null,
+      "schemaVersion": 5,
+      "type": "jira.issue.outgoing.email",
+      "value": {
+        "bcc": [],
+        "body": "Hello {{issue.creator.displayName}},\n\nYour issue {{issue.key}} has been moved to \n\n'Waiting for more Information (from the reporter)'. \n\nPlease review and provide the requested information with the next business day to proceed.\n\nView issue: {{issue.toUrl}}\n\nThank you.",
+        "cc": [
+          {
+            "type": "FREE",
+            "value": "vinthavo@ford.com"
+          }
+        ],
+        "convertLineBreaks": true,
+        "fromName": "JIRA AUTOMATION ",
+        "mimeType": "text/html",
+        "replyTo": "vinthavo@ford.com",
+        "subject": "Action Required: More Information Needed for {{issue.key}} to be Triaged ",
+        "to": [
+          {
+            "type": "SMART",
+            "value": "{{issue.creator.emailAddress}}"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1775593050645,
+  "description": "When a work type issue in the PVFM project is transitioned to 'Waiting for more Information (from the reporter)', send an email to the creator. If the issue remains in that status for more than one day, send a daily reminder email to the creator until the status changes.",
+  "id": 32769992,
+  "idUuid": "019d6997-d215-75ee-be7b-5193d2fd8636",
+  "labels": [],
+  "name": "Notify and Remind Reporter When Issue is \"Waiting for More Information....\" ",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10816"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10816"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "fb17e8b7-0f90-4f3a-84a8-b76078062b8e",
+    "parentId": null,
+    "schemaVersion": -1,
+    "type": "jira.issue.event.trigger:transitioned",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10816"
+      ],
+      "eventKey": "jira:issue_updated",
+      "fromStatus": [
+        {
+          "type": "NAME",
+          "value": "Open"
+        },
+        {
+          "type": "NAME",
+          "value": "Unscreened"
+        }
+      ],
+      "issueEvent": "issue_generic",
+      "toStatus": [
+        {
+          "type": "NAME",
+          "value": "Waiting for more Information (from the reporter)"
+        }
+      ]
+    }
+  },
+  "updated": 1776883381465,
+  "writeAccessType": "UNRESTRICTED"
+}

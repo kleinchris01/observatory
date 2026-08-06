@@ -1,0 +1,110 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "714162972",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.refresh.issue",
+      "value": {
+        "delayMs": null
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "714162973",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Pre-File Sourcing Recommendation"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:datepicker",
+            "type": "SET",
+            "value": "{{issue.\"Target SEOBD\".minusWeeks(4)}}"
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Sourcing Approval Date"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:datepicker",
+            "type": "SET",
+            "value": "{{issue.\"Target SEOBD\".minusWeeks(3)}}"
+          }
+        ],
+        "sendNotifications": true
+      }
+    }
+  ],
+  "created": 1748370841770,
+  "description": "",
+  "id": 28780049,
+  "idUuid": "01971305-e0aa-7c0a-8db1-075df9bd17ce",
+  "labels": [],
+  "name": "5/6 Update Pre-File Sourcing Recommendation Date and Sourcing Approval Date",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10518"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10518"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "714162971",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10518"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Target SEOBD"
+        }
+      ]
+    }
+  },
+  "updated": 1759859595067,
+  "writeAccessType": "UNRESTRICTED"
+}

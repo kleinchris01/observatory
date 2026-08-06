@@ -1,0 +1,225 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "d918f9d6-1ab6-422c-a849-d23aacfc7587",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.outgoing.webhook",
+      "value": {
+        "contentType": "empty",
+        "continueOnErrorEnabled": true,
+        "customBody": null,
+        "headers": [
+          {
+            "headerSecure": false,
+            "id": "_header_1773671145477",
+            "name": "Authorization",
+            "value": "Basic Y3NpbWJvcmlAZm9yZC5jb206QVRBVFQzeEZmR0YwaDhGVzFGa1dBamdBcEVZeFhhOUxNQjRINVBUWGJkV0FuNVBtVmJ6N2IzSFMzdzZvLUVXZ3JCRkYxcXc1SjI1UlV6ZVN1cEVYTXE4MVRNYzFsVll3cFRVNDBlVjRqSHZ3U3NUNjQwbG52Z01tdmwtd3ZUWFBNTW1XTmlmSVg1RzZ5RHdHLWNvVmxsdW5hNlFQV0RpSkkxdXdSRm84cmEwTzlpNnFkNE5PZHpnPTNCREIwNjIy"
+          },
+          {
+            "headerSecure": false,
+            "id": "_header_1773671191584",
+            "name": "X-ExperimentalAPI",
+            "value": "opt-in"
+          }
+        ],
+        "method": "GET",
+        "responseEnabled": true,
+        "sendIssue": false,
+        "url": "https://api.atlassian.com/jira/forms/cloud/95d04bf4-e1b7-4b22-806f-8bc95698a196/issue/{{issue.key}}/form",
+        "urlSecure": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "e20e6218-d14d-4a61-8cc7-82580238ad2d",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "Issue Key: {{issue}}"
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "6660e83d-2ae6-4185-a013-edea4d654528",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "Current Forms: {{webResponse.body.id}}"
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "5ed33507-01d3-4bd3-b02f-f8028b8fec6c",
+          "parentId": "19a7b5b8-b702-4936-baa7-df3f02645173",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "Forms to be Deleted: {{var.id}}"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "ff8a8bd8-48be-458e-81a4-2621a2efb53f",
+          "parentId": "19a7b5b8-b702-4936-baa7-df3f02645173",
+          "schemaVersion": 1,
+          "type": "jira.issue.outgoing.webhook",
+          "value": {
+            "contentType": "empty",
+            "continueOnErrorEnabled": true,
+            "customBody": null,
+            "headers": [
+              {
+                "headerSecure": false,
+                "id": "_header_1773667436943",
+                "name": "Authorization",
+                "value": "Basic Y3NpbWJvcmlAZm9yZC5jb206QVRBVFQzeEZmR0YwaDhGVzFGa1dBamdBcEVZeFhhOUxNQjRINVBUWGJkV0FuNVBtVmJ6N2IzSFMzdzZvLUVXZ3JCRkYxcXc1SjI1UlV6ZVN1cEVYTXE4MVRNYzFsVll3cFRVNDBlVjRqSHZ3U3NUNjQwbG52Z01tdmwtd3ZUWFBNTW1XTmlmSVg1RzZ5RHdHLWNvVmxsdW5hNlFQV0RpSkkxdXdSRm84cmEwTzlpNnFkNE5PZHpnPTNCREIwNjIy"
+              },
+              {
+                "headerSecure": false,
+                "id": "_header_1773669788927",
+                "name": "X-ExperimentalAPI",
+                "value": "opt-in"
+              }
+            ],
+            "method": "DELETE",
+            "responseEnabled": true,
+            "sendIssue": false,
+            "url": "https://api.atlassian.com/jira/forms/cloud/95d04bf4-e1b7-4b22-806f-8bc95698a196/issue/{{issue.key}}/form/{{var.id}}",
+            "urlSecure": false
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "9bb0904c-a928-4694-b076-6489d79c8867",
+          "parentId": "19a7b5b8-b702-4936-baa7-df3f02645173",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "Web Response:  {{webResponse.status}}"
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "19a7b5b8-b702-4936-baa7-df3f02645173",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.smart.values.branch",
+      "value": {
+        "id": "_customsmartvalue_id_1773671281149",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "var"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{webResponse.body}}"
+        },
+        "type": "SMART"
+      }
+    }
+  ],
+  "created": 1774617055453,
+  "description": "This automation automatically deletes attached forms for Build Deviation and Eng. Requirement Deviation upon creation.",
+  "id": 32615428,
+  "idUuid": "019d2f6b-50de-7e44-b43f-5519a0e65241",
+  "labels": [],
+  "name": "SOLVE: Deviation - Deleting of attached forms",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "345b3493-ac93-4980-ba53-39fc73d69970",
+        "conditions": [],
+        "connectionId": null,
+        "id": "5857e260-89c6-4bcf-8d5d-3c536ee52406",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": true,
+            "source": null,
+            "type": "ID",
+            "value": "[\"12654\",\"12621\"]"
+          },
+          "comparison": "ONE_OF",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "345b3493-ac93-4980-ba53-39fc73d69970",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1782742663571,
+  "writeAccessType": "UNRESTRICTED"
+}

@@ -1,0 +1,184 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "635372472",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": null,
+          "type": "ID",
+          "value": "10173"
+        },
+        "comparison": "EQUALS",
+        "selectedField": {
+          "type": "ID",
+          "value": "issuetype"
+        },
+        "selectedFieldType": "issuetype"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "635372474",
+          "parentId": "635372473",
+          "schemaVersion": 1,
+          "type": "jira.issues.related.condition",
+          "value": {
+            "compareJql": "status in (Agree, Disagree, \"No Review\")",
+            "compareValue": 0,
+            "jql": "",
+            "linkTypes": [],
+            "operator": "allmatch",
+            "relatedJql": "",
+            "relatedType": "subtasks",
+            "similarityLimit": 40
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "635372475",
+          "parentId": "635372473",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "NAME",
+              "value": "Complete"
+            },
+            "comparison": "NOT_EQUAL",
+            "selectedField": {
+              "type": "ID",
+              "value": "status"
+            },
+            "selectedFieldType": "status"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "635372476",
+          "parentId": "635372473",
+          "schemaVersion": 11,
+          "type": "jira.issue.transition",
+          "value": {
+            "advancedFields": null,
+            "destinationStatus": {
+              "type": "NAME",
+              "value": "In Progress"
+            },
+            "operations": [],
+            "sendNotifications": true,
+            "transitionMatch": ""
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "635372473",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "parent",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1719533606525,
+  "description": "",
+  "id": 20199448,
+  "idUuid": "01905c30-967d-7e9a-bf7d-1a8eb07b94ec",
+  "labels": [],
+  "name": "All Reviews Complete - transition to approval",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10097"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10097"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "635372471",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:transitioned",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10097"
+      ],
+      "eventKey": "jira:issue_updated",
+      "fromStatus": [],
+      "issueEvent": "issue_generic",
+      "toStatus": [
+        {
+          "type": "NAME",
+          "value": "Agree"
+        },
+        {
+          "type": "NAME",
+          "value": "Disagree"
+        },
+        {
+          "type": "NAME",
+          "value": "No Review"
+        }
+      ]
+    }
+  },
+  "updated": 1732127183350,
+  "writeAccessType": "UNRESTRICTED"
+}

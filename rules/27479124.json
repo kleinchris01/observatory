@@ -1,0 +1,105 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:10e644de-d96b-4816-9029-d6cf8f0aec37",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "706551498",
+          "parentId": "706551497",
+          "schemaVersion": 2,
+          "type": "jira.issue.comment",
+          "value": {
+            "addCommentOnce": false,
+            "comment": "Hey [~{{approver}}],\n\nThis task is now in Approval status.  You have been added as a required approver.  Please Approve or decline [this request|{{issue.url}}].\n\nThanks,",
+            "commentVisibility": null,
+            "publicComment": false,
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "706551497",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.smart.values.branch",
+      "value": {
+        "id": "_customsmartvalue_id_1744830599617",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "approver"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{issue.customfield_10003}}"
+        },
+        "type": "SMART"
+      }
+    }
+  ],
+  "created": 1744830893192,
+  "description": "",
+  "id": 27479124,
+  "idUuid": "01964006-8c88-7484-a99c-f531b674a6dc",
+  "labels": [],
+  "name": "Approval Status - Mention Approvers",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10584"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10584"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "706551496",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:transitioned",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10584"
+      ],
+      "eventKey": "jira:issue_updated",
+      "fromStatus": [],
+      "issueEvent": "issue_generic",
+      "toStatus": [
+        {
+          "type": "NAME",
+          "value": "Approval"
+        }
+      ]
+    }
+  },
+  "updated": 1744830893192,
+  "writeAccessType": "UNRESTRICTED"
+}

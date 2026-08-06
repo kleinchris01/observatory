@@ -1,0 +1,129 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "62a4d913451c000069686429"
+  },
+  "authorAccountId": "62a4d913451c000069686429",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "052f2eab-ac87-427e-839f-8976a65b2bc4",
+          "parentId": "78a60f6f-425b-4284-a97d-74e9979ea9f0",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "summary"
+                },
+                "fieldType": "summary",
+                "type": "SET",
+                "value": "{{triggerIssue.summary}}"
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "description"
+                },
+                "fieldType": "description",
+                "type": "SET",
+                "value": "{{triggerIssue.description}}"
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "attachment"
+                },
+                "fieldType": "attachment",
+                "type": "COPY",
+                "value": {
+                  "copyOptions": [],
+                  "sourceField": {
+                    "fieldType": "attachment",
+                    "type": "ID",
+                    "value": "attachment"
+                  },
+                  "sourceIssue": "trigger"
+                }
+              }
+            ],
+            "sendNotifications": false
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "78a60f6f-425b-4284-a97d-74e9979ea9f0",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": null,
+        "linkTypes": [
+          "clones"
+        ],
+        "onlyUpdatedIssues": true,
+        "relatedType": "linked",
+        "similarityLimit": 0
+      }
+    }
+  ],
+  "created": 1761765238639,
+  "description": "When an issue is updated, all its cloned issues are updated as well.",
+  "id": 30668530,
+  "idUuid": "019a3164-276f-778d-a2c8-bc014b0cc602",
+  "labels": [],
+  "name": "Update Cloned Issues on Update",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11277"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11277"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "5db5023b-5f84-49cd-860e-2d57b0023c08",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:updated",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11277"
+      ],
+      "eventKey": "jira:issue_updated",
+      "issueEvent": "issue_updated"
+    }
+  },
+  "updated": 1761765796133,
+  "writeAccessType": "UNRESTRICTED"
+}

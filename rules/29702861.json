@@ -1,0 +1,446 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "719349598",
+      "parentId": null,
+      "schemaVersion": 6,
+      "type": "jira.user.condition",
+      "value": {
+        "conditions": [
+          {
+            "check": "USER_IS",
+            "criteria": [
+              {
+                "type": "SMART",
+                "value": "{{issue.Device Owner}}"
+              }
+            ],
+            "field": "initiator"
+          }
+        ],
+        "operator": "OR"
+      }
+    },
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "719349600",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": null,
+          "type": "ID",
+          "value": "10083"
+        },
+        "comparison": "EQUALS",
+        "selectedField": {
+          "type": "ID",
+          "value": "issuetype"
+        },
+        "selectedFieldType": "issuetype"
+      }
+    },
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "719349601",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": null,
+        "comparison": "NOT_EMPTY",
+        "selectedField": {
+          "type": "NAME",
+          "value": "Production Sourced Supplier"
+        },
+        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+      }
+    },
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "719349602",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": null,
+        "comparison": "NOT_EMPTY",
+        "selectedField": {
+          "type": "NAME",
+          "value": "Production Intent Data"
+        },
+        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "719349606",
+              "parentId": "719349604",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Production Sourced Supplier"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "Yes"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "719349604",
+              "conditions": [],
+              "connectionId": null,
+              "id": "719349605",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{comment.body}}",
+                "operator": "REGEX_CONTAINS",
+                "second": "(?i)\\bProduction Sourced Supplier\\s*=\\s*Yes\\b"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "719349604",
+          "parentId": "719349603",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "719349603",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "719349610",
+              "parentId": "719349608",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Production Sourced Supplier"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "No"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "719349608",
+              "conditions": [],
+              "connectionId": null,
+              "id": "719349609",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{comment.body}}",
+                "operator": "REGEX_CONTAINS",
+                "second": "(?i)\\bProduction Sourced Supplier\\s*=\\s*No\\b"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "719349608",
+          "parentId": "719349607",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "719349607",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "719349614",
+              "parentId": "719349612",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Production Intent Data"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "Yes"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "719349612",
+              "conditions": [],
+              "connectionId": null,
+              "id": "719349613",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{comment.body}}",
+                "operator": "REGEX_CONTAINS",
+                "second": "(?i)\\bProduction Intent Data\\s*=\\s*Yes\\b"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "719349612",
+          "parentId": "719349611",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "719349611",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "719349618",
+              "parentId": "719349616",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Production Intent Data"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "No"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "719349616",
+              "conditions": [],
+              "connectionId": null,
+              "id": "719349617",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{comment.body}}",
+                "operator": "REGEX_CONTAINS",
+                "second": "(?i)\\bProduction Intent Data\\s*=\\s*No\\b"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "719349616",
+          "parentId": "719349615",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "719349615",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1752864923750,
+  "description": "",
+  "id": 29702861,
+  "idUuid": "01981ee4-2066-7fe1-abe1-9d812a59b9a8",
+  "labels": [],
+  "name": "2) Update Production Sourced Supplier and Production Intent Data",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10051"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10051"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "719349597",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:commented",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10051"
+      ],
+      "eventTypes": [
+        "PRIMARY_ACTION",
+        "EDIT_REQUEST",
+        "TRANSITION"
+      ]
+    }
+  },
+  "updated": 1755795492183,
+  "writeAccessType": "UNRESTRICTED"
+}

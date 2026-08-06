@@ -1,0 +1,149 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "712020:a99b981f-0f57-463f-846e-bd831fed2aae"
+  },
+  "authorAccountId": "712020:a99b981f-0f57-463f-846e-bd831fed2aae",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "988457c2-ec93-4835-aa72-12efea6324bc",
+          "parentId": "5ff944e0-67ca-47d3-9352-701055de68f9",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": true,
+              "source": null,
+              "type": "NAME",
+              "value": "[\"Unscreened\",\"To Do\"]"
+            },
+            "comparison": "ONE_OF",
+            "selectedField": {
+              "type": "ID",
+              "value": "status"
+            },
+            "selectedFieldType": "status"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "02de7a4d-0afb-4dfc-8bdd-adb9f2b908b1",
+          "parentId": "5ff944e0-67ca-47d3-9352-701055de68f9",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": null,
+            "comparison": "NOT_EMPTY",
+            "selectedField": {
+              "type": "ID",
+              "value": "fixVersions"
+            },
+            "selectedFieldType": "fixVersions"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "2f2486c1-2d2f-43de-aec8-441c02ef3860",
+          "parentId": "5ff944e0-67ca-47d3-9352-701055de68f9",
+          "schemaVersion": 11,
+          "type": "jira.issue.transition",
+          "value": {
+            "advancedFields": null,
+            "destinationStatus": {
+              "type": "NAME",
+              "value": "In Progress"
+            },
+            "operations": [],
+            "sendNotifications": true,
+            "transitionMatch": null
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "5ff944e0-67ca-47d3-9352-701055de68f9",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": null,
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "parent",
+        "similarityLimit": 0
+      }
+    }
+  ],
+  "created": 1770924622445,
+  "description": "When a child issue transitions to In Progress, transition the parent issue to In Progress if it is in Unscreened or To Do.",
+  "id": 31981281,
+  "idUuid": "019c5355-426d-781e-80f2-99f99fe12a76",
+  "labels": [],
+  "name": "Transition Parent to In Progress",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10104"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10104"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "1e1624fc-a9ca-487f-955d-99b45da66844",
+    "parentId": null,
+    "schemaVersion": -1,
+    "type": "jira.issue.event.trigger:transitioned",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10104"
+      ],
+      "eventKey": "jira:issue_updated",
+      "fromStatus": [],
+      "issueEvent": "issue_generic",
+      "toStatus": [
+        {
+          "type": "NAME",
+          "value": "In Progress"
+        }
+      ]
+    }
+  },
+  "updated": 1775149025829,
+  "writeAccessType": "UNRESTRICTED"
+}

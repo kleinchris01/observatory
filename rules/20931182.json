@@ -1,0 +1,95 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555648874",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "duedate"
+            },
+            "fieldType": "duedate",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:datetime",
+                "type": "NAME",
+                "value": "Reservation End"
+              },
+              "sourceIssue": "current"
+            }
+          }
+        ],
+        "sendNotifications": true
+      }
+    }
+  ],
+  "created": 1722873008960,
+  "description": "",
+  "id": 20931182,
+  "idUuid": "0191233b-d340-775f-a4e2-aa543a51bdb2",
+  "labels": [],
+  "name": "Copy reservation end to due date",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10135"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10135"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "555648872",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10135"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Reservation End"
+        }
+      ]
+    }
+  },
+  "updated": 1722873008960,
+  "writeAccessType": "UNRESTRICTED"
+}

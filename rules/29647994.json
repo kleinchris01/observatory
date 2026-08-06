@@ -1,0 +1,118 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "718922639",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": null,
+        "comparison": "EMPTY",
+        "selectedField": {
+          "type": "NAME",
+          "value": "Begin Recruiting Date"
+        },
+        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:datepicker"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "718922640",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "Change log is {{issue.changelog.histories.asJsonString}}"
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "718922641",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Begin Recruiting Date"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:datepicker",
+            "type": "SET",
+            "value": "{{issue.auditLog.filter(entry -> entry.changedValues.anyMatch(v -> v.fieldName == \"status\" && v.newValue == \"Application Review\")).first.created}}"
+          }
+        ],
+        "sendNotifications": true
+      }
+    }
+  ],
+  "created": 1752268716138,
+  "description": "",
+  "id": 29647994,
+  "idUuid": "0197fb5a-b86a-7e6d-96e3-739a36aeab32",
+  "labels": [],
+  "name": "Calculate recruiting duration (days) - Retroactive",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10041"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10041"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "718922638",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "project = ATT and issuetype = candidate and status not in (\"On Ice\", \"Candidate Contact\", Rejected) and \"Begin Recruiting Date\" is empty and key = ATT-16453",
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/Los_Angeles:20250711T140930\nRRULE:FREQ=WEEKLY;BYHOUR=9;BYMINUTE=0;BYSECOND=0;BYDAY=FR;INTERVAL=1\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1752269235026,
+  "writeAccessType": "UNRESTRICTED"
+}

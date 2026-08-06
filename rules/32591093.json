@@ -1,0 +1,111 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "f5cd7ed2-793e-478a-b32a-8f7b20f20c0d",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "security"
+            },
+            "fieldType": "security",
+            "type": "SET",
+            "value": {
+              "type": "NAME",
+              "value": "P833 Default"
+            }
+          }
+        ],
+        "sendNotifications": true
+      }
+    }
+  ],
+  "created": 1774500086575,
+  "description": "",
+  "id": 32591093,
+  "idUuid": "019d2872-832f-7503-957f-1a189377146f",
+  "labels": [],
+  "name": "Set P833 Default Security Level",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10110"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10110"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "487a9310-66df-4a20-8aa6-1844d8a3023d",
+        "conditions": [],
+        "connectionId": null,
+        "id": "9e1a7705-27c8-4768-8dfd-e5a33f66f70c",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": "CASE_SENSITIVE",
+            "multiValue": false,
+            "source": null,
+            "type": "VALUE",
+            "value": "P833"
+          },
+          "comparison": "CONTAINS_ANY",
+          "selectedField": {
+            "type": "NAME",
+            "value": "ADVEV Vehicle Program (Assets)"
+          },
+          "selectedFieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "487a9310-66df-4a20-8aa6-1844d8a3023d",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10110"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1774500086575,
+  "writeAccessType": "OWNER_ONLY"
+}

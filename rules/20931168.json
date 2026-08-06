@@ -1,0 +1,95 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555648923",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Start date"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:datepicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:datetime",
+                "type": "NAME",
+                "value": "Reservation Start"
+              },
+              "sourceIssue": "current"
+            }
+          }
+        ],
+        "sendNotifications": true
+      }
+    }
+  ],
+  "created": 1722872949970,
+  "description": "",
+  "id": 20931168,
+  "idUuid": "0191233a-ecd2-7015-9342-14ed212df073",
+  "labels": [],
+  "name": "Copy reservation start to start date",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10135"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10135"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "555648918",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10135"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Reservation Start"
+        }
+      ]
+    }
+  },
+  "updated": 1722872949970,
+  "writeAccessType": "UNRESTRICTED"
+}

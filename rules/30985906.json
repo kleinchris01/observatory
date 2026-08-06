@@ -1,0 +1,616 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:10e644de-d96b-4816-9029-d6cf8f0aec37",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "3616eb16-1059-4f41-8203-cc4bc9454e5c",
+              "parentId": "4bc26463-28f0-4d3d-9206-3f3a595fe00f",
+              "schemaVersion": 2,
+              "type": "jira.issue.comment",
+              "value": {
+                "addCommentOnce": false,
+                "comment": "A Build Deviation request already exists for this work item. Issue creation has been skipped to prevent duplication.\n\nIf this is an error or support is required, please contact the [ADVEV Helpdesk|https://ford-advev.atlassian.net/servicedesk/customer/portal/3].",
+                "commentVisibility": null,
+                "publicComment": true,
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "4bc26463-28f0-4d3d-9206-3f3a595fe00f",
+              "conditions": [],
+              "connectionId": null,
+              "id": "366969bc-6420-42ce-9437-a614ac95b026",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.issues.related.condition",
+              "value": {
+                "compareJql": "project = \"Program Requests Evaluation & Approval\"",
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [],
+                "operator": "somematch",
+                "relatedJql": "",
+                "relatedType": "linked",
+                "similarityLimit": 40
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "4bc26463-28f0-4d3d-9206-3f3a595fe00f",
+          "parentId": "1ec00a0e-5a10-4582-b170-e49fb715534f",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "f9219ba8-ebbe-4ac8-a74a-fd05f88558a4",
+              "parentId": "77a1a94c-912b-4118-8afb-0e6b91c20a34",
+              "schemaVersion": 2,
+              "type": "jira.issue.comment",
+              "value": {
+                "addCommentOnce": false,
+                "comment": "No assignee is set in the originating work item. Please update the work item with an assignee before proceeding.",
+                "commentVisibility": null,
+                "publicComment": true,
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "77a1a94c-912b-4118-8afb-0e6b91c20a34",
+              "conditions": [],
+              "connectionId": null,
+              "id": "eb3d7522-6973-4fae-bd07-50a09f367838",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": null,
+                "comparison": "EMPTY",
+                "selectedField": {
+                  "type": "ID",
+                  "value": "assignee"
+                },
+                "selectedFieldType": "assignee"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "77a1a94c-912b-4118-8afb-0e6b91c20a34",
+          "parentId": "1ec00a0e-5a10-4582-b170-e49fb715534f",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "8c01ffbe-09af-46f5-abd5-2fa739d1aede",
+              "parentId": "5aa4fb4d-584b-46e1-96da-c61a5b883de8",
+              "schemaVersion": 12,
+              "type": "jira.issue.create",
+              "value": {
+                "advancedFields": "",
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "summary"
+                    },
+                    "fieldType": "summary",
+                    "type": "SET",
+                    "value": "{{issue.summary}}"
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "project"
+                    },
+                    "fieldType": "project",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "13141"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "issuetype"
+                    },
+                    "fieldType": "issuetype",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "12654"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "reporter"
+                    },
+                    "fieldType": "reporter",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{initiator}}"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "issuelinks"
+                    },
+                    "fieldType": "issuelinks",
+                    "type": "SET",
+                    "value": {
+                      "issue": {
+                        "type": "COPY",
+                        "value": "trigger"
+                      },
+                      "linkType": "inward:10033"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "attachment"
+                    },
+                    "fieldType": "attachment",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "attachment",
+                        "type": "ID",
+                        "value": "attachment"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "description"
+                    },
+                    "fieldType": "description",
+                    "type": "SET",
+                    "value": "{{userInputs.description}}"
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Model Year "
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                        "type": "NAME",
+                        "value": "Model Year "
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Not to Exceed Cost"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+                    "type": "SET",
+                    "value": "{{userInputs.notToExceedCost}}"
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Vehicle Saleable"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{userInputs.vehicleSaleable}}"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Deviation Category"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{userInputs.deviationCategory}}"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Part Rework"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{userInputs.partRework}}"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Program "
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                        "type": "NAME",
+                        "value": "Program "
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Business Group"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{userInputs.businessGroup}}"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Collaborators"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                        "type": "NAME",
+                        "value": "Collaborators"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Parts"
+                    },
+                    "fieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype",
+                        "type": "NAME",
+                        "value": "Parts"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "SIT/Attribute (Assets)"
+                    },
+                    "fieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype",
+                        "type": "NAME",
+                        "value": "SIT/Attribute (Assets)"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "ADVEV Checkpoints & Milestones"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                        "type": "NAME",
+                        "value": "ADVEV Checkpoints & Milestones"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  }
+                ],
+                "sendNotifications": false
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "d8551f39-6d4a-4c18-b930-cf242d04b632",
+                      "parentId": "ef9df465-0a17-4afc-b61e-ec2d8ec5ca37",
+                      "schemaVersion": 2,
+                      "type": "jira.issue.comment",
+                      "value": {
+                        "addCommentOnce": false,
+                        "comment": "A Build Deviation request was created successfully. \n\nTrack the issue here: [{{createdIssue.key}}].\n\nFor questions related to automation or updates, contact the [ADVEV Helpdesk|https://ford-advev.atlassian.net/servicedesk/customer/portal/3].",
+                        "commentVisibility": null,
+                        "publicComment": true,
+                        "sendNotifications": true
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "ef9df465-0a17-4afc-b61e-ec2d8ec5ca37",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "d24bbbcd-0836-4d05-b6bd-e1f5f8e9638e",
+                      "parentId": null,
+                      "schemaVersion": 1,
+                      "type": "jira.comparator.condition",
+                      "value": {
+                        "first": "{{createdIssue.key}}",
+                        "operator": "NOT_EQUALS",
+                        "second": ""
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "ef9df465-0a17-4afc-b61e-ec2d8ec5ca37",
+                  "parentId": "77f20872-4265-401d-854d-114cd5ddbfaf",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "91e01a5a-0db0-4f19-add1-d73e09052131",
+                      "parentId": "fdac6d16-f3f8-4581-8a42-ff2bf6cef139",
+                      "schemaVersion": 2,
+                      "type": "jira.issue.comment",
+                      "value": {
+                        "addCommentOnce": false,
+                        "comment": "Build Deviation request creation failed. Please contact [ADVEV Helpdesk support team|https://ford-advev.atlassian.net/servicedesk/customer/portal/3].",
+                        "commentVisibility": null,
+                        "publicComment": true,
+                        "sendNotifications": true
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "fdac6d16-f3f8-4581-8a42-ff2bf6cef139",
+                  "parentId": "77f20872-4265-401d-854d-114cd5ddbfaf",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                }
+              ],
+              "component": "CONDITION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "77f20872-4265-401d-854d-114cd5ddbfaf",
+              "parentId": "5aa4fb4d-584b-46e1-96da-c61a5b883de8",
+              "schemaVersion": 1,
+              "type": "jira.condition.container.block",
+              "value": null
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "5aa4fb4d-584b-46e1-96da-c61a5b883de8",
+          "parentId": "1ec00a0e-5a10-4582-b170-e49fb715534f",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "1ec00a0e-5a10-4582-b170-e49fb715534f",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1764755079069,
+  "description": "Automation for creating Deviation Ticket from any project in the Jira instance. The data are either taken from the triggering ticket or user prompt.",
+  "id": 30985906,
+  "idUuid": "019ae399-7f9e-7a24-a01a-b37cb43f6fcf",
+  "labels": [],
+  "name": "SOLVE: Build Deviation",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "9bf0b440-b8de-4f7e-95bd-0334b6909f06",
+    "parentId": null,
+    "schemaVersion": 3,
+    "type": "jira.manual.trigger.issue",
+    "value": {
+      "groups": [],
+      "inputFromUsers": true,
+      "inputPrompts": [
+        {
+          "defaultValue": "",
+          "displayName": "Description",
+          "inputType": "PARAGRAPH",
+          "required": false,
+          "variableName": "description"
+        },
+        {
+          "defaultValue": [
+            "PD",
+            "PVT",
+            "Supplier with Ford ID",
+            "STA - MFG ENG"
+          ],
+          "displayName": "Business Group",
+          "inputType": "DROPDOWN",
+          "required": true,
+          "variableName": "businessGroup"
+        },
+        {
+          "defaultValue": 0,
+          "displayName": "Not to Exceed Cost",
+          "inputType": "NUMBER",
+          "required": true,
+          "variableName": "notToExceedCost"
+        },
+        {
+          "defaultValue": [
+            "Yes",
+            "No"
+          ],
+          "displayName": "Vehicle Saleable",
+          "inputType": "DROPDOWN",
+          "required": true,
+          "variableName": "vehicleSaleable"
+        },
+        {
+          "defaultValue": [
+            "Yes",
+            "No"
+          ],
+          "displayName": "Part Rework",
+          "inputType": "DROPDOWN",
+          "required": true,
+          "variableName": "partRework"
+        },
+        {
+          "defaultValue": [
+            "ICA or Rework",
+            "Part Pedigree Change",
+            "Part Substitution or Pull Ahead",
+            "Production Trial",
+            "Revised Process or PSO",
+            "SREA (Supplier Req.) or Resourcing Validation"
+          ],
+          "displayName": "Deviation Category",
+          "inputType": "DROPDOWN",
+          "required": true,
+          "variableName": "deviationCategory"
+        }
+      ],
+      "issueFilter": {
+        "filterType": "ISSUE_TYPE",
+        "value": [
+          "Solve Ticket"
+        ]
+      },
+      "jQLFilter": null
+    }
+  },
+  "updated": 1784238574084,
+  "writeAccessType": "UNRESTRICTED"
+}

@@ -1,0 +1,124 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "d8c1ca6d-d774-4c47-b612-8953c3aefebd",
+          "parentId": "45875157-43eb-4f59-89b7-c1c52f83c1ae",
+          "schemaVersion": 1,
+          "type": "cmdb.object.edit.attributes",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": null,
+                "name": "Prototype Tooling Cost",
+                "value": "{{issue.customfield_12606}}"
+              }
+            ]
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "45875157-43eb-4f59-89b7-c1c52f83c1ae",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.object.related",
+      "value": {
+        "cmdbQuery": "Key IN ({{issue.Part Numbers.Key}})",
+        "schemaId": "55",
+        "schemaLabel": "Parts from 3DX",
+        "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+      }
+    }
+  ],
+  "created": 1776381302806,
+  "description": "",
+  "id": 32906321,
+  "idUuid": "019d9893-9816-777c-9177-56c5dc5acaed",
+  "labels": [],
+  "name": "2i) Update Prototype Tooling Cost Attribute when Prototype Tooling Cost is updated",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10518"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10518"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "eb951ede-3ddd-45a9-829d-42b134538087",
+        "conditions": [],
+        "connectionId": null,
+        "id": "bb518c6d-a909-4379-8fd0-25efd612b66b",
+        "parentId": null,
+        "schemaVersion": 1,
+        "type": "jira.jql.condition",
+        "value": "Project = GSM"
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "eb951ede-3ddd-45a9-829d-42b134538087",
+        "conditions": [],
+        "connectionId": null,
+        "id": "5b24be6f-3602-426c-908a-a0ed5d258592",
+        "parentId": null,
+        "schemaVersion": 1,
+        "type": "jira.jql.condition",
+        "value": "\"Part Numbers\" is not empty"
+      }
+    ],
+    "connectionId": null,
+    "id": "eb951ede-3ddd-45a9-829d-42b134538087",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10518"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Prototype Tooling Cost"
+        }
+      ]
+    }
+  },
+  "updated": 1776381302806,
+  "writeAccessType": "OWNER_ONLY"
+}

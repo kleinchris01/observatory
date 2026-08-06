@@ -1,0 +1,113 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "d8e5cd84-0c85-4056-929f-f285cc183d58",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Age in Status"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+            "type": "SET",
+            "value": "0d"
+          }
+        ],
+        "sendNotifications": false
+      }
+    }
+  ],
+  "created": 1778750480210,
+  "description": "This automation is scheduled to run every 12 hours every day and sets the Age in Status to 0d for all work item in Done states. ",
+  "id": 33271902,
+  "idUuid": "019e25ca-5f52-791a-a5ae-1235b6bc241c",
+  "labels": [],
+  "name": "SOLVE: Issue - Time in Status Workaround for Dashboard (Done Tickets)",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "cca4f307-5e0c-4759-b01c-afaceffaf349",
+        "conditions": [],
+        "connectionId": null,
+        "id": "ede72d81-dda9-4f68-85b3-c78ada356255",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "13364"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "cca4f307-5e0c-4759-b01c-afaceffaf349",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "project = SOLVE AND issuetype = \"Solve Ticket\" AND status IN (Completed, Rejected, Cancelled)",
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/New_York:20260329T050000\nRRULE:FREQ=HOURLY;INTERVAL=12;BYSECOND=0\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1782748135254,
+  "writeAccessType": "OWNER_ONLY"
+}

@@ -1,0 +1,216 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "623d205d562ab90069f94743",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "721392956",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.create",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "project"
+            },
+            "fieldType": "project",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "11409"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "fieldType": "issuetype",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10022"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "parent"
+            },
+            "fieldType": "parent",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": "Development Interface Agreement - {{issue.story.summary}}"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "description"
+            },
+            "fieldType": "description",
+            "type": "SET",
+            "value": "Definition of Done:\ni. If DIA is not needed, please mention why and cancel ticket\nOR\nii. If DIA is needed, add link to the signed DIA in comments, and mark ticket as complete."
+          }
+        ],
+        "sendNotifications": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "721392957",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.create",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "project"
+            },
+            "fieldType": "project",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "11409"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "fieldType": "issuetype",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10022"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": "Requirements (FSR/ TSR) for Supplier Components - {{issue.story.summary}}"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "description"
+            },
+            "fieldType": "description",
+            "type": "SET",
+            "value": "Definition of Done:\ni. Requirements for supplier components are cascaded. Assigned FuSa engineer moves task to \"complete\" and provides sign off."
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "parent"
+            },
+            "fieldType": "parent",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "trigger"
+            }
+          }
+        ],
+        "sendNotifications": false
+      }
+    }
+  ],
+  "created": 1755747222583,
+  "description": "",
+  "id": 29970397,
+  "idUuid": "0198cab0-8437-754f-bb1d-651e85746010",
+  "labels": [],
+  "name": "Add DIA and FSR tasks for Components",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11409"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11409"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "721392954",
+        "conditions": [],
+        "connectionId": null,
+        "id": "721392955",
+        "parentId": null,
+        "schemaVersion": 1,
+        "type": "jira.jql.condition",
+        "value": "type = Story"
+      }
+    ],
+    "connectionId": null,
+    "id": "721392954",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11409"
+      ],
+      "fields": [
+        {
+          "type": "field",
+          "value": "duedate"
+        }
+      ]
+    }
+  },
+  "updated": 1755748739930,
+  "writeAccessType": "UNRESTRICTED"
+}

@@ -1,0 +1,111 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:975c8bf8-d86c-4dee-842f-4e9c3c3a541e",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "63e701e4-95db-4d2d-afcd-fc8b04ccfa80",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.outgoing.webhook",
+      "value": {
+        "contentType": "custom",
+        "continueOnErrorEnabled": true,
+        "customBody": "\"{{userInputs.simpsnId}}\"",
+        "headers": [
+          {
+            "headerSecure": false,
+            "id": "_header_1781085939381",
+            "name": "Authorization",
+            "value": "Basic c2FkdmV2ZWNAZm9yZC5jb206QVRBVFQzeEZmR0YwdjNLckVFbFRJOU80X3hqQWtLVWdNSjl3cVh4QkNVZldqdFB2Y01PcjlmdGRta0cwQkZhanU0cnZtb0pNZHNESVQ5ZFZRMlNYWHdmMzctb05Jakg2cVpQVkw5R3pHOG1GMVRFM1BhMzc0RFduMURNYktSWlppQzkzVVBVdVVnOVpNWVAzU3Aydno4SUxTVk9GMVZrZXJMUnNXS19vY203a2owNE4wcnVHWlUwPTFDNTkwREJE"
+          },
+          {
+            "headerSecure": false,
+            "id": "_header_1781086065540",
+            "name": "Content-Type",
+            "value": "Application/JSON"
+          },
+          {
+            "headerSecure": false,
+            "id": "_header_1781086071166",
+            "name": "Accept",
+            "value": "Application/JSON"
+          }
+        ],
+        "method": "PUT",
+        "responseEnabled": true,
+        "sendIssue": false,
+        "url": "https://ford-advev.atlassian.net/rest/api/3/issue/{{issue.key}}/properties/SIMPSN_Key",
+        "urlSecure": false
+      }
+    }
+  ],
+  "created": 1781086117311,
+  "description": "",
+  "id": 33586881,
+  "idUuid": "019eb101-5dbf-7be0-a8cd-59c9f893b4e2",
+  "labels": [],
+  "name": "SOLVE: Issue - Update SIMPSN_Key",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "e73af077-f8a0-4dfb-bce5-2f9620806318",
+    "parentId": null,
+    "schemaVersion": 3,
+    "type": "jira.manual.trigger.issue",
+    "value": {
+      "groups": [
+        "47121d05-cb75-4aa7-8b2a-6362300b9367"
+      ],
+      "inputFromUsers": true,
+      "inputPrompts": [
+        {
+          "defaultValue": "LV28P833-",
+          "displayName": "SIMPSN Ticket ID",
+          "inputType": "TEXT",
+          "required": false,
+          "variableName": "simpsnId"
+        }
+      ],
+      "issueFilter": {
+        "filterType": "ISSUE_TYPE",
+        "value": [
+          "Solve Ticket"
+        ]
+      },
+      "jQLFilter": null
+    }
+  },
+  "updated": 1782748447523,
+  "writeAccessType": "OWNER_ONLY"
+}

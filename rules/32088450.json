@@ -1,0 +1,125 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:6174d368-79c4-4916-be2e-79ce84ad6601",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "3cb621b6-f0cd-40c8-ba01-d2c340be2847",
+          "parentId": "8791b859-f958-4d62-907a-78f9563e3aaa",
+          "schemaVersion": 12,
+          "type": "jira.issue.clone",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "project"
+                },
+                "fieldType": "project",
+                "type": "SET",
+                "value": {
+                  "type": "COPY",
+                  "value": "current"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "issuetype"
+                },
+                "fieldType": "issuetype",
+                "type": "SET",
+                "value": {
+                  "type": "COPY",
+                  "value": "current"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "summary"
+                },
+                "fieldType": "summary",
+                "type": "SET",
+                "value": "{{issue.summary}}"
+              }
+            ],
+            "sendNotifications": false
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "8791b859-f958-4d62-907a-78f9563e3aaa",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "children",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1771541721239,
+  "description": "",
+  "id": 32088450,
+  "idUuid": "019c781d-7097-75fd-9631-cfd15e6b9f91",
+  "labels": [],
+  "name": "Clone Sub-items",
+  "notifyOnError": "NEVER",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10816"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10816"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "2d9585f9-79ec-4f4a-abbe-23781936ceb3",
+    "parentId": null,
+    "schemaVersion": 3,
+    "type": "jira.manual.trigger.issue",
+    "value": {
+      "groups": [],
+      "inputFromUsers": false,
+      "inputPrompts": [],
+      "issueFilter": null,
+      "jQLFilter": null
+    }
+  },
+  "updated": 1771541721239,
+  "writeAccessType": "OWNER_ONLY"
+}

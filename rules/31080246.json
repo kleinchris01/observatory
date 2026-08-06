@@ -1,0 +1,128 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:c9c3dfc4-eef5-4087-8b1a-8ee188485a9b",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "3109c929-5e4d-494b-ab64-85162fd062e1",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Collaborators"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+            "type": "SET",
+            "value": [
+              {
+                "type": "SMART",
+                "value": "{{issue.Collaborators}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.Buyer - China}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.Buyer - India}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.customfield_12893}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.customfield_18101}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.Buyer}}"
+              }
+            ]
+          }
+        ],
+        "sendNotifications": false
+      }
+    }
+  ],
+  "created": 1765340095222,
+  "description": "Following types of Buyers are added to the Collaborators field :\n\n- Production / GSM buyer\n- Prototype Buyer\n- Buyer - China ",
+  "id": 31080246,
+  "idUuid": "019b0678-22f7-7943-aa13-697e5e7e1325",
+  "labels": [],
+  "name": "Add Buyers to Collaborators",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10518"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10518"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "4fefe703-cb88-401e-a289-a5caa0976a88",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "VALUE_ADDED",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10518"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Buyer - China"
+        },
+        {
+          "type": "fieldName",
+          "value": "Buyer - India"
+        },
+        {
+          "type": "fieldName",
+          "value": "Production Buyer / GSM"
+        },
+        {
+          "type": "fieldName",
+          "value": "Prototype Buyer"
+        },
+        {
+          "type": "fieldName",
+          "value": "Buyer"
+        }
+      ]
+    }
+  },
+  "updated": 1765947463377,
+  "writeAccessType": "UNRESTRICTED"
+}

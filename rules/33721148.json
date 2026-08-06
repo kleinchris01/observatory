@@ -1,0 +1,418 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:975c8bf8-d86c-4dee-842f-4e9c3c3a541e",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "20fa2328-3593-4a0d-9239-858aa23881b7",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.outgoing.webhook",
+      "value": {
+        "contentType": "empty",
+        "continueOnErrorEnabled": true,
+        "customBody": null,
+        "headers": [
+          {
+            "headerSecure": false,
+            "id": "_header_1782132248554",
+            "name": "Content-Type",
+            "value": "Application/JSON"
+          },
+          {
+            "headerSecure": false,
+            "id": "_header_1782132483218",
+            "name": "Accept",
+            "value": "Application/JSON"
+          },
+          {
+            "headerSecure": false,
+            "id": "_header_1782132496906",
+            "name": "Authorization",
+            "value": "Basic c2FkdmV2ZWNAZm9yZC5jb206QVRBVFQzeEZmR0YwdjNLckVFbFRJOU80X3hqQWtLVWdNSjl3cVh4QkNVZldqdFB2Y01PcjlmdGRta0cwQkZhanU0cnZtb0pNZHNESVQ5ZFZRMlNYWHdmMzctb05Jakg2cVpQVkw5R3pHOG1GMVRFM1BhMzc0RFduMURNYktSWlppQzkzVVBVdVVnOVpNWVAzU3Aydno4SUxTVk9GMVZrZXJMUnNXS19vY203a2owNE4wcnVHWlUwPTFDNTkwREJE"
+          }
+        ],
+        "method": "GET",
+        "responseEnabled": true,
+        "sendIssue": false,
+        "url": "https://ford-advev.atlassian.net/rest/api/2/issue/{{issue.key}}/properties/SIMPSN_Key",
+        "urlSecure": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "6d56509a-1ba9-413a-a645-6eed2d3aa6b1",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "{{webResponse.status}} {{webResponse.body.value}}"
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "335469f7-88db-4515-b130-90f7e611da9c",
+                      "parentId": "629cbb6f-83a4-4e60-8cae-6810ed184fd9",
+                      "schemaVersion": 1,
+                      "type": "jira.issue.outgoing.webhook",
+                      "value": {
+                        "contentType": "custom",
+                        "continueOnErrorEnabled": true,
+                        "customBody": "{\n  \"fields\": {\n    \"customfield_19785\": {\n      \"value\": \"Yes\"\n    }\n  }\n}\n",
+                        "headers": [
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1782132969018",
+                            "name": "Authorization",
+                            "value": "Basic c2FkdmV2ZWNAZm9yZC5jb206QVRBVFQzeEZmR0YwdjNLckVFbFRJOU80X3hqQWtLVWdNSjl3cVh4QkNVZldqdFB2Y01PcjlmdGRta0cwQkZhanU0cnZtb0pNZHNESVQ5ZFZRMlNYWHdmMzctb05Jakg2cVpQVkw5R3pHOG1GMVRFM1BhMzc0RFduMURNYktSWlppQzkzVVBVdVVnOVpNWVAzU3Aydno4SUxTVk9GMVZrZXJMUnNXS19vY203a2owNE4wcnVHWlUwPTFDNTkwREJE"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1782133276507",
+                            "name": "Content-Type",
+                            "value": "Application/JSON"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1782133289812",
+                            "name": "Accept",
+                            "value": "Application/JSON"
+                          }
+                        ],
+                        "method": "PUT",
+                        "responseEnabled": true,
+                        "sendIssue": false,
+                        "url": "https://ford-advev.atlassian.net/rest/api/3/issue/{{issue.key}}",
+                        "urlSecure": false
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "10febdfb-c9d5-4f3b-8c78-069cb3aa60b0",
+                      "parentId": "629cbb6f-83a4-4e60-8cae-6810ed184fd9",
+                      "schemaVersion": 2,
+                      "type": "jira.issue.comment",
+                      "value": {
+                        "addCommentOnce": false,
+                        "comment": "Launch Issue value has been reverted back to Yes as there is a SIMPSN ticket linked to the SOLVE ticket.",
+                        "commentVisibility": null,
+                        "publicComment": true,
+                        "sendNotifications": true
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "629cbb6f-83a4-4e60-8cae-6810ed184fd9",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "ea994338-1c53-488b-8588-4d831222df53",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": null,
+                        "comparison": "EMPTY",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "Launch Issue"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "629cbb6f-83a4-4e60-8cae-6810ed184fd9",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "c9d437c1-3aa7-4f61-aa38-1f574446ffed",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": {
+                          "modifier": null,
+                          "multiValue": false,
+                          "source": null,
+                          "type": "NAME",
+                          "value": "No"
+                        },
+                        "comparison": "EQUALS",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "Launch Issue"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "629cbb6f-83a4-4e60-8cae-6810ed184fd9",
+                  "parentId": "9c6a0cf1-1fd1-4e31-8ac5-0e6be38b6921",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ANY"
+                  }
+                }
+              ],
+              "component": "CONDITION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "9c6a0cf1-1fd1-4e31-8ac5-0e6be38b6921",
+              "parentId": "2a76f401-44b3-44ec-a52d-29db15721e9c",
+              "schemaVersion": 1,
+              "type": "jira.condition.container.block",
+              "value": null
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "2a76f401-44b3-44ec-a52d-29db15721e9c",
+              "conditions": [],
+              "connectionId": null,
+              "id": "99b9c1d5-3507-4558-8868-5866e1ee1872",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{webResponse.status}}",
+                "operator": "EQUALS",
+                "second": "200"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "2a76f401-44b3-44ec-a52d-29db15721e9c",
+          "parentId": "1dfb2ae7-7b4f-4591-b9b0-533f62b2a4db",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "d9f9013e-f8f5-4680-b1f9-d70e2d9a4142",
+                      "parentId": "84d0b721-377b-4035-ae8d-199eb0d992d5",
+                      "schemaVersion": 1,
+                      "type": "jira.issue.outgoing.webhook",
+                      "value": {
+                        "contentType": "custom",
+                        "continueOnErrorEnabled": true,
+                        "customBody": "{\n  \"fields\": {\n    \"customfield_19785\": {\n      \"value\": \"No\"\n    }\n  }\n}\n",
+                        "headers": [
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1782132969018",
+                            "name": "Authorization",
+                            "value": "Basic c2FkdmV2ZWNAZm9yZC5jb206QVRBVFQzeEZmR0YwdjNLckVFbFRJOU80X3hqQWtLVWdNSjl3cVh4QkNVZldqdFB2Y01PcjlmdGRta0cwQkZhanU0cnZtb0pNZHNESVQ5ZFZRMlNYWHdmMzctb05Jakg2cVpQVkw5R3pHOG1GMVRFM1BhMzc0RFduMURNYktSWlppQzkzVVBVdVVnOVpNWVAzU3Aydno4SUxTVk9GMVZrZXJMUnNXS19vY203a2owNE4wcnVHWlUwPTFDNTkwREJE"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1782133276507",
+                            "name": "Content-Type",
+                            "value": "Application/JSON"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1782133289812",
+                            "name": "Accept",
+                            "value": "Application/JSON"
+                          }
+                        ],
+                        "method": "PUT",
+                        "responseEnabled": true,
+                        "sendIssue": false,
+                        "url": "https://ford-advev.atlassian.net/rest/api/3/issue/{{issue.key}}",
+                        "urlSecure": false
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "065e90ea-fcf5-4ecc-9b02-9c14e1ceca00",
+                      "parentId": "84d0b721-377b-4035-ae8d-199eb0d992d5",
+                      "schemaVersion": 2,
+                      "type": "jira.issue.comment",
+                      "value": {
+                        "addCommentOnce": false,
+                        "comment": "Launch Issue value has been reverted back to No as there is no SIMPSN ticket linked to the SOLVE ticket.",
+                        "commentVisibility": null,
+                        "publicComment": true,
+                        "sendNotifications": true
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "84d0b721-377b-4035-ae8d-199eb0d992d5",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "641e29de-6b38-4378-bf3e-64da8634e3db",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": null,
+                        "comparison": "EMPTY",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "Launch Issue"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "84d0b721-377b-4035-ae8d-199eb0d992d5",
+                  "parentId": "1ef652fc-f9eb-47e9-8563-012761f23639",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                }
+              ],
+              "component": "CONDITION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "1ef652fc-f9eb-47e9-8563-012761f23639",
+              "parentId": "9ae85c25-d767-47c0-b014-2a9ff25a8312",
+              "schemaVersion": 1,
+              "type": "jira.condition.container.block",
+              "value": null
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "9ae85c25-d767-47c0-b014-2a9ff25a8312",
+          "parentId": "1dfb2ae7-7b4f-4591-b9b0-533f62b2a4db",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "1dfb2ae7-7b4f-4591-b9b0-533f62b2a4db",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1782226954351,
+  "description": "This automation sets the value of Launch Issue to Yes when a SOLVE work item has a SIMPSN connection. If none, Launch Issue will be set to No.",
+  "id": 33721148,
+  "idUuid": "019ef501-2870-7bc2-bc11-b8c672ece642",
+  "labels": [],
+  "name": "SOLVE: Issue - Revert Launch Issue to Yes when SIMPSN Connection is Established and No if No Conection",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "1704e144-dd54-4589-a7c6-f7dfc62d397e",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [
+        "edit"
+      ],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Launch Issue"
+        }
+      ]
+    }
+  },
+  "updated": 1782747168063,
+  "writeAccessType": "OWNER_ONLY"
+}

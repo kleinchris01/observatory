@@ -1,0 +1,254 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555657441",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": null,
+          "type": "NAME",
+          "value": "ADVEV Product Access"
+        },
+        "comparison": "NOT_EQUAL",
+        "selectedField": {
+          "type": "NAME",
+          "value": "Request Type"
+        },
+        "selectedFieldType": "com.atlassian.servicedesk:vp-origin"
+      }
+    },
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555657445",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": null,
+        "comparison": "NOT_EMPTY",
+        "selectedField": {
+          "type": "NAME",
+          "value": "ADT Tool(s)"
+        },
+        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+      }
+    },
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555657447",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": "current",
+          "type": "FIELD",
+          "value": ""
+        },
+        "comparison": "NOT_EMPTY",
+        "selectedField": {
+          "type": "NAME",
+          "value": "ADT Function"
+        },
+        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+      }
+    },
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555657450",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": null,
+        "comparison": "NOT_EMPTY",
+        "selectedField": {
+          "type": "NAME",
+          "value": "ADT Goals"
+        },
+        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:labels"
+      }
+    },
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555657453",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": null,
+        "comparison": "NOT_EMPTY",
+        "selectedField": {
+          "type": "NAME",
+          "value": "ADVEV Milestone"
+        },
+        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555657460",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADT Tool(s)"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                "type": "NAME",
+                "value": "ADT Tool(s)"
+              },
+              "sourceIssue": "parent"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADT Function"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                "type": "NAME",
+                "value": "ADT Function"
+              },
+              "sourceIssue": "parent"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADT Goals"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:labels",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:labels",
+                "type": "NAME",
+                "value": "ADT Goals"
+              },
+              "sourceIssue": "parent"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADVEV Milestone"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "ADVEV Milestone"
+              },
+              "sourceIssue": "parent"
+            }
+          }
+        ],
+        "sendNotifications": true
+      }
+    }
+  ],
+  "created": 1709919943642,
+  "description": "",
+  "id": 18254431,
+  "idUuid": "018e1f2b-bbda-78ff-9c8b-f1ea20a410ce",
+  "labels": [
+    844607
+  ],
+  "name": "inherit advev fields",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10056",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10054",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10061",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "555657439",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1711650438950,
+  "writeAccessType": "UNRESTRICTED"
+}

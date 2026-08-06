@@ -1,0 +1,142 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:5c26858c-30b6-4481-943d-ea8df46c8526",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "720481878",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.comparator.condition",
+      "value": {
+        "first": "{{issue.comments.author.displayName}}",
+        "operator": "EQUALS",
+        "second": "{{issue.comments.author.displayName}}"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "720481879",
+      "parentId": null,
+      "schemaVersion": 5,
+      "type": "jira.issue.outgoing.email",
+      "value": {
+        "bcc": [],
+        "body": "Hi,\n\nHello {{issue.comments.author.displayName}},\n\nThe following tasks commented\n\n<a href=\"{{issue.url}}\">{{issue.key}} - {{issue.summary}}</a>\n\n\nRegards,\n\nJira Automation",
+        "cc": [
+          {
+            "type": "COPY",
+            "value": "customfield_10523"
+          }
+        ],
+        "convertLineBreaks": true,
+        "fromName": "",
+        "mimeType": "text/html",
+        "replyTo": "",
+        "subject": "Reminder Notification",
+        "to": [
+          {
+            "type": "COPY",
+            "value": "assignee"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1754454540292,
+  "description": "",
+  "id": 29854743,
+  "idUuid": "01987da3-c004-7255-8a0f-7017bd4f9af1",
+  "labels": [],
+  "name": "Last Comment",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10102"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10102"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "720481875",
+        "conditions": [],
+        "connectionId": null,
+        "id": "720481876",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "2"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "priority"
+          },
+          "selectedFieldType": "priority"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "720481875",
+        "conditions": [],
+        "connectionId": null,
+        "id": "720481877",
+        "parentId": null,
+        "schemaVersion": 1,
+        "type": "jira.jql.condition",
+        "value": "KEY = PTME-3874"
+      }
+    ],
+    "connectionId": null,
+    "id": "720481875",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:updated",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10102"
+      ],
+      "eventKey": "jira:issue_updated",
+      "issueEvent": "issue_updated"
+    }
+  },
+  "updated": 1754486051309,
+  "writeAccessType": "UNRESTRICTED"
+}

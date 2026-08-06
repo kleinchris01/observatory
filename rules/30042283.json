@@ -1,0 +1,169 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:975c8bf8-d86c-4dee-842f-4e9c3c3a541e",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "722051468",
+              "parentId": "ec6e24f0-b235-46ca-9201-461cffe927d4",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Time in Current Status"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:datetime",
+                    "type": "SET",
+                    "value": "{{now}}"
+                  }
+                ],
+                "sendNotifications": false
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "ec6e24f0-b235-46ca-9201-461cffe927d4",
+              "conditions": [],
+              "connectionId": null,
+              "id": "9522c3e8-5d4b-4223-bfc9-de6691e022c0",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{changelog.status.fromString}}",
+                "operator": "NOT_EQUALS",
+                "second": "{{changelog.status.toString}}"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "ec6e24f0-b235-46ca-9201-461cffe927d4",
+          "parentId": "0f58d23b-0744-4185-b4e2-8b6d17aaf644",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "0f58d23b-0744-4185-b4e2-8b6d17aaf644",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1756367849910,
+  "description": "Stores time when issue enters certain status. This automation is used as a workaround to calculate metrics for email reports.",
+  "id": 30042283,
+  "idUuid": "0198efae-89b6-72af-beaa-3e804ba68fc3",
+  "labels": [],
+  "name": "CE1 - Store time when issue enters certain status",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "f72c5639-0aac-4dcd-a872-26490924f024",
+        "conditions": [],
+        "connectionId": null,
+        "id": "0fcca5c2-501f-419b-a174-4294c1ffb3a2",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "NAME",
+            "value": "Solution Implemented"
+          },
+          "comparison": "NOT_EQUAL",
+          "selectedField": {
+            "type": "ID",
+            "value": "status"
+          },
+          "selectedFieldType": "status"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "f72c5639-0aac-4dcd-a872-26490924f024",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.multiple.issue.event",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+      ],
+      "eventKey": null,
+      "events": [
+        {
+          "event": "issue_created",
+          "id": 1,
+          "key": "jira:issue_created",
+          "labelKey": "com.codebarrel.automation.trigger.multiple.created",
+          "system": false
+        },
+        {
+          "event": "issue_generic",
+          "id": 4,
+          "key": "jira:issue_updated",
+          "labelKey": "com.codebarrel.automation.trigger.multiple.transitioned",
+          "system": false
+        }
+      ],
+      "issueEvent": null
+    }
+  },
+  "updated": 1776407321841,
+  "writeAccessType": "UNRESTRICTED"
+}

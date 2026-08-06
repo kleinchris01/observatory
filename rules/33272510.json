@@ -1,0 +1,264 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "9ef58e5f-d57d-480a-a962-3c26f9398c1c",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.outgoing.webhook",
+      "value": {
+        "contentType": "empty",
+        "continueOnErrorEnabled": true,
+        "customBody": null,
+        "headers": [
+          {
+            "headerSecure": false,
+            "id": "_header_1770972996296",
+            "name": "Content-Type",
+            "value": "Application/JSON"
+          },
+          {
+            "headerSecure": false,
+            "id": "_header_1770973025386",
+            "name": "Accept",
+            "value": "Application/JSON"
+          },
+          {
+            "headerSecure": false,
+            "id": "_header_1770973034955",
+            "name": "Authorization",
+            "value": "Basic c2FkdmV2ZWNAZm9yZC5jb206QVRBVFQzeEZmR0YwdjNLckVFbFRJOU80X3hqQWtLVWdNSjl3cVh4QkNVZldqdFB2Y01PcjlmdGRta0cwQkZhanU0cnZtb0pNZHNESVQ5ZFZRMlNYWHdmMzctb05Jakg2cVpQVkw5R3pHOG1GMVRFM1BhMzc0RFduMURNYktSWlppQzkzVVBVdVVnOVpNWVAzU3Aydno4SUxTVk9GMVZrZXJMUnNXS19vY203a2owNE4wcnVHWlUwPTFDNTkwREJE"
+          }
+        ],
+        "method": "GET",
+        "responseEnabled": true,
+        "sendIssue": false,
+        "url": "https://ford-advev.atlassian.net/rest/api/3/issue/{{issue.key}}/remotelink",
+        "urlSecure": false
+      }
+    },
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "c57e036d-0b35-463f-9cb0-70cc21babd0d",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.comparator.condition",
+      "value": {
+        "first": "{{webResponse.status}}",
+        "operator": "EQUALS",
+        "second": "200"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "9332b03e-ad98-41c8-af65-d004fb39badf",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "{{webResponse.body}}"
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "11ca6a4a-a16f-4d6d-bb17-9d16f451b22e",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "Issue have remote link"
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "a365eecc-c051-4e9e-a599-54d1e5637b1e",
+                  "parentId": "9aefe886-68a6-4356-8cad-89cf6007ce6e",
+                  "schemaVersion": 1,
+                  "type": "codebarrel.action.log",
+                  "value": "{{var.object.url}}"
+                },
+                {
+                  "children": [],
+                  "component": "CONDITION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "f344ba76-6333-4715-96b9-ab7a283ba74e",
+                  "parentId": "9aefe886-68a6-4356-8cad-89cf6007ce6e",
+                  "schemaVersion": 1,
+                  "type": "jira.comparator.condition",
+                  "value": {
+                    "first": "{{var.object.url}}",
+                    "operator": "REGEX_CONTAINS",
+                    "second": "^https://ford-quality.atlassian.net/browse/LV28P833-"
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "2b76a3c7-6944-4e13-bc95-23052c8599e6",
+                  "parentId": "9aefe886-68a6-4356-8cad-89cf6007ce6e",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.edit",
+                  "value": {
+                    "advancedFields": "",
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "NAME",
+                          "value": "Jira Ticket ID"
+                        },
+                        "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                        "type": "SET",
+                        "value": "[{{var.object.title}}|{{var.object.url}}]"
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                }
+              ],
+              "component": "BRANCH",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "9aefe886-68a6-4356-8cad-89cf6007ce6e",
+              "parentId": "075b6103-4251-4ee4-bcdf-111d8a21dfde",
+              "schemaVersion": 1,
+              "type": "jira.smart.values.branch",
+              "value": {
+                "id": "_customsmartvalue_id_1770997111430",
+                "lazy": false,
+                "name": {
+                  "type": "FREE",
+                  "value": "var"
+                },
+                "query": {
+                  "type": "SMART",
+                  "value": "{{webResponse.body}}"
+                },
+                "type": "SMART"
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "075b6103-4251-4ee4-bcdf-111d8a21dfde",
+              "conditions": [],
+              "connectionId": null,
+              "id": "d74998d7-2f7c-4853-acbf-a00c43b9ee70",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": null,
+                "comparison": "EMPTY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Jira Ticket ID"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "075b6103-4251-4ee4-bcdf-111d8a21dfde",
+          "parentId": "81bbbc70-7b48-4590-9c6b-eb3a896ddff6",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ANY"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "81bbbc70-7b48-4590-9c6b-eb3a896ddff6",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1778754733476,
+  "description": "This automation is a workaround for displaying of SIMPSN link in dashboards",
+  "id": 33272510,
+  "idUuid": "019e260b-45a4-7c8c-bf8f-78faff6dbb7c",
+  "labels": [],
+  "name": "SOLVE: Issue - Workaround for Displaying of SIMPSN Link in Dashboards",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "0ae8882f-7074-4e56-8f0e-434552df1da0",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:updated",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+      ],
+      "eventKey": "jira:issue_updated",
+      "issueEvent": "issue_updated"
+    }
+  },
+  "updated": 1780286205756,
+  "writeAccessType": "UNRESTRICTED"
+}

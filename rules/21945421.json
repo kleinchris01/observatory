@@ -1,0 +1,2239 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "625544097",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.condition.query",
+      "value": {
+        "cmdbField": "customfield_11921",
+        "cmdbQuery": "\"Quantity Ordered\" IS NOT EMPTY AND created > \"now(-2m)\"",
+        "type": "ISSUE"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544099",
+          "parentId": "625544098",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 1 ",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544100",
+          "parentId": "625544098",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "88",
+            "objectTypeLabel": "Harness Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544101",
+          "parentId": "625544098",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 2 ",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544102",
+          "parentId": "625544098",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "88",
+            "objectTypeLabel": "Harness Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544103",
+          "parentId": "625544098",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 3",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544104",
+          "parentId": "625544098",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "88",
+            "objectTypeLabel": "Harness Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544105",
+          "parentId": "625544098",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 4",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544106",
+          "parentId": "625544098",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "88",
+            "objectTypeLabel": "Harness Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544107",
+          "parentId": "625544098",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 5",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544108",
+          "parentId": "625544098",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "88",
+            "objectTypeLabel": "Harness Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544109",
+          "parentId": "625544098",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 6",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544110",
+          "parentId": "625544098",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "88",
+            "objectTypeLabel": "Harness Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544111",
+          "parentId": "625544098",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 7",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544112",
+          "parentId": "625544098",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "88",
+            "objectTypeLabel": "Harness Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544113",
+          "parentId": "625544098",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 8",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544114",
+          "parentId": "625544098",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "88",
+            "objectTypeLabel": "Harness Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544115",
+          "parentId": "625544098",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 9",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544116",
+          "parentId": "625544098",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "88",
+            "objectTypeLabel": "Harness Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544117",
+          "parentId": "625544098",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 10",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544118",
+          "parentId": "625544098",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "88",
+            "objectTypeLabel": "Harness Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544119",
+          "parentId": "625544098",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 11",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544120",
+          "parentId": "625544098",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "88",
+            "objectTypeLabel": "Harness Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544121",
+          "parentId": "625544098",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 12",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544122",
+          "parentId": "625544098",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "88",
+            "objectTypeLabel": "Harness Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544123",
+          "parentId": "625544098",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 13",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544124",
+          "parentId": "625544098",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "88",
+            "objectTypeLabel": "Harness Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544125",
+          "parentId": "625544098",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 14",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544126",
+          "parentId": "625544098",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "88",
+            "objectTypeLabel": "Harness Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544127",
+          "parentId": "625544098",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 15",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544128",
+          "parentId": "625544098",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "88",
+            "objectTypeLabel": "Harness Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "625544098",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.object.related",
+      "value": {
+        "cmdbQuery": "objectType = \"Harness\" AND \"Quantity In Inventory\" >= 1 and created > \"now(-2m)\"",
+        "schemaId": "15",
+        "schemaLabel": "Part Inventory Management",
+        "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544130",
+          "parentId": "625544129",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 1 ",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544131",
+          "parentId": "625544129",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "83",
+            "objectTypeLabel": "Part Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544132",
+          "parentId": "625544129",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 2 ",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544133",
+          "parentId": "625544129",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "83",
+            "objectTypeLabel": "Part Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544134",
+          "parentId": "625544129",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 3",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544135",
+          "parentId": "625544129",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "83",
+            "objectTypeLabel": "Part Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544136",
+          "parentId": "625544129",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 4",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544137",
+          "parentId": "625544129",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "83",
+            "objectTypeLabel": "Part Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544138",
+          "parentId": "625544129",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 5",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544139",
+          "parentId": "625544129",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "83",
+            "objectTypeLabel": "Part Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544140",
+          "parentId": "625544129",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 6",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544141",
+          "parentId": "625544129",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "83",
+            "objectTypeLabel": "Part Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544142",
+          "parentId": "625544129",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 7",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544143",
+          "parentId": "625544129",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "83",
+            "objectTypeLabel": "Part Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544144",
+          "parentId": "625544129",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 8",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544145",
+          "parentId": "625544129",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "83",
+            "objectTypeLabel": "Part Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544146",
+          "parentId": "625544129",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 9",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544147",
+          "parentId": "625544129",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "83",
+            "objectTypeLabel": "Part Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544148",
+          "parentId": "625544129",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 10",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544149",
+          "parentId": "625544129",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "83",
+            "objectTypeLabel": "Part Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544150",
+          "parentId": "625544129",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 11",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544151",
+          "parentId": "625544129",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "83",
+            "objectTypeLabel": "Part Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544152",
+          "parentId": "625544129",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 12",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544153",
+          "parentId": "625544129",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "83",
+            "objectTypeLabel": "Part Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544154",
+          "parentId": "625544129",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 13",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544155",
+          "parentId": "625544129",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "83",
+            "objectTypeLabel": "Part Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544156",
+          "parentId": "625544129",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 14",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544157",
+          "parentId": "625544129",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "83",
+            "objectTypeLabel": "Part Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544158",
+          "parentId": "625544129",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 15",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "625544159",
+          "parentId": "625544129",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "83",
+            "objectTypeLabel": "Part Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "625544129",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.object.related",
+      "value": {
+        "cmdbQuery": "objectType = \"Part\" AND \"Quantity In Inventory\" >= 1 and created > \"now(-2m)\"",
+        "schemaId": "15",
+        "schemaLabel": "Part Inventory Management",
+        "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+      }
+    }
+  ],
+  "created": 1726610022337,
+  "description": "",
+  "id": 21945421,
+  "idUuid": "019201fa-1fc1-7108-80ea-6a00a92c081d",
+  "labels": [
+    846526,
+    849618
+  ],
+  "name": "Bulk Create Harness and Part Inventory Objects",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "625544096",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "cmdb.object.trigger",
+    "value": {
+      "operation": "CREATED",
+      "schemaId": "15",
+      "schemaLabel": "Part Inventory Management",
+      "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+    }
+  },
+  "updated": 1730933672461,
+  "writeAccessType": "UNRESTRICTED"
+}

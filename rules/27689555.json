@@ -1,0 +1,193 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:5c26858c-30b6-4481-943d-ea8df46c8526",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "707767778",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": null,
+          "type": "ID",
+          "value": "10022"
+        },
+        "comparison": "NOT_EQUAL",
+        "selectedField": {
+          "type": "ID",
+          "value": "issuetype"
+        },
+        "selectedFieldType": "issuetype"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "707912510",
+          "parentId": "707767414",
+          "schemaVersion": 1,
+          "type": "jira.jql.condition",
+          "value": "(project in (10044)) AND (\"Functional Area[Select List (cascading)]\" in (\"VME - Stamping Engineering\",\"Scrap System\",\"Transformer Tool\",Crane,\"Damaged Material Repair\",Destacker,Dies,\"Digital Thread\",End-of-Line,Gripper,Highlight,\"Interpress Automation\",\"Metal Lab\",\"Oil Reapply\",\"Part Handling Tooling\",\"Press - Stamping\",Robots,\"Tool Storage\",Toolroom,\"Blank Cleaner\"))"
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "707767416",
+          "parentId": "707767414",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "ID",
+              "value": "6"
+            },
+            "comparison": "NOT_EQUAL",
+            "selectedField": {
+              "type": "ID",
+              "value": "status"
+            },
+            "selectedFieldType": "status"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "707767417",
+          "parentId": "707767414",
+          "schemaVersion": 11,
+          "type": "jira.issue.transition",
+          "value": {
+            "advancedFields": null,
+            "destinationStatus": {
+              "type": "ID",
+              "value": "6"
+            },
+            "operations": [
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "resolution"
+                },
+                "fieldType": "resolution",
+                "type": "SET",
+                "value": {
+                  "type": "COPY",
+                  "value": "parent"
+                }
+              }
+            ],
+            "sendNotifications": true,
+            "transitionMatch": null
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "707767414",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": null,
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "children",
+        "similarityLimit": 0
+      }
+    }
+  ],
+  "created": 1745420567650,
+  "description": null,
+  "id": 27689555,
+  "idUuid": "0196632c-4462-76ea-a594-12bf9112a41e",
+  "labels": [],
+  "name": "When parent is completed → then close all the child issues present",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10044"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10044"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [
+    {
+      "tagType": "CREATION_TYPE",
+      "tagValue": "USER"
+    },
+    {
+      "tagType": "SAMPLE_RULE",
+      "tagValue": "software"
+    },
+    {
+      "tagType": "TEMPLATE_ID",
+      "tagValue": "software_template_31"
+    }
+  ],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "707767413",
+    "parentId": null,
+    "schemaVersion": -1,
+    "type": "jira.issue.event.trigger:transitioned",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10044"
+      ],
+      "eventKey": "jira:issue_updated",
+      "fromStatus": [],
+      "issueEvent": "issue_generic",
+      "toStatus": [
+        {
+          "type": "ID",
+          "value": "6"
+        }
+      ]
+    }
+  },
+  "updated": 1745477971664,
+  "writeAccessType": "UNRESTRICTED"
+}

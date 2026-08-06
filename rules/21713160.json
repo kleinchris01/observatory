@@ -1,0 +1,1171 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "617547522",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.condition.query",
+      "value": {
+        "cmdbField": "customfield_11921",
+        "cmdbQuery": "\"Quantity In Inventory\" IS NOT EMPTY AND created > \"now(-1m)\"",
+        "type": "ISSUE"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "617547523",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "action.wait.for.time.duration",
+      "value": {
+        "randomWaitInterval": null,
+        "waitTimeInSeconds": 10
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "617547525",
+          "parentId": "617547524",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 1 ",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "617547526",
+          "parentId": "617547524",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "99",
+            "objectTypeLabel": "Specialty Tools Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "617547527",
+          "parentId": "617547524",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 2 ",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "617547528",
+          "parentId": "617547524",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "99",
+            "objectTypeLabel": "Specialty Tools Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "617547529",
+          "parentId": "617547524",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 3",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "617547530",
+          "parentId": "617547524",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "99",
+            "objectTypeLabel": "Specialty Tools Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "617547531",
+          "parentId": "617547524",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 4",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "617547532",
+          "parentId": "617547524",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "99",
+            "objectTypeLabel": "Specialty Tools Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "617547533",
+          "parentId": "617547524",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 5",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "617547534",
+          "parentId": "617547524",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "99",
+            "objectTypeLabel": "Specialty Tools Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "617547535",
+          "parentId": "617547524",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 6",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "617547536",
+          "parentId": "617547524",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "99",
+            "objectTypeLabel": "Specialty Tools Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "617547537",
+          "parentId": "617547524",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 7",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "617547538",
+          "parentId": "617547524",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "99",
+            "objectTypeLabel": "Specialty Tools Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "617547539",
+          "parentId": "617547524",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 8",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "617547540",
+          "parentId": "617547524",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "99",
+            "objectTypeLabel": "Specialty Tools Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "617547541",
+          "parentId": "617547524",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 9",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "617547542",
+          "parentId": "617547524",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "99",
+            "objectTypeLabel": "Specialty Tools Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "617547543",
+          "parentId": "617547524",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 10",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "617547544",
+          "parentId": "617547524",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "99",
+            "objectTypeLabel": "Specialty Tools Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "617547545",
+          "parentId": "617547524",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 11",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "617547546",
+          "parentId": "617547524",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "99",
+            "objectTypeLabel": "Specialty Tools Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "617547547",
+          "parentId": "617547524",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 12",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "617547548",
+          "parentId": "617547524",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "99",
+            "objectTypeLabel": "Specialty Tools Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "617547549",
+          "parentId": "617547524",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 13",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "617547550",
+          "parentId": "617547524",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "99",
+            "objectTypeLabel": "Specialty Tools Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "617547551",
+          "parentId": "617547524",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 14",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "617547552",
+          "parentId": "617547524",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "99",
+            "objectTypeLabel": "Specialty Tools Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "617547553",
+          "parentId": "617547524",
+          "schemaVersion": 1,
+          "type": "cmdb.condition.query",
+          "value": {
+            "cmdbField": null,
+            "cmdbQuery": " \"Quantity In Inventory\" >= 15",
+            "type": "OBJECT"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "617547554",
+          "parentId": "617547524",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{object.Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{object.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{object.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{object.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part",
+                "value": "{{object.Key}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{object.Part/Model Number}}"
+              }
+            ],
+            "objectTypeId": "99",
+            "objectTypeLabel": "Specialty Tools Inventory",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "617547524",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.object.related",
+      "value": {
+        "cmdbQuery": "objectType = \"Specialty Tools\" AND \"Quantity In Inventory\" >= 1 and created > \"now(-1m)\"",
+        "schemaId": "15",
+        "schemaLabel": "Part Inventory Management",
+        "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+      }
+    }
+  ],
+  "created": 1725471007451,
+  "description": "",
+  "id": 21713160,
+  "idUuid": "0191be16-22db-72f7-9062-ec505d96ced7",
+  "labels": [
+    846526,
+    849618
+  ],
+  "name": "Bulk Create Specialty Tools and Testing Equipment Inventory Objects",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "617547521",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "cmdb.object.trigger",
+    "value": {
+      "operation": "CREATED",
+      "schemaId": "15",
+      "schemaLabel": "Part Inventory Management",
+      "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+    }
+  },
+  "updated": 1729890203618,
+  "writeAccessType": "UNRESTRICTED"
+}

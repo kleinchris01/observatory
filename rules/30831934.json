@@ -1,0 +1,135 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:c9c3dfc4-eef5-4087-8b1a-8ee188485a9b",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "068e29dd-c640-420f-b349-4ac7f775f92c",
+          "parentId": "86eb5935-1dd9-4ac9-8c8f-30d8f579df0e",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Blocked By"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                "type": "SET",
+                "value": [
+                  {
+                    "type": "ID",
+                    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+                  }
+                ]
+              }
+            ],
+            "sendNotifications": true
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "d20a2aab-dded-431b-b957-f8e11ce75396",
+          "parentId": "86eb5935-1dd9-4ac9-8c8f-30d8f579df0e",
+          "schemaVersion": 11,
+          "type": "jira.issue.transition",
+          "value": {
+            "advancedFields": null,
+            "destinationStatus": {
+              "type": "NAME",
+              "value": "Blocked"
+            },
+            "operations": [],
+            "sendNotifications": true,
+            "transitionMatch": ""
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "86eb5935-1dd9-4ac9-8c8f-30d8f579df0e",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [
+          "is blocked by",
+          "blocks"
+        ],
+        "onlyUpdatedIssues": false,
+        "relatedType": "linked",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1763340244537,
+  "description": "This rule automatically transitions a work item to the \"BLOCKED\" status when it becomes blocked by another work item for the AETS and CONNECT projects.",
+  "id": 30831934,
+  "idUuid": "019a8f44-d63b-7792-b8c4-6bc43cd62576",
+  "labels": [],
+  "name": "When issue is blocked, transition status to blocked for the CONNECT and AETS projects.",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10110",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11574",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "17b28642-9180-4ba1-b00e-78272384a561",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:link",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027",
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11574",
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10110"
+      ],
+      "linkTypes": [
+        "Blocks"
+      ]
+    }
+  },
+  "updated": 1777047861509,
+  "writeAccessType": "UNRESTRICTED"
+}

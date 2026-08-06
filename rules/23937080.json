@@ -1,0 +1,306 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "670113321",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": true,
+          "source": null,
+          "type": "ID",
+          "value": "[\"10022\"]"
+        },
+        "comparison": "ONE_OF",
+        "selectedField": {
+          "type": "ID",
+          "value": "issuetype"
+        },
+        "selectedFieldType": "issuetype"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "670113322",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1721249321654",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "impactToCost"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{#=}}{{issue.Prototype Die}}+{{issue.Production Die Tooling}}+{{issue.Check Fixture}}+{{issue.Assembly Tooling}}+{{issue.Piece Cost}}{{/}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "670113323",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "Cost Impact = {{impactToCost}}"
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "670113324",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Pending Costs"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+            "type": "SET",
+            "value": "{{impactToCost}}"
+          }
+        ],
+        "sendNotifications": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "670113325",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.refresh.issue",
+      "value": {
+        "delayMs": null
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "670113326",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.lookup.issues",
+      "value": {
+        "id": "_customsmartvalue_id_1721252982713",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "lookupIssues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "issue in portfolioChildIssuesOf(\"{{issue.parent.key}}\") AND issuetype = \"sub-task\" AND status != \"Rejected\""
+        },
+        "type": "JQL"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "670113327",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1721249321654",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "subtaskPendingCosts"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{lookupIssues.Pending Costs.sum}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "670113328",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1721249321654",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "subtaskApprovedCosts"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{lookupIssues.Impact to Cost.sum}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "670113330",
+          "parentId": "670113329",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Pending Costs"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+                "type": "SET",
+                "value": "{{subtaskPendingCosts}}"
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Approved Costs"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+                "type": "SET",
+                "value": "{{subtaskApprovedCosts}}"
+              }
+            ],
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "670113329",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "{{lookupIssues}}",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "parent",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1736542759674,
+  "description": "",
+  "id": 23937080,
+  "idUuid": "01945203-aafa-7986-a554-ddf81b255787",
+  "labels": [],
+  "name": "Update Pending Costs for sub-tasks",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10129"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10129"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "670113320",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "VALUE_ADDED",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10129"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Prototype Die"
+        },
+        {
+          "type": "fieldName",
+          "value": "Production Die Tooling"
+        },
+        {
+          "type": "fieldName",
+          "value": "Assembly Tooling"
+        },
+        {
+          "type": "fieldName",
+          "value": "Check Fixture"
+        },
+        {
+          "type": "fieldName",
+          "value": "Piece Cost"
+        }
+      ]
+    }
+  },
+  "updated": 1737058235353,
+  "writeAccessType": "UNRESTRICTED"
+}

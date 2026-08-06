@@ -1,0 +1,201 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:c9c3dfc4-eef5-4087-8b1a-8ee188485a9b",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "ac7f9f92-60fd-4bb4-af7b-8eb61029e5db",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "action.wait.for.time.duration",
+      "value": {
+        "randomWaitInterval": null,
+        "waitTimeInSeconds": 5
+      }
+    },
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "1a2a3ff1-5d91-4d79-be81-9f62a0bd53e1",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issues.related.condition",
+      "value": {
+        "compareJql": "\"Action Item\" = \"Parts Order List\" ",
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "operator": "nonematch",
+        "relatedJql": "",
+        "relatedType": "children",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "1b18c147-4819-48e1-888c-b895254c05f3",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.create",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": "Parts Order List"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "description"
+            },
+            "fieldType": "description",
+            "type": "SET",
+            "value": "|| Part/Assembly || Part Name || Part Description/version || Quantity || Part Prefix || Part Center || Part Suffix || Responsible DRI || Part order responsible || Individual Piece Cost || Total Cost || GSDB Supplier Code || Supplier Contact & Phone Number || Part Ordered Date || Part Shipped Date || GPIRS Order Link ||\n| IP | IP ASSEMBLY (IP, CCB, Glovebox, Defroster, Display Screen, duct, Downleg Brackets) | Complete assembly |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | Dash/Cowl top Sub-assembly |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | Steering Wheel |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | Steering Column |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | I-Shaft |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | Upper Shroud Cover |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | Lower Shroud Cover |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | SCCM |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | Upper Gap Hider |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | Lower Gap Hider |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | Left Lower Tower Trim |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | Right Lower Tower trim |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | Center Lower Tower Trim |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | EBA |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n| Restraints | DRIVER AIRBAG |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | PASSENGER AIRBAG |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | CURTAIN AIRBAG |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | SIDE AIRBAG |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | Passenger Seat Belt |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | Driver Seat Belt |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | LHS D-ring Height Adjustor |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | RHS D-ring Height Adjustor |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | LHS Rear Passenger Seat Belt |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | RHS Rear Passenger Seat Belt |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n| Trims | Sun-Visor Passenger |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | Sun-Visor Driver |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | Left A-Pillar Trim |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | Right A-Pillar Trim |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | LHS C-Pillar Upper Trim |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | LHS C-Pillar Lower Trim |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | LHS B-Pillar Upper Trim |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | LHS B-Pillar Lower Trim |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | RHS C-Pillar Upper Trim |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | RHS C-Pillar Lower Trim |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | RHS B-Pillar Upper Trim |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | RHS B-Pillar Lower Trim |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | Header Trim/ Roof |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n| Floor | Driver side Footrest foam |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | Passenger side footrest foam |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | Driver/Passenger Side Carpet |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | Rear Compartment Carpet |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | Roof Headliner/Trim |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n| Seats | Driver Seat |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | Passenger Seat |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | 2nd Row Seat |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n| Door | Left Front Door |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | Left Rear Door |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | Left Front Door Trim |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | Left Rear Door Trim |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | Left Front Door Seals |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | Left Rear Door Seals |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n| Grab Handles | Front Grab Handle |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | Rear RHS Grab Handle |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n|  | Rear LHS Grab Handle |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n| Fasteners/Brackets | If any |  |  |  |  |  |  |  |  |  |  |  |  |  |  |\n| Buck | BUCK With Plexi-glass Windshield (front casting. Hardtrims) |  |  |  |  |  |  |  |  |  |  |  |  |  |  |"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "project"
+            },
+            "fieldType": "project",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "fieldType": "issuetype",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "11190"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Test Activity"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "SET",
+            "value": {
+              "type": "NAME",
+              "value": "Parts Order List"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "parent"
+            },
+            "fieldType": "parent",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "trigger"
+            }
+          }
+        ],
+        "sendNotifications": false
+      }
+    }
+  ],
+  "created": 1764026457211,
+  "description": "Create child works items (Action Item) when TEST ACTIVITY work items is created under the TEST ticket in JIRA for the CAEPT project",
+  "id": 30906297,
+  "idUuid": "019ab82b-9c87-7223-88e9-4aafc587530f",
+  "labels": [],
+  "name": "Create child works items when the TEST ACTIVITY work item is created",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11112"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11112"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "d71c83eb-11d6-4e08-8513-89f3acd3c1c6",
+        "conditions": [],
+        "connectionId": null,
+        "id": "300a7d67-8002-4565-9122-ba2d79ea4af0",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "11189"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "d71c83eb-11d6-4e08-8513-89f3acd3c1c6",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11112"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1764799227070,
+  "writeAccessType": "UNRESTRICTED"
+}

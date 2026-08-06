@@ -1,0 +1,280 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "565390834",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.version.create",
+      "value": {
+        "description": "Beta Build First Roller for P833 vehicle program",
+        "overrideReleaseDate": "SET_ON_EMPTY",
+        "project": {
+          "type": "COPY",
+          "value": "trigger"
+        },
+        "releaseDate": "2024-08-19",
+        "startDate": null,
+        "versionName": "P833 Beta Build First Roller"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "565390835",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.version.create",
+      "value": {
+        "description": "Beta Build Driver Commissioned for the P833 program",
+        "overrideReleaseDate": "SET_ON_EMPTY",
+        "project": {
+          "type": "COPY",
+          "value": "trigger"
+        },
+        "releaseDate": "2024-11-18",
+        "startDate": null,
+        "versionName": "P833 Beta Build Driver Commissioned"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "565390837",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.version.create",
+      "value": {
+        "description": "Engineering Verification Complete for P833 vehicle program",
+        "overrideReleaseDate": "SET_ON_EMPTY",
+        "project": {
+          "type": "COPY",
+          "value": "trigger"
+        },
+        "releaseDate": "2025-06-24",
+        "startDate": null,
+        "versionName": "P833 Engineering Verification Complete"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "565390840",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.version.create",
+      "value": {
+        "description": "First DCV Build completed for P833 vehicle program",
+        "overrideReleaseDate": "SET_ON_EMPTY",
+        "project": {
+          "type": "COPY",
+          "value": "trigger"
+        },
+        "releaseDate": "2025-12-29",
+        "startDate": null,
+        "versionName": "P833 First DCV Build"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "565390842",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.version.create",
+      "value": {
+        "description": "First DCV Commissioned for P833 vehicle program",
+        "overrideReleaseDate": "SET_ON_EMPTY",
+        "project": {
+          "type": "COPY",
+          "value": "trigger"
+        },
+        "releaseDate": "2026-01-12",
+        "startDate": null,
+        "versionName": "P833 First DCV Commissioned"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "565390845",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.version.create",
+      "value": {
+        "description": "Early Production Trial (EPT) for P833 vehicle program",
+        "overrideReleaseDate": "SET_ON_EMPTY",
+        "project": {
+          "type": "COPY",
+          "value": "trigger"
+        },
+        "releaseDate": "2026-04-30",
+        "startDate": null,
+        "versionName": "P833 Early Production Trial (EPT)"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "565390847",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.version.create",
+      "value": {
+        "description": "Design Verification Complete for P833 vehicle program",
+        "overrideReleaseDate": "SET_ON_EMPTY",
+        "project": {
+          "type": "COPY",
+          "value": "trigger"
+        },
+        "releaseDate": "2026-05-19",
+        "startDate": null,
+        "versionName": "P833 Design Verification Complete"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "565390848",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.version.create",
+      "value": {
+        "description": "Tooling Trial (TT) for P833 vehicle program",
+        "overrideReleaseDate": "SET_ON_EMPTY",
+        "project": {
+          "type": "COPY",
+          "value": "trigger"
+        },
+        "releaseDate": "2026-08-03",
+        "startDate": null,
+        "versionName": "P833 Tooling Trial (TT)"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "565390850",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.version.create",
+      "value": {
+        "description": "Pilot Production (PP) for P833 vehicle program",
+        "overrideReleaseDate": "SET_ON_EMPTY",
+        "project": {
+          "type": "COPY",
+          "value": "trigger"
+        },
+        "releaseDate": "2026-10-26",
+        "startDate": null,
+        "versionName": "P833 Pilot Production (PP)"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "565390852",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.version.create",
+      "value": {
+        "description": "Mass Production Build 1 (J1/MP1) for P833 vehicle program",
+        "overrideReleaseDate": "SET_ON_EMPTY",
+        "project": {
+          "type": "COPY",
+          "value": "trigger"
+        },
+        "releaseDate": "2027-01-19",
+        "startDate": null,
+        "versionName": "P833 Mass Production Build 1 (J1/MP1)"
+      }
+    }
+  ],
+  "created": 1715817493915,
+  "description": "",
+  "id": 19413534,
+  "idUuid": "018f7eb1-359b-71cd-80a3-e97500b9b727",
+  "labels": [
+    788160,
+    788304
+  ],
+  "name": "Create P833 Milestone Releases",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "565390833",
+    "parentId": null,
+    "schemaVersion": 3,
+    "type": "jira.manual.trigger.issue",
+    "value": {
+      "groups": [
+        "84c13f0c-36c1-40e7-85e0-734222270883"
+      ],
+      "inputFromUsers": false,
+      "inputPrompts": [],
+      "issueFilter": null,
+      "jQLFilter": null
+    }
+  },
+  "updated": 1716403729076,
+  "writeAccessType": "UNRESTRICTED"
+}

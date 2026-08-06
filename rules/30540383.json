@@ -1,0 +1,98 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "712020:a86ba4e7-5040-4998-86bc-666e4586e638"
+  },
+  "authorAccountId": "712020:a86ba4e7-5040-4998-86bc-666e4586e638",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "5a42c986-70d2-4f4e-8416-7d3a1d8ce19d",
+          "parentId": "8ccb10f7-cdbd-42ed-8a21-f7eab19159fd",
+          "schemaVersion": 11,
+          "type": "jira.issue.transition",
+          "value": {
+            "advancedFields": null,
+            "destinationStatus": {
+              "type": "SMART",
+              "value": "{{issue.status.name}}"
+            },
+            "operations": [],
+            "sendNotifications": true,
+            "transitionMatch": null
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "8ccb10f7-cdbd-42ed-8a21-f7eab19159fd",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": null,
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "linked",
+        "similarityLimit": 0
+      }
+    }
+  ],
+  "created": 1760630910091,
+  "description": "Automatically synchronize the status of an issue with its linked issue when the linked issue's status changes.",
+  "id": 30540383,
+  "idUuid": "0199edc7-ac89-7275-a5c7-b91da42c22f3",
+  "labels": [],
+  "name": "Sync Linked Issue Status",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11475"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11475"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "47e297f8-f54b-486e-91cb-62cd34f835d3",
+    "parentId": null,
+    "schemaVersion": -1,
+    "type": "jira.issue.event.trigger:transitioned",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11475"
+      ],
+      "eventKey": "jira:issue_updated",
+      "fromStatus": [],
+      "issueEvent": "issue_generic",
+      "toStatus": []
+    }
+  },
+  "updated": 1760630910091,
+  "writeAccessType": "UNRESTRICTED"
+}

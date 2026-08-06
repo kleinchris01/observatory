@@ -1,0 +1,98 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "532ac7d2-05e1-4d70-92db-597cee29cdde",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.proforma.form.change.status.action",
+      "value": {
+        "formStatus": "SUBMITTED",
+        "templateFormsConfiguration": {
+          "projectId": 13141,
+          "templateFormIds": [
+            "1f5cab4e-8e96-450c-b67a-bc3daac0e12b"
+          ]
+        }
+      }
+    }
+  ],
+  "created": 1778753892451,
+  "description": "This automation updates the status of the Solution Matrix Form to Submitted on work item transition",
+  "id": 33272434,
+  "idUuid": "019e25fe-7063-7ea5-9600-1942eb53b05a",
+  "labels": [],
+  "name": "SOLVE: Issue - Update Solution Matrix Forms Status on Issue Transition",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "104f3c2f-dd7c-4926-8b25-f06fbf03b52e",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:transitioned",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+      ],
+      "eventKey": "jira:issue_updated",
+      "fromStatus": [],
+      "issueEvent": "issue_generic",
+      "toStatus": [
+        {
+          "type": "NAME",
+          "value": "In Approval"
+        },
+        {
+          "type": "NAME",
+          "value": "Solution In-Progress"
+        },
+        {
+          "type": "NAME",
+          "value": "Pending Prevention"
+        },
+        {
+          "type": "NAME",
+          "value": "Completed"
+        },
+        {
+          "type": "NAME",
+          "value": "Released (Pending Verification)"
+        }
+      ]
+    }
+  },
+  "updated": 1782748575129,
+  "writeAccessType": "OWNER_ONLY"
+}

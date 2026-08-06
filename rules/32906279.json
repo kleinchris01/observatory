@@ -1,0 +1,124 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "0eba37fc-8991-4f7c-87f7-a0f708794c62",
+          "parentId": "640c613c-94e6-4bfe-a9f5-e234c88a59c3",
+          "schemaVersion": 1,
+          "type": "cmdb.object.edit.attributes",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": null,
+                "name": "Production Cost (Piece Price)",
+                "value": "{{issue.customfield_20709}}"
+              }
+            ]
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "640c613c-94e6-4bfe-a9f5-e234c88a59c3",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.object.related",
+      "value": {
+        "cmdbQuery": "Key IN ({{issue.Part Numbers.Key}})",
+        "schemaId": "55",
+        "schemaLabel": "Parts from 3DX",
+        "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+      }
+    }
+  ],
+  "created": 1776380782811,
+  "description": "",
+  "id": 32906279,
+  "idUuid": "019d988b-a8db-743e-9fe7-4522ba619e8f",
+  "labels": [],
+  "name": "2d) Update Production Cost (Piece Price) Attribute when Production Cost (Piece Price) is updated",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10518"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10518"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "4be8dabe-e3c7-4846-bc0f-70da4dd5f833",
+        "conditions": [],
+        "connectionId": null,
+        "id": "5c9d1a93-43ba-466a-9ffd-4d2ca63f4b23",
+        "parentId": null,
+        "schemaVersion": 1,
+        "type": "jira.jql.condition",
+        "value": "Project = GSM"
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "4be8dabe-e3c7-4846-bc0f-70da4dd5f833",
+        "conditions": [],
+        "connectionId": null,
+        "id": "143ba43f-d841-4b71-a6e6-65d12f304ea0",
+        "parentId": null,
+        "schemaVersion": 1,
+        "type": "jira.jql.condition",
+        "value": "\"Part Numbers\" is not empty"
+      }
+    ],
+    "connectionId": null,
+    "id": "4be8dabe-e3c7-4846-bc0f-70da4dd5f833",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10518"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Production Cost (Piece Price)"
+        }
+      ]
+    }
+  },
+  "updated": 1776381441049,
+  "writeAccessType": "OWNER_ONLY"
+}

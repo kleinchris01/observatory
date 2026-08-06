@@ -1,0 +1,192 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:363be9ef-0a71-463d-b9ea-bdf9f8fb9249",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "622543101",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.jql.condition",
+      "value": "issuetype = epic"
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "622543102",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.clone",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "project"
+            },
+            "fieldType": "project",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "fieldType": "issuetype",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10020"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": "CLONE - {{issue.summary}}"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "components"
+            },
+            "fieldType": "components",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [
+                "ADD"
+              ],
+              "sourceField": {
+                "fieldType": "components",
+                "type": "ID",
+                "value": "components"
+              },
+              "sourceIssue": "parent"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADVEV Checkpoints & Milestones"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "ADVEV Checkpoints & Milestones"
+              },
+              "sourceIssue": "parent"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADVEV Vehicle Platform"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                "type": "NAME",
+                "value": "ADVEV Vehicle Platform"
+              },
+              "sourceIssue": "parent"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADVEV Vehicle Program"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "ADVEV Vehicle Program"
+              },
+              "sourceIssue": "parent"
+            }
+          }
+        ],
+        "sendNotifications": false
+      }
+    }
+  ],
+  "created": 1730603298219,
+  "description": "",
+  "id": 22754508,
+  "idUuid": "0192effe-adab-7476-bee1-cc36460e4c36",
+  "labels": [],
+  "name": "Clone Stories ",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10031"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10031"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "622543100",
+    "parentId": null,
+    "schemaVersion": 3,
+    "type": "jira.manual.trigger.issue",
+    "value": {
+      "groups": [],
+      "inputFromUsers": false,
+      "inputPrompts": [],
+      "issueFilter": {
+        "filterType": "ISSUE_TYPE",
+        "value": [
+          "Epic"
+        ]
+      },
+      "jQLFilter": null
+    }
+  },
+  "updated": 1730603430189,
+  "writeAccessType": "UNRESTRICTED"
+}

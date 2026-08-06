@@ -1,0 +1,2178 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:363be9ef-0a71-463d-b9ea-bdf9f8fb9249",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "715422754",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": null,
+          "type": "VALUE",
+          "value": "Supplier OnBoard"
+        },
+        "comparison": "EQUALS",
+        "selectedField": {
+          "type": "ID",
+          "value": "summary"
+        },
+        "selectedFieldType": "summary"
+      }
+    },
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "715422755",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": true,
+          "source": null,
+          "type": "NAME",
+          "value": "[\"Supplier on Board\"]"
+        },
+        "comparison": "ONE_OF",
+        "selectedField": {
+          "type": "NAME",
+          "value": "Structures Activity"
+        },
+        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "715422757",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.create",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": "4-BOXER SUBMITTED"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "description"
+            },
+            "fieldType": "description",
+            "type": "SET",
+            "value": "Add a file "
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "project"
+            },
+            "fieldType": "project",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10031"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "fieldType": "issuetype",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10023"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADVEV Vehicle Program"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "ADVEV Vehicle Program"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Part Number"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                "type": "NAME",
+                "value": "Part Number"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Part Number(s)"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                "type": "NAME",
+                "value": "Part Number(s)"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "labels"
+            },
+            "fieldType": "labels",
+            "type": "SET",
+            "value": [
+              {
+                "type": "NAME",
+                "value": "Tooling"
+              },
+              {
+                "type": "NAME",
+                "value": "Sourcing"
+              }
+            ]
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "parent"
+            },
+            "fieldType": "parent",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "SIT/Attribute"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                "type": "NAME",
+                "value": "SIT/Attribute"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "components"
+            },
+            "fieldType": "components",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [
+                "ADD"
+              ],
+              "sourceField": {
+                "fieldType": "components",
+                "type": "ID",
+                "value": "components"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Structure Assembly"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "Structure Assembly"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Structures Activity"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "Structures Activity"
+              },
+              "sourceIssue": "trigger"
+            }
+          }
+        ],
+        "sendNotifications": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "715433347",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.create",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": "Packages are with supplier"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "description"
+            },
+            "fieldType": "description",
+            "type": "SET",
+            "value": null
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "project"
+            },
+            "fieldType": "project",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10031"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "fieldType": "issuetype",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10023"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADVEV Vehicle Program"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "ADVEV Vehicle Program"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Part Number"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                "type": "NAME",
+                "value": "Part Number"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Part Number(s)"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                "type": "NAME",
+                "value": "Part Number(s)"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "labels"
+            },
+            "fieldType": "labels",
+            "type": "SET",
+            "value": [
+              {
+                "type": "NAME",
+                "value": "Tooling"
+              },
+              {
+                "type": "NAME",
+                "value": "Sourcing"
+              }
+            ]
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "parent"
+            },
+            "fieldType": "parent",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "SIT/Attribute"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                "type": "NAME",
+                "value": "SIT/Attribute"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "components"
+            },
+            "fieldType": "components",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [
+                "ADD"
+              ],
+              "sourceField": {
+                "fieldType": "components",
+                "type": "ID",
+                "value": "components"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Structure Assembly"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "Structure Assembly"
+              },
+              "sourceIssue": "trigger"
+            }
+          }
+        ],
+        "sendNotifications": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "715422756",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.create",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": "Tool Shop Alignment"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "description"
+            },
+            "fieldType": "description",
+            "type": "SET",
+            "value": null
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "project"
+            },
+            "fieldType": "project",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10031"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "fieldType": "issuetype",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10023"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADVEV Vehicle Program"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "ADVEV Vehicle Program"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Part Number"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                "type": "NAME",
+                "value": "Part Number"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Part Number(s)"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                "type": "NAME",
+                "value": "Part Number(s)"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "labels"
+            },
+            "fieldType": "labels",
+            "type": "SET",
+            "value": [
+              {
+                "type": "NAME",
+                "value": "Tooling"
+              },
+              {
+                "type": "NAME",
+                "value": "Sourcing"
+              }
+            ]
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "parent"
+            },
+            "fieldType": "parent",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "SIT/Attribute"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                "type": "NAME",
+                "value": "SIT/Attribute"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "components"
+            },
+            "fieldType": "components",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [
+                "ADD"
+              ],
+              "sourceField": {
+                "fieldType": "components",
+                "type": "ID",
+                "value": "components"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Structure Assembly"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "Structure Assembly"
+              },
+              "sourceIssue": "trigger"
+            }
+          }
+        ],
+        "sendNotifications": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "715422758",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.create",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": "Buyer Negotiations"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "description"
+            },
+            "fieldType": "description",
+            "type": "SET",
+            "value": "Add a SharePoint Link to a live file "
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "project"
+            },
+            "fieldType": "project",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10031"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "fieldType": "issuetype",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10023"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADVEV Vehicle Program"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "ADVEV Vehicle Program"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Part Number"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                "type": "NAME",
+                "value": "Part Number"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Part Number(s)"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                "type": "NAME",
+                "value": "Part Number(s)"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "labels"
+            },
+            "fieldType": "labels",
+            "type": "SET",
+            "value": [
+              {
+                "type": "NAME",
+                "value": "Tooling"
+              },
+              {
+                "type": "NAME",
+                "value": "Sourcing"
+              }
+            ]
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "parent"
+            },
+            "fieldType": "parent",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "SIT/Attribute"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                "type": "NAME",
+                "value": "SIT/Attribute"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "components"
+            },
+            "fieldType": "components",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [
+                "ADD"
+              ],
+              "sourceField": {
+                "fieldType": "components",
+                "type": "ID",
+                "value": "components"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Structure Assembly"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "Structure Assembly"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Structures Activity"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "Structures Activity"
+              },
+              "sourceIssue": "trigger"
+            }
+          }
+        ],
+        "sendNotifications": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "715425851",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.create",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": "Recommendation Ready "
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "description"
+            },
+            "fieldType": "description",
+            "type": "SET",
+            "value": "Add a file "
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "project"
+            },
+            "fieldType": "project",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10031"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "fieldType": "issuetype",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10023"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADVEV Vehicle Program"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "ADVEV Vehicle Program"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Part Number"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                "type": "NAME",
+                "value": "Part Number"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Part Number(s)"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                "type": "NAME",
+                "value": "Part Number(s)"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "labels"
+            },
+            "fieldType": "labels",
+            "type": "SET",
+            "value": [
+              {
+                "type": "NAME",
+                "value": "Tooling"
+              },
+              {
+                "type": "NAME",
+                "value": "Sourcing"
+              }
+            ]
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "parent"
+            },
+            "fieldType": "parent",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "SIT/Attribute"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                "type": "NAME",
+                "value": "SIT/Attribute"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "components"
+            },
+            "fieldType": "components",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [
+                "ADD"
+              ],
+              "sourceField": {
+                "fieldType": "components",
+                "type": "ID",
+                "value": "components"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Structure Assembly"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "Structure Assembly"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Structures Activity"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "Structures Activity"
+              },
+              "sourceIssue": "trigger"
+            }
+          }
+        ],
+        "sendNotifications": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "715422760",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.create",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": "Buyer Manager Approval"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "description"
+            },
+            "fieldType": "description",
+            "type": "SET",
+            "value": "Add a file "
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "project"
+            },
+            "fieldType": "project",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10031"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "fieldType": "issuetype",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10023"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADVEV Vehicle Program"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "ADVEV Vehicle Program"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Part Number"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                "type": "NAME",
+                "value": "Part Number"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Part Number(s)"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                "type": "NAME",
+                "value": "Part Number(s)"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "labels"
+            },
+            "fieldType": "labels",
+            "type": "SET",
+            "value": [
+              {
+                "type": "NAME",
+                "value": "Tooling"
+              },
+              {
+                "type": "NAME",
+                "value": "Sourcing"
+              }
+            ]
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "parent"
+            },
+            "fieldType": "parent",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "SIT/Attribute"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                "type": "NAME",
+                "value": "SIT/Attribute"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "components"
+            },
+            "fieldType": "components",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [
+                "ADD"
+              ],
+              "sourceField": {
+                "fieldType": "components",
+                "type": "ID",
+                "value": "components"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Structure Assembly"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "Structure Assembly"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Structures Activity"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "Structures Activity"
+              },
+              "sourceIssue": "trigger"
+            }
+          }
+        ],
+        "sendNotifications": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "715422761",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.create",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": "ADVEV Purchasing Approval"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "description"
+            },
+            "fieldType": "description",
+            "type": "SET",
+            "value": "Add a file "
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "project"
+            },
+            "fieldType": "project",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10031"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "fieldType": "issuetype",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10023"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADVEV Vehicle Program"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "ADVEV Vehicle Program"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Part Number"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                "type": "NAME",
+                "value": "Part Number"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Part Number(s)"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                "type": "NAME",
+                "value": "Part Number(s)"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "labels"
+            },
+            "fieldType": "labels",
+            "type": "SET",
+            "value": [
+              {
+                "type": "NAME",
+                "value": "Tooling"
+              },
+              {
+                "type": "NAME",
+                "value": "Sourcing"
+              }
+            ]
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "parent"
+            },
+            "fieldType": "parent",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "SIT/Attribute"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                "type": "NAME",
+                "value": "SIT/Attribute"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "components"
+            },
+            "fieldType": "components",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [
+                "ADD"
+              ],
+              "sourceField": {
+                "fieldType": "components",
+                "type": "ID",
+                "value": "components"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Structure Assembly"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "Structure Assembly"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Structures Activity"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "Structures Activity"
+              },
+              "sourceIssue": "trigger"
+            }
+          }
+        ],
+        "sendNotifications": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "715422762",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.create",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": "ADVEV Architect Approval"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "description"
+            },
+            "fieldType": "description",
+            "type": "SET",
+            "value": "Add a file "
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "project"
+            },
+            "fieldType": "project",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10031"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "fieldType": "issuetype",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10023"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADVEV Vehicle Program"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "ADVEV Vehicle Program"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Part Number"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                "type": "NAME",
+                "value": "Part Number"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Part Number(s)"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                "type": "NAME",
+                "value": "Part Number(s)"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "labels"
+            },
+            "fieldType": "labels",
+            "type": "SET",
+            "value": [
+              {
+                "type": "NAME",
+                "value": "Tooling"
+              },
+              {
+                "type": "NAME",
+                "value": "Sourcing"
+              }
+            ]
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "parent"
+            },
+            "fieldType": "parent",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "SIT/Attribute"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                "type": "NAME",
+                "value": "SIT/Attribute"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "components"
+            },
+            "fieldType": "components",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [
+                "ADD"
+              ],
+              "sourceField": {
+                "fieldType": "components",
+                "type": "ID",
+                "value": "components"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Structure Assembly"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "Structure Assembly"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Structures Activity"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "Structures Activity"
+              },
+              "sourceIssue": "trigger"
+            }
+          }
+        ],
+        "sendNotifications": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "715422763",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.create",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": "ADVEV Product Director Approval"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "description"
+            },
+            "fieldType": "description",
+            "type": "SET",
+            "value": "Add a file "
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "project"
+            },
+            "fieldType": "project",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10031"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "fieldType": "issuetype",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10023"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADVEV Vehicle Program"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "ADVEV Vehicle Program"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Part Number"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                "type": "NAME",
+                "value": "Part Number"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Part Number(s)"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                "type": "NAME",
+                "value": "Part Number(s)"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "labels"
+            },
+            "fieldType": "labels",
+            "type": "SET",
+            "value": [
+              {
+                "type": "NAME",
+                "value": "Tooling"
+              },
+              {
+                "type": "NAME",
+                "value": "Sourcing"
+              }
+            ]
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "parent"
+            },
+            "fieldType": "parent",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "SIT/Attribute"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                "type": "NAME",
+                "value": "SIT/Attribute"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "components"
+            },
+            "fieldType": "components",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [
+                "ADD"
+              ],
+              "sourceField": {
+                "fieldType": "components",
+                "type": "ID",
+                "value": "components"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Structure Assembly"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "Structure Assembly"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Structures Activity"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "Structures Activity"
+              },
+              "sourceIssue": "trigger"
+            }
+          }
+        ],
+        "sendNotifications": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "715422764",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.create",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": "Sourcing Contract Signed "
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "description"
+            },
+            "fieldType": "description",
+            "type": "SET",
+            "value": "Add a file "
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "project"
+            },
+            "fieldType": "project",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10031"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "fieldType": "issuetype",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10023"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADVEV Vehicle Program"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "ADVEV Vehicle Program"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Part Number"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                "type": "NAME",
+                "value": "Part Number"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Part Number(s)"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                "type": "NAME",
+                "value": "Part Number(s)"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "labels"
+            },
+            "fieldType": "labels",
+            "type": "SET",
+            "value": [
+              {
+                "type": "NAME",
+                "value": "Tooling"
+              },
+              {
+                "type": "NAME",
+                "value": "Sourcing"
+              }
+            ]
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "parent"
+            },
+            "fieldType": "parent",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "SIT/Attribute"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                "type": "NAME",
+                "value": "SIT/Attribute"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "components"
+            },
+            "fieldType": "components",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [
+                "ADD"
+              ],
+              "sourceField": {
+                "fieldType": "components",
+                "type": "ID",
+                "value": "components"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Structure Assembly"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "Structure Assembly"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Structures Activity"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "Structures Activity"
+              },
+              "sourceIssue": "trigger"
+            }
+          }
+        ],
+        "sendNotifications": false
+      }
+    }
+  ],
+  "created": 1749147795028,
+  "description": "",
+  "id": 29017011,
+  "idUuid": "01974155-3e54-7d04-90de-100deb2d0012",
+  "labels": [],
+  "name": "Supplier OnBoard Tasks",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10031"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10031"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "715422753",
+    "parentId": null,
+    "schemaVersion": 3,
+    "type": "jira.manual.trigger.issue",
+    "value": {
+      "groups": [],
+      "inputFromUsers": false,
+      "inputPrompts": [],
+      "issueFilter": {
+        "filterType": "ISSUE_TYPE",
+        "value": [
+          "Assembly Milestone"
+        ]
+      },
+      "jQLFilter": null
+    }
+  },
+  "updated": 1749153448553,
+  "writeAccessType": "UNRESTRICTED"
+}

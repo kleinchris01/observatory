@@ -1,0 +1,97 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "fcc63e04-d30a-4e4b-a6d7-c63d4cf6f7fa",
+      "parentId": null,
+      "schemaVersion": 11,
+      "type": "jira.issue.transition",
+      "value": {
+        "advancedFields": null,
+        "destinationStatus": {
+          "type": "NAME",
+          "value": "RCA Completed"
+        },
+        "operations": [],
+        "sendNotifications": true,
+        "transitionMatch": ""
+      }
+    }
+  ],
+  "created": 1761674623914,
+  "description": "",
+  "id": 30656219,
+  "idUuid": "019a2bfd-7ba8-7843-845e-fe8f6c225a08",
+  "labels": [],
+  "name": "4a Quality issue automated workflow",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10125"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10125"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "f014c89c-6368-4626-b5be-3ba663902308",
+        "conditions": [],
+        "connectionId": null,
+        "id": "6d742be1-9b6e-4970-a0d5-bc5a59e5d898",
+        "parentId": null,
+        "schemaVersion": 1,
+        "type": "jira.jql.condition",
+        "value": "issuetype = \"Quality Issue\" and status = \"RCA In process\""
+      }
+    ],
+    "connectionId": null,
+    "id": "f014c89c-6368-4626-b5be-3ba663902308",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [
+        "edit"
+      ],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10125"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "RCA Completion Date"
+        }
+      ]
+    }
+  },
+  "updated": 1761674623914,
+  "writeAccessType": "UNRESTRICTED"
+}

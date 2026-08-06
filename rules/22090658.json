@@ -1,0 +1,1133 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "597749325",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.condition.query",
+      "value": {
+        "cmdbField": "customfield_11921",
+        "cmdbQuery": "Parts is EMPTY",
+        "type": "ISSUE"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749327",
+          "parentId": "597749326",
+          "schemaVersion": 1,
+          "type": "action.wait.for.time.duration",
+          "value": {
+            "randomWaitInterval": null,
+            "waitTimeInSeconds": 20
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749328",
+          "parentId": "597749326",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "Object {{object}} has been created without Parts"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749329",
+          "parentId": "597749326",
+          "schemaVersion": 1,
+          "type": "cmdb.lookup.objects",
+          "value": {
+            "customSmartValue": {
+              "id": "_customsmartvalue_id_1723144412148",
+              "lazy": false,
+              "name": {
+                "type": "FREE",
+                "value": "lookupObjects"
+              },
+              "query": {
+                "type": "SMART",
+                "value": "objectType = \"Module\" AND \"Part Number\" LIKE \"{{object.Part Number}}\""
+              },
+              "type": "IQL"
+            },
+            "schemaId": "15",
+            "searchResultsLimit": 100,
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749330",
+          "parentId": "597749326",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "LookupObject is {{lookupObjects.Name}}."
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749331",
+          "parentId": "597749326",
+          "schemaVersion": 1,
+          "type": "cmdb.object.edit.attributes",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": null,
+                "name": "Part",
+                "value": "{{lookupObjects.key}}"
+              }
+            ]
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "597749326",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.object.related",
+      "value": {
+        "cmdbQuery": "objectType = \"Module Inventory\" AND Part is EMPTY and \"Part Number\" is not empty",
+        "schemaId": "15",
+        "schemaLabel": "Part Inventory Management",
+        "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749333",
+          "parentId": "597749332",
+          "schemaVersion": 1,
+          "type": "action.wait.for.time.duration",
+          "value": {
+            "randomWaitInterval": null,
+            "waitTimeInSeconds": 20
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749334",
+          "parentId": "597749332",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "Object {{object}} has been created without Parts"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749335",
+          "parentId": "597749332",
+          "schemaVersion": 1,
+          "type": "cmdb.lookup.objects",
+          "value": {
+            "customSmartValue": {
+              "id": "_customsmartvalue_id_1723144412148",
+              "lazy": false,
+              "name": {
+                "type": "FREE",
+                "value": "lookupObjects"
+              },
+              "query": {
+                "type": "SMART",
+                "value": "objectType = \"Sensor\" AND \"Part Number\" LIKE \"{{object.Part Number}}\""
+              },
+              "type": "IQL"
+            },
+            "schemaId": "15",
+            "searchResultsLimit": 100,
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749336",
+          "parentId": "597749332",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "LookupObject is {{lookupObjects.Name}}."
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749337",
+          "parentId": "597749332",
+          "schemaVersion": 1,
+          "type": "cmdb.object.edit.attributes",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": null,
+                "name": "Part",
+                "value": "{{lookupObjects.key}}"
+              }
+            ]
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "597749332",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.object.related",
+      "value": {
+        "cmdbQuery": "objectType = \"Sensor Inventory\" AND Part is EMPTY and \"Part Number\" is not empty",
+        "schemaId": "15",
+        "schemaLabel": "Part Inventory Management",
+        "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749339",
+          "parentId": "597749338",
+          "schemaVersion": 1,
+          "type": "action.wait.for.time.duration",
+          "value": {
+            "randomWaitInterval": null,
+            "waitTimeInSeconds": 20
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749340",
+          "parentId": "597749338",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "Object {{object}} has been created without Parts"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749341",
+          "parentId": "597749338",
+          "schemaVersion": 1,
+          "type": "cmdb.lookup.objects",
+          "value": {
+            "customSmartValue": {
+              "id": "_customsmartvalue_id_1723144412148",
+              "lazy": false,
+              "name": {
+                "type": "FREE",
+                "value": "lookupObjects"
+              },
+              "query": {
+                "type": "SMART",
+                "value": "objectType = \"Harness\" AND \"Part Number\" LIKE \"{{object.Part Number}}\""
+              },
+              "type": "IQL"
+            },
+            "schemaId": "15",
+            "searchResultsLimit": 100,
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749342",
+          "parentId": "597749338",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "LookupObject is {{lookupObjects.Name}}."
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749343",
+          "parentId": "597749338",
+          "schemaVersion": 1,
+          "type": "cmdb.object.edit.attributes",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": null,
+                "name": "Part",
+                "value": "{{lookupObjects.key}}"
+              }
+            ]
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "597749338",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.object.related",
+      "value": {
+        "cmdbQuery": "objectType = \"Harness Inventory\" AND Part is EMPTY and \"Part Number\" is not empty",
+        "schemaId": "15",
+        "schemaLabel": "Part Inventory Management",
+        "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749345",
+          "parentId": "597749344",
+          "schemaVersion": 1,
+          "type": "action.wait.for.time.duration",
+          "value": {
+            "randomWaitInterval": null,
+            "waitTimeInSeconds": 20
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749346",
+          "parentId": "597749344",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "Object {{object}} has been created without Parts"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749347",
+          "parentId": "597749344",
+          "schemaVersion": 1,
+          "type": "cmdb.lookup.objects",
+          "value": {
+            "customSmartValue": {
+              "id": "_customsmartvalue_id_1723144412148",
+              "lazy": false,
+              "name": {
+                "type": "FREE",
+                "value": "lookupObjects"
+              },
+              "query": {
+                "type": "SMART",
+                "value": "objectType = \"Connector\" AND \"Part Number\" LIKE \"{{object.Part Number}}\""
+              },
+              "type": "IQL"
+            },
+            "schemaId": "15",
+            "searchResultsLimit": 100,
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749348",
+          "parentId": "597749344",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "LookupObject is {{lookupObjects.Name}}."
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749349",
+          "parentId": "597749344",
+          "schemaVersion": 1,
+          "type": "cmdb.object.edit.attributes",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": null,
+                "name": "Part",
+                "value": "{{lookupObjects.key}}"
+              }
+            ]
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "597749344",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.object.related",
+      "value": {
+        "cmdbQuery": "objectType = \"Connector Inventory\" AND Part is EMPTY and \"Part Number\" is not empty",
+        "schemaId": "15",
+        "schemaLabel": "Part Inventory Management",
+        "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749351",
+          "parentId": "597749350",
+          "schemaVersion": 1,
+          "type": "action.wait.for.time.duration",
+          "value": {
+            "randomWaitInterval": null,
+            "waitTimeInSeconds": 20
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749352",
+          "parentId": "597749350",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "Object {{object}} has been created without Parts"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749353",
+          "parentId": "597749350",
+          "schemaVersion": 1,
+          "type": "cmdb.lookup.objects",
+          "value": {
+            "customSmartValue": {
+              "id": "_customsmartvalue_id_1723144412148",
+              "lazy": false,
+              "name": {
+                "type": "FREE",
+                "value": "lookupObjects"
+              },
+              "query": {
+                "type": "SMART",
+                "value": "objectType = \"Terminal\" AND Name LIKE \"{{object.Name}}\""
+              },
+              "type": "IQL"
+            },
+            "schemaId": "15",
+            "searchResultsLimit": 100,
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749354",
+          "parentId": "597749350",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "LookupObject is {{lookupObjects.Name}}."
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749355",
+          "parentId": "597749350",
+          "schemaVersion": 1,
+          "type": "cmdb.object.edit.attributes",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": null,
+                "name": "Part",
+                "value": "{{lookupObjects.key}}"
+              }
+            ]
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "597749350",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.object.related",
+      "value": {
+        "cmdbQuery": "objectType = \"Terminal Inventory\" AND Part is EMPTY and \"Part Number\" is not empty",
+        "schemaId": "15",
+        "schemaLabel": "Part Inventory Management",
+        "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749357",
+          "parentId": "597749356",
+          "schemaVersion": 1,
+          "type": "action.wait.for.time.duration",
+          "value": {
+            "randomWaitInterval": null,
+            "waitTimeInSeconds": 20
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749358",
+          "parentId": "597749356",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "Object {{object}} has been created without Parts"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749359",
+          "parentId": "597749356",
+          "schemaVersion": 1,
+          "type": "cmdb.lookup.objects",
+          "value": {
+            "customSmartValue": {
+              "id": "_customsmartvalue_id_1723144412148",
+              "lazy": false,
+              "name": {
+                "type": "FREE",
+                "value": "lookupObjects"
+              },
+              "query": {
+                "type": "SMART",
+                "value": "objectType = \"Testing Equipment\" AND \"Part Number\" LIKE \"{{object.Part Number}}\""
+              },
+              "type": "IQL"
+            },
+            "schemaId": "15",
+            "searchResultsLimit": 100,
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749360",
+          "parentId": "597749356",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "LookupObject is {{lookupObjects.Name}}."
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749361",
+          "parentId": "597749356",
+          "schemaVersion": 1,
+          "type": "cmdb.object.edit.attributes",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": null,
+                "name": "Part",
+                "value": "{{lookupObjects.key}}"
+              }
+            ]
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "597749356",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.object.related",
+      "value": {
+        "cmdbQuery": "objectType = \"Testing Equipment Inventory\" AND Part is EMPTY and \"Part Number\" is not empty",
+        "schemaId": "15",
+        "schemaLabel": "Part Inventory Management",
+        "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749363",
+          "parentId": "597749362",
+          "schemaVersion": 1,
+          "type": "action.wait.for.time.duration",
+          "value": {
+            "randomWaitInterval": null,
+            "waitTimeInSeconds": 20
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749364",
+          "parentId": "597749362",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "Object {{object}} has been created without Parts"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749365",
+          "parentId": "597749362",
+          "schemaVersion": 1,
+          "type": "cmdb.lookup.objects",
+          "value": {
+            "customSmartValue": {
+              "id": "_customsmartvalue_id_1723144412148",
+              "lazy": false,
+              "name": {
+                "type": "FREE",
+                "value": "lookupObjects"
+              },
+              "query": {
+                "type": "SMART",
+                "value": "objectType = \"End Item\" AND \"Part Number\" LIKE \"{{object.Part Number}}\""
+              },
+              "type": "IQL"
+            },
+            "schemaId": "15",
+            "searchResultsLimit": 100,
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749366",
+          "parentId": "597749362",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "LookupObject is {{lookupObjects.Name}}."
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749367",
+          "parentId": "597749362",
+          "schemaVersion": 1,
+          "type": "cmdb.object.edit.attributes",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": null,
+                "name": "Part",
+                "value": "{{lookupObjects.key}}"
+              }
+            ]
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "597749362",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.object.related",
+      "value": {
+        "cmdbQuery": "objectType = \"End Item Inventory\" AND Part is EMPTY and \"Part Number\" is not empty",
+        "schemaId": "15",
+        "schemaLabel": "Part Inventory Management",
+        "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749369",
+          "parentId": "597749368",
+          "schemaVersion": 1,
+          "type": "action.wait.for.time.duration",
+          "value": {
+            "randomWaitInterval": null,
+            "waitTimeInSeconds": 20
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749370",
+          "parentId": "597749368",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "Object {{object}} has been created without Parts"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749371",
+          "parentId": "597749368",
+          "schemaVersion": 1,
+          "type": "cmdb.lookup.objects",
+          "value": {
+            "customSmartValue": {
+              "id": "_customsmartvalue_id_1723144412148",
+              "lazy": false,
+              "name": {
+                "type": "FREE",
+                "value": "lookupObjects"
+              },
+              "query": {
+                "type": "SMART",
+                "value": "objectType = \"Specialty Tools\" AND \"Part Number\" LIKE \"{{object.Part Number}}\""
+              },
+              "type": "IQL"
+            },
+            "schemaId": "15",
+            "searchResultsLimit": 100,
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749372",
+          "parentId": "597749368",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "LookupObject is {{lookupObjects.Name}}."
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749373",
+          "parentId": "597749368",
+          "schemaVersion": 1,
+          "type": "cmdb.object.edit.attributes",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": null,
+                "name": "Part",
+                "value": "{{lookupObjects.key}}"
+              }
+            ]
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "597749368",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.object.related",
+      "value": {
+        "cmdbQuery": "objectType = \"Specialty Tools Inventory\" AND Part is EMPTY and \"Part Number\" is not empty",
+        "schemaId": "15",
+        "schemaLabel": "Part Inventory Management",
+        "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749375",
+          "parentId": "597749374",
+          "schemaVersion": 1,
+          "type": "action.wait.for.time.duration",
+          "value": {
+            "randomWaitInterval": null,
+            "waitTimeInSeconds": 20
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749376",
+          "parentId": "597749374",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "Object {{object}} has been created without Parts"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749377",
+          "parentId": "597749374",
+          "schemaVersion": 1,
+          "type": "cmdb.lookup.objects",
+          "value": {
+            "customSmartValue": {
+              "id": "_customsmartvalue_id_1723144412148",
+              "lazy": false,
+              "name": {
+                "type": "FREE",
+                "value": "lookupObjects"
+              },
+              "query": {
+                "type": "SMART",
+                "value": "objectType = \"Interface Device\" AND \"Part Number\" LIKE \"{{object.Part Number}}\""
+              },
+              "type": "IQL"
+            },
+            "schemaId": "15",
+            "searchResultsLimit": 100,
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749378",
+          "parentId": "597749374",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "LookupObject is {{lookupObjects.Name}}."
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749379",
+          "parentId": "597749374",
+          "schemaVersion": 1,
+          "type": "cmdb.object.edit.attributes",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": null,
+                "name": "Part",
+                "value": "{{lookupObjects.key}}"
+              }
+            ]
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "597749374",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.object.related",
+      "value": {
+        "cmdbQuery": "objectType = \"Interface Device Inventory\" AND Part is EMPTY and \"Part Number\" is not empty",
+        "schemaId": "15",
+        "schemaLabel": "Part Inventory Management",
+        "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749381",
+          "parentId": "597749380",
+          "schemaVersion": 1,
+          "type": "action.wait.for.time.duration",
+          "value": {
+            "randomWaitInterval": null,
+            "waitTimeInSeconds": 20
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749382",
+          "parentId": "597749380",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "Object {{object}} has been created without Parts"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749383",
+          "parentId": "597749380",
+          "schemaVersion": 1,
+          "type": "cmdb.lookup.objects",
+          "value": {
+            "customSmartValue": {
+              "id": "_customsmartvalue_id_1723144412148",
+              "lazy": false,
+              "name": {
+                "type": "FREE",
+                "value": "lookupObjects"
+              },
+              "query": {
+                "type": "SMART",
+                "value": "objectType = \"Misc Part\" AND \"Part Number\" LIKE \"{{object.Part Number}}\""
+              },
+              "type": "IQL"
+            },
+            "schemaId": "15",
+            "searchResultsLimit": 100,
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749384",
+          "parentId": "597749380",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "LookupObject is {{lookupObjects.Name}}."
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597749385",
+          "parentId": "597749380",
+          "schemaVersion": 1,
+          "type": "cmdb.object.edit.attributes",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": null,
+                "name": "Part",
+                "value": "{{lookupObjects.key}}"
+              }
+            ]
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "597749380",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.object.related",
+      "value": {
+        "cmdbQuery": "objectType = \"Misc Part Inventory\" AND Part is EMPTY and \"Part Number\" is not empty",
+        "schemaId": "15",
+        "schemaLabel": "Part Inventory Management",
+        "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+      }
+    }
+  ],
+  "created": 1727300811682,
+  "description": "",
+  "id": 22090658,
+  "idUuid": "01922b26-bba2-7197-a905-65e7f31216a5",
+  "labels": [
+    846526,
+    849620
+  ],
+  "name": "Link Inventory Objects to Part Objects (Watcher)",
+  "notifyOnError": "NEVER",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "597749324",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "cmdb.object.trigger",
+    "value": {
+      "operation": "CREATED",
+      "schemaId": "15",
+      "schemaLabel": "Part Inventory Management",
+      "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+    }
+  },
+  "updated": 1727300811682,
+  "writeAccessType": "UNRESTRICTED"
+}

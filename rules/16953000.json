@@ -1,0 +1,155 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555674838",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.lookup.objects",
+      "value": {
+        "customSmartValue": {
+          "id": "_customsmartvalue_id_1702424408335",
+          "lazy": false,
+          "name": {
+            "type": "FREE",
+            "value": "lookupObjects"
+          },
+          "query": {
+            "type": "SMART",
+            "value": "objectType = \"Reservation\" ORDER BY \"Created\" DESC LIMIT 1"
+          },
+          "type": "IQL"
+        },
+        "schemaId": "6",
+        "searchResultsLimit": 100,
+        "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555674839",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "Object = {{lookupObjects}}"
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555674841",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.lookup.issues",
+      "value": {
+        "id": "_customsmartvalue_id_1702423944649",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "lookupIssues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{issue.summary}} = {{lookupObjects}}"
+        },
+        "type": "JQL"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555674862",
+          "parentId": "555674846",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [],
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555674846",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "{{lookupIssues}}",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "jql",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1702350459978,
+  "description": "",
+  "id": 16953000,
+  "idUuid": "018c5bfe-944a-73f3-98cc-085a51a804a3",
+  "labels": [],
+  "name": "Set Equipment on Reservation Object",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "555674832",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "cmdb.object.trigger",
+    "value": {
+      "operation": "CREATED",
+      "schemaId": "6",
+      "schemaLabel": "Prototype Testing Schema",
+      "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+    }
+  },
+  "updated": 1702424688831,
+  "writeAccessType": "UNRESTRICTED"
+}

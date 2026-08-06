@@ -1,0 +1,117 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "d912cf8c-75ef-4464-9325-a93286409a85",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": "",
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Jama Link"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+            "type": "SET",
+            "value": "[BASE-{{issue.Requirement Baseline.substringAfter(\"BASE-\")}}|https://ford-prod.jamacloud.com/perspective.req#/baselines/{{issue.Requirement Baseline.substringAfter(\"BASE-\")}}/list?projectId=113]"
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Requirement Baseline Link"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:url",
+            "type": "SET",
+            "value": "https://ford-prod.jamacloud.com/perspective.req#/baselines/{{issue.Requirement Baseline.substringAfter(\"BASE-\")}}/list?projectId=113"
+          }
+        ],
+        "sendNotifications": false
+      }
+    }
+  ],
+  "created": 1768259972940,
+  "description": "Update requirement ID [Field] to jama URL link [Field} ",
+  "id": 31508735,
+  "idUuid": "019bb481-ef4c-7b74-84fc-461373a01c72",
+  "labels": [],
+  "name": "Update requirement ID  to jama link",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11376",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10104",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10148"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "df05028d-12c8-4d33-a3ac-aca9cc376dc0",
+        "conditions": [],
+        "connectionId": null,
+        "id": "fd304d59-57e0-4070-a340-0c5b24fb02ff",
+        "parentId": null,
+        "schemaVersion": 1,
+        "type": "jira.comparator.condition",
+        "value": {
+          "first": "{{issue.Requirement Baseline}}",
+          "operator": "REGEX_MATCHES",
+          "second": "BASE-([1-9][0-9]*)"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "df05028d-12c8-4d33-a3ac-aca9cc376dc0",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10148",
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10104",
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11376"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Requirement Baseline"
+        }
+      ]
+    }
+  },
+  "updated": 1776887914387,
+  "writeAccessType": "UNRESTRICTED"
+}

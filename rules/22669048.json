@@ -1,0 +1,175 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "619540302",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": true,
+          "source": null,
+          "type": "NAME",
+          "value": "[\"Portable Tool Request\"]"
+        },
+        "comparison": "ONE_OF",
+        "selectedField": {
+          "type": "NAME",
+          "value": "Request Type"
+        },
+        "selectedFieldType": "com.atlassian.servicedesk:vp-origin"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "619540303",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.lookup.objects",
+      "value": {
+        "customSmartValue": {
+          "id": "_customsmartvalue_id_1723752196901",
+          "lazy": false,
+          "name": {
+            "type": "FREE",
+            "value": "lookupObjects"
+          },
+          "query": {
+            "type": "SMART",
+            "value": "Key IN ({{issue.Tool Inventory.key}})"
+          },
+          "type": "IQL"
+        },
+        "schemaId": "15",
+        "searchResultsLimit": 100,
+        "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "619540304",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "Object is: {{lookupObjects}}"
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "619540306",
+          "parentId": "619540305",
+          "schemaVersion": 1,
+          "type": "cmdb.object.edit.attributes",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": null,
+                "name": "Availability",
+                "value": "Available"
+              }
+            ]
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "619540305",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.object.related",
+      "value": {
+        "cmdbQuery": "Key IN ({{lookupObjects.key}})",
+        "schemaId": "15",
+        "schemaLabel": "Part Inventory Management",
+        "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+      }
+    }
+  ],
+  "created": 1730218562264,
+  "description": "",
+  "id": 22669048,
+  "idUuid": "0192d910-12d8-7c4c-a8bb-ab637f95e407",
+  "labels": [
+    846526,
+    851215
+  ],
+  "name": "Set Requested Tools to Available when returned and current location to GFL",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10144"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10144"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "619540301",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:transitioned",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10144"
+      ],
+      "eventKey": "jira:issue_updated",
+      "fromStatus": [
+        {
+          "type": "NAME",
+          "value": "Pending Return"
+        }
+      ],
+      "issueEvent": "issue_generic",
+      "toStatus": [
+        {
+          "type": "NAME",
+          "value": "Completed"
+        }
+      ]
+    }
+  },
+  "updated": 1730218562264,
+  "writeAccessType": "UNRESTRICTED"
+}

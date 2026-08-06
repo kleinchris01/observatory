@@ -1,0 +1,357 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "CONDITION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "699594623",
+                  "parentId": "699594622",
+                  "schemaVersion": 3,
+                  "type": "jira.issue.condition",
+                  "value": {
+                    "compareValue": {
+                      "modifier": null,
+                      "multiValue": false,
+                      "source": null,
+                      "type": "ID",
+                      "value": "10043"
+                    },
+                    "comparison": "EQUALS",
+                    "selectedField": {
+                      "type": "ID",
+                      "value": "issuetype"
+                    },
+                    "selectedFieldType": "issuetype"
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "699581698",
+                  "parentId": "699594622",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.edit",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "parent"
+                        },
+                        "fieldType": "parent",
+                        "type": "SET",
+                        "value": {
+                          "type": "FREE",
+                          "value": "AETS-7696"
+                        }
+                      }
+                    ],
+                    "sendNotifications": true
+                  }
+                }
+              ],
+              "component": "BRANCH",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "699594622",
+              "parentId": "699581695",
+              "schemaVersion": 1,
+              "type": "jira.issue.related",
+              "value": {
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [],
+                "onlyUpdatedIssues": false,
+                "relatedType": "current",
+                "similarityLimit": 40
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "CONDITION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "699594625",
+                  "parentId": "699594624",
+                  "schemaVersion": 3,
+                  "type": "jira.issue.condition",
+                  "value": {
+                    "compareValue": {
+                      "modifier": null,
+                      "multiValue": false,
+                      "source": null,
+                      "type": "ID",
+                      "value": "10025"
+                    },
+                    "comparison": "EQUALS",
+                    "selectedField": {
+                      "type": "ID",
+                      "value": "issuetype"
+                    },
+                    "selectedFieldType": "issuetype"
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "699594626",
+                  "parentId": "699594624",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.edit",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "parent"
+                        },
+                        "fieldType": "parent",
+                        "type": "SET",
+                        "value": {
+                          "type": "FREE",
+                          "value": "AETS-7702"
+                        }
+                      }
+                    ],
+                    "sendNotifications": true
+                  }
+                }
+              ],
+              "component": "BRANCH",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "699594624",
+              "parentId": "699581695",
+              "schemaVersion": 1,
+              "type": "jira.issue.related",
+              "value": {
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [],
+                "onlyUpdatedIssues": false,
+                "relatedType": "current",
+                "similarityLimit": 40
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "CONDITION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "699594628",
+                  "parentId": "699594627",
+                  "schemaVersion": 3,
+                  "type": "jira.issue.condition",
+                  "value": {
+                    "compareValue": {
+                      "modifier": null,
+                      "multiValue": false,
+                      "source": null,
+                      "type": "ID",
+                      "value": "10024"
+                    },
+                    "comparison": "EQUALS",
+                    "selectedField": {
+                      "type": "ID",
+                      "value": "issuetype"
+                    },
+                    "selectedFieldType": "issuetype"
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "699594629",
+                  "parentId": "699594627",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.edit",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "parent"
+                        },
+                        "fieldType": "parent",
+                        "type": "SET",
+                        "value": {
+                          "type": "FREE",
+                          "value": "AETS-7703"
+                        }
+                      }
+                    ],
+                    "sendNotifications": true
+                  }
+                }
+              ],
+              "component": "BRANCH",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "699594627",
+              "parentId": "699581695",
+              "schemaVersion": 1,
+              "type": "jira.issue.related",
+              "value": {
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [],
+                "onlyUpdatedIssues": false,
+                "relatedType": "current",
+                "similarityLimit": 40
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "699581695",
+              "conditions": [],
+              "connectionId": null,
+              "id": "699581696",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": null,
+                "comparison": "EMPTY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "ADT Tool(s)"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "699581695",
+              "conditions": [],
+              "connectionId": null,
+              "id": "699581697",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "[\"Not applicable\"]"
+                },
+                "comparison": "CONTAINS_EXACTLY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "ADT Tool(s)"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "699581695",
+          "parentId": "699581694",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ANY"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "699581694",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1742237604763,
+  "description": "",
+  "id": 26375307,
+  "idUuid": "0195a574-1b9b-7ee5-bd3f-377c5857af0a",
+  "labels": [
+    837947
+  ],
+  "name": "Set Epic - Other Requests",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "699581692",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1742241623278,
+  "writeAccessType": "UNRESTRICTED"
+}

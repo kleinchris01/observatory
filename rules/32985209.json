@@ -1,0 +1,227 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "91d0647f-8efd-4c2c-bdb6-0a8042191ec8",
+          "parentId": "023999da-c06e-4080-9d34-859d2327aacd",
+          "schemaVersion": 1,
+          "type": "jira.comparator.condition",
+          "value": {
+            "first": "{{issue.customfield_11426}}",
+            "operator": "REGEX_MATCHES",
+            "second": "^BASE-([1-9][0-9]*)$|^$"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "e66af1da-b033-49f7-b020-b24e15d64225",
+          "parentId": "023999da-c06e-4080-9d34-859d2327aacd",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Requirement Baseline"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                "type": "SET",
+                "value": "{{issue.customfield_11426}}"
+              }
+            ],
+            "sendNotifications": false
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "b9435b89-280f-44a5-8101-65fe3caf392a",
+          "parentId": "023999da-c06e-4080-9d34-859d2327aacd",
+          "schemaVersion": 1,
+          "type": "jira.issue.refresh.issue",
+          "value": {
+            "delayMs": null
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "b12b6471-891f-4d46-92cf-81a11be1f594",
+          "parentId": "023999da-c06e-4080-9d34-859d2327aacd",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Requirement Baseline Link"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:url",
+                "type": "SET",
+                "value": "https://ford-prod.jamacloud.com/perspective.req#/baselines/{{issue.Requirement Baseline.substringAfter(\"BASE-\")}}/list?projectId=113"
+              }
+            ],
+            "sendNotifications": false
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "023999da-c06e-4080-9d34-859d2327aacd",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "c9a74b5d-ba98-4199-ab7b-06a149d93226",
+          "parentId": "2268bed8-ba91-459e-9e90-57683ff4ae71",
+          "schemaVersion": 1,
+          "type": "jira.comparator.condition",
+          "value": {
+            "first": "{{issue.customfield_11426}}",
+            "operator": "REGEX_NOT_MATCHES",
+            "second": "^BASE-([1-9][0-9]*)$|^$"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "02f2efb9-8e24-4555-97b9-3805dc9809ef",
+          "parentId": "2268bed8-ba91-459e-9e90-57683ff4ae71",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Requirement Baseline"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                "type": "SET",
+                "value": "Invalid format. Please follow: BASE-([1-9][0-9]*). For example, BASE-1234 will work but BASE-00012 will not."
+              }
+            ],
+            "sendNotifications": false
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "2268bed8-ba91-459e-9e90-57683ff4ae71",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1776886976877,
+  "description": "",
+  "id": 32985209,
+  "idUuid": "019db6b7-916d-7f81-96ba-6a85f3f23a1f",
+  "labels": [],
+  "name": "Update Requirements Baseline link",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11311",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11376",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10104",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10148"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "6b3b8cbd-c7ea-4a2a-975e-88002c913048",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "project in (CAVPSE, SYSENG, \"ADVEV IVI Projection\", \"Ford 48A Bi-Directional EVSE\", CP) AND \"Requirement ID[Short text]\" IS NOT EMPTY AND \"Requirement Baseline[Short text]\" IS EMPTY",
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/Los_Angeles:20260422T124116\nRRULE:FREQ=WEEKLY;BYHOUR=9;BYMINUTE=0;BYSECOND=0;BYDAY=WE;INTERVAL=1\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1776889096193,
+  "writeAccessType": "UNRESTRICTED"
+}

@@ -1,0 +1,112 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "712020:5b65907b-658c-417d-82fd-471d91c5951d"
+  },
+  "authorAccountId": "712020:5b65907b-658c-417d-82fd-471d91c5951d",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": "bd2b45fb-9913-47d4-b6c5-f82e95949871",
+      "id": "ca17d67a-e458-476c-be44-9d0e60deca0c",
+      "parentId": null,
+      "schemaVersion": -1,
+      "type": "rovo.invoke-agent.action",
+      "value": {
+        "activationId": "c00f469e-4652-45ac-ab90-9b46c078ff84",
+        "agentAAID": "712020:712377ad-e627-42db-b059-407ad6b30039",
+        "agentDisplayName": null,
+        "agentId": "be995c91-7f1c-47c6-8bc7-8231df796482",
+        "agentInstruction": "Find SprintID of last completed sprint & Generate Release notes for Hermes from that",
+        "agentNamedId": "be995c91-7f1c-47c6-8bc7-8231df796482",
+        "allowAgentToExecuteActions": false,
+        "invocationMode": "USER",
+        "isVerified": false,
+        "tagType": "EXTERNAL_AGENT_ID",
+        "tagValue": "be995c91-7f1c-47c6-8bc7-8231df796482"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "525fe1dd-3663-4477-a020-6a13c3b15552",
+      "parentId": null,
+      "schemaVersion": 5,
+      "type": "jira.issue.outgoing.email",
+      "value": {
+        "bcc": [],
+        "body": "{{agentResponse}}",
+        "cc": [],
+        "convertLineBreaks": true,
+        "fromName": "",
+        "mimeType": "text/html",
+        "replyTo": "",
+        "subject": "Hermes Release Notes ",
+        "to": [
+          {
+            "type": "FREE",
+            "value": "schavan7@ford.com"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1763072312500,
+  "description": "This rule triggers when a sprint is completed and invokes a Rovo agent to generate release notes for Hermes based on the last completed sprint.",
+  "id": 30809945,
+  "idUuid": "019a7f4c-84b4-7de4-a18d-d22cbc986135",
+  "labels": [],
+  "name": "Generate Release Notes for Hermes on Sprint Completion",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10056"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10056"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [
+    {
+      "tagType": "EXTERNAL_AGENT_ID",
+      "tagValue": "be995c91-7f1c-47c6-8bc7-8231df796482"
+    },
+    {
+      "tagType": "SOURCE",
+      "tagValue": "agent-studio"
+    }
+  ],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "6e20b31c-682d-4a4d-b234-34a0e5704afd",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.sprint.event.trigger:closed",
+    "value": {
+      "boardId": 167,
+      "sprintNameFilter": ""
+    }
+  },
+  "updated": 1763072312500,
+  "writeAccessType": "UNRESTRICTED"
+}

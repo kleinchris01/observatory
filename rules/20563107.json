@@ -1,0 +1,362 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "680803527",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": true,
+          "source": null,
+          "type": "ID",
+          "value": "[\"10167\"]"
+        },
+        "comparison": "ONE_OF",
+        "selectedField": {
+          "type": "ID",
+          "value": "issuetype"
+        },
+        "selectedFieldType": "issuetype"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "680803528",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Qform Cost"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+            "type": "SET",
+            "value": "{{#=}}{{issue.Prototype Die}}+{{issue.Production Die Tooling}}+{{issue.Check Fixture}}+{{issue.Assembly Tooling}}+{{issue.Piece Cost}}{{/}}"
+          }
+        ],
+        "sendNotifications": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "680803529",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1721249321654",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "qformCosts"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{#=}}{{issue.Prototype Die}}+{{issue.Production Die Tooling}}+{{issue.Check Fixture}}+{{issue.Assembly Tooling}}+{{issue.Piece Cost}}{{/}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "680803530",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "Q-Form cost = {{qformCosts}}"
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "680803531",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1721249321654",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "epicImpactToCost"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{lookupIssues.Approved Costs.sum}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "680803532",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "Approved Sub-task costs = {{epicImpactToCost}}"
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "680803533",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.refresh.issue",
+      "value": {
+        "delayMs": null
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "680803534",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.lookup.issues",
+      "value": {
+        "id": "_customsmartvalue_id_1721252982713",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "lookupIssues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "issue in portfolioChildIssuesOf(\"{{issue.parent.key}}\") AND issuetype = \"Q-Form\" AND statusCategory != \"Done\" and status != \"In progress\""
+        },
+        "type": "JQL"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "680803535",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1721249321654",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "epicPendingCosts"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{#=}}{{lookupIssues.Qform Cost.sum}}+{{lookupIssues.Approved Costs.sum}}{{/}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "680803537",
+          "parentId": "680803536",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Pending Costs"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+                "type": "SET",
+                "value": "{{epicPendingCosts}}"
+              }
+            ],
+            "sendNotifications": true
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "680803538",
+          "parentId": "680803536",
+          "schemaVersion": 1,
+          "type": "jira.issue.refresh.issue",
+          "value": {
+            "delayMs": null
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "680803539",
+          "parentId": "680803536",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Remaining Budget"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+                "type": "SET",
+                "value": "{{#=}}{{issue.Initial Budget}}-{{issue.Spent Budget}}{{/}}"
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Pending Budget Remaining"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+                "type": "SET",
+                "value": "{{#=}}{{issue.Initial Budget}}-{{issue.Pending Costs}}-{{issue.Spent Budget}}{{/}}"
+              }
+            ],
+            "sendNotifications": false
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "680803536",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "{{lookupIssues}}",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "parent",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1721251172926,
+  "description": "",
+  "id": 20563107,
+  "idUuid": "0190c290-923e-752e-91a3-4c71b7d61da8",
+  "labels": [],
+  "name": "Update costs for QFORMS on Change",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10129"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10129"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "680803526",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10129"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Prototype Die"
+        },
+        {
+          "type": "fieldName",
+          "value": "Production Die Tooling"
+        },
+        {
+          "type": "fieldName",
+          "value": "Assembly Tooling"
+        },
+        {
+          "type": "fieldName",
+          "value": "Check Fixture"
+        },
+        {
+          "type": "fieldName",
+          "value": "Piece Cost"
+        },
+        {
+          "type": "fieldName",
+          "value": "Pending Costs"
+        }
+      ]
+    }
+  },
+  "updated": 1751919548291,
+  "writeAccessType": "UNRESTRICTED"
+}

@@ -1,0 +1,152 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "aa549e96-039b-4dd0-9124-c537db5e38b6",
+      "parentId": null,
+      "schemaVersion": 11,
+      "type": "jira.issue.transition",
+      "value": {
+        "advancedFields": null,
+        "destinationStatus": {
+          "type": "NAME",
+          "value": "Closed"
+        },
+        "operations": [],
+        "sendNotifications": true,
+        "transitionMatch": ""
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "3866b5e7-27e7-4fe0-88fa-7b121f20cbb7",
+      "parentId": null,
+      "schemaVersion": 2,
+      "type": "jira.issue.comment",
+      "value": {
+        "addCommentOnce": true,
+        "comment": "This ticket has been automatically closed based on End Date (Calculated) or Extension Date.",
+        "commentVisibility": null,
+        "publicComment": true,
+        "sendNotifications": true
+      }
+    }
+  ],
+  "created": 1764750338050,
+  "description": "This automation automatically transitions tickets to Closed 1 day after the End Date (Calculated). If ticket is reopened and Extension Date is selected, then it will automatically transition to Closed based on the Extension Date.",
+  "id": 30985217,
+  "idUuid": "019ae351-2803-7075-b922-a6bc4ad5d2bc",
+  "labels": [],
+  "name": "SOLVE: Build Deviation - Automatic Closure",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "18e3fa01-2b11-445f-94be-2552948a04a5",
+        "conditions": [],
+        "connectionId": null,
+        "id": "2cc5a970-7fd3-4b5e-a845-3a4ab7be8b70",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "13141"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "project"
+          },
+          "selectedFieldType": "project"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "18e3fa01-2b11-445f-94be-2552948a04a5",
+        "conditions": [],
+        "connectionId": null,
+        "id": "d5b53d7e-4766-44b9-9314-8147daab5d3a",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "12654"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "18e3fa01-2b11-445f-94be-2552948a04a5",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "project = SOLVE AND \"Request Type\" = \"Build Deviation (SOLVE)\" AND status = \"Active\" AND \"ADVEV Checkpoints & Milestones[Dropdown]\" IN (\"Post Job 1\", Service) AND ((\"Extension Date[Date]\" IS NOT EMPTY AND \"Extension Date[Date]\" <= startOfDay(1d)) OR (\"Extension Date[Date]\" IS EMPTY AND \"End Date (Calculated)[Date]\" <= startOfDay(1d)))",
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/New_York:20251106T000000\nRRULE:FREQ=DAILY;BYHOUR=0;BYMINUTE=0;BYSECOND=0;INTERVAL=1\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1782741389138,
+  "writeAccessType": "UNRESTRICTED"
+}

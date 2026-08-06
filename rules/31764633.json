@@ -1,0 +1,176 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "37114fa8-7d72-408e-9871-7b8f60f38d53",
+          "parentId": "b002f33d-9550-49aa-92b7-6876ca6c1ccc",
+          "schemaVersion": 1,
+          "type": "cmdb.lookup.objects",
+          "value": {
+            "customSmartValue": {
+              "id": "_customsmartvalue_id_1763411362050",
+              "lazy": false,
+              "name": {
+                "type": "FREE",
+                "value": "lookupObjects"
+              },
+              "query": {
+                "type": "SMART",
+                "value": "objectTypeId = 130 AND \"ADVEV Vehicle Program\" = \"{{issue.customfield_11104}}\""
+              },
+              "type": "IQL"
+            },
+            "schemaId": "18",
+            "searchResultsLimit": 100,
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "bf0e5d45-65c9-4275-af46-695cbdd87385",
+          "parentId": "b002f33d-9550-49aa-92b7-6876ca6c1ccc",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "Object Key: {{lookupObjects.key}} - Object Vehicle Program: {{lookupObjects.label}}"
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "bf80176a-1dd4-42db-90c2-20ada00f421b",
+          "parentId": "b002f33d-9550-49aa-92b7-6876ca6c1ccc",
+          "schemaVersion": 1,
+          "type": "jira.comparator.condition",
+          "value": {
+            "first": "{{lookupObjects.size}}",
+            "operator": "GREATER_THAN",
+            "second": "0"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "6900f1a9-d205-49bf-bb7d-4efe19286572",
+          "parentId": "b002f33d-9550-49aa-92b7-6876ca6c1ccc",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "ADVEV Vehicle Program (Asset)"
+                },
+                "fieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype",
+                "type": "SET",
+                "value": "key in ({{lookupObjects.key}})"
+              }
+            ],
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "ORCHESTRATION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "b002f33d-9550-49aa-92b7-6876ca6c1ccc",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "automation.orchestration.fragment",
+      "value": {
+        "inputProjections": [],
+        "isOptional": false,
+        "name": "Group 1",
+        "outputProjections": []
+      }
+    }
+  ],
+  "created": 1769717593682,
+  "description": "",
+  "id": 31764633,
+  "idUuid": "019c0b63-7652-70d7-8fc6-0a5c6e1cc12b",
+  "labels": [
+    1035548
+  ],
+  "name": "Update ADVEV Vehicle Program Asset field",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10110"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10110"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [
+    {
+      "tagType": "ORCHESTRATION_CONFIG_ID",
+      "tagValue": "8430bc27-fd51-11f0-be51-ed3d454ae8d3"
+    },
+    {
+      "tagType": "ORCHESTRATION_VERSION",
+      "tagValue": "5"
+    },
+    {
+      "tagType": "ORCHESTRATION",
+      "tagValue": null
+    }
+  ],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "b6447965-16e3-49ba-8a11-cc6e851a6b1c",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "(\"ADVEV Vehicle Program\" is not empty) and \"ADVEV Vehicle Program (Asset)\" is empty",
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/Los_Angeles:20251117T122032\nRRULE:FREQ=WEEKLY;BYHOUR=9;BYMINUTE=0;BYSECOND=0;BYDAY=MO;INTERVAL=1\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1769718698822,
+  "writeAccessType": "UNRESTRICTED"
+}

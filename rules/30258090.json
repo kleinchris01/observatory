@@ -1,0 +1,87 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "63f77cb60154af3bb2b05bb5",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "724021091",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "msteams.notification",
+      "value": {
+        "body": "{{initiator.displayName}} edited a comment:\n{{comment.body}}",
+        "imageUrl": "https://d283vu6e5qi87p.cloudfront.net/automation/prod/automation-logo.svg",
+        "includeIssueSummary": true,
+        "subTitle": "",
+        "teamsWorkflowURL": "https://defaultc990bb7a51f4439bbd369c07fb1041.c0.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/81dacba062944cd2b5b8521fd35be1bd/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=gRjzA8sl9Hcom-kdV_xVG7AtzU-Ly2EiW1iR5zyo4uA",
+        "teamsWorkflowUrlSecure": false,
+        "title": "Edited Comment ✍️",
+        "webhookUrl": ""
+      }
+    }
+  ],
+  "created": 1758224256869,
+  "description": "",
+  "id": 30258090,
+  "idUuid": "01995e55-0f65-7c83-b69b-bbe540ef208e",
+  "labels": [],
+  "name": "Alert when Comment Edited",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10023"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10023"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "724020712",
+        "conditions": [],
+        "connectionId": null,
+        "id": "724020713",
+        "parentId": null,
+        "schemaVersion": 1,
+        "type": "jira.jql.condition",
+        "value": "assignee in ( 63f77cb60154af3bb2b05bb5, 712020:1c4c03aa-923b-461d-964d-7b2036d8c0ea, 712020:ed1c3d52-cb15-40b7-ba2d-9b15c6766895 ) or \"Responsible D&R/DRI[User Picker (single user)]\" in ( 63f77cb60154af3bb2b05bb5, 712020:1c4c03aa-923b-461d-964d-7b2036d8c0ea, 712020:ed1c3d52-cb15-40b7-ba2d-9b15c6766895 )"
+      }
+    ],
+    "connectionId": null,
+    "id": "724020712",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.comment.event.trigger:updated",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10023"
+      ]
+    }
+  },
+  "updated": 1758246962723,
+  "writeAccessType": "UNRESTRICTED"
+}

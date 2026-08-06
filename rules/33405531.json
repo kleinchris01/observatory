@@ -1,0 +1,180 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:9b52b270-bb29-4f87-880d-7c4412cc01b8",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "791e3f14-60e8-42df-99a1-b42fa7776dcd",
+              "parentId": "730f805f-5922-490b-9dbf-275bf0dbb3b5",
+              "schemaVersion": 5,
+              "type": "jira.issue.outgoing.email",
+              "value": {
+                "bcc": [],
+                "body": "     A new Jama Epic has been manually  created and this should not happen.\n\n     Summary: {{issue.summary}}\n     Key: {{issue.key}}\n     Project: {{issue.project.name}}\n     Created by: {{initiator.displayName}}\n     Link: {{issue.url}}",
+                "cc": [
+                  {
+                    "type": "FREE",
+                    "value": "ahain@ford.com"
+                  },
+                  {
+                    "type": "FREE",
+                    "value": "sjimen38@ford.com"
+                  }
+                ],
+                "convertLineBreaks": true,
+                "fromName": "",
+                "mimeType": "text/html",
+                "replyTo": "",
+                "subject": "New Jama Epic Created: {{issue.summary}}",
+                "to": [
+                  {
+                    "additional": "INITIATOR",
+                    "type": "REFERENCE",
+                    "value": "INITIATOR"
+                  }
+                ]
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "730f805f-5922-490b-9dbf-275bf0dbb3b5",
+              "conditions": [],
+              "connectionId": null,
+              "id": "3969f384-20f5-40c2-95a3-87ac30020728",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{initiator.accountType}}",
+                "operator": "NOT_EQUALS",
+                "second": "atlassian"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "730f805f-5922-490b-9dbf-275bf0dbb3b5",
+              "conditions": [],
+              "connectionId": null,
+              "id": "4587bdc9-9ad6-4bf1-b295-2b498a6ebe55",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{initiator.accountType}}",
+                "operator": "NOT_EQUALS",
+                "second": "ServiceAccount Aodinja"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "730f805f-5922-490b-9dbf-275bf0dbb3b5",
+          "parentId": "588b768a-4359-4512-ae50-1ce03016e92e",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ANY"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "588b768a-4359-4512-ae50-1ce03016e92e",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1779827211584,
+  "description": "THis flow auto sends an email to the UI if a JAMA EPIC is created.",
+  "id": 33405531,
+  "idUuid": "019e65f7-fd40-7675-9af5-2172f4ffd2e7",
+  "labels": [],
+  "name": "PT2: Send Email upon Manual crreateon of JAMA Epic",
+  "notifyOnError": "NEVER",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10125"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10125"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "dc85bc52-3cc3-4282-861e-06d9bf30bca3",
+        "conditions": [],
+        "connectionId": null,
+        "id": "27220091-420f-4edc-baaf-c46b33f901b9",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "10495"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "dc85bc52-3cc3-4282-861e-06d9bf30bca3",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10125"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1780517654012,
+  "writeAccessType": "OWNER_ONLY"
+}

@@ -1,0 +1,147 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:c9c3dfc4-eef5-4087-8b1a-8ee188485a9b",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "725131136",
+          "parentId": "725131135",
+          "schemaVersion": 1,
+          "type": "jira.lookup.issues",
+          "value": {
+            "id": "_customsmartvalue_id_1759172607713",
+            "lazy": false,
+            "name": {
+              "type": "FREE",
+              "value": "lookupIssues"
+            },
+            "query": {
+              "type": "SMART",
+              "value": "parent = {{issue.key}} AND project = \"QForm\" AND \"Qform Cost\" IS NOT EMPTY AND status IN (\"Open\",\"Submitted for Approval\",\"Feasibility\")"
+            },
+            "type": "JQL"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "725131137",
+          "parentId": "725131135",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "{{#=}}{{lookupIssues.customfield_13165.sum}}{{/}}"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "725131138",
+          "parentId": "725131135",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Pending Costs"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+                "type": "SET",
+                "value": "{{#=}}{{lookupIssues.customfield_13165.sum()}}{{/}}"
+              }
+            ],
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "725131135",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "parent",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1759173753741,
+  "description": "",
+  "id": 30359474,
+  "idUuid": "019996ed-3b8f-74fd-9784-f59a680fd363",
+  "labels": [],
+  "name": "Calculate Pending Costs from Child QForm Costs",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10129"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10129"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "725131134",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10129"
+      ],
+      "fields": [
+        {
+          "type": "field",
+          "value": "status"
+        },
+        {
+          "type": "fieldName",
+          "value": "Qform Cost"
+        }
+      ]
+    }
+  },
+  "updated": 1769705641571,
+  "writeAccessType": "UNRESTRICTED"
+}

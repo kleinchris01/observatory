@@ -1,0 +1,85 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": "d70b6565-62bd-4da7-94e4-22f74a976f25",
+      "id": "abb5494b-54e8-4b28-99fe-a3d705c0a1db",
+      "parentId": null,
+      "schemaVersion": -1,
+      "type": "rovo.invoke-agent.action",
+      "value": {
+        "activationId": "c00f469e-4652-45ac-ab90-9b46c078ff84",
+        "agentAAID": "712020:66dd1ca6-158a-47e2-8b6b-a37fcb3fb102",
+        "agentDisplayName": null,
+        "agentId": "45fd2547-e74a-45ff-aa4b-3d06e715a701",
+        "agentInstruction": "Create the sprint report confluence page in Chris Klein's confluence space under the \"Sprint Reports Master 2026\" page.",
+        "agentNamedId": "45fd2547-e74a-45ff-aa4b-3d06e715a701",
+        "allowAgentToExecuteActions": false,
+        "invocationMode": "USER",
+        "isVerified": false,
+        "tagType": "EXTERNAL_AGENT_ID",
+        "tagValue": "45fd2547-e74a-45ff-aa4b-3d06e715a701"
+      }
+    }
+  ],
+  "created": 1768595001533,
+  "description": "This rule triggers when the active sprint is closed and invokes a Rovo agent to generate a response based on the provided instructions.",
+  "id": 31574230,
+  "idUuid": "019bc87a-10bd-7e80-a87f-b3ecdd638a53",
+  "labels": [],
+  "name": "Invoke Rovo Agent on Sprint Completion",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10110"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10110"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [
+    {
+      "tagType": "EXTERNAL_AGENT_ID",
+      "tagValue": "45fd2547-e74a-45ff-aa4b-3d06e715a701"
+    },
+    {
+      "tagType": "SOURCE",
+      "tagValue": "agent-studio"
+    }
+  ],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "0c2db511-997b-40ab-811d-730d338e43bd",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.sprint.event.trigger:closed",
+    "value": {
+      "boardId": 7211,
+      "sprintNameFilter": ""
+    }
+  },
+  "updated": 1768597311844,
+  "writeAccessType": "UNRESTRICTED"
+}

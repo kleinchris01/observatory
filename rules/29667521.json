@@ -1,0 +1,618 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:10e644de-d96b-4816-9029-d6cf8f0aec37",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "719069196",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": null,
+          "type": "ID",
+          "value": "11189"
+        },
+        "comparison": "EQUALS",
+        "selectedField": {
+          "type": "ID",
+          "value": "issuetype"
+        },
+        "selectedFieldType": "issuetype"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "719069197",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "action.wait.for.time.duration",
+      "value": {
+        "randomWaitInterval": null,
+        "waitTimeInSeconds": 5
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "719069210",
+                  "parentId": "719069202",
+                  "schemaVersion": 11,
+                  "type": "jira.issue.transition",
+                  "value": {
+                    "advancedFields": null,
+                    "destinationStatus": {
+                      "type": "NAME",
+                      "value": "Prep/Build"
+                    },
+                    "operations": [],
+                    "sendNotifications": true,
+                    "transitionMatch": ""
+                  }
+                }
+              ],
+              "component": "BRANCH",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "719069202",
+              "parentId": "719069199",
+              "schemaVersion": 1,
+              "type": "jira.issue.related",
+              "value": {
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [],
+                "onlyUpdatedIssues": false,
+                "relatedType": "parent",
+                "similarityLimit": 40
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "719069199",
+              "conditions": [],
+              "connectionId": null,
+              "id": "719069200",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "Test Request"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Test Activity"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "719069199",
+          "parentId": "719069198",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "719069216",
+                  "parentId": "719069208",
+                  "schemaVersion": 11,
+                  "type": "jira.issue.transition",
+                  "value": {
+                    "advancedFields": null,
+                    "destinationStatus": {
+                      "type": "NAME",
+                      "value": "Waiting for Sign Off"
+                    },
+                    "operations": [],
+                    "sendNotifications": true,
+                    "transitionMatch": ""
+                  }
+                }
+              ],
+              "component": "BRANCH",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "719069208",
+              "parentId": "719069205",
+              "schemaVersion": 1,
+              "type": "jira.issue.related",
+              "value": {
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [],
+                "onlyUpdatedIssues": false,
+                "relatedType": "parent",
+                "similarityLimit": 40
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "719069205",
+              "conditions": [],
+              "connectionId": null,
+              "id": "719069206",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "Prep/Build"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Test Activity"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "719069205",
+          "parentId": "719069198",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "719069464",
+                  "parentId": "719069214",
+                  "schemaVersion": 11,
+                  "type": "jira.issue.transition",
+                  "value": {
+                    "advancedFields": null,
+                    "destinationStatus": {
+                      "type": "NAME",
+                      "value": "Scheduling"
+                    },
+                    "operations": [],
+                    "sendNotifications": true,
+                    "transitionMatch": ""
+                  }
+                }
+              ],
+              "component": "BRANCH",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "719069214",
+              "parentId": "719069211",
+              "schemaVersion": 1,
+              "type": "jira.issue.related",
+              "value": {
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [],
+                "onlyUpdatedIssues": false,
+                "relatedType": "parent",
+                "similarityLimit": 40
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "719069211",
+              "conditions": [],
+              "connectionId": null,
+              "id": "719069212",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "Engineering Sign-off"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Test Activity"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "719069211",
+          "parentId": "719069198",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "719069468",
+                  "parentId": "719069467",
+                  "schemaVersion": 11,
+                  "type": "jira.issue.transition",
+                  "value": {
+                    "advancedFields": null,
+                    "destinationStatus": {
+                      "type": "NAME",
+                      "value": "Testing"
+                    },
+                    "operations": [],
+                    "sendNotifications": true,
+                    "transitionMatch": ""
+                  }
+                }
+              ],
+              "component": "BRANCH",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "719069467",
+              "parentId": "719069465",
+              "schemaVersion": 1,
+              "type": "jira.issue.related",
+              "value": {
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [],
+                "onlyUpdatedIssues": false,
+                "relatedType": "parent",
+                "similarityLimit": 40
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "719069465",
+              "conditions": [],
+              "connectionId": null,
+              "id": "719069466",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "Scheduling"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Test Activity"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "719069465",
+          "parentId": "719069198",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "719069222",
+                  "parentId": "719069220",
+                  "schemaVersion": 11,
+                  "type": "jira.issue.transition",
+                  "value": {
+                    "advancedFields": null,
+                    "destinationStatus": {
+                      "type": "NAME",
+                      "value": "Post Test"
+                    },
+                    "operations": [],
+                    "sendNotifications": true,
+                    "transitionMatch": ""
+                  }
+                }
+              ],
+              "component": "BRANCH",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "719069220",
+              "parentId": "719069217",
+              "schemaVersion": 1,
+              "type": "jira.issue.related",
+              "value": {
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [],
+                "onlyUpdatedIssues": false,
+                "relatedType": "parent",
+                "similarityLimit": 40
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "719069217",
+              "conditions": [],
+              "connectionId": null,
+              "id": "719069218",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "Test"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Test Activity"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "719069217",
+          "parentId": "719069198",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "719069234",
+                  "parentId": "719069232",
+                  "schemaVersion": 11,
+                  "type": "jira.issue.transition",
+                  "value": {
+                    "advancedFields": null,
+                    "destinationStatus": {
+                      "type": "NAME",
+                      "value": "Completed"
+                    },
+                    "operations": [],
+                    "sendNotifications": true,
+                    "transitionMatch": ""
+                  }
+                }
+              ],
+              "component": "BRANCH",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "719069232",
+              "parentId": "719069229",
+              "schemaVersion": 1,
+              "type": "jira.issue.related",
+              "value": {
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [],
+                "onlyUpdatedIssues": false,
+                "relatedType": "parent",
+                "similarityLimit": 40
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "719069229",
+              "conditions": [],
+              "connectionId": null,
+              "id": "719069230",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "Post Test Activity"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Test Activity"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "719069229",
+          "parentId": "719069198",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "719069198",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1752542562971,
+  "description": "",
+  "id": 29667521,
+  "idUuid": "01980bad-4a9b-7678-804b-742e8f2ab0a0",
+  "labels": [],
+  "name": "Test Activity Complete",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11112"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11112"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "719069402",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:transitioned",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11112"
+      ],
+      "eventKey": "jira:issue_updated",
+      "fromStatus": [],
+      "issueEvent": "issue_generic",
+      "toStatus": [
+        {
+          "type": "NAME",
+          "value": "Completed"
+        },
+        {
+          "type": "NAME",
+          "value": "Cancelled"
+        }
+      ]
+    }
+  },
+  "updated": 1752603320954,
+  "writeAccessType": "UNRESTRICTED"
+}

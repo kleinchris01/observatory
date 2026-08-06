@@ -1,0 +1,329 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:10e644de-d96b-4816-9029-d6cf8f0aec37",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "47d92c2e-2ed8-4796-97cd-c8e968d29772",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.outgoing.webhook",
+      "value": {
+        "contentType": "custom",
+        "continueOnErrorEnabled": false,
+        "customBody": "grant_type=client_credentials&client_id=d09df8eb-bdd2-4f07-bb69-718e70147380&client_secret=[[REDACTED:cb8849e8]]&scope=api://2212cdc4-6937-4f0d-8b11-c2c8e5081838/.default",
+        "headers": [
+          {
+            "headerSecure": false,
+            "id": "_header_1708925083470",
+            "name": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "method": "GET",
+        "responseEnabled": true,
+        "sendIssue": false,
+        "url": "https://login.microsoftonline.com/c990bb7a-51f4-439b-bd36-9c07fb1041c0/oauth2/v2.0/token",
+        "urlSecure": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "b14fa0fa-9339-461e-8758-7b50372e0fdd",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1708925251283",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "graphtoken"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{webhookResponse.body.access_token}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "5f8fa5e8-92c2-42d4-ba9a-2f5feaf7eeb2",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "{{issue.forms}} -- role = {{issue.forms.9c87daa3-8540-4a4e-9880-a62433557007.last.plutus-access.label}} -- program = {{forms.9c87daa3-8540-4a4e-9880-a62433557007.last.plutus-program.label}} -- sit = [{{#forms.9c87daa3-8540-4a4e-9880-a62433557007.last.plutus-sit}}\"{{label.jsonEncode}}\"{{^last}},{{/}}{{/}}] "
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "5a94d3eb-5d8d-4224-bbdc-baf8e0b9db1b",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "{{issue.forms}} -- cells subsystem = {{issue.forms.9c87daa3-8540-4a4e-9880-a62433557007.last.plutus-CELLS.label}}"
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "816bf7e9-a4ca-4355-b743-acb791f6b803",
+              "parentId": "975b2c21-c9e2-4aca-b813-87b79b305bba",
+              "schemaVersion": 1,
+              "type": "jira.issue.outgoing.webhook",
+              "value": {
+                "contentType": "custom",
+                "continueOnErrorEnabled": false,
+                "customBody": "{\n  \"email\": \"{{issue.reporter.emailAddress}}\",\n  \"policyBindings\": [\n    {\n      \"roleName\": \"{{forms.9c87daa3-8540-4a4e-9880-a62433557007.last.plutus-access.label}}\",\n      \"scopeType\": \"PROGRAM\",\n      \"scopeValue\": \"{{forms.9c87daa3-8540-4a4e-9880-a62433557007.last.plutus-program.label}}\",\n      \"systems\": [{{#forms.9c87daa3-8540-4a4e-9880-a62433557007.last.plutus-sit}}\"{{label.jsonEncode}}\"{{^last}},{{/}}{{/}}],\n      \"includeCellsSubsystems\": {{issue.forms.9c87daa3-8540-4a4e-9880-a62433557007.last.plutus-CELLS.label}}\n    }\n  ]\n}\n",
+                "headers": [
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1708925404787",
+                    "name": "Authorization",
+                    "value": "Bearer {{graphtoken}}"
+                  }
+                ],
+                "method": "POST",
+                "responseEnabled": true,
+                "sendIssue": false,
+                "url": "https://api.is.ford.com/advev/plutus/gateway/api/v1/access:provision",
+                "urlSecure": false
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "546be63a-1927-44d5-83e2-0fadf52b949a",
+              "parentId": "975b2c21-c9e2-4aca-b813-87b79b305bba",
+              "schemaVersion": 11,
+              "type": "jira.issue.transition",
+              "value": {
+                "advancedFields": null,
+                "destinationStatus": {
+                  "type": "NAME",
+                  "value": "Done"
+                },
+                "operations": [],
+                "sendNotifications": true,
+                "transitionMatch": ""
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "975b2c21-c9e2-4aca-b813-87b79b305bba",
+              "conditions": [],
+              "connectionId": null,
+              "id": "6dce6024-aa33-4a53-8260-746dbd84e191",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{issue.forms.9c87daa3-8540-4a4e-9880-a62433557007.last.plutus-CELLS.label}}",
+                "operator": "EQUALS",
+                "second": "true"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "975b2c21-c9e2-4aca-b813-87b79b305bba",
+          "parentId": "5862bab8-e663-4126-87c6-51b08cc66f54",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "bb48e21d-adc8-4596-bf1a-dc07dd54173a",
+              "parentId": "82d21736-cbdc-49da-b39b-3aea3197ba68",
+              "schemaVersion": 1,
+              "type": "jira.issue.outgoing.webhook",
+              "value": {
+                "contentType": "custom",
+                "continueOnErrorEnabled": false,
+                "customBody": "{\n  \"email\": \"{{issue.reporter.emailAddress}}\",\n  \"policyBindings\": [\n    {\n      \"roleName\": \"{{forms.9c87daa3-8540-4a4e-9880-a62433557007.last.plutus-access.label}}\",\n      \"scopeType\": \"PROGRAM\",\n      \"scopeValue\": \"{{forms.9c87daa3-8540-4a4e-9880-a62433557007.last.plutus-program.label}}\",\n      \"systems\": [{{#forms.9c87daa3-8540-4a4e-9880-a62433557007.last.plutus-sit}}\"{{label.jsonEncode}}\"{{^last}},{{/}}{{/}}]\n    }\n  ]\n}\n",
+                "headers": [
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1708925404787",
+                    "name": "Authorization",
+                    "value": "Bearer {{graphtoken}}"
+                  }
+                ],
+                "method": "POST",
+                "responseEnabled": true,
+                "sendIssue": false,
+                "url": "https://api.is.ford.com/advev/plutus/gateway/api/v1/access:provision",
+                "urlSecure": false
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "d86b5582-b58e-4c6d-8b09-bd3596f155ff",
+              "parentId": "82d21736-cbdc-49da-b39b-3aea3197ba68",
+              "schemaVersion": 11,
+              "type": "jira.issue.transition",
+              "value": {
+                "advancedFields": null,
+                "destinationStatus": {
+                  "type": "NAME",
+                  "value": "Done"
+                },
+                "operations": [],
+                "sendNotifications": true,
+                "transitionMatch": ""
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "82d21736-cbdc-49da-b39b-3aea3197ba68",
+          "parentId": "5862bab8-e663-4126-87c6-51b08cc66f54",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "5862bab8-e663-4126-87c6-51b08cc66f54",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1779171608234,
+  "description": "",
+  "id": 33325551,
+  "idUuid": "019e3ee4-46aa-7a76-b5a8-2c0540b8c8ad",
+  "labels": [
+    758924,
+    1062350
+  ],
+  "name": "Plutus - 2 - Access Approved",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "6d226fc2-1c4b-49b1-b4ef-5d9c074e0c7f",
+        "conditions": [],
+        "connectionId": null,
+        "id": "b3979372-87d2-4845-91d9-764650a7207e",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "NAME",
+            "value": "Plutus"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "NAME",
+            "value": "ADVEV Tool"
+          },
+          "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "6d226fc2-1c4b-49b1-b4ef-5d9c074e0c7f",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:transitioned",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+      ],
+      "eventKey": "jira:issue_updated",
+      "fromStatus": [],
+      "issueEvent": "issue_generic",
+      "toStatus": [
+        {
+          "type": "NAME",
+          "value": "Owner Approved"
+        }
+      ]
+    }
+  },
+  "updated": 1781528426628,
+  "writeAccessType": "UNRESTRICTED"
+}

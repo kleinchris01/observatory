@@ -1,0 +1,103 @@
+{
+  "actor": {
+    "type": "EVENT_INITIATOR",
+    "value": null
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "565394199",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.lookup.issues",
+      "value": {
+        "id": "_customsmartvalue_id_1719521565989",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "lookupIssues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "\"hardware type\" = roller and issuetype = \"Beta Build\""
+        },
+        "type": "JQL"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "565394200",
+      "parentId": null,
+      "schemaVersion": 2,
+      "type": "jira.issue.link",
+      "value": {
+        "issue": {
+          "type": "SMART",
+          "value": "{{lookupIssues}}"
+        },
+        "linkType": "outward:10000"
+      }
+    }
+  ],
+  "created": 1719521736457,
+  "description": "",
+  "id": 20197390,
+  "idUuid": "01905b7b-7709-7d92-a081-daf34e804815",
+  "labels": [],
+  "name": "Roller Issue/change request Identified",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10097"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10097"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "565394198",
+    "parentId": null,
+    "schemaVersion": 3,
+    "type": "jira.manual.trigger.issue",
+    "value": {
+      "groups": [],
+      "inputFromUsers": false,
+      "inputPrompts": [],
+      "issueFilter": {
+        "filterType": "ISSUE_TYPE",
+        "value": [
+          "Build Issues",
+          "Change request"
+        ]
+      },
+      "jQLFilter": null
+    }
+  },
+  "updated": 1721410927473,
+  "writeAccessType": "UNRESTRICTED"
+}

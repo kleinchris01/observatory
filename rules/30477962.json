@@ -1,0 +1,228 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:975c8bf8-d86c-4dee-842f-4e9c3c3a541e",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "d56385bf-4bc5-476c-a946-351210bd58fb",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": null,
+          "type": "NAME",
+          "value": "Solution In-Progress"
+        },
+        "comparison": "EQUALS",
+        "selectedField": {
+          "type": "ID",
+          "value": "status"
+        },
+        "selectedFieldType": "status"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "8099aeaf-15c8-4eeb-a94a-6eaecd512f58",
+              "parentId": "2ff80314-86c0-4a2b-9a2e-acdae4a92298",
+              "schemaVersion": 11,
+              "type": "jira.issue.transition",
+              "value": {
+                "advancedFields": null,
+                "destinationStatus": {
+                  "type": "NAME",
+                  "value": "Cancelled"
+                },
+                "operations": [],
+                "sendNotifications": true,
+                "transitionMatch": ""
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "2ff80314-86c0-4a2b-9a2e-acdae4a92298",
+              "conditions": [],
+              "connectionId": null,
+              "id": "c97e949f-4bba-4be4-b3c3-c03efc5772fa",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "[\"CA Cancelled\",\"CR Cancelled\"]"
+                },
+                "comparison": "ONE_OF",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Solution Status"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "2ff80314-86c0-4a2b-9a2e-acdae4a92298",
+          "parentId": "05502cc7-f857-4fe5-b0c2-19bab3fcde0f",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "47e8c7b3-d704-4e80-8df3-dfab2216f92e",
+              "parentId": "cc5ef076-788e-4d5f-8db5-3ca69b9f965c",
+              "schemaVersion": 11,
+              "type": "jira.issue.transition",
+              "value": {
+                "advancedFields": null,
+                "destinationStatus": {
+                  "type": "NAME",
+                  "value": "Solution Implemented"
+                },
+                "operations": [],
+                "sendNotifications": true,
+                "transitionMatch": ""
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "cc5ef076-788e-4d5f-8db5-3ca69b9f965c",
+              "conditions": [],
+              "connectionId": null,
+              "id": "38d3c04c-3907-4c92-a1f2-b48bed50b36e",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "[\"CR Completed\",\"CA Completed\"]"
+                },
+                "comparison": "ONE_OF",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Solution Status"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "cc5ef076-788e-4d5f-8db5-3ca69b9f965c",
+          "parentId": "05502cc7-f857-4fe5-b0c2-19bab3fcde0f",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "05502cc7-f857-4fe5-b0c2-19bab3fcde0f",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1760106007217,
+  "description": "Auto-Transition Approved Issues to Implemented/Cancelled based on the Solution Status",
+  "id": 30477962,
+  "idUuid": "0199ce7e-4ab2-7de7-ac55-9fdf62745f17",
+  "labels": [],
+  "name": "CE1 - Auto-Transition Approved Issues to Implemented/Cancelled based on the Solution Status",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "0c26b8da-9751-4e19-bb9e-c9168853dc3f",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [
+        "edit"
+      ],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Solution Status"
+        }
+      ]
+    }
+  },
+  "updated": 1765824852136,
+  "writeAccessType": "UNRESTRICTED"
+}

@@ -1,0 +1,182 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:9b52b270-bb29-4f87-880d-7c4412cc01b8",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "29cee1ef-3cda-4927-b3e2-794d8512351e",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "action.send-templated-email",
+      "value": {
+        "bcc": [
+          {
+            "type": "FREE",
+            "value": "dfish101@ford.com"
+          }
+        ],
+        "cc": [
+          {
+            "type": "FREE",
+            "value": "dnovotn4@ford.com"
+          }
+        ],
+        "convertLineBreaks": false,
+        "legacyConfig": true,
+        "sendGroupedEmails": true,
+        "templateContextData": {
+          "body": "The  DVA Request - **Issue Key & Summary:** {{issue.key}} — {{issue.summary}}  \n\nhas been in {{issue.status.name}} status for over 120 hours.\n\nPlease review and take necessary action.\n\nYou can view the issue here: {{issue.toUrl}}\n\n",
+          "bodyType": "HTML",
+          "emailName": "120 Hour Email Reminder",
+          "fromEmailAddress": "jira@ford-advev.atlassian.net",
+          "fromName": "dnovotn4@ford.com",
+          "replyToEmailAddress": "dnovotn4@ford.com",
+          "replyToName": "Dennis Novotny",
+          "subject": "120 Hour Status: {{issue.status.name}} Reminder: {{issue.key}} — {{issue.summary}}  "
+        },
+        "to": [
+          {
+            "type": "COPY",
+            "value": "assignee"
+          },
+          {
+            "type": "COPY",
+            "value": "customfield_11090"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1784140316705,
+  "description": "",
+  "id": 33911828,
+  "idUuid": "019f670c-c021-7705-b05d-55f096fe634e",
+  "labels": [],
+  "name": "DVA Request 120 Hour Email reminder",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10485"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10485"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "784bd19f-ee8e-4ec9-8559-3b04b4dc460e",
+        "conditions": [],
+        "connectionId": null,
+        "id": "da5a5a0f-dd96-4ffe-bd01-8da10a42c877",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "11255"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "784bd19f-ee8e-4ec9-8559-3b04b4dc460e",
+        "conditions": [],
+        "connectionId": null,
+        "id": "dddc8582-eadd-405c-8393-342eb3eb2d03",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": true,
+            "source": null,
+            "type": "NAME",
+            "value": "[\"Results Available\",\"New\",\"Under review\"]"
+          },
+          "comparison": "ONE_OF",
+          "selectedField": {
+            "type": "ID",
+            "value": "status"
+          },
+          "selectedFieldType": "status"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "784bd19f-ee8e-4ec9-8559-3b04b4dc460e",
+        "conditions": [],
+        "connectionId": null,
+        "id": "45567c07-904e-4950-86e8-6671995b1c9b",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "VALUE",
+            "value": "{\"type\":\"RELATIVE\",\"relativeValue\":{\"interval\":\"HOURS\",\"tense\":\"AGO\",\"amount\":\"120\"}}"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "NAME",
+            "value": "Time in Current Status"
+          },
+          "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:datetime"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "784bd19f-ee8e-4ec9-8559-3b04b4dc460e",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10485"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1784140316705,
+  "writeAccessType": "OWNER_ONLY"
+}

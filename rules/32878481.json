@@ -1,0 +1,464 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "edaf37cc-e89a-4f42-84aa-f56fb69492fb",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1776179526645",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "prevDuplicateCount"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{issue.issuelinks.size}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "4d85ffcc-264e-44cc-acb8-859715991d96",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.lookup.issues",
+      "value": {
+        "id": "_customsmartvalue_id_1775635892318",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "lookupIssues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "\"Parts\" in ({{#issue.customfield_15714.Part Number (EIN)}}{{.}}{{^last}},{{/last}}{{/issue.customfield_15714.Part Number (EIN)}}) AND \"ADVEV Checkpoints & Milestones\" = \"{{issue.customfield_11664}}\" AND key != {{issue.key}} AND issuetype = \"Build Deviation\""
+        },
+        "type": "JQL"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "a9230c31-a0da-459c-82d9-f8024294c7e0",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1775636036215",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "duplicateIssues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{lookupIssues.size}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "510a111e-bfe2-4e31-9f44-a0657fc8f87a",
+          "parentId": "6179b6c7-fc11-447c-ac0a-cec010a882b4",
+          "schemaVersion": 1,
+          "type": "jira.issue.delete.link",
+          "value": {
+            "linkTypes": []
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "6179b6c7-fc11-447c-ac0a-cec010a882b4",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [
+          "is duplicated by"
+        ],
+        "onlyUpdatedIssues": false,
+        "relatedType": "linked",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "b7a90b2c-db43-40db-8a8f-28cfe41a7efa",
+              "parentId": "d6197b1a-1ac3-4b4c-9eef-6750bc75713e",
+              "schemaVersion": 2,
+              "type": "jira.issue.comment",
+              "value": {
+                "addCommentOnce": false,
+                "comment": "This part number is already under an active deviation during the same milestone {{issue.customfield_11664}}.\n\nRelated active issue/s: \n{{#lookupIssues}}\n{{key}}\n{{/lookupIssues}}\n\nCheck milestone and parts or close old deviation. [~accountid:{{reporter.accountId}}]",
+                "commentVisibility": null,
+                "publicComment": true,
+                "sendNotifications": true
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "CONDITION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "98c0c8be-9742-41d1-afc4-134c5a265a3e",
+                  "parentId": "76b05d20-6406-43c5-8ff7-661c7125c139",
+                  "schemaVersion": 3,
+                  "type": "jira.issue.condition",
+                  "value": {
+                    "compareValue": {
+                      "modifier": null,
+                      "multiValue": false,
+                      "source": null,
+                      "type": "ID",
+                      "value": "12654"
+                    },
+                    "comparison": "EQUALS",
+                    "selectedField": {
+                      "type": "ID",
+                      "value": "issuetype"
+                    },
+                    "selectedFieldType": "issuetype"
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "0ea70ef0-4bf8-412f-92fe-8a45d1310020",
+                  "parentId": "76b05d20-6406-43c5-8ff7-661c7125c139",
+                  "schemaVersion": 2,
+                  "type": "jira.issue.link",
+                  "value": {
+                    "issue": {
+                      "type": "SMART",
+                      "value": "{{var}}"
+                    },
+                    "linkType": "inward:10026"
+                  }
+                }
+              ],
+              "component": "BRANCH",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "76b05d20-6406-43c5-8ff7-661c7125c139",
+              "parentId": "d6197b1a-1ac3-4b4c-9eef-6750bc75713e",
+              "schemaVersion": 1,
+              "type": "jira.smart.values.branch",
+              "value": {
+                "id": "_customsmartvalue_id_1776091853791",
+                "lazy": false,
+                "name": {
+                  "type": "FREE",
+                  "value": "var"
+                },
+                "query": {
+                  "type": "SMART",
+                  "value": "{{lookupIssues}}"
+                },
+                "type": "SMART"
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "d6197b1a-1ac3-4b4c-9eef-6750bc75713e",
+              "conditions": [],
+              "connectionId": null,
+              "id": "4f7882e8-103a-4156-8111-846be3b11f04",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{duplicateIssues}}",
+                "operator": "GREATER_THAN",
+                "second": "0"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "d6197b1a-1ac3-4b4c-9eef-6750bc75713e",
+          "parentId": "483fbfb3-ed9a-4803-b665-7486ecb36cf4",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "041b152f-2c92-4921-9b3a-2694dc4cd560",
+              "parentId": "46415c04-2ae0-4187-8dae-231095f0b648",
+              "schemaVersion": 2,
+              "type": "jira.issue.comment",
+              "value": {
+                "addCommentOnce": false,
+                "comment": "The selected deviation no longer duplicates an existing deviation of the same milestone and part number.",
+                "commentVisibility": null,
+                "publicComment": true,
+                "sendNotifications": true
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "CONDITION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "652c7cc8-1517-40b2-9350-7ed4b321d669",
+                  "parentId": "4a15b480-0181-4389-a3aa-d91a3de47297",
+                  "schemaVersion": 3,
+                  "type": "jira.issue.condition",
+                  "value": {
+                    "compareValue": {
+                      "modifier": null,
+                      "multiValue": false,
+                      "source": null,
+                      "type": "ID",
+                      "value": "12654"
+                    },
+                    "comparison": "EQUALS",
+                    "selectedField": {
+                      "type": "ID",
+                      "value": "issuetype"
+                    },
+                    "selectedFieldType": "issuetype"
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "e13facd7-8a9d-41d6-9748-b2b7cfd2ff16",
+                  "parentId": "4a15b480-0181-4389-a3aa-d91a3de47297",
+                  "schemaVersion": 1,
+                  "type": "jira.issue.delete.link",
+                  "value": {
+                    "linkTypes": []
+                  }
+                }
+              ],
+              "component": "BRANCH",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "4a15b480-0181-4389-a3aa-d91a3de47297",
+              "parentId": "46415c04-2ae0-4187-8dae-231095f0b648",
+              "schemaVersion": 1,
+              "type": "jira.issue.related",
+              "value": {
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [
+                  "duplicates",
+                  "is duplicated by"
+                ],
+                "onlyUpdatedIssues": false,
+                "relatedType": "linked",
+                "similarityLimit": 40
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "46415c04-2ae0-4187-8dae-231095f0b648",
+              "conditions": [],
+              "connectionId": null,
+              "id": "bfe1103c-5d8e-41b4-80bb-6c01bc11d391",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{duplicateIssues}}",
+                "operator": "EQUALS",
+                "second": "0"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "46415c04-2ae0-4187-8dae-231095f0b648",
+              "conditions": [],
+              "connectionId": null,
+              "id": "74bc245d-1fcb-42f0-bd72-670e36332140",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{prevDuplicateCount}} ",
+                "operator": "GREATER_THAN",
+                "second": "0"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "46415c04-2ae0-4187-8dae-231095f0b648",
+          "parentId": "483fbfb3-ed9a-4803-b665-7486ecb36cf4",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "483fbfb3-ed9a-4803-b665-7486ecb36cf4",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1776239349672,
+  "description": "This automation adds a comment to the work items when duplicate ACM and Parts are identified.",
+  "id": 32878481,
+  "idUuid": "019d901d-8fa9-71a9-aa4b-0d1875f378ce",
+  "labels": [],
+  "name": "SOLVE: Build Deviation - Adding of Comment for Duplicate Deviations",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "c558ed02-cd11-4f23-946f-84e680e6122b",
+        "conditions": [],
+        "connectionId": null,
+        "id": "23cee371-c8a2-4472-a2f5-dffed3d8ad29",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "12654"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "c558ed02-cd11-4f23-946f-84e680e6122b",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [
+        "create",
+        "edit"
+      ],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "ADVEV Checkpoints & Milestones"
+        },
+        {
+          "type": "fieldName",
+          "value": "Parts"
+        }
+      ]
+    }
+  },
+  "updated": 1782741236586,
+  "writeAccessType": "OWNER_ONLY"
+}

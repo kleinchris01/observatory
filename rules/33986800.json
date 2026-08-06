@@ -1,0 +1,346 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:9b52b270-bb29-4f87-880d-7c4412cc01b8",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "364fa01f-c114-488d-b35b-0c6dc07e43bc",
+          "parentId": "a52d8f47-0db6-4209-8a48-d1417faeeee2",
+          "schemaVersion": 12,
+          "type": "jira.issue.create",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "project"
+                },
+                "fieldType": "project",
+                "type": "SET",
+                "value": {
+                  "type": "ID",
+                  "value": "10816"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "issuetype"
+                },
+                "fieldType": "issuetype",
+                "type": "SET",
+                "value": {
+                  "type": "ID",
+                  "value": "10022"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "parent"
+                },
+                "fieldType": "parent",
+                "type": "SET",
+                "value": {
+                  "type": "COPY",
+                  "value": "current"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "summary"
+                },
+                "fieldType": "summary",
+                "type": "SET",
+                "value": " Weekly Inspection - {{triggerIssue.summary}} - {{now.longDate}}"
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "description"
+                },
+                "fieldType": "description",
+                "type": "SET",
+                "value": "\n \n\n"
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "assignee"
+                },
+                "fieldType": "assignee",
+                "type": "COPY",
+                "value": {
+                  "copyOptions": [],
+                  "sourceField": {
+                    "fieldType": "assignee",
+                    "type": "ID",
+                    "value": "assignee"
+                  },
+                  "sourceIssue": "current"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Collaborators"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                "type": "COPY",
+                "value": {
+                  "copyOptions": [
+                    "ADD"
+                  ],
+                  "sourceField": {
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                    "type": "NAME",
+                    "value": "Collaborators"
+                  },
+                  "sourceIssue": "current"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Start date"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:datepicker",
+                "type": "SET",
+                "value": "{{now.longDate}}"
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Vehicle ID"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                "type": "COPY",
+                "value": {
+                  "copyOptions": [],
+                  "sourceField": {
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                    "type": "NAME",
+                    "value": "Vehicle ID"
+                  },
+                  "sourceIssue": "current"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "ADVEV Checkpoints & Milestones"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "COPY",
+                "value": {
+                  "copyOptions": [],
+                  "sourceField": {
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "NAME",
+                    "value": "ADVEV Checkpoints & Milestones"
+                  },
+                  "sourceIssue": "current"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "ADVEV Vehicle Platform"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                "type": "COPY",
+                "value": {
+                  "copyOptions": [],
+                  "sourceField": {
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                    "type": "NAME",
+                    "value": "ADVEV Vehicle Platform"
+                  },
+                  "sourceIssue": "current"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "ADVEV Vehicle Program"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "COPY",
+                "value": {
+                  "copyOptions": [],
+                  "sourceField": {
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "NAME",
+                    "value": "ADVEV Vehicle Program"
+                  },
+                  "sourceIssue": "current"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Affected Unit(s)"
+                },
+                "fieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype",
+                "type": "COPY",
+                "value": {
+                  "copyOptions": [],
+                  "sourceField": {
+                    "fieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype",
+                    "type": "NAME",
+                    "value": "Affected Unit(s)"
+                  },
+                  "sourceIssue": "current"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Work Instruction"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                "type": "SET",
+                "value": "https://ford-advev.atlassian.net/wiki/spaces/CE1/pages/782074196/CE1+P833+Weekly+Inspection+Checks"
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "duedate"
+                },
+                "fieldType": "duedate",
+                "type": "SET",
+                "value": "{{now.plusDays(5).longDate}}"
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Current Location"
+                },
+                "fieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype",
+                "type": "COPY",
+                "value": {
+                  "copyOptions": [],
+                  "sourceField": {
+                    "fieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype",
+                    "type": "NAME",
+                    "value": "Current Location"
+                  },
+                  "sourceIssue": "current"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Vehicle(s) Affected"
+                },
+                "fieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype",
+                "type": "COPY",
+                "value": {
+                  "copyOptions": [],
+                  "sourceField": {
+                    "fieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype",
+                    "type": "NAME",
+                    "value": "Vehicle(s) Affected"
+                  },
+                  "sourceIssue": "current"
+                }
+              }
+            ],
+            "sendNotifications": false
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "a52d8f47-0db6-4209-8a48-d1417faeeee2",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1784758659912,
+  "description": "",
+  "id": 33986800,
+  "idUuid": "019f8be7-eb48-7579-91bb-ed0049638d17",
+  "labels": [],
+  "name": "Auto Create weekly Vehicle Inspection Subtasks",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10816"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10816"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "f883ea93-6d95-4d85-a544-1b9a7053e4fe",
+        "conditions": [],
+        "connectionId": null,
+        "id": "0aab9202-d6e0-44ed-ac7f-cc1abc692d47",
+        "parentId": null,
+        "schemaVersion": 1,
+        "type": "jira.jql.condition",
+        "value": "parent = PVFM-3606 AND statusCategory != Done"
+      }
+    ],
+    "connectionId": null,
+    "id": "f883ea93-6d95-4d85-a544-1b9a7053e4fe",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "issuetype = \"Sub-Task\" AND statusCategory != Done",
+      "onlyUpdatedIssues": true,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/Phoenix:20260726T050000\nRRULE:FREQ=WEEKLY;BYHOUR=9;BYMINUTE=0;BYSECOND=0;BYDAY=WE,MO;INTERVAL=1;UNTIL=20270101T070000Z\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1784759111042,
+  "writeAccessType": "OWNER_ONLY"
+}

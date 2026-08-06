@@ -1,0 +1,154 @@
+{
+  "clientKey": "8d16c357-428b-3f98-a81f-e1c82ed70cdd",
+  "cloud": true,
+  "connections": [
+    {
+      "authType": "ASAP",
+      "connectionTargetKey": "com.atlassian.rovo",
+      "container": {
+        "id": "019f1418-2d47-7383-978a-6e795615369f",
+        "type": "RULE"
+      },
+      "createdAt": "2026-06-29T15:55:57.103933Z",
+      "id": "6fcb17ca-ec04-46aa-9cd0-bdce0a5bb473",
+      "targetConfigJson": "{\"product\":\"jira\",\"cloudId\":\"95d04bf4-e1b7-4b22-806f-8bc95698a196\"}",
+      "updatedAt": "2026-06-29T15:55:57.103933Z"
+    },
+    {
+      "authType": "ASAP",
+      "connectionTargetKey": "com.atlassian.rovo",
+      "container": {
+        "id": "019f43f6-bec2-7810-97fe-a3204c1a8d9f",
+        "type": "RULE"
+      },
+      "createdAt": "2026-07-08T23:01:12.545376Z",
+      "id": "fe63ee2f-a8d8-44f8-b0f6-0e4b28ac07e7",
+      "targetConfigJson": "{\"product\":\"jira\",\"cloudId\":\"95d04bf4-e1b7-4b22-806f-8bc95698a196\"}",
+      "updatedAt": "2026-07-08T23:01:12.545376Z"
+    },
+    {
+      "authType": "ASAP",
+      "connectionTargetKey": "com.atlassian.rovo",
+      "container": {
+        "id": "019f8fbd-2f23-7f81-9797-c9cbba91f557",
+        "type": "RULE"
+      },
+      "createdAt": "2026-07-23T16:09:28.607342Z",
+      "id": "7dc64918-1653-482b-8f1f-c69ad76f11f4",
+      "targetConfigJson": "{\"product\":\"jira\",\"cloudId\":\"95d04bf4-e1b7-4b22-806f-8bc95698a196\"}",
+      "updatedAt": "2026-07-23T16:09:28.607342Z"
+    },
+    {
+      "authType": "ASAP",
+      "connectionTargetKey": "com.atlassian.rovo",
+      "container": {
+        "id": "019c7886-9a24-7920-8b79-be54e975b074",
+        "type": "RULE"
+      },
+      "createdAt": "2026-02-20T00:50:13.586207Z",
+      "id": "91ddd648-dcc9-4ad2-bba6-e6b26c528e03",
+      "targetConfigJson": "{\"product\":\"jira\",\"cloudId\":\"95d04bf4-e1b7-4b22-806f-8bc95698a196\"}",
+      "updatedAt": "2026-02-20T00:50:13.586207Z"
+    },
+    {
+      "authType": "ASAP",
+      "connectionTargetKey": "com.atlassian.rovo",
+      "container": {
+        "id": "019a7f4f-1952-752f-9140-72b45fcf2a08",
+        "type": "RULE"
+      },
+      "createdAt": "2025-11-13T22:21:22.101834Z",
+      "id": "97f6cdbf-75ae-45ca-ba4f-4dbccb76fc37",
+      "targetConfigJson": "{\"product\":\"jira\",\"cloudId\":\"95d04bf4-e1b7-4b22-806f-8bc95698a196\"}",
+      "updatedAt": "2025-11-13T22:21:22.101834Z"
+    },
+    {
+      "authType": "ASAP",
+      "connectionTargetKey": "com.atlassian.rovo",
+      "container": {
+        "id": "019bc87a-10bd-7e80-a87f-b3ecdd638a53",
+        "type": "RULE"
+      },
+      "createdAt": "2026-01-16T20:23:22.127908Z",
+      "id": "d70b6565-62bd-4da7-94e4-22f74a976f25",
+      "targetConfigJson": "{\"product\":\"jira\",\"cloudId\":\"95d04bf4-e1b7-4b22-806f-8bc95698a196\"}",
+      "updatedAt": "2026-01-16T20:23:22.127908Z"
+    },
+    {
+      "authType": "ASAP",
+      "connectionTargetKey": "com.atlassian.rovo",
+      "container": {
+        "id": "019e7117-3b98-7337-bc90-293d84ebcc46",
+        "type": "RULE"
+      },
+      "createdAt": "2026-05-29T00:16:49.026298Z",
+      "id": "a78e3045-852f-4028-ba8c-1aab6cd74ed2",
+      "targetConfigJson": "{\"product\":\"jira\",\"cloudId\":\"95d04bf4-e1b7-4b22-806f-8bc95698a196\"}",
+      "updatedAt": "2026-05-29T00:16:49.026298Z"
+    },
+    {
+      "authType": "ASAP",
+      "connectionTargetKey": "com.atlassian.rovo",
+      "container": {
+        "id": "019a7f4c-84b4-7de4-a18d-d22cbc986135",
+        "type": "RULE"
+      },
+      "createdAt": "2025-11-13T22:18:33.072172Z",
+      "id": "bd2b45fb-9913-47d4-b6c5-f82e95949871",
+      "targetConfigJson": "{\"product\":\"jira\",\"cloudId\":\"95d04bf4-e1b7-4b22-806f-8bc95698a196\"}",
+      "updatedAt": "2025-11-13T22:18:33.072172Z"
+    },
+    {
+      "authType": "ASAP",
+      "connectionTargetKey": "com.atlassian.confluence",
+      "container": {
+        "id": "019621d1-58bd-7c45-a573-147447119bf3",
+        "type": "RULE"
+      },
+      "createdAt": "2025-04-10T22:28:10.343965Z",
+      "id": "533f5560-d2f3-445f-81da-ccf154bea2e4",
+      "targetConfigJson": "{\"baseUrl\":\"https://ford.atlassian.net\",\"cloudId\":\"9424a400-90f4-439a-92d4-d45e102d1c7c\"}",
+      "updatedAt": "2025-04-10T22:28:10.343965Z"
+    },
+    {
+      "authType": "OAUTH_3LO",
+      "connectionTargetKey": "com.github",
+      "container": {
+        "id": "0190f0c9-523a-7204-800f-946683a30e5f",
+        "type": "RULE"
+      },
+      "createdAt": "2024-07-26T20:44:04.551738Z",
+      "id": "e8a8ba32-f31a-461d-bd80-1514bbe9e2e0",
+      "targetConfigJson": "{\"organisationName\":\"ford-restricted-pae\"}",
+      "updatedAt": "2024-07-26T20:44:04.551738Z"
+    },
+    {
+      "authType": "ASAP",
+      "connectionTargetKey": "com.atlassian.rovo",
+      "container": {
+        "id": "019e504f-5e96-7144-bd64-b571a0353d71",
+        "type": "RULE"
+      },
+      "createdAt": "2026-05-22T15:30:39.617610Z",
+      "id": "d93878b8-9799-4b91-bc75-c18abecc64d2",
+      "targetConfigJson": "{\"product\":\"jira\",\"cloudId\":\"95d04bf4-e1b7-4b22-806f-8bc95698a196\"}",
+      "updatedAt": "2026-05-22T15:30:39.617610Z"
+    },
+    {
+      "authType": "ASAP",
+      "connectionTargetKey": "com.atlassian.rovo",
+      "container": {
+        "id": "019fd3ee-641c-79f1-ab88-306d9c53111d",
+        "type": "RULE"
+      },
+      "createdAt": "2026-08-05T21:57:23.956006Z",
+      "id": "c0f93fdf-7756-4b07-990b-300bf94ed281",
+      "targetConfigJson": "{\"product\":\"jira\",\"cloudId\":\"95d04bf4-e1b7-4b22-806f-8bc95698a196\"}",
+      "updatedAt": "2026-08-05T21:57:23.956006Z"
+    }
+  ],
+  "disabledCount": 603,
+  "enabledCount": 874,
+  "exportedAt": "2026-08-06T02:01:06.965Z",
+  "ruleCount": 1477
+}

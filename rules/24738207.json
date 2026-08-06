@@ -1,0 +1,336 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "683958667",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": null,
+          "type": "ID",
+          "value": "10044"
+        },
+        "comparison": "EQUALS",
+        "selectedField": {
+          "type": "ID",
+          "value": "issuetype"
+        },
+        "selectedFieldType": "issuetype"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "683958668",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.create",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "project"
+            },
+            "fieldType": "project",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10101"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "fieldType": "issuetype",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10047"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "parent"
+            },
+            "fieldType": "parent",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": "{{triggerIssue.Summary}} Admin Tasks"
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "First Name"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                "type": "NAME",
+                "value": "First Name"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Last Name"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                "type": "NAME",
+                "value": "Last Name"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Recruiter"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                "type": "NAME",
+                "value": "Recruiter"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Hiring Manager"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                "type": "NAME",
+                "value": "Hiring Manager"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Employee Start Date"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:datepicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:datepicker",
+                "type": "NAME",
+                "value": "Employee Start Date"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "labels"
+            },
+            "fieldType": "labels",
+            "type": "SET",
+            "value": [
+              {
+                "type": "FREE",
+                "value": "AdminTasksTemplate"
+              }
+            ]
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Office Location"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "Office Location"
+              },
+              "sourceIssue": "trigger"
+            }
+          }
+        ],
+        "sendNotifications": false
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "683958670",
+          "parentId": "683958669",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "duedate"
+                },
+                "fieldType": "duedate",
+                "type": "SET",
+                "value": "{{issue.Employee Start Date.plusBusinessDays(-3)}}"
+              }
+            ],
+            "sendNotifications": true
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "683958671",
+          "parentId": "683958669",
+          "schemaVersion": 5,
+          "type": "jira.issue.assign",
+          "value": {
+            "assignType": "SPECIFY_USER",
+            "assignee": {
+              "type": "ID",
+              "value": "62ac0883f8bd790069da034a"
+            },
+            "excludedUsers": [],
+            "fieldToCopy": null,
+            "group": null,
+            "issueToCopy": null,
+            "itsmOpsOncall": null,
+            "jql": null,
+            "listAssignMethod": null,
+            "peopleTeamsCustomFieldId": null,
+            "restrictedToGroup": null,
+            "role": null,
+            "smartValue": null,
+            "userList": []
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "683958669",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "recentlycreated",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1738603800612,
+  "description": "",
+  "id": 24738207,
+  "idUuid": "0194ccdc-a825-7f01-aed9-01185bc68c1f",
+  "labels": [],
+  "name": "Copy of Create Admin Tasks",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10085"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10085"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "683958666",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:4c96b22d-9afc-43c4-a8d7-ce6a90cb1296:project/10015",
+        "ari:cloud:jira:4c96b22d-9afc-43c4-a8d7-ce6a90cb1296:project/10101"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1738603800612,
+  "writeAccessType": "UNRESTRICTED"
+}

@@ -1,0 +1,93 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "617562080",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.condition.query",
+      "value": {
+        "cmdbField": null,
+        "cmdbQuery": "objectType in (\"Part Inventory\", \"Harness Inventory\", \"Connector Inventory\", \"Terminal Inventory\", \"Specialty Tools Inventory\") AND updated >= \"now(-1m)\"",
+        "type": "OBJECT"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "617562081",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.object.edit.attributes",
+      "value": {
+        "attributes": [
+          {
+            "isLabel": null,
+            "name": "Name",
+            "value": "{{object.Part.Name}} {{object.Serial Number}}"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1723587714099,
+  "description": "",
+  "id": 21124525,
+  "idUuid": "01914dd5-5c33-7717-ab87-ea53959f7518",
+  "labels": [
+    846526,
+    849622
+  ],
+  "name": "Update Inventory Object Name to Include Serial Number When Added",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "617562079",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "cmdb.object.trigger",
+    "value": {
+      "operation": "UPDATED",
+      "schemaId": "15",
+      "schemaLabel": "Part Inventory Management",
+      "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+    }
+  },
+  "updated": 1729891471851,
+  "writeAccessType": "UNRESTRICTED"
+}

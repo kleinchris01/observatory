@@ -1,0 +1,136 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "709641599",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Collaborators"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+            "type": "SET",
+            "value": [
+              {
+                "type": "SMART",
+                "value": "{{issue.Collaborators}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.SIT Technical Program Manager}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.LL6 Manager}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.LL5 Manager}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.Supply Chain Program Manager}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.Product Development Program Manager}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.Global Vendor Tooling Contact(s)}}"
+              }
+            ]
+          }
+        ],
+        "sendNotifications": false
+      }
+    }
+  ],
+  "created": 1746127808155,
+  "description": "Following types of Managers are added to the Collaborators field :\n\n- LL6 Manager (Purchasing)\n- LL5 Manager (Purchasing)\n- Supply Chain Program Manager\n- SIT Technical Program Manager\n- Product Development Program Manager",
+  "id": 27988619,
+  "idUuid": "01968d53-e69b-7f88-876f-314e1b57ae62",
+  "labels": [],
+  "name": "Add Managers to Collaborators",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10518"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10518"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "709641598",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "VALUE_ADDED",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10518"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "SIT Technical Program Manager"
+        },
+        {
+          "type": "fieldName",
+          "value": "LL6 Manager (Purchasing)"
+        },
+        {
+          "type": "fieldName",
+          "value": "LL5 Manager (Purchasing)"
+        },
+        {
+          "type": "fieldName",
+          "value": "Supply Chain Program Manager"
+        },
+        {
+          "type": "fieldName",
+          "value": "Product Development Program Manager"
+        },
+        {
+          "type": "fieldName",
+          "value": "Global Vendor Tooling Contact(s)"
+        }
+      ]
+    }
+  },
+  "updated": 1764740298296,
+  "writeAccessType": "UNRESTRICTED"
+}

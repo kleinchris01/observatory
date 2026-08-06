@@ -1,0 +1,239 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "6206e14e506317006b09a777",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "660210198",
+              "parentId": "660210196",
+              "schemaVersion": 12,
+              "type": "jira.issue.create",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "project"
+                    },
+                    "fieldType": "project",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "10551"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "issuetype"
+                    },
+                    "fieldType": "issuetype",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "10022"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "parent"
+                    },
+                    "fieldType": "parent",
+                    "type": "SET",
+                    "value": {
+                      "type": "COPY",
+                      "value": "current"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "summary"
+                    },
+                    "fieldType": "summary",
+                    "type": "SET",
+                    "value": "Tooling PO #{{userInputs.partialRequestNumber}}"
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "description"
+                    },
+                    "fieldType": "description",
+                    "type": "SET",
+                    "value": ""
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "assignee"
+                    },
+                    "fieldType": "assignee",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{issue.creator}}"
+                    }
+                  }
+                ],
+                "sendNotifications": false
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "660210199",
+              "parentId": "660210196",
+              "schemaVersion": 5,
+              "type": "jira.issue.outgoing.email",
+              "value": {
+                "bcc": [],
+                "body": "Congratulations, your request {{issue.summary}} has been created!\n\nLink: https://ford-advev.atlassian.net/browse/{{issue.key}}\n\nNext Steps:\n- Please look at the comment in the Jira for next steps.\n- Please reach out to Sam Wocks for any questions.",
+                "cc": [],
+                "convertLineBreaks": true,
+                "fromName": "",
+                "mimeType": "text/html",
+                "replyTo": "",
+                "subject": "{{issue.key}} Created",
+                "to": [
+                  {
+                    "type": "FREE",
+                    "value": "swocks@ford.com"
+                  },
+                  {
+                    "additional": "INITIATOR",
+                    "type": "REFERENCE",
+                    "value": "INITIATOR"
+                  }
+                ]
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "660210196",
+              "conditions": [],
+              "connectionId": null,
+              "id": "660210197",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "ID",
+                  "value": "[\"10396\"]"
+                },
+                "comparison": "ONE_OF",
+                "selectedField": {
+                  "type": "ID",
+                  "value": "issuetype"
+                },
+                "selectedFieldType": "issuetype"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "660210196",
+          "parentId": "660210195",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "660210195",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1733875317046,
+  "description": "",
+  "id": 23474895,
+  "idUuid": "0193b305-b936-7116-898d-a67e33d9bf4a",
+  "labels": [],
+  "name": "Add a Tooling PO Request",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10551"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10551"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "660210194",
+    "parentId": null,
+    "schemaVersion": 3,
+    "type": "jira.manual.trigger.issue",
+    "value": {
+      "groups": [],
+      "inputFromUsers": true,
+      "inputPrompts": [
+        {
+          "defaultValue": 2,
+          "displayName": "Which PARTIAL request # is this for? (if there's 1 already, then this would be #2)",
+          "inputType": "NUMBER",
+          "required": true,
+          "variableName": "partialRequestNumber"
+        }
+      ],
+      "issueFilter": {
+        "filterType": "ISSUE_TYPE",
+        "value": [
+          "Tooling Request",
+          "ED&T Request"
+        ]
+      },
+      "jQLFilter": null
+    }
+  },
+  "updated": 1743802251402,
+  "writeAccessType": "UNRESTRICTED"
+}

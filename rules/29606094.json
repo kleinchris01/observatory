@@ -1,0 +1,260 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:975c8bf8-d86c-4dee-842f-4e9c3c3a541e",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "718597936",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": null,
+          "type": "NAME",
+          "value": "In Approval"
+        },
+        "comparison": "EQUALS",
+        "selectedField": {
+          "type": "ID",
+          "value": "status"
+        },
+        "selectedFieldType": "status"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "718597940",
+              "parentId": "718597938",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "assignee"
+                    },
+                    "fieldType": "assignee",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{issue.customfield_12749.accountId}}"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "718597938",
+              "conditions": [],
+              "connectionId": null,
+              "id": "718696746",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{issue.customfield_14952}}",
+                "operator": "EQUALS",
+                "second": "Configuration"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "718597938",
+              "conditions": [],
+              "connectionId": null,
+              "id": "718696747",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{issue.customfield_14952}}",
+                "operator": "EQUALS",
+                "second": "Documentation"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "718597938",
+              "conditions": [],
+              "connectionId": null,
+              "id": "718696748",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{issue.customfield_14952}}",
+                "operator": "EQUALS",
+                "second": "Standard"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "718597938",
+          "parentId": "718597937",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ANY"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "721407705",
+              "parentId": "721407703",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "assignee"
+                    },
+                    "fieldType": "assignee",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{issue.customfield_15715.accountId}}"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "721407703",
+              "conditions": [],
+              "connectionId": null,
+              "id": "721407704",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{issue.customfield_14952}}",
+                "operator": "EQUALS",
+                "second": "Manufacturing"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "721407703",
+          "parentId": "718597937",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ANY"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "718597937",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1751970365760,
+  "description": "Set Assignee to SIT Lead when CT is transitioned to \"In Approval\" status.",
+  "id": 29606094,
+  "idUuid": "0197e992-4141-7292-96ca-441c5a2b48ab",
+  "labels": [],
+  "name": "CE1 - Backup - Set Assignee Based on SIT Lead/MFG Lead when Status is \"In Approval\"",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "718597935",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [
+        "edit"
+      ],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "SIT Lead"
+        },
+        {
+          "type": "fieldName",
+          "value": "MFG Lead"
+        }
+      ]
+    }
+  },
+  "updated": 1758877039996,
+  "writeAccessType": "UNRESTRICTED"
+}

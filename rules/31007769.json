@@ -1,0 +1,292 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:c9c3dfc4-eef5-4087-8b1a-8ee188485a9b",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "85ff5f9e-6219-4d54-9850-12f92758be29",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.create",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": "CAD vs. CAE Comparison"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "description"
+            },
+            "fieldType": "description",
+            "type": "SET",
+            "value": "CAD vs. CAE Comparison"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "project"
+            },
+            "fieldType": "project",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10042"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "fieldType": "issuetype",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10022"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "parent"
+            },
+            "fieldType": "parent",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "assignee"
+            },
+            "fieldType": "assignee",
+            "type": "SET",
+            "value": null
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Responsible D&R/DRI"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "reporter"
+            },
+            "fieldType": "reporter",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Issue Participants"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+            "type": "SET",
+            "value": [
+              {
+                "type": "ID",
+                "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+              }
+            ]
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADVEV Vehicle Program"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "SET",
+            "value": {
+              "type": "NAME",
+              "value": "P833"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADVEV Checkpoints & Milestones"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "SET",
+            "value": {
+              "type": "NAME",
+              "value": "DCV: First  Build"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "CAE Program"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "SET",
+            "value": {
+              "type": "NAME",
+              "value": "Model Build"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Run Type"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "SET",
+            "value": {
+              "type": "NAME",
+              "value": "Baseline"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Model Build Activity"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "SET",
+            "value": {
+              "type": "NAME",
+              "value": "CAD Check"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "fixVersions"
+            },
+            "fieldType": "fixVersions",
+            "type": "SET",
+            "value": [
+              {
+                "type": "NAME",
+                "value": "P833_DCV"
+              }
+            ]
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Model Build Type"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "SET",
+            "value": {
+              "type": "NAME",
+              "value": "Safety"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADVEV Vehicle Platform"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+            "type": "SET",
+            "value": [
+              {
+                "type": "NAME",
+                "value": "Not Applicable"
+              }
+            ]
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "labels"
+            },
+            "fieldType": "labels",
+            "type": "SET",
+            "value": [
+              {
+                "type": "NAME",
+                "value": "DCV"
+              }
+            ]
+          }
+        ],
+        "sendNotifications": false
+      }
+    }
+  ],
+  "created": 1764865503013,
+  "description": "Create a sub task under the MODEL BUILD ACTIVITY issue in JIRA for the ADVEV CAE Management project.",
+  "id": 31007769,
+  "idUuid": "019aea2e-6f25-7cbb-b692-a6343126b72a",
+  "labels": [],
+  "name": "Manual: Create Sub-task under Model Build Activity with some fields pre-populated.",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10042"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10042"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "37deb8ff-7999-46e4-b31c-6c7dbfc9f942",
+    "parentId": null,
+    "schemaVersion": 3,
+    "type": "jira.manual.trigger.issue",
+    "value": {
+      "groups": [],
+      "inputFromUsers": false,
+      "inputPrompts": [],
+      "issueFilter": {
+        "filterType": "ISSUE_TYPE",
+        "value": [
+          "Model Build Activity"
+        ]
+      },
+      "jQLFilter": null
+    }
+  },
+  "updated": 1764865516457,
+  "writeAccessType": "UNRESTRICTED"
+}

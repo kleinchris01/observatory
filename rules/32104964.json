@@ -1,0 +1,737 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "children": [],
+                          "component": "ACTION",
+                          "conditionParentId": null,
+                          "conditions": [],
+                          "connectionId": null,
+                          "id": "745ed1b7-2e1c-4d51-8bd7-18c87d08492a",
+                          "parentId": "1825c8f6-78f2-47f5-98ce-237943c0efdd",
+                          "schemaVersion": 11,
+                          "type": "jira.issue.transition",
+                          "value": {
+                            "advancedFields": null,
+                            "destinationStatus": {
+                              "type": "NAME",
+                              "value": "To Do"
+                            },
+                            "operations": [],
+                            "sendNotifications": true,
+                            "transitionMatch": ""
+                          }
+                        }
+                      ],
+                      "component": "CONDITION_BLOCK",
+                      "conditionParentId": null,
+                      "conditions": [
+                        {
+                          "children": [],
+                          "component": "CONDITION",
+                          "conditionParentId": "1825c8f6-78f2-47f5-98ce-237943c0efdd",
+                          "conditions": [],
+                          "connectionId": null,
+                          "id": "4eb6067c-5787-4c5a-b157-0468d19d9988",
+                          "parentId": null,
+                          "schemaVersion": 1,
+                          "type": "jira.comparator.condition",
+                          "value": {
+                            "first": "{{issue.customfield_10015}}",
+                            "operator": "GREATER_THAN",
+                            "second": "{{now}}"
+                          }
+                        }
+                      ],
+                      "connectionId": null,
+                      "id": "1825c8f6-78f2-47f5-98ce-237943c0efdd",
+                      "parentId": "e7423d63-524a-49e1-b0c2-0421689627fa",
+                      "schemaVersion": 1,
+                      "type": "jira.condition.if.block",
+                      "value": {
+                        "conditionMatchType": "ALL"
+                      }
+                    },
+                    {
+                      "children": [
+                        {
+                          "children": [],
+                          "component": "ACTION",
+                          "conditionParentId": null,
+                          "conditions": [],
+                          "connectionId": null,
+                          "id": "d2ae70b5-f33c-4d66-ad3c-6cbcb9ab5d12",
+                          "parentId": "f518c8ae-fbc2-48bf-b888-fc76c416c5fd",
+                          "schemaVersion": 11,
+                          "type": "jira.issue.transition",
+                          "value": {
+                            "advancedFields": null,
+                            "destinationStatus": {
+                              "type": "NAME",
+                              "value": "To Do"
+                            },
+                            "operations": [],
+                            "sendNotifications": true,
+                            "transitionMatch": ""
+                          }
+                        }
+                      ],
+                      "component": "CONDITION_BLOCK",
+                      "conditionParentId": null,
+                      "conditions": [
+                        {
+                          "children": [],
+                          "component": "CONDITION",
+                          "conditionParentId": "f518c8ae-fbc2-48bf-b888-fc76c416c5fd",
+                          "conditions": [],
+                          "connectionId": null,
+                          "id": "4aa79be4-ac1a-4e11-a5c4-f713c4064380",
+                          "parentId": null,
+                          "schemaVersion": 1,
+                          "type": "jira.jql.condition",
+                          "value": "\"Start date\" is EMPTY AND duedate is EMPTY AND status != \"To do\""
+                        }
+                      ],
+                      "connectionId": null,
+                      "id": "f518c8ae-fbc2-48bf-b888-fc76c416c5fd",
+                      "parentId": "e7423d63-524a-49e1-b0c2-0421689627fa",
+                      "schemaVersion": 1,
+                      "type": "jira.condition.if.block",
+                      "value": {
+                        "conditionMatchType": "ALL"
+                      }
+                    },
+                    {
+                      "children": [
+                        {
+                          "children": [],
+                          "component": "ACTION",
+                          "conditionParentId": null,
+                          "conditions": [],
+                          "connectionId": null,
+                          "id": "33f64577-8d7b-4f64-b730-0f18f46ef1b5",
+                          "parentId": "dc07335f-50c7-4d1e-b1fc-3a952d988ddd",
+                          "schemaVersion": 11,
+                          "type": "jira.issue.transition",
+                          "value": {
+                            "advancedFields": null,
+                            "destinationStatus": {
+                              "type": "NAME",
+                              "value": "In Progress"
+                            },
+                            "operations": [],
+                            "sendNotifications": true,
+                            "transitionMatch": ""
+                          }
+                        }
+                      ],
+                      "component": "CONDITION_BLOCK",
+                      "conditionParentId": null,
+                      "conditions": [
+                        {
+                          "children": [],
+                          "component": "CONDITION",
+                          "conditionParentId": "dc07335f-50c7-4d1e-b1fc-3a952d988ddd",
+                          "conditions": [],
+                          "connectionId": null,
+                          "id": "0fcd6239-4c26-4a09-8055-5ae52646f30e",
+                          "parentId": null,
+                          "schemaVersion": 1,
+                          "type": "jira.comparator.condition",
+                          "value": {
+                            "first": "{{issue.customfield_10015}}",
+                            "operator": "EQUALS",
+                            "second": "{{now}}"
+                          }
+                        },
+                        {
+                          "children": [],
+                          "component": "CONDITION",
+                          "conditionParentId": "dc07335f-50c7-4d1e-b1fc-3a952d988ddd",
+                          "conditions": [],
+                          "connectionId": null,
+                          "id": "b3544151-d409-427c-b3f7-73e3766012c8",
+                          "parentId": null,
+                          "schemaVersion": 1,
+                          "type": "jira.comparator.condition",
+                          "value": {
+                            "first": "{{issue.customfield_10015}}",
+                            "operator": "LESS_THAN",
+                            "second": "{{now}}"
+                          }
+                        }
+                      ],
+                      "connectionId": null,
+                      "id": "dc07335f-50c7-4d1e-b1fc-3a952d988ddd",
+                      "parentId": "e7423d63-524a-49e1-b0c2-0421689627fa",
+                      "schemaVersion": 1,
+                      "type": "jira.condition.if.block",
+                      "value": {
+                        "conditionMatchType": "ANY"
+                      }
+                    }
+                  ],
+                  "component": "CONDITION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "e7423d63-524a-49e1-b0c2-0421689627fa",
+                  "parentId": "348720bb-d053-4aa2-bd25-0f2fbff0c845",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.container.block",
+                  "value": null
+                }
+              ],
+              "component": "ORCHESTRATION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "348720bb-d053-4aa2-bd25-0f2fbff0c845",
+              "parentId": "c02d1cef-21d9-4cde-ae6d-b79578b3b040",
+              "schemaVersion": 1,
+              "type": "automation.orchestration.fragment",
+              "value": {
+                "inputProjections": [],
+                "isOptional": false,
+                "name": "Group 1",
+                "outputProjections": []
+              }
+            }
+          ],
+          "component": "ORCHESTRATION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "c02d1cef-21d9-4cde-ae6d-b79578b3b040",
+          "parentId": "2edf5343-3e04-4df7-a230-9d8286e90c88",
+          "schemaVersion": 1,
+          "type": "automation.orchestration.split-parallel.child",
+          "value": {
+            "branchName": "Branch 1",
+            "conditionMatchType": null
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "CONDITION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "fcc7add1-3cfb-4bd3-9499-d2a6e3e3bd95",
+                  "parentId": "126c67a4-e49f-4007-8f27-e6c7c6523a02",
+                  "schemaVersion": 1,
+                  "type": "jira.jql.condition",
+                  "value": "duedate < startOfDay() AND labels != \"Overdue\""
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "bac8ff79-284b-4e6a-975a-bd36d4f33651",
+                  "parentId": "126c67a4-e49f-4007-8f27-e6c7c6523a02",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.edit",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "labels"
+                        },
+                        "fieldType": "labels",
+                        "type": "SET",
+                        "value": [
+                          {
+                            "type": "FREE",
+                            "value": "overdue"
+                          }
+                        ]
+                      },
+                      {
+                        "field": {
+                          "type": "NAME",
+                          "value": "Flagged"
+                        },
+                        "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes",
+                        "type": "SET",
+                        "value": [
+                          {
+                            "type": "NAME",
+                            "value": "Behind Schedule"
+                          }
+                        ]
+                      }
+                    ],
+                    "sendNotifications": true
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "6c764dcf-1e45-428b-b214-434287d72270",
+                  "parentId": "126c67a4-e49f-4007-8f27-e6c7c6523a02",
+                  "schemaVersion": 2,
+                  "type": "jira.issue.comment",
+                  "value": {
+                    "addCommentOnce": true,
+                    "comment": "This ticket has passed its Due date. Please update the status or the timeline.",
+                    "commentVisibility": null,
+                    "publicComment": false,
+                    "sendNotifications": true
+                  }
+                }
+              ],
+              "component": "ORCHESTRATION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "126c67a4-e49f-4007-8f27-e6c7c6523a02",
+              "parentId": "5b7d938f-9fbd-4984-9919-f7493418ae1a",
+              "schemaVersion": 1,
+              "type": "automation.orchestration.fragment",
+              "value": {
+                "inputProjections": [],
+                "isOptional": false,
+                "name": "Group 2",
+                "outputProjections": []
+              }
+            }
+          ],
+          "component": "ORCHESTRATION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "5b7d938f-9fbd-4984-9919-f7493418ae1a",
+          "parentId": "2edf5343-3e04-4df7-a230-9d8286e90c88",
+          "schemaVersion": 1,
+          "type": "automation.orchestration.split-parallel.child",
+          "value": {
+            "branchName": "Branch 2",
+            "conditionMatchType": null
+          }
+        }
+      ],
+      "component": "ORCHESTRATION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "2edf5343-3e04-4df7-a230-9d8286e90c88",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "automation.orchestration.instruction.split-parallel",
+      "value": {
+        "branches": [
+          {
+            "branchName": "Branch 1",
+            "components": [
+              {
+                "checksum": null,
+                "children": [
+                  {
+                    "checksum": null,
+                    "children": [
+                      {
+                        "checksum": null,
+                        "children": [
+                          {
+                            "checksum": null,
+                            "children": [],
+                            "component": "ACTION",
+                            "conditionParentId": null,
+                            "conditions": [],
+                            "connectionId": null,
+                            "id": "745ed1b7-2e1c-4d51-8bd7-18c87d08492a",
+                            "parentId": "1825c8f6-78f2-47f5-98ce-237943c0efdd",
+                            "schemaVersion": 11,
+                            "type": "jira.issue.transition",
+                            "value": {
+                              "advancedFields": null,
+                              "destinationStatus": {
+                                "type": "NAME",
+                                "value": "To Do"
+                              },
+                              "operations": [],
+                              "sendNotifications": true,
+                              "transitionMatch": ""
+                            }
+                          }
+                        ],
+                        "component": "CONDITION_BLOCK",
+                        "conditionParentId": null,
+                        "conditions": [
+                          {
+                            "checksum": null,
+                            "children": [],
+                            "component": "CONDITION",
+                            "conditionParentId": "1825c8f6-78f2-47f5-98ce-237943c0efdd",
+                            "conditions": [],
+                            "connectionId": null,
+                            "id": "4eb6067c-5787-4c5a-b157-0468d19d9988",
+                            "parentId": null,
+                            "schemaVersion": 1,
+                            "type": "jira.comparator.condition",
+                            "value": {
+                              "first": "{{issue.customfield_10015}}",
+                              "operator": "GREATER_THAN",
+                              "second": "{{now}}"
+                            }
+                          }
+                        ],
+                        "connectionId": null,
+                        "id": "1825c8f6-78f2-47f5-98ce-237943c0efdd",
+                        "parentId": "e7423d63-524a-49e1-b0c2-0421689627fa",
+                        "schemaVersion": 1,
+                        "type": "jira.condition.if.block",
+                        "value": {
+                          "conditionMatchType": "ALL"
+                        }
+                      },
+                      {
+                        "checksum": null,
+                        "children": [
+                          {
+                            "checksum": null,
+                            "children": [],
+                            "component": "ACTION",
+                            "conditionParentId": null,
+                            "conditions": [],
+                            "connectionId": null,
+                            "id": "d2ae70b5-f33c-4d66-ad3c-6cbcb9ab5d12",
+                            "parentId": "f518c8ae-fbc2-48bf-b888-fc76c416c5fd",
+                            "schemaVersion": 11,
+                            "type": "jira.issue.transition",
+                            "value": {
+                              "advancedFields": null,
+                              "destinationStatus": {
+                                "type": "NAME",
+                                "value": "To Do"
+                              },
+                              "operations": [],
+                              "sendNotifications": true,
+                              "transitionMatch": ""
+                            }
+                          }
+                        ],
+                        "component": "CONDITION_BLOCK",
+                        "conditionParentId": null,
+                        "conditions": [
+                          {
+                            "checksum": null,
+                            "children": [],
+                            "component": "CONDITION",
+                            "conditionParentId": "f518c8ae-fbc2-48bf-b888-fc76c416c5fd",
+                            "conditions": [],
+                            "connectionId": null,
+                            "id": "4aa79be4-ac1a-4e11-a5c4-f713c4064380",
+                            "parentId": null,
+                            "schemaVersion": 1,
+                            "type": "jira.jql.condition",
+                            "value": "\"Start date\" is EMPTY AND duedate is EMPTY AND status != \"To do\""
+                          }
+                        ],
+                        "connectionId": null,
+                        "id": "f518c8ae-fbc2-48bf-b888-fc76c416c5fd",
+                        "parentId": "e7423d63-524a-49e1-b0c2-0421689627fa",
+                        "schemaVersion": 1,
+                        "type": "jira.condition.if.block",
+                        "value": {
+                          "conditionMatchType": "ALL"
+                        }
+                      },
+                      {
+                        "checksum": null,
+                        "children": [
+                          {
+                            "checksum": null,
+                            "children": [],
+                            "component": "ACTION",
+                            "conditionParentId": null,
+                            "conditions": [],
+                            "connectionId": null,
+                            "id": "33f64577-8d7b-4f64-b730-0f18f46ef1b5",
+                            "parentId": "dc07335f-50c7-4d1e-b1fc-3a952d988ddd",
+                            "schemaVersion": 11,
+                            "type": "jira.issue.transition",
+                            "value": {
+                              "advancedFields": null,
+                              "destinationStatus": {
+                                "type": "NAME",
+                                "value": "In Progress"
+                              },
+                              "operations": [],
+                              "sendNotifications": true,
+                              "transitionMatch": ""
+                            }
+                          }
+                        ],
+                        "component": "CONDITION_BLOCK",
+                        "conditionParentId": null,
+                        "conditions": [
+                          {
+                            "checksum": null,
+                            "children": [],
+                            "component": "CONDITION",
+                            "conditionParentId": "dc07335f-50c7-4d1e-b1fc-3a952d988ddd",
+                            "conditions": [],
+                            "connectionId": null,
+                            "id": "0fcd6239-4c26-4a09-8055-5ae52646f30e",
+                            "parentId": null,
+                            "schemaVersion": 1,
+                            "type": "jira.comparator.condition",
+                            "value": {
+                              "first": "{{issue.customfield_10015}}",
+                              "operator": "EQUALS",
+                              "second": "{{now}}"
+                            }
+                          },
+                          {
+                            "checksum": null,
+                            "children": [],
+                            "component": "CONDITION",
+                            "conditionParentId": "dc07335f-50c7-4d1e-b1fc-3a952d988ddd",
+                            "conditions": [],
+                            "connectionId": null,
+                            "id": "b3544151-d409-427c-b3f7-73e3766012c8",
+                            "parentId": null,
+                            "schemaVersion": 1,
+                            "type": "jira.comparator.condition",
+                            "value": {
+                              "first": "{{issue.customfield_10015}}",
+                              "operator": "LESS_THAN",
+                              "second": "{{now}}"
+                            }
+                          }
+                        ],
+                        "connectionId": null,
+                        "id": "dc07335f-50c7-4d1e-b1fc-3a952d988ddd",
+                        "parentId": "e7423d63-524a-49e1-b0c2-0421689627fa",
+                        "schemaVersion": 1,
+                        "type": "jira.condition.if.block",
+                        "value": {
+                          "conditionMatchType": "ANY"
+                        }
+                      }
+                    ],
+                    "component": "CONDITION",
+                    "conditionParentId": null,
+                    "conditions": [],
+                    "connectionId": null,
+                    "id": "e7423d63-524a-49e1-b0c2-0421689627fa",
+                    "parentId": "348720bb-d053-4aa2-bd25-0f2fbff0c845",
+                    "schemaVersion": 1,
+                    "type": "jira.condition.container.block",
+                    "value": null
+                  }
+                ],
+                "component": "ORCHESTRATION",
+                "conditionParentId": null,
+                "conditions": [],
+                "connectionId": null,
+                "id": "348720bb-d053-4aa2-bd25-0f2fbff0c845",
+                "parentId": "c02d1cef-21d9-4cde-ae6d-b79578b3b040",
+                "schemaVersion": 1,
+                "type": "automation.orchestration.fragment",
+                "value": {
+                  "inputProjections": [],
+                  "isOptional": false,
+                  "name": "Group 1",
+                  "outputProjections": []
+                }
+              }
+            ]
+          },
+          {
+            "branchName": "Branch 2",
+            "components": [
+              {
+                "checksum": null,
+                "children": [
+                  {
+                    "checksum": null,
+                    "children": [],
+                    "component": "CONDITION",
+                    "conditionParentId": null,
+                    "conditions": [],
+                    "connectionId": null,
+                    "id": "fcc7add1-3cfb-4bd3-9499-d2a6e3e3bd95",
+                    "parentId": "126c67a4-e49f-4007-8f27-e6c7c6523a02",
+                    "schemaVersion": 1,
+                    "type": "jira.jql.condition",
+                    "value": "duedate < startOfDay() AND labels != \"Overdue\""
+                  },
+                  {
+                    "checksum": null,
+                    "children": [],
+                    "component": "ACTION",
+                    "conditionParentId": null,
+                    "conditions": [],
+                    "connectionId": null,
+                    "id": "bac8ff79-284b-4e6a-975a-bd36d4f33651",
+                    "parentId": "126c67a4-e49f-4007-8f27-e6c7c6523a02",
+                    "schemaVersion": 12,
+                    "type": "jira.issue.edit",
+                    "value": {
+                      "advancedFields": null,
+                      "operations": [
+                        {
+                          "field": {
+                            "type": "ID",
+                            "value": "labels"
+                          },
+                          "fieldType": "labels",
+                          "type": "SET",
+                          "value": [
+                            {
+                              "type": "FREE",
+                              "value": "overdue"
+                            }
+                          ]
+                        },
+                        {
+                          "field": {
+                            "type": "NAME",
+                            "value": "Flagged"
+                          },
+                          "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes",
+                          "type": "SET",
+                          "value": [
+                            {
+                              "type": "NAME",
+                              "value": "Behind Schedule"
+                            }
+                          ]
+                        }
+                      ],
+                      "sendNotifications": true
+                    }
+                  },
+                  {
+                    "checksum": null,
+                    "children": [],
+                    "component": "ACTION",
+                    "conditionParentId": null,
+                    "conditions": [],
+                    "connectionId": null,
+                    "id": "6c764dcf-1e45-428b-b214-434287d72270",
+                    "parentId": "126c67a4-e49f-4007-8f27-e6c7c6523a02",
+                    "schemaVersion": 2,
+                    "type": "jira.issue.comment",
+                    "value": {
+                      "addCommentOnce": true,
+                      "comment": "This ticket has passed its Due date. Please update the status or the timeline.",
+                      "commentVisibility": null,
+                      "publicComment": false,
+                      "sendNotifications": true
+                    }
+                  }
+                ],
+                "component": "ORCHESTRATION",
+                "conditionParentId": null,
+                "conditions": [],
+                "connectionId": null,
+                "id": "126c67a4-e49f-4007-8f27-e6c7c6523a02",
+                "parentId": "5b7d938f-9fbd-4984-9919-f7493418ae1a",
+                "schemaVersion": 1,
+                "type": "automation.orchestration.fragment",
+                "value": {
+                  "inputProjections": [],
+                  "isOptional": false,
+                  "name": "Group 2",
+                  "outputProjections": []
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1771617348766,
+  "description": "",
+  "id": 32104964,
+  "idUuid": "019c7c9f-6c9e-7dea-9a79-8b504b9b57e4",
+  "labels": [],
+  "name": "ADT2 - Status Management by due date",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11475"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11475"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [
+    {
+      "tagType": "ORCHESTRATION_CONFIG_ID",
+      "tagValue": "add4a1c6-11cc-11f1-bb87-3feac2d05eeb"
+    },
+    {
+      "tagType": "ORCHESTRATION_VERSION",
+      "tagValue": "7"
+    },
+    {
+      "tagType": "ORCHESTRATION",
+      "tagValue": null
+    }
+  ],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "af27b3bc-bb05-4708-9a94-8f8a21b76b25",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "project = ADT2 AND statusCategory != Done",
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/Los_Angeles:20260219T154600\nRRULE:FREQ=DAILY;BYHOUR=7;BYMINUTE=0;BYSECOND=0;INTERVAL=1\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1771970619858,
+  "writeAccessType": "OWNER_ONLY"
+}

@@ -1,0 +1,187 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "59708f05-f730-4354-b5b7-908bc284f8eb",
+              "parentId": "be4fe374-5dd8-43f6-b6fc-774133e3e520",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "security"
+                    },
+                    "fieldType": "security",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "CE1 Secret"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "be4fe374-5dd8-43f6-b6fc-774133e3e520",
+              "conditions": [],
+              "connectionId": null,
+              "id": "b9cb57af-151f-4c89-8c5f-b449e6012e8d",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "level is empty or level in (\"P833 Default\", \"U833 Default\")"
+            }
+          ],
+          "connectionId": null,
+          "id": "be4fe374-5dd8-43f6-b6fc-774133e3e520",
+          "parentId": "b80f72fe-f41e-45bb-b8fd-34a4b7b37230",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "31f24ff3-83cb-458e-891c-1ceb01864402",
+              "parentId": "4bbfdeda-5e0d-4a3a-87dd-cdbac5968b55",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "security"
+                    },
+                    "fieldType": "security",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "CE1 Secret"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "4bbfdeda-5e0d-4a3a-87dd-cdbac5968b55",
+              "conditions": [],
+              "connectionId": null,
+              "id": "120f8d1b-9166-48a8-8f22-69727c1cd46b",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "level in (\"P833 Secret\", \"U833 Secret\")"
+            }
+          ],
+          "connectionId": null,
+          "id": "4bbfdeda-5e0d-4a3a-87dd-cdbac5968b55",
+          "parentId": "b80f72fe-f41e-45bb-b8fd-34a4b7b37230",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "b80f72fe-f41e-45bb-b8fd-34a4b7b37230",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1774506236354,
+  "description": "",
+  "id": 32591676,
+  "idUuid": "019d28d0-59c1-7320-ba7a-3ae2a888f095",
+  "labels": [],
+  "name": "Set Non-P833/U833 Issue Security Level (Watcher)",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10110"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10110"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "bc33859e-cb8d-4683-8703-0a1c1beca710",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "\"ADVEV Vehicle Program (Assets)\" not in (\"ari:cloud:cmdb::object/c77afb26-c55c-4af4-861f-5e2907f8719d/5895\", \"ari:cloud:cmdb::object/c77afb26-c55c-4af4-861f-5e2907f8719d/5894\") and Type != sub-task and (level is empty or level in (\"P833 Default\", \"U833 Default\", \"U833 Secret\", \"P833 Secret\"))",
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/Los_Angeles:20260325T070000\nRRULE:FREQ=DAILY;BYHOUR=9;BYMINUTE=0;BYSECOND=0;INTERVAL=1\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1774506236354,
+  "writeAccessType": "OWNER_ONLY"
+}

@@ -1,0 +1,87 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555643595",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Daily Spend"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+            "type": "SET",
+            "value": "{{#=}} {{issue.Spent Budget}}/{{issue.Budget Start Date.diff(now).days}} {{/}}"
+          }
+        ],
+        "sendNotifications": false
+      }
+    }
+  ],
+  "created": 1708027386628,
+  "description": "",
+  "id": 17833597,
+  "idUuid": "018dae5d-9b04-7d60-b6a6-7e26bbe204ae",
+  "labels": [],
+  "name": "Calculate daily spend rate",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10090"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10090"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "555643586",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10090"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Spent Budget"
+        }
+      ]
+    }
+  },
+  "updated": 1708028005949,
+  "writeAccessType": "UNRESTRICTED"
+}

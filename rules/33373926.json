@@ -1,0 +1,110 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:10e644de-d96b-4816-9029-d6cf8f0aec37",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": "d93878b8-9799-4b91-bc75-c18abecc64d2",
+      "id": "879c5250-a106-4e9d-aabe-9fc97447a0e0",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "rovo.invoke-agent.action",
+      "value": {
+        "activationId": "c00f469e-4652-45ac-ab90-9b46c078ff84",
+        "agentAAID": "712020:6b51a436-3968-4f16-8161-4b557e2e6ff9",
+        "agentDisplayName": "Wiaitng for Support Report",
+        "agentId": "7df59011-0b5c-468d-812d-6a54dd7712e2",
+        "agentInstruction": "I need you to find all issues using the JQL:\n\nproject = \"ADVEV Support\" and status in (\"Waiting for support\")\nand issuetype NOT IN (\"ADVEV Access\")\nand \"ADT Tool(s)[Select List (multiple choices)]\" IN\n(Jira, Confluence, \"SharePoint (ADVEV pages only)\")\n\nSummarize the results grouped by issue type. \n\nCall out any unassigned tickets and the oldest requests at the bottom. Include a link to the full results in Jira.\n\nFormatting: Be sure to include line breaks between work items.  issue type level heading can be one size bigger than regular font but nothing bigger.  Separate work types with sections/lines. include emojis for headings.  Please keep all header sizes smaller than H4.  Do not include a title on the report.  Put this at the top of the report, \"Here are the work items currently in Waiting for Support, excluding access requests.\" Then add the \"View full results in Jira\" link right bellow that. Put reporter and assignee on the same line and make sure not hyperlink users.  Put a hazard emoji next to any unassigned work items.\n\nFor each work item include the key, summary, reporter, assignee, and created date.  Bold the summary/title, but no need to include the word \"summary\" as its implied.\n\nThe key should be a hyperlink to each respective work item.",
+        "agentNamedId": "7df59011-0b5c-468d-812d-6a54dd7712e2",
+        "allowAgentToExecuteActions": false,
+        "invocationMode": "USER",
+        "isVerified": false,
+        "tagType": "EXTERNAL_AGENT_ID",
+        "tagValue": "7df59011-0b5c-468d-812d-6a54dd7712e2"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "51ef6b8a-6b60-464d-8d28-a3a06b6dde18",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "msteams.notification",
+      "value": {
+        "body": "{{agentResponse}}",
+        "imageUrl": "https://d283vu6e5qi87p.cloudfront.net/automation/prod/automation-logo.svg",
+        "includeIssueSummary": false,
+        "subTitle": "",
+        "teamsWorkflowURL": "https://defaultc990bb7a51f4439bbd369c07fb1041.c0.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/95c3baa240aa46ddbd80b639b17b412e/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=2-t8XyjH8cmKkmEcgJcxdBvf4YkLUinQ0YGz2A02sV4",
+        "teamsWorkflowUrlSecure": false,
+        "title": "Waiting for Support - Weekly Summary",
+        "webhookUrl": ""
+      }
+    }
+  ],
+  "created": 1779463839382,
+  "description": "",
+  "id": 33373926,
+  "idUuid": "019e504f-5e96-7144-bd64-b571a0353d71",
+  "labels": [],
+  "name": "Waiting for Support Summary",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [
+    {
+      "tagType": "EXTERNAL_AGENT_ID",
+      "tagValue": "7df59011-0b5c-468d-812d-6a54dd7712e2"
+    }
+  ],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "42c26605-b574-43ba-87c2-3d6f7ea7de9c",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "nosearch",
+      "jql": "project = \"ADVEV Support\" and status in (\"Waiting for support\")  and issuetype NOT IN (\"ADVEV Access\")  and \"ADT Tool(s)[Select List (multiple choices)]\" IN  (Jira, Confluence, \"SharePoint (ADVEV pages only)\")",
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/Denver:20260522T090500\nRRULE:FREQ=WEEKLY;BYHOUR=7;BYMINUTE=0;BYSECOND=0;BYDAY=FR;INTERVAL=1\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1779469034674,
+  "writeAccessType": "OWNER_ONLY"
+}

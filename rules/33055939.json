@@ -1,0 +1,84 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:10e644de-d96b-4816-9029-d6cf8f0aec37",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "63e66300-3289-4a20-9a5a-164f5cd2a6ce",
+      "parentId": null,
+      "schemaVersion": 11,
+      "type": "jira.issue.transition",
+      "value": {
+        "advancedFields": null,
+        "destinationStatus": {
+          "type": "NAME",
+          "value": "Access Check"
+        },
+        "operations": [],
+        "sendNotifications": true,
+        "transitionMatch": ""
+      }
+    }
+  ],
+  "created": 1777307888817,
+  "description": "",
+  "id": 33055939,
+  "idUuid": "019dcfce-2cb1-792c-9023-e7a4bdfd9557",
+  "labels": [
+    758924,
+    911815
+  ],
+  "name": "Jira - 6a - Verify Project Access (Internal) [Watcher]",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "5bbb54f0-2962-4a9d-985a-6932e3fc95f2",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "type = \"ADVEV Access\" and \"Employee Type[Radio Buttons]\" = Internal and \"ADVEV Tool[Dropdown]\" = Jira and status = \"Access Check\" AND cf[11373] not in (\"ari:cloud:cmdb::object/c77afb26-c55c-4af4-861f-5e2907f8719d/6075\",\"ari:cloud:cmdb::object/c77afb26-c55c-4af4-861f-5e2907f8719d/524\",\"ari:cloud:cmdb::object/c77afb26-c55c-4af4-861f-5e2907f8719d/13942\", \"ari:cloud:cmdb::object/c77afb26-c55c-4af4-861f-5e2907f8719d/15587\")",
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/Denver:20260423T143039\nRRULE:FREQ=HOURLY;INTERVAL=1;BYSECOND=0\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1778687272912,
+  "writeAccessType": "UNRESTRICTED"
+}

@@ -1,0 +1,91 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555643717",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Gap from Target [$]"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+            "type": "SET",
+            "value": "{{#=}}{{issue.Landed BOM Cost [$]}}-{{issue.Current Estimated BOM Cost [$]}}{{/}}"
+          }
+        ],
+        "sendNotifications": true
+      }
+    }
+  ],
+  "created": 1717626781380,
+  "description": "",
+  "id": 19797671,
+  "idUuid": "018fea88-bec4-7b7c-8431-34b9646cfe3b",
+  "labels": [],
+  "name": "Calculate Gap from Target [$]",
+  "notifyOnError": "NEVER",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10025"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10025"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "555643715",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10025"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Landed BOM Cost [$]"
+        },
+        {
+          "type": "fieldName",
+          "value": "Current Estimated BOM Cost [$]"
+        }
+      ]
+    }
+  },
+  "updated": 1717629471683,
+  "writeAccessType": "UNRESTRICTED"
+}

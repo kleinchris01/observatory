@@ -1,0 +1,1127 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "702328181",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": null,
+        "comparison": "NOT_EMPTY",
+        "selectedField": {
+          "type": "NAME",
+          "value": "Completed date"
+        },
+        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:datepicker"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "702328182",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Completed date"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:datepicker",
+            "type": "SET",
+            "value": null
+          }
+        ],
+        "sendNotifications": true
+      }
+    }
+  ],
+  "created": 1743191680622,
+  "description": "",
+  "id": 26805414,
+  "idUuid": "0195de52-266e-7a30-9b6b-8ff956689b48",
+  "labels": [],
+  "name": "Remove Completed Date",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11574",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10056",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10061"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "702328180",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:transitioned",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10061",
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027",
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10056",
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11574"
+      ],
+      "eventKey": "jira:issue_updated",
+      "fromStatus": [
+        {
+          "type": "NAME",
+          "value": "Testing Complete"
+        },
+        {
+          "type": "NAME",
+          "value": "Testing Canceled"
+        },
+        {
+          "type": "NAME",
+          "value": "Decommissioned"
+        },
+        {
+          "type": "NAME",
+          "value": "Resolved"
+        },
+        {
+          "type": "NAME",
+          "value": "Closed"
+        },
+        {
+          "type": "NAME",
+          "value": "Done"
+        },
+        {
+          "type": "NAME",
+          "value": "Accepted"
+        },
+        {
+          "type": "NAME",
+          "value": "Canceled"
+        },
+        {
+          "type": "NAME",
+          "value": "Completed"
+        },
+        {
+          "type": "NAME",
+          "value": "Declined"
+        },
+        {
+          "type": "NAME",
+          "value": "Won't Pursue"
+        },
+        {
+          "type": "NAME",
+          "value": "Finished"
+        },
+        {
+          "type": "NAME",
+          "value": "Rejected"
+        },
+        {
+          "type": "NAME",
+          "value": "Cancelled"
+        },
+        {
+          "type": "NAME",
+          "value": "Integrated"
+        },
+        {
+          "type": "NAME",
+          "value": "Failed"
+        },
+        {
+          "type": "NAME",
+          "value": "Approved"
+        },
+        {
+          "type": "NAME",
+          "value": "Not Integrated"
+        },
+        {
+          "type": "NAME",
+          "value": "Shipped"
+        },
+        {
+          "type": "NAME",
+          "value": "Passed with Exceptions"
+        },
+        {
+          "type": "NAME",
+          "value": "Obsolete"
+        },
+        {
+          "type": "NAME",
+          "value": "Denied"
+        },
+        {
+          "type": "NAME",
+          "value": "Passed"
+        },
+        {
+          "type": "NAME",
+          "value": "Rejected (no hire)"
+        },
+        {
+          "type": "NAME",
+          "value": "Offer Accepted"
+        },
+        {
+          "type": "NAME",
+          "value": "Pending Start"
+        },
+        {
+          "type": "NAME",
+          "value": "Hired"
+        },
+        {
+          "type": "NAME",
+          "value": "WONT INTERVIEW"
+        },
+        {
+          "type": "NAME",
+          "value": "Wind Tunnel Test"
+        },
+        {
+          "type": "NAME",
+          "value": "Initial Password Sent to IT"
+        },
+        {
+          "type": "NAME",
+          "value": "Results Validation"
+        },
+        {
+          "type": "NAME",
+          "value": "Abandoned"
+        },
+        {
+          "type": "NAME",
+          "value": "Onboarded"
+        },
+        {
+          "type": "NAME",
+          "value": "Complete"
+        },
+        {
+          "type": "NAME",
+          "value": "PO Issued & Committed"
+        },
+        {
+          "type": "NAME",
+          "value": "Build Complete"
+        },
+        {
+          "type": "NAME",
+          "value": "Done and Implement"
+        },
+        {
+          "type": "NAME",
+          "value": "Reference Information"
+        },
+        {
+          "type": "NAME",
+          "value": "Validation at Beta"
+        },
+        {
+          "type": "NAME",
+          "value": "Teardown"
+        },
+        {
+          "type": "NAME",
+          "value": "Agree"
+        },
+        {
+          "type": "NAME",
+          "value": "No Review"
+        },
+        {
+          "type": "NAME",
+          "value": "Disagree"
+        },
+        {
+          "type": "NAME",
+          "value": "Signature Complete / Active"
+        },
+        {
+          "type": "NAME",
+          "value": "Pending Surface Release"
+        },
+        {
+          "type": "NAME",
+          "value": "Transferred"
+        },
+        {
+          "type": "NAME",
+          "value": "Active/Published"
+        },
+        {
+          "type": "NAME",
+          "value": "Closed by Deviation"
+        },
+        {
+          "type": "NAME",
+          "value": "SOLUTION CONCURRENCE"
+        },
+        {
+          "type": "NAME",
+          "value": "Contract Signed at Actual Volume"
+        }
+      ],
+      "issueEvent": "issue_generic",
+      "toStatus": [
+        {
+          "type": "NAME",
+          "value": "In Use"
+        },
+        {
+          "type": "NAME",
+          "value": "Available"
+        },
+        {
+          "type": "NAME",
+          "value": "Testing Planned"
+        },
+        {
+          "type": "NAME",
+          "value": "Open"
+        },
+        {
+          "type": "NAME",
+          "value": "In Progress"
+        },
+        {
+          "type": "NAME",
+          "value": "Reopened"
+        },
+        {
+          "type": "NAME",
+          "value": "To Do"
+        },
+        {
+          "type": "NAME",
+          "value": "New"
+        },
+        {
+          "type": "NAME",
+          "value": "Analysis"
+        },
+        {
+          "type": "NAME",
+          "value": "Blocked"
+        },
+        {
+          "type": "NAME",
+          "value": "Waiting for customer"
+        },
+        {
+          "type": "NAME",
+          "value": "Review"
+        },
+        {
+          "type": "NAME",
+          "value": "Work in progress"
+        },
+        {
+          "type": "NAME",
+          "value": "Deferred"
+        },
+        {
+          "type": "NAME",
+          "value": "Triage"
+        },
+        {
+          "type": "NAME",
+          "value": "Backlog"
+        },
+        {
+          "type": "NAME",
+          "value": "Selected for Development"
+        },
+        {
+          "type": "NAME",
+          "value": "Pending"
+        },
+        {
+          "type": "NAME",
+          "value": "Blocked (migrated)"
+        },
+        {
+          "type": "NAME",
+          "value": "Discovering"
+        },
+        {
+          "type": "NAME",
+          "value": "Reviewing"
+        },
+        {
+          "type": "NAME",
+          "value": "Testing"
+        },
+        {
+          "type": "NAME",
+          "value": "Tracking"
+        },
+        {
+          "type": "NAME",
+          "value": "Applicant Input to System"
+        },
+        {
+          "type": "NAME",
+          "value": "Recruiter Phone Screen"
+        },
+        {
+          "type": "NAME",
+          "value": "Technical Phone Screen"
+        },
+        {
+          "type": "NAME",
+          "value": "In Person Panel Interview"
+        },
+        {
+          "type": "NAME",
+          "value": "Offer Discussions"
+        },
+        {
+          "type": "NAME",
+          "value": "On Ice"
+        },
+        {
+          "type": "NAME",
+          "value": "Technical Assessment"
+        },
+        {
+          "type": "NAME",
+          "value": "Designing"
+        },
+        {
+          "type": "NAME",
+          "value": "In Review"
+        },
+        {
+          "type": "NAME",
+          "value": "Implementing"
+        },
+        {
+          "type": "NAME",
+          "value": "HR Review"
+        },
+        {
+          "type": "NAME",
+          "value": "New IT Tasks"
+        },
+        {
+          "type": "NAME",
+          "value": "New Facilities Tasks"
+        },
+        {
+          "type": "NAME",
+          "value": "New Hire"
+        },
+        {
+          "type": "NAME",
+          "value": "Building NDA"
+        },
+        {
+          "type": "NAME",
+          "value": "Desk Assignment"
+        },
+        {
+          "type": "NAME",
+          "value": "Badge Request"
+        },
+        {
+          "type": "NAME",
+          "value": "Install Necessary Apps"
+        },
+        {
+          "type": "NAME",
+          "value": "Send Equipment"
+        },
+        {
+          "type": "NAME",
+          "value": "Send Password"
+        },
+        {
+          "type": "NAME",
+          "value": "New Hire Details Confirmation"
+        },
+        {
+          "type": "NAME",
+          "value": "Picture Request"
+        },
+        {
+          "type": "NAME",
+          "value": "Initial Outreach"
+        },
+        {
+          "type": "NAME",
+          "value": "Confirm New Hire Details"
+        },
+        {
+          "type": "NAME",
+          "value": "Welcome"
+        },
+        {
+          "type": "NAME",
+          "value": "New Hire Cleared"
+        },
+        {
+          "type": "NAME",
+          "value": "Created"
+        },
+        {
+          "type": "NAME",
+          "value": "Interviewing"
+        },
+        {
+          "type": "NAME",
+          "value": "Screening"
+        },
+        {
+          "type": "NAME",
+          "value": "New Role"
+        },
+        {
+          "type": "NAME",
+          "value": "Prospecting"
+        },
+        {
+          "type": "NAME",
+          "value": "Negotiating"
+        },
+        {
+          "type": "NAME",
+          "value": "Candidate Contact"
+        },
+        {
+          "type": "NAME",
+          "value": "Application Review"
+        },
+        {
+          "type": "NAME",
+          "value": "Recruiter Screen"
+        },
+        {
+          "type": "NAME",
+          "value": "Manager Screen"
+        },
+        {
+          "type": "NAME",
+          "value": "Panel Interview"
+        },
+        {
+          "type": "NAME",
+          "value": "Offer Negotiation"
+        },
+        {
+          "type": "NAME",
+          "value": "Offer Sent"
+        },
+        {
+          "type": "NAME",
+          "value": "New Notes"
+        },
+        {
+          "type": "NAME",
+          "value": "Feedback Review"
+        },
+        {
+          "type": "NAME",
+          "value": "Prioritized"
+        },
+        {
+          "type": "NAME",
+          "value": "First Case Submitted"
+        },
+        {
+          "type": "NAME",
+          "value": "Assigned"
+        },
+        {
+          "type": "NAME",
+          "value": "Iteration and Analysis"
+        },
+        {
+          "type": "NAME",
+          "value": "Waiting for support"
+        },
+        {
+          "type": "NAME",
+          "value": "Escalated"
+        },
+        {
+          "type": "NAME",
+          "value": "Under review"
+        },
+        {
+          "type": "NAME",
+          "value": "Tier 3"
+        },
+        {
+          "type": "NAME",
+          "value": "Tier 2"
+        },
+        {
+          "type": "NAME",
+          "value": "Submitted for Approval"
+        },
+        {
+          "type": "NAME",
+          "value": "Ready for Review"
+        },
+        {
+          "type": "NAME",
+          "value": "Project Owner Approval"
+        },
+        {
+          "type": "NAME",
+          "value": "Owner Approved"
+        },
+        {
+          "type": "NAME",
+          "value": "Owner Declined"
+        },
+        {
+          "type": "NAME",
+          "value": "Ordered"
+        },
+        {
+          "type": "NAME",
+          "value": "Module Build"
+        },
+        {
+          "type": "NAME",
+          "value": "CAD Checks"
+        },
+        {
+          "type": "NAME",
+          "value": "Meshing"
+        },
+        {
+          "type": "NAME",
+          "value": "Assembly"
+        },
+        {
+          "type": "NAME",
+          "value": "NDA Acknowledged"
+        },
+        {
+          "type": "NAME",
+          "value": "Waiting for Manager Feedback"
+        },
+        {
+          "type": "NAME",
+          "value": "Intake"
+        },
+        {
+          "type": "NAME",
+          "value": "Initial Password Received"
+        },
+        {
+          "type": "NAME",
+          "value": "Schedule 1:1 with Alan"
+        },
+        {
+          "type": "NAME",
+          "value": "Waiting for Feedback"
+        },
+        {
+          "type": "NAME",
+          "value": "Add to WebEx Channels"
+        },
+        {
+          "type": "NAME",
+          "value": "Product Access Required"
+        },
+        {
+          "type": "NAME",
+          "value": "Requested"
+        },
+        {
+          "type": "NAME",
+          "value": "Received"
+        },
+        {
+          "type": "NAME",
+          "value": "On hold"
+        },
+        {
+          "type": "NAME",
+          "value": "Waiting on Stakeholders"
+        },
+        {
+          "type": "NAME",
+          "value": "CO-CREATION"
+        },
+        {
+          "type": "NAME",
+          "value": "PENDING_INFO"
+        },
+        {
+          "type": "NAME",
+          "value": "SURFACE_INCORP"
+        },
+        {
+          "type": "NAME",
+          "value": "Pending Implementation"
+        },
+        {
+          "type": "NAME",
+          "value": "On Track"
+        },
+        {
+          "type": "NAME",
+          "value": "At Risk"
+        },
+        {
+          "type": "NAME",
+          "value": "On Watch"
+        },
+        {
+          "type": "NAME",
+          "value": "Paused"
+        },
+        {
+          "type": "NAME",
+          "value": "Under Construction"
+        },
+        {
+          "type": "NAME",
+          "value": "Needs Repair"
+        },
+        {
+          "type": "NAME",
+          "value": "Needs More Info"
+        },
+        {
+          "type": "NAME",
+          "value": "Not Started"
+        },
+        {
+          "type": "NAME",
+          "value": "Manager Approval"
+        },
+        {
+          "type": "NAME",
+          "value": "Manager Approved"
+        },
+        {
+          "type": "NAME",
+          "value": "Purchased"
+        },
+        {
+          "type": "NAME",
+          "value": "Delivered"
+        },
+        {
+          "type": "NAME",
+          "value": "Returned to Creator"
+        },
+        {
+          "type": "NAME",
+          "value": "Waiting for Tech Feedback"
+        },
+        {
+          "type": "NAME",
+          "value": "Signed offer"
+        },
+        {
+          "type": "NAME",
+          "value": "IT Provisioning"
+        },
+        {
+          "type": "NAME",
+          "value": "Tested"
+        },
+        {
+          "type": "NAME",
+          "value": "Approval"
+        },
+        {
+          "type": "NAME",
+          "value": "Parking Lot"
+        },
+        {
+          "type": "NAME",
+          "value": "Study Required"
+        },
+        {
+          "type": "NAME",
+          "value": "Capital Allocation Decision"
+        },
+        {
+          "type": "NAME",
+          "value": "Manufacturing Approval"
+        },
+        {
+          "type": "NAME",
+          "value": "Build Readiness"
+        },
+        {
+          "type": "NAME",
+          "value": "Build In Progress"
+        },
+        {
+          "type": "NAME",
+          "value": "Build Sign Off"
+        },
+        {
+          "type": "NAME",
+          "value": "Ready to Test"
+        },
+        {
+          "type": "NAME",
+          "value": "Surfacing"
+        },
+        {
+          "type": "NAME",
+          "value": "Part Design"
+        },
+        {
+          "type": "NAME",
+          "value": "Fabrication"
+        },
+        {
+          "type": "NAME",
+          "value": "Strategy Discussion"
+        },
+        {
+          "type": "NAME",
+          "value": "Disclosure"
+        },
+        {
+          "type": "NAME",
+          "value": "Employee Check"
+        },
+        {
+          "type": "NAME",
+          "value": "Employee documents"
+        },
+        {
+          "type": "NAME",
+          "value": "Interview Debrief"
+        },
+        {
+          "type": "NAME",
+          "value": "Applications"
+        },
+        {
+          "type": "NAME",
+          "value": "Release"
+        },
+        {
+          "type": "NAME",
+          "value": "Manufacture"
+        },
+        {
+          "type": "NAME",
+          "value": "Quote Phase"
+        },
+        {
+          "type": "NAME",
+          "value": "Awaiting approval"
+        },
+        {
+          "type": "NAME",
+          "value": "Verify"
+        },
+        {
+          "type": "NAME",
+          "value": "Joining"
+        },
+        {
+          "type": "NAME",
+          "value": "Feasibility"
+        },
+        {
+          "type": "NAME",
+          "value": "Dev Access Approval"
+        },
+        {
+          "type": "NAME",
+          "value": "Dev Access Approved"
+        },
+        {
+          "type": "NAME",
+          "value": "Unscreened"
+        },
+        {
+          "type": "NAME",
+          "value": "Waiting for Build"
+        },
+        {
+          "type": "NAME",
+          "value": "Scheduled"
+        },
+        {
+          "type": "NAME",
+          "value": "Test Setup"
+        },
+        {
+          "type": "NAME",
+          "value": "Business Review"
+        },
+        {
+          "type": "NAME",
+          "value": "Planned"
+        },
+        {
+          "type": "NAME",
+          "value": "Installed"
+        },
+        {
+          "type": "NAME",
+          "value": "In Storage PA"
+        },
+        {
+          "type": "NAME",
+          "value": "Clone to SW Project"
+        },
+        {
+          "type": "NAME",
+          "value": "In Storage TDM"
+        },
+        {
+          "type": "NAME",
+          "value": "In Storage LARO"
+        },
+        {
+          "type": "NAME",
+          "value": "Information Required"
+        },
+        {
+          "type": "NAME",
+          "value": "Contract Preparation"
+        },
+        {
+          "type": "NAME",
+          "value": "Supplier Review"
+        },
+        {
+          "type": "NAME",
+          "value": "Legal Review"
+        },
+        {
+          "type": "NAME",
+          "value": "Signature Pending"
+        },
+        {
+          "type": "NAME",
+          "value": "Sourcing Project Active"
+        },
+        {
+          "type": "NAME",
+          "value": "Sourcing Complete"
+        },
+        {
+          "type": "NAME",
+          "value": "ADT Implementation"
+        },
+        {
+          "type": "NAME",
+          "value": "OSP/PO"
+        },
+        {
+          "type": "NAME",
+          "value": "B Side Development"
+        },
+        {
+          "type": "NAME",
+          "value": "Print"
+        },
+        {
+          "type": "NAME",
+          "value": "Ignored"
+        },
+        {
+          "type": "NAME",
+          "value": "Discovery"
+        },
+        {
+          "type": "NAME",
+          "value": "Ready for delivery"
+        },
+        {
+          "type": "NAME",
+          "value": "Delivery"
+        },
+        {
+          "type": "NAME",
+          "value": "Impact"
+        },
+        {
+          "type": "NAME",
+          "value": "Reserved"
+        },
+        {
+          "type": "NAME",
+          "value": "Access Check"
+        },
+        {
+          "type": "NAME",
+          "value": "WIP"
+        },
+        {
+          "type": "NAME",
+          "value": "Deviation Review"
+        },
+        {
+          "type": "NAME",
+          "value": "Design Approval"
+        },
+        {
+          "type": "NAME",
+          "value": "Wired"
+        },
+        {
+          "type": "NAME",
+          "value": "Pending Return"
+        },
+        {
+          "type": "NAME",
+          "value": "Decision Forum"
+        },
+        {
+          "type": "NAME",
+          "value": "CAD Delivery"
+        },
+        {
+          "type": "NAME",
+          "value": "Order Approved"
+        },
+        {
+          "type": "NAME",
+          "value": "Change Initiated"
+        },
+        {
+          "type": "NAME",
+          "value": "Change Approved"
+        },
+        {
+          "type": "NAME",
+          "value": "Change Implemented 3DX"
+        },
+        {
+          "type": "NAME",
+          "value": "Change Implemented Supply Base"
+        },
+        {
+          "type": "NAME",
+          "value": "Manufacturing Trials"
+        },
+        {
+          "type": "NAME",
+          "value": "Trial Review"
+        },
+        {
+          "type": "NAME",
+          "value": "Ready for Decison"
+        },
+        {
+          "type": "NAME",
+          "value": "Step 1 Pending"
+        },
+        {
+          "type": "NAME",
+          "value": "Step 1 Approved"
+        },
+        {
+          "type": "NAME",
+          "value": "RFQ Active"
+        },
+        {
+          "type": "NAME",
+          "value": "Recommendation Approved"
+        },
+        {
+          "type": "NAME",
+          "value": "External Check"
+        },
+        {
+          "type": "NAME",
+          "value": "Ready to Merge"
+        },
+        {
+          "type": "NAME",
+          "value": "Powered"
+        },
+        {
+          "type": "NAME",
+          "value": "Communicating"
+        },
+        {
+          "type": "NAME",
+          "value": "Processing"
+        },
+        {
+          "type": "NAME",
+          "value": "Recommendation In Progress"
+        },
+        {
+          "type": "NAME",
+          "value": "Recommendation Ready"
+        },
+        {
+          "type": "NAME",
+          "value": "Volume Adjustment In Progress"
+        },
+        {
+          "type": "NAME",
+          "value": "Volume Adjustment Complete"
+        },
+        {
+          "type": "NAME",
+          "value": "Dev"
+        },
+        {
+          "type": "NAME",
+          "value": "QA"
+        },
+        {
+          "type": "NAME",
+          "value": "Prod"
+        },
+        {
+          "type": "NAME",
+          "value": "Contract Signed at Original Volume"
+        }
+      ]
+    }
+  },
+  "updated": 1773961268540,
+  "writeAccessType": "UNRESTRICTED"
+}

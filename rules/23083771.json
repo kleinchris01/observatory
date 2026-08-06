@@ -1,0 +1,1078 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:10e644de-d96b-4816-9029-d6cf8f0aec37",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "641636542",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": null,
+          "type": "ID",
+          "value": "10561"
+        },
+        "comparison": "EQUALS",
+        "selectedField": {
+          "type": "ID",
+          "value": "issuetype"
+        },
+        "selectedFieldType": "issuetype"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "641636543",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.create",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": "{{triggerIssue.summary}} - CAD Delivery"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "description"
+            },
+            "fieldType": "description",
+            "type": "SET",
+            "value": null
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "project"
+            },
+            "fieldType": "project",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "fieldType": "issuetype",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10627"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "parent"
+            },
+            "fieldType": "parent",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "CAE Program"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "SET",
+            "value": {
+              "type": "NAME",
+              "value": "Model Build"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Issue Participants"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "reporter",
+                "type": "ID",
+                "value": "reporter"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADVEV Vehicle Program"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "ADVEV Vehicle Program"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADVEV Checkpoints & Milestones"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "ADVEV Checkpoints & Milestones"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Model Build Activity"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "SET",
+            "value": {
+              "type": "NAME",
+              "value": "CAD Delivery"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Model Build Type"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "Model Build Type"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "fixVersions"
+            },
+            "fieldType": "fixVersions",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [
+                "ADD"
+              ],
+              "sourceField": {
+                "fieldType": "fixVersions",
+                "type": "ID",
+                "value": "fixVersions"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Run Type"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "Run Type"
+              },
+              "sourceIssue": "trigger"
+            }
+          }
+        ],
+        "sendNotifications": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "641636544",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.create",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": "{{triggerIssue.summary}} - CAD Check"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "description"
+            },
+            "fieldType": "description",
+            "type": "SET",
+            "value": null
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "project"
+            },
+            "fieldType": "project",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "fieldType": "issuetype",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10627"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "parent"
+            },
+            "fieldType": "parent",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "CAE Program"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "SET",
+            "value": {
+              "type": "NAME",
+              "value": "Model Build"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Issue Participants"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "reporter",
+                "type": "ID",
+                "value": "reporter"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADVEV Vehicle Program"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "ADVEV Vehicle Program"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADVEV Checkpoints & Milestones"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "ADVEV Checkpoints & Milestones"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Model Build Activity"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "SET",
+            "value": {
+              "type": "NAME",
+              "value": "CAD Check"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Model Build Type"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "Model Build Type"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Run Type"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "Run Type"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "fixVersions"
+            },
+            "fieldType": "fixVersions",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [
+                "ADD"
+              ],
+              "sourceField": {
+                "fieldType": "fixVersions",
+                "type": "ID",
+                "value": "fixVersions"
+              },
+              "sourceIssue": "trigger"
+            }
+          }
+        ],
+        "sendNotifications": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "641636545",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.create",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": "{{triggerIssue.summary}} - Meshing"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "description"
+            },
+            "fieldType": "description",
+            "type": "SET",
+            "value": null
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "project"
+            },
+            "fieldType": "project",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "fieldType": "issuetype",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10627"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "parent"
+            },
+            "fieldType": "parent",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "CAE Program"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "SET",
+            "value": {
+              "type": "NAME",
+              "value": "Model Build"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Issue Participants"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "reporter",
+                "type": "ID",
+                "value": "reporter"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADVEV Vehicle Program"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "ADVEV Vehicle Program"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADVEV Checkpoints & Milestones"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "ADVEV Checkpoints & Milestones"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Model Build Activity"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "SET",
+            "value": {
+              "type": "NAME",
+              "value": "Mesh"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Model Build Type"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "Model Build Type"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Run Type"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "Run Type"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "fixVersions"
+            },
+            "fieldType": "fixVersions",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [
+                "ADD"
+              ],
+              "sourceField": {
+                "fieldType": "fixVersions",
+                "type": "ID",
+                "value": "fixVersions"
+              },
+              "sourceIssue": "trigger"
+            }
+          }
+        ],
+        "sendNotifications": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "641636546",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.create",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": "{{triggerIssue.summary}} - Joining"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "description"
+            },
+            "fieldType": "description",
+            "type": "SET",
+            "value": null
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "project"
+            },
+            "fieldType": "project",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "fieldType": "issuetype",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10627"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "parent"
+            },
+            "fieldType": "parent",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "CAE Program"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "SET",
+            "value": {
+              "type": "NAME",
+              "value": "Model Build"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Issue Participants"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "reporter",
+                "type": "ID",
+                "value": "reporter"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADVEV Vehicle Program"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "ADVEV Vehicle Program"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADVEV Checkpoints & Milestones"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "ADVEV Checkpoints & Milestones"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Model Build Activity"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "SET",
+            "value": {
+              "type": "NAME",
+              "value": "Joining"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Model Build Type"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "Model Build Type"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Run Type"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "Run Type"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "fixVersions"
+            },
+            "fieldType": "fixVersions",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [
+                "ADD"
+              ],
+              "sourceField": {
+                "fieldType": "fixVersions",
+                "type": "ID",
+                "value": "fixVersions"
+              },
+              "sourceIssue": "trigger"
+            }
+          }
+        ],
+        "sendNotifications": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "641636547",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.create",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": "{{triggerIssue.summary}} - Module Build"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "description"
+            },
+            "fieldType": "description",
+            "type": "SET",
+            "value": null
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "project"
+            },
+            "fieldType": "project",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "fieldType": "issuetype",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10627"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "parent"
+            },
+            "fieldType": "parent",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "CAE Program"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "SET",
+            "value": {
+              "type": "NAME",
+              "value": "Model Build"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Issue Participants"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "reporter",
+                "type": "ID",
+                "value": "reporter"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADVEV Vehicle Program"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "ADVEV Vehicle Program"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADVEV Checkpoints & Milestones"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "ADVEV Checkpoints & Milestones"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Model Build Activity"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "SET",
+            "value": {
+              "type": "NAME",
+              "value": "Module"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Model Build Type"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "Model Build Type"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Run Type"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "Run Type"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "fixVersions"
+            },
+            "fieldType": "fixVersions",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [
+                "ADD"
+              ],
+              "sourceField": {
+                "fieldType": "fixVersions",
+                "type": "ID",
+                "value": "fixVersions"
+              },
+              "sourceIssue": "trigger"
+            }
+          }
+        ],
+        "sendNotifications": false
+      }
+    }
+  ],
+  "created": 1732056566178,
+  "description": ".",
+  "id": 23083771,
+  "idUuid": "0193469d-c9a2-7bbb-85d4-fafdb609c5f6",
+  "labels": [
+    848670
+  ],
+  "name": "Model Build - 2 - Create Model Build Activity",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10042"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10042"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "695273031",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10042"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1765426669622,
+  "writeAccessType": "UNRESTRICTED"
+}

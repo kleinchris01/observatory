@@ -1,0 +1,672 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555650258",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": null,
+          "type": "ID",
+          "value": "10044"
+        },
+        "comparison": "EQUALS",
+        "selectedField": {
+          "type": "ID",
+          "value": "issuetype"
+        },
+        "selectedFieldType": "issuetype"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555650262",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.create",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "project"
+            },
+            "fieldType": "project",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "fieldType": "issuetype",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10045"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "parent"
+            },
+            "fieldType": "parent",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": "{{triggerIssue.Summary}} - IT Tasks"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "description"
+            },
+            "fieldType": "description",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "description",
+                "type": "ID",
+                "value": "description"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "First Name"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                "type": "NAME",
+                "value": "First Name"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Last Name"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                "type": "NAME",
+                "value": "Last Name"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Email Address"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                "type": "NAME",
+                "value": "Email Address"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Phone Number"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                "type": "NAME",
+                "value": "Phone Number"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Recruiting Coordinator"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                "type": "NAME",
+                "value": "Recruiting Coordinator"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Recruiter"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                "type": "NAME",
+                "value": "Recruiter"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "IT Onboarding Coordinator"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                "type": "NAME",
+                "value": "IT Onboarding Coordinator"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Administrator"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                "type": "NAME",
+                "value": "Administrator"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Operations Manager"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                "type": "NAME",
+                "value": "Operations Manager"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "HR Business Partner"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                "type": "NAME",
+                "value": "HR Business Partner"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "LinkedIn Profile"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:url",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:url",
+                "type": "NAME",
+                "value": "LinkedIn Profile"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "New Hire Address"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                "type": "NAME",
+                "value": "New Hire Address"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Hiring Manager"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                "type": "NAME",
+                "value": "Hiring Manager"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Equipment Choice"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "Equipment Choice"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Employee Start Date"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:datepicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:datepicker",
+                "type": "NAME",
+                "value": "Employee Start Date"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "IT Collaborators"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:grouppicker",
+            "type": "SET",
+            "value": {
+              "type": "GROUP_ID",
+              "value": "3545c28f-44ce-46cd-b6be-68f166fa811b"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Office Location"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "Office Location"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Mentor"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                "type": "NAME",
+                "value": "Mentor"
+              },
+              "sourceIssue": "trigger"
+            }
+          }
+        ],
+        "sendNotifications": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555650265",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.refresh.issue",
+      "value": {
+        "delayMs": null
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555650270",
+          "parentId": "555650268",
+          "schemaVersion": 1,
+          "type": "jira.issue.outgoing.webhook",
+          "value": {
+            "contentType": "empty",
+            "continueOnErrorEnabled": false,
+            "customBody": null,
+            "headers": [
+              {
+                "headerSecure": false,
+                "id": "_header_1717087096198",
+                "name": "Accept",
+                "value": ""
+              },
+              {
+                "headerSecure": false,
+                "id": "_header_1717087191064",
+                "name": "Authorization",
+                "value": "Basic Y2tsZWluNTBAZm9yZC5jb206QVRBVFQzeEZmR0YwazNaRzJjVDFWM09MNVF5VjRzdUo4OWhXYTROREFpSzRKV3dQVU1ua3dhdEdNR2hia3U0VGZ2NkdtTUUzSGNxSHpWc3RrdFR4VVFnTkR2djJLSmZ5QlRyY1R4MUh3bFdPVEJORUZFN2ZxaVpsWTNxQm4tZ1BTZDA2bHNnV0w2c1RuTmVpT3R0VkYzX29fOVYyNjB0MG5hNE05RkRTUU55WGJxVVJDUnctSmdrPTM3NUIwNjc1"
+              }
+            ],
+            "method": "GET",
+            "responseEnabled": true,
+            "sendIssue": false,
+            "url": "https://ford-advev.atlassian.net/rest/api/3/groups/picker?query={{issue.IT Collaborators.name.urlEncode}}&maxResults=1",
+            "urlSecure": false
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555650273",
+          "parentId": "555650268",
+          "schemaVersion": 1,
+          "type": "jira.issue.outgoing.webhook",
+          "value": {
+            "contentType": "empty",
+            "continueOnErrorEnabled": false,
+            "customBody": null,
+            "headers": [
+              {
+                "headerSecure": false,
+                "id": "_header_1717087289143",
+                "name": "Accept",
+                "value": ""
+              },
+              {
+                "headerSecure": false,
+                "id": "_header_1717087382198",
+                "name": "Authorization",
+                "value": "Basic Y2tsZWluNTBAZm9yZC5jb206QVRBVFQzeEZmR0YwazNaRzJjVDFWM09MNVF5VjRzdUo4OWhXYTROREFpSzRKV3dQVU1ua3dhdEdNR2hia3U0VGZ2NkdtTUUzSGNxSHpWc3RrdFR4VVFnTkR2djJLSmZ5QlRyY1R4MUh3bFdPVEJORUZFN2ZxaVpsWTNxQm4tZ1BTZDA2bHNnV0w2c1RuTmVpT3R0VkYzX29fOVYyNjB0MG5hNE05RkRTUU55WGJxVVJDUnctSmdrPTM3NUIwNjc1"
+              }
+            ],
+            "method": "GET",
+            "responseEnabled": true,
+            "sendIssue": false,
+            "url": "https://ford-advev.atlassian.net/rest/api/3/group/member?groupId={{webResponse.body.groups.groupId}}",
+            "urlSecure": false
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555650276",
+          "parentId": "555650268",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Collaborators"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                "type": "SET",
+                "value": [
+                  {
+                    "type": "SMART",
+                    "value": "{{webResponse.body.values.accountId}}"
+                  },
+                  {
+                    "type": "COPY",
+                    "value": "current"
+                  }
+                ]
+              }
+            ],
+            "sendNotifications": true
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555650278",
+          "parentId": "555650268",
+          "schemaVersion": 1,
+          "type": "jira.issue.refresh.issue",
+          "value": {
+            "delayMs": null
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555650268",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555650286",
+          "parentId": "555650284",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Collaborators"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                "type": "SET",
+                "value": [
+                  {
+                    "type": "SMART",
+                    "value": "{{webResponse.body.values.accountId}}"
+                  },
+                  {
+                    "type": "COPY",
+                    "value": "current"
+                  }
+                ]
+              }
+            ],
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555650284",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "recentlycreated",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1694842757936,
+  "description": "",
+  "id": 14846724,
+  "idUuid": "018a9c80-2330-794c-96ec-f3186509353c",
+  "labels": [
+    423959,
+    423965
+  ],
+  "name": "Create IT Tasks",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10015"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10015"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "555650256",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10015"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1751314934162,
+  "writeAccessType": "UNRESTRICTED"
+}

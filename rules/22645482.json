@@ -1,0 +1,539 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:10e644de-d96b-4816-9029-d6cf8f0aec37",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "620715300",
+              "parentId": "620715298",
+              "schemaVersion": 12,
+              "type": "jira.issue.clone",
+              "value": {
+                "advancedFields": "",
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "project"
+                    },
+                    "fieldType": "project",
+                    "type": "SET",
+                    "value": {
+                      "type": "COPY",
+                      "value": "current"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "issuetype"
+                    },
+                    "fieldType": "issuetype",
+                    "type": "SET",
+                    "value": {
+                      "type": "COPY",
+                      "value": "current"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "summary"
+                    },
+                    "fieldType": "summary",
+                    "type": "SET",
+                    "value": "CLONE - {{issue.summary}}"
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "issuelinks"
+                    },
+                    "fieldType": "issuelinks",
+                    "type": "SET",
+                    "value": {
+                      "issue": {
+                        "type": "COPY",
+                        "value": "trigger"
+                      },
+                      "linkType": "outward:10001"
+                    }
+                  }
+                ],
+                "sendNotifications": false
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "620715302",
+                  "parentId": "620715301",
+                  "schemaVersion": 1,
+                  "type": "jira.create.variable",
+                  "value": {
+                    "id": "_customsmartvalue_id_1730133982234",
+                    "lazy": false,
+                    "name": {
+                      "type": "FREE",
+                      "value": "ikey"
+                    },
+                    "query": {
+                      "type": "SMART",
+                      "value": "{{issue.key}}"
+                    },
+                    "type": "SMART"
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "620715303",
+                  "parentId": "620715301",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.clone",
+                  "value": {
+                    "advancedFields": "{\n    \"update\": {\n        \"labels\": [\n            {\n                \"add\": \"cloned\"\n            }\n        ],\n        \"issuelinks\": [\n            {\n                \"add\": {\n                    \"type\": {\n                        \"name\": \"Cloners\"\n                    },\n                    \"outwardIssue\": {\n                        \"key\": \"{{ikey}}\"\n                    }\n                }\n            }\n        ]\n    }\n}",
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "project"
+                        },
+                        "fieldType": "project",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "issuetype"
+                        },
+                        "fieldType": "issuetype",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "summary"
+                        },
+                        "fieldType": "summary",
+                        "type": "SET",
+                        "value": "CLONE - {{issue.summary}}"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "parent"
+                        },
+                        "fieldType": "parent",
+                        "type": "SET",
+                        "value": {
+                          "type": "SMART",
+                          "value": "{{createdIssue}}"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "labels"
+                        },
+                        "fieldType": "labels",
+                        "type": "SET",
+                        "value": [
+                          {
+                            "type": "FREE",
+                            "value": "cloned"
+                          }
+                        ]
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "issuelinks"
+                        },
+                        "fieldType": "issuelinks",
+                        "type": "SET",
+                        "value": {
+                          "issue": {
+                            "type": "COPY",
+                            "value": "trigger"
+                          },
+                          "linkType": "inward:10000"
+                        }
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                }
+              ],
+              "component": "BRANCH",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "620715301",
+              "parentId": "620715298",
+              "schemaVersion": 1,
+              "type": "jira.issue.related",
+              "value": {
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [],
+                "onlyUpdatedIssues": false,
+                "relatedType": "children",
+                "similarityLimit": 40
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "620715298",
+              "conditions": [],
+              "connectionId": null,
+              "id": "620715299",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{userInputs.pkey}}",
+                "operator": "EQUALS",
+                "second": ""
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "620715298",
+          "parentId": "620715297",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "620715305",
+              "parentId": "620715304",
+              "schemaVersion": 12,
+              "type": "jira.issue.clone",
+              "value": {
+                "advancedFields": "{\n\"fields\": {\n\"project\": {\n\"key\": \"{{userInputs.pkey}}\"\n}\n}\n}",
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "project"
+                    },
+                    "fieldType": "project",
+                    "type": "SET",
+                    "value": {
+                      "type": "COPY",
+                      "value": "current"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "issuetype"
+                    },
+                    "fieldType": "issuetype",
+                    "type": "SET",
+                    "value": {
+                      "type": "COPY",
+                      "value": "current"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "summary"
+                    },
+                    "fieldType": "summary",
+                    "type": "SET",
+                    "value": "CLONE - {{issue.summary}}"
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "issuelinks"
+                    },
+                    "fieldType": "issuelinks",
+                    "type": "SET",
+                    "value": {
+                      "issue": {
+                        "type": "COPY",
+                        "value": "trigger"
+                      },
+                      "linkType": "outward:10001"
+                    }
+                  }
+                ],
+                "sendNotifications": false
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "620715307",
+                  "parentId": "620715306",
+                  "schemaVersion": 1,
+                  "type": "jira.create.variable",
+                  "value": {
+                    "id": "_customsmartvalue_id_1730134759081",
+                    "lazy": false,
+                    "name": {
+                      "type": "FREE",
+                      "value": "ikey"
+                    },
+                    "query": {
+                      "type": "SMART",
+                      "value": "{{issue.key}}"
+                    },
+                    "type": "SMART"
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "620715308",
+                  "parentId": "620715306",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.clone",
+                  "value": {
+                    "advancedFields": "{\n    \"update\": {\n      \"fields\": \n\"project\": {\n\"key\": \"{{userInputs.pkey}}\"\n},\n        \"labels\": [\n            {\n                \"add\": \"cloned\"\n            }\n        ],\n        \"issuelinks\": [\n            {\n                \"add\": {\n                    \"type\": {\n                        \"name\": \"Cloners\"\n                    },\n                    \"outwardIssue\": {\n                        \"key\": \"{{ikey}}\"\n                    }\n                }\n            }\n        ]\n    }\n}",
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "project"
+                        },
+                        "fieldType": "project",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "issuetype"
+                        },
+                        "fieldType": "issuetype",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "summary"
+                        },
+                        "fieldType": "summary",
+                        "type": "SET",
+                        "value": "CLONE - {{issue.summary}}"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "parent"
+                        },
+                        "fieldType": "parent",
+                        "type": "SET",
+                        "value": {
+                          "type": "SMART",
+                          "value": "{{createdIssue}}"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "labels"
+                        },
+                        "fieldType": "labels",
+                        "type": "SET",
+                        "value": [
+                          {
+                            "type": "FREE",
+                            "value": "cloned"
+                          }
+                        ]
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "issuelinks"
+                        },
+                        "fieldType": "issuelinks",
+                        "type": "SET",
+                        "value": {
+                          "issue": {
+                            "type": "COPY",
+                            "value": "trigger"
+                          },
+                          "linkType": "inward:10000"
+                        }
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                }
+              ],
+              "component": "BRANCH",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "620715306",
+              "parentId": "620715304",
+              "schemaVersion": 1,
+              "type": "jira.issue.related",
+              "value": {
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [],
+                "onlyUpdatedIssues": false,
+                "relatedType": "children",
+                "similarityLimit": 40
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "620715304",
+          "parentId": "620715297",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "620715297",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1730130784834,
+  "description": "",
+  "id": 22645482,
+  "idUuid": "0192d3d4-b242-7e5a-9f75-245a8362445d",
+  "labels": [],
+  "name": "Clone Epic - 1",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "620715296",
+    "parentId": null,
+    "schemaVersion": 3,
+    "type": "jira.manual.trigger.issue",
+    "value": {
+      "groups": [
+        "eb1ca4aa-ef6d-4ce3-85da-491987b1bc80"
+      ],
+      "inputFromUsers": true,
+      "inputPrompts": [
+        {
+          "defaultValue": "",
+          "displayName": "Project Key:  Input new Project Key if you need to clone to a separate project. (Please keep empty if cloning to the same project).",
+          "inputType": "TEXT",
+          "required": false,
+          "variableName": "pkey"
+        },
+        {
+          "defaultValue": [
+            "I undertstand"
+          ],
+          "displayName": "I understand that I will be making a clone of this Epic, it's current children (tasks), and it's grandchildren (Subtasks).",
+          "inputType": "DROPDOWN",
+          "required": true,
+          "variableName": "attest"
+        }
+      ],
+      "issueFilter": {
+        "filterType": "ISSUE_TYPE",
+        "value": [
+          "Epic"
+        ]
+      },
+      "jQLFilter": null
+    }
+  },
+  "updated": 1730318301635,
+  "writeAccessType": "UNRESTRICTED"
+}

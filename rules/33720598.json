@@ -1,0 +1,492 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "25d59f4f-b661-4d51-8b10-2461bbb65a73",
+              "parentId": "d2ab5a7e-5634-46b9-b15f-57dcddaf78c5",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": "{\n  \"update\": {\n    \"customfield_21781\": [\n      {\n        \"remove\": { \"value\": \"None \" }\n      }\n    ]\n  }\n}",
+                "operations": [],
+                "sendNotifications": false
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "d2ab5a7e-5634-46b9-b15f-57dcddaf78c5",
+              "conditions": [],
+              "connectionId": null,
+              "id": "7c4bdb29-5d7b-4aa3-9cfc-8ac5a00b7bfd",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": null,
+                "comparison": "NOT_EMPTY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Run @ Rate"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "d2ab5a7e-5634-46b9-b15f-57dcddaf78c5",
+              "conditions": [],
+              "connectionId": null,
+              "id": "05231041-809f-4a53-81ec-ec6f2cabe95a",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "[\"No - Are Sample Production Parts\",\"No - Less Run at Rate (PPAP Phase 0)\",\"No - Measurement System Analysis (MS) Incomplete\",\"Yes - Run at Rate Achieved\"]"
+                },
+                "comparison": "CONTAINS_ANY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Run @ Rate"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "d2ab5a7e-5634-46b9-b15f-57dcddaf78c5",
+          "parentId": "5215ac2f-f70f-4c44-b8e7-11deb4caa02d",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "5215ac2f-f70f-4c44-b8e7-11deb4caa02d",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "bbcf8c13-2d77-433d-8b32-4c1847a328d3",
+              "parentId": "b6c9cd39-4dbf-4b3d-8812-0fdd000bdb54",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": "{\n  \"update\": {\n    \"customfield_21782\": [\n      {\n        \"remove\": { \"value\": \"None \" }\n      }\n    ]\n  }\n}",
+                "operations": [],
+                "sendNotifications": false
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "b6c9cd39-4dbf-4b3d-8812-0fdd000bdb54",
+              "conditions": [],
+              "connectionId": null,
+              "id": "551e3c9f-562a-4492-b8ba-ec031014c2e9",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": null,
+                "comparison": "NOT_EMPTY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Less Paper / Sample"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "b6c9cd39-4dbf-4b3d-8812-0fdd000bdb54",
+              "conditions": [],
+              "connectionId": null,
+              "id": "a7d51648-e0d9-450f-8be7-a1c4ac30b167",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "[\"No\",\"Yes - Control Plans\",\"Yes - Design FMEA\",\"Yes - Design Records\",\"Yes - Engineering Approval\",\"Yes - Process Flow Diagrams\",\"Yes - Process FMEA\",\"Yes - Qualified Laboratory Documentation\"]"
+                },
+                "comparison": "CONTAINS_ANY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Less Paper / Sample"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "b6c9cd39-4dbf-4b3d-8812-0fdd000bdb54",
+          "parentId": "b3055461-c776-414f-b0df-595522a3022b",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "b3055461-c776-414f-b0df-595522a3022b",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "66c3c040-ac92-4251-b032-f5e28055a802",
+              "parentId": "8bc13525-f628-42a3-b25f-f32971e3d772",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": "{\n  \"update\": {\n    \"customfield_21783\": [\n      {\n        \"remove\": { \"value\": \"None \" }\n      }\n    ]\n  }\n}",
+                "operations": [],
+                "sendNotifications": false
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "8bc13525-f628-42a3-b25f-f32971e3d772",
+              "conditions": [],
+              "connectionId": null,
+              "id": "9d6e792f-bbf2-416e-84cb-f2a6fa7499a8",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": null,
+                "comparison": "NOT_EMPTY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "PSW'd"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "8bc13525-f628-42a3-b25f-f32971e3d772",
+              "conditions": [],
+              "connectionId": null,
+              "id": "02424f80-7d74-45a9-890b-1b6fd0d36ab9",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "[\"N/A\",\"Use PPAP Phase 1 part (Phase 2 is required)\",\"Use PPAP Phase 2 part (Phase 3 is required)\"]"
+                },
+                "comparison": "CONTAINS_ANY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "PSW'd"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "8bc13525-f628-42a3-b25f-f32971e3d772",
+          "parentId": "e1662a2b-578f-45cb-929f-78068e1cebd4",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "e1662a2b-578f-45cb-929f-78068e1cebd4",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "aaf4fc07-0361-41c2-922c-e4b02cddcf53",
+              "parentId": "0f2d510e-0b17-455b-9ffc-60bab000ffed",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": "{\n  \"update\": {\n    \"customfield_14979\": [\n      {\n        \"remove\": { \"value\": \"None\" }\n      }\n    ]\n  }\n}",
+                "operations": [],
+                "sendNotifications": false
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "0f2d510e-0b17-455b-9ffc-60bab000ffed",
+              "conditions": [],
+              "connectionId": null,
+              "id": "ce35e00b-a1c4-4b6c-8fb9-2ee8c3563431",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": null,
+                "comparison": "NOT_EMPTY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Model Year "
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "0f2d510e-0b17-455b-9ffc-60bab000ffed",
+              "conditions": [],
+              "connectionId": null,
+              "id": "3e6b21be-0b8c-467f-ae33-2eaf1681e731",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "[\"MY2028\",\"MY2029\",\"MY2030\"]"
+                },
+                "comparison": "CONTAINS_ANY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Model Year "
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "0f2d510e-0b17-455b-9ffc-60bab000ffed",
+          "parentId": "a2373ac0-97d1-4b7b-ac0d-41a78dda1253",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "a2373ac0-97d1-4b7b-ac0d-41a78dda1253",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1782221799353,
+  "description": "This automation removes the None value when a multi-select fields have other valid values",
+  "id": 33720598,
+  "idUuid": "019ef4b2-7fba-791c-ae9d-2af0a115cf7a",
+  "labels": [],
+  "name": "SOLVE: Build Deviation - Remove “None” When Valid Multi-Select Values Exist",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "cc106888-dd07-4428-8f35-398837cbaed4",
+        "conditions": [],
+        "connectionId": null,
+        "id": "b115d58d-1a27-412b-84b9-0117c77f6765",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "NAME",
+            "value": "In-Work"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "status"
+          },
+          "selectedFieldType": "status"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "cc106888-dd07-4428-8f35-398837cbaed4",
+        "conditions": [],
+        "connectionId": null,
+        "id": "7e5dfcfb-12d8-41b7-a29b-ca86964c39b6",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "12654"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "cc106888-dd07-4428-8f35-398837cbaed4",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [
+        "edit"
+      ],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Run @ Rate"
+        },
+        {
+          "type": "fieldName",
+          "value": "Less Paper / Sample"
+        },
+        {
+          "type": "fieldName",
+          "value": "PSW'd"
+        },
+        {
+          "type": "fieldName",
+          "value": "Model Year "
+        }
+      ]
+    }
+  },
+  "updated": 1782742456728,
+  "writeAccessType": "OWNER_ONLY"
+}

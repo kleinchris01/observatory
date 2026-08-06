@@ -1,0 +1,193 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "617563467",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.condition.query",
+      "value": {
+        "cmdbField": "customfield_11921",
+        "cmdbQuery": "objectType in (\"Part Inventory\", \"Harness Inventory\", \"Connector Inventory\", \"Terminal Inventory\", \"Specialty Tools Inventory\") AND updated >= \"now(-1m)\"",
+        "type": "ISSUE"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "617563468",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.lookup.objects",
+      "value": {
+        "customSmartValue": {
+          "id": "_customsmartvalue_id_1726269815384",
+          "lazy": false,
+          "name": {
+            "type": "FREE",
+            "value": "lookupObjects"
+          },
+          "query": {
+            "type": "SMART",
+            "value": "Key IN ({{object.Part.key}})"
+          },
+          "type": "IQL"
+        },
+        "schemaId": "15",
+        "searchResultsLimit": 100,
+        "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "617563469",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "Part = {{lookupObjects.key}}"
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "617563471",
+          "parentId": "617563470",
+          "schemaVersion": 1,
+          "type": "cmdb.lookup.objects",
+          "value": {
+            "customSmartValue": {
+              "id": "_customsmartvalue_id_1726269815384",
+              "lazy": false,
+              "name": {
+                "type": "FREE",
+                "value": "lookupObjects"
+              },
+              "query": {
+                "type": "SMART",
+                "value": "key IN ({{lookupObjects.Parts.Current Location.key}})"
+              },
+              "type": "IQL"
+            },
+            "schemaId": "15",
+            "searchResultsLimit": 100,
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "617563472",
+          "parentId": "617563470",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "location name = ({{lookupObjects.Name}})"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "617563473",
+          "parentId": "617563470",
+          "schemaVersion": 1,
+          "type": "cmdb.object.edit.attributes",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": null,
+                "name": "Current Location",
+                "value": "{{lookupObjects.Name}}"
+              }
+            ]
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "617563470",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.object.related",
+      "value": {
+        "cmdbQuery": "key IN ({{lookupObjects.key}})",
+        "schemaId": "15",
+        "schemaLabel": "Part Inventory Management",
+        "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+      }
+    }
+  ],
+  "created": 1726270314017,
+  "description": "",
+  "id": 21890321,
+  "idUuid": "0191edba-9621-7634-83ab-abfb23481b5c",
+  "labels": [
+    846526,
+    849622
+  ],
+  "name": "Update Part Object Location include all locations of inventory",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "617563466",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "cmdb.object.trigger",
+    "value": {
+      "operation": "UPDATED",
+      "schemaId": "15",
+      "schemaLabel": "Part Inventory Management",
+      "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+    }
+  },
+  "updated": 1729891674614,
+  "writeAccessType": "UNRESTRICTED"
+}

@@ -1,0 +1,1707 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:10e644de-d96b-4816-9029-d6cf8f0aec37",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "a8096566-bf71-4e9c-bf5c-ff33339a35e2",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1776966810015",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "jiraauth"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "Basic anBvbG1hbjFAZm9yZC5jb206QVRBVFQzeEZmR0Ywemc3QjhyUjFyamhMTjdmUXZ6RVdhZW9MV1h3YWF1aVhhNDhUTGR5c0o3WVk1UVcxZXJMTzl2S211aWFMRXZBQjV3bGlFSk1iakpyQ1pUYkw2SXp2WnU2YUdVUGtwQS1rWl9JZVp0cFlkZmhVVUIxS0JSMFcyeEtvUEYzdTd1RWJ4eXYwa1h1YW5zQUNXTG5jYnc4WjlQeTE1RFZ2MVNucWRQdFYwR3UwNmxRPTc4Mjc5MDRD"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "8a0534f5-5ec7-4a2a-8f3e-c41bde78edf2",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "{{jiraauth}}"
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "631995150",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "Project ID: {{customfield_11373.Project_Id}}"
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "631995151",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.lookup.objects",
+      "value": {
+        "customSmartValue": {
+          "id": "_customsmartvalue_id_1675450616570",
+          "lazy": false,
+          "name": {
+            "type": "FREE",
+            "value": "lookupObjects"
+          },
+          "query": {
+            "type": "SMART",
+            "value": "Project_Id = {{customfield_11373.Project_Id}}"
+          },
+          "type": "IQL"
+        },
+        "schemaId": "2",
+        "searchResultsLimit": 100,
+        "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "631995154",
+                      "parentId": "714299431",
+                      "schemaVersion": 1,
+                      "type": "jira.issue.outgoing.webhook",
+                      "value": {
+                        "contentType": "custom",
+                        "continueOnErrorEnabled": true,
+                        "customBody": "{\n  \"user\": [\n    \"{{issue.reporter}}\"\n  ]\n}",
+                        "headers": [
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1699931012220",
+                            "name": "Accept",
+                            "value": "application/json"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1699931470666",
+                            "name": "Content-Type",
+                            "value": "application/json"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1699931494446",
+                            "name": "Authorization",
+                            "value": "{{jiraauth}}"
+                          }
+                        ],
+                        "method": "POST",
+                        "responseEnabled": true,
+                        "sendIssue": false,
+                        "url": "https://ford-advev.atlassian.net/rest/api/3/project/{{lookupObjects.Project_Id}}/role/10018",
+                        "urlSecure": false
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714297544",
+                      "parentId": "714299431",
+                      "schemaVersion": 1,
+                      "type": "codebarrel.action.log",
+                      "value": "Response: {{webhookResponse}}"
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "714299431",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714299432",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": {
+                          "modifier": null,
+                          "multiValue": false,
+                          "source": null,
+                          "type": "NAME",
+                          "value": "Viewer only"
+                        },
+                        "comparison": "EQUALS",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "Project Role"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:radiobuttons"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "714299431",
+                  "parentId": "714299430",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "631995162",
+                      "parentId": "714299433",
+                      "schemaVersion": 1,
+                      "type": "jira.issue.outgoing.webhook",
+                      "value": {
+                        "contentType": "custom",
+                        "continueOnErrorEnabled": false,
+                        "customBody": "{\n  \"user\": [\n    \"{{issue.reporter}}\"\n  ]\n}",
+                        "headers": [
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1699931012220",
+                            "name": "Accept",
+                            "value": "application/json"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1699931470666",
+                            "name": "Content-Type",
+                            "value": "application/json"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1699931494446",
+                            "name": "Authorization",
+                            "value": "{{jiraauth}}"
+                          }
+                        ],
+                        "method": "POST",
+                        "responseEnabled": true,
+                        "sendIssue": false,
+                        "url": "https://ford-advev.atlassian.net/rest/api/3/project/{{lookupObjects.Project_Id}}/role/10009",
+                        "urlSecure": false
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714299435",
+                      "parentId": "714299433",
+                      "schemaVersion": 1,
+                      "type": "codebarrel.action.log",
+                      "value": "Response: {{webhookResponse}}"
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "714299433",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714299434",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": {
+                          "modifier": null,
+                          "multiValue": false,
+                          "source": null,
+                          "type": "NAME",
+                          "value": "Commenter (View + comment)"
+                        },
+                        "comparison": "EQUALS",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "Project Role"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:radiobuttons"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "714299433",
+                  "parentId": "714299430",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "631995170",
+                      "parentId": "714299436",
+                      "schemaVersion": 1,
+                      "type": "jira.issue.outgoing.webhook",
+                      "value": {
+                        "contentType": "custom",
+                        "continueOnErrorEnabled": true,
+                        "customBody": "{\n  \"user\": [\n    \"{{issue.reporter}}\"\n  ]\n}",
+                        "headers": [
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1699931012220",
+                            "name": "Accept",
+                            "value": "application/json"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1699931470666",
+                            "name": "Content-Type",
+                            "value": "application/json"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1699931494446",
+                            "name": "Authorization",
+                            "value": "{{jiraauth}}"
+                          }
+                        ],
+                        "method": "POST",
+                        "responseEnabled": true,
+                        "sendIssue": false,
+                        "url": "https://ford-advev.atlassian.net/rest/api/3/project/{{lookupObjects.Project_Id}}/role/10011",
+                        "urlSecure": false
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714299438",
+                      "parentId": "714299436",
+                      "schemaVersion": 1,
+                      "type": "codebarrel.action.log",
+                      "value": "Response: {{webhookResponse}}"
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "714299436",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714299437",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": {
+                          "modifier": null,
+                          "multiValue": false,
+                          "source": null,
+                          "type": "NAME",
+                          "value": "Creator (All of above + create, assign, assignable, change status | cannot edit)"
+                        },
+                        "comparison": "EQUALS",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "Project Role"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:radiobuttons"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "714299436",
+                  "parentId": "714299430",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "631995178",
+                      "parentId": "714299439",
+                      "schemaVersion": 1,
+                      "type": "jira.issue.outgoing.webhook",
+                      "value": {
+                        "contentType": "custom",
+                        "continueOnErrorEnabled": true,
+                        "customBody": "{\n  \"user\": [\n    \"{{issue.reporter}}\"\n  ]\n}",
+                        "headers": [
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1699931012220",
+                            "name": "Accept",
+                            "value": "application/json"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1699931470666",
+                            "name": "Content-Type",
+                            "value": "application/json"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1699931494446",
+                            "name": "Authorization",
+                            "value": "{{jiraauth}}"
+                          }
+                        ],
+                        "method": "POST",
+                        "responseEnabled": true,
+                        "sendIssue": false,
+                        "url": "https://ford-advev.atlassian.net/rest/api/3/project/{{lookupObjects.Project_Id}}/role/10010",
+                        "urlSecure": false
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714299441",
+                      "parentId": "714299439",
+                      "schemaVersion": 1,
+                      "type": "codebarrel.action.log",
+                      "value": "Response: {{webhookResponse}}"
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "714299439",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714299440",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": {
+                          "modifier": null,
+                          "multiValue": false,
+                          "source": null,
+                          "type": "NAME",
+                          "value": "Editor (All of the above + edit + delete own comments + close issues)"
+                        },
+                        "comparison": "EQUALS",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "Project Role"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:radiobuttons"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "714299439",
+                  "parentId": "714299430",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "631995186",
+                      "parentId": "714299442",
+                      "schemaVersion": 1,
+                      "type": "jira.issue.outgoing.webhook",
+                      "value": {
+                        "contentType": "custom",
+                        "continueOnErrorEnabled": true,
+                        "customBody": "{\n  \"user\": [\n    \"{{issue.reporter}}\"\n  ]\n}",
+                        "headers": [
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1699931012220",
+                            "name": "Accept",
+                            "value": "application/json"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1699931470666",
+                            "name": "Content-Type",
+                            "value": "application/json"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1699931494446",
+                            "name": "Authorization",
+                            "value": "{{jiraauth}}"
+                          }
+                        ],
+                        "method": "POST",
+                        "responseEnabled": true,
+                        "sendIssue": false,
+                        "url": "https://ford-advev.atlassian.net/rest/api/3/project/{{lookupObjects.Project_Id}}/role/10008",
+                        "urlSecure": false
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714299444",
+                      "parentId": "714299442",
+                      "schemaVersion": 1,
+                      "type": "codebarrel.action.log",
+                      "value": "Response: {{webhookResponse}}"
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "714299442",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714299443",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": {
+                          "modifier": null,
+                          "multiValue": false,
+                          "source": null,
+                          "type": "NAME",
+                          "value": "Developer (ie, Power Users: All of above + Move, Archive, Manage Sprints; cannot approve new members or administer the project)"
+                        },
+                        "comparison": "EQUALS",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "Project Role"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:radiobuttons"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "714299442",
+                  "parentId": "714299430",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "631995194",
+                      "parentId": "714299445",
+                      "schemaVersion": 1,
+                      "type": "jira.issue.outgoing.webhook",
+                      "value": {
+                        "contentType": "custom",
+                        "continueOnErrorEnabled": true,
+                        "customBody": "{\n  \"user\": [\n    \"{{issue.reporter}}\"\n  ]\n}",
+                        "headers": [
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1699931012220",
+                            "name": "Accept",
+                            "value": "application/json"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1699931470666",
+                            "name": "Content-Type",
+                            "value": "application/json"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1699931494446",
+                            "name": "Authorization",
+                            "value": "{{jiraauth}}"
+                          }
+                        ],
+                        "method": "POST",
+                        "responseEnabled": true,
+                        "sendIssue": false,
+                        "url": "https://ford-advev.atlassian.net/rest/api/3/project/{{lookupObjects.Project_Id}}/role/10002",
+                        "urlSecure": false
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714299447",
+                      "parentId": "714299445",
+                      "schemaVersion": 1,
+                      "type": "codebarrel.action.log",
+                      "value": "Response: {{webhookResponse}}"
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "714299445",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714299446",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": {
+                          "modifier": null,
+                          "multiValue": false,
+                          "source": null,
+                          "type": "NAME",
+                          "value": "Administrator (All of above + Delete issues, access project settings. Please reach out to the Project Owner before submitting this request)"
+                        },
+                        "comparison": "EQUALS",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "Project Role"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:radiobuttons"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "714299445",
+                  "parentId": "714299430",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                }
+              ],
+              "component": "CONDITION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "714299430",
+              "parentId": "714299428",
+              "schemaVersion": 1,
+              "type": "jira.condition.container.block",
+              "value": null
+            },
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "371ff22f-1363-402d-aefc-210c800d59c1",
+                      "parentId": "37be9605-b79e-4212-9142-1ab647b6d130",
+                      "schemaVersion": 11,
+                      "type": "jira.issue.transition",
+                      "value": {
+                        "advancedFields": null,
+                        "destinationStatus": {
+                          "type": "NAME",
+                          "value": "Done"
+                        },
+                        "operations": [],
+                        "sendNotifications": true,
+                        "transitionMatch": ""
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "37be9605-b79e-4212-9142-1ab647b6d130",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "024efafb-d905-4016-9b43-e54fddbc5146",
+                      "parentId": null,
+                      "schemaVersion": 1,
+                      "type": "jira.comparator.condition",
+                      "value": {
+                        "first": "{{webhookResponse}}",
+                        "operator": "REGEX_CONTAINS",
+                        "second": "already a member"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "37be9605-b79e-4212-9142-1ab647b6d130",
+                  "parentId": "f28ffb47-5bf4-4de7-bf38-f54ece65b0c9",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "631995159",
+                      "parentId": "18e8c9a0-4e26-40bf-bb1f-346dd41ebd68",
+                      "schemaVersion": 11,
+                      "type": "jira.issue.transition",
+                      "value": {
+                        "advancedFields": null,
+                        "destinationStatus": {
+                          "type": "NAME",
+                          "value": "Access Check"
+                        },
+                        "operations": [],
+                        "sendNotifications": true,
+                        "transitionMatch": ""
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "18e8c9a0-4e26-40bf-bb1f-346dd41ebd68",
+                  "parentId": "f28ffb47-5bf4-4de7-bf38-f54ece65b0c9",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                }
+              ],
+              "component": "CONDITION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "f28ffb47-5bf4-4de7-bf38-f54ece65b0c9",
+              "parentId": "714299428",
+              "schemaVersion": 1,
+              "type": "jira.condition.container.block",
+              "value": null
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "714299428",
+              "conditions": [],
+              "connectionId": null,
+              "id": "714299429",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "Internal"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Employee Type"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:radiobuttons"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "714299428",
+          "parentId": "714299427",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "631995158",
+                      "parentId": "714299451",
+                      "schemaVersion": 1,
+                      "type": "jira.issue.outgoing.webhook",
+                      "value": {
+                        "contentType": "custom",
+                        "continueOnErrorEnabled": true,
+                        "customBody": "{\n  \"user\": [\n    \"{{issue.reporter}}\"\n  ]\n}",
+                        "headers": [
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1699931012220",
+                            "name": "Accept",
+                            "value": "application/json"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1699931470666",
+                            "name": "Content-Type",
+                            "value": "application/json"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1699931494446",
+                            "name": "Authorization",
+                            "value": "{{jiraauth}}"
+                          }
+                        ],
+                        "method": "POST",
+                        "responseEnabled": true,
+                        "sendIssue": false,
+                        "url": "https://ford-advev.atlassian.net/rest/api/3/project/{{lookupObjects.Project_Id}}/role/10053",
+                        "urlSecure": false
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714297545",
+                      "parentId": "714299451",
+                      "schemaVersion": 1,
+                      "type": "codebarrel.action.log",
+                      "value": "Response: {{webhookResponse}}"
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "714299451",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714299452",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": {
+                          "modifier": null,
+                          "multiValue": false,
+                          "source": null,
+                          "type": "NAME",
+                          "value": "Viewer-EXTERNAL"
+                        },
+                        "comparison": "EQUALS",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "External Project Role"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "714299451",
+                  "parentId": "714299450",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "631995166",
+                      "parentId": "714299453",
+                      "schemaVersion": 1,
+                      "type": "jira.issue.outgoing.webhook",
+                      "value": {
+                        "contentType": "custom",
+                        "continueOnErrorEnabled": false,
+                        "customBody": "{\n  \"user\": [\n    \"{{issue.reporter}}\"\n  ]\n}",
+                        "headers": [
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1699931012220",
+                            "name": "Accept",
+                            "value": "application/json"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1699931470666",
+                            "name": "Content-Type",
+                            "value": "application/json"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1699931494446",
+                            "name": "Authorization",
+                            "value": "{{jiraauth}}"
+                          }
+                        ],
+                        "method": "POST",
+                        "responseEnabled": true,
+                        "sendIssue": false,
+                        "url": "https://ford-advev.atlassian.net/rest/api/3/project/{{lookupObjects.Project_Id}}/role/10052",
+                        "urlSecure": false
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714299455",
+                      "parentId": "714299453",
+                      "schemaVersion": 1,
+                      "type": "codebarrel.action.log",
+                      "value": "Response: {{webhookResponse}}"
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "714299453",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714299454",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": {
+                          "modifier": null,
+                          "multiValue": false,
+                          "source": null,
+                          "type": "NAME",
+                          "value": "Comment-EXTERNAL"
+                        },
+                        "comparison": "EQUALS",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "External Project Role"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "714299453",
+                  "parentId": "714299450",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "631995174",
+                      "parentId": "714299456",
+                      "schemaVersion": 1,
+                      "type": "jira.issue.outgoing.webhook",
+                      "value": {
+                        "contentType": "custom",
+                        "continueOnErrorEnabled": true,
+                        "customBody": "{\n  \"user\": [\n    \"{{issue.reporter}}\"\n  ]\n}",
+                        "headers": [
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1699931012220",
+                            "name": "Accept",
+                            "value": "application/json"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1699931470666",
+                            "name": "Content-Type",
+                            "value": "application/json"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1699931494446",
+                            "name": "Authorization",
+                            "value": "{{jiraauth}}"
+                          }
+                        ],
+                        "method": "POST",
+                        "responseEnabled": true,
+                        "sendIssue": false,
+                        "url": "https://ford-advev.atlassian.net/rest/api/3/project/{{lookupObjects.Project_Id}}/role/10054",
+                        "urlSecure": false
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714299458",
+                      "parentId": "714299456",
+                      "schemaVersion": 1,
+                      "type": "codebarrel.action.log",
+                      "value": "Response: {{webhookResponse}}"
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "714299456",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714299457",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": {
+                          "modifier": null,
+                          "multiValue": false,
+                          "source": null,
+                          "type": "NAME",
+                          "value": "Creators-EXTERNAL"
+                        },
+                        "comparison": "EQUALS",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "External Project Role"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "714299456",
+                  "parentId": "714299450",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "631995182",
+                      "parentId": "714299459",
+                      "schemaVersion": 1,
+                      "type": "jira.issue.outgoing.webhook",
+                      "value": {
+                        "contentType": "custom",
+                        "continueOnErrorEnabled": true,
+                        "customBody": "{\n  \"user\": [\n    \"{{issue.reporter}}\"\n  ]\n}",
+                        "headers": [
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1699931012220",
+                            "name": "Accept",
+                            "value": "application/json"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1699931470666",
+                            "name": "Content-Type",
+                            "value": "application/json"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1699931494446",
+                            "name": "Authorization",
+                            "value": "{{jiraauth}}"
+                          }
+                        ],
+                        "method": "POST",
+                        "responseEnabled": true,
+                        "sendIssue": false,
+                        "url": "https://ford-advev.atlassian.net/rest/api/3/project/{{lookupObjects.Project_Id}}/role/10051",
+                        "urlSecure": false
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714299461",
+                      "parentId": "714299459",
+                      "schemaVersion": 1,
+                      "type": "codebarrel.action.log",
+                      "value": "Response: {{webhookResponse}}"
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "714299459",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714299460",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": {
+                          "modifier": null,
+                          "multiValue": false,
+                          "source": null,
+                          "type": "NAME",
+                          "value": "Editors-EXTERNAL"
+                        },
+                        "comparison": "EQUALS",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "External Project Role"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "714299459",
+                  "parentId": "714299450",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "631995190",
+                      "parentId": "714299462",
+                      "schemaVersion": 1,
+                      "type": "jira.issue.outgoing.webhook",
+                      "value": {
+                        "contentType": "custom",
+                        "continueOnErrorEnabled": true,
+                        "customBody": "{\n  \"user\": [\n    \"{{issue.reporter}}\"\n  ]\n}",
+                        "headers": [
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1699931012220",
+                            "name": "Accept",
+                            "value": "application/json"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1699931470666",
+                            "name": "Content-Type",
+                            "value": "application/json"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1699931494446",
+                            "name": "Authorization",
+                            "value": "{{jiraauth}}"
+                          }
+                        ],
+                        "method": "POST",
+                        "responseEnabled": true,
+                        "sendIssue": false,
+                        "url": "https://ford-advev.atlassian.net/rest/api/3/project/{{lookupObjects.Project_Id}}/role/10055",
+                        "urlSecure": false
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714299464",
+                      "parentId": "714299462",
+                      "schemaVersion": 1,
+                      "type": "codebarrel.action.log",
+                      "value": "Response: {{webhookResponse}}"
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "714299462",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714299463",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": {
+                          "modifier": null,
+                          "multiValue": false,
+                          "source": null,
+                          "type": "NAME",
+                          "value": "Developer-EXTERNAL"
+                        },
+                        "comparison": "EQUALS",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "External Project Role"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "714299462",
+                  "parentId": "714299450",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "631995198",
+                      "parentId": "714299465",
+                      "schemaVersion": 1,
+                      "type": "jira.issue.outgoing.webhook",
+                      "value": {
+                        "contentType": "custom",
+                        "continueOnErrorEnabled": true,
+                        "customBody": "{\n  \"user\": [\n    \"{{issue.reporter}}\"\n  ]\n}",
+                        "headers": [
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1699931012220",
+                            "name": "Accept",
+                            "value": "application/json"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1699931470666",
+                            "name": "Content-Type",
+                            "value": "application/json"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1699931494446",
+                            "name": "Authorization",
+                            "value": "{{jiraauth}}"
+                          }
+                        ],
+                        "method": "POST",
+                        "responseEnabled": true,
+                        "sendIssue": false,
+                        "url": "https://ford-advev.atlassian.net/rest/api/3/project/{{lookupObjects.Project_Id}}/role/10074",
+                        "urlSecure": false
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714299467",
+                      "parentId": "714299465",
+                      "schemaVersion": 1,
+                      "type": "codebarrel.action.log",
+                      "value": "Response: {{webhookResponse}}"
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "714299465",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714299466",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": {
+                          "modifier": null,
+                          "multiValue": false,
+                          "source": null,
+                          "type": "NAME",
+                          "value": "Admin-EXTERNAL"
+                        },
+                        "comparison": "EQUALS",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "External Project Role"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "714299465",
+                  "parentId": "714299450",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                }
+              ],
+              "component": "CONDITION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "714299450",
+              "parentId": "714299448",
+              "schemaVersion": 1,
+              "type": "jira.condition.container.block",
+              "value": null
+            },
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "129823d3-688c-419b-9f62-16a6a48e3f9e",
+                      "parentId": "66457303-3e89-4600-ba6d-ad333f5e4b72",
+                      "schemaVersion": 11,
+                      "type": "jira.issue.transition",
+                      "value": {
+                        "advancedFields": null,
+                        "destinationStatus": {
+                          "type": "NAME",
+                          "value": "Done"
+                        },
+                        "operations": [],
+                        "sendNotifications": true,
+                        "transitionMatch": ""
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "66457303-3e89-4600-ba6d-ad333f5e4b72",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "cca62cab-98a9-4392-86cb-f2f474a23030",
+                      "parentId": null,
+                      "schemaVersion": 1,
+                      "type": "jira.comparator.condition",
+                      "value": {
+                        "first": "{{webhookResponse}}",
+                        "operator": "REGEX_CONTAINS",
+                        "second": "already a member"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "66457303-3e89-4600-ba6d-ad333f5e4b72",
+                  "parentId": "2076457e-5491-4d81-b369-252c3838466a",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714299468",
+                      "parentId": "ab918bb8-c97f-4b9c-ba76-90864ab4551c",
+                      "schemaVersion": 11,
+                      "type": "jira.issue.transition",
+                      "value": {
+                        "advancedFields": null,
+                        "destinationStatus": {
+                          "type": "NAME",
+                          "value": "Access Check"
+                        },
+                        "operations": [],
+                        "sendNotifications": true,
+                        "transitionMatch": ""
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "ab918bb8-c97f-4b9c-ba76-90864ab4551c",
+                  "parentId": "2076457e-5491-4d81-b369-252c3838466a",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                }
+              ],
+              "component": "CONDITION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "2076457e-5491-4d81-b369-252c3838466a",
+              "parentId": "714299448",
+              "schemaVersion": 1,
+              "type": "jira.condition.container.block",
+              "value": null
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "714299448",
+              "conditions": [],
+              "connectionId": null,
+              "id": "714299449",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "External"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Employee Type"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:radiobuttons"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "714299448",
+          "parentId": "714299427",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "714299470",
+              "parentId": "714299469",
+              "schemaVersion": 2,
+              "type": "jira.issue.comment",
+              "value": {
+                "addCommentOnce": true,
+                "comment": "This issue is stuck on Owner Approved, please check on it.",
+                "commentVisibility": null,
+                "publicComment": false,
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "714299469",
+          "parentId": "714299427",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "714299427",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1731640046287,
+  "description": "Place user in the approved role in the requested project.  Transition to Access check.",
+  "id": 22989952,
+  "idUuid": "01932dca-32cf-74ab-9938-ea8e71dcf715",
+  "labels": [
+    758924,
+    911815
+  ],
+  "name": "Jira - 5a - Approved",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "631995147",
+        "conditions": [],
+        "connectionId": null,
+        "id": "720991323",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": true,
+            "source": null,
+            "type": "NAME",
+            "value": "[\"Jira Access\",\"ADVEV Access\"]"
+          },
+          "comparison": "ONE_OF",
+          "selectedField": {
+            "type": "NAME",
+            "value": "Request Type"
+          },
+          "selectedFieldType": "com.atlassian.servicedesk:vp-origin"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "631995147",
+        "conditions": [],
+        "connectionId": null,
+        "id": "720991324",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": true,
+            "source": null,
+            "type": "NAME",
+            "value": "[\"Jira\"]"
+          },
+          "comparison": "CONTAINS_EXACTLY",
+          "selectedField": {
+            "type": "NAME",
+            "value": "ADT Tool(s)"
+          },
+          "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "631995147",
+        "conditions": [],
+        "connectionId": null,
+        "id": "720991325",
+        "parentId": null,
+        "schemaVersion": 1,
+        "type": "jira.jql.condition",
+        "value": "cf[11373] not in (\"ari:cloud:cmdb::object/c77afb26-c55c-4af4-861f-5e2907f8719d/6075\",\"ari:cloud:cmdb::object/c77afb26-c55c-4af4-861f-5e2907f8719d/524\",\"ari:cloud:cmdb::object/c77afb26-c55c-4af4-861f-5e2907f8719d/13942\", \"ari:cloud:cmdb::object/c77afb26-c55c-4af4-861f-5e2907f8719d/15587\") "
+      }
+    ],
+    "connectionId": null,
+    "id": "631995147",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:transitioned",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+      ],
+      "eventKey": "jira:issue_updated",
+      "fromStatus": [],
+      "issueEvent": "issue_generic",
+      "toStatus": [
+        {
+          "type": "NAME",
+          "value": "Owner Approved"
+        }
+      ]
+    }
+  },
+  "updated": 1780095212061,
+  "writeAccessType": "UNRESTRICTED"
+}

@@ -1,0 +1,220 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "719285512",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "Asset Object data: {{object.attributes}}"
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "719285830",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "Leader Account ID: {{object.Project_Lead.accountID}}"
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "719292796",
+          "parentId": "719291570",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "leaderEmails = {{leaderEmails}}"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "719291034",
+          "parentId": "719291570",
+          "schemaVersion": 1,
+          "type": "jira.issue.outgoing.webhook",
+          "value": {
+            "contentType": "empty",
+            "continueOnErrorEnabled": false,
+            "customBody": null,
+            "headers": [
+              {
+                "headerSecure": false,
+                "id": "_header_1752794674469",
+                "name": "Authorization",
+                "value": "Basic Y2tsZWluNTBAZm9yZC5jb206QVRBVFQzeEZmR0YwSlhMTEU4UGNhZVZDZ3VubVdsM2E0NVVPZUE4N2xDbFBjdm45OE5BUGd6UzNuN0JRZUZoY0JFQWNrQlZCNzVuSWVJVndMZFFQTEZneVRVZXNMUGt6cGJ6OHdTTDViZ2lrQ2xGU2FabVNvTXlIRDN1R2pZX2gyOFgxNWx6azh1c19FcDlRTFdvUDY3V1VzNkZwdVBJMzNLM0YwWVhaQUNXWVVfUFhHM3ptYWFzPTQzMUM1MTgw"
+              },
+              {
+                "headerSecure": false,
+                "id": "_header_1752794706594",
+                "name": "Accept",
+                "value": ""
+              },
+              {
+                "headerSecure": false,
+                "id": "_header_1752795207626",
+                "name": "",
+                "value": ""
+              }
+            ],
+            "method": "GET",
+            "responseEnabled": true,
+            "sendIssue": false,
+            "url": "https://ford-advev.atlassian.net/rest/api/3/user/?accountId={{leaderEmails}}",
+            "urlSecure": false
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "719291035",
+          "parentId": "719291570",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "status= {{webResponse.status}} body= {{webResponse.body}}"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "719285674",
+          "parentId": "719291570",
+          "schemaVersion": 1,
+          "type": "cmdb.object.edit.attributes",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": null,
+                "name": "Leader Email",
+                "value": "{{webResponse.body.emailAddress.get(0)}}"
+              },
+              {
+                "isLabel": null,
+                "name": "Email 2",
+                "value": "{{webResponse.body.emailAddress.get(1)}}"
+              },
+              {
+                "isLabel": null,
+                "name": "Email 3",
+                "value": "{{webResponse.body..emailAddress.get(2)}}"
+              },
+              {
+                "isLabel": null,
+                "name": "Email 4",
+                "value": "{{webResponse.body.emailAddress.get(3}}"
+              }
+            ]
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "719291570",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.smart.values.branch",
+      "value": {
+        "id": "_customsmartvalue_id_1752795938154",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "leaderEmails"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{object.Project_Lead.accountId.split(\",\")}}"
+        },
+        "type": "SMART"
+      }
+    }
+  ],
+  "created": 1752786849662,
+  "description": "",
+  "id": 29694539,
+  "idUuid": "01981a3c-cf7e-72a8-aa9a-840a760324bc",
+  "labels": [],
+  "name": "Update Leader Email for SIT Schema",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "719285311",
+        "conditions": [],
+        "connectionId": null,
+        "id": "7eed42de-50ac-455c-b2be-d0797726088e",
+        "parentId": null,
+        "schemaVersion": 1,
+        "type": "cmdb.condition.query",
+        "value": {
+          "cmdbField": null,
+          "cmdbQuery": "objectType = Commodity and \"Project_Lead\" is not empty and \"Leader Email\" is empty",
+          "type": "OBJECT"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "719285311",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "cmdb.object.trigger",
+    "value": {
+      "operation": "UPDATED",
+      "schemaId": "88",
+      "schemaLabel": "SIT Schema",
+      "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+    }
+  },
+  "updated": 1772733796131,
+  "writeAccessType": "UNRESTRICTED"
+}

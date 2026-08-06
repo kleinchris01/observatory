@@ -1,0 +1,200 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:fde609ac-4e54-4959-81dc-aee37494db64",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "4f460062-df3e-4bd6-97d0-85e6756c87bf",
+      "parentId": null,
+      "schemaVersion": -1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "number-Of-Days-Before-Due-Inclusion",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "numberOfDaysBeforeDueInclusion"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "3"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "b6cdc87a-0152-4d81-ae16-fceb21fbf1a5",
+      "parentId": null,
+      "schemaVersion": -1,
+      "type": "jira.lookup.issues",
+      "value": {
+        "id": "outer-lookup-id",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "lookupIssues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "duedate <= endOfDay({{numberOfDaysBeforeDueInclusion}}) AND statusCategory != done AND assignee != empty"
+        },
+        "type": "JQL"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "e2463e4b-022f-47b1-9834-6815cacec85e",
+          "parentId": "e335def8-a84f-434b-ac64-72579a784258",
+          "schemaVersion": -1,
+          "type": "jira.lookup.issues",
+          "value": {
+            "id": "inner-lookup-id",
+            "lazy": false,
+            "name": {
+              "type": "FREE",
+              "value": "lookupIssues"
+            },
+            "query": {
+              "type": "SMART",
+              "value": "duedate <= endOfDay({{numberOfDaysBeforeDueInclusion}}) AND statusCategory != done AND assignee = {{distinctAssignee}}"
+            },
+            "type": "JQL"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "9bdd47b7-dacf-44ce-8950-5645dd032199",
+          "parentId": "e335def8-a84f-434b-ac64-72579a784258",
+          "schemaVersion": -1,
+          "type": "action.send-templated-email",
+          "value": {
+            "convertLineBreaks": true,
+            "legacyConfig": true,
+            "sendGroupedEmails": true,
+            "templateContextData": {
+              "body": "Hello {{distinctAssignee.displayName}},\n\nThe following work items are due within next 3 days:\n{{#lookupIssues}}\n<a href=\"{{url}}\">{{key}} - {{summary}}</a>\n{{/}}\n\nRegards,\n\nJira Automation",
+              "bodyType": "HTML",
+              "emailName": "Due Date Reminder",
+              "fromEmailAddress": "automation@ford-advev.atlassian.net",
+              "fromName": "Jira automation",
+              "subject": "Issues Due Within 3 Days"
+            },
+            "to": [
+              {
+                "type": "SMART",
+                "value": "{{distinctAssignee.emailAddress}}"
+              }
+            ]
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "e335def8-a84f-434b-ac64-72579a784258",
+      "parentId": null,
+      "schemaVersion": -1,
+      "type": "jira.smart.values.branch",
+      "value": {
+        "id": "assignee-branch-id",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "distinctAssignee"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{lookupIssues.assignee.distinct}}"
+        },
+        "type": "SMART"
+      }
+    }
+  ],
+  "created": 1784567037715,
+  "description": "Never miss a deadline with email reminders. When a task is near due, this rule will automatically send email notification to the assignee.",
+  "id": 33962963,
+  "idUuid": "019f807b-ff13-7a41-8b7b-9b95f670400a",
+  "labels": [],
+  "name": "When a task is near due → send email reminder",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13578"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13578"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [
+    {
+      "tagType": "CREATION_TYPE",
+      "tagValue": "USER"
+    },
+    {
+      "tagType": "SAMPLE_RULE",
+      "tagValue": "global"
+    },
+    {
+      "tagType": "TEMPLATE_ID",
+      "tagValue": "software_template_20"
+    }
+  ],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "b967b8ac-586e-4b8b-b108-5547da3fa595",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "nosearch",
+      "jql": null,
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=Australia/Sydney:20221207T172502\nRRULE:FREQ=DAILY;BYHOUR=8;BYMINUTE=0;BYSECOND=0;INTERVAL=1\nEND:VEVENT",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1784567037715,
+  "writeAccessType": "UNRESTRICTED"
+}

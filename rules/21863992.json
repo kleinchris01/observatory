@@ -1,0 +1,1331 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "6206e14e506317006b09a777",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "594110206",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Finance Approver"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+            "type": "SET",
+            "value": [
+              {
+                "type": "ID",
+                "value": "712020:0fa56311-e4ad-458d-a414-3076fcb56f39"
+              }
+            ]
+          }
+        ],
+        "sendNotifications": true
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "594110207",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.create",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": "1. Eng. team creates 1st principles mountain chart"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "project"
+            },
+            "fieldType": "project",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "fieldType": "issuetype",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10022"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "parent"
+            },
+            "fieldType": "parent",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Buyer"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                "type": "NAME",
+                "value": "Buyer"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Champion(s)"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [
+                "ADD"
+              ],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                "type": "NAME",
+                "value": "Champion(s)"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "SIT/Attribute"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                "type": "NAME",
+                "value": "SIT/Attribute"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ED&T Request Type"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "ED&T Request Type"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "description"
+            },
+            "fieldType": "description",
+            "type": "SET",
+            "value": "*Note: all fields in this sub-task were copied at the time of creation and may be outdated. Please use the parent Jira to add all information to. This Jira is only intended to help track sourcing progress.\n**Task: Eng. team creates 1st principles mountain chart**"
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ED&T Cost"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+                "type": "NAME",
+                "value": "ED&T Cost"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Suppliers"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:labels",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:labels",
+                "type": "NAME",
+                "value": "Suppliers"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADVEV Vehicle Program"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "ADVEV Vehicle Program"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Finance Approver"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [
+                "ADD"
+              ],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                "type": "NAME",
+                "value": "Finance Approver"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Engineering Approver(s)"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [
+                "ADD"
+              ],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                "type": "NAME",
+                "value": "Engineering Approver(s)"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Manufacturing Approver"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [
+                "ADD"
+              ],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                "type": "NAME",
+                "value": "Manufacturing Approver"
+              },
+              "sourceIssue": "current"
+            }
+          }
+        ],
+        "sendNotifications": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "594110208",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.create",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": "2. Core ED&T team reviewed the supplier quote & suggested changes"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "project"
+            },
+            "fieldType": "project",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "fieldType": "issuetype",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10022"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "parent"
+            },
+            "fieldType": "parent",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Buyer"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                "type": "NAME",
+                "value": "Buyer"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Champion(s)"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [
+                "ADD"
+              ],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                "type": "NAME",
+                "value": "Champion(s)"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "SIT/Attribute"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                "type": "NAME",
+                "value": "SIT/Attribute"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ED&T Request Type"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "ED&T Request Type"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "description"
+            },
+            "fieldType": "description",
+            "type": "SET",
+            "value": "*Note: all fields in this sub-task were copied at the time of creation and may be outdated. Please use the parent Jira to add all information to. This Jira is only intended to help track sourcing progress.\n**Task: Core ED&T team reviewed the supplier quote & suggested changes**"
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ED&T Cost"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+                "type": "NAME",
+                "value": "ED&T Cost"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Suppliers"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:labels",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:labels",
+                "type": "NAME",
+                "value": "Suppliers"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADVEV Vehicle Program"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "ADVEV Vehicle Program"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Engineering Approver(s)"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [
+                "ADD"
+              ],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                "type": "NAME",
+                "value": "Engineering Approver(s)"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Finance Approver"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [
+                "ADD"
+              ],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                "type": "NAME",
+                "value": "Finance Approver"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Manufacturing Approver"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [
+                "ADD"
+              ],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                "type": "NAME",
+                "value": "Manufacturing Approver"
+              },
+              "sourceIssue": "current"
+            }
+          }
+        ],
+        "sendNotifications": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "594110209",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.create",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": "3. Engineer aligned with supplier on engineering hours"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "project"
+            },
+            "fieldType": "project",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "fieldType": "issuetype",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10022"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "parent"
+            },
+            "fieldType": "parent",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Buyer"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                "type": "NAME",
+                "value": "Buyer"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Champion(s)"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [
+                "ADD"
+              ],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                "type": "NAME",
+                "value": "Champion(s)"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "SIT/Attribute"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                "type": "NAME",
+                "value": "SIT/Attribute"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ED&T Request Type"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "ED&T Request Type"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "description"
+            },
+            "fieldType": "description",
+            "type": "SET",
+            "value": "*Note: all fields in this sub-task were copied at the time of creation and may be outdated. Please use the parent Jira to add all information to. This Jira is only intended to help track sourcing progress.\n**Task: Engineer aligned with supplier on engineering hours**"
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ED&T Cost"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+                "type": "NAME",
+                "value": "ED&T Cost"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Suppliers"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:labels",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:labels",
+                "type": "NAME",
+                "value": "Suppliers"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADVEV Vehicle Program"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "ADVEV Vehicle Program"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Engineering Approver(s)"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [
+                "ADD"
+              ],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                "type": "NAME",
+                "value": "Engineering Approver(s)"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Finance Approver"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [
+                "ADD"
+              ],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                "type": "NAME",
+                "value": "Finance Approver"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Manufacturing Approver"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [
+                "ADD"
+              ],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                "type": "NAME",
+                "value": "Manufacturing Approver"
+              },
+              "sourceIssue": "current"
+            }
+          }
+        ],
+        "sendNotifications": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "594110210",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.create",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": "4. Buyer aligned with supplier on hourly rates"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "project"
+            },
+            "fieldType": "project",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "fieldType": "issuetype",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10022"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "parent"
+            },
+            "fieldType": "parent",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Buyer"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                "type": "NAME",
+                "value": "Buyer"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Champion(s)"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [
+                "ADD"
+              ],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                "type": "NAME",
+                "value": "Champion(s)"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "SIT/Attribute"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                "type": "NAME",
+                "value": "SIT/Attribute"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ED&T Request Type"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "ED&T Request Type"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "description"
+            },
+            "fieldType": "description",
+            "type": "SET",
+            "value": "*Note: all fields in this sub-task were copied at the time of creation and may be outdated. Please use the parent Jira to add all information to. This Jira is only intended to help track sourcing progress.\n**Task: Buyer aligned with supplier on hourly rates**"
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ED&T Cost"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+                "type": "NAME",
+                "value": "ED&T Cost"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Suppliers"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:labels",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:labels",
+                "type": "NAME",
+                "value": "Suppliers"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADVEV Vehicle Program"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "ADVEV Vehicle Program"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Engineering Approver(s)"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [
+                "ADD"
+              ],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                "type": "NAME",
+                "value": "Engineering Approver(s)"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Finance Approver"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [
+                "ADD"
+              ],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                "type": "NAME",
+                "value": "Finance Approver"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Manufacturing Approver"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [
+                "ADD"
+              ],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                "type": "NAME",
+                "value": "Manufacturing Approver"
+              },
+              "sourceIssue": "current"
+            }
+          }
+        ],
+        "sendNotifications": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "594110211",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.create",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": "5. Core ED&T team aligned with supplier mountain chart"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "project"
+            },
+            "fieldType": "project",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "fieldType": "issuetype",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10022"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "parent"
+            },
+            "fieldType": "parent",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Buyer"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                "type": "NAME",
+                "value": "Buyer"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Champion(s)"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [
+                "ADD"
+              ],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                "type": "NAME",
+                "value": "Champion(s)"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "SIT/Attribute"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                "type": "NAME",
+                "value": "SIT/Attribute"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ED&T Request Type"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "ED&T Request Type"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "description"
+            },
+            "fieldType": "description",
+            "type": "SET",
+            "value": "*Note: all fields in this sub-task were copied at the time of creation and may be outdated. Please use the parent Jira to add all information to. This Jira is only intended to help track sourcing progress.\n**Task: Core ED&T team aligned with supplier mountain chart**"
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ED&T Cost"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+                "type": "NAME",
+                "value": "ED&T Cost"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Suppliers"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:labels",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:labels",
+                "type": "NAME",
+                "value": "Suppliers"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADVEV Vehicle Program"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "NAME",
+                "value": "ADVEV Vehicle Program"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Engineering Approver(s)"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [
+                "ADD"
+              ],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                "type": "NAME",
+                "value": "Engineering Approver(s)"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Finance Approver"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [
+                "ADD"
+              ],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                "type": "NAME",
+                "value": "Finance Approver"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Manufacturing Approver"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [
+                "ADD"
+              ],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                "type": "NAME",
+                "value": "Manufacturing Approver"
+              },
+              "sourceIssue": "current"
+            }
+          }
+        ],
+        "sendNotifications": false
+      }
+    }
+  ],
+  "created": 1726164405849,
+  "description": "",
+  "id": 21863992,
+  "idUuid": "0191e76a-8e59-77a5-85ae-37f7e0f93338",
+  "labels": [],
+  "name": "Sub-Task v1",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10254"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10254"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "594110205",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10254"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1726764344079,
+  "writeAccessType": "UNRESTRICTED"
+}

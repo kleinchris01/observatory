@@ -1,0 +1,210 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:10e644de-d96b-4816-9029-d6cf8f0aec37",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "620825193",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.create",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": "(Quarterly Audit) Jira custom fields"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "description"
+            },
+            "fieldType": "description",
+            "type": "SET",
+            "value": "* Please add this to the next Jira Sprint for prioritization, and update the Due date to the end of that Sprint. \n\n* Create an Excel sheet from the Jira Audits folder on our team’s Shared Drive with the date of the audit in the title (eg, 2024-08-04). The Excel sheet should include:\n\n** Link to the General Request at the top\n\n** Columns for:\n\n*** Name\n\n*** Custom Field description\n\n*** Type\n\n*** Values\n\n*** Screens and contexts\n\n*** Number of Projects\n\n*** Project Names\n\n*** Created by (jpolman1, cklein50, rkhatcha, ?…)\n\n*** Created date\n\n*** Last used date\n\n*** Recommendation:\n\n**** Keep (as is)\n\n**** Keep (update name)\n\n**** Keep (update values, include the list of updated values)\n\n**** Delete (replaced by a custom field _________)\n\n**** Delete (Last used date is >30d after the created date)\n\n**** Delete (Last used date is >60d after the created date)\n\n*** Have you reached out to the Project Owner(s) to see if they agree with your Recommendation? (Yes, No because….)\n\n*** What else needs to be updated if we move forward with the Recommendation? (eg, automation, behaviors, …) \n\n*** Next steps (provided by rkhatch@)\n\n** Once the Excel sheet is filled out with your recommendation, please assign the General Request to rkhatcha@ to provide feedback in the Next Steps column. \n\n** Please setup a meeting to review 1 week after assigning it to rkhatcha@. (Note: This will move to the next Jira Sprint if assigned after the first week of the Sprint.)"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "project"
+            },
+            "fieldType": "project",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10027"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "fieldType": "issuetype",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10000"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Success Criteria"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+            "type": "SET",
+            "value": "Reduce duplicate custom fields that would otherwise result in inconsistencies across Jira projects, affecting the overall portfolio view. Most of this can be done up front, helping coach teams who are requesting new custom fields on what already exists, and helping ‘connect the dots' on their ask with the team(s) who are using a similar custom field. "
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADVEV Vehicle Program"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "SET",
+            "value": {
+              "type": "NAME",
+              "value": "Not applicable"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADVEV Vehicle Platform"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+            "type": "SET",
+            "value": [
+              {
+                "type": "NAME",
+                "value": "CE1"
+              }
+            ]
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Request participants"
+            },
+            "fieldType": "com.atlassian.servicedesk:sd-request-participants",
+            "type": "SET",
+            "value": [
+              {
+                "type": "ID",
+                "value": "712020:10e644de-d96b-4816-9029-d6cf8f0aec37"
+              },
+              {
+                "type": "ID",
+                "value": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6"
+              },
+              {
+                "type": "ID",
+                "value": "712020:85f2fb94-1e54-45c4-a961-b4af65b3ae3c"
+              },
+              {
+                "type": "ID",
+                "value": "712020:8d4bd9f7-b8a9-44d0-98dd-d82264c77167"
+              }
+            ]
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "duedate"
+            },
+            "fieldType": "duedate",
+            "type": "SET",
+            "value": "{{now.plusWeeks(2)}}"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "parent"
+            },
+            "fieldType": "parent",
+            "type": "SET",
+            "value": {
+              "type": "FREE",
+              "value": "CONNECT-1255"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Sprint"
+            },
+            "fieldType": "com.pyxis.greenhopper.jira:gh-sprint",
+            "type": "SET",
+            "value": null
+          }
+        ],
+        "sendNotifications": false
+      }
+    }
+  ],
+  "created": 1726503151182,
+  "description": "",
+  "id": 21917231,
+  "idUuid": "0191fb9b-664e-7b4d-8c96-b6db81b7f5fd",
+  "labels": [],
+  "name": "Quarterly Audit - Custom Fields",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11574"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11574"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "620825192",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "nosearch",
+      "jql": "",
+      "onlyUpdatedIssues": true,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/Denver:20240901T100000\nRRULE:FREQ=MONTHLY;INTERVAL=3;BYHOUR=9;BYMINUTE=0;BYSECOND=0;BYMONTHDAY=1\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1759769218150,
+  "writeAccessType": "UNRESTRICTED"
+}

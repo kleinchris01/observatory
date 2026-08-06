@@ -1,0 +1,111 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "c7da6bf6-2db2-4812-8a68-eaa45847a24f",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADT Tool(s)"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+            "type": "SET",
+            "value": [
+              {
+                "type": "NAME",
+                "value": "Jira"
+              }
+            ]
+          }
+        ],
+        "sendNotifications": true
+      }
+    }
+  ],
+  "created": 1766183112268,
+  "description": "",
+  "id": 31235288,
+  "idUuid": "019b38b7-8e4c-7002-b82c-31c8ef559bae",
+  "labels": [],
+  "name": "Set Jira ADT tool based on form submission",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "2103c5c5-6e00-49b8-ab37-e49adc83132d",
+        "conditions": [],
+        "connectionId": null,
+        "id": "d50c317c-4532-4626-a0e9-36264c8ce275",
+        "parentId": null,
+        "schemaVersion": 1,
+        "type": "jira.proforma.form.exists.condition",
+        "value": {
+          "formSelection": "SPECIFIC",
+          "formStatuses": [],
+          "templateFormsConfig": {
+            "projectId": 10027,
+            "templateFormIds": [
+              2235632351052058,
+              8856109403767125,
+              2065474747062398,
+              2538036100948904
+            ]
+          }
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "2103c5c5-6e00-49b8-ab37-e49adc83132d",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1766183112268,
+  "writeAccessType": "UNRESTRICTED"
+}

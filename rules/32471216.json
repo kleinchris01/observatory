@@ -1,0 +1,111 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:9b52b270-bb29-4f87-880d-7c4412cc01b8",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "36aa16aa-22bb-49a1-a859-d9f97f2a73b3",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": true,
+          "source": null,
+          "type": "ID",
+          "value": "[\"10299\",\"10029\",\"12486\"]"
+        },
+        "comparison": "ONE_OF",
+        "selectedField": {
+          "type": "ID",
+          "value": "issuetype"
+        },
+        "selectedFieldType": "issuetype"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "e02fa8e0-10bc-4ba6-861a-4f4dd7d6543f",
+      "parentId": null,
+      "schemaVersion": 5,
+      "type": "jira.issue.assign",
+      "value": {
+        "assignType": "SPECIFY_USER",
+        "assignee": {
+          "type": "ID",
+          "value": "712020:d4328069-d3b6-4231-8a78-d0a859680a2b"
+        },
+        "excludedUsers": [],
+        "fieldToCopy": null,
+        "group": null,
+        "issueToCopy": null,
+        "itsmOpsOncall": null,
+        "jql": null,
+        "listAssignMethod": null,
+        "peopleTeamsCustomFieldId": null,
+        "restrictedToGroup": null,
+        "role": null,
+        "smartValue": null,
+        "userList": []
+      }
+    }
+  ],
+  "created": 1773765966223,
+  "description": "This rule automatically assigns Fabrication Request, Build Request, and Teardown Request issues to alapine@ford.com when they are created in the DSL project.",
+  "id": 32471216,
+  "idUuid": "019cfcb0-b98e-74a0-8cda-b719bf425cd0",
+  "labels": [],
+  "name": "DSL: Auto-assign Fabrication, Build, & Teardown requests to Anthony Lepine",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/12939"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/12939"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "fb479e5c-e811-41df-bd4c-c5e1994f59de",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/12939"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1776883993464,
+  "writeAccessType": "UNRESTRICTED"
+}

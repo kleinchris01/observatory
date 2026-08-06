@@ -1,0 +1,170 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:10e644de-d96b-4816-9029-d6cf8f0aec37",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "626642935",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.refresh.issue",
+      "value": {
+        "delayMs": null
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "626642943",
+              "parentId": "626642939",
+              "schemaVersion": 1,
+              "type": "codebarrel.action.log",
+              "value": "{{issue.properties.\"proforma.forms\".forms.uuid}}"
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "626642945",
+              "parentId": "626642939",
+              "schemaVersion": 1,
+              "type": "jira.issue.outgoing.webhook",
+              "value": {
+                "contentType": "empty",
+                "continueOnErrorEnabled": false,
+                "customBody": null,
+                "headers": [
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1731033959968",
+                    "name": "Accept",
+                    "value": "Application/JSON"
+                  },
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1731034129421",
+                    "name": "Authorization",
+                    "value": "Basic anBvbG1hbjFAZm9yZC5jb206QVRBVFQzeEZmR0YwdnVfWFBhSHZicjhqWkxCY0FGZ2NWZmNPUHYxUzhFQWpBbWQtbG10T3hCZGNPMnNBS1F0c2liZi02MWdyeVJYQ1l3elRtNGIxWXM5WjhBU1dnV3ZwVEkxdFFRS09kY1k1WE1xTUpuX2tDU1BGMEp0MmhlWjFRQjBpNTd6dW1aRTNGdnlNa0UwZllqaXcxWHY3SlpXOGpGUkh6S21WazF5ZGxqaDdZRTJjX1prPTlGQkE1NDU5"
+                  }
+                ],
+                "method": "PUT",
+                "responseEnabled": true,
+                "sendIssue": false,
+                "url": "https://api.atlassian.com/jira/forms/cloud/95d04bf4-e1b7-4b22-806f-8bc95698a196/issue/{{issue.key}}/form/{{issue.properties.\"proforma.forms\".forms.uuid}}/action/reopen",
+                "urlSecure": false
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "626642939",
+              "conditions": [],
+              "connectionId": null,
+              "id": "626642941",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "[\"Approved\",\"Rejected\",\"Done\",\"PO Issued & Committed\"]"
+                },
+                "comparison": "NOT_ONE_OF",
+                "selectedField": {
+                  "type": "ID",
+                  "value": "status"
+                },
+                "selectedFieldType": "status"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "626642939",
+          "parentId": "626642937",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "626642937",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1731034447848,
+  "description": "",
+  "id": 22867564,
+  "idUuid": "019309b1-7fe8-7551-9d89-da9679f3448a",
+  "labels": [],
+  "name": "Re-Open Form if No Decision",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10419"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10419"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "626642933",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.proforma.form.submitted.trigger",
+    "value": {
+      "templateFormsConfig": {
+        "projectId": 10419,
+        "templateFormIds": []
+      }
+    }
+  },
+  "updated": 1731034576621,
+  "writeAccessType": "UNRESTRICTED"
+}

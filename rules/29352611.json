@@ -1,0 +1,79 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:975c8bf8-d86c-4dee-842f-4e9c3c3a541e",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "717063256",
+      "parentId": null,
+      "schemaVersion": 2,
+      "type": "jira.issue.link",
+      "value": {
+        "issue": {
+          "type": "SMART",
+          "value": "{{issue.Jira Ticket ID}}"
+        },
+        "linkType": "inward:10018"
+      }
+    }
+  ],
+  "created": 1750401986018,
+  "description": "When \"Jira Ticket ID\" is filled out with valid work item number, the CT is linked to that issue",
+  "id": 29352611,
+  "idUuid": "01978c16-ade2-7e53-84e8-bc1f3aedbad9",
+  "labels": [],
+  "name": "CE1 - Auto link from Link Issue ID",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "717063255",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Jira Ticket ID"
+        }
+      ]
+    }
+  },
+  "updated": 1755053250202,
+  "writeAccessType": "UNRESTRICTED"
+}

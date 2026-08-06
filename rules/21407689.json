@@ -1,0 +1,1582 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "671309033",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": null,
+        "comparison": "NOT_EMPTY",
+        "selectedField": {
+          "type": "NAME",
+          "value": "Facility Location"
+        },
+        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "671309035",
+          "parentId": "671309034",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "ID",
+              "value": "10298"
+            },
+            "comparison": "EQUALS",
+            "selectedField": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "selectedFieldType": "issuetype"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "671309036",
+          "parentId": "671309034",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": true,
+              "source": null,
+              "type": "NAME",
+              "value": "[\"SoCal\",\"EVDC1-3555 E. Conant St, Long Beach, CA 90808\",\"EVDC2 -3590 E. Cover, Long Beach, CA 90808\"]"
+            },
+            "comparison": "ONE_OF",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Facility Location"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "671309037",
+          "parentId": "671309034",
+          "schemaVersion": 5,
+          "type": "jira.issue.assign",
+          "value": {
+            "assignType": "SPECIFY_USER",
+            "assignee": {
+              "type": "ID",
+              "value": "712020:6786c7c1-f55c-4ce6-be89-0782488a04c3"
+            },
+            "excludedUsers": [],
+            "fieldToCopy": null,
+            "group": null,
+            "issueToCopy": null,
+            "itsmOpsOncall": null,
+            "jql": null,
+            "listAssignMethod": null,
+            "peopleTeamsCustomFieldId": null,
+            "restrictedToGroup": null,
+            "role": null,
+            "smartValue": null,
+            "userList": []
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "671309034",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "issuetype = \"EE Request\"",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "671309039",
+          "parentId": "671309038",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": true,
+              "source": null,
+              "type": "ID",
+              "value": "[\"10029\"]"
+            },
+            "comparison": "ONE_OF",
+            "selectedField": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "selectedFieldType": "issuetype"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "671309040",
+          "parentId": "671309038",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": true,
+              "source": null,
+              "type": "NAME",
+              "value": "[\"SoCal\",\"EVDC1-3555 E. Conant St, Long Beach, CA 90808\",\"EVDC2 -3590 E. Cover, Long Beach, CA 90808\"]"
+            },
+            "comparison": "ONE_OF",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Facility Location"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "671309041",
+          "parentId": "671309038",
+          "schemaVersion": 5,
+          "type": "jira.issue.assign",
+          "value": {
+            "assignType": "SPECIFY_USER",
+            "assignee": {
+              "type": "ID",
+              "value": "712020:56ee551a-0f7d-4a3e-b2bb-a1176b9ef8f8"
+            },
+            "excludedUsers": [],
+            "fieldToCopy": null,
+            "group": null,
+            "issueToCopy": null,
+            "itsmOpsOncall": null,
+            "jql": null,
+            "listAssignMethod": null,
+            "peopleTeamsCustomFieldId": null,
+            "restrictedToGroup": null,
+            "role": null,
+            "smartValue": null,
+            "userList": []
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "671309038",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "issuetype = \"EE Request\"",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "671309043",
+          "parentId": "671309042",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "ID",
+              "value": "10299"
+            },
+            "comparison": "EQUALS",
+            "selectedField": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "selectedFieldType": "issuetype"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "671309044",
+          "parentId": "671309042",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": true,
+              "source": null,
+              "type": "NAME",
+              "value": "[\"SoCal\",\"EVDC1-3555 E. Conant St, Long Beach, CA 90808\",\"EVDC2 -3590 E. Cover, Long Beach, CA 90808\"]"
+            },
+            "comparison": "ONE_OF",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Facility Location"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "671309045",
+          "parentId": "671309042",
+          "schemaVersion": 5,
+          "type": "jira.issue.assign",
+          "value": {
+            "assignType": "SPECIFY_USER",
+            "assignee": {
+              "type": "ID",
+              "value": "712020:56ee551a-0f7d-4a3e-b2bb-a1176b9ef8f8"
+            },
+            "excludedUsers": [],
+            "fieldToCopy": null,
+            "group": null,
+            "issueToCopy": null,
+            "itsmOpsOncall": null,
+            "jql": null,
+            "listAssignMethod": null,
+            "peopleTeamsCustomFieldId": null,
+            "restrictedToGroup": null,
+            "role": null,
+            "smartValue": null,
+            "userList": []
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "671309042",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "issuetype = \"Fab Request\"",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "671309047",
+          "parentId": "671309046",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "ID",
+              "value": "10297"
+            },
+            "comparison": "EQUALS",
+            "selectedField": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "selectedFieldType": "issuetype"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "671309049",
+          "parentId": "671309046",
+          "schemaVersion": 5,
+          "type": "jira.issue.assign",
+          "value": {
+            "assignType": "SPECIFY_USER",
+            "assignee": {
+              "type": "ID",
+              "value": "712020:594257a9-a475-4907-a4f0-65379ce6e781"
+            },
+            "excludedUsers": [],
+            "fieldToCopy": null,
+            "group": null,
+            "issueToCopy": null,
+            "itsmOpsOncall": null,
+            "jql": null,
+            "listAssignMethod": null,
+            "peopleTeamsCustomFieldId": null,
+            "restrictedToGroup": null,
+            "role": null,
+            "smartValue": null,
+            "userList": []
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "671309046",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "issuetype = \"3D Print Request\"",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "671309051",
+          "parentId": "671309050",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "ID",
+              "value": "10298"
+            },
+            "comparison": "EQUALS",
+            "selectedField": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "selectedFieldType": "issuetype"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "671309052",
+          "parentId": "671309050",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": true,
+              "source": null,
+              "type": "NAME",
+              "value": "[\"NorCal\",\"Greenfield Lab B-3251 Hillview Ave, Palo Alto, CA 94304\",\"Greenfield Lab D-3210 Porter Drive, Palo Alto, CA 94304\"]"
+            },
+            "comparison": "ONE_OF",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Facility Location"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "671309053",
+          "parentId": "671309050",
+          "schemaVersion": 5,
+          "type": "jira.issue.assign",
+          "value": {
+            "assignType": "UNASSIGNED",
+            "assignee": null,
+            "excludedUsers": [],
+            "fieldToCopy": null,
+            "group": null,
+            "issueToCopy": null,
+            "itsmOpsOncall": null,
+            "jql": null,
+            "listAssignMethod": null,
+            "peopleTeamsCustomFieldId": null,
+            "restrictedToGroup": null,
+            "role": null,
+            "smartValue": null,
+            "userList": []
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "671309050",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "issuetype = \"EE Request\"",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "671309055",
+          "parentId": "671309054",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": true,
+              "source": null,
+              "type": "ID",
+              "value": "[\"11024\",\"10029\"]"
+            },
+            "comparison": "ONE_OF",
+            "selectedField": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "selectedFieldType": "issuetype"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "671309056",
+          "parentId": "671309054",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": true,
+              "source": null,
+              "type": "NAME",
+              "value": "[\"NorCal\",\"Greenfield Lab B-3251 Hillview Ave, Palo Alto, CA 94304\",\"Greenfield Lab D-3210 Porter Drive, Palo Alto, CA 94304\"]"
+            },
+            "comparison": "ONE_OF",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Facility Location"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "671309057",
+          "parentId": "671309054",
+          "schemaVersion": 5,
+          "type": "jira.issue.assign",
+          "value": {
+            "assignType": "SPECIFY_USER",
+            "assignee": {
+              "type": "ID",
+              "value": "712020:a72744f4-d380-4dcd-b24a-cf08919a8a6c"
+            },
+            "excludedUsers": [],
+            "fieldToCopy": null,
+            "group": null,
+            "issueToCopy": null,
+            "itsmOpsOncall": null,
+            "jql": null,
+            "listAssignMethod": null,
+            "peopleTeamsCustomFieldId": null,
+            "restrictedToGroup": null,
+            "role": null,
+            "smartValue": null,
+            "userList": []
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "671309054",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "issuetype = \"EE Request\"",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "671309059",
+          "parentId": "671309058",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "ID",
+              "value": "10299"
+            },
+            "comparison": "EQUALS",
+            "selectedField": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "selectedFieldType": "issuetype"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "671309060",
+          "parentId": "671309058",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": true,
+              "source": null,
+              "type": "NAME",
+              "value": "[\"NorCal\",\"Greenfield Lab B-3251 Hillview Ave, Palo Alto, CA 94304\"]"
+            },
+            "comparison": "ONE_OF",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Facility Location"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "671309061",
+          "parentId": "671309058",
+          "schemaVersion": 5,
+          "type": "jira.issue.assign",
+          "value": {
+            "assignType": "SPECIFY_USER",
+            "assignee": {
+              "type": "ID",
+              "value": "712020:a72744f4-d380-4dcd-b24a-cf08919a8a6c"
+            },
+            "excludedUsers": [],
+            "fieldToCopy": null,
+            "group": null,
+            "issueToCopy": null,
+            "itsmOpsOncall": null,
+            "jql": null,
+            "listAssignMethod": null,
+            "peopleTeamsCustomFieldId": null,
+            "restrictedToGroup": null,
+            "role": null,
+            "smartValue": null,
+            "userList": []
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "671309058",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "issuetype = \"Fab Request\"",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "671309063",
+          "parentId": "671309062",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "ID",
+              "value": "10297"
+            },
+            "comparison": "EQUALS",
+            "selectedField": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "selectedFieldType": "issuetype"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "671309064",
+          "parentId": "671309062",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": true,
+              "source": null,
+              "type": "NAME",
+              "value": "[\"NorCal\",\"Greenfield Lab B-3251 Hillview Ave, Palo Alto, CA 94304\"]"
+            },
+            "comparison": "ONE_OF",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Facility Location"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "671309065",
+          "parentId": "671309062",
+          "schemaVersion": 5,
+          "type": "jira.issue.assign",
+          "value": {
+            "assignType": "SPECIFY_USER",
+            "assignee": {
+              "type": "ID",
+              "value": "712020:38c98c9e-fa72-48f6-8ee7-2848207a1c8b"
+            },
+            "excludedUsers": [],
+            "fieldToCopy": null,
+            "group": null,
+            "issueToCopy": null,
+            "itsmOpsOncall": null,
+            "jql": null,
+            "listAssignMethod": null,
+            "peopleTeamsCustomFieldId": null,
+            "restrictedToGroup": null,
+            "role": null,
+            "smartValue": null,
+            "userList": []
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "671309062",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "issuetype = \"3D Print Request\"",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "671309067",
+          "parentId": "671309066",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "ID",
+              "value": "10297"
+            },
+            "comparison": "EQUALS",
+            "selectedField": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "selectedFieldType": "issuetype"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "671309068",
+          "parentId": "671309066",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": true,
+              "source": null,
+              "type": "NAME",
+              "value": "[\"Michigan\"]"
+            },
+            "comparison": "ONE_OF",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Facility Location"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "671309069",
+          "parentId": "671309066",
+          "schemaVersion": 5,
+          "type": "jira.issue.assign",
+          "value": {
+            "assignType": "SPECIFY_USER",
+            "assignee": {
+              "type": "ID",
+              "value": "712020:28ff3293-721a-4143-b5df-54a1acf5e240"
+            },
+            "excludedUsers": [],
+            "fieldToCopy": null,
+            "group": null,
+            "issueToCopy": null,
+            "itsmOpsOncall": null,
+            "jql": null,
+            "listAssignMethod": null,
+            "peopleTeamsCustomFieldId": null,
+            "restrictedToGroup": null,
+            "role": null,
+            "smartValue": null,
+            "userList": []
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "671309066",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "issuetype = \"EE Request\"",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "671309071",
+          "parentId": "671309070",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "ID",
+              "value": "10029"
+            },
+            "comparison": "EQUALS",
+            "selectedField": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "selectedFieldType": "issuetype"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "671309072",
+          "parentId": "671309070",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": true,
+              "source": null,
+              "type": "NAME",
+              "value": "[\"Michigan\"]"
+            },
+            "comparison": "ONE_OF",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Facility Location"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "671309073",
+          "parentId": "671309070",
+          "schemaVersion": 5,
+          "type": "jira.issue.assign",
+          "value": {
+            "assignType": "SPECIFY_USER",
+            "assignee": {
+              "type": "ID",
+              "value": "712020:28ff3293-721a-4143-b5df-54a1acf5e240"
+            },
+            "excludedUsers": [],
+            "fieldToCopy": null,
+            "group": null,
+            "issueToCopy": null,
+            "itsmOpsOncall": null,
+            "jql": null,
+            "listAssignMethod": null,
+            "peopleTeamsCustomFieldId": null,
+            "restrictedToGroup": null,
+            "role": null,
+            "smartValue": null,
+            "userList": []
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "671309070",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "issuetype = \"EE Request\"",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "671309075",
+          "parentId": "671309074",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "ID",
+              "value": "10298"
+            },
+            "comparison": "EQUALS",
+            "selectedField": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "selectedFieldType": "issuetype"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "671309076",
+          "parentId": "671309074",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": true,
+              "source": null,
+              "type": "NAME",
+              "value": "[\"Michigan\"]"
+            },
+            "comparison": "ONE_OF",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Facility Location"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "671309077",
+          "parentId": "671309074",
+          "schemaVersion": 5,
+          "type": "jira.issue.assign",
+          "value": {
+            "assignType": "SPECIFY_USER",
+            "assignee": {
+              "type": "ID",
+              "value": "712020:28ff3293-721a-4143-b5df-54a1acf5e240"
+            },
+            "excludedUsers": [],
+            "fieldToCopy": null,
+            "group": null,
+            "issueToCopy": null,
+            "itsmOpsOncall": null,
+            "jql": null,
+            "listAssignMethod": null,
+            "peopleTeamsCustomFieldId": null,
+            "restrictedToGroup": null,
+            "role": null,
+            "smartValue": null,
+            "userList": []
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "671309074",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "issuetype = \"Fab Request\"",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "671309079",
+          "parentId": "671309078",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "ID",
+              "value": "10299"
+            },
+            "comparison": "EQUALS",
+            "selectedField": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "selectedFieldType": "issuetype"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "671309080",
+          "parentId": "671309078",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": true,
+              "source": null,
+              "type": "NAME",
+              "value": "[\"Michigan\"]"
+            },
+            "comparison": "ONE_OF",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Facility Location"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "671309081",
+          "parentId": "671309078",
+          "schemaVersion": 5,
+          "type": "jira.issue.assign",
+          "value": {
+            "assignType": "SPECIFY_USER",
+            "assignee": {
+              "type": "ID",
+              "value": "712020:28ff3293-721a-4143-b5df-54a1acf5e240"
+            },
+            "excludedUsers": [],
+            "fieldToCopy": null,
+            "group": null,
+            "issueToCopy": null,
+            "itsmOpsOncall": null,
+            "jql": null,
+            "listAssignMethod": null,
+            "peopleTeamsCustomFieldId": null,
+            "restrictedToGroup": null,
+            "role": null,
+            "smartValue": null,
+            "userList": []
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "671309078",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "issuetype = \"3D Print Request\"",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "671309083",
+          "parentId": "671309082",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "ID",
+              "value": "10197"
+            },
+            "comparison": "EQUALS",
+            "selectedField": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "selectedFieldType": "issuetype"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "79557b24-f695-4c75-8a55-98ef32b27409",
+          "parentId": "671309082",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": true,
+              "source": null,
+              "type": "NAME",
+              "value": "[\"SoCal\",\"EVDC1-3555 E. Conant St, Long Beach, CA 90808\",\"EVDC2-3590 E. Cover, Long Beach, CA 90808\"]"
+            },
+            "comparison": "ONE_OF",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Facility Location"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "671309084",
+          "parentId": "671309082",
+          "schemaVersion": 5,
+          "type": "jira.issue.assign",
+          "value": {
+            "assignType": "SPECIFY_USER",
+            "assignee": {
+              "type": "ID",
+              "value": "712020:62976f3f-3bc3-4cd4-b375-3da6ac3aaaa0"
+            },
+            "excludedUsers": [],
+            "fieldToCopy": null,
+            "group": null,
+            "issueToCopy": null,
+            "itsmOpsOncall": null,
+            "jql": null,
+            "listAssignMethod": null,
+            "peopleTeamsCustomFieldId": null,
+            "restrictedToGroup": null,
+            "role": null,
+            "smartValue": null,
+            "userList": []
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "671309082",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "1d7bcf64-860b-444e-9e7f-7554e9fccde0",
+          "parentId": "a77f0476-55b8-4e38-8368-dae63761b717",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "ID",
+              "value": "12487"
+            },
+            "comparison": "EQUALS",
+            "selectedField": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "selectedFieldType": "issuetype"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "6343dbd0-14cb-4259-8759-e056954e633b",
+          "parentId": "a77f0476-55b8-4e38-8368-dae63761b717",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": true,
+              "source": null,
+              "type": "NAME",
+              "value": "[\"SoCal\",\"EVDC1-3555 E. Conant St, Long Beach, CA 90808\",\"EVDC2-3590 E. Cover, Long Beach, CA 90808\"]"
+            },
+            "comparison": "ONE_OF",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Facility Location"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "f829cf5e-68cb-462e-81c3-7fe3ae923cb6",
+          "parentId": "a77f0476-55b8-4e38-8368-dae63761b717",
+          "schemaVersion": 5,
+          "type": "jira.issue.assign",
+          "value": {
+            "assignType": "SPECIFY_USER",
+            "assignee": {
+              "type": "ID",
+              "value": "712020:56ee551a-0f7d-4a3e-b2bb-a1176b9ef8f8"
+            },
+            "excludedUsers": [],
+            "fieldToCopy": null,
+            "group": null,
+            "issueToCopy": null,
+            "itsmOpsOncall": null,
+            "jql": null,
+            "listAssignMethod": null,
+            "peopleTeamsCustomFieldId": null,
+            "restrictedToGroup": null,
+            "role": null,
+            "smartValue": null,
+            "userList": []
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "a77f0476-55b8-4e38-8368-dae63761b717",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "4a311e64-3167-4ca5-b3e0-129c9ceab759",
+          "parentId": "41a52410-8880-4acf-83f8-1047b7eca312",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "ID",
+              "value": "13199"
+            },
+            "comparison": "EQUALS",
+            "selectedField": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "selectedFieldType": "issuetype"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "b2bd4b9d-5683-423d-ba6a-fbfa424104fd",
+          "parentId": "41a52410-8880-4acf-83f8-1047b7eca312",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": true,
+              "source": null,
+              "type": "NAME",
+              "value": "[\"EVDC1-3555 E. Conant St, Long Beach, CA 90808\",\"EVDC2-3590 E. Cover, Long Beach, CA 90808\",\"SoCal\"]"
+            },
+            "comparison": "ONE_OF",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Facility Location"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "26623b0d-6ab4-4dcc-a72f-819f46c7bee5",
+          "parentId": "41a52410-8880-4acf-83f8-1047b7eca312",
+          "schemaVersion": 5,
+          "type": "jira.issue.assign",
+          "value": {
+            "assignType": "SPECIFY_USER",
+            "assignee": {
+              "type": "ID",
+              "value": "712020:3dfad737-5d0d-4995-8eab-ffe206be9f2b"
+            },
+            "excludedUsers": [],
+            "fieldToCopy": null,
+            "group": null,
+            "issueToCopy": null,
+            "itsmOpsOncall": null,
+            "jql": null,
+            "listAssignMethod": null,
+            "peopleTeamsCustomFieldId": null,
+            "restrictedToGroup": null,
+            "role": null,
+            "smartValue": null,
+            "userList": []
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "41a52410-8880-4acf-83f8-1047b7eca312",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1724190513719,
+  "description": "",
+  "id": 21407689,
+  "idUuid": "019171c3-5a37-7308-8f65-11bb2248fcae",
+  "labels": [],
+  "name": "Auto-assign mapping rule",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10125"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10125"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "671309032",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10125"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Facility Location"
+        }
+      ]
+    }
+  },
+  "updated": 1784836319896,
+  "writeAccessType": "UNRESTRICTED"
+}

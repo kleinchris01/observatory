@@ -1,0 +1,837 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "64b3982e-e986-461f-8f01-e7c7c2d0d881",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1748386628750",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "domain"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{reporter.emailAddress.split(\"@\").get(1)}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "c4ce1042-e947-4793-88b2-972b172ebf42",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "{{domain}}"
+    },
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "de608928-5809-4c57-9463-abdab44e9b91",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.comparator.condition",
+      "value": {
+        "first": "{{domain}}",
+        "operator": "NOT_EQUALS",
+        "second": "ford.com"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "7fc72e1a-490d-4461-a5fd-ab1eacd303e5",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.outgoing.webhook",
+      "value": {
+        "contentType": "custom",
+        "continueOnErrorEnabled": false,
+        "customBody": "grant_type=client_credentials&client_id=2699247d-c7a7-464e-bd58-67504278886a&client_secret=[[REDACTED:96497140]]&scope=https://graph.microsoft.com/.default",
+        "headers": [
+          {
+            "headerSecure": false,
+            "id": "_header_1737563670782",
+            "name": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "method": "GET",
+        "responseEnabled": true,
+        "sendIssue": false,
+        "url": "https://login.microsoftonline.com/c990bb7a-51f4-439b-bd36-9c07fb1041c0/oauth2/v2.0/token",
+        "urlSecure": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "d4d93ddf-b47d-4374-93d0-7922237e3fef",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1737564340721",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "graphtoken"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{webhookResponse.body.access_token}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "b28345a6-6b99-468c-94ab-02cb7833cb99",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1737567259657",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "ext"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{issue.reporter.emailAddress.replace(\"@\",\"_\")}}%23EXT%23%40azureford.onmicrosoft.com"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "acb95849-3daf-45f8-8df7-e6b170339418",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "{{ext}}"
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "e6834138-b478-4123-99aa-f1dd5e64468c",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.outgoing.webhook",
+      "value": {
+        "contentType": "empty",
+        "continueOnErrorEnabled": false,
+        "customBody": "grant_type=client_credentials&client_id=2699247d-c7a7-464e-bd58-67504278886a&client_secret=[[REDACTED:5d417630]]&scope=https://graph.microsoft.com/.default",
+        "headers": [
+          {
+            "headerSecure": false,
+            "id": "_header_1737563670782",
+            "name": "",
+            "value": ""
+          },
+          {
+            "headerSecure": false,
+            "id": "_header_1737564379045",
+            "name": "Authorization",
+            "value": "Bearer {{graphtoken}}"
+          }
+        ],
+        "method": "GET",
+        "responseEnabled": true,
+        "sendIssue": false,
+        "url": "https://graph.microsoft.com/v1.0/users/{{ext}}",
+        "urlSecure": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "a0961ac4-c944-4bca-8955-355ef960f875",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1737564340721",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "userid"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{webhookResponse.body.id}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "54420b58-58d9-4436-9d17-57f9c06db987",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1737564340721",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "username"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{webhookResponse.body.mail.split(\"@\").first}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "2843a7ad-fdb8-471e-bec3-093370c72e63",
+              "parentId": "8204d2ac-f44d-4fbd-9f8a-b0be282a7b3e",
+              "schemaVersion": 5,
+              "type": "jira.issue.outgoing.email",
+              "value": {
+                "bcc": [],
+                "body": "{{userid}}",
+                "cc": [],
+                "convertLineBreaks": true,
+                "fromName": "",
+                "mimeType": "text/html",
+                "replyTo": "",
+                "subject": "ADVEVEXTERNALACCESS_PREA_COMMENT",
+                "to": [
+                  {
+                    "type": "FREE",
+                    "value": "jpolman1@ford.com"
+                  },
+                  {
+                    "type": "FREE",
+                    "value": "cklein50@ford.com"
+                  }
+                ]
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "cf7c56ad-08dd-4710-8e43-ce0922126613",
+              "parentId": "8204d2ac-f44d-4fbd-9f8a-b0be282a7b3e",
+              "schemaVersion": 11,
+              "type": "jira.issue.transition",
+              "value": {
+                "advancedFields": null,
+                "destinationStatus": {
+                  "type": "NAME",
+                  "value": "Done"
+                },
+                "operations": [],
+                "sendNotifications": true,
+                "transitionMatch": ""
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "8204d2ac-f44d-4fbd-9f8a-b0be282a7b3e",
+              "conditions": [],
+              "connectionId": null,
+              "id": "7d91c6e7-f058-474a-bdfe-c8fc73ab1a28",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "[\"Viewer-EXTERNAL\",\"Comment-EXTERNAL\"]"
+                },
+                "comparison": "ONE_OF",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "External Project Role"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "8204d2ac-f44d-4fbd-9f8a-b0be282a7b3e",
+          "parentId": "437b3529-d181-42fc-b1b9-00111dbf636c",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "e610af59-83b1-445d-a504-131d9c555c27",
+              "parentId": "fe09a2ab-f26e-4799-bd65-9bdd7c4980b0",
+              "schemaVersion": 5,
+              "type": "jira.issue.outgoing.email",
+              "value": {
+                "bcc": [],
+                "body": "{{userid}}",
+                "cc": [],
+                "convertLineBreaks": true,
+                "fromName": "",
+                "mimeType": "text/html",
+                "replyTo": "",
+                "subject": "ADVEVEXTERNALACCESS_PREA_CREATOR",
+                "to": [
+                  {
+                    "type": "FREE",
+                    "value": "jpolman1@ford.com"
+                  },
+                  {
+                    "type": "FREE",
+                    "value": "cklein50@ford.com"
+                  }
+                ]
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "344c212a-5114-4608-be37-8be62c44c713",
+              "parentId": "fe09a2ab-f26e-4799-bd65-9bdd7c4980b0",
+              "schemaVersion": 11,
+              "type": "jira.issue.transition",
+              "value": {
+                "advancedFields": null,
+                "destinationStatus": {
+                  "type": "NAME",
+                  "value": "Done"
+                },
+                "operations": [],
+                "sendNotifications": true,
+                "transitionMatch": ""
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "fe09a2ab-f26e-4799-bd65-9bdd7c4980b0",
+              "conditions": [],
+              "connectionId": null,
+              "id": "d297ee8d-014e-4e7a-b9e0-90cc6d927d31",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "Creators-EXTERNAL"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "External Project Role"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "fe09a2ab-f26e-4799-bd65-9bdd7c4980b0",
+          "parentId": "437b3529-d181-42fc-b1b9-00111dbf636c",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "894b3685-2afb-46a5-a4eb-33b598fc62bc",
+              "parentId": "75c47278-cf1b-41b5-810a-facf83ea3c96",
+              "schemaVersion": 5,
+              "type": "jira.issue.outgoing.email",
+              "value": {
+                "bcc": [],
+                "body": "{{userid}}",
+                "cc": [],
+                "convertLineBreaks": true,
+                "fromName": "",
+                "mimeType": "text/html",
+                "replyTo": "",
+                "subject": "ADVEVEXTERNALACCESS_PREA_EDITOR",
+                "to": [
+                  {
+                    "type": "FREE",
+                    "value": "jpolman1@ford.com"
+                  },
+                  {
+                    "type": "FREE",
+                    "value": "cklein50@ford.com"
+                  }
+                ]
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "532b7cef-7d90-4374-a02c-480ddb6aee79",
+              "parentId": "75c47278-cf1b-41b5-810a-facf83ea3c96",
+              "schemaVersion": 11,
+              "type": "jira.issue.transition",
+              "value": {
+                "advancedFields": null,
+                "destinationStatus": {
+                  "type": "NAME",
+                  "value": "Done"
+                },
+                "operations": [],
+                "sendNotifications": true,
+                "transitionMatch": ""
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "75c47278-cf1b-41b5-810a-facf83ea3c96",
+              "conditions": [],
+              "connectionId": null,
+              "id": "767f442c-f1e3-4155-b512-10cac8627dbd",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "Editors-EXTERNAL"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "External Project Role"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "75c47278-cf1b-41b5-810a-facf83ea3c96",
+          "parentId": "437b3529-d181-42fc-b1b9-00111dbf636c",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "618766c5-4e1a-44b8-8d45-3050098327f8",
+              "parentId": "d4ed49b1-95ba-4c11-8cf9-a6ac68851871",
+              "schemaVersion": 5,
+              "type": "jira.issue.outgoing.email",
+              "value": {
+                "bcc": [],
+                "body": "{{userid}}",
+                "cc": [],
+                "convertLineBreaks": true,
+                "fromName": "",
+                "mimeType": "text/html",
+                "replyTo": "",
+                "subject": "ADVEVEXTERNALACCESS_PREA_DEVELOPER",
+                "to": [
+                  {
+                    "type": "FREE",
+                    "value": "jpolman1@ford.com"
+                  },
+                  {
+                    "type": "FREE",
+                    "value": "cklein50@ford.com"
+                  }
+                ]
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "822a813d-11ca-493d-bcf6-ed37ae557a50",
+              "parentId": "d4ed49b1-95ba-4c11-8cf9-a6ac68851871",
+              "schemaVersion": 11,
+              "type": "jira.issue.transition",
+              "value": {
+                "advancedFields": null,
+                "destinationStatus": {
+                  "type": "NAME",
+                  "value": "Done"
+                },
+                "operations": [],
+                "sendNotifications": true,
+                "transitionMatch": ""
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "d4ed49b1-95ba-4c11-8cf9-a6ac68851871",
+              "conditions": [],
+              "connectionId": null,
+              "id": "fc1a49f4-238a-410e-9176-75183964e9a8",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "Developer-EXTERNAL"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "External Project Role"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "d4ed49b1-95ba-4c11-8cf9-a6ac68851871",
+          "parentId": "437b3529-d181-42fc-b1b9-00111dbf636c",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "37226428-fb71-437c-9aa0-15cf23e99680",
+              "parentId": "40208825-6dde-4ead-a94d-7da642963ebd",
+              "schemaVersion": 5,
+              "type": "jira.issue.outgoing.email",
+              "value": {
+                "bcc": [],
+                "body": "{{userid}}",
+                "cc": [],
+                "convertLineBreaks": true,
+                "fromName": "",
+                "mimeType": "text/html",
+                "replyTo": "",
+                "subject": "ADVEVEXTERNALACCESS_PREA_ADMIN",
+                "to": [
+                  {
+                    "type": "FREE",
+                    "value": "jpolman1@ford.com"
+                  },
+                  {
+                    "type": "FREE",
+                    "value": "cklein50@ford.com"
+                  }
+                ]
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "ad340f3a-6c7f-48a0-bf02-b8c54a06607b",
+              "parentId": "40208825-6dde-4ead-a94d-7da642963ebd",
+              "schemaVersion": 11,
+              "type": "jira.issue.transition",
+              "value": {
+                "advancedFields": null,
+                "destinationStatus": {
+                  "type": "NAME",
+                  "value": "Done"
+                },
+                "operations": [],
+                "sendNotifications": true,
+                "transitionMatch": ""
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "40208825-6dde-4ead-a94d-7da642963ebd",
+              "conditions": [],
+              "connectionId": null,
+              "id": "7e0e5612-2c07-4cbc-9f60-2a16fde34ce0",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "Admin-EXTERNAL"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "External Project Role"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "40208825-6dde-4ead-a94d-7da642963ebd",
+          "parentId": "437b3529-d181-42fc-b1b9-00111dbf636c",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "437b3529-d181-42fc-b1b9-00111dbf636c",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1770677643169,
+  "description": "[On transition] Check for product access in Jira directly.  If project is selected and user has product access, transition to Project Owner Approval.  If project is selected and user does not have product access, add user to pruct acess group (Internal or External).  If no project is selected and user has product access , transition to Done. ",
+  "id": 31915902,
+  "idUuid": "019c449c-a7a1-7d15-a5ec-fe35340330b6",
+  "labels": [
+    758924,
+    911815
+  ],
+  "name": "Jira - 5 - Approved (PREA: NON-Ford Domain) ",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "fe88542d-73e3-44f4-8787-15e6a88af852",
+        "conditions": [],
+        "connectionId": null,
+        "id": "42673493-6aba-43c4-957c-0c069db6cb56",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": true,
+            "source": null,
+            "type": "NAME",
+            "value": "[\"Jira\"]"
+          },
+          "comparison": "CONTAINS_EXACTLY",
+          "selectedField": {
+            "type": "NAME",
+            "value": "ADT Tool(s)"
+          },
+          "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "fe88542d-73e3-44f4-8787-15e6a88af852",
+        "conditions": [],
+        "connectionId": null,
+        "id": "04e9a817-a218-4449-a892-7fef739fa828",
+        "parentId": null,
+        "schemaVersion": 1,
+        "type": "jira.jql.condition",
+        "value": "cf[11373] = \"ari:cloud:cmdb::object/c77afb26-c55c-4af4-861f-5e2907f8719d/15587\""
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "fe88542d-73e3-44f4-8787-15e6a88af852",
+        "conditions": [],
+        "connectionId": null,
+        "id": "05bf1745-629f-493f-b0d9-078b415d1f41",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": true,
+            "source": null,
+            "type": "NAME",
+            "value": "[\"ADVEV Access\",\"Jira Access\"]"
+          },
+          "comparison": "ONE_OF",
+          "selectedField": {
+            "type": "NAME",
+            "value": "Request Type"
+          },
+          "selectedFieldType": "com.atlassian.servicedesk:vp-origin"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "fe88542d-73e3-44f4-8787-15e6a88af852",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:transitioned",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+      ],
+      "eventKey": "jira:issue_updated",
+      "fromStatus": [],
+      "issueEvent": "issue_generic",
+      "toStatus": [
+        {
+          "type": "NAME",
+          "value": "Owner Approved"
+        }
+      ]
+    }
+  },
+  "updated": 1770678667604,
+  "writeAccessType": "UNRESTRICTED"
+}

@@ -1,0 +1,2174 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:975c8bf8-d86c-4dee-842f-4e9c3c3a541e",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "504221d0-df72-491d-a73c-5103046d06c2",
+              "parentId": "606c6b51-e2c1-4708-a45c-d927c477e43f",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "MFG Lead"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                    "type": "SET",
+                    "value": null
+                  }
+                ],
+                "sendNotifications": true
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "35cc30cf-6a72-405e-a765-50610223401e",
+                      "parentId": "f03c37b8-a693-4a8b-b99b-53e25c5f31d8",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "Solution Owner (SIT/MFG Lead)"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "6317f313d8850343ef59d542"
+                            }
+                          },
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "SIT Lead"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "6317f313d8850343ef59d542"
+                            }
+                          }
+                        ],
+                        "sendNotifications": true
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "f03c37b8-a693-4a8b-b99b-53e25c5f31d8",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "e4ee5a2e-97ea-43f3-89f3-7bd9671f412f",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": {
+                          "modifier": null,
+                          "multiValue": false,
+                          "source": null,
+                          "type": "NAME",
+                          "value": "Battery"
+                        },
+                        "comparison": "EQUALS",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "SIT"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "f03c37b8-a693-4a8b-b99b-53e25c5f31d8",
+                  "parentId": "e9dea376-70f0-45ff-806e-df4f9b143170",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "35a69f06-18fc-4fcc-a54b-678a21e539a3",
+                      "parentId": "0fa6926f-fdde-4dc1-a02c-7fd45feef615",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "Solution Owner (SIT/MFG Lead)"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "712020:363be9ef-0a71-463d-b9ea-bdf9f8fb9249"
+                            }
+                          },
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "SIT Lead"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "712020:363be9ef-0a71-463d-b9ea-bdf9f8fb9249"
+                            }
+                          }
+                        ],
+                        "sendNotifications": true
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "0fa6926f-fdde-4dc1-a02c-7fd45feef615",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "f3fc2667-4038-4815-bfa6-84da5e707dfd",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": {
+                          "modifier": null,
+                          "multiValue": false,
+                          "source": null,
+                          "type": "NAME",
+                          "value": "Body"
+                        },
+                        "comparison": "EQUALS",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "SIT"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "0fa6926f-fdde-4dc1-a02c-7fd45feef615",
+                  "parentId": "e9dea376-70f0-45ff-806e-df4f9b143170",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "a7486e6e-de04-4ba0-b825-dc2f81444b0a",
+                      "parentId": "f2b28eac-24b8-45a5-8c90-83e03330f991",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "Solution Owner (SIT/MFG Lead)"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "62a0f1ca4e1a640070c43cd0"
+                            }
+                          },
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "SIT Lead"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "62a0f1ca4e1a640070c43cd0"
+                            }
+                          }
+                        ],
+                        "sendNotifications": true
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "f2b28eac-24b8-45a5-8c90-83e03330f991",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "286fc4cd-eae8-4394-8ac8-9f192aa5af1d",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": {
+                          "modifier": null,
+                          "multiValue": false,
+                          "source": null,
+                          "type": "NAME",
+                          "value": "Chassis"
+                        },
+                        "comparison": "EQUALS",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "SIT"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "f2b28eac-24b8-45a5-8c90-83e03330f991",
+                  "parentId": "e9dea376-70f0-45ff-806e-df4f9b143170",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "7719eaa0-d793-4211-9be0-d12b95af4ba7",
+                      "parentId": "012bddc3-ebc5-4887-b8f8-fd82236c0b4e",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "Solution Owner (SIT/MFG Lead)"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "712020:4699d25a-cba0-42f1-a223-106535e49fa7"
+                            }
+                          },
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "SIT Lead"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "712020:4699d25a-cba0-42f1-a223-106535e49fa7"
+                            }
+                          }
+                        ],
+                        "sendNotifications": true
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "012bddc3-ebc5-4887-b8f8-fd82236c0b4e",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "4e939e48-22e1-40ad-a7cd-56bef98428d9",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": {
+                          "modifier": null,
+                          "multiValue": false,
+                          "source": null,
+                          "type": "NAME",
+                          "value": "Closures"
+                        },
+                        "comparison": "EQUALS",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "SIT"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "012bddc3-ebc5-4887-b8f8-fd82236c0b4e",
+                  "parentId": "e9dea376-70f0-45ff-806e-df4f9b143170",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "1500eb68-1ebd-4ab3-ab61-bc81a53b6509",
+                      "parentId": "24403c11-760f-4e46-be14-3af2ab0aaef2",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "Solution Owner (SIT/MFG Lead)"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "6317f313d8850343ef59d542"
+                            }
+                          },
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "SIT Lead"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "6317f313d8850343ef59d542"
+                            }
+                          }
+                        ],
+                        "sendNotifications": true
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "24403c11-760f-4e46-be14-3af2ab0aaef2",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "8b00d053-98fc-49f9-a417-a4e4f9a12cba",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": {
+                          "modifier": null,
+                          "multiValue": false,
+                          "source": null,
+                          "type": "NAME",
+                          "value": "Drive Unit (DU)"
+                        },
+                        "comparison": "EQUALS",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "SIT"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "24403c11-760f-4e46-be14-3af2ab0aaef2",
+                  "parentId": "e9dea376-70f0-45ff-806e-df4f9b143170",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "da2164fb-f804-41bf-92b2-3d0a31690596",
+                      "parentId": "62b15929-7b3a-4028-b4ba-90b485c44b7b",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "Solution Owner (SIT/MFG Lead)"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "712020:4a8ac4cc-cea6-403b-a643-bab6767e8fb9"
+                            }
+                          },
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "SIT Lead"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "712020:4a8ac4cc-cea6-403b-a643-bab6767e8fb9"
+                            }
+                          }
+                        ],
+                        "sendNotifications": true
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "62b15929-7b3a-4028-b4ba-90b485c44b7b",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "4f415452-272a-44b2-a0f3-9c6e52bc3056",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": {
+                          "modifier": null,
+                          "multiValue": false,
+                          "source": null,
+                          "type": "NAME",
+                          "value": "Electrical"
+                        },
+                        "comparison": "EQUALS",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "SIT"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "62b15929-7b3a-4028-b4ba-90b485c44b7b",
+                  "parentId": "e9dea376-70f0-45ff-806e-df4f9b143170",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "4544860d-3b0c-4dcb-b685-9c66a6c57b60",
+                      "parentId": "10b76f8f-9125-44af-b807-60daae43e7e2",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "Solution Owner (SIT/MFG Lead)"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "63bda75050b9490924dc668f"
+                            }
+                          },
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "SIT Lead"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "63bda75050b9490924dc668f"
+                            }
+                          }
+                        ],
+                        "sendNotifications": true
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "10b76f8f-9125-44af-b807-60daae43e7e2",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "37bb678e-0c52-4b4a-910d-1024210eb9fb",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": {
+                          "modifier": null,
+                          "multiValue": false,
+                          "source": null,
+                          "type": "NAME",
+                          "value": "Exterior"
+                        },
+                        "comparison": "EQUALS",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "SIT"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "10b76f8f-9125-44af-b807-60daae43e7e2",
+                  "parentId": "e9dea376-70f0-45ff-806e-df4f9b143170",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "7c8b3e82-b961-44c3-83f5-2440fdfe236a",
+                      "parentId": "05c3ed37-3ef0-4898-b31f-9dd1466b26bb",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "Solution Owner (SIT/MFG Lead)"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "63fca1fc2847866310fdb7eb"
+                            }
+                          },
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "SIT Lead"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "63fca1fc2847866310fdb7eb"
+                            }
+                          }
+                        ],
+                        "sendNotifications": true
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "05c3ed37-3ef0-4898-b31f-9dd1466b26bb",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "2e31aa8a-6a95-4b7c-8848-cd899658c1a3",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": {
+                          "modifier": null,
+                          "multiValue": false,
+                          "source": null,
+                          "type": "NAME",
+                          "value": "Interior"
+                        },
+                        "comparison": "EQUALS",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "SIT"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "05c3ed37-3ef0-4898-b31f-9dd1466b26bb",
+                  "parentId": "e9dea376-70f0-45ff-806e-df4f9b143170",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "f711ff60-0db3-496b-bf21-52c2cdecef47",
+                      "parentId": "92c21cc3-cc48-4848-8c6d-d17eb5414a04",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "Solution Owner (SIT/MFG Lead)"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "63efbf502661cde223387969"
+                            }
+                          },
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "SIT Lead"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "63efbf502661cde223387969"
+                            }
+                          }
+                        ],
+                        "sendNotifications": true
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "92c21cc3-cc48-4848-8c6d-d17eb5414a04",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "422ef21d-396e-4948-8a4a-fa0c06e6ba34",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": {
+                          "modifier": null,
+                          "multiValue": false,
+                          "source": null,
+                          "type": "NAME",
+                          "value": "Seats"
+                        },
+                        "comparison": "EQUALS",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "SIT"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "92c21cc3-cc48-4848-8c6d-d17eb5414a04",
+                  "parentId": "e9dea376-70f0-45ff-806e-df4f9b143170",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "d235311d-1062-49b8-85c7-1f2a57378814",
+                      "parentId": "c01881e5-f3d3-46cf-8ad4-a6ff27c06d36",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "Solution Owner (SIT/MFG Lead)"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "712020:055a5bcc-7db2-46a9-8337-ce40c198f7c1"
+                            }
+                          },
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "SIT Lead"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "712020:055a5bcc-7db2-46a9-8337-ce40c198f7c1"
+                            }
+                          }
+                        ],
+                        "sendNotifications": true
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "c01881e5-f3d3-46cf-8ad4-a6ff27c06d36",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "7662f2d7-4751-401b-a20e-2d46501fb650",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": {
+                          "modifier": null,
+                          "multiValue": false,
+                          "source": null,
+                          "type": "NAME",
+                          "value": "Thermal"
+                        },
+                        "comparison": "EQUALS",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "SIT"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "c01881e5-f3d3-46cf-8ad4-a6ff27c06d36",
+                  "parentId": "e9dea376-70f0-45ff-806e-df4f9b143170",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "9db04aec-2f81-4bde-8885-3bb10e1f1d7f",
+                      "parentId": "cd48a7c8-8047-4e26-8a12-5345cb71fcc4",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "Solution Owner (SIT/MFG Lead)"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": null
+                          },
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "SIT Lead"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": null
+                          }
+                        ],
+                        "sendNotifications": true
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "cd48a7c8-8047-4e26-8a12-5345cb71fcc4",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "4f3f0380-8b15-4fa3-a4ce-f64e58effdfd",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": null,
+                        "comparison": "EMPTY",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "SIT"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "cd48a7c8-8047-4e26-8a12-5345cb71fcc4",
+                  "parentId": "e9dea376-70f0-45ff-806e-df4f9b143170",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                }
+              ],
+              "component": "CONDITION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "e9dea376-70f0-45ff-806e-df4f9b143170",
+              "parentId": "606c6b51-e2c1-4708-a45c-d927c477e43f",
+              "schemaVersion": 1,
+              "type": "jira.condition.container.block",
+              "value": null
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "606c6b51-e2c1-4708-a45c-d927c477e43f",
+              "conditions": [],
+              "connectionId": null,
+              "id": "e71ae703-ccf8-48d0-9511-9912efede757",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "[\"Standard\",\"Configuration\",\"Documentation\"]"
+                },
+                "comparison": "ONE_OF",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Change Type"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "606c6b51-e2c1-4708-a45c-d927c477e43f",
+              "conditions": [],
+              "connectionId": null,
+              "id": "300465ac-83d8-42d3-8e8c-898267de9f7f",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": null,
+                "comparison": "EMPTY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Change Type"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "606c6b51-e2c1-4708-a45c-d927c477e43f",
+          "parentId": "28261d48-95e1-469e-8acd-a24b66f9d0e6",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ANY"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "a5c8110b-fdd8-4390-91d0-71d0356c99b1",
+                      "parentId": "b71ddb19-abac-4743-8aec-244f17c09547",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "Solution Owner (SIT/MFG Lead)"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "62a4d776122dfd006908aa00"
+                            }
+                          },
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "MFG Lead"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "62a4d776122dfd006908aa00"
+                            }
+                          },
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "SIT Lead"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "6317f313d8850343ef59d542"
+                            }
+                          }
+                        ],
+                        "sendNotifications": true
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "b71ddb19-abac-4743-8aec-244f17c09547",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "0d2e8b71-0f52-4dbf-9b1b-5d5e466c0510",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": {
+                          "modifier": null,
+                          "multiValue": false,
+                          "source": null,
+                          "type": "NAME",
+                          "value": "Battery"
+                        },
+                        "comparison": "EQUALS",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "SIT"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "b71ddb19-abac-4743-8aec-244f17c09547",
+                  "parentId": "c2d8cb6d-b3e0-48a7-8a57-2291112c5130",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "28f4ff05-875e-40e0-b2f2-238ff0e0caa8",
+                      "parentId": "06fc1f44-023f-4df3-9b38-17c65b18b796",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "Solution Owner (SIT/MFG Lead)"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "712020:41f1d3bb-7e39-45e8-ae08-cbd5b16d19bd"
+                            }
+                          },
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "MFG Lead"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "712020:41f1d3bb-7e39-45e8-ae08-cbd5b16d19bd"
+                            }
+                          },
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "SIT Lead"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "712020:363be9ef-0a71-463d-b9ea-bdf9f8fb9249"
+                            }
+                          }
+                        ],
+                        "sendNotifications": true
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "06fc1f44-023f-4df3-9b38-17c65b18b796",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "4ac3a00f-6bdc-404c-a066-4d2665bcccd1",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": {
+                          "modifier": null,
+                          "multiValue": false,
+                          "source": null,
+                          "type": "NAME",
+                          "value": "Body"
+                        },
+                        "comparison": "EQUALS",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "SIT"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "06fc1f44-023f-4df3-9b38-17c65b18b796",
+                  "parentId": "c2d8cb6d-b3e0-48a7-8a57-2291112c5130",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "c875586d-6c9c-4f42-999d-e09c243bc88a",
+                      "parentId": "d4616c0a-a9ff-4788-8089-c678126a6692",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "Solution Owner (SIT/MFG Lead)"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "712020:f121b091-49b7-4191-925f-42ba3c7821dc"
+                            }
+                          },
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "MFG Lead"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "712020:f121b091-49b7-4191-925f-42ba3c7821dc"
+                            }
+                          },
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "SIT Lead"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "62a0f1ca4e1a640070c43cd0"
+                            }
+                          }
+                        ],
+                        "sendNotifications": true
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "d4616c0a-a9ff-4788-8089-c678126a6692",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "706c7949-bd80-4209-9943-ec9db3fa15b1",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": {
+                          "modifier": null,
+                          "multiValue": false,
+                          "source": null,
+                          "type": "NAME",
+                          "value": "Chassis"
+                        },
+                        "comparison": "EQUALS",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "SIT"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "d4616c0a-a9ff-4788-8089-c678126a6692",
+                  "parentId": "c2d8cb6d-b3e0-48a7-8a57-2291112c5130",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "4ca6b21f-1a6b-4009-a1b6-1c4833632dfb",
+                      "parentId": "f57771f6-144e-43ce-b410-5e41dfa4c684",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "Solution Owner (SIT/MFG Lead)"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "712020:9ca00a67-dd32-4486-8273-a17a26248455"
+                            }
+                          },
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "MFG Lead"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "712020:9ca00a67-dd32-4486-8273-a17a26248455"
+                            }
+                          },
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "SIT Lead"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "712020:4699d25a-cba0-42f1-a223-106535e49fa7"
+                            }
+                          }
+                        ],
+                        "sendNotifications": true
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "f57771f6-144e-43ce-b410-5e41dfa4c684",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "01cac7bd-f7d2-48c8-8807-51092c26c25e",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": {
+                          "modifier": null,
+                          "multiValue": false,
+                          "source": null,
+                          "type": "NAME",
+                          "value": "Closures"
+                        },
+                        "comparison": "EQUALS",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "SIT"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "f57771f6-144e-43ce-b410-5e41dfa4c684",
+                  "parentId": "c2d8cb6d-b3e0-48a7-8a57-2291112c5130",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "72d160bf-84fe-4bee-9c72-28a62c471c9b",
+                      "parentId": "a29ad684-f28b-45c0-97f6-1401a343301f",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "Solution Owner (SIT/MFG Lead)"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "712020:f9b42bf4-74b4-4b7d-89d4-7fbc266c4bc6"
+                            }
+                          },
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "MFG Lead"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "712020:f9b42bf4-74b4-4b7d-89d4-7fbc266c4bc6"
+                            }
+                          },
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "SIT Lead"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "6317f313d8850343ef59d542"
+                            }
+                          }
+                        ],
+                        "sendNotifications": true
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "a29ad684-f28b-45c0-97f6-1401a343301f",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "2f27e8c9-2073-45e8-a73f-be7682b9d18a",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": {
+                          "modifier": null,
+                          "multiValue": false,
+                          "source": null,
+                          "type": "NAME",
+                          "value": "Drive Unit (DU)"
+                        },
+                        "comparison": "EQUALS",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "SIT"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "a29ad684-f28b-45c0-97f6-1401a343301f",
+                  "parentId": "c2d8cb6d-b3e0-48a7-8a57-2291112c5130",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "c358a9a1-095c-4dd4-9ef9-13251cac1220",
+                      "parentId": "4c39349a-24e9-4d1e-95cc-4785e86d2940",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "Solution Owner (SIT/MFG Lead)"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "62a4df2ed442e60068445b0a"
+                            }
+                          },
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "MFG Lead"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "62a4df2ed442e60068445b0a"
+                            }
+                          },
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "SIT Lead"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "712020:4a8ac4cc-cea6-403b-a643-bab6767e8fb9"
+                            }
+                          }
+                        ],
+                        "sendNotifications": true
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "4c39349a-24e9-4d1e-95cc-4785e86d2940",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "a9202bca-18ac-4aad-81ac-026690328edc",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": {
+                          "modifier": null,
+                          "multiValue": false,
+                          "source": null,
+                          "type": "NAME",
+                          "value": "Electrical"
+                        },
+                        "comparison": "EQUALS",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "SIT"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "4c39349a-24e9-4d1e-95cc-4785e86d2940",
+                  "parentId": "c2d8cb6d-b3e0-48a7-8a57-2291112c5130",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "17ff5917-70ab-4fa6-acbc-d9dc485de19c",
+                      "parentId": "9c69fe55-950b-4f17-8376-a6358a861534",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "Solution Owner (SIT/MFG Lead)"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "712020:18a34821-19b6-43ea-b5c3-a8aa2283ad8d"
+                            }
+                          },
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "MFG Lead"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "712020:18a34821-19b6-43ea-b5c3-a8aa2283ad8d"
+                            }
+                          },
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "SIT Lead"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "63bda75050b9490924dc668f"
+                            }
+                          }
+                        ],
+                        "sendNotifications": true
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "9c69fe55-950b-4f17-8376-a6358a861534",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "5961bc30-d9a9-4368-92eb-995d880f2ba7",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": {
+                          "modifier": null,
+                          "multiValue": false,
+                          "source": null,
+                          "type": "NAME",
+                          "value": "Exterior"
+                        },
+                        "comparison": "EQUALS",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "SIT"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "9c69fe55-950b-4f17-8376-a6358a861534",
+                  "parentId": "c2d8cb6d-b3e0-48a7-8a57-2291112c5130",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "aca5ca6f-d8c8-48cc-99ea-71263cdb25fd",
+                      "parentId": "19746b60-9f61-4802-8d3a-c9dc8cbbfccb",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "Solution Owner (SIT/MFG Lead)"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "712020:424088fb-5e0e-43df-bd4f-1f67239b69da"
+                            }
+                          },
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "MFG Lead"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "712020:424088fb-5e0e-43df-bd4f-1f67239b69da"
+                            }
+                          },
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "SIT Lead"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "63fca1fc2847866310fdb7eb"
+                            }
+                          }
+                        ],
+                        "sendNotifications": true
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "19746b60-9f61-4802-8d3a-c9dc8cbbfccb",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "7e3ef46e-593d-4217-a0e0-23fec0dc15a9",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": {
+                          "modifier": null,
+                          "multiValue": false,
+                          "source": null,
+                          "type": "NAME",
+                          "value": "Interior"
+                        },
+                        "comparison": "EQUALS",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "SIT"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "19746b60-9f61-4802-8d3a-c9dc8cbbfccb",
+                  "parentId": "c2d8cb6d-b3e0-48a7-8a57-2291112c5130",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "855c2673-2cde-4c64-b731-8ddad946be5e",
+                      "parentId": "2708b171-84bb-48e9-b86c-215ceb819edc",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "Solution Owner (SIT/MFG Lead)"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "712020:4b57eca6-e992-41de-8f10-6ed8a6a70c2c"
+                            }
+                          },
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "MFG Lead"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "712020:4b57eca6-e992-41de-8f10-6ed8a6a70c2c"
+                            }
+                          },
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "SIT Lead"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "63efbf502661cde223387969"
+                            }
+                          }
+                        ],
+                        "sendNotifications": true
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "2708b171-84bb-48e9-b86c-215ceb819edc",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "afc6ad7d-4708-44b3-988a-564dd7f88cf5",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": {
+                          "modifier": null,
+                          "multiValue": false,
+                          "source": null,
+                          "type": "NAME",
+                          "value": "Seats"
+                        },
+                        "comparison": "EQUALS",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "SIT"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "2708b171-84bb-48e9-b86c-215ceb819edc",
+                  "parentId": "c2d8cb6d-b3e0-48a7-8a57-2291112c5130",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "9b1dd0fd-7c3e-4b1f-8f83-8cd23e7212a9",
+                      "parentId": "1cbb8bda-ead9-4565-8187-bf5e7b3b3c64",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "Solution Owner (SIT/MFG Lead)"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "712020:522de01a-9dc1-4f49-99bf-c883cd807311"
+                            }
+                          },
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "MFG Lead"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "712020:522de01a-9dc1-4f49-99bf-c883cd807311"
+                            }
+                          },
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "SIT Lead"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": {
+                              "type": "ID",
+                              "value": "712020:055a5bcc-7db2-46a9-8337-ce40c198f7c1"
+                            }
+                          }
+                        ],
+                        "sendNotifications": true
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "1cbb8bda-ead9-4565-8187-bf5e7b3b3c64",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "9c82b3cc-d69f-4613-b031-4b8dbbb2db13",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": {
+                          "modifier": null,
+                          "multiValue": false,
+                          "source": null,
+                          "type": "NAME",
+                          "value": "Thermal"
+                        },
+                        "comparison": "EQUALS",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "SIT"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "1cbb8bda-ead9-4565-8187-bf5e7b3b3c64",
+                  "parentId": "c2d8cb6d-b3e0-48a7-8a57-2291112c5130",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "0527568f-5d09-49ec-813c-25fab3c00092",
+                      "parentId": "cd51609a-8857-48ce-9596-a702d444b3e1",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "Solution Owner (SIT/MFG Lead)"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": null
+                          },
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "MFG Lead"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": null
+                          },
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "SIT Lead"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                            "type": "SET",
+                            "value": null
+                          }
+                        ],
+                        "sendNotifications": true
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "cd51609a-8857-48ce-9596-a702d444b3e1",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "0ccce22f-1d2e-4a43-a665-e5d5eaca496c",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": {
+                          "modifier": null,
+                          "multiValue": false,
+                          "source": null,
+                          "type": "NAME",
+                          "value": "Thermal"
+                        },
+                        "comparison": "EMPTY",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "SIT"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "cd51609a-8857-48ce-9596-a702d444b3e1",
+                  "parentId": "c2d8cb6d-b3e0-48a7-8a57-2291112c5130",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                }
+              ],
+              "component": "CONDITION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "c2d8cb6d-b3e0-48a7-8a57-2291112c5130",
+              "parentId": "6b5ff477-3a71-4e0f-b8e1-18e62480feaa",
+              "schemaVersion": 1,
+              "type": "jira.condition.container.block",
+              "value": null
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "6b5ff477-3a71-4e0f-b8e1-18e62480feaa",
+              "conditions": [],
+              "connectionId": null,
+              "id": "46d01c84-7059-443a-843f-be39527f090f",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "Manufacturing"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Change Type"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "6b5ff477-3a71-4e0f-b8e1-18e62480feaa",
+          "parentId": "28261d48-95e1-469e-8acd-a24b66f9d0e6",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "28261d48-95e1-469e-8acd-a24b66f9d0e6",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1758877131482,
+  "description": "Automatically set the Solution Owner based on SIT and Change Type.",
+  "id": 30329501,
+  "idUuid": "0199853f-22da-798e-8524-43c5ac82c844",
+  "labels": [],
+  "name": "CE1 - Backup - Solution Lead, SIT Lead, MFG Lead Mapping (Actual)Solution Lead, SIT Lead, MFG Lead Mapping (Actual)",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "b39883f3-6aa7-461d-bda4-93a8cd36fc8d",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [
+        "edit",
+        "create"
+      ],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Change Type"
+        },
+        {
+          "type": "fieldName",
+          "value": "SIT"
+        }
+      ]
+    }
+  },
+  "updated": 1758877762626,
+  "writeAccessType": "UNRESTRICTED"
+}

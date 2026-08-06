@@ -1,0 +1,270 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:10e644de-d96b-4816-9029-d6cf8f0aec37",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "722495126",
+              "parentId": "722495124",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "fixVersions"
+                    },
+                    "fieldType": "fixVersions",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "fixVersions",
+                        "type": "ID",
+                        "value": "fixVersions"
+                      },
+                      "sourceIssue": "parent"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "722495124",
+              "conditions": [],
+              "connectionId": null,
+              "id": "722495125",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.issues.related.condition",
+              "value": {
+                "compareJql": "",
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [],
+                "operator": "present",
+                "relatedJql": "",
+                "relatedType": "parent",
+                "similarityLimit": 40
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "722495124",
+          "parentId": "722495123",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "722495129",
+              "parentId": "722495127",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "fixVersions"
+                    },
+                    "fieldType": "fixVersions",
+                    "type": "SET",
+                    "value": []
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Planned Fix Versions"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiversion",
+                    "type": "SET",
+                    "value": []
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "722495127",
+              "conditions": [],
+              "connectionId": null,
+              "id": "722495128",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.issues.related.condition",
+              "value": {
+                "compareJql": "",
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [],
+                "operator": "notpresent",
+                "relatedJql": "",
+                "relatedType": "parent",
+                "similarityLimit": 40
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "722495127",
+          "parentId": "722495123",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "722495123",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1756824428057,
+  "description": "",
+  "id": 30090914,
+  "idUuid": "01990ae5-5e19-7702-b17a-03d4c2cfd577",
+  "labels": [],
+  "name": "Inherit fixVersion to story/task from Parent [Clone]",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10120",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10084",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10104",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10139"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "722495120",
+        "conditions": [],
+        "connectionId": null,
+        "id": "722495121",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "NAME",
+            "value": "No"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "NAME",
+            "value": "Copy Fix Version for Clone?"
+          },
+          "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "722495120",
+        "conditions": [],
+        "connectionId": null,
+        "id": "722495122",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": true,
+            "source": null,
+            "type": "ID",
+            "value": "[\"10020\",\"10023\"]"
+          },
+          "comparison": "ONE_OF",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "722495120",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10084",
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10104",
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10139",
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10120"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1756829418281,
+  "writeAccessType": "UNRESTRICTED"
+}

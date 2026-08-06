@@ -1,0 +1,188 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:c9c3dfc4-eef5-4087-8b1a-8ee188485a9b",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "4e7e3681-95e1-45af-865a-6be01c35fc3c",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Payback Period (Years)"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+            "type": "SET",
+            "value": "{{#math}}(floor(({{issue.customfield_22959}} / {{issue.customfield_21559}}) * 100 + 0.5)) / 100{{/math}}"
+          }
+        ],
+        "sendNotifications": true
+      }
+    }
+  ],
+  "created": 1785727722418,
+  "description": "",
+  "id": 34094811,
+  "idUuid": "019fc5aa-a3b3-7eee-9ced-0224742c2014",
+  "labels": [],
+  "name": "Solve Hub - Calculate Payback Period",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "67ec2623-9d41-4140-9bb1-25d79305497a",
+        "conditions": [],
+        "connectionId": null,
+        "id": "10533170-524c-43d0-8b52-c71c6949f5e2",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "13141"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "project"
+          },
+          "selectedFieldType": "project"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "67ec2623-9d41-4140-9bb1-25d79305497a",
+        "conditions": [],
+        "connectionId": null,
+        "id": "0270f5a1-4f04-49f1-99af-1ced35f014d4",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "13496"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "67ec2623-9d41-4140-9bb1-25d79305497a",
+        "conditions": [],
+        "connectionId": null,
+        "id": "64274b34-7224-4313-9dff-f8275befabc0",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": null,
+          "comparison": "NOT_EMPTY",
+          "selectedField": {
+            "type": "NAME",
+            "value": "Total Savings"
+          },
+          "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "67ec2623-9d41-4140-9bb1-25d79305497a",
+        "conditions": [],
+        "connectionId": null,
+        "id": "0d4561c3-f432-4f85-b187-b74c051ec08a",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": null,
+          "comparison": "NOT_EMPTY",
+          "selectedField": {
+            "type": "NAME",
+            "value": "Investment ($)"
+          },
+          "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "67ec2623-9d41-4140-9bb1-25d79305497a",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Total Savings"
+        },
+        {
+          "type": "fieldName",
+          "value": "Investment ($)"
+        },
+        {
+          "type": "fieldName",
+          "value": "Payback Period (Years)"
+        }
+      ]
+    }
+  },
+  "updated": 1785727976825,
+  "writeAccessType": "OWNER_ONLY"
+}

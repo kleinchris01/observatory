@@ -1,0 +1,194 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:9b52b270-bb29-4f87-880d-7c4412cc01b8",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "e183e255-10b0-4858-b96f-2acb10efdafc",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "action.send-templated-email",
+      "value": {
+        "bcc": [
+          {
+            "type": "FREE",
+            "value": "dfish101@ford.com"
+          }
+        ],
+        "cc": [
+          {
+            "type": "COPY",
+            "value": "assignee"
+          },
+          {
+            "type": "FREE",
+            "value": "dnovotn4@ford.com"
+          },
+          {
+            "type": "FREE",
+            "value": "rallstad@ford.com"
+          },
+          {
+            "type": "FREE",
+            "value": "cheinri6@ford.com"
+          }
+        ],
+        "convertLineBreaks": false,
+        "legacyConfig": true,
+        "sendGroupedEmails": true,
+        "templateContextData": {
+          "body": "The EVDC Metrology issue - **Issue Key & Summary:** {{issue.key}} — {{issue.summary}}  \n\nhas been in {{issue.status.name}} status for over 120 hours.\n\nPlease review and take necessary action.\n\nYou can view the issue here: {{issue.toUrl}}\n\n",
+          "bodyType": "HTML",
+          "emailName": "120 Hour Email Reminder",
+          "fromEmailAddress": "jira@ford-advev.atlassian.net",
+          "fromName": "dnovotn4@ford.com",
+          "replyToEmailAddress": "dnovotn4@ford.com",
+          "replyToName": "Dennis Novotny",
+          "subject": "72 Hour Status: {{issue.status.name}} Reminder: {{issue.key}} — {{issue.summary}}  "
+        },
+        "to": [
+          {
+            "type": "COPY",
+            "value": "reporter"
+          },
+          {
+            "type": "COPY",
+            "value": "customfield_11090"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1784068095453,
+  "description": "",
+  "id": 33898955,
+  "idUuid": "019f62be-bddd-7d08-a9e5-d46bf44b21a9",
+  "labels": [],
+  "name": "EVDC Metrology 120 Hour Email reminder",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10485"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10485"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "9dba3741-8b58-4f00-95f4-692654aa24ff",
+        "conditions": [],
+        "connectionId": null,
+        "id": "c41514cd-230f-4616-82a1-ba232a563599",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "11254"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "9dba3741-8b58-4f00-95f4-692654aa24ff",
+        "conditions": [],
+        "connectionId": null,
+        "id": "00a7dbf4-57dd-4c0b-8771-8216bba00d26",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": true,
+            "source": null,
+            "type": "NAME",
+            "value": "[\"Awaiting Data Input\",\"New\",\"Results Available\"]"
+          },
+          "comparison": "ONE_OF",
+          "selectedField": {
+            "type": "ID",
+            "value": "status"
+          },
+          "selectedFieldType": "status"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "9dba3741-8b58-4f00-95f4-692654aa24ff",
+        "conditions": [],
+        "connectionId": null,
+        "id": "02276821-8146-4431-8c58-908276b54905",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "VALUE",
+            "value": "{\"type\":\"RELATIVE\",\"relativeValue\":{\"interval\":\"HOURS\",\"tense\":\"AGO\",\"amount\":\"120\"}}"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "NAME",
+            "value": "Time in Current Status"
+          },
+          "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:datetime"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "9dba3741-8b58-4f00-95f4-692654aa24ff",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10485"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1784141672969,
+  "writeAccessType": "OWNER_ONLY"
+}

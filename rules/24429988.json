@@ -1,0 +1,194 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "677062068",
+              "parentId": "677062065",
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "ID",
+                  "value": "[\"10020\",\"10023\",\"10022\",\"10024\",\"10000\"]"
+                },
+                "comparison": "ONE_OF",
+                "selectedField": {
+                  "type": "ID",
+                  "value": "issuetype"
+                },
+                "selectedFieldType": "issuetype"
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "677062069",
+              "parentId": "677062065",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Safety Related?"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:radiobuttons",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:radiobuttons",
+                        "type": "NAME",
+                        "value": "Safety Related?"
+                      },
+                      "sourceIssue": "parent"
+                    }
+                  }
+                ],
+                "sendNotifications": false
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "677062065",
+              "conditions": [],
+              "connectionId": null,
+              "id": "677062066",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.issues.related.condition",
+              "value": {
+                "compareJql": "",
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [],
+                "operator": "present",
+                "relatedJql": "",
+                "relatedType": "parent",
+                "similarityLimit": 40
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "677062065",
+              "conditions": [],
+              "connectionId": null,
+              "id": "677062067",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.issues.related.condition",
+              "value": {
+                "compareJql": "\"Safety Related?\" = \"Yes\"",
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [],
+                "operator": "allmatch",
+                "relatedJql": "",
+                "relatedType": "parent",
+                "similarityLimit": 40
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "677062065",
+          "parentId": "677062064",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "677062064",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1737754405317,
+  "description": "",
+  "id": 24429988,
+  "idUuid": "01949a3b-e9c5-72e7-b2a4-214fb174c69f",
+  "labels": [],
+  "name": "Inherit Safety Related from Parent Change",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10104",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10120"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "677062063",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10104",
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10120"
+      ],
+      "fields": [
+        {
+          "type": "field",
+          "value": "parent"
+        }
+      ]
+    }
+  },
+  "updated": 1776951033411,
+  "writeAccessType": "UNRESTRICTED"
+}

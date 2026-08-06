@@ -1,0 +1,275 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:10e644de-d96b-4816-9029-d6cf8f0aec37",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "713407817",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.outgoing.webhook",
+      "value": {
+        "contentType": "empty",
+        "continueOnErrorEnabled": false,
+        "customBody": null,
+        "headers": [
+          {
+            "headerSecure": false,
+            "id": "_header_1747855068479",
+            "name": "Accept",
+            "value": "application/json"
+          },
+          {
+            "headerSecure": false,
+            "id": "_header_1747855115268",
+            "name": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "headerSecure": false,
+            "id": "_header_1747855127593",
+            "name": "Authorization",
+            "value": "Basic anBvbG1hbjFAZm9yZC5jb206QVRBVFQzeEZmR0YwdnVfWFBhSHZicjhqWkxCY0FGZ2NWZmNPUHYxUzhFQWpBbWQtbG10T3hCZGNPMnNBS1F0c2liZi02MWdyeVJYQ1l3elRtNGIxWXM5WjhBU1dnV3ZwVEkxdFFRS09kY1k1WE1xTUpuX2tDU1BGMEp0MmhlWjFRQjBpNTd6dW1aRTNGdnlNa0UwZllqaXcxWHY3SlpXOGpGUkh6S21WazF5ZGxqaDdZRTJjX1prPTlGQkE1NDU5"
+          }
+        ],
+        "method": "GET",
+        "responseEnabled": true,
+        "sendIssue": false,
+        "url": "https://ford-advev.atlassian.net/rest/api/3/project/CAE/role",
+        "urlSecure": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "713408273",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "{{webResponse.body}}"
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "713408404",
+          "parentId": "713407818",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "{{branch}}"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "713407819",
+          "parentId": "713407818",
+          "schemaVersion": 1,
+          "type": "jira.issue.outgoing.webhook",
+          "value": {
+            "contentType": "empty",
+            "continueOnErrorEnabled": false,
+            "customBody": null,
+            "headers": [
+              {
+                "headerSecure": false,
+                "id": "_header_1747855068479",
+                "name": "Accept",
+                "value": "application/json"
+              },
+              {
+                "headerSecure": false,
+                "id": "_header_1747855115268",
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "headerSecure": false,
+                "id": "_header_1747855127593",
+                "name": "Authorization",
+                "value": "Basic anBvbG1hbjFAZm9yZC5jb206QVRBVFQzeEZmR0YwdnVfWFBhSHZicjhqWkxCY0FGZ2NWZmNPUHYxUzhFQWpBbWQtbG10T3hCZGNPMnNBS1F0c2liZi02MWdyeVJYQ1l3elRtNGIxWXM5WjhBU1dnV3ZwVEkxdFFRS09kY1k1WE1xTUpuX2tDU1BGMEp0MmhlWjFRQjBpNTd6dW1aRTNGdnlNa0UwZllqaXcxWHY3SlpXOGpGUkh6S21WazF5ZGxqaDdZRTJjX1prPTlGQkE1NDU5"
+              }
+            ],
+            "method": "GET",
+            "responseEnabled": true,
+            "sendIssue": false,
+            "url": "{{webResponse.body}}",
+            "urlSecure": false
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "713407820",
+          "parentId": "713407818",
+          "schemaVersion": 1,
+          "type": "jira.comparator.condition",
+          "value": {
+            "first": "{{roleDetails.body.actors.accountId}}",
+            "operator": "CONTAINS",
+            "second": "712020:b3ce70e6-7267-48b5-b3ea-56a554b0f4d0"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "713407821",
+          "parentId": "713407818",
+          "schemaVersion": 1,
+          "type": "jira.issue.outgoing.webhook",
+          "value": {
+            "contentType": "empty",
+            "continueOnErrorEnabled": false,
+            "customBody": null,
+            "headers": [
+              {
+                "headerSecure": false,
+                "id": "_header_1747855068479",
+                "name": "Accept",
+                "value": "application/json"
+              },
+              {
+                "headerSecure": false,
+                "id": "_header_1747855115268",
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "headerSecure": false,
+                "id": "_header_1747855127593",
+                "name": "Authorization",
+                "value": "Basic anBvbG1hbjFAZm9yZC5jb206QVRBVFQzeEZmR0YwdnVfWFBhSHZicjhqWkxCY0FGZ2NWZmNPUHYxUzhFQWpBbWQtbG10T3hCZGNPMnNBS1F0c2liZi02MWdyeVJYQ1l3elRtNGIxWXM5WjhBU1dnV3ZwVEkxdFFRS09kY1k1WE1xTUpuX2tDU1BGMEp0MmhlWjFRQjBpNTd6dW1aRTNGdnlNa0UwZllqaXcxWHY3SlpXOGpGUkh6S21WazF5ZGxqaDdZRTJjX1prPTlGQkE1NDU5"
+              }
+            ],
+            "method": "DELETE",
+            "responseEnabled": true,
+            "sendIssue": false,
+            "url": "{{branch}}/user?userAccountId=712020:b3ce70e6-7267-48b5-b3ea-56a554b0f4d0",
+            "urlSecure": false
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "713407822",
+          "parentId": "713407818",
+          "schemaVersion": 5,
+          "type": "jira.issue.outgoing.email",
+          "value": {
+            "bcc": [],
+            "body": "Dante was added to a project role in CAE and has been automatically removed.\n",
+            "cc": [],
+            "convertLineBreaks": true,
+            "fromName": "",
+            "mimeType": "text/html",
+            "replyTo": "",
+            "subject": "User removed from project CAE automatically",
+            "to": [
+              {
+                "type": "FREE",
+                "value": "jpolman1@ford.com"
+              }
+            ]
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "713407818",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.smart.values.branch",
+      "value": {
+        "id": "_customsmartvalue_id_1747855286491",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "branch"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{webResponse.body}}"
+        },
+        "type": "SMART"
+      }
+    }
+  ],
+  "created": 1747855663492,
+  "description": "",
+  "id": 28631763,
+  "idUuid": "0196f450-e184-7185-a615-1b9dca54eceb",
+  "labels": [],
+  "name": "Project Role Checker",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "713407816",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "nosearch",
+      "jql": "",
+      "onlyUpdatedIssues": true,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/Denver:20250521T131714\nRRULE:FREQ=HOURLY;INTERVAL=1;BYSECOND=0\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1747855979851,
+  "writeAccessType": "UNRESTRICTED"
+}

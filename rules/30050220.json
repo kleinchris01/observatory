@@ -1,0 +1,161 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:85f2fb94-1e54-45c4-a961-b4af65b3ae3c",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "722124539",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "resolution"
+            },
+            "fieldType": "resolution",
+            "type": "SET",
+            "value": null
+          }
+        ],
+        "sendNotifications": true
+      }
+    }
+  ],
+  "created": 1756427969799,
+  "description": "",
+  "id": 30050220,
+  "idUuid": "0198f343-e507-71ab-9bd9-1b4f695d43c5",
+  "labels": [],
+  "name": "Clear Resolution when issue is moved from Done",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "722124052",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:transitioned",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+      ],
+      "eventKey": "jira:issue_updated",
+      "fromStatus": [
+        {
+          "type": "NAME",
+          "value": "Done"
+        },
+        {
+          "type": "NAME",
+          "value": "Won't Pursue"
+        }
+      ],
+      "issueEvent": "issue_generic",
+      "toStatus": [
+        {
+          "type": "NAME",
+          "value": "In Progress"
+        },
+        {
+          "type": "NAME",
+          "value": "Backlog"
+        },
+        {
+          "type": "NAME",
+          "value": "Open"
+        },
+        {
+          "type": "NAME",
+          "value": "Reopened"
+        },
+        {
+          "type": "NAME",
+          "value": "To Do"
+        },
+        {
+          "type": "NAME",
+          "value": "Pending IT Support"
+        },
+        {
+          "type": "NAME",
+          "value": "Waiting for customer"
+        },
+        {
+          "type": "NAME",
+          "value": "In Review"
+        },
+        {
+          "type": "NAME",
+          "value": "Tier 4"
+        },
+        {
+          "type": "NAME",
+          "value": "Tier 2"
+        },
+        {
+          "type": "NAME",
+          "value": "Tier 3"
+        },
+        {
+          "type": "NAME",
+          "value": "Tier 1"
+        },
+        {
+          "type": "NAME",
+          "value": "Pending Product Review"
+        },
+        {
+          "type": "NAME",
+          "value": "On Watch"
+        },
+        {
+          "type": "NAME",
+          "value": "At Risk"
+        },
+        {
+          "type": "NAME",
+          "value": "Blocked"
+        },
+        {
+          "type": "NAME",
+          "value": "Blocked (migrated)"
+        }
+      ]
+    }
+  },
+  "updated": 1756428693038,
+  "writeAccessType": "UNRESTRICTED"
+}

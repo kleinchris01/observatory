@@ -1,0 +1,151 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "d31f8158-d1e0-45e0-b2cf-b4977507f729",
+      "parentId": null,
+      "schemaVersion": 11,
+      "type": "jira.issue.transition",
+      "value": {
+        "advancedFields": null,
+        "destinationStatus": {
+          "type": "NAME",
+          "value": "Project Owner Approval"
+        },
+        "operations": [],
+        "sendNotifications": true,
+        "transitionMatch": ""
+      }
+    }
+  ],
+  "created": 1770677143444,
+  "description": "[On transition] Check for product access in Jira directly.  If project is selected and user has product access, transition to Project Owner Approval.  If project is selected and user does not have product access, add user to pruct acess group (Internal or External).  If no project is selected and user has product access , transition to Done. ",
+  "id": 31915852,
+  "idUuid": "019c4495-0792-7fe3-9d34-808e3f02e547",
+  "labels": [
+    758924,
+    911815
+  ],
+  "name": "Jira - 4 - Product Access (PREA)",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "61169852-4af4-4447-8026-3cb6b65d0e51",
+        "conditions": [],
+        "connectionId": null,
+        "id": "f4195238-2b46-4915-b5ef-f28352dc54b4",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": true,
+            "source": null,
+            "type": "NAME",
+            "value": "[\"Jira\"]"
+          },
+          "comparison": "CONTAINS_EXACTLY",
+          "selectedField": {
+            "type": "NAME",
+            "value": "ADT Tool(s)"
+          },
+          "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "61169852-4af4-4447-8026-3cb6b65d0e51",
+        "conditions": [],
+        "connectionId": null,
+        "id": "9d8283b0-78bf-4e20-b452-24cd0436dac3",
+        "parentId": null,
+        "schemaVersion": 1,
+        "type": "jira.jql.condition",
+        "value": "cf[11373] = \"ari:cloud:cmdb::object/c77afb26-c55c-4af4-861f-5e2907f8719d/15587\""
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "61169852-4af4-4447-8026-3cb6b65d0e51",
+        "conditions": [],
+        "connectionId": null,
+        "id": "0b07690a-fc7f-413a-b0e8-e38adfacd47f",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": true,
+            "source": null,
+            "type": "NAME",
+            "value": "[\"ADVEV Access\",\"Jira Access\"]"
+          },
+          "comparison": "ONE_OF",
+          "selectedField": {
+            "type": "NAME",
+            "value": "Request Type"
+          },
+          "selectedFieldType": "com.atlassian.servicedesk:vp-origin"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "61169852-4af4-4447-8026-3cb6b65d0e51",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:transitioned",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+      ],
+      "eventKey": "jira:issue_updated",
+      "fromStatus": [],
+      "issueEvent": "issue_generic",
+      "toStatus": [
+        {
+          "type": "NAME",
+          "value": "Product Access Required"
+        }
+      ]
+    }
+  },
+  "updated": 1770677143444,
+  "writeAccessType": "UNRESTRICTED"
+}

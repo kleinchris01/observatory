@@ -1,0 +1,1043 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "714923124",
+              "parentId": "714923122",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Ship-to Location (ADVEV Site)"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "Greenfield Labs (HUMEA) - 3251 Hillview Ave, Palo Alto, CA 94304"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "714923122",
+              "conditions": [],
+              "connectionId": null,
+              "id": "714923123",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "\"Supplier GSDB(s)\" ~ \"HUMEA\""
+            }
+          ],
+          "connectionId": null,
+          "id": "714923122",
+          "parentId": "714923121",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "714923127",
+              "parentId": "714923125",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Ship-to Location (ADVEV Site)"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "Irvine Design Studio (LARO) (FD38B) - 3 Glen Bell Way, Irvine, CA  92618"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "714923125",
+              "conditions": [],
+              "connectionId": null,
+              "id": "714923126",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "\"Supplier GSDB(s)\" ~ \"FD38B\""
+            }
+          ],
+          "connectionId": null,
+          "id": "714923125",
+          "parentId": "714923121",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "714923130",
+              "parentId": "714923128",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Ship-to Location (ADVEV Site)"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "EVDC2 (Long Beach) (JDECA) - 3590 E Cover St, Long Beach, CA 90808"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "714923128",
+              "conditions": [],
+              "connectionId": null,
+              "id": "714923129",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "\"Supplier GSDB(s)\" ~ \"JDECA\""
+            }
+          ],
+          "connectionId": null,
+          "id": "714923128",
+          "parentId": "714923121",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "714923133",
+              "parentId": "714923131",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Ship-to Location (ADVEV Site)"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "TechShop Detroit (GK87B) - 800 Republic Dr, Allen Park, MI 48101"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "714923131",
+              "conditions": [],
+              "connectionId": null,
+              "id": "714923132",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "\"Supplier GSDB(s)\" ~ \"GK87B\""
+            }
+          ],
+          "connectionId": null,
+          "id": "714923131",
+          "parentId": "714923121",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "714923136",
+              "parentId": "714923134",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Ship-to Location (ADVEV Site)"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "Ford Research & Innovation Center (GYJ3A) - 2101 Village Rd, Dearborn, MI 48124"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "714923134",
+              "conditions": [],
+              "connectionId": null,
+              "id": "714923135",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "\"Supplier GSDB(s)\" ~ \"GYJ3A\""
+            }
+          ],
+          "connectionId": null,
+          "id": "714923134",
+          "parentId": "714923121",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "714923139",
+              "parentId": "714923137",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Ship-to Location (ADVEV Site)"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "AMP (Sante Fe Springs) (HZQFA) - 11643 Telegraph Rd, Santa Fe Springs, CA 90670"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "714923137",
+              "conditions": [],
+              "connectionId": null,
+              "id": "714923138",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "\"Supplier GSDB(s)\" ~ \"HZQFA\""
+            }
+          ],
+          "connectionId": null,
+          "id": "714923137",
+          "parentId": "714923121",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "714923142",
+              "parentId": "714923140",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Ship-to Location (ADVEV Site)"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "TDM (T896B) - 14425 Sheldon Rd, Plymouth, MI 48170"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "714923140",
+              "conditions": [],
+              "connectionId": null,
+              "id": "714923141",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "\"Supplier GSDB(s)\" ~ \"T896B\""
+            }
+          ],
+          "connectionId": null,
+          "id": "714923140",
+          "parentId": "714923121",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "714923145",
+              "parentId": "714923143",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Ship-to Location (ADVEV Site)"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "TDM (T896B) - 14425 Sheldon Rd, Plymouth, MI 48170"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "714923143",
+              "conditions": [],
+              "connectionId": null,
+              "id": "714923144",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "\"Supplier GSDB(s)\" ~ \"M6L4B\""
+            }
+          ],
+          "connectionId": null,
+          "id": "714923143",
+          "parentId": "714923121",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "714923148",
+              "parentId": "714923146",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Ship-to Location (ADVEV Site)"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "ATNPC (TC0CB) - 35500 Plymouth Rd, Livonia, MI 48150, United States"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "714923146",
+              "conditions": [],
+              "connectionId": null,
+              "id": "714923147",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "\"Supplier GSDB(s)\" ~ \"TC0CB\""
+            }
+          ],
+          "connectionId": null,
+          "id": "714923146",
+          "parentId": "714923121",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "714923151",
+              "parentId": "714923149",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Ship-to Location (ADVEV Site)"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "Shelbyville Casting (5681A) - 140 Logistics Dr, Shelbyville, KY, 40065"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "714923149",
+              "conditions": [],
+              "connectionId": null,
+              "id": "714923150",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "\"Supplier GSDB(s)\" ~ \"5681A\""
+            }
+          ],
+          "connectionId": null,
+          "id": "714923149",
+          "parentId": "714923121",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "714923154",
+              "parentId": "714923152",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Ship-to Location (ADVEV Site)"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "VPEC (HQHDA) - 8500 Enterprise Dr, Allen Park, MI 48101"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "714923152",
+              "conditions": [],
+              "connectionId": null,
+              "id": "714923153",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "\"Supplier GSDB(s)\" ~ \"HQHDA\""
+            }
+          ],
+          "connectionId": null,
+          "id": "714923152",
+          "parentId": "714923121",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "714923157",
+              "parentId": "714923155",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Ship-to Location (ADVEV Site)"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "MTDC (FM1CD) - 25111 Glendale, Redford, MI 48239"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "714923155",
+              "conditions": [],
+              "connectionId": null,
+              "id": "714923156",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "\"Supplier GSDB(s)\" ~ \"FM1CD\""
+            }
+          ],
+          "connectionId": null,
+          "id": "714923155",
+          "parentId": "714923121",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "714923160",
+              "parentId": "714923158",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Ship-to Location (ADVEV Site)"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "AEC (FM1BE) - 2400 Village Rd, Dearborn, MI  48124"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "714923158",
+              "conditions": [],
+              "connectionId": null,
+              "id": "714923159",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "\"Supplier GSDB(s)\" ~ \"FM1BE\""
+            }
+          ],
+          "connectionId": null,
+          "id": "714923158",
+          "parentId": "714923121",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "714923163",
+              "parentId": "714923161",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Ship-to Location (ADVEV Site)"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "PDC (FM1BB) - 20901 Oakwood, Dearborn, MI 48124"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "714923161",
+              "conditions": [],
+              "connectionId": null,
+              "id": "714923162",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "\"Supplier GSDB(s)\" ~ \"FM1BB\""
+            }
+          ],
+          "connectionId": null,
+          "id": "714923161",
+          "parentId": "714923121",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "714923166",
+              "parentId": "714923164",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Ship-to Location (ADVEV Site)"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "Bldg 4 (FM007) - 20200 Rotunda Dr Rec 4, Dearborn, MI 48121"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "714923164",
+              "conditions": [],
+              "connectionId": null,
+              "id": "714923165",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "\"Supplier GSDB(s)\" ~ \"FM007\""
+            }
+          ],
+          "connectionId": null,
+          "id": "714923164",
+          "parentId": "714923121",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "714923169",
+              "parentId": "714923167",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Ship-to Location (ADVEV Site)"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "Ford Ion Park (4579A) - 38100 Ecorse Rd, Romulus, MI, 48174"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "714923167",
+              "conditions": [],
+              "connectionId": null,
+              "id": "714923168",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "\"Supplier GSDB(s)\" ~ \"4579A\""
+            }
+          ],
+          "connectionId": null,
+          "id": "714923167",
+          "parentId": "714923121",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "714923172",
+              "parentId": "714923170",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Ship-to Location (ADVEV Site)"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "Roush Industries (FM1CP) - 8301 Enterprise Dr Dock 1 & 2, Allen Park, MI 48101"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "714923170",
+              "conditions": [],
+              "connectionId": null,
+              "id": "714923171",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "\"Supplier GSDB(s)\" ~ \"FM1CP\""
+            }
+          ],
+          "connectionId": null,
+          "id": "714923170",
+          "parentId": "714923121",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "714923121",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1748882663561,
+  "description": "",
+  "id": 28927681,
+  "idUuid": "01973187-a889-753a-b1b1-f05f9297b420",
+  "labels": [],
+  "name": "Map Supplier GSDB Codes to Ship to site",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10137"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10137"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "714923120",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10137"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Supplier GSDB(s)"
+        }
+      ]
+    }
+  },
+  "updated": 1748884684276,
+  "writeAccessType": "UNRESTRICTED"
+}

@@ -1,0 +1,266 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "89663e87-9b8e-4913-be11-cf7963ddb36e",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": null,
+        "comparison": "NOT_EMPTY",
+        "selectedField": {
+          "type": "NAME",
+          "value": "Team"
+        },
+        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:atlassian-team"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "ebb5f869-ddc2-48be-b9ce-7d26de2b9f6f",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1777327202740",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "teamId"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{issue.Team}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "c94dd4b2-e944-43fc-bd72-b8e2721e1c4f",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "Team raw: {{issue.Team}} Team id: {{issue.Team.id}} Team first id: {{issue.Team.first.id}} Teams raw: {{issue.Teams}} Teams id: {{issue.Teams.id}} Teams first id: {{issue.Teams.first.id}} teamId variable: {{teamId}}"
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "c4d02db5-bc00-4dd7-9956-02c9aa475f4d",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.outgoing.webhook",
+      "value": {
+        "contentType": "custom",
+        "continueOnErrorEnabled": false,
+        "customBody": "{\n  \"first\": 50\n}",
+        "headers": [
+          {
+            "headerSecure": false,
+            "id": "_header_1777327220770",
+            "name": "Authorization",
+            "value": "Basic Y2tsZWluNTBAZm9yZC5jb206QVRBVFQzeEZmR0YwSkxMaXRvdDFjaWEyMWtoTmZQSjVrd3J5ZThfWnpaY3AtYnBzOXI5SWRBN3RtLUZWd2E0cVYzMWp4SzFQY3ktdXItNEN1cUxhQUhVVWw3S1RMU2JnTEpTLS1yMTdXNG9iQWtNR3Y3UVZJQ3UyaEdCWWtqejlyVEJJSWc1ck90OVdoSGF6a2RSd21SYm9aLVdWcXlqZmNiaFJpS1VjTlBhNDdHa0g4WXVYR0o4PTIzNUM3REQz"
+          },
+          {
+            "headerSecure": false,
+            "id": "_header_1777327237779",
+            "name": "Accept",
+            "value": "*/*"
+          },
+          {
+            "headerSecure": false,
+            "id": "_header_1777328753254",
+            "name": "",
+            "value": ""
+          }
+        ],
+        "method": "POST",
+        "responseEnabled": true,
+        "sendIssue": false,
+        "url": "https://api.atlassian.com/public/teams/v1/org/7141j122-72d1-107j-74b1-b18c324b3a5a/teams/{{teamId}}/members?siteId=95d04bf4-e1b7-4b22-806f-8bc95698a196",
+        "urlSecure": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "52e9d505-33b9-4a11-b6ab-0ee666802139",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "Web response: {{webhookResponse.body}}"
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "38699d8f-640b-4990-9e39-9b8f6420db8c",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": "{\n  \"update\": {\n    \"customfield_11090\": [\n      {{#webhookResponse.body.results}}\n      {\n        \"add\": {\n          \"accountId\": \"{{accountId}}\"\n        }\n      }{{^last}},{{/}}\n      {{/}}\n    ]\n  }\n}",
+        "operations": [],
+        "sendNotifications": false
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "a6ccecfb-7d60-4515-ae7a-87bbb964a8da",
+          "parentId": "c82c7de1-2888-45e4-ac38-aea9349e138d",
+          "schemaVersion": 1,
+          "type": "jira.issue.outgoing.webhook",
+          "value": {
+            "contentType": "custom",
+            "continueOnErrorEnabled": false,
+            "customBody": "\"{{teamMember.accountId}}\"",
+            "headers": [
+              {
+                "headerSecure": false,
+                "id": "_header_1777565171011",
+                "name": "Authorization",
+                "value": "Basic Y2tsZWluNTBAZm9yZC5jb206QVRBVFQzeEZmR0YwSkxMaXRvdDFjaWEyMWtoTmZQSjVrd3J5ZThfWnpaY3AtYnBzOXI5SWRBN3RtLUZWd2E0cVYzMWp4SzFQY3ktdXItNEN1cUxhQUhVVWw3S1RMU2JnTEpTLS1yMTdXNG9iQWtNR3Y3UVZJQ3UyaEdCWWtqejlyVEJJSWc1ck90OVdoSGF6a2RSd21SYm9aLVdWcXlqZmNiaFJpS1VjTlBhNDdHa0g4WXVYR0o4PTIzNUM3REQz"
+              },
+              {
+                "headerSecure": false,
+                "id": "_header_1777565204944",
+                "name": "Accept",
+                "value": ""
+              },
+              {
+                "headerSecure": false,
+                "id": "_header_1777565206083",
+                "name": "",
+                "value": ""
+              }
+            ],
+            "method": "POST",
+            "responseEnabled": false,
+            "sendIssue": false,
+            "url": "https://ford-advev.atlassian.net/rest/api/3/issue/{{issue.key}}/watchers",
+            "urlSecure": false
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "9efa17cf-0b35-4a52-b717-fbe78a196c2c",
+          "parentId": "c82c7de1-2888-45e4-ac38-aea9349e138d",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "Added watcher: {{teamMember.accountId}} / {{teamMember.displayName}}"
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "c82c7de1-2888-45e4-ac38-aea9349e138d",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.smart.values.branch",
+      "value": {
+        "id": "_customsmartvalue_id_1777565144597",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "teamMember"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{webhookResponse.body.results}}"
+        },
+        "type": "SMART"
+      }
+    }
+  ],
+  "created": 1777568029533,
+  "description": "",
+  "id": 33110014,
+  "idUuid": "019ddf4f-9b5c-78e0-8396-b03c830fe085",
+  "labels": [],
+  "name": "Update collaborators and watchers based on Team",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-core::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10485",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10518"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "6d108bda-cd14-4430-b3c9-7059c43ddf6c",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "VALUE_ADDED",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10518",
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10485"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Team"
+        }
+      ]
+    }
+  },
+  "updated": 1777569825448,
+  "writeAccessType": "OWNER_ONLY"
+}

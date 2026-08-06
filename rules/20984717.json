@@ -1,0 +1,216 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:10e644de-d96b-4816-9029-d6cf8f0aec37",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "673685128",
+          "parentId": "673685127",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "NAME",
+              "value": "Manufacturing Approval"
+            },
+            "comparison": "EQUALS",
+            "selectedField": {
+              "type": "ID",
+              "value": "status"
+            },
+            "selectedFieldType": "status"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "673685129",
+          "parentId": "673685127",
+          "schemaVersion": 5,
+          "type": "jira.issue.outgoing.email",
+          "value": {
+            "bcc": [],
+            "body": "Hello {{Manufacturing Approver.displayName}},\n\nThe following deviation requires your Approval in Jira.\n*Deviation Title*: {{issue.summary}}\n*Deviation Link*: {{issue.URL}}\n\n*Deviation Reporter*: {{issue.reporter.displayName}}",
+            "cc": [],
+            "convertLineBreaks": true,
+            "fromName": "Manufacturing Bot",
+            "mimeType": "text/html",
+            "replyTo": "",
+            "subject": "Deviation Requires Your Approval",
+            "to": [
+              {
+                "type": "COPY",
+                "value": "customfield_11717"
+              }
+            ]
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "673685127",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "673685131",
+          "parentId": "673685130",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "NAME",
+              "value": "Design Approval"
+            },
+            "comparison": "EQUALS",
+            "selectedField": {
+              "type": "ID",
+              "value": "status"
+            },
+            "selectedFieldType": "status"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "673685132",
+          "parentId": "673685130",
+          "schemaVersion": 5,
+          "type": "jira.issue.outgoing.email",
+          "value": {
+            "bcc": [],
+            "body": "Hello {{Design Approver.displayName}},\n\nThe following deviation requires your Approval in Jira.\n*Deviation Title*: {{issue.summary}}\n*Deviation Link*: {{issue.URL}}\n\n*Deviation Reporter*: {{issue.reporter.displayName}}",
+            "cc": [],
+            "convertLineBreaks": true,
+            "fromName": "Manufacturing Bot",
+            "mimeType": "text/html",
+            "replyTo": "",
+            "subject": "Deviation Requires Your Approval",
+            "to": [
+              {
+                "type": "COPY",
+                "value": "customfield_12062"
+              }
+            ]
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "673685130",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1723043024970,
+  "description": "",
+  "id": 20984717,
+  "idUuid": "01912d5e-104a-78e8-8bef-9ac7ae859b39",
+  "labels": [
+    845382
+  ],
+  "name": "Deviation - 5 - Approval Email",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10683",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10044"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "673685126",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:transitioned",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10683",
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10044"
+      ],
+      "eventKey": "jira:issue_updated",
+      "fromStatus": [],
+      "issueEvent": "issue_generic",
+      "toStatus": [
+        {
+          "type": "NAME",
+          "value": "Design Approval"
+        },
+        {
+          "type": "NAME",
+          "value": "Manufacturing Approval"
+        }
+      ]
+    }
+  },
+  "updated": 1737491619258,
+  "writeAccessType": "UNRESTRICTED"
+}

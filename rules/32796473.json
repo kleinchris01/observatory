@@ -1,0 +1,137 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:9b52b270-bb29-4f87-880d-7c4412cc01b8",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "32ffb16b-6ba6-424f-b063-e201fd8e1ada",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": null,
+          "type": "ID",
+          "value": "10197"
+        },
+        "comparison": "EQUALS",
+        "selectedField": {
+          "type": "ID",
+          "value": "issuetype"
+        },
+        "selectedFieldType": "issuetype"
+      }
+    },
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "bd5dadd4-edc8-4449-8de5-5a7c3bfa7fab",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": null,
+          "type": "NAME",
+          "value": "GFL-A & B: Northern California (Palo Alto)"
+        },
+        "comparison": "EQUALS",
+        "selectedField": {
+          "type": "NAME",
+          "value": "Logistic Location "
+        },
+        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:radiobuttons"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "63352535-d57f-4126-a4e7-c81fb1bba201",
+      "parentId": null,
+      "schemaVersion": 5,
+      "type": "jira.issue.assign",
+      "value": {
+        "assignType": "SPECIFY_USER",
+        "assignee": {
+          "type": "ID",
+          "value": "712020:dd3b035b-232d-4bac-a4d4-1332a9e993df"
+        },
+        "excludedUsers": [],
+        "fieldToCopy": null,
+        "group": null,
+        "issueToCopy": null,
+        "itsmOpsOncall": null,
+        "jql": null,
+        "listAssignMethod": null,
+        "peopleTeamsCustomFieldId": null,
+        "restrictedToGroup": null,
+        "role": null,
+        "smartValue": null,
+        "userList": []
+      }
+    }
+  ],
+  "created": 1775754094678,
+  "description": "Automatically assigns Logistic Requests created in the PT2 GFL  A & B  to Jacob Lang",
+  "id": 32796473,
+  "idUuid": "019d7331-2856-7057-90fa-9fee8ec02a71",
+  "labels": [],
+  "name": "PT2 Auto-assign Logistic Requests in GFL A & B to Jacob Lang",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10125"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10125"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "4607f2b7-024d-41fb-bc62-0a3c71122572",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10125"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1776884361543,
+  "writeAccessType": "UNRESTRICTED"
+}

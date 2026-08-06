@@ -1,0 +1,242 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:c9c3dfc4-eef5-4087-8b1a-8ee188485a9b",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "9ac2363e-8f00-453e-8b9e-d3d1e3247fd5",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": true,
+          "source": null,
+          "type": "ID",
+          "value": "[\"10041\",\"10148\",\"10043\"]"
+        },
+        "comparison": "NOT_ONE_OF",
+        "selectedField": {
+          "type": "ID",
+          "value": "issuetype"
+        },
+        "selectedFieldType": "issuetype"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "aee6a4d1-4c71-4a78-986f-d6ad8fd1b26a",
+          "parentId": "2ad8fe49-acee-40f0-a641-c569045510f1",
+          "schemaVersion": 1,
+          "type": "jira.issues.related.condition",
+          "value": {
+            "compareJql": "statusCategory = Done",
+            "compareValue": 0,
+            "jql": "",
+            "linkTypes": [
+              "is blocked by"
+            ],
+            "operator": "allmatch",
+            "relatedJql": "",
+            "relatedType": "linked",
+            "similarityLimit": 40
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "0103ff90-c8e5-428e-9f26-ef3f01c9376a",
+          "parentId": "2ad8fe49-acee-40f0-a641-c569045510f1",
+          "schemaVersion": 11,
+          "type": "jira.issue.transition",
+          "value": {
+            "advancedFields": null,
+            "destinationStatus": {
+              "type": "NAME",
+              "value": "Backlog"
+            },
+            "operations": [],
+            "sendNotifications": true,
+            "transitionMatch": ""
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "2ad8fe49-acee-40f0-a641-c569045510f1",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [
+          "blocks"
+        ],
+        "onlyUpdatedIssues": false,
+        "relatedType": "linked",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1763340315134,
+  "description": "If blocked issues are done, send blocking issues to backlog - Applicable to AST,CONNECT and ADT projects only since the blocking issue moves to BACKLOG status, instead of BLOCKED status.",
+  "id": 30831940,
+  "idUuid": "019a8f45-e9ff-79e0-87d6-4a2fa9461cea",
+  "labels": [],
+  "name": "If blocking issues are done, send blocked issues to backlog - AST,CONNECT and ADT projects",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11574",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10056",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10061"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "087b3174-5675-4e61-b780-7ca8f9d30b76",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:transitioned",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10061",
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10056",
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11574"
+      ],
+      "eventKey": "jira:issue_updated",
+      "fromStatus": [],
+      "issueEvent": "issue_generic",
+      "toStatus": [
+        {
+          "type": "NAME",
+          "value": "Done"
+        },
+        {
+          "type": "NAME",
+          "value": "Won't Pursue"
+        },
+        {
+          "type": "NAME",
+          "value": "Resolved"
+        },
+        {
+          "type": "NAME",
+          "value": "Closed"
+        },
+        {
+          "type": "NAME",
+          "value": "Canceled"
+        },
+        {
+          "type": "NAME",
+          "value": "Completed"
+        },
+        {
+          "type": "NAME",
+          "value": "Cancelled"
+        },
+        {
+          "type": "NAME",
+          "value": "Integrated"
+        },
+        {
+          "type": "NAME",
+          "value": "Not Integrated"
+        },
+        {
+          "type": "NAME",
+          "value": "Wind Tunnel Test"
+        },
+        {
+          "type": "NAME",
+          "value": "Declined"
+        },
+        {
+          "type": "NAME",
+          "value": "Rejected"
+        },
+        {
+          "type": "NAME",
+          "value": "Hired"
+        },
+        {
+          "type": "NAME",
+          "value": "WONT INTERVIEW"
+        },
+        {
+          "type": "NAME",
+          "value": "Initial Password Sent to IT"
+        },
+        {
+          "type": "NAME",
+          "value": "PO Issued & Committed"
+        },
+        {
+          "type": "NAME",
+          "value": "Complete"
+        },
+        {
+          "type": "NAME",
+          "value": "Delivered"
+        },
+        {
+          "type": "NAME",
+          "value": "Approved"
+        },
+        {
+          "type": "NAME",
+          "value": "Abandoned"
+        },
+        {
+          "type": "NAME",
+          "value": "Accepted"
+        },
+        {
+          "type": "NAME",
+          "value": "Contract Signed at Actual Volume"
+        }
+      ]
+    }
+  },
+  "updated": 1765220243409,
+  "writeAccessType": "UNRESTRICTED"
+}

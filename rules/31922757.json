@@ -1,0 +1,1386 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "c98a88cb-8b8d-4135-8d33-fcf3e4db4c03",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.lookup.issues",
+      "value": {
+        "id": "_customsmartvalue_id_1752162885928",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "lookupIssues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "project = \"ECM\" AND status NOT IN (\"Solution In-Progress\", \"Solution Implemented\", Rejected, Cancelled) AND \"Part Maturity[Dropdown]\" IN (Tooled, Production) AND updated >= -7d"
+        },
+        "type": "JQL"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "9583b48f-0854-4f51-b9d2-bd02b10f2433",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1752206937277",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "totalTicketsCount"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{lookupIssues.size}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "579a7505-6f6a-4514-af4d-f0f360747521",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.lookup.issues",
+      "value": {
+        "id": "_customsmartvalue_id_1752162885928",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "lookupIssues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "project = \"ECM\" AND status = \"Submitted\" AND \"Part Maturity[Dropdown]\" IN (Tooled, Production)"
+        },
+        "type": "JQL"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "9b129696-e370-4942-a51c-cd11908c87cc",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1752206937277",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "totalSubmittedCount"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{lookupIssues.size}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "c8326083-8796-4e57-8dfc-8a32ad7afc77",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.lookup.issues",
+      "value": {
+        "id": "_customsmartvalue_id_1752162885928",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "lookupIssues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "project = \"ECM\" and status = \"PM Verifying and Prioritizing\" AND \"Part Maturity[Dropdown]\" IN (Tooled, Production)"
+        },
+        "type": "JQL"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "41979fd1-989b-4b00-836a-e3d9f098568d",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1752206937277",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "totalReadyForPrioritizationCount"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{lookupIssues.size}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "a910a7b4-7e7d-49f5-a3da-bf8c9ddefe46",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.lookup.issues",
+      "value": {
+        "id": "_customsmartvalue_id_1752162885928",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "lookupIssues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "project = \"ECM\" AND status = \"Needs more Information\"  AND \"Part Maturity[Dropdown]\" IN (Tooled, Production)"
+        },
+        "type": "JQL"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "cd37920e-19b7-4a0b-b1fc-fb5e0be00e7d",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1752206937277",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "totalNeedsMoreInfoCount"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{lookupIssues.size}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "fb92036f-9364-466b-a30b-ca62d6e736af",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.lookup.issues",
+      "value": {
+        "id": "_customsmartvalue_id_1752162885928",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "lookupIssues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "project = \"ECM\" AND status = \"ICA,RCA,PCA In-Progress\" AND \"Part Maturity[Dropdown]\" IN (Tooled, Production)"
+        },
+        "type": "JQL"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "e276dfeb-e211-4af6-bd74-bbf9d9156652",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1752206937277",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "totalPrioritizedCount"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{lookupIssues.size}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "76140aeb-860a-42f2-9cc3-e3e6c8bc7c35",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.lookup.issues",
+      "value": {
+        "id": "_customsmartvalue_id_1752162885928",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "lookupIssues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "project = \"ECM\" AND status = \"In Approval\" AND \"Part Maturity[Dropdown]\" IN (Tooled, Production)"
+        },
+        "type": "JQL"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "476689f9-95b7-4339-bbb3-eb53c86c5d3a",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1752206937277",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "totalInApprovalCount"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{lookupIssues.size}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "42aebb8e-22bc-4735-a476-cc73d0ffe7e1",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.lookup.issues",
+      "value": {
+        "id": "_customsmartvalue_id_1752162885928",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "lookupIssues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "project = \"ECM\" AND status = \"Solution In-Progress\" AND \"Part Maturity[Dropdown]\" IN (Tooled, Production)"
+        },
+        "type": "JQL"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "846a7b19-4148-4728-9008-6950fd4545b6",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1752206937277",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "totalApprovedCount"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{lookupIssues.size}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "cef36252-5d80-4dfe-ae06-165d6da7cd9f",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.lookup.issues",
+      "value": {
+        "id": "_customsmartvalue_id_1752162885928",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "lookupIssues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "project = \"ECM\" AND status = \"Solution Implemented\" AND \"Part Maturity[Dropdown]\" IN (Tooled, Production)"
+        },
+        "type": "JQL"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "ee93868d-9487-4c0a-b994-34c1dbbe837a",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1752206937277",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "totalImplementedCount"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{lookupIssues.size}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "0f3a42e4-2104-409d-9879-26e7982fc855",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.lookup.issues",
+      "value": {
+        "id": "_customsmartvalue_id_1752162885928",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "lookupIssues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "project = \"ECM\" AND status = \"Rejected\" AND \"Part Maturity[Dropdown]\" IN (Tooled, Production)"
+        },
+        "type": "JQL"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "e05d4333-e108-4dec-99b9-972b119571c7",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1752206937277",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "totalRejectedCount"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{lookupIssues.size}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "93727aee-ee86-429e-b2a7-8e4a93516e60",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.lookup.issues",
+      "value": {
+        "id": "_customsmartvalue_id_1752162885928",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "lookupIssues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "project = \"ECM\" AND status = \"Cancelled\" AND \"Part Maturity[Dropdown]\" IN (Tooled, Production)"
+        },
+        "type": "JQL"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "450050ec-cef1-4e55-8182-81b97ebff4d9",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1752206937277",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "totalCancelledCount"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{lookupIssues.size}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "08b924e1-4bd1-472e-a051-b0c0eed080fa",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.lookup.issues",
+      "value": {
+        "id": "_customsmartvalue_id_1752207101581",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "lookupIssues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "project = \"ECM\" AND \"Part Maturity[Dropdown]\" IN (Tooled, Production) AND resolutiondate >= -7d"
+        },
+        "type": "JQL"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "4ad57b83-d975-4230-bdc9-32e7388e58fc",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1752207143990",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "totalResolvedTicketsCount"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{lookupIssues.size}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "3461165d-5e86-4298-a749-3312a95f025a",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.lookup.issues",
+      "value": {
+        "id": "_customsmartvalue_id_1752207101581",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "lookupIssues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "project = \"ECM\" AND \"Severity\" = High AND \"Part Maturity[Dropdown]\" IN (Tooled, Production) AND resolutiondate >= -7d"
+        },
+        "type": "JQL"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "035178b5-642c-4dda-a37a-1f28ae6d14d5",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1752207143990",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "totalResolvedTicketsWithHighSeverityCount"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{lookupIssues.size}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "913d9c38-3808-4f98-8db4-f1bd91be4a63",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.lookup.issues",
+      "value": {
+        "id": "_customsmartvalue_id_1752207236327",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "lookupIssues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "project = \"ECM\" AND \"Severity\" = High AND status NOT IN (\"Solution In-Progress\", \"Solution Implemented\", Rejected, Cancelled) AND \"Part Maturity[Dropdown]\" IN (Tooled, Production) AND updated >= -7d"
+        },
+        "type": "JQL"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "449934f2-7bb5-4031-94c1-a25f7076cb1c",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1752207252854",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "totalHighSeverityTicketsCount"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{lookupIssues.size}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "88117f75-68f1-4571-9613-a2ba5b68c010",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.lookup.issues",
+      "value": {
+        "id": "_customsmartvalue_id_1752207236327",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "lookupIssues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "project = \"ECM\" AND \"Part Maturity[Dropdown]\" IN (Tooled, Production) AND \"Severity\" = High AND status NOT IN (\"Solution In-Progress\", \"Solution Implemented\", Rejected, Cancelled) AND updated >= -7d"
+        },
+        "type": "JQL"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "ff759ce8-cb02-4439-a37f-c67b61f9a2fa",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1752207252854",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "highSeverityTickets"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "<h3 style=\"text-align: center; font-size: 18px; font-weight: bold; color: #52B178; font-family: Arial;\">   <a href=\"https://ford-advev-sandbox-328.atlassian.net/jira/software/c/projects/ECM/issues/?jql=project%20%3D%20%22ECM%22%20AND%20%22Severity%20%5BDropdown%5D%22%20%3D%20High%20AND%20status%20NOT%20IN%20%28%22Solution%20In-Progress%22%2C%20%22Solution%20Implemented%22%2C%20Rejected%2C%20Cancelled%29%20AND%20%22Part%20Maturity%5BDropdown%5D%22%20IN%20%28Tooled%2C%20Production%29%20AND%20updated%20%3E%3D%20-7d\"       style=\"color: red; text-decoration: none;\">     {{totalHighSeverityTicketsCount}} High Severity Issues   </a> </h3>  <table border=\"1\" cellpadding=\"6\" cellspacing=\"0\" style=\"border-collapse: collapse; width: 100%; font-family: Arial, sans-serif;\">   <thead style=\"background-color: #f2f2f2;\">     <tr>       <th style=\"width: 6%; text-align: left;\">Key</th>       <th style=\"width: 20%; text-align: left;\">Summary</th>       <th style=\"width: 6%; text-align: left;\">SIT/Attribute (Assets)</th>       <th style=\"width: 8%; text-align: left;\">Status</th>       <th style=\"width: 6%; text-align: left;\">Issue Champion</th>       <th style=\"width: 6%; text-align: left;\">Solution Owner (SIT/MFG Lead)</th>       <th style=\"width: 6%; text-align: left;\">Change Type</th>       <th style=\"width: 6%; text-align: left;\">Severity</th>       <th style=\"width: 5%; text-align: left;\">Program</th>       <th style=\"width: 5%; text-align: left;\">Model Year</th>       <th style=\"width: 10%; text-align: left;\">ADVEV Checkpoints and Milestones</th>     </tr>   </thead>   <tbody>     {{#lookupIssues}}       <tr>         <td style=\"text-align: left;\">           <a href=\"{{url}}\">{{key}}</a>         </td>         <td style=\"text-align: left;\">{{summary}}</td>         <td style=\"text-align: left;\">{{customfield_15640.SIT}}</td>         <td style=\"text-align: left;\">{{status.name}}</td>         <td style=\"text-align: left;\">{{customfield_15706.displayName}}</td>         <td style=\"text-align: left;\">{{customfield_15713.displayName}}</td>         <td style=\"text-align: left;\">{{customfield_14952.value}}</td>         <td style=\"text-align: left;\">{{customfield_11354.value}}</td>         <td style=\"text-align: left;\">{{customfield_14980.value}}</td>         <td style=\"text-align: left;\">{{customfield_14979.value}}</td>         <td style=\"text-align: left;\">{{customfield_11664.value}}</td>       </tr>     {{/lookupIssues}}   </tbody> </table> <br>"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "a16db6f5-f5df-4dfa-9d53-1da52171161b",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.lookup.issues",
+      "value": {
+        "id": "_customsmartvalue_id_1752207279232",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "lookupIssues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "project = \"ECM\" AND \"Severity\" = High AND \"Part Maturity[Dropdown]\" IN (Tooled, Production) AND created >= -7d"
+        },
+        "type": "JQL"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "4cc43f5b-b320-4c19-9163-2fa18fa9394b",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1752207307758",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "totalNewHighSeverityTicketsCount"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{lookupIssues.size}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "e6cea267-2647-4953-b740-7772e7f895b4",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.lookup.issues",
+      "value": {
+        "id": "_customsmartvalue_id_1752206979195",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "lookupIssues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "project = \"ECM\" AND \"Part Maturity[Dropdown]\" IN (Tooled, Production) AND created >= -7d"
+        },
+        "type": "JQL"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "c8034cf1-64ab-4fca-8d9b-5e774eee2f69",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1752207039801",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "totalNewTicketsCount"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{lookupIssues.size}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "54899998-e8bb-4757-b55e-0466a18e84f7",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.lookup.issues",
+      "value": {
+        "id": "_customsmartvalue_id_1752206979195",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "lookupIssues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "project = \"ECM\" AND \"Part Maturity[Dropdown]\" IN (Tooled, Production) AND created >= -7d ORDER BY cf[11354] DESC, updated ASC"
+        },
+        "type": "JQL"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "84ccc5fe-376e-460c-924b-1142d9f80f06",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1752207039801",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "newTickets"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "<h3 style=\"text-align: center; font-size: 18px; font-weight: bold; color: #52B178; font-family: Arial;\">   <a href=\"https://ford-advev.atlassian.net/jira/software/c/projects/ECM/issues/?jql=project%20%3D%20%22ECM%22%20AND%20%22Part%20Maturity%5BDropdown%5D%22%20IN%20%28Tooled%2C%20Production%29%20AND%20created%20%3E%3D%20-7d\"       style=\"color: #52B178; text-decoration: none;\">     {{totalNewTicketsCount}} New   </a> Issues </h3>  <table border=\"1\" cellpadding=\"6\" cellspacing=\"0\" style=\"border-collapse: collapse; width: 100%; font-family: Arial, sans-serif;\">   <thead style=\"background-color: #f2f2f2;\">     <tr>       <th style=\"width: 6%; text-align: left;\">Key</th>       <th style=\"width: 20%; text-align: left;\">Summary</th>       <th style=\"width: 6%; text-align: left;\">SIT/Attribute (Assets)</th>       <th style=\"width: 8%; text-align: left;\">Status</th>       <th style=\"width: 6%; text-align: left;\">Issue Champion</th>       <th style=\"width: 6%; text-align: left;\">Solution Owner (SIT/MFG Lead)</th>       <th style=\"width: 6%; text-align: left;\">Change Type</th>       <th style=\"width: 6%; text-align: left;\">Severity</th>       <th style=\"width: 5%; text-align: left;\">Program</th>       <th style=\"width: 5%; text-align: left;\">Model Year</th>       <th style=\"width: 10%; text-align: left;\">ADVEV Checkpoints and Milestones</th>     </tr>   </thead>   <tbody>     {{#lookupIssues}}       <tr>         <td style=\"text-align: left;\">           <a href=\"{{url}}\">{{key}}</a>         </td>         <td style=\"text-align: left;\">{{summary}}</td>         <td style=\"text-align: left;\">{{customfield_15640.SIT}}</td>         <td style=\"text-align: left;\">{{status.name}}</td>         <td style=\"text-align: left;\">{{customfield_15706.displayName}}</td>         <td style=\"text-align: left;\">{{customfield_15713.displayName}}</td>         <td style=\"text-align: left;\">{{customfield_14952.value}}</td>         <td style=\"text-align: left;\">{{customfield_11354.value}}</td>         <td style=\"text-align: left;\">{{customfield_14980.value}}</td>         <td style=\"text-align: left;\">{{customfield_14979.value}}</td>         <td style=\"text-align: left;\">{{customfield_11664.value}}</td>       </tr>     {{/lookupIssues}}   </tbody> </table> <br>"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "0322c134-dd05-4bb7-9a76-9dd9d799e57d",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.lookup.issues",
+      "value": {
+        "id": "_customsmartvalue_id_1752207519032",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "lookupIssues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "project = \"ECM\"  AND status in (\"Submitted\", \"PM Verifying and Prioritizing\", \"Needs more Information\", \"ICA,RCA,PCA In-Progress\", \"In Approval\")  AND \"Part Maturity[Dropdown]\" IN (Tooled, Production)  AND status CHANGED BEFORE -7d  AND NOT status CHANGED AFTER -7d"
+        },
+        "type": "JQL"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "7446c6bc-f44b-4f88-9f7a-10bc2c4af73a",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1752207534852",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "totalAgingTicketsCount"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{lookupIssues.size}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "554ea214-677d-40c5-b4ad-d80ce4fc8dfc",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.lookup.issues",
+      "value": {
+        "id": "_customsmartvalue_id_1752207519032",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "lookupIssues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "project = \"ECM\"  AND status in (\"Submitted\", \"PM Verifying and Prioritizing\", \"Needs more Information\", \"ICA,RCA,PCA In-Progress\", \"In Approval\")  AND \"Part Maturity[Dropdown]\" IN (Tooled, Production)  AND status CHANGED BEFORE -7d  AND NOT status CHANGED AFTER -7d ORDER BY cf[15838] ASC, updated ASC"
+        },
+        "type": "JQL"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "e070fe6f-9ab2-4cda-8fa1-61dac786db83",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1752207534852",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "agingTickets"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "<h3 style=\"text-align: center; font-size: 18px; font-weight: bold; color: #52B178; font-family: Arial;\">   <a href=\"https://ford-advev.atlassian.net/jira/software/c/projects/ECM/issues/?jql=project%20%3D%20%22ECM%22%20%20AND%20status%20in%20%28%22Submitted%22%2C%20%22PM%20Verifying%20and%20Prioritizing%22%2C%20%22Needs%20more%20Information%22%2C%20%22ICA%2CRCA%2CPCA%20In-Progress%22%2C%20%22In%20Approval%22%29%20%20AND%20%22Part%20Maturity%5BDropdown%5D%22%20IN%20%28Tooled%2C%20Production%29%20%20AND%20status%20CHANGED%20BEFORE%20-7d%20%20AND%20NOT%20status%20CHANGED%20AFTER%20-7d%20ORDER%20BY%20cf%5B15191%5D%20ASC%2C%20updated%20ASC\"       style=\"color: red; text-decoration: none;\">     {{totalAgingTicketsCount}} Aging Issues   </a> </h3>  <table border=\"1\" cellpadding=\"6\" cellspacing=\"0\" style=\"border-collapse: collapse; width: 100%; font-family: Arial, sans-serif;\">   <thead style=\"background-color: #f2f2f2;\">     <tr>       <th style=\"width: 6%; text-align: left;\">Key</th>       <th style=\"width: 20%; text-align: left;\">Summary</th>       <th style=\"width: 6%; text-align: left;\">SIT/Attribute (Assets)</th>       <th style=\"width: 8%; text-align: left;\">Status</th>       <th style=\"width: 7%; text-align: left;\">Age in Status</th>       <th style=\"width: 6%; text-align: left;\">Issue Champion</th>       <th style=\"width: 6%; text-align: left;\">Solution Owner (SIT/MFG Lead)</th>       <th style=\"width: 6%; text-align: left;\">Change Type</th>       <th style=\"width: 6%; text-align: left;\">Severity</th>       <th style=\"width: 5%; text-align: left;\">Program</th>       <th style=\"width: 5%; text-align: left;\">Model Year</th>       <th style=\"width: 10%; text-align: left;\">ADVEV Checkpoints and Milestones</th>     </tr>   </thead>   <tbody>     {{#lookupIssues}}       <tr>         <td style=\"text-align: left;\">           <a href=\"{{url}}\">{{key}}</a>         </td>         <td style=\"text-align: left;\">{{summary}}</td>         <td style=\"text-align: left;\">{{customfield_15640.SIT}}</td>         <td style=\"text-align: left;\">{{status.name}}</td>         <td style=\"text-align: left;\">{{customfield_15838.diff(now).days}} days</td>         <td style=\"text-align: left;\">{{customfield_15706.displayName}}</td>         <td style=\"text-align: left;\">{{customfield_15713.displayName}}</td>         <td style=\"text-align: left;\">{{customfield_14952.value}}</td>         <td style=\"text-align: left;\">{{customfield_11354.value}}</td>         <td style=\"text-align: left;\">{{customfield_14980.value}}</td>         <td style=\"text-align: left;\">{{customfield_14979.value}}</td>         <td style=\"text-align: left;\">{{customfield_11664.value}}</td>       </tr>     {{/lookupIssues}}   </tbody> </table> <br>"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "0edf495b-1494-4657-b829-97d07b5514bc",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.lookup.issues",
+      "value": {
+        "id": "_customsmartvalue_id_1752207519032",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "lookupIssues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "project = \"ECM\" AND \"Change Type[Dropdown]\" = Standard AND \"Part Maturity[Dropdown]\" IN (Tooled, Production)"
+        },
+        "type": "JQL"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "e9871d2d-0c40-4f4b-bbe9-dd43332de75c",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1752207534852",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "totalStandardChangeTypeCount"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{lookupIssues.size}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "dc6c9769-3425-4ec3-bc73-3792e57f8d79",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.lookup.issues",
+      "value": {
+        "id": "_customsmartvalue_id_1752207519032",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "lookupIssues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "project = \"ECM\" AND \"Change Type[Dropdown]\" = Configuration AND \"Part Maturity[Dropdown]\" IN (Tooled, Production)"
+        },
+        "type": "JQL"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "a65771dd-5115-4b52-9e8c-5d71dde1096c",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1752207534852",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "totalConfigurationChangeTypeCount"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{lookupIssues.size}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "d93fcd17-976f-4af6-b87c-d1d2c776629f",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.lookup.issues",
+      "value": {
+        "id": "_customsmartvalue_id_1752207519032",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "lookupIssues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "project = \"ECM\" AND \"Change Type[Dropdown]\" = Documentation AND \"Part Maturity[Dropdown]\" IN (Tooled, Production)"
+        },
+        "type": "JQL"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "5cc374ed-e1cc-41fc-b323-c3556c754070",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1752207534852",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "totalDocumentationChangeTypeCount"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{lookupIssues.size}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "a6409fdb-3bd7-4e04-b162-5699da1d2a1f",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.lookup.issues",
+      "value": {
+        "id": "_customsmartvalue_id_1752207519032",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "lookupIssues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "project = \"ECM\" AND \"Change Type[Dropdown]\" = \"Manufacturing Process/Quality\" AND \"Part Maturity[Dropdown]\" IN (Tooled, Production)"
+        },
+        "type": "JQL"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "2aba6bb2-5b04-468a-8c30-0ee5fe9a3cb2",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1752207534852",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "totalManufacturingChangeTypeCount"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{lookupIssues.size}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "c99055ce-ebab-4ce4-84ce-82f48e4e05e5",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.lookup.issues",
+      "value": {
+        "id": "_customsmartvalue_id_1752207519032",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "lookupIssues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "project = \"ECM\" AND \"Change Type[Dropdown]\" = \"Supplier Quality\" AND \"Part Maturity[Dropdown]\" IN (Tooled, Production)"
+        },
+        "type": "JQL"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "6ee06a3c-36e2-48da-99d3-5b8baabcf6e5",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1752207534852",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "totalSupplierQualityChangeTypeCount"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{lookupIssues.size}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "a2c48962-0917-499c-842a-d880990b5d90",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.lookup.issues",
+      "value": {
+        "id": "_customsmartvalue_id_1770711518365",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "lookupIssues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "project = \"ECM\" AND (updated >= -7d OR created >=-7d)"
+        },
+        "type": "JQL"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "04e26259-53a0-430f-8fce-b8df058dd9de",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1770711532742",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "noDataHandling"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{lookupIssues.size}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "588caae7-fe45-4564-a392-79560c1882b7",
+              "parentId": "9a903337-de54-450d-b6fc-f346240255be",
+              "schemaVersion": 5,
+              "type": "jira.issue.outgoing.email",
+              "value": {
+                "bcc": [
+                  {
+                    "additional": "GROUP",
+                    "type": "GROUP_ID",
+                    "value": "14394bc9-7b2e-495b-b260-77ce536b0215"
+                  }
+                ],
+                "body": "<html>\n<!-- ADVEV HEADER -->\n<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\"\n       style=\"border-collapse: collapse; margin: 0 auto; background-color: #ffffff; max-width: 600px;\">\n  <tr>\n    <td style=\"padding: 20px; font-family: Arial;\">\n\n      <!-- Main Title -->\n      <div style=\"font-size: 26px; font-weight: 700; color: #000000; line-height: 1.2;\">\n        ADVEV Enterprise Change Management\n      </div>\n\n      <!-- Subtitle with inline line -->\n      <div style=\"font-size: 16px; font-weight: 400; color: #000000; margin-top: 6px; display: flex; align-items: center;\">\n        ADVEV Digital Transformation\n        <div style=\"flex-grow: 1; height: 2px; background-color: #52B178; margin-left: 10px;\"></div>\n      </div>\n\n    </td>\n  </tr>\n</table>\n<!-- END HEADER -->\n\n<!-- NO CHANGES NOTICE -->\n<div style=\"max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 15px; \n            font-family: Arial; text-align: center; border: 2px solid #52B178; \n            border-radius: 6px; margin-top: 10px;\">\n  <p style=\"font-size: 16px; font-weight: bold; color: #000; margin: 0;\">\n    No new ECM activity since the last reporting period.\n  </p>\n</div>\n<!-- END NOTICE -->\n\n<h3 style=\"text-align: center; font-size: 18px; font-weight: bold; color: #52B178; font-family: Arial;\">Weekly Metrics</h3>\n<table border=\"1\" cellpadding=\"8\" cellspacing=\"0\" style=\"border-collapse: collapse; font-family: Arial; width: 100%;\">\n  <tr>\n    <td style=\"vertical-align: top; width: 33%;\">\n      <strong>Total Tickets: <a href=\"https://ford-advev.atlassian.net/issues/?jql=project%20%3D%20%22ECM%22%20AND%20status%20NOT%20IN%20%28%22Solution%20In-Progress%22%2C%20%22Solution%20Implemented%22%2C%20Rejected%2C%20Cancelled%29%20AND%20%22Part%20Maturity%5BDropdown%5D%22%20IN%20%28Tooled%2C%20Production%29%20AND%20updated%20%3E%3D%20-7d\" style=\"color: blue; text-decoration: none;\">{{totalTicketsCount}}</a></strong><br>\n      New Tickets: <a href=\"https://ford-advev.atlassian.net/jira/software/c/projects/ECM/issues/?jql=project%20%3D%20%22ECM%22%20AND%20%22Part%20Maturity%5BDropdown%5D%22%20IN%20%28Tooled%2C%20Production%29%20AND%20created%20%3E%3D%20-7d\" style=\"color:blue; text-decoration:none;\">{{totalNewTicketsCount}}</a>\n    </td>\n    <td style=\"vertical-align: top; width: 33%;\">\n      <strong>Resolved Tickets: <a href=\"https://ford-advev.atlassian.net/jira/software/c/projects/ECM/issues/?jql=project%20%3D%20%22ECM%22%20AND%20%22Part%20Maturity%5BDropdown%5D%22%20IN%20%28Tooled%2C%20Production%29%20AND%20resolutiondate%20%3E%3D%20-7d\" style=\"color:blue; text-decoration:none;\">{{totalResolvedTicketsCount}}</a></strong><br>\n      High Severity: <a href=\"https://ford-advev.atlassian.net/jira/software/c/projects/ECM/issues/?jql=project%20%3D%20%22ECM%22%20AND%20%22Severity%22%20%3D%20High%20AND%20%22Part%20Maturity%5BDropdown%5D%22%20IN%20%28Tooled%2C%20Production%29%20AND%20resolutiondate%20%3E%3D%20-7d\" style=\"color:blue; text-decoration:none;\">{{totalResolvedTicketsWithHighSeverityCount}}</a>\n    </td>\n    <td style=\"vertical-align: top; width: 33%;\">\n      <strong>High Severity: <a href=\"https://ford-advev.atlassian.net/issues/?jql=project%20%3D%20%22ECM%22%20AND%20%22Severity%22%20%3D%20High%20AND%20status%20NOT%20IN%20%28%22Solution%20In-Progress%22%2C%20%22Solution%20Implemented%22%2C%20Rejected%2C%20Cancelled%29%20AND%20%22Part%20Maturity%5BDropdown%5D%22%20IN%20%28Tooled%2C%20Production%29%20AND%20updated%20%3E%3D%20-7d\" style=\"color:blue; text-decoration:none;\">{{totalHighSeverityTicketsCount}}</a></strong><br>\n      New High Severity: <a href=\"https://ford-advev.atlassian.net/jira/software/c/projects/ECM/issues/?jql=project%20%3D%20%22ECM%22%20AND%20%22Severity%22%20%3D%20High%20AND%20%22Part%20Maturity%5BDropdown%5D%22%20IN%20%28Tooled%2C%20Production%29%20AND%20created%20%3E%3D%20-7d\" style=\"color:blue; text-decoration:none;\">{{totalNewHighSeverityTicketsCount}}</a>\n    </td>\n  </tr>\n</table>\n\n<br>\n\n<h3 style=\"text-align: center; font-size: 18px; font-weight: bold; color: #52B178; font-family: Arial;\">Percentage per Change Type</h3>\n<table border=\"1\" cellpadding=\"8\" cellspacing=\"0\" style=\"border-collapse: collapse; font-family: Arial; width: 100%;\">\n  <tr>\n    <td style=\"vertical-align: top; width: 20%;\">\n      <strong>Standard: <span style=\"color: blue;\">\n{{#=}}round({{totalStandardChangeTypeCount}} / ({{totalStandardChangeTypeCount}} + {{totalConfigurationChangeTypeCount}} + {{totalDocumentationChangeTypeCount}} + {{totalManufacturingChangeTypeCount}} + {{totalSupplierQualityChangeTypeCount}}) * 100, 2){{/}}%\n      </span></strong>\n    </td>\n    <td style=\"vertical-align: top; width: 20%;\">\n      <strong>Configuration: <span style=\"color: blue;\">\n{{#=}}round({{totalConfigurationChangeTypeCount}} / ({{totalStandardChangeTypeCount}} + {{totalConfigurationChangeTypeCount}} + {{totalDocumentationChangeTypeCount}} + {{totalManufacturingChangeTypeCount}} + {{totalSupplierQualityChangeTypeCount}}) * 100, 2){{/}}%\n      </span></strong>\n    </td>\n    <td style=\"vertical-align: top; width: 20%;\">\n      <strong>Documentation: <span style=\"color: blue;\">\n{{#=}}round({{totalDocumentationChangeTypeCount}} / ({{totalStandardChangeTypeCount}} + {{totalConfigurationChangeTypeCount}} + {{totalDocumentationChangeTypeCount}} + {{totalManufacturingChangeTypeCount}} + {{totalSupplierQualityChangeTypeCount}}) * 100, 2){{/}}%\n      </span></strong>\n    </td>\n    <td style=\"vertical-align: top; width: 20%;\">\n      <strong>Manufacturing Process/Quality: <span style=\"color: blue;\">\n{{#=}}round({{totalManufacturingChangeTypeCount}} / ({{totalStandardChangeTypeCount}} + {{totalConfigurationChangeTypeCount}} + {{totalDocumentationChangeTypeCount}} + {{totalManufacturingChangeTypeCount}} + {{totalSupplierQualityChangeTypeCount}}) * 100, 2){{/}}%\n      </span></strong>\n    </td>\n    <td style=\"vertical-align: top; width: 20%;\">\n      <strong>Supplier Quality: <span style=\"color: blue;\">\n{{#=}}round({{totalSupplierQualityChangeTypeCount}} / ({{totalStandardChangeTypeCount}} + {{totalConfigurationChangeTypeCount}} + {{totalDocumentationChangeTypeCount}} + {{totalManufacturingChangeTypeCount}} + {{totalSupplierQualityChangeTypeCount}}) * 100, 2){{/}}%\n      </span></strong>\n    </td>\n  </tr>\n</table>\n\n<br>\n\n<h3 style=\"text-align: center; font-size: 18px; font-weight: bold; color: #52B178; font-family: Arial;\">Status Breakdown</h3>\n<!-- First Row -->\n<table border=\"1\" cellpadding=\"8\" cellspacing=\"0\" style=\"border-collapse: collapse; font-family: Arial; width: 100%; margin-bottom: 10px;\">\n    <td style=\"vertical-align: top; width: 20%;\">\n      <strong>Total Submitted:\n        <a href=\"https://ford-advev.atlassian.net/jira/software/c/projects/ECM/issues/?jql=project%20%3D%20%22ECM%22%20AND%20status%20%3D%20%22Submitted%22%20AND%20%22Part%20Maturity%5BDropdown%5D%22%20IN%20%28Tooled%2C%20Production%29\" style=\"color:blue; text-decoration:none;\">\n          {{totalSubmittedCount}}\n        </a>\n      </strong>\n    </td>\n    <td style=\"vertical-align: top; width: 20%;\">\n      <strong>Total PM Verifying and Prioritizing:\n        <a href=\"https://ford-advev.atlassian.net/issues/?jql=project%20%3D%20%22ECM%22%20and%20status%20%3D%20%22PM%20Verifying%20and%20Prioritizing%22%20AND%20%22Part%20Maturity%5BDropdown%5D%22%20IN%20%28Tooled%2C%20Production%29\" style=\"color:blue; text-decoration:none;\">\n          {{totalReadyForPrioritizationCount}}\n        </a>\n      </strong>\n    </td>\n    <td style=\"vertical-align: top; width: 20%;\">\n      <strong>Total Needs More Information:\n        <a href=\"https://ford-advev.atlassian.net/jira/software/c/projects/ECM/issues/?jql=project%20%3D%20%22ECM%22%20AND%20status%20%3D%20%22Needs%20more%20Information%22%20%20AND%20%22Part%20Maturity%5BDropdown%5D%22%20IN%20%28Tooled%2C%20Production%29\" style=\"color:blue; text-decoration:none;\">\n          {{totalNeedsMoreInfoCount}}\n        </a>\n      </strong>\n    </td>\n    <td style=\"vertical-align: top; width: 20%;\">\n      <strong>Total ICA,RCA,PCA In-Progress:\n        <a href=\"https://ford-advev.atlassian.net/issues/?jql=project%20%3D%20%22ECM%22%20AND%20status%20%3D%20%22ICA%2CRCA%2CPCA%20In-Progress%22%20AND%20%22Part%20Maturity%5BDropdown%5D%22%20IN%20%28Tooled%2C%20Production%29\" style=\"color:blue; text-decoration:none;\">\n          {{totalPrioritizedCount}}\n        </a>\n      </strong>\n    </td>\n    <td style=\"vertical-align: top; width: 20%; white-space: nowrap;\">\n      <strong>Total&nbsp;In&nbsp;Approval:\n        <a href=\"https://ford-advev.atlassian.net/jira/software/c/projects/ECM/issues/?jql=project%20%3D%20%22ECM%22%20AND%20status%20%3D%20%22In%20Approval%22%20AND%20%22Part%20Maturity%5BDropdown%5D%22%20IN%20%28Tooled%2C%20Production%29\" style=\"color:blue; text-decoration:none;\">\n          {{totalInApprovalCount}}\n        </a>\n      </strong>\n    </td>\n  </tr>\n</table>\n<!-- Second Row -->\n<table border=\"1\" cellpadding=\"8\" cellspacing=\"0\" style=\"border-collapse: collapse; font-family: Arial; width: 100%;\">\n    <td style=\"vertical-align: top; width: 25%;\">\n      <strong>Total Solution In-Progress:\n        <a href=\"https://ford-advev.atlassian.net/issues/?jql=project%20%3D%20%22ECM%22%20AND%20status%20%3D%20%22Solution%20In-Progress%22%20AND%20%22Part%20Maturity%5BDropdown%5D%22%20IN%20%28Tooled%2C%20Production%29\" style=\"color:blue; text-decoration:none;\">\n          {{totalApprovedCount}}\n        </a>\n      </strong>\n    </td>\n    <td style=\"vertical-align: top; width: 25%;\">\n      <strong>Total Solution Implemented:\n        <a href=\"https://ford-advev.atlassian.net/issues/?jql=project%20%3D%20%22ECM%22%20AND%20status%20%3D%20%22Solution%20Implemented%22%20AND%20%22Part%20Maturity%5BDropdown%5D%22%20IN%20%28Tooled%2C%20Production%29\" style=\"color:blue; text-decoration:none;\">\n          {{totalImplementedCount}}\n        </a>\n      </strong>\n    </td>\n    <td style=\"vertical-align: top; width: 25%;\">\n      <strong>Total Rejected:\n        <a href=\"https://ford-advev.atlassian.net/jira/software/c/projects/ECM/issues/?jql=project%20%3D%20%22ECM%22%20AND%20status%20%3D%20%22Rejected%22%20AND%20%22Part%20Maturity%5BDropdown%5D%22%20IN%20%28Tooled%2C%20Production%29\" style=\"color:blue; text-decoration:none;\">\n          {{totalRejectedCount}}\n        </a>\n      </strong>\n    </td>\n    <td style=\"vertical-align: top; width: 25%;\">\n      <strong>Total Cancelled:\n        <a href=\"https://ford-advev.atlassian.net/jira/software/c/projects/ECM/issues/?jql=project%20%3D%20%22ECM%22%20AND%20status%20%3D%20%22Cancelled%22%20AND%20%22Part%20Maturity%5BDropdown%5D%22%20IN%20%28Tooled%2C%20Production%29\" style=\"color:blue; text-decoration:none;\">\n          {{totalCancelledCount}}\n        </a>\n      </strong>\n    </td>\n  </tr>\n</table>\n\n<br>\n\n{{highSeverityTickets}}\n\n{{newTickets}}\n\n{{agingTickets}}\n\n<br>\n\n<br>\n<h3 style=\"text-align: center; font-size: 18px; font-weight: bold; color: #52B178; font-family: Arial;\">Appendix</h3>\n<table border=\"1\" cellpadding=\"8\" cellspacing=\"0\" style=\"border-collapse: collapse; font-family: Arial; width: 100%;\">\n  <tr style=\"background-color: #f2f2f2;\">\n  <th colspan=\"2\" style=\"text-align: center;\">Metric Definitions</th>\n  </tr>\n  <tr>\n    <td><strong>Total Tickets</strong></td>\n    <td>All open post-tooled tickets (excluding Solution In-Progress, Solution Implemented, Rejected, and Cancelled) updated within the last 7 days.</td>\n  </tr>\n  <tr>\n    <td><strong>New Tickets</strong></td>\n    <td>All post-tooled tickets created within the last 7 days.</td>\n  </tr>\n  <tr>\n    <td><strong>Resolved Tickets</strong></td>\n    <td>All post-tooled tickets resolved within the last 7 days.</td>\n  </tr>\n  <tr>\n    <td><strong>High Severity (Resolved)</strong></td>\n    <td>All post-tooled tickets resolved within the last 7 days with High Severity.</td>\n  </tr>\n  <tr>\n    <td><strong>High Severity (Open)</strong></td>\n    <td>All open post-tooled tickets updated within the last 7 days with High Severity.</td>\n  </tr>\n  <tr>\n    <td><strong>New High Severity</strong></td>\n    <td>All post-tooled tickets created in the last 7 Days with High Severity.</td>\n  </tr>\n</table>\n\n<p style=\"font-size: 12px; color: #666; font-style: italic; text-align: left; margin-top: 10px;\">\n  <strong>Note:</strong> Only a maximum of 100 tickets can be queried\n</p>\n\n          <!-- Ford Logo (between sections) -->\n          <div style=\"text-align: center; margin: 10px 0;\">\n            <img src= https://www.pngmart.com/files/22/Ford-Logo-PNG-Clipart.png alt=\"Ford Logo\" style=\"height: 60px;\">\n          </div>\n\n</html>",
+                "cc": [],
+                "convertLineBreaks": false,
+                "fromName": "",
+                "mimeType": "text/html",
+                "replyTo": "",
+                "subject": "ADVEV Change Management – Weekly Report ",
+                "to": [
+                  {
+                    "type": "FREE",
+                    "value": "advevdig@ford.com"
+                  }
+                ]
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "9a903337-de54-450d-b6fc-f346240255be",
+              "conditions": [],
+              "connectionId": null,
+              "id": "1fde2eef-aca8-405a-aa69-2667a9397c3e",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{noDataHandling}}",
+                "operator": "EQUALS",
+                "second": "0"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "9a903337-de54-450d-b6fc-f346240255be",
+          "parentId": "6e0c2961-65dd-438e-a708-4fa38c8643cf",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "07c3db26-83e5-41af-86ae-de8592c4fcc4",
+              "parentId": "c99c5291-0827-4df7-b6b1-59cc9eb09dbf",
+              "schemaVersion": 5,
+              "type": "jira.issue.outgoing.email",
+              "value": {
+                "bcc": [
+                  {
+                    "additional": "GROUP",
+                    "type": "GROUP_ID",
+                    "value": "14394bc9-7b2e-495b-b260-77ce536b0215"
+                  }
+                ],
+                "body": "<html>\n<!-- ADVEV HEADER -->\n<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\"\n       style=\"border-collapse: collapse; margin: 0 auto; background-color: #ffffff; max-width: 600px;\">\n  <tr>\n    <td style=\"padding: 20px; font-family: Arial;\">\n\n      <!-- Main Title -->\n      <div style=\"font-size: 26px; font-weight: 700; color: #000000; line-height: 1.2;\">\n        ADVEV Enterprise Change Management\n      </div>\n\n      <!-- Subtitle with inline line -->\n      <div style=\"font-size: 16px; font-weight: 400; color: #000000; margin-top: 6px; display: flex; align-items: center;\">\n        ADVEV Digital Transformation\n        <div style=\"flex-grow: 1; height: 2px; background-color: #52B178; margin-left: 10px;\"></div>\n      </div>\n\n    </td>\n  </tr>\n</table>\n<!-- END HEADER -->\n\n<h3 style=\"text-align: center; font-size: 18px; font-weight: bold; color: #52B178; font-family: Arial;\">Weekly Metrics</h3>\n<table border=\"1\" cellpadding=\"8\" cellspacing=\"0\" style=\"border-collapse: collapse; font-family: Arial; width: 100%;\">\n  <tr>\n    <td style=\"vertical-align: top; width: 33%;\">\n      <strong>Total Tickets: <a href=\"https://ford-advev.atlassian.net/issues/?jql=project%20%3D%20%22ECM%22%20AND%20status%20NOT%20IN%20%28%22Solution%20In-Progress%22%2C%20%22Solution%20Implemented%22%2C%20Rejected%2C%20Cancelled%29%20AND%20%22Part%20Maturity%5BDropdown%5D%22%20IN%20%28Tooled%2C%20Production%29%20AND%20updated%20%3E%3D%20-7d\" style=\"color: blue; text-decoration: none;\">{{totalTicketsCount}}</a></strong><br>\n      New Tickets: <a href=\"https://ford-advev.atlassian.net/jira/software/c/projects/ECM/issues/?jql=project%20%3D%20%22ECM%22%20AND%20%22Part%20Maturity%5BDropdown%5D%22%20IN%20%28Tooled%2C%20Production%29%20AND%20created%20%3E%3D%20-7d\" style=\"color:blue; text-decoration:none;\">{{totalNewTicketsCount}}</a>\n    </td>\n    <td style=\"vertical-align: top; width: 33%;\">\n      <strong>Resolved Tickets: <a href=\"https://ford-advev.atlassian.net/jira/software/c/projects/ECM/issues/?jql=project%20%3D%20%22ECM%22%20AND%20%22Part%20Maturity%5BDropdown%5D%22%20IN%20%28Tooled%2C%20Production%29%20AND%20resolutiondate%20%3E%3D%20-7d\" style=\"color:blue; text-decoration:none;\">{{totalResolvedTicketsCount}}</a></strong><br>\n      High Severity: <a href=\"https://ford-advev.atlassian.net/jira/software/c/projects/ECM/issues/?jql=project%20%3D%20%22ECM%22%20AND%20%22Severity%22%20%3D%20High%20AND%20%22Part%20Maturity%5BDropdown%5D%22%20IN%20%28Tooled%2C%20Production%29%20AND%20resolutiondate%20%3E%3D%20-7d\" style=\"color:blue; text-decoration:none;\">{{totalResolvedTicketsWithHighSeverityCount}}</a>\n    </td>\n    <td style=\"vertical-align: top; width: 33%;\">\n      <strong>High Severity: <a href=\"https://ford-advev.atlassian.net/issues/?jql=project%20%3D%20%22ECM%22%20AND%20%22Severity%22%20%3D%20High%20AND%20status%20NOT%20IN%20%28%22Solution%20In-Progress%22%2C%20%22Solution%20Implemented%22%2C%20Rejected%2C%20Cancelled%29%20AND%20%22Part%20Maturity%5BDropdown%5D%22%20IN%20%28Tooled%2C%20Production%29%20AND%20updated%20%3E%3D%20-7d\" style=\"color:blue; text-decoration:none;\">{{totalHighSeverityTicketsCount}}</a></strong><br>\n      New High Severity: <a href=\"https://ford-advev.atlassian.net/jira/software/c/projects/ECM/issues/?jql=project%20%3D%20%22ECM%22%20AND%20%22Severity%22%20%3D%20High%20AND%20%22Part%20Maturity%5BDropdown%5D%22%20IN%20%28Tooled%2C%20Production%29%20AND%20created%20%3E%3D%20-7d\" style=\"color:blue; text-decoration:none;\">{{totalNewHighSeverityTicketsCount}}</a>\n    </td>\n  </tr>\n</table>\n\n<br>\n\n<h3 style=\"text-align: center; font-size: 18px; font-weight: bold; color: #52B178; font-family: Arial;\">Percentage per Change Type</h3>\n<table border=\"1\" cellpadding=\"8\" cellspacing=\"0\" style=\"border-collapse: collapse; font-family: Arial; width: 100%;\">\n  <tr>\n    <td style=\"vertical-align: top; width: 20%;\">\n      <strong>Standard: <span style=\"color: blue;\">\n{{#=}}round({{totalStandardChangeTypeCount}} / ({{totalStandardChangeTypeCount}} + {{totalConfigurationChangeTypeCount}} + {{totalDocumentationChangeTypeCount}} + {{totalManufacturingChangeTypeCount}} + {{totalSupplierQualityChangeTypeCount}}) * 100, 2){{/}}%\n      </span></strong>\n    </td>\n    <td style=\"vertical-align: top; width: 20%;\">\n      <strong>Configuration: <span style=\"color: blue;\">\n{{#=}}round({{totalConfigurationChangeTypeCount}} / ({{totalStandardChangeTypeCount}} + {{totalConfigurationChangeTypeCount}} + {{totalDocumentationChangeTypeCount}} + {{totalManufacturingChangeTypeCount}} + {{totalSupplierQualityChangeTypeCount}}) * 100, 2){{/}}%\n      </span></strong>\n    </td>\n    <td style=\"vertical-align: top; width: 20%;\">\n      <strong>Documentation: <span style=\"color: blue;\">\n{{#=}}round({{totalDocumentationChangeTypeCount}} / ({{totalStandardChangeTypeCount}} + {{totalConfigurationChangeTypeCount}} + {{totalDocumentationChangeTypeCount}} + {{totalManufacturingChangeTypeCount}} + {{totalSupplierQualityChangeTypeCount}}) * 100, 2){{/}}%\n      </span></strong>\n    </td>\n    <td style=\"vertical-align: top; width: 20%;\">\n      <strong>Manufacturing Process/Quality: <span style=\"color: blue;\">\n{{#=}}round({{totalManufacturingChangeTypeCount}} / ({{totalStandardChangeTypeCount}} + {{totalConfigurationChangeTypeCount}} + {{totalDocumentationChangeTypeCount}} + {{totalManufacturingChangeTypeCount}} + {{totalSupplierQualityChangeTypeCount}}) * 100, 2){{/}}%\n      </span></strong>\n    </td>\n    <td style=\"vertical-align: top; width: 20%;\">\n      <strong>Supplier Quality: <span style=\"color: blue;\">\n{{#=}}round({{totalSupplierQualityChangeTypeCount}} / ({{totalStandardChangeTypeCount}} + {{totalConfigurationChangeTypeCount}} + {{totalDocumentationChangeTypeCount}} + {{totalManufacturingChangeTypeCount}} + {{totalSupplierQualityChangeTypeCount}}) * 100, 2){{/}}%\n      </span></strong>\n    </td>\n  </tr>\n</table>\n\n<br>\n\n<h3 style=\"text-align: center; font-size: 18px; font-weight: bold; color: #52B178; font-family: Arial;\">Status Breakdown</h3>\n<!-- First Row -->\n<table border=\"1\" cellpadding=\"8\" cellspacing=\"0\" style=\"border-collapse: collapse; font-family: Arial; width: 100%; margin-bottom: 10px;\">\n    <td style=\"vertical-align: top; width: 20%;\">\n      <strong>Total Submitted:\n        <a href=\"https://ford-advev.atlassian.net/jira/software/c/projects/ECM/issues/?jql=project%20%3D%20%22ECM%22%20AND%20status%20%3D%20%22Submitted%22%20AND%20%22Part%20Maturity%5BDropdown%5D%22%20IN%20%28Tooled%2C%20Production%29\" style=\"color:blue; text-decoration:none;\">\n          {{totalSubmittedCount}}\n        </a>\n      </strong>\n    </td>\n    <td style=\"vertical-align: top; width: 20%;\">\n      <strong>Total PM Verifying and Prioritizing:\n        <a href=\"https://ford-advev.atlassian.net/issues/?jql=project%20%3D%20%22ECM%22%20and%20status%20%3D%20%22PM%20Verifying%20and%20Prioritizing%22%20AND%20%22Part%20Maturity%5BDropdown%5D%22%20IN%20%28Tooled%2C%20Production%29\" style=\"color:blue; text-decoration:none;\">\n          {{totalReadyForPrioritizationCount}}\n        </a>\n      </strong>\n    </td>\n    <td style=\"vertical-align: top; width: 20%;\">\n      <strong>Total Needs More Information:\n        <a href=\"https://ford-advev.atlassian.net/jira/software/c/projects/ECM/issues/?jql=project%20%3D%20%22ECM%22%20AND%20status%20%3D%20%22Needs%20more%20Information%22%20%20AND%20%22Part%20Maturity%5BDropdown%5D%22%20IN%20%28Tooled%2C%20Production%29\" style=\"color:blue; text-decoration:none;\">\n          {{totalNeedsMoreInfoCount}}\n        </a>\n      </strong>\n    </td>\n    <td style=\"vertical-align: top; width: 20%;\">\n      <strong>Total ICA,RCA,PCA In-Progress:\n        <a href=\"https://ford-advev.atlassian.net/issues/?jql=project%20%3D%20%22ECM%22%20AND%20status%20%3D%20%22ICA%2CRCA%2CPCA%20In-Progress%22%20AND%20%22Part%20Maturity%5BDropdown%5D%22%20IN%20%28Tooled%2C%20Production%29\" style=\"color:blue; text-decoration:none;\">\n          {{totalPrioritizedCount}}\n        </a>\n      </strong>\n    </td>\n    <td style=\"vertical-align: top; width: 20%; white-space: nowrap;\">\n      <strong>Total&nbsp;In&nbsp;Approval:\n        <a href=\"https://ford-advev.atlassian.net/jira/software/c/projects/ECM/issues/?jql=project%20%3D%20%22ECM%22%20AND%20status%20%3D%20%22In%20Approval%22%20AND%20%22Part%20Maturity%5BDropdown%5D%22%20IN%20%28Tooled%2C%20Production%29\" style=\"color:blue; text-decoration:none;\">\n          {{totalInApprovalCount}}\n        </a>\n      </strong>\n    </td>\n  </tr>\n</table>\n<!-- Second Row -->\n<table border=\"1\" cellpadding=\"8\" cellspacing=\"0\" style=\"border-collapse: collapse; font-family: Arial; width: 100%;\">\n    <td style=\"vertical-align: top; width: 25%;\">\n      <strong>Total Solution In-Progress:\n        <a href=\"https://ford-advev.atlassian.net/issues/?jql=project%20%3D%20%22ECM%22%20AND%20status%20%3D%20%22Solution%20In-Progress%22%20AND%20%22Part%20Maturity%5BDropdown%5D%22%20IN%20%28Tooled%2C%20Production%29\" style=\"color:blue; text-decoration:none;\">\n          {{totalApprovedCount}}\n        </a>\n      </strong>\n    </td>\n    <td style=\"vertical-align: top; width: 25%;\">\n      <strong>Total Solution Implemented:\n        <a href=\"https://ford-advev.atlassian.net/issues/?jql=project%20%3D%20%22ECM%22%20AND%20status%20%3D%20%22Solution%20Implemented%22%20AND%20%22Part%20Maturity%5BDropdown%5D%22%20IN%20%28Tooled%2C%20Production%29\" style=\"color:blue; text-decoration:none;\">\n          {{totalImplementedCount}}\n        </a>\n      </strong>\n    </td>\n    <td style=\"vertical-align: top; width: 25%;\">\n      <strong>Total Rejected:\n        <a href=\"https://ford-advev.atlassian.net/jira/software/c/projects/ECM/issues/?jql=project%20%3D%20%22ECM%22%20AND%20status%20%3D%20%22Rejected%22%20AND%20%22Part%20Maturity%5BDropdown%5D%22%20IN%20%28Tooled%2C%20Production%29\" style=\"color:blue; text-decoration:none;\">\n          {{totalRejectedCount}}\n        </a>\n      </strong>\n    </td>\n    <td style=\"vertical-align: top; width: 25%;\">\n      <strong>Total Cancelled:\n        <a href=\"https://ford-advev.atlassian.net/jira/software/c/projects/ECM/issues/?jql=project%20%3D%20%22ECM%22%20AND%20status%20%3D%20%22Cancelled%22%20AND%20%22Part%20Maturity%5BDropdown%5D%22%20IN%20%28Tooled%2C%20Production%29\" style=\"color:blue; text-decoration:none;\">\n          {{totalCancelledCount}}\n        </a>\n      </strong>\n    </td>\n  </tr>\n</table>\n\n<br>\n\n{{highSeverityTickets}}\n\n{{newTickets}}\n\n{{agingTickets}}\n\n<br>\n\n<br>\n<h3 style=\"text-align: center; font-size: 18px; font-weight: bold; color: #52B178; font-family: Arial;\">Appendix</h3>\n<table border=\"1\" cellpadding=\"8\" cellspacing=\"0\" style=\"border-collapse: collapse; font-family: Arial; width: 100%;\">\n  <tr style=\"background-color: #f2f2f2;\">\n  <th colspan=\"2\" style=\"text-align: center;\">Metric Definitions</th>\n  </tr>\n  <tr>\n    <td><strong>Total Tickets</strong></td>\n    <td>All open post-tooled tickets (excluding Solution In-Progress, Solution Implemented, Rejected, and Cancelled) updated within the last 7 days.</td>\n  </tr>\n  <tr>\n    <td><strong>New Tickets</strong></td>\n    <td>All post-tooled tickets created within the last 7 days.</td>\n  </tr>\n  <tr>\n    <td><strong>Resolved Tickets</strong></td>\n    <td>All post-tooled tickets resolved within the last 7 days.</td>\n  </tr>\n  <tr>\n    <td><strong>High Severity (Resolved)</strong></td>\n    <td>All post-tooled tickets resolved within the last 7 days with High Severity.</td>\n  </tr>\n  <tr>\n    <td><strong>High Severity (Open)</strong></td>\n    <td>All open post-tooled tickets updated within the last 7 days with High Severity.</td>\n  </tr>\n  <tr>\n    <td><strong>New High Severity</strong></td>\n    <td>All post-tooled tickets created in the last 7 Days with High Severity.</td>\n  </tr>\n</table>\n\n<p style=\"font-size: 12px; color: #666; font-style: italic; text-align: left; margin-top: 10px;\">\n  <strong>Note:</strong> Only a maximum of 100 tickets can be queried\n</p>\n\n          <!-- Ford Logo (between sections) -->\n          <div style=\"text-align: center; margin: 10px 0;\">\n            <img src= https://www.pngmart.com/files/22/Ford-Logo-PNG-Clipart.png alt=\"Ford Logo\" style=\"height: 60px;\">\n          </div>\n\n</html>",
+                "cc": [],
+                "convertLineBreaks": false,
+                "fromName": "",
+                "mimeType": "text/html",
+                "replyTo": "",
+                "subject": "ADVEV Change Management – Weekly Report ",
+                "to": [
+                  {
+                    "type": "FREE",
+                    "value": "advevdig@ford.com"
+                  }
+                ]
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "c99c5291-0827-4df7-b6b1-59cc9eb09dbf",
+          "parentId": "6e0c2961-65dd-438e-a708-4fa38c8643cf",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "6e0c2961-65dd-438e-a708-4fa38c8643cf",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1770711942697,
+  "description": "Sends an executive weekly summary of tickets via email.",
+  "id": 31922757,
+  "idUuid": "019c46a8-0629-7ed8-82bb-1136ba3a4b75",
+  "labels": [],
+  "name": "ADVEV Change Management – Weekly Report (Scheduled)",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "778c3880-7d3a-4d1a-8f95-c2119358fb45",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "nosearch",
+      "jql": "",
+      "onlyUpdatedIssues": true,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/New_York:20251218T050000\nRRULE:FREQ=WEEKLY;BYHOUR=6;BYMINUTE=0;BYSECOND=0;BYDAY=FR;INTERVAL=1\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1772184545649,
+  "writeAccessType": "UNRESTRICTED"
+}

@@ -1,0 +1,87 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "565391414",
+      "parentId": null,
+      "schemaVersion": 5,
+      "type": "jira.issue.outgoing.email",
+      "value": {
+        "bcc": [],
+        "body": "Dear {{issue.assignee.displayName}},\n\nYou are receiving this reminder because it's been 7 days since this ticket, <strong><a href=\"https://ford-advev.atlassian.net/browse/{{issue.key}}\">{{issue.key}}</a></strong> - {{issue.summary}}, was assigned to you. \n\nIf you are still attending to this ticket, please feel free to ignore this message. However, if you have completed your work or if the ticket needs attention from another team or individual, kindly update the ticket status or reassign it to the next stakeholder.\n\n<strong>Here's a quick summary for your reference:</strong>\n\n<strong>Created:</strong> {{issue.created.format(\"MM/dd/yyyy\")}}\n<strong>Status:</strong> {{issue.status.name}}\n<strong>Priority:</strong> {{issue.priority.name}}\n<strong>Due Date:</strong> {{issue.duedate.format(\"MM/dd/yyyy\")}}\n<strong>Description:</strong> {{issue.description}}\n<strong>Comments:</strong> {{#issue.comments.last}} {{body}} - by {{author.displayName}} ({{created.format(\"dd/MM/yyyy\")}}) {{/}}\n\nThanks,\n<strong>Prototype Testing Team</strong>\nFord Advanced EV",
+        "cc": [],
+        "convertLineBreaks": true,
+        "fromName": "",
+        "mimeType": "text/html",
+        "replyTo": "",
+        "subject": "Reminder: Action Required for JIRA Ticket {{issue.key}}",
+        "to": [
+          {
+            "type": "COPY",
+            "value": "assignee"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1705085408773,
+  "description": "",
+  "id": 17293028,
+  "idUuid": "018cff02-9605-7990-b46c-519505a6d4b7",
+  "labels": [],
+  "name": "Email Reminder",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10075"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10075"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "565391412",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "statusCategory != Done and assignee is not empty and assignee is not empty and created <= -7d",
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/Los_Angeles:20240112T104301\nRRULE:FREQ=DAILY;BYHOUR=9;BYMINUTE=0;BYSECOND=0;INTERVAL=1\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1705093471120,
+  "writeAccessType": "UNRESTRICTED"
+}

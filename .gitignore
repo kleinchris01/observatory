@@ -5,3 +5,9 @@ static/dist-admin/
 *.log
 .forge/
 coverage/
+
+# Raw automation rule exports. These are NEVER committed: they carry live
+# credentials in plaintext (OAuth client secrets in web-request bodies, inbound
+# webhook tokens, Slack webhook URLs). Only the redacted per-rule snapshot under
+# rules/ goes into the repo -- see scripts/snapshot-rules.mjs.
+automation-rules-*.json

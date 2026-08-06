@@ -1,0 +1,464 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "affa1b34-b588-44dc-8cde-c9dde730139f",
+              "parentId": "ee2c27fd-aa4b-46b4-874a-59e8bf5ac336",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": "{\n  \"fields\": {\n    \"customfield_11090\": [\n      { \"accountId\": \"712020:c2d994a9-983b-4d50-8e85-1fa9b1779d92\" }\n    ]\n  }\n}",
+                "operations": [],
+                "sendNotifications": false
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "ee2c27fd-aa4b-46b4-874a-59e8bf5ac336",
+              "conditions": [],
+              "connectionId": null,
+              "id": "92abed36-4335-49ac-94ff-adb7864c7708",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "VALUE",
+                  "value": "Interior"
+                },
+                "comparison": "CONTAINS_ANY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "SIT/Attribute (Assets)"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "ee2c27fd-aa4b-46b4-874a-59e8bf5ac336",
+              "conditions": [],
+              "connectionId": null,
+              "id": "67715c38-ec48-4f68-ac20-4b06792cb29c",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "VALUE",
+                  "value": "Seats"
+                },
+                "comparison": "CONTAINS_ANY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "SIT/Attribute (Assets)"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "ee2c27fd-aa4b-46b4-874a-59e8bf5ac336",
+          "parentId": "9a4e2979-2103-4ea8-b996-256ed5c2340a",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ANY"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "830a9ffa-0f34-4ecf-b20e-5bbf01b1e804",
+              "parentId": "46c7ff8d-480f-4196-8113-c232463a9498",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": "{\n  \"fields\": {\n    \"customfield_11090\": [\n      { \"accountId\": \"712020:f87ebf2e-de73-4f9a-be22-6852c2961632\" }\n    ]\n  }\n}",
+                "operations": [],
+                "sendNotifications": false
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "46c7ff8d-480f-4196-8113-c232463a9498",
+              "conditions": [],
+              "connectionId": null,
+              "id": "7e6a5688-7e27-4e70-9b91-827d1f879fbb",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "VALUE",
+                  "value": "Exterior"
+                },
+                "comparison": "CONTAINS_ANY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "SIT/Attribute (Assets)"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "46c7ff8d-480f-4196-8113-c232463a9498",
+              "conditions": [],
+              "connectionId": null,
+              "id": "f5ba3e2b-4dcc-4f72-bcdb-b0e6d4dd9af9",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "VALUE",
+                  "value": "Closures"
+                },
+                "comparison": "CONTAINS_ANY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "SIT/Attribute (Assets)"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "46c7ff8d-480f-4196-8113-c232463a9498",
+              "conditions": [],
+              "connectionId": null,
+              "id": "015fda2b-5101-4bd9-9f18-bee2d92f67a4",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "VALUE",
+                  "value": "Body"
+                },
+                "comparison": "CONTAINS_ANY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "SIT/Attribute (Assets)"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "46c7ff8d-480f-4196-8113-c232463a9498",
+          "parentId": "9a4e2979-2103-4ea8-b996-256ed5c2340a",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ANY"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "f419fe81-9c0b-4363-99b0-0fcc74225229",
+              "parentId": "db327d1e-c6da-4043-a763-32430ad90d64",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": "{\n  \"fields\": {\n    \"customfield_11090\": [\n      { \"accountId\": \"712020:a91f67f4-1520-4912-88f2-7a631eb50310\" }\n    ]\n  }\n}",
+                "operations": [],
+                "sendNotifications": false
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "db327d1e-c6da-4043-a763-32430ad90d64",
+              "conditions": [],
+              "connectionId": null,
+              "id": "5a04746b-e606-4808-9e42-1482b9ba1bd6",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "VALUE",
+                  "value": "Thermal"
+                },
+                "comparison": "CONTAINS_ANY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "SIT/Attribute (Assets)"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "db327d1e-c6da-4043-a763-32430ad90d64",
+              "conditions": [],
+              "connectionId": null,
+              "id": "31b55f9a-e49b-4b8e-83e1-3943a8b7b658",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "VALUE",
+                  "value": "Drive Unit (DU)"
+                },
+                "comparison": "CONTAINS_ANY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "SIT/Attribute (Assets)"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "db327d1e-c6da-4043-a763-32430ad90d64",
+              "conditions": [],
+              "connectionId": null,
+              "id": "9f995d27-f7a2-41c4-8107-1a9d10bcd778",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "VALUE",
+                  "value": "Battery"
+                },
+                "comparison": "CONTAINS_ANY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "SIT/Attribute (Assets)"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "db327d1e-c6da-4043-a763-32430ad90d64",
+          "parentId": "9a4e2979-2103-4ea8-b996-256ed5c2340a",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ANY"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "d146acf8-f270-403d-89f3-ecaa642027a2",
+              "parentId": "408f1255-5633-4988-a068-52c6b3df68b1",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": "{\n  \"fields\": {\n    \"customfield_11090\": [\n      { \"accountId\": \"712020:47bc5012-1f97-4a42-b69e-ad26e24a726f\" }\n    ]\n  }\n}",
+                "operations": [],
+                "sendNotifications": false
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "408f1255-5633-4988-a068-52c6b3df68b1",
+              "conditions": [],
+              "connectionId": null,
+              "id": "8bbcd701-5f2d-42ed-b959-70625bda9f6b",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "VALUE",
+                  "value": "Chassis"
+                },
+                "comparison": "CONTAINS_ANY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "SIT/Attribute (Assets)"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "408f1255-5633-4988-a068-52c6b3df68b1",
+              "conditions": [],
+              "connectionId": null,
+              "id": "021b16a0-db9c-48b5-91ac-212b6b3ba30a",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "VALUE",
+                  "value": "Electrical"
+                },
+                "comparison": "CONTAINS_ANY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "SIT/Attribute (Assets)"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "408f1255-5633-4988-a068-52c6b3df68b1",
+          "parentId": "9a4e2979-2103-4ea8-b996-256ed5c2340a",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ANY"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "9a4e2979-2103-4ea8-b996-256ed5c2340a",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1777480433752,
+  "description": "",
+  "id": 33092059,
+  "idUuid": "019dda17-0059-7d21-9a62-6b5801f72ccf",
+  "labels": [],
+  "name": "CE1: Handles Collaborators based on SIT/Attributes (Assets) - Issue Creation",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "270e3f33-d49a-4d63-a87e-9b49570dd39d",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [
+        "create"
+      ],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "SIT/Attribute (Assets)"
+        }
+      ]
+    }
+  },
+  "updated": 1777491827046,
+  "writeAccessType": "OWNER_ONLY"
+}

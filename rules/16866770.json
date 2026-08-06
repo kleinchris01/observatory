@@ -1,0 +1,307 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:10e644de-d96b-4816-9029-d6cf8f0aec37",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555670834",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.jql.condition",
+      "value": "project = SAFE"
+    },
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555670835",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": null,
+          "type": "NAME",
+          "value": "Safety Test"
+        },
+        "comparison": "EQUALS",
+        "selectedField": {
+          "type": "NAME",
+          "value": "Request Type"
+        },
+        "selectedFieldType": "com.atlassian.servicedesk:vp-origin"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555670838",
+          "parentId": "555670836",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "VALUE",
+              "value": "Front Impact"
+            },
+            "comparison": "CONTAINS_ALL",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Area"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555670841",
+          "parentId": "555670836",
+          "schemaVersion": 12,
+          "type": "jira.issue.clone",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "project"
+                },
+                "fieldType": "project",
+                "type": "SET",
+                "value": {
+                  "type": "ID",
+                  "value": "10042"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "issuetype"
+                },
+                "fieldType": "issuetype",
+                "type": "SET",
+                "value": {
+                  "type": "ID",
+                  "value": "10020"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "summary"
+                },
+                "fieldType": "summary",
+                "type": "SET",
+                "value": "{{issue.summary}}"
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Epic Link"
+                },
+                "fieldType": "com.pyxis.greenhopper.jira:gh-epic-link",
+                "type": "SET",
+                "value": {
+                  "type": "ID",
+                  "value": "CAE-78"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "CAE Program"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "SET",
+                "value": {
+                  "type": "NAME",
+                  "value": "Crashworthiness"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "attachment"
+                },
+                "fieldType": "attachment",
+                "type": "COPY",
+                "value": {
+                  "copyOptions": [],
+                  "sourceField": {
+                    "fieldType": "attachment",
+                    "type": "ID",
+                    "value": "attachment"
+                  },
+                  "sourceIssue": "current"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Area"
+                },
+                "fieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype",
+                "type": "COPY",
+                "value": {
+                  "copyOptions": [],
+                  "sourceField": {
+                    "fieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype",
+                    "type": "NAME",
+                    "value": "Area"
+                  },
+                  "sourceIssue": "current"
+                }
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Test Name"
+                },
+                "fieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype",
+                "type": "COPY",
+                "value": {
+                  "copyOptions": [],
+                  "sourceField": {
+                    "fieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype",
+                    "type": "NAME",
+                    "value": "Test Name"
+                  },
+                  "sourceIssue": "current"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "reporter"
+                },
+                "fieldType": "reporter",
+                "type": "COPY",
+                "value": {
+                  "copyOptions": [],
+                  "sourceField": {
+                    "fieldType": "reporter",
+                    "type": "ID",
+                    "value": "reporter"
+                  },
+                  "sourceIssue": "current"
+                }
+              }
+            ],
+            "sendNotifications": false
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555670836",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555670843",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.delete",
+      "value": {
+        "sendNotifications": true
+      }
+    }
+  ],
+  "created": 1701717438133,
+  "description": "",
+  "id": 16866770,
+  "idUuid": "018c3643-6eb5-74a9-a805-3b54722e111e",
+  "labels": [],
+  "name": "Safe to CAE",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10042",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10053"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "555670833",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [
+        "edit",
+        "transition",
+        "assign"
+      ],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10053",
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10042"
+      ],
+      "fields": [
+        {
+          "type": "field",
+          "value": "summary"
+        }
+      ]
+    }
+  },
+  "updated": 1701717891297,
+  "writeAccessType": "UNRESTRICTED"
+}

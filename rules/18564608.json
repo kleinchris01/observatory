@@ -1,0 +1,82 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "565394141",
+      "parentId": null,
+      "schemaVersion": 5,
+      "type": "jira.issue.outgoing.email",
+      "value": {
+        "bcc": [],
+        "body": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <style>\n        body {\n            font-family: 'Arial Rounded MT Bold', 'Helvetica Rounded', Arial, sans-serif;\n            background-color: #f4f4f4;\n            color: #333;\n            line-height: 1.6;\n        }\n        .container {\n            max-width: 600px;\n            margin: 20px auto;\n            padding: 20px;\n            background: #fff;\n        }\n        .header,\n        .footer {\n            text-align: center;\n            color: #fff;\n            background: #003399;\n            padding: 6px 0;\n        }\n        .cta-container {\n            display: flex;\n            justify-content: center;\n            align-items: center;\n            flex-wrap: wrap;\n        }\n        .cta-button {\n            flex: 1; /* allows buttons to grow */\n            margin: 5px; /* half of the gap on all sides */\n            padding: 10px;\n            color: #fff;\n            background-color: #003399;\n            border: none;\n            text-decoration: none;\n            font-weight: bold;\n            border-radius: 5px;\n            text-align: center;\n            box-sizing: border-box;\n            min-width: 100px; /* minimum width so text does not get too squeezed */\n        }\n        /* Ensures a 10px gap between two buttons */\n        .cta-button:not(:last-child) {\n            margin-right: 10px; \n        }\n        .content {\n            margin-top: 20px;\n            text-align: left;\n        }\n        .content h2 {\n            text-align: left;\n            color: #003399;\n            margin-bottom: 10px;\n        }\n        .content p {\n            font-size: 16px;\n            color: #555;\n        }\n        .footer img {\n            height: 60px;\n            margin-top: 10px;\n        }\n        .footer p {\n            margin: 5px 0;\n        }\n\n        @media only screen and (max-width: 620px) { /* Adjust based on the actual width of the buttons plus the gap */\n            .cta-container {\n                justify-content: space-between;\n            }\n            .cta-button {\n                flex: none; /* prevents buttons from growing */\n                width: calc(50% - 10px); /* adjust width to allow for 10px gap */\n                margin: 5px 5px 5px 0; /* adjust margin for gap */\n            }\n            .cta-button:last-child {\n                margin-left: 10px; /* ensures 10px gap between buttons */\n            }\n        }\n    </style>\n</head>\n<body>\n    <div class=\"container\">\n        <div class=\"header\">\n            <h1>Support Update</h1>\n        </div>\n        <div class=\"content\">\n            <h2>Hello ${recipient.name},</h2>\n            <p>${message.content}</p>\n            <!-- Flex container for buttons with fixed gap -->\n            <div class=\"cta-container\">\n                <a href=\"${request.url}\" class=\"cta-button\">View Request</a>\n                <a href=\"${request.disable.notifications.url}\" class=\"cta-button\">Turn Off Notifications</a>\n            </div>\n            <p>This request is shared with ${request.sharedwith}.</p>\n        </div>\n        <div class=\"footer\">\n            <p>Need help? <a href=\"support@ford-advev.atlassian.net\" style=\"color: #fff;\">Contact Support</a></p>\n            <img src=\"https://www.pngmart.com/files/22/Ford-Logo-PNG-Clipart.png\" alt=\"Ford Logo\" style=\"height: 60px;\">\n            <p>\n                <a href=\"${atlassian.url}\" style=\"color: #fff; text-decoration: none;\">Powered by Jira Service Management</a>\n            </p>\n        </div>\n    </div>\n</body>\n</html>",
+        "cc": [],
+        "convertLineBreaks": true,
+        "fromName": "",
+        "mimeType": "text/html",
+        "replyTo": "",
+        "subject": "Test test",
+        "to": [
+          {
+            "type": "FREE",
+            "value": "jpolman1@ford.com"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1711401119286,
+  "description": "",
+  "id": 18564608,
+  "idUuid": "018e7774-ae36-73cc-9350-02098a3c1374",
+  "labels": [],
+  "name": "[Retired] test email",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "565394138",
+    "parentId": null,
+    "schemaVersion": 3,
+    "type": "jira.manual.trigger.issue",
+    "value": {
+      "groups": [],
+      "inputFromUsers": false,
+      "inputPrompts": [],
+      "issueFilter": null,
+      "jQLFilter": null
+    }
+  },
+  "updated": 1722966686007,
+  "writeAccessType": "UNRESTRICTED"
+}

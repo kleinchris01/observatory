@@ -1,0 +1,108 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:9b52b270-bb29-4f87-880d-7c4412cc01b8",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "79607f9a-d8b4-44a2-8848-8a81e339fe43",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": null,
+          "type": "ID",
+          "value": "10147"
+        },
+        "comparison": "EQUALS",
+        "selectedField": {
+          "type": "ID",
+          "value": "issuetype"
+        },
+        "selectedFieldType": "issuetype"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "53481da1-c37f-4c02-8213-c9550c294e0c",
+      "parentId": null,
+      "schemaVersion": 5,
+      "type": "jira.issue.assign",
+      "value": {
+        "assignType": "UNASSIGNED",
+        "assignee": null,
+        "excludedUsers": [],
+        "fieldToCopy": null,
+        "group": null,
+        "issueToCopy": null,
+        "itsmOpsOncall": null,
+        "jql": null,
+        "listAssignMethod": null,
+        "peopleTeamsCustomFieldId": null,
+        "restrictedToGroup": null,
+        "role": null,
+        "smartValue": null,
+        "userList": []
+      }
+    }
+  ],
+  "created": 1776961166767,
+  "description": "When an issue of work type is created in the PVFM project, it will be automatically assigned to vinthavo@ford.com for prompt handling.",
+  "id": 32994654,
+  "idUuid": "019dbb23-9daf-71c8-80f6-7bac8e936450",
+  "labels": [],
+  "name": "Auto PVFM: Assign ISSUE tickets are assined to Unassigned",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10816"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10816"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "e30fdf71-b0c8-490d-b1ee-0bd5825077a7",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10816"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1777570493272,
+  "writeAccessType": "UNRESTRICTED"
+}

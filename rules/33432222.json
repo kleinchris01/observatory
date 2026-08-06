@@ -1,0 +1,111 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "712020:c993caa0-a9c0-490f-b85c-a5586102c937"
+  },
+  "authorAccountId": "712020:c993caa0-a9c0-490f-b85c-a5586102c937",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": "a78e3045-852f-4028-ba8c-1aab6cd74ed2",
+      "id": "85d27f33-df8f-4fa2-9a72-fbd42a41e06d",
+      "parentId": null,
+      "schemaVersion": -1,
+      "type": "rovo.invoke-agent.action",
+      "value": {
+        "activationId": "c00f469e-4652-45ac-ab90-9b46c078ff84",
+        "agentAAID": "712020:284fd52e-e2c2-42c7-9b85-fcd4fa64d611",
+        "agentDisplayName": "DVA Ticket - Search Previous",
+        "agentId": "7dbd5e20-923f-4666-a63e-e6afef5d9d38",
+        "agentInstruction": "is there a similar DVA ticket as this ticket?",
+        "agentNamedId": "7dbd5e20-923f-4666-a63e-e6afef5d9d38",
+        "allowAgentToExecuteActions": false,
+        "invocationMode": "USER",
+        "isVerified": false,
+        "tagType": "EXTERNAL_AGENT_ID",
+        "tagValue": "7dbd5e20-923f-4666-a63e-e6afef5d9d38"
+      }
+    }
+  ],
+  "created": 1780013808536,
+  "description": "This rule triggers an AI search of previous DVA tickets with similar objectives.",
+  "id": 33432222,
+  "idUuid": "019e7117-3b98-7337-bc90-293d84ebcc46",
+  "labels": [],
+  "name": "Trigger AI Search for Previous DVA Tickets",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10485"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10485"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [
+    {
+      "tagType": "EXTERNAL_AGENT_ID",
+      "tagValue": "7dbd5e20-923f-4666-a63e-e6afef5d9d38"
+    }
+  ],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "85fb76ec-b293-4ab2-98b3-5af65a5868d9",
+        "conditions": [],
+        "connectionId": null,
+        "id": "8518ded3-071c-4fa4-bcc9-f19755810cff",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "11255"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "85fb76ec-b293-4ab2-98b3-5af65a5868d9",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:updated",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10485"
+      ],
+      "eventKey": "jira:issue_updated",
+      "issueEvent": "issue_updated"
+    }
+  },
+  "updated": 1780013808536,
+  "writeAccessType": "UNRESTRICTED"
+}

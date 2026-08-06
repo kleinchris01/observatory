@@ -1,0 +1,454 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "33232c42-7bb5-47b4-8739-996c2c6b3a69",
+              "parentId": "3915a113-e90c-412f-a56d-00ddac6b62d3",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": "{\n  \"update\": {\n    \"customfield_11090\": [\n      {\n        \"add\": { \"accountId\": \"712020:9e1ab9f0-cc1d-40c0-9d5b-9d3cf7241946\" }\n      }\n    ]\n  }\n}",
+                "operations": [],
+                "sendNotifications": false
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "3915a113-e90c-412f-a56d-00ddac6b62d3",
+              "conditions": [],
+              "connectionId": null,
+              "id": "cc4a5c8b-dd94-4b80-b72c-2c7a1e845d98",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "ID",
+                  "value": "[\"712020:9e1ab9f0-cc1d-40c0-9d5b-9d3cf7241946\"]"
+                },
+                "comparison": "CONTAINS_NONE",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Collaborators"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "3915a113-e90c-412f-a56d-00ddac6b62d3",
+          "parentId": "7c1667ac-2d63-44c1-b056-d52bdabf45f4",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ANY"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "7c1667ac-2d63-44c1-b056-d52bdabf45f4",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "767a3ab6-f46f-441d-a86e-1c3e21f8a27d",
+              "parentId": "f2d1c94b-0747-4bde-8204-4c8eb2177d78",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": "{\n  \"update\": {\n    \"customfield_11090\": [\n      {\n        \"add\": { \"accountId\": \"70121:569776dc-4e2e-4a90-a632-3f3a1c03b3ed\" }\n      }\n    ]\n  }\n}",
+                "operations": [],
+                "sendNotifications": false
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "f2d1c94b-0747-4bde-8204-4c8eb2177d78",
+              "conditions": [],
+              "connectionId": null,
+              "id": "4dd336c0-1d76-47b4-8a34-c6d62bc09d60",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "ID",
+                  "value": "[\"70121:569776dc-4e2e-4a90-a632-3f3a1c03b3ed\"]"
+                },
+                "comparison": "CONTAINS_NONE",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Collaborators"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "f2d1c94b-0747-4bde-8204-4c8eb2177d78",
+          "parentId": "ddbb469f-9634-4c88-8a66-17b495a1240f",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "ddbb469f-9634-4c88-8a66-17b495a1240f",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "161f3574-2c52-47a0-9c84-ebedd6d226b0",
+              "parentId": "13f92e74-f2ae-44ad-967d-05918b8b640c",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": "{\n  \"update\": {\n    \"customfield_11090\": [\n      {\n        \"add\": { \"accountId\": \"62a4d6d0e318a500693ab958\" }\n      }\n    ]\n  }\n}",
+                "operations": [],
+                "sendNotifications": false
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "13f92e74-f2ae-44ad-967d-05918b8b640c",
+              "conditions": [],
+              "connectionId": null,
+              "id": "bcf54c6b-e5e5-4eef-a9df-1290ab641a4e",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "ID",
+                  "value": "[\"62a4d6d0e318a500693ab958\"]"
+                },
+                "comparison": "CONTAINS_NONE",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Collaborators"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "13f92e74-f2ae-44ad-967d-05918b8b640c",
+          "parentId": "bd84309c-2e89-471d-a763-c4ebccea7d81",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "bd84309c-2e89-471d-a763-c4ebccea7d81",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "9892201f-b2fa-4d96-8e0d-3acade321c89",
+              "parentId": "98ddde78-aca1-4889-a27d-47ffdd5d2b61",
+              "schemaVersion": 2,
+              "type": "jira.issue.comment",
+              "value": {
+                "addCommentOnce": false,
+                "comment": "For Primary or Executive deviations, key collaborators are automatically included to ensure proper review.",
+                "commentVisibility": null,
+                "publicComment": true,
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "98ddde78-aca1-4889-a27d-47ffdd5d2b61",
+              "conditions": [],
+              "connectionId": null,
+              "id": "9a04a152-ace5-40a9-ac48-2d6f35864430",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "ID",
+                  "value": "[\"712020:9e1ab9f0-cc1d-40c0-9d5b-9d3cf7241946\"]"
+                },
+                "comparison": "CONTAINS_NONE",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Collaborators"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "98ddde78-aca1-4889-a27d-47ffdd5d2b61",
+              "conditions": [],
+              "connectionId": null,
+              "id": "56568193-6c99-494b-9ddb-fe5392728104",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "ID",
+                  "value": "[\"70121:569776dc-4e2e-4a90-a632-3f3a1c03b3ed\"]"
+                },
+                "comparison": "CONTAINS_NONE",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Collaborators"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "98ddde78-aca1-4889-a27d-47ffdd5d2b61",
+              "conditions": [],
+              "connectionId": null,
+              "id": "b9d86fd6-826e-4ef4-b242-1813580f3ba4",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "ID",
+                  "value": "[\"62a4d6d0e318a500693ab958\"]"
+                },
+                "comparison": "CONTAINS_NONE",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Collaborators"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "98ddde78-aca1-4889-a27d-47ffdd5d2b61",
+          "parentId": "a376a301-844f-4c9c-842b-bd37b508f55e",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ANY"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "a376a301-844f-4c9c-842b-bd37b508f55e",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1769674013074,
+  "description": "This automation reverts the value of Collaborators field if users manually remove intended Collaborators based on Requirement Level",
+  "id": 31757954,
+  "idUuid": "019c08ca-7992-78ce-97f8-a00fea290716",
+  "labels": [],
+  "name": "SOLVE: Eng. Requirement Deviation - Revert value of Collaborators field",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "5aab5f61-a8fd-40d9-b70d-63879647715e",
+        "conditions": [],
+        "connectionId": null,
+        "id": "6fa940cf-b1b6-4843-88b6-f8330e964bf5",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "12621"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "5aab5f61-a8fd-40d9-b70d-63879647715e",
+        "conditions": [],
+        "connectionId": null,
+        "id": "3d50e962-7af0-4667-98e8-3e843fb19e11",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": true,
+            "source": null,
+            "type": "NAME",
+            "value": "[\"Executive\",\"Primary\"]"
+          },
+          "comparison": "ONE_OF",
+          "selectedField": {
+            "type": "NAME",
+            "value": "Requirement Level"
+          },
+          "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "5aab5f61-a8fd-40d9-b70d-63879647715e",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [
+        "edit"
+      ],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Collaborators"
+        }
+      ]
+    }
+  },
+  "updated": 1782743056861,
+  "writeAccessType": "UNRESTRICTED"
+}

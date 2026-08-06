@@ -1,0 +1,92 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:3f6d4330-8776-4c7b-8206-6cebfe5e892f",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": "533f5560-d2f3-445f-81da-ccf154bea2e4",
+      "id": "705267111",
+      "parentId": null,
+      "schemaVersion": -1,
+      "type": "confluence.create.content",
+      "value": {
+        "parentPageId": null,
+        "spaceKey": {
+          "type": "ID",
+          "value": "~7120203f6d433087764c7b82066cebfe5e892f"
+        },
+        "template": null,
+        "title": "{{userInputs.pageName}}"
+      }
+    }
+  ],
+  "created": 1744324090045,
+  "description": "This template allows you to create a Confluence page from a Jira issue. You can use this template to easily create post-incident reports or technical specification pages from an Epic. This rule is manually triggered from within your issue.",
+  "id": 27274428,
+  "idUuid": "019621d1-58bd-7c45-a573-147447119bf3",
+  "labels": [],
+  "name": "Create Confluence page from issue",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10353"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10353"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [
+    {
+      "tagType": "CREATION_TYPE",
+      "tagValue": "USER"
+    },
+    {
+      "tagType": "TEMPLATE_ID",
+      "tagValue": "manual_trigger_template_1"
+    }
+  ],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "705267110",
+    "parentId": null,
+    "schemaVersion": 3,
+    "type": "jira.manual.trigger.issue",
+    "value": {
+      "groups": [],
+      "inputFromUsers": true,
+      "inputPrompts": [
+        {
+          "defaultValue": "Technical Specifications",
+          "displayName": "Page Name",
+          "inputType": "TEXT",
+          "required": true,
+          "variableName": "pageName"
+        }
+      ],
+      "issueFilter": null,
+      "jQLFilter": null
+    }
+  },
+  "updated": 1744324090045,
+  "writeAccessType": "UNRESTRICTED"
+}

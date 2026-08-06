@@ -1,0 +1,707 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555649327",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": null,
+          "type": "ID",
+          "value": "10083"
+        },
+        "comparison": "EQUALS",
+        "selectedField": {
+          "type": "ID",
+          "value": "issuetype"
+        },
+        "selectedFieldType": "issuetype"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555649331",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.create",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "project"
+            },
+            "fieldType": "project",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10051"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "fieldType": "issuetype",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10128"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "parent"
+            },
+            "fieldType": "parent",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": "EDS Integration Approval - {{triggerIssue.key}}"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "description"
+            },
+            "fieldType": "description",
+            "type": "SET",
+            "value": "EDS Integration: Please verify that connector/pinout data is acceptable and that pinouts are filled out and complete. \n\nBe on the lookout for terminal plating, or any other special requirements that affect wire sizing/design."
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "assignee"
+            },
+            "fieldType": "assignee",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "712020:3e8125dc-fab1-4520-af62-5b5df96867f6"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "SIT/Attribute"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                "type": "NAME",
+                "value": "SIT/Attribute"
+              },
+              "sourceIssue": "parent"
+            }
+          }
+        ],
+        "sendNotifications": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555649333",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.create",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "project"
+            },
+            "fieldType": "project",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10051"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "fieldType": "issuetype",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10128"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "parent"
+            },
+            "fieldType": "parent",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": "Connector Approval - {{triggerIssue.key}}"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "description"
+            },
+            "fieldType": "description",
+            "type": "SET",
+            "value": "Connector Approver: Verify that the connector is in 3DX and Capital."
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "assignee"
+            },
+            "fieldType": "assignee",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "63bf51e550b9490924dcd77f"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "SIT/Attribute"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                "type": "NAME",
+                "value": "SIT/Attribute"
+              },
+              "sourceIssue": "parent"
+            }
+          }
+        ],
+        "sendNotifications": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555649336",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.create",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "project"
+            },
+            "fieldType": "project",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10051"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "fieldType": "issuetype",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10128"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "parent"
+            },
+            "fieldType": "parent",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": "Systems Integration Approval - {{triggerIssue.key}}"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "description"
+            },
+            "fieldType": "description",
+            "type": "SET",
+            "value": "System integrator: Please verify that all desired signals and signal characteristics are present.\n\nIf this device is networked, please review network allocations and strategies with the network architect. \n\nRegarding the power profile, please confirm the devices are in line with the expectations of the powering zonal controller. "
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "SIT/Attribute"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                "type": "NAME",
+                "value": "SIT/Attribute"
+              },
+              "sourceIssue": "parent"
+            }
+          }
+        ],
+        "sendNotifications": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "702008119",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.refresh.issue",
+      "value": {
+        "delayMs": null
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555649341",
+          "parentId": "555649338",
+          "schemaVersion": 1,
+          "type": "jira.jql.condition",
+          "value": "issuetype = \"DT approval\" and summary ~ \"System Integration\""
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555649343",
+          "parentId": "555649338",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": true,
+              "source": null,
+              "type": "NAME",
+              "value": "[\"Interiors\",\"Exteriors\",\"Closures\",\"Seats\"]"
+            },
+            "comparison": "CONTAINS_ANY",
+            "selectedField": {
+              "type": "NAME",
+              "value": "SIT/Attribute"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555649344",
+          "parentId": "555649338",
+          "schemaVersion": 5,
+          "type": "jira.issue.assign",
+          "value": {
+            "assignType": "SPECIFY_USER",
+            "assignee": {
+              "type": "ID",
+              "value": "557058:23a12005-01d4-411a-9b23-cadf03efb98b"
+            },
+            "excludedUsers": [],
+            "fieldToCopy": null,
+            "group": null,
+            "issueToCopy": null,
+            "itsmOpsOncall": null,
+            "jql": null,
+            "listAssignMethod": null,
+            "peopleTeamsCustomFieldId": null,
+            "restrictedToGroup": null,
+            "role": null,
+            "smartValue": null,
+            "userList": []
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555649346",
+          "parentId": "555649338",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": true,
+              "source": null,
+              "type": "NAME",
+              "value": "[\"Chassis\",\"Powertrain\"]"
+            },
+            "comparison": "CONTAINS_ANY",
+            "selectedField": {
+              "type": "NAME",
+              "value": "SIT/Attribute"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555649348",
+          "parentId": "555649338",
+          "schemaVersion": 5,
+          "type": "jira.issue.assign",
+          "value": {
+            "assignType": "SPECIFY_USER",
+            "assignee": {
+              "type": "ID",
+              "value": "712020:cbda92fa-3158-4055-9b97-676a1a52ad67"
+            },
+            "excludedUsers": [],
+            "fieldToCopy": null,
+            "group": null,
+            "issueToCopy": null,
+            "itsmOpsOncall": null,
+            "jql": null,
+            "listAssignMethod": null,
+            "peopleTeamsCustomFieldId": null,
+            "restrictedToGroup": null,
+            "role": null,
+            "smartValue": null,
+            "userList": []
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555649349",
+          "parentId": "555649338",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": true,
+              "source": null,
+              "type": "NAME",
+              "value": "[\"Thermals\"]"
+            },
+            "comparison": "CONTAINS_ANY",
+            "selectedField": {
+              "type": "NAME",
+              "value": "SIT/Attribute"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555649350",
+          "parentId": "555649338",
+          "schemaVersion": 5,
+          "type": "jira.issue.assign",
+          "value": {
+            "assignType": "SPECIFY_USER",
+            "assignee": {
+              "type": "ID",
+              "value": "712020:c31a4af1-65d8-4fdb-987f-74ae5d8ff6fe"
+            },
+            "excludedUsers": [],
+            "fieldToCopy": null,
+            "group": null,
+            "issueToCopy": null,
+            "itsmOpsOncall": null,
+            "jql": null,
+            "listAssignMethod": null,
+            "peopleTeamsCustomFieldId": null,
+            "restrictedToGroup": null,
+            "role": null,
+            "smartValue": null,
+            "userList": []
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555649351",
+          "parentId": "555649338",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": true,
+              "source": null,
+              "type": "NAME",
+              "value": "[\"Body Structures\",\"Electrical\"]"
+            },
+            "comparison": "CONTAINS_ANY",
+            "selectedField": {
+              "type": "NAME",
+              "value": "SIT/Attribute"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555649353",
+          "parentId": "555649338",
+          "schemaVersion": 5,
+          "type": "jira.issue.assign",
+          "value": {
+            "assignType": "SPECIFY_USER",
+            "assignee": {
+              "type": "ID",
+              "value": "63e2979f0015d0b19c23d98b"
+            },
+            "excludedUsers": [],
+            "fieldToCopy": null,
+            "group": null,
+            "issueToCopy": null,
+            "itsmOpsOncall": null,
+            "jql": null,
+            "listAssignMethod": null,
+            "peopleTeamsCustomFieldId": null,
+            "restrictedToGroup": null,
+            "role": null,
+            "smartValue": null,
+            "userList": []
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555649355",
+          "parentId": "555649338",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": true,
+              "source": null,
+              "type": "NAME",
+              "value": "[\"Interiors\",\"Seats\",\"Exteriors\",\"Thermals\",\"Powertrain\",\"Chassis\",\"Closures\",\"Electrical\",\"Body Structures\"]"
+            },
+            "comparison": "CONTAINS_NONE",
+            "selectedField": {
+              "type": "NAME",
+              "value": "SIT/Attribute"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555649356",
+          "parentId": "555649338",
+          "schemaVersion": 5,
+          "type": "jira.issue.assign",
+          "value": {
+            "assignType": "SPECIFY_USER",
+            "assignee": {
+              "type": "ID",
+              "value": "712020:3e8125dc-fab1-4520-af62-5b5df96867f6"
+            },
+            "excludedUsers": [],
+            "fieldToCopy": null,
+            "group": null,
+            "issueToCopy": null,
+            "itsmOpsOncall": null,
+            "jql": null,
+            "listAssignMethod": null,
+            "peopleTeamsCustomFieldId": null,
+            "restrictedToGroup": null,
+            "role": null,
+            "smartValue": null,
+            "userList": []
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555649338",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "subtasks",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1706142766649,
+  "description": "",
+  "id": 17460859,
+  "idUuid": "018d3e08-9639-7e31-829d-0600cfd6d937",
+  "labels": [],
+  "name": "Create approval sub-tasks for EDS",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10051"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10051"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "555649324",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:transitioned",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10051"
+      ],
+      "eventKey": "jira:issue_updated",
+      "fromStatus": [
+        {
+          "type": "NAME",
+          "value": "New"
+        }
+      ],
+      "issueEvent": "issue_generic",
+      "toStatus": [
+        {
+          "type": "NAME",
+          "value": "Submitted for Approval"
+        }
+      ]
+    }
+  },
+  "updated": 1743103673721,
+  "writeAccessType": "UNRESTRICTED"
+}

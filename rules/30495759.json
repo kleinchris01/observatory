@@ -1,0 +1,197 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "5a4ea308a50ba22984f08be2",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "7a9574d5-5647-4e1b-83b5-10ce0965dd28",
+          "parentId": "b9640f8a-b716-4bac-9a2d-0f8f63b85de7",
+          "schemaVersion": 12,
+          "type": "jira.issue.create",
+          "value": {
+            "advancedFields": "",
+            "operations": [
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "project"
+                },
+                "fieldType": "project",
+                "type": "SET",
+                "value": {
+                  "type": "ID",
+                  "value": "10023"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "issuetype"
+                },
+                "fieldType": "issuetype",
+                "type": "SET",
+                "value": {
+                  "type": "ID",
+                  "value": "10022"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "parent"
+                },
+                "fieldType": "parent",
+                "type": "SET",
+                "value": {
+                  "type": "COPY",
+                  "value": "current"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "summary"
+                },
+                "fieldType": "summary",
+                "type": "SET",
+                "value": "Confirm Pre-DCV Part Orders in GPIRS"
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "description"
+                },
+                "fieldType": "description",
+                "type": "SET",
+                "value": "Confirm that parts have been ordered in GPIRS, suffix is correct, GSDB code is correct. \n\nGenerally - AA1 = soft tooled, -AA = hard tooled, X1 = special (e.g. non-J1-intent, electrically-representative only, etc.). "
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "labels"
+                },
+                "fieldType": "labels",
+                "type": "SET",
+                "value": [
+                  {
+                    "type": "NAME",
+                    "value": "DCV"
+                  }
+                ]
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "duedate"
+                },
+                "fieldType": "duedate",
+                "type": "SET",
+                "value": ""
+              },
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Start date"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:datepicker",
+                "type": "SET",
+                "value": ""
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "assignee"
+                },
+                "fieldType": "assignee",
+                "type": "SET",
+                "value": {
+                  "type": "ID",
+                  "value": "5a4ea308a50ba22984f08be2"
+                }
+              }
+            ],
+            "sendNotifications": false
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "b9640f8a-b716-4bac-9a2d-0f8f63b85de7",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "parent = {{issue.key}} AND issueType = Story AND statusCategory = \"In Progress\"",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "jql",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1760290861839,
+  "description": null,
+  "id": 30495759,
+  "idUuid": "0199d982-f30f-738e-a8bb-283471de1546",
+  "labels": [
+    849618
+  ],
+  "name": "Populate DCV Part Ordering Check",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10023"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10023"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "6a869cab-9bbd-463f-8ddc-be211d4818ce",
+    "parentId": null,
+    "schemaVersion": 3,
+    "type": "jira.manual.trigger.issue",
+    "value": {
+      "groups": [],
+      "inputFromUsers": false,
+      "inputPrompts": [],
+      "issueFilter": {
+        "filterType": "ISSUE_TYPE",
+        "value": [
+          "Epic"
+        ]
+      },
+      "jQLFilter": null
+    }
+  },
+  "updated": 1760290861839,
+  "writeAccessType": "UNRESTRICTED"
+}

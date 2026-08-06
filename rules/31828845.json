@@ -1,0 +1,132 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:a9c23f2a-398a-482c-a7af-bfef117d6726",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "36aa92dd-99e4-4499-95c2-7bd58ebc2ba4",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": "{\n    \"fields\": {\n        \"customfield_11419\": [\"{{issue.summary.match(\\\"([A-Z]{2,4}\\\\.\\\\d{4}(?:\\\\.\\\\d{1,2})?)\\\")}}\"]\n    }\n}\n",
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Station Number"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:labels",
+            "type": "SET",
+            "value": []
+          }
+        ],
+        "sendNotifications": false
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "3beb871b-7191-4290-b538-0c7666a63bf6",
+          "parentId": "5d350c7e-e34f-48c5-9f93-4da83ac6c29b",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": "{\n    \"fields\": {\n        \"customfield_11419\": [\"{{triggerIssue.summary.match(\\\"([A-Z]{2,4}\\\\.\\\\d{4}(?:\\\\.\\\\d{1,2})?)\\\")}}\"]\n    }\n}\n",
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Station Number"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:labels",
+                "type": "SET",
+                "value": []
+              }
+            ],
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "5d350c7e-e34f-48c5-9f93-4da83ac6c29b",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "children",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1770149680814,
+  "description": "Populates 'Station Number' field of Epics and Tasks with appropriate regex code as described by Epic Summary",
+  "id": 31828845,
+  "idUuid": "019c2524-96ad-74d1-a7f6-6d09dcf5eb60",
+  "labels": [],
+  "name": "Bulk Station Number Cleanup (Epics and Tasks)",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10101"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10101"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "83af0365-ed0f-4fce-bfe7-5110055eac07",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "project = \"BME\" AND issuetype = Epic",
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/New_York:20260204T072900\nRRULE:FREQ=MINUTELY;INTERVAL=30;BYSECOND=0\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1780073341324,
+  "writeAccessType": "UNRESTRICTED"
+}

@@ -1,0 +1,300 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:975c8bf8-d86c-4dee-842f-4e9c3c3a541e",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "ee72de15-6938-4cd7-90d8-5315ac616598",
+              "parentId": "67217ebc-b180-4b3c-bc6c-1ff51bd58c68",
+              "schemaVersion": 11,
+              "type": "jira.issue.transition",
+              "value": {
+                "advancedFields": null,
+                "destinationStatus": {
+                  "type": "NAME",
+                  "value": "ICA,RCA,PCA In-Progress"
+                },
+                "operations": [],
+                "sendNotifications": true,
+                "transitionMatch": ""
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "67217ebc-b180-4b3c-bc6c-1ff51bd58c68",
+              "conditions": [],
+              "connectionId": null,
+              "id": "04b76390-2e54-421a-afe5-c74f504a56f5",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "Yes"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "SIMPSN Problem Tickets Created"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "67217ebc-b180-4b3c-bc6c-1ff51bd58c68",
+              "conditions": [],
+              "connectionId": null,
+              "id": "768b8d21-2cc2-492f-9b0d-c562ea220b00",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "[\"PM Verifying and Prioritizing\"]"
+                },
+                "comparison": "ONE_OF",
+                "selectedField": {
+                  "type": "ID",
+                  "value": "status"
+                },
+                "selectedFieldType": "status"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "67217ebc-b180-4b3c-bc6c-1ff51bd58c68",
+          "parentId": "9384f304-f563-43e0-b8db-07b9d74fb43f",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ANY"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "9384f304-f563-43e0-b8db-07b9d74fb43f",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1764307908710,
+  "description": "Transition CT to 'ICA,RCA,PCA In-Progress' when Program contains P833, Model Year contains MY2027, Change Type is Standard/Manufacturing Process/Quality/Supplier Quality/Documentation, Part Maturity is either Production/Tooled, and CT is created by SIMPSN (creator = ADVEV Service Account).",
+  "id": 30938330,
+  "idUuid": "019ac8f2-3868-7908-9652-ec2b74318a59",
+  "labels": [],
+  "name": "CE1 - Transition SIMPSN-recreated CT to Prioritized when Part Maturity is Updated",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "72a0bafe-8553-486e-a08b-7a2b0c131d08",
+        "conditions": [],
+        "connectionId": null,
+        "id": "e2667ef6-f50f-44fe-a28f-6eaa5c347676",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": true,
+            "source": null,
+            "type": "NAME",
+            "value": "[\"P833\"]"
+          },
+          "comparison": "CONTAINS_ANY",
+          "selectedField": {
+            "type": "NAME",
+            "value": "Program "
+          },
+          "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "72a0bafe-8553-486e-a08b-7a2b0c131d08",
+        "conditions": [],
+        "connectionId": null,
+        "id": "c324dd4f-40e1-4603-a496-b9981057cba2",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": true,
+            "source": null,
+            "type": "NAME",
+            "value": "[\"Production\",\"Tooled\"]"
+          },
+          "comparison": "ONE_OF",
+          "selectedField": {
+            "type": "NAME",
+            "value": "Part Maturity"
+          },
+          "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "72a0bafe-8553-486e-a08b-7a2b0c131d08",
+        "conditions": [],
+        "connectionId": null,
+        "id": "c9dd9dd5-1d94-45c5-80cf-c3cd93684bf6",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": true,
+            "source": null,
+            "type": "NAME",
+            "value": "[\"MY2028\"]"
+          },
+          "comparison": "CONTAINS_ANY",
+          "selectedField": {
+            "type": "NAME",
+            "value": "Model Year "
+          },
+          "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "72a0bafe-8553-486e-a08b-7a2b0c131d08",
+        "conditions": [],
+        "connectionId": null,
+        "id": "1e376fdd-59ba-437a-a153-b5c7a80f151b",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": true,
+            "source": null,
+            "type": "NAME",
+            "value": "[\"Standard\",\"Manufacturing Process/Quality\",\"Supplier Quality\",\"Documentation\",\"Appearance\"]"
+          },
+          "comparison": "ONE_OF",
+          "selectedField": {
+            "type": "NAME",
+            "value": "Change Type"
+          },
+          "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "72a0bafe-8553-486e-a08b-7a2b0c131d08",
+        "conditions": [],
+        "connectionId": null,
+        "id": "3d33214e-0673-42d5-886d-7f049385ffa7",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "712020:a5106eb0-ee8a-4483-9412-763feaa0ef93"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "creator"
+          },
+          "selectedFieldType": "creator"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "72a0bafe-8553-486e-a08b-7a2b0c131d08",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [
+        "edit"
+      ],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Part Maturity"
+        },
+        {
+          "type": "field",
+          "value": "status"
+        }
+      ]
+    }
+  },
+  "updated": 1771856011617,
+  "writeAccessType": "UNRESTRICTED"
+}

@@ -1,0 +1,305 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:975c8bf8-d86c-4dee-842f-4e9c3c3a541e",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "bbf8063a-b8e4-4017-a6ec-52ba57cafa84",
+              "parentId": "d342b853-3c19-462d-b1d2-7ac7b79bb9d3",
+              "schemaVersion": 2,
+              "type": "jira.issue.comment",
+              "value": {
+                "addCommentOnce": false,
+                "comment": "Solution Matrix form has been successfully submitted by [~accountid:{{initiator.accountId}}].",
+                "commentVisibility": null,
+                "publicComment": true,
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "d342b853-3c19-462d-b1d2-7ac7b79bb9d3",
+              "conditions": [],
+              "connectionId": null,
+              "id": "0e6a0894-a6d9-416f-9672-f07578efb096",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{initiator.displayName}}",
+                "operator": "NOT_EQUALS",
+                "second": "Automation for Jira"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "d342b853-3c19-462d-b1d2-7ac7b79bb9d3",
+          "parentId": "aa320a04-fc18-4a3f-a25a-f5508100650d",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "aa320a04-fc18-4a3f-a25a-f5508100650d",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "ff1b75c4-cb12-4991-9813-ac951c5b4f59",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "{{initiator.displayName}}"
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "c3cd6361-865e-4f6e-91bd-694de60d0b48",
+              "parentId": "3ddd6726-10a8-4ca4-a4e7-8b5233804e34",
+              "schemaVersion": 1,
+              "type": "jira.proforma.form.change.status.action",
+              "value": {
+                "formStatus": "OPEN",
+                "templateFormsConfiguration": {
+                  "projectId": 13141,
+                  "templateFormIds": [
+                    "1f5cab4e-8e96-450c-b67a-bc3daac0e12b"
+                  ]
+                }
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "b99a7167-5778-46a1-adca-d4bcd3ba62cc",
+              "parentId": "3ddd6726-10a8-4ca4-a4e7-8b5233804e34",
+              "schemaVersion": 2,
+              "type": "jira.issue.comment",
+              "value": {
+                "addCommentOnce": false,
+                "comment": "Solution Matrix form has been unlocked for editing. Please refresh the page to continue editing the form.",
+                "commentVisibility": null,
+                "publicComment": true,
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "3ddd6726-10a8-4ca4-a4e7-8b5233804e34",
+              "conditions": [],
+              "connectionId": null,
+              "id": "5d3b4fa3-2c6f-43ca-9e1f-669c811bee63",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "[\"Solution In-Progress\",\"Released (Pending Verification)\",\"Pending Prevention\",\"Completed\",\"In Approval\"]"
+                },
+                "comparison": "NOT_ONE_OF",
+                "selectedField": {
+                  "type": "ID",
+                  "value": "status"
+                },
+                "selectedFieldType": "status"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "3ddd6726-10a8-4ca4-a4e7-8b5233804e34",
+              "conditions": [],
+              "connectionId": null,
+              "id": "c149b498-8106-4d20-9bae-938a7f09875e",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{initiator.displayName}}",
+                "operator": "NOT_EQUALS",
+                "second": "Automation for Jira"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "3ddd6726-10a8-4ca4-a4e7-8b5233804e34",
+          "parentId": "6b47c164-a7b2-44aa-8941-52f60b7f5fe5",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "6b47c164-a7b2-44aa-8941-52f60b7f5fe5",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "f88301bf-f6e0-468d-8ac1-738610371671",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "a_coordchange: {{forms.last.a_coordchange.label}} || a_prodtrial: {{forms.last.a_prodtrial}} || a_appearance: {{forms.last.a_appearance.label}} || a_otherimpact: {{forms.last.a_otherimpact}}"
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "9774986a-a743-424a-8682-c38cb93ca4a0",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Solution Matrix JSON"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+            "type": "SET",
+            "value": "{\n  \"solutions\": {\n    \"solutionA\": {\n      \"a_description\": \"{{forms.last.a_description.replace(\"\\\"\", \"\\\\\\\"\")}}\",\n      \"a_mass\": \"{{forms.last.a_mass}}\",\n      \"a_coordchange\": \"{{forms.last.a_coordchange.label}}\",\n      \"a_homologation\": \"{{forms.last.a_homologation.label}}\",\n      \"a_custimpact\": \"{{forms.last.a_custimpact.replace(\"\\\"\", \"\\\\\\\"\")}}\",\n      \"a_appearance\": \"{{forms.last.a_appearance.label}}\",\n      \"a_edt\": \"{{forms.last.a_edt.asCurrency}}\",\n      \"a_prototool\": \"{{forms.last.a_prototool.asCurrency}}\",\n      \"a_landedprice\": \"{{forms.last.a_landedprice.asCurrency}}\",\n      \"a_prodvendor\": \"{{forms.last.a_prodvendor.asCurrency}}\",\n      \"a_cutindate\": \"{{forms.last.a_cutindate.jiraDate}}\",\n      \"a_laborimpact\": \"{{forms.last.a_laborimpact.asCurrency}}\",\n      \"a_dfmea\": \"{{forms.last.a_dfmea.label}}\",\n      \"a_inventorydisp\": \"{{forms.last.a_inventorydisp.label}}\",\n      \"a_facilitiestooling\": \"{{forms.last.a_facilitiestooling.asCurrency}}\",\n      \"a_urgentforsvc\": \"{{forms.last.a_urgentforsvc.label}}\",\n      \"a_svcstockdisp\": \"{{forms.last.a_svcstockdisp.label}}\",\n      \"a_interchangeability\": \"{{forms.last.a_interchangeability.label}}\",\n      \"a_continuetool\": \"{{forms.last.a_continuetool.label}}\",\n      \"a_podateppap\": \"{{forms.last.a_podateppap.jiraDate}}\",\n      \"a_ppap0\": \"{{forms.last.a_ppap0.jiraDate}}\",\n      \"a_ppap1\": \"{{forms.last.a_ppap1.jiraDate}}\",\n      \"a_ppap2\": \"{{forms.last.a_ppap2.jiraDate}}\",\n      \"a_ppap3\": \"{{forms.last.a_ppap3.jiraDate}}\",\n      \"a_revertback\": \"{{forms.last.a_revertback.jiraDate}}\",\n      \"a_prodtrial\": \"{{forms.last.a_prodtrial.replace(\"\\\"\", \"\\\\\\\"\")}}\",\n      \"a_otherimpact\": \"{{forms.last.a_otherimpact.replace(\"\\\"\", \"\\\\\\\"\")}}\"\n    },\n    \"solutionB\": {\n      \"b_description\": \"{{forms.last.b_description.replace(\"\\\"\", \"\\\\\\\"\")}}\",\n      \"b_mass\": \"{{forms.last.b_mass}}\",\n      \"b_coordchange\": \"{{forms.last.b_coordchange.label}}\",\n      \"b_homologation\": \"{{forms.last.b_homologation.label}}\",\n      \"b_custimpact\": \"{{forms.last.b_custimpact.replace(\"\\\"\", \"\\\\\\\"\")}}\",\n      \"b_appearance\": \"{{forms.last.b_appearance.label}}\",\n      \"b_edt\": \"{{forms.last.b_edt.asCurrency}}\",\n      \"b_prototool\": \"{{forms.last.b_prototool.asCurrency}}\",\n      \"b_landedprice\": \"{{forms.last.b_landedprice.asCurrency}}\",\n      \"b_prodvendor\": \"{{forms.last.b_prodvendor.asCurrency}}\",\n      \"b_cutindate\": \"{{forms.last.b_cutindate.jiraDate}}\",\n      \"b_laborimpact\": \"{{forms.last.b_laborimpact.asCurrency}}\",\n      \"b_dfmea\": \"{{forms.last.b_dfmea.label}}\",\n      \"b_inventorydisp\": \"{{forms.last.b_inventorydisp.label}}\",\n      \"b_facilitiestooling\": \"{{forms.last.b_facilitiestooling.asCurrency}}\",\n      \"b_urgentforsvc\": \"{{forms.last.b_urgentforsvc.label}}\",\n      \"b_svcstockdisp\": \"{{forms.last.b_svcstockdisp.label}}\",\n      \"b_interchangeability\": \"{{forms.last.b_interchangeability.label}}\",\n      \"b_continuetool\": \"{{forms.last.b_continuetool.label}}\",\n      \"b_podateppap\": \"{{forms.last.b_podateppap.jiraDate}}\",\n      \"b_ppap0\": \"{{forms.last.b_ppap0.jiraDate}}\",\n      \"b_ppap1\": \"{{forms.last.b_ppap1.jiraDate}}\",\n      \"b_ppap2\": \"{{forms.last.b_ppap2.jiraDate}}\",\n      \"b_ppap3\": \"{{forms.last.b_ppap3.jiraDate}}\",\n      \"b_revertback\": \"{{forms.last.b_revertback.jiraDate}}\",\n      \"b_prodtrial\": \"{{forms.last.b_prodtrial.replace(\"\\\"\", \"\\\\\\\"\")}}\",\n      \"b_otherimpact\": \"{{forms.last.b_otherimpact.replace(\"\\\"\", \"\\\\\\\"\")}}\"\n    }\n  }\n}"
+          }
+        ],
+        "sendNotifications": false
+      }
+    }
+  ],
+  "created": 1782470358997,
+  "description": "This automation runs when the Solution Matrix form is submitted on a Solve Ticket. It records the submission, unlocks the form when permitted by the current workflow status, and extracts the submitted form values into a structured JSON document stored in the Solution Matrix JSON field. The field update serves as a trigger for the SOLVE: Solution Matrix Field Change Listener, which consumes the JSON payload and executes the downstream processing and synchronization logic required by the SOLVE application.",
+  "id": 33742729,
+  "idUuid": "019f0383-37d6-769b-91aa-826d69be21fd",
+  "labels": [],
+  "name": "SOLVE: Issue - Update Solution Matrix JSON Field on Form Submission",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "576b8ba2-ad23-4cae-977f-08225688879e",
+        "conditions": [],
+        "connectionId": null,
+        "id": "686dd162-514e-4ad8-96bc-94b4379a33b3",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "13364"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "576b8ba2-ad23-4cae-977f-08225688879e",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.proforma.form.submitted.trigger",
+    "value": {
+      "templateFormsConfig": {
+        "projectId": 13141,
+        "templateFormIds": [
+          5014561291672918
+        ]
+      }
+    }
+  },
+  "updated": 1782653096355,
+  "writeAccessType": "OWNER_ONLY"
+}

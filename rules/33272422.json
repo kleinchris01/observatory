@@ -1,0 +1,445 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "712020:a5106eb0-ee8a-4483-9412-763feaa0ef93"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "f6d1931f-5b98-44b9-b30d-8fe542e20cff",
+              "parentId": "9c015ca6-7bc7-4bfe-91e0-8ad17646f88b",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": "{\n  \"fields\": {\n    \"customfield_14979\": [\n      { \"value\": \"MY2028\" },\n      { \"value\": \"MY2029\" }\n    ]\n  }\n}",
+                "operations": [],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "9c015ca6-7bc7-4bfe-91e0-8ad17646f88b",
+              "conditions": [],
+              "connectionId": null,
+              "id": "b87dc0be-f017-4446-bee9-61cf19d1c2b1",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "[\"V827\"]"
+                },
+                "comparison": "CONTAINS_ALL",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Program "
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "9c015ca6-7bc7-4bfe-91e0-8ad17646f88b",
+              "conditions": [],
+              "connectionId": null,
+              "id": "20592a7e-2a72-4f8b-b1b8-567b2ecfe44c",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "[\"P833\",\"CX815\"]"
+                },
+                "comparison": "CONTAINS_ANY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Program "
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "9c015ca6-7bc7-4bfe-91e0-8ad17646f88b",
+          "parentId": "d3d1e34d-e70f-4d27-9e38-b7304286e7a7",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "456eb2b0-3823-425e-b05e-d9c02f004f0f",
+              "parentId": "f2831164-aa1f-49c4-8966-39addf0b0195",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": "{\n  \"fields\": {\n    \"customfield_14979\": [\n      { \"value\": \"MY2028\" },\n      { \"value\": \"MY2029\" }\n    ]\n  }\n}",
+                "operations": [],
+                "sendNotifications": false
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "f2831164-aa1f-49c4-8966-39addf0b0195",
+              "conditions": [],
+              "connectionId": null,
+              "id": "4c7ffe50-2ca0-474d-ad7e-672efa434577",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "[\"V827\"]"
+                },
+                "comparison": "CONTAINS_ALL",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Program "
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "f2831164-aa1f-49c4-8966-39addf0b0195",
+          "parentId": "d3d1e34d-e70f-4d27-9e38-b7304286e7a7",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "17cf1316-fbdf-4e90-89e1-9d4e7fc50427",
+              "parentId": "13c361ef-5c20-43ba-8c68-744f18954a10",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": "{\n  \"fields\": {\n    \"customfield_14979\": [\n      { \"value\": \"MY2028\" },\n      { \"value\": \"MY2029\" }\n    ]\n  }\n}",
+                "operations": [],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "13c361ef-5c20-43ba-8c68-744f18954a10",
+              "conditions": [],
+              "connectionId": null,
+              "id": "61b6a770-c8fd-4416-9921-339e29f627b9",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "[\"CX815\"]"
+                },
+                "comparison": "CONTAINS_ALL",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Program "
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "13c361ef-5c20-43ba-8c68-744f18954a10",
+              "conditions": [],
+              "connectionId": null,
+              "id": "b493a58b-5d37-4090-8e63-f5451de93d9c",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "[\"P833\",\"U833\"]"
+                },
+                "comparison": "CONTAINS_ALL",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Program "
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "13c361ef-5c20-43ba-8c68-744f18954a10",
+          "parentId": "d3d1e34d-e70f-4d27-9e38-b7304286e7a7",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ANY"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "ca788576-91cb-4601-85eb-0b398ee0fa9b",
+              "parentId": "df47741b-d21f-46d7-9905-a1b2fd72c164",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": "{\n  \"fields\": {\n    \"customfield_14979\": [\n      { \"value\": \"MY2028\" }\n    ]\n  }\n}",
+                "operations": [],
+                "sendNotifications": false
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "df47741b-d21f-46d7-9905-a1b2fd72c164",
+              "conditions": [],
+              "connectionId": null,
+              "id": "b8b2c625-ab70-438c-bf3a-0ce73acb4cae",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "[\"P833\"]"
+                },
+                "comparison": "CONTAINS_ALL",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Program "
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "df47741b-d21f-46d7-9905-a1b2fd72c164",
+          "parentId": "d3d1e34d-e70f-4d27-9e38-b7304286e7a7",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "42760c30-c83e-44fe-8871-3f23c170d6b4",
+              "parentId": "2d9d92a7-b431-4247-b1e7-37e18e603683",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": "{\n  \"fields\": {\n    \"customfield_14979\": [\n      { \"value\": \"MY2029\" }\n    ]\n  }\n}",
+                "operations": [],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "2d9d92a7-b431-4247-b1e7-37e18e603683",
+              "conditions": [],
+              "connectionId": null,
+              "id": "1d815186-3598-4920-b3b2-ef2e05c99fcb",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "[\"U833\"]"
+                },
+                "comparison": "CONTAINS_ANY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Program "
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "2d9d92a7-b431-4247-b1e7-37e18e603683",
+          "parentId": "d3d1e34d-e70f-4d27-9e38-b7304286e7a7",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "d3d1e34d-e70f-4d27-9e38-b7304286e7a7",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1778753750104,
+  "description": "This automation update Model Year values based on the options selected on the Program field",
+  "id": 33272422,
+  "idUuid": "019e25fc-4456-74cf-9dae-01fcc4af484a",
+  "labels": [],
+  "name": "SOLVE: Issue - Update Model Year Based on Program",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "97de55c7-8916-4455-ad87-c1a4b083acac",
+        "conditions": [],
+        "connectionId": null,
+        "id": "388cb578-ea1d-4a70-8c76-3d04b0cd231a",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "13364"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "97de55c7-8916-4455-ad87-c1a4b083acac",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [
+        "edit"
+      ],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Program "
+        }
+      ]
+    }
+  },
+  "updated": 1782748241257,
+  "writeAccessType": "UNRESTRICTED"
+}

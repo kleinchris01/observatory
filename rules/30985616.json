@@ -1,0 +1,147 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "5e7bcf70-399e-4e8d-855f-468f551be6c1",
+      "parentId": null,
+      "schemaVersion": 5,
+      "type": "action.send-templated-email",
+      "value": {
+        "convertLineBreaks": false,
+        "legacyConfig": true,
+        "sendGroupedEmails": true,
+        "templateContextData": {
+          "body": "<div style=\"font-family: Arial, Helvetica, sans-serif; font-size:14px; line-height:1.4; color:#111;\">\n  <p>Hello <strong>{{issue.assignee.displayName}}</strong>,</p>\n\n  <p>\n    This is an automatic reminder that\n    <strong>{{issue.key}} - {{issue.summary}}</strong>\n    is scheduled for automatic closure on\n    <strong>{{issue.customfield_15727.minusDays(10).format(\"MMMM d, yyyy\")}}</strong>.\n  </p>\n\n  <p>Please take any necessary actions before the closure date.</p>\n\n  <p>\n    <strong>Issue Link:</strong>\n    <a href=\"{{issue.url}}\" target=\"_blank\" rel=\"noopener noreferrer\">\n      <strong>{{issue.key}}</strong> - View issue\n    </a>\n  </p>\n</div>",
+          "bodyType": "HTML",
+          "emailName": "Auto-Closure Notifications",
+          "fromEmailAddress": "automation@ford-advev.atlassian.net",
+          "fromName": "Jira automation",
+          "subject": "Reminder: {{issue.key}} will auto-close in 10 days ({{issue.customfield_15727.format(\"yyyy-MM-dd\")}})"
+        },
+        "to": [
+          {
+            "type": "SMART",
+            "value": "{{issue.watchers.emailAddress}}"
+          },
+          {
+            "type": "COPY",
+            "value": "assignee"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1764753341855,
+  "description": "This automation sends an email notification 10 days prior to auto-closure to intended users ",
+  "id": 30985616,
+  "idUuid": "019ae37e-fda0-7a26-afae-7eb1e707cb40",
+  "labels": [],
+  "name": "SOLVE: Build Deviation - Notifications 10 days Prior to Auto-Closure via Email",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "9b28636c-6ac4-46df-bbb5-3096f403b3be",
+        "conditions": [],
+        "connectionId": null,
+        "id": "9377bd7d-17a3-4f44-9184-b5e9cc4e0070",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "13141"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "project"
+          },
+          "selectedFieldType": "project"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "9b28636c-6ac4-46df-bbb5-3096f403b3be",
+        "conditions": [],
+        "connectionId": null,
+        "id": "e765c644-93ff-4d11-8485-917b9c0161f8",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "12654"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "9b28636c-6ac4-46df-bbb5-3096f403b3be",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "project = SOLVE AND \"Request Type\" = \"Build Deviation (SOLVE)\" AND status = \"Active\" AND \"ADVEV Checkpoints & Milestones[Dropdown]\" IN (\"Post Job 1\", Service) AND ((\"Extension Date[Date]\" IS NOT EMPTY AND \"Extension Date[Date]\" = startOfDay(10d)) OR (\"Extension Date[Date]\" IS EMPTY AND \"End Date (Calculated)[Date]\" = startOfDay(10d)))",
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/New_York:20251106T000000\nRRULE:FREQ=DAILY;BYHOUR=0;BYMINUTE=0;BYSECOND=0;INTERVAL=1\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1782742364470,
+  "writeAccessType": "UNRESTRICTED"
+}

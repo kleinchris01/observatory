@@ -1,0 +1,3231 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "20e71c4c-0582-4f83-8de2-e4fdba3733ac",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "SW issue type = {{userInputs.Issue Type}} - Attestation = {{userInputs.Attestation}} - Environment: {{userInputs.Environment}} - Components: {{userInputs.Component}} Priority: {{userInputs.Priority}} - Severity: {{userInputs.Severity}} - VIN: {{userInputs.VIN}} - Version: {{userInputs.version}} Affects Version -  {{userInputs.Version}}"
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "2f919f6e-b9a8-4bab-9cc5-27d8fa8f3b21",
+              "parentId": "0f93a9fc-fbe4-47a8-8fc6-df038655a436",
+              "schemaVersion": 12,
+              "type": "jira.issue.create",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "summary"
+                    },
+                    "fieldType": "summary",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "summary",
+                        "type": "ID",
+                        "value": "summary"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "description"
+                    },
+                    "fieldType": "description",
+                    "type": "SET",
+                    "value": "1. Steps to reproduce:\n\n2. Expected behavior:\n\n3. Observed behavior:\n\n4. Time Stamp:\n\n5. Occurance:\n\n6. Git Hash (Issue Found):\n\n7. Vehicle ID:\n\nh2. Description\n{{triggerIssue.Description}}\n\nh2. Activity\n{{triggerIssue.customfield_15709}}\n\nh2. Business Case\n{{triggerIssue.customfield_11582}}\n\nh2. Change Type\n{{triggerIssue.customfield_14952}}\n\nh2. Feasibility Analysis Summary\n{{triggerIssue.customfield_14948}}\n\nh2. GSDB Codes\n{{triggerIssue.customfield_18692}}\n\nh2. Intermediate Containment Action (ICA)\n{{triggerIssue.customfield_11417}}\n\nh2. Issue Champion\n{{triggerIssue.customfield_15706.displayName}}\n\nh2. Issue Initiator\n{{triggerIssue.customfield_14950.displayName}}\n\nh2. Model Year\n{{triggerIssue.customfield_14979}}\n\nh2. Part Maturity\n{{triggerIssue.customfield_15710}}\n\nh2. Part Numbers\n{{triggerIssue.customfield_15714}}\n\nh2. Permanent Corrective Action (PCA)\n{{triggerIssue.customfield_11418}}\n\nh2. Production Buyer / GSM\n{{triggerIssue.customfield_12893.displayName}}\n\nh2. Program\n{{triggerIssue.customfield_14980.ADVEV Vehicle Program}}\n\nh2. Ready for Change\n{{triggerIssue.customfield_15705}}\n\nh2. Rejected Reason\n{{triggerIssue.customfield_11116}}\n\nh2. SIMPSN Assignee\n{{triggerIssue.customfield_18338.displayName}}\n\nh2. SIT/Attribute (Assets)\n{{triggerIssue.customfield_15640.SIT}}"
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "project"
+                    },
+                    "fieldType": "project",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "10104"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "issuetype"
+                    },
+                    "fieldType": "issuetype",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "10024"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "components"
+                    },
+                    "fieldType": "components",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "SMART",
+                        "value": "{{userInputs.Component}}"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "attachment"
+                    },
+                    "fieldType": "attachment",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "attachment",
+                        "type": "ID",
+                        "value": "attachment"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "issuelinks"
+                    },
+                    "fieldType": "issuelinks",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "issuelinks",
+                        "type": "ID",
+                        "value": "issuelinks"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "priority"
+                    },
+                    "fieldType": "priority",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "1"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "duedate"
+                    },
+                    "fieldType": "duedate",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "duedate",
+                        "type": "ID",
+                        "value": "duedate"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Environment Found"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{userInputs.Environment}}"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "labels"
+                    },
+                    "fieldType": "labels",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "NAME",
+                        "value": "ECM"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Severity"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{userInputs.Severity}}"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Change Type"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                        "type": "NAME",
+                        "value": "Change Type"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "VIN (Vehicle Identification Number)"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                    "type": "SET",
+                    "value": "{{userInputs.VIN}}"
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "reporter"
+                    },
+                    "fieldType": "reporter",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "reporter",
+                        "type": "ID",
+                        "value": "reporter"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Root Cause Analysis"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                        "type": "NAME",
+                        "value": "Root Cause Analysis"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "versions"
+                    },
+                    "fieldType": "versions",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "SMART",
+                        "value": "{{userInputs.version}}"
+                      }
+                    ]
+                  }
+                ],
+                "sendNotifications": false
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "5f518667-7c95-45fd-98ad-b3f3bacfc007",
+                  "parentId": "e2ea71f7-4a26-44cd-a5b4-f97fd2c0861c",
+                  "schemaVersion": 2,
+                  "type": "jira.issue.link",
+                  "value": {
+                    "issue": {
+                      "type": "COPY",
+                      "value": "trigger"
+                    },
+                    "linkType": "inward:10003"
+                  }
+                }
+              ],
+              "component": "BRANCH",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "e2ea71f7-4a26-44cd-a5b4-f97fd2c0861c",
+              "parentId": "0f93a9fc-fbe4-47a8-8fc6-df038655a436",
+              "schemaVersion": 1,
+              "type": "jira.issue.related",
+              "value": {
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [],
+                "onlyUpdatedIssues": false,
+                "relatedType": "recentlycreated",
+                "similarityLimit": 40
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "0f93a9fc-fbe4-47a8-8fc6-df038655a436",
+              "conditions": [],
+              "connectionId": null,
+              "id": "a08e5682-8d5b-4bda-bd84-85c99eaa63a9",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{userInputs.Issue Type}}",
+                "operator": "EQUALS",
+                "second": "Bug"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "0f93a9fc-fbe4-47a8-8fc6-df038655a436",
+              "conditions": [],
+              "connectionId": null,
+              "id": "cb0c3634-daa8-48b3-a4b2-9c7ac22bad6f",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{userInputs.Priority}}",
+                "operator": "EQUALS",
+                "second": "P0"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "0f93a9fc-fbe4-47a8-8fc6-df038655a436",
+          "parentId": "f505b564-f691-4498-8590-e1241e92387d",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "8e9949f7-505e-4ea5-8c64-77b9ebcbf8c5",
+              "parentId": "25c02e2c-6594-47f5-ab84-216c421b3a8b",
+              "schemaVersion": 12,
+              "type": "jira.issue.create",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "summary"
+                    },
+                    "fieldType": "summary",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "summary",
+                        "type": "ID",
+                        "value": "summary"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "description"
+                    },
+                    "fieldType": "description",
+                    "type": "SET",
+                    "value": "h2. Description\n{{triggerIssue.Description}}\n\nh2. Activity\n{{triggerIssue.customfield_15709}}\n\nh2. Business Case\n{{triggerIssue.customfield_11582}}\n\nh2. Change Type\n{{triggerIssue.customfield_14952}}\n\nh2. Feasibility Analysis Summary\n{{triggerIssue.customfield_14948}}\n\nh2. GSDB Codes\n{{triggerIssue.customfield_18692}}\n\nh2. Intermediate Containment Action (ICA)\n{{triggerIssue.customfield_11417}}\n\nh2. Issue Champion\n{{triggerIssue.customfield_15706.displayName}}\n\nh2. Issue Initiator\n{{triggerIssue.customfield_14950.displayName}}\n\nh2. Model Year\n{{triggerIssue.customfield_14979}}\n\nh2. Part Maturity\n{{triggerIssue.customfield_15710}}\n\nh2. Part Numbers\n{{triggerIssue.customfield_15714}}\n\nh2. Permanent Corrective Action (PCA)\n{{triggerIssue.customfield_11418}}\n\nh2. Production Buyer / GSM\n{{triggerIssue.customfield_12893.displayName}}\n\nh2. Program\n{{triggerIssue.customfield_14980.ADVEV Vehicle Program}}\n\nh2. Ready for Change\n{{triggerIssue.customfield_15705}}\n\nh2. Rejected Reason\n{{triggerIssue.customfield_11116}}\n\nh2. SIMPSN Assignee\n{{triggerIssue.customfield_18338.displayName}}\n\nh2. SIT/Attribute (Assets)\n{{triggerIssue.customfield_15640.SIT}}"
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "project"
+                    },
+                    "fieldType": "project",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "10104"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "issuetype"
+                    },
+                    "fieldType": "issuetype",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "10020"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "components"
+                    },
+                    "fieldType": "components",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "SMART",
+                        "value": "{{userInputs.Component}}"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "attachment"
+                    },
+                    "fieldType": "attachment",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "attachment",
+                        "type": "ID",
+                        "value": "attachment"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "issuelinks"
+                    },
+                    "fieldType": "issuelinks",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "issuelinks",
+                        "type": "ID",
+                        "value": "issuelinks"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "priority"
+                    },
+                    "fieldType": "priority",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "10010"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "duedate"
+                    },
+                    "fieldType": "duedate",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "duedate",
+                        "type": "ID",
+                        "value": "duedate"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Environment Found"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{userInputs.Environment}}"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "labels"
+                    },
+                    "fieldType": "labels",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "NAME",
+                        "value": "ECM"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Severity"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{userInputs.Severity}}"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "VIN (Vehicle Identification Number)"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                    "type": "SET",
+                    "value": "{{userInputs.VIN}}"
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "reporter"
+                    },
+                    "fieldType": "reporter",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "reporter",
+                        "type": "ID",
+                        "value": "reporter"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Root Cause Analysis"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                        "type": "NAME",
+                        "value": "Root Cause Analysis"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  }
+                ],
+                "sendNotifications": false
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "79e1fb92-f195-4421-8e95-904943ed7c3e",
+                  "parentId": "f27c8f59-81c1-4482-a829-9c78167226d7",
+                  "schemaVersion": 2,
+                  "type": "jira.issue.link",
+                  "value": {
+                    "issue": {
+                      "type": "COPY",
+                      "value": "trigger"
+                    },
+                    "linkType": "inward:10003"
+                  }
+                }
+              ],
+              "component": "BRANCH",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "f27c8f59-81c1-4482-a829-9c78167226d7",
+              "parentId": "25c02e2c-6594-47f5-ab84-216c421b3a8b",
+              "schemaVersion": 1,
+              "type": "jira.issue.related",
+              "value": {
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [],
+                "onlyUpdatedIssues": false,
+                "relatedType": "recentlycreated",
+                "similarityLimit": 40
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "25c02e2c-6594-47f5-ab84-216c421b3a8b",
+              "conditions": [],
+              "connectionId": null,
+              "id": "d83f8e94-6ef7-49fe-8865-6eb1bde6c7a6",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{userInputs.Issue Type}}",
+                "operator": "EQUALS",
+                "second": "Story"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "25c02e2c-6594-47f5-ab84-216c421b3a8b",
+          "parentId": "f505b564-f691-4498-8590-e1241e92387d",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ANY"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "d43eaaeb-6dfc-45ba-a1a3-5706b70b935e",
+              "parentId": "5455b1f4-5795-4640-b372-cb7eaafefe75",
+              "schemaVersion": 12,
+              "type": "jira.issue.create",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "summary"
+                    },
+                    "fieldType": "summary",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "summary",
+                        "type": "ID",
+                        "value": "summary"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "description"
+                    },
+                    "fieldType": "description",
+                    "type": "SET",
+                    "value": "h2. Description\n{{triggerIssue.Description}}\n\nh2. Activity\n{{triggerIssue.customfield_15709}}\n\nh2. Business Case\n{{triggerIssue.customfield_11582}}\n\nh2. Change Type\n{{triggerIssue.customfield_14952}}\n\nh2. Feasibility Analysis Summary\n{{triggerIssue.customfield_14948}}\n\nh2. GSDB Codes\n{{triggerIssue.customfield_18692}}\n\nh2. Intermediate Containment Action (ICA)\n{{triggerIssue.customfield_11417}}\n\nh2. Issue Champion\n{{triggerIssue.customfield_15706.displayName}}\n\nh2. Issue Initiator\n{{triggerIssue.customfield_14950.displayName}}\n\nh2. Model Year\n{{triggerIssue.customfield_14979}}\n\nh2. Part Maturity\n{{triggerIssue.customfield_15710}}\n\nh2. Part Numbers\n{{triggerIssue.customfield_15714}}\n\nh2. Permanent Corrective Action (PCA)\n{{triggerIssue.customfield_11418}}\n\nh2. Production Buyer / GSM\n{{triggerIssue.customfield_12893.displayName}}\n\nh2. Program\n{{triggerIssue.customfield_14980}}\n\nh2. Ready for Change\n{{triggerIssue.customfield_15705}}\n\nh2. Rejected Reason\n{{triggerIssue.customfield_11116}}\n\nh2. SIMPSN Assignee\n{{triggerIssue.customfield_18338.displayName}}\n\nh2. SIT/Attribute (Assets)\n{{triggerIssue.customfield_15640.SIT}}"
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "project"
+                    },
+                    "fieldType": "project",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "10104"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "issuetype"
+                    },
+                    "fieldType": "issuetype",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "10023"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "components"
+                    },
+                    "fieldType": "components",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "SMART",
+                        "value": "{{userInputs.Component}}"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "attachment"
+                    },
+                    "fieldType": "attachment",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "attachment",
+                        "type": "ID",
+                        "value": "attachment"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "issuelinks"
+                    },
+                    "fieldType": "issuelinks",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "issuelinks",
+                        "type": "ID",
+                        "value": "issuelinks"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "priority"
+                    },
+                    "fieldType": "priority",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "10010"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "duedate"
+                    },
+                    "fieldType": "duedate",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "duedate",
+                        "type": "ID",
+                        "value": "duedate"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Environment Found"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{userInputs.Environment}}"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "labels"
+                    },
+                    "fieldType": "labels",
+                    "type": "ADDREMOVE",
+                    "value": {
+                      "ADD": [
+                        {
+                          "type": "NAME",
+                          "value": "ECM"
+                        }
+                      ],
+                      "REMOVE": []
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Severity"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{userInputs.Severity}}"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "VIN (Vehicle Identification Number)"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                    "type": "SET",
+                    "value": "{{userInputs.VIN}}"
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "reporter"
+                    },
+                    "fieldType": "reporter",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "reporter",
+                        "type": "ID",
+                        "value": "reporter"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Root Cause Analysis"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                        "type": "NAME",
+                        "value": "Root Cause Analysis"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  }
+                ],
+                "sendNotifications": false
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "3183c34e-ca71-4ed8-9cac-32baf52815a4",
+                  "parentId": "bd873add-5897-40c4-be1c-a0d96850e662",
+                  "schemaVersion": 2,
+                  "type": "jira.issue.link",
+                  "value": {
+                    "issue": {
+                      "type": "COPY",
+                      "value": "trigger"
+                    },
+                    "linkType": "inward:10003"
+                  }
+                }
+              ],
+              "component": "BRANCH",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "bd873add-5897-40c4-be1c-a0d96850e662",
+              "parentId": "5455b1f4-5795-4640-b372-cb7eaafefe75",
+              "schemaVersion": 1,
+              "type": "jira.issue.related",
+              "value": {
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [],
+                "onlyUpdatedIssues": false,
+                "relatedType": "recentlycreated",
+                "similarityLimit": 40
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "5455b1f4-5795-4640-b372-cb7eaafefe75",
+              "conditions": [],
+              "connectionId": null,
+              "id": "4d205c99-a5ce-4af4-b5e9-761fec867c55",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{userInputs.Issue Type}}",
+                "operator": "EQUALS",
+                "second": "Task"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "5455b1f4-5795-4640-b372-cb7eaafefe75",
+          "parentId": "f505b564-f691-4498-8590-e1241e92387d",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ANY"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "cfe26da8-f937-496d-b0ac-6287f8f33507",
+              "parentId": "9db83eb3-594b-499a-b4f3-ed2c6e4d2bc1",
+              "schemaVersion": 12,
+              "type": "jira.issue.create",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "summary"
+                    },
+                    "fieldType": "summary",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "summary",
+                        "type": "ID",
+                        "value": "summary"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "description"
+                    },
+                    "fieldType": "description",
+                    "type": "SET",
+                    "value": "h2. Description\n{{triggerIssue.Description}}\n\nh2. Activity\n{{triggerIssue.customfield_15709}}\n\nh2. Business Case\n{{triggerIssue.customfield_11582}}\n\nh2. Change Type\n{{triggerIssue.customfield_14952}}\n\nh2. Feasibility Analysis Summary\n{{triggerIssue.customfield_14948}}\n\nh2. GSDB Codes\n{{triggerIssue.customfield_18692}}\n\nh2. Intermediate Containment Action (ICA)\n{{triggerIssue.customfield_11417}}\n\nh2. Issue Champion\n{{triggerIssue.customfield_15706.displayName}}\n\nh2. Issue Initiator\n{{triggerIssue.customfield_14950.displayName}}\n\nh2. Model Year\n{{triggerIssue.customfield_14979}}\n\nh2. Part Maturity\n{{triggerIssue.customfield_15710}}\n\nh2. Part Numbers\n{{triggerIssue.customfield_15714}}\n\nh2. Permanent Corrective Action (PCA)\n{{triggerIssue.customfield_11418}}\n\nh2. Production Buyer / GSM\n{{triggerIssue.customfield_12893.displayName}}\n\nh2. Program\n{{triggerIssue.customfield_14980.ADVEV Vehicle Program}}\n\nh2. Ready for Change\n{{triggerIssue.customfield_15705}}\n\nh2. Rejected Reason\n{{triggerIssue.customfield_11116}}\n\nh2. SIMPSN Assignee\n{{triggerIssue.customfield_18338.displayName}}\n\nh2. SIT/Attribute (Assets)\n{{triggerIssue.customfield_15640.SIT}}"
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "project"
+                    },
+                    "fieldType": "project",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "10104"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "issuetype"
+                    },
+                    "fieldType": "issuetype",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "10000"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "components"
+                    },
+                    "fieldType": "components",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "SMART",
+                        "value": "{{userInputs.Component}}"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "attachment"
+                    },
+                    "fieldType": "attachment",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "attachment",
+                        "type": "ID",
+                        "value": "attachment"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "issuelinks"
+                    },
+                    "fieldType": "issuelinks",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "issuelinks",
+                        "type": "ID",
+                        "value": "issuelinks"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "priority"
+                    },
+                    "fieldType": "priority",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "10010"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "duedate"
+                    },
+                    "fieldType": "duedate",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "duedate",
+                        "type": "ID",
+                        "value": "duedate"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Environment Found"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{userInputs.Environment}}"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "labels"
+                    },
+                    "fieldType": "labels",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "SMART",
+                        "value": "{{triggerIssue.Labels}} "
+                      },
+                      {
+                        "type": "NAME",
+                        "value": "ECM"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Severity"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{userInputs.Severity}}"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "VIN (Vehicle Identification Number)"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                    "type": "SET",
+                    "value": "{{userInputs.VIN}}"
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "reporter"
+                    },
+                    "fieldType": "reporter",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "reporter",
+                        "type": "ID",
+                        "value": "reporter"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Root Cause Analysis"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                        "type": "NAME",
+                        "value": "Root Cause Analysis"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  }
+                ],
+                "sendNotifications": false
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "428f9f6c-ada5-4a28-b4d6-d1b05ad22f7a",
+                  "parentId": "82bdbe9f-9a04-4067-838e-5d7ffd6c4fd7",
+                  "schemaVersion": 2,
+                  "type": "jira.issue.link",
+                  "value": {
+                    "issue": {
+                      "type": "COPY",
+                      "value": "trigger"
+                    },
+                    "linkType": "inward:10003"
+                  }
+                }
+              ],
+              "component": "BRANCH",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "82bdbe9f-9a04-4067-838e-5d7ffd6c4fd7",
+              "parentId": "9db83eb3-594b-499a-b4f3-ed2c6e4d2bc1",
+              "schemaVersion": 1,
+              "type": "jira.issue.related",
+              "value": {
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [],
+                "onlyUpdatedIssues": false,
+                "relatedType": "recentlycreated",
+                "similarityLimit": 40
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "9db83eb3-594b-499a-b4f3-ed2c6e4d2bc1",
+              "conditions": [],
+              "connectionId": null,
+              "id": "34c49063-b950-454b-8dc8-53a4db916633",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{userInputs.Issue Type}}",
+                "operator": "EQUALS",
+                "second": "Epic"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "9db83eb3-594b-499a-b4f3-ed2c6e4d2bc1",
+          "parentId": "f505b564-f691-4498-8590-e1241e92387d",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ANY"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "fd8c75f2-11fd-4ad9-b9d6-35e1aafd0006",
+              "parentId": "96d8ec41-8af1-4e18-9abd-e4e34eef7621",
+              "schemaVersion": 12,
+              "type": "jira.issue.create",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "summary"
+                    },
+                    "fieldType": "summary",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "summary",
+                        "type": "ID",
+                        "value": "summary"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "description"
+                    },
+                    "fieldType": "description",
+                    "type": "SET",
+                    "value": "h2. Description\n{{triggerIssue.Description}}\n\nh2. Activity\n{{triggerIssue.customfield_15709}}\n\nh2. Business Case\n{{triggerIssue.customfield_11582}}\n\nh2. Change Type\n{{triggerIssue.customfield_14952}}\n\nh2. Feasibility Analysis Summary\n{{triggerIssue.customfield_14948}}\n\nh2. GSDB Codes\n{{triggerIssue.customfield_18692}}\n\nh2. Intermediate Containment Action (ICA)\n{{triggerIssue.customfield_11417}}\n\nh2. Issue Champion\n{{triggerIssue.customfield_15706.displayName}}\n\nh2. Issue Initiator\n{{triggerIssue.customfield_14950.displayName}}\n\nh2. Model Year\n{{triggerIssue.customfield_14979}}\n\nh2. Part Maturity\n{{triggerIssue.customfield_15710}}\n\nh2. Part Numbers\n{{triggerIssue.customfield_15714}}\n\nh2. Permanent Corrective Action (PCA)\n{{triggerIssue.customfield_11418}}\n\nh2. Production Buyer / GSM\n{{triggerIssue.customfield_12893.displayName}}\n\nh2. Program\n{{triggerIssue.customfield_14980.ADVEV Vehicle Program}}\n\nh2. Ready for Change\n{{triggerIssue.customfield_15705}}\n\nh2. Rejected Reason\n{{triggerIssue.customfield_11116}}\n\nh2. SIMPSN Assignee\n{{triggerIssue.customfield_18338.displayName}}\n\nh2. SIT/Attribute (Assets)\n{{triggerIssue.customfield_15640.SIT}}"
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "project"
+                    },
+                    "fieldType": "project",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "10104"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "issuetype"
+                    },
+                    "fieldType": "issuetype",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "10024"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "components"
+                    },
+                    "fieldType": "components",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "SMART",
+                        "value": "{{userInputs.Component}}"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "attachment"
+                    },
+                    "fieldType": "attachment",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "attachment",
+                        "type": "ID",
+                        "value": "attachment"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "issuelinks"
+                    },
+                    "fieldType": "issuelinks",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "issuelinks",
+                        "type": "ID",
+                        "value": "issuelinks"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "priority"
+                    },
+                    "fieldType": "priority",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "2"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "duedate"
+                    },
+                    "fieldType": "duedate",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "duedate",
+                        "type": "ID",
+                        "value": "duedate"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Environment Found"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{userInputs.Environment}}"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "labels"
+                    },
+                    "fieldType": "labels",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "NAME",
+                        "value": "ECM"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Severity"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{userInputs.Severity}}"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "VIN (Vehicle Identification Number)"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                    "type": "SET",
+                    "value": "{{userInputs.VIN}}"
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "reporter"
+                    },
+                    "fieldType": "reporter",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "reporter",
+                        "type": "ID",
+                        "value": "reporter"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Root Cause Analysis"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                        "type": "NAME",
+                        "value": "Root Cause Analysis"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Business Case"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                        "type": "NAME",
+                        "value": "Business Case"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "versions"
+                    },
+                    "fieldType": "versions",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "SMART",
+                        "value": "{{userInputs.version}}"
+                      }
+                    ]
+                  }
+                ],
+                "sendNotifications": false
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "3a279f69-965c-4423-86b2-aa46e0c94246",
+                  "parentId": "0fad8170-3d3d-4b9d-abf4-dfa3c72245eb",
+                  "schemaVersion": 2,
+                  "type": "jira.issue.link",
+                  "value": {
+                    "issue": {
+                      "type": "COPY",
+                      "value": "trigger"
+                    },
+                    "linkType": "inward:10003"
+                  }
+                }
+              ],
+              "component": "BRANCH",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "0fad8170-3d3d-4b9d-abf4-dfa3c72245eb",
+              "parentId": "96d8ec41-8af1-4e18-9abd-e4e34eef7621",
+              "schemaVersion": 1,
+              "type": "jira.issue.related",
+              "value": {
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [],
+                "onlyUpdatedIssues": false,
+                "relatedType": "recentlycreated",
+                "similarityLimit": 40
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "96d8ec41-8af1-4e18-9abd-e4e34eef7621",
+              "conditions": [],
+              "connectionId": null,
+              "id": "5d0a4c6b-4906-48d9-91aa-9a21b60fe86c",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{userInputs.Issue Type}}",
+                "operator": "EQUALS",
+                "second": "Bug"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "96d8ec41-8af1-4e18-9abd-e4e34eef7621",
+              "conditions": [],
+              "connectionId": null,
+              "id": "0a7ad8c9-5a06-4c36-99b1-3a4828f56a68",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{userInputs.Priority}}",
+                "operator": "EQUALS",
+                "second": "P1"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "96d8ec41-8af1-4e18-9abd-e4e34eef7621",
+          "parentId": "f505b564-f691-4498-8590-e1241e92387d",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "c69b66ab-589d-490e-b499-693c541a357a",
+              "parentId": "b747ef52-9d74-4e8b-ad4f-b29d0b370d94",
+              "schemaVersion": 12,
+              "type": "jira.issue.create",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "summary"
+                    },
+                    "fieldType": "summary",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "summary",
+                        "type": "ID",
+                        "value": "summary"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "description"
+                    },
+                    "fieldType": "description",
+                    "type": "SET",
+                    "value": "1. Steps to reproduce:\n\n2. Expected behavior:\n\n3. Observed behavior:\n\n4. Time Stamp:\n\n5. Occurance:\n\n6. Git Hash (Issue Found):\n\n7. Vehicle ID:\n\nh2. Description\n{{triggerIssue.Description}}\n\nh2. Activity\n{{triggerIssue.customfield_15709}}\n\nh2. Business Case\n{{triggerIssue.customfield_11582}}\n\nh2. Change Type\n{{triggerIssue.customfield_14952}}\n\nh2. Feasibility Analysis Summary\n{{triggerIssue.customfield_14948}}\n\nh2. GSDB Codes\n{{triggerIssue.customfield_18692}}\n\nh2. Intermediate Containment Action (ICA)\n{{triggerIssue.customfield_11417}}\n\nh2. Issue Champion\n{{triggerIssue.customfield_15706.displayName}}\n\nh2. Issue Initiator\n{{triggerIssue.customfield_14950.displayName}}\n\nh2. Model Year\n{{triggerIssue.customfield_14979}}\n\nh2. Part Maturity\n{{triggerIssue.customfield_15710}}\n\nh2. Part Numbers\n{{triggerIssue.customfield_15714}}\n\nh2. Permanent Corrective Action (PCA)\n{{triggerIssue.customfield_11418}}\n\nh2. Production Buyer / GSM\n{{triggerIssue.customfield_12893.displayName}}\n\nh2. Program\n{{triggerIssue.customfield_14980.ADVEV Vehicle Program}}\n\nh2. Ready for Change\n{{triggerIssue.customfield_15705}}\n\nh2. Rejected Reason\n{{triggerIssue.customfield_11116}}\n\nh2. SIMPSN Assignee\n{{triggerIssue.customfield_18338.displayName}}\n\nh2. SIT/Attribute (Assets)\n{{triggerIssue.customfield_15640.SIT}}"
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "project"
+                    },
+                    "fieldType": "project",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "10104"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "issuetype"
+                    },
+                    "fieldType": "issuetype",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "10024"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "components"
+                    },
+                    "fieldType": "components",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "SMART",
+                        "value": "{{userInputs.Component}}"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "attachment"
+                    },
+                    "fieldType": "attachment",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "attachment",
+                        "type": "ID",
+                        "value": "attachment"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "issuelinks"
+                    },
+                    "fieldType": "issuelinks",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "issuelinks",
+                        "type": "ID",
+                        "value": "issuelinks"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "priority"
+                    },
+                    "fieldType": "priority",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "3"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "duedate"
+                    },
+                    "fieldType": "duedate",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "duedate",
+                        "type": "ID",
+                        "value": "duedate"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Environment Found"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{userInputs.Environment}}"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "labels"
+                    },
+                    "fieldType": "labels",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "NAME",
+                        "value": "ECM"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Severity"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{userInputs.Severity}}"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "VIN (Vehicle Identification Number)"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                    "type": "SET",
+                    "value": "{{userInputs.VIN}}"
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "reporter"
+                    },
+                    "fieldType": "reporter",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "reporter",
+                        "type": "ID",
+                        "value": "reporter"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "versions"
+                    },
+                    "fieldType": "versions",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "SMART",
+                        "value": "{{userInputs.version}}"
+                      }
+                    ]
+                  }
+                ],
+                "sendNotifications": false
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "938b1ae6-c8d2-4378-84ea-41397a0b3f4f",
+                  "parentId": "227327a6-4b24-443b-8834-0eb4b59f87e7",
+                  "schemaVersion": 2,
+                  "type": "jira.issue.link",
+                  "value": {
+                    "issue": {
+                      "type": "COPY",
+                      "value": "trigger"
+                    },
+                    "linkType": "inward:10003"
+                  }
+                }
+              ],
+              "component": "BRANCH",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "227327a6-4b24-443b-8834-0eb4b59f87e7",
+              "parentId": "b747ef52-9d74-4e8b-ad4f-b29d0b370d94",
+              "schemaVersion": 1,
+              "type": "jira.issue.related",
+              "value": {
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [],
+                "onlyUpdatedIssues": false,
+                "relatedType": "recentlycreated",
+                "similarityLimit": 40
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "b747ef52-9d74-4e8b-ad4f-b29d0b370d94",
+              "conditions": [],
+              "connectionId": null,
+              "id": "b56f2d6a-26cd-4ed3-b1c4-95d3dfdd8897",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{userInputs.Issue Type}}",
+                "operator": "EQUALS",
+                "second": "Bug"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "b747ef52-9d74-4e8b-ad4f-b29d0b370d94",
+              "conditions": [],
+              "connectionId": null,
+              "id": "8d532d6f-125e-4118-8a8e-8f65a0a64cf4",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{userInputs.Priority}}",
+                "operator": "EQUALS",
+                "second": "P2"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "b747ef52-9d74-4e8b-ad4f-b29d0b370d94",
+          "parentId": "f505b564-f691-4498-8590-e1241e92387d",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "5f88ee66-e0b5-4c77-9bb1-a8164ef21346",
+              "parentId": "8a480c41-98f9-4cc4-adb2-b8c1a9f89055",
+              "schemaVersion": 12,
+              "type": "jira.issue.create",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "summary"
+                    },
+                    "fieldType": "summary",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "summary",
+                        "type": "ID",
+                        "value": "summary"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "description"
+                    },
+                    "fieldType": "description",
+                    "type": "SET",
+                    "value": "1. Steps to reproduce:\n\n2. Expected behavior:\n\n3. Observed behavior:\n\n4. Time Stamp:\n\n5. Occurance:\n\n6. Git Hash (Issue Found):\n\n7. Vehicle ID:\n\nh2. Description\n{{triggerIssue.Description}}\n\nh2. Activity\n{{triggerIssue.customfield_15709}}\n\nh2. Business Case\n{{triggerIssue.customfield_11582}}\n\nh2. Change Type\n{{triggerIssue.customfield_14952}}\n\nh2. Feasibility Analysis Summary\n{{triggerIssue.customfield_14948}}\n\nh2. GSDB Codes\n{{triggerIssue.customfield_18692}}\n\nh2. Intermediate Containment Action (ICA)\n{{triggerIssue.customfield_11417}}\n\nh2. Issue Champion\n{{triggerIssue.customfield_15706.displayName}}\n\nh2. Issue Initiator\n{{triggerIssue.customfield_14950.displayName}}\n\nh2. Model Year\n{{triggerIssue.customfield_14979}}\n\nh2. Part Maturity\n{{triggerIssue.customfield_15710}}\n\nh2. Part Numbers\n{{triggerIssue.customfield_15714}}\n\nh2. Permanent Corrective Action (PCA)\n{{triggerIssue.customfield_11418}}\n\nh2. Production Buyer / GSM\n{{triggerIssue.customfield_12893.displayName}}\n\nh2. Program\n{{triggerIssue.customfield_14980.ADVEV Vehicle Program}}\n\nh2. Ready for Change\n{{triggerIssue.customfield_15705}}\n\nh2. Rejected Reason\n{{triggerIssue.customfield_11116}}\n\nh2. SIMPSN Assignee\n{{triggerIssue.customfield_18338.displayName}}\n\nh2. SIT/Attribute (Assets)\n{{triggerIssue.customfield_15640.SIT}}"
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "project"
+                    },
+                    "fieldType": "project",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "10104"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "issuetype"
+                    },
+                    "fieldType": "issuetype",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "10024"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "components"
+                    },
+                    "fieldType": "components",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "SMART",
+                        "value": "{{userInputs.Component}}"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "attachment"
+                    },
+                    "fieldType": "attachment",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "attachment",
+                        "type": "ID",
+                        "value": "attachment"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "issuelinks"
+                    },
+                    "fieldType": "issuelinks",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "issuelinks",
+                        "type": "ID",
+                        "value": "issuelinks"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "priority"
+                    },
+                    "fieldType": "priority",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "4"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "duedate"
+                    },
+                    "fieldType": "duedate",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "duedate",
+                        "type": "ID",
+                        "value": "duedate"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Environment Found"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{userInputs.Environment}}"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "labels"
+                    },
+                    "fieldType": "labels",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "NAME",
+                        "value": "ECM"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Severity"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{userInputs.Severity}}"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "VIN (Vehicle Identification Number)"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                    "type": "SET",
+                    "value": "{{userInputs.VIN}}"
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "reporter"
+                    },
+                    "fieldType": "reporter",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "reporter",
+                        "type": "ID",
+                        "value": "reporter"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Root Cause Analysis"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                        "type": "NAME",
+                        "value": "Root Cause Analysis"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "versions"
+                    },
+                    "fieldType": "versions",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "SMART",
+                        "value": "{{userInputs.version}}"
+                      }
+                    ]
+                  }
+                ],
+                "sendNotifications": false
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "b2080656-440b-4cb9-8fbb-b028bf01ef66",
+                  "parentId": "d9211063-4f2e-49d9-aa24-4bda4b0ce7a7",
+                  "schemaVersion": 2,
+                  "type": "jira.issue.link",
+                  "value": {
+                    "issue": {
+                      "type": "COPY",
+                      "value": "trigger"
+                    },
+                    "linkType": "inward:10003"
+                  }
+                }
+              ],
+              "component": "BRANCH",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "d9211063-4f2e-49d9-aa24-4bda4b0ce7a7",
+              "parentId": "8a480c41-98f9-4cc4-adb2-b8c1a9f89055",
+              "schemaVersion": 1,
+              "type": "jira.issue.related",
+              "value": {
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [],
+                "onlyUpdatedIssues": false,
+                "relatedType": "recentlycreated",
+                "similarityLimit": 40
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "8a480c41-98f9-4cc4-adb2-b8c1a9f89055",
+              "conditions": [],
+              "connectionId": null,
+              "id": "653c5778-134e-434c-ba34-b02e369981c4",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{userInputs.Issue Type}}",
+                "operator": "EQUALS",
+                "second": "Bug"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "8a480c41-98f9-4cc4-adb2-b8c1a9f89055",
+              "conditions": [],
+              "connectionId": null,
+              "id": "7f9e939e-d13b-435f-8b5f-f3738f6ca6b1",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{userInputs.Priority}}",
+                "operator": "EQUALS",
+                "second": "P3"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "8a480c41-98f9-4cc4-adb2-b8c1a9f89055",
+          "parentId": "f505b564-f691-4498-8590-e1241e92387d",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "7fedb87d-9c5e-49a6-831f-ac2e2fe39f0d",
+              "parentId": "9e28cc34-9711-43cf-9575-7c377b337db8",
+              "schemaVersion": 12,
+              "type": "jira.issue.create",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "summary"
+                    },
+                    "fieldType": "summary",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "summary",
+                        "type": "ID",
+                        "value": "summary"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "description"
+                    },
+                    "fieldType": "description",
+                    "type": "SET",
+                    "value": "1. Steps to reproduce:\n\n2. Expected behavior:\n\n3. Observed behavior:\n\n4. Time Stamp:\n\n5. Occurance:\n\n6. Git Hash (Issue Found):\n\n7. Vehicle ID:\n\nh2. Description\n{{triggerIssue.Description}}\n\nh2. Activity\n{{triggerIssue.customfield_15709}}\n\nh2. Business Case\n{{triggerIssue.customfield_11582}}\n\nh2. Change Type\n{{triggerIssue.customfield_14952}}\n\nh2. Feasibility Analysis Summary\n{{triggerIssue.customfield_14948}}\n\nh2. GSDB Codes\n{{triggerIssue.customfield_18692}}\n\nh2. Intermediate Containment Action (ICA)\n{{triggerIssue.customfield_11417}}\n\nh2. Issue Champion\n{{triggerIssue.customfield_15706.displayName}}\n\nh2. Issue Initiator\n{{triggerIssue.customfield_14950.displayName}}\n\nh2. Model Year\n{{triggerIssue.customfield_14979}}\n\nh2. Part Maturity\n{{triggerIssue.customfield_15710}}\n\nh2. Part Numbers\n{{triggerIssue.customfield_15714}}\n\nh2. Permanent Corrective Action (PCA)\n{{triggerIssue.customfield_11418}}\n\nh2. Production Buyer / GSM\n{{triggerIssue.customfield_12893.displayName}}\n\nh2. Program\n{{triggerIssue.customfield_14980.ADVEV Vehicle Program}}\n\nh2. Ready for Change\n{{triggerIssue.customfield_15705}}\n\nh2. Rejected Reason\n{{triggerIssue.customfield_11116}}\n\nh2. SIMPSN Assignee\n{{triggerIssue.customfield_18338.displayName}}\n\nh2. SIT/Attribute (Assets)\n{{triggerIssue.customfield_15640.SIT}}"
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "project"
+                    },
+                    "fieldType": "project",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "10104"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "issuetype"
+                    },
+                    "fieldType": "issuetype",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "10024"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "components"
+                    },
+                    "fieldType": "components",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "SMART",
+                        "value": "{{userInputs.Component}}"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "attachment"
+                    },
+                    "fieldType": "attachment",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "attachment",
+                        "type": "ID",
+                        "value": "attachment"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "issuelinks"
+                    },
+                    "fieldType": "issuelinks",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "issuelinks",
+                        "type": "ID",
+                        "value": "issuelinks"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "priority"
+                    },
+                    "fieldType": "priority",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "10000"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "duedate"
+                    },
+                    "fieldType": "duedate",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "duedate",
+                        "type": "ID",
+                        "value": "duedate"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Environment Found"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{userInputs.Environment}}"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "labels"
+                    },
+                    "fieldType": "labels",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "NAME",
+                        "value": "ECM"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Severity"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{userInputs.Severity}}"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "VIN (Vehicle Identification Number)"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                    "type": "SET",
+                    "value": "{{userInputs.VIN}}"
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "reporter"
+                    },
+                    "fieldType": "reporter",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "reporter",
+                        "type": "ID",
+                        "value": "reporter"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Root Cause Analysis"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                        "type": "NAME",
+                        "value": "Root Cause Analysis"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "versions"
+                    },
+                    "fieldType": "versions",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "SMART",
+                        "value": "{{userInputs.version}}"
+                      }
+                    ]
+                  }
+                ],
+                "sendNotifications": false
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "85a19546-7682-4594-b8ee-0d9ee41f04e9",
+                  "parentId": "0345544a-1ef6-489b-8887-dc9c68ec58ec",
+                  "schemaVersion": 2,
+                  "type": "jira.issue.link",
+                  "value": {
+                    "issue": {
+                      "type": "COPY",
+                      "value": "trigger"
+                    },
+                    "linkType": "inward:10003"
+                  }
+                }
+              ],
+              "component": "BRANCH",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "0345544a-1ef6-489b-8887-dc9c68ec58ec",
+              "parentId": "9e28cc34-9711-43cf-9575-7c377b337db8",
+              "schemaVersion": 1,
+              "type": "jira.issue.related",
+              "value": {
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [],
+                "onlyUpdatedIssues": false,
+                "relatedType": "recentlycreated",
+                "similarityLimit": 40
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "9e28cc34-9711-43cf-9575-7c377b337db8",
+              "conditions": [],
+              "connectionId": null,
+              "id": "2092e08d-9f2f-4653-8f76-d060395c6535",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{userInputs.Issue Type}}",
+                "operator": "EQUALS",
+                "second": "Bug"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "9e28cc34-9711-43cf-9575-7c377b337db8",
+              "conditions": [],
+              "connectionId": null,
+              "id": "d995db39-9851-4231-a12a-48ab34f3eae3",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{userInputs.Priority}}",
+                "operator": "EQUALS",
+                "second": "P4"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "9e28cc34-9711-43cf-9575-7c377b337db8",
+          "parentId": "f505b564-f691-4498-8590-e1241e92387d",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "c48c17b0-90fe-4d58-ab3e-f4222ccbd9b2",
+              "parentId": "bc885f69-c1ba-4acf-a098-539d751fdfae",
+              "schemaVersion": 12,
+              "type": "jira.issue.create",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "summary"
+                    },
+                    "fieldType": "summary",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "summary",
+                        "type": "ID",
+                        "value": "summary"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "description"
+                    },
+                    "fieldType": "description",
+                    "type": "SET",
+                    "value": "1. Steps to reproduce:\n\n2. Expected behavior:\n\n3. Observed behavior:\n\n4. Time Stamp:\n\n5. Occurance:\n\n6. Git Hash (Issue Found):\n\n7. Vehicle ID:\n\nh2. Description\n{{triggerIssue.Description}}\n\nh2. Activity\n{{triggerIssue.customfield_15709}}\n\nh2. Business Case\n{{triggerIssue.customfield_11582}}\n\nh2. Change Type\n{{triggerIssue.customfield_14952}}\n\nh2. Feasibility Analysis Summary\n{{triggerIssue.customfield_14948}}\n\nh2. GSDB Codes\n{{triggerIssue.customfield_18692}}\n\nh2. Intermediate Containment Action (ICA)\n{{triggerIssue.customfield_11417}}\n\nh2. Issue Champion\n{{triggerIssue.customfield_15706.displayName}}\n\nh2. Issue Initiator\n{{triggerIssue.customfield_14950.displayName}}\n\nh2. Model Year\n{{triggerIssue.customfield_14979}}\n\nh2. Part Maturity\n{{triggerIssue.customfield_15710}}\n\nh2. Part Numbers\n{{triggerIssue.customfield_15714}}\n\nh2. Permanent Corrective Action (PCA)\n{{triggerIssue.customfield_11418}}\n\nh2. Production Buyer / GSM\n{{triggerIssue.customfield_12893.displayName}}\n\nh2. Program\n{{triggerIssue.customfield_14980.ADVEV Vehicle Program}}\n\nh2. Ready for Change\n{{triggerIssue.customfield_15705}}\n\nh2. Rejected Reason\n{{triggerIssue.customfield_11116}}\n\nh2. SIMPSN Assignee\n{{triggerIssue.customfield_18338.displayName}}\n\nh2. SIT/Attribute (Assets)\n{{triggerIssue.customfield_15640.SIT}}"
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "project"
+                    },
+                    "fieldType": "project",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "10104"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "issuetype"
+                    },
+                    "fieldType": "issuetype",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "10024"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "components"
+                    },
+                    "fieldType": "components",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "SMART",
+                        "value": "{{userInputs.Component}}"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "attachment"
+                    },
+                    "fieldType": "attachment",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "attachment",
+                        "type": "ID",
+                        "value": "attachment"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "issuelinks"
+                    },
+                    "fieldType": "issuelinks",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "issuelinks",
+                        "type": "ID",
+                        "value": "issuelinks"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "priority"
+                    },
+                    "fieldType": "priority",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "10010"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "duedate"
+                    },
+                    "fieldType": "duedate",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "duedate",
+                        "type": "ID",
+                        "value": "duedate"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Environment Found"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{userInputs.Environment}}"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "labels"
+                    },
+                    "fieldType": "labels",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "NAME",
+                        "value": "ECM"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Severity"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{userInputs.Severity}}"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "VIN (Vehicle Identification Number)"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                    "type": "SET",
+                    "value": "{{userInputs.VIN}}"
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "reporter"
+                    },
+                    "fieldType": "reporter",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "reporter",
+                        "type": "ID",
+                        "value": "reporter"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "versions"
+                    },
+                    "fieldType": "versions",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "SMART",
+                        "value": "{{userInputs.version}}"
+                      }
+                    ]
+                  }
+                ],
+                "sendNotifications": false
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "1194adca-6f25-4cf0-a2ef-d70246dc79ae",
+                  "parentId": "392d7393-9380-49a6-9bbb-1e56ce85860b",
+                  "schemaVersion": 2,
+                  "type": "jira.issue.link",
+                  "value": {
+                    "issue": {
+                      "type": "COPY",
+                      "value": "trigger"
+                    },
+                    "linkType": "inward:10003"
+                  }
+                }
+              ],
+              "component": "BRANCH",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "392d7393-9380-49a6-9bbb-1e56ce85860b",
+              "parentId": "bc885f69-c1ba-4acf-a098-539d751fdfae",
+              "schemaVersion": 1,
+              "type": "jira.issue.related",
+              "value": {
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [],
+                "onlyUpdatedIssues": false,
+                "relatedType": "recentlycreated",
+                "similarityLimit": 40
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "bc885f69-c1ba-4acf-a098-539d751fdfae",
+              "conditions": [],
+              "connectionId": null,
+              "id": "1dc7182f-e7e4-4ec9-a261-488f962ad213",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{userInputs.Issue Type}}",
+                "operator": "EQUALS",
+                "second": "Bug"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "bc885f69-c1ba-4acf-a098-539d751fdfae",
+              "conditions": [],
+              "connectionId": null,
+              "id": "e717cd71-f988-4388-a228-01eb3bd250be",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{userInputs.Priority}}",
+                "operator": "EQUALS",
+                "second": ""
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "bc885f69-c1ba-4acf-a098-539d751fdfae",
+          "parentId": "f505b564-f691-4498-8590-e1241e92387d",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "f505b564-f691-4498-8590-e1241e92387d",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1766173266465,
+  "description": "",
+  "id": 31234205,
+  "idUuid": "019b3821-5220-7d07-8d5c-3e33d651135f",
+  "labels": [],
+  "name": "Clone to CAVPSE v2",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10104",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11376",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10520",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10816",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10110"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "9922087e-dec6-4ee1-bab0-cd03df429fee",
+    "parentId": null,
+    "schemaVersion": 3,
+    "type": "jira.manual.trigger.issue",
+    "value": {
+      "groups": [],
+      "inputFromUsers": true,
+      "inputPrompts": [
+        {
+          "defaultValue": false,
+          "displayName": "I want to clone this issue to CAVPSE. If you are creating a Bug please make sure to fill out priority, Severity, Environment Found and affects versions or the bug will not be created successfully.",
+          "inputType": "BOOLEAN",
+          "required": false,
+          "variableName": "Attestation"
+        },
+        {
+          "defaultValue": [
+            "Bug",
+            "Story",
+            "Task",
+            "Epic"
+          ],
+          "displayName": "Issue Type",
+          "inputType": "DROPDOWN",
+          "required": true,
+          "variableName": "Issue Type"
+        },
+        {
+          "defaultValue": [
+            "Battery in loop (BIL)",
+            "Campground",
+            "CI Build",
+            "COHEED",
+            "F48A EVSE HIL",
+            "My Computer",
+            "Pack Cycler",
+            "Pack EOL",
+            "Pack in loop (PIL)",
+            "Software in loop (SIL)",
+            "Thermal Buck",
+            "Vehicle",
+            "Vehicle in loop (VIL)",
+            "VEV Breadboard",
+            "IVI Bench",
+            "hil-cpzm-chil",
+            "hil-ebox-bhil",
+            "hil-ebox-chil",
+            "hil-ebox-phil",
+            "hil-flzm-chil",
+            "hil-flzm-phil",
+            "hil-frzm-chil",
+            "hil-frzm-phil",
+            "hil-other",
+            "hil-pdu-chil",
+            "hil-sdu-chil",
+            "hil-ttcm-phil",
+            "projection-cert",
+            "projection-precert-3PL",
+            "projection-precert-inhouse",
+            "sbt-airbin",
+            "sbt-binlanding",
+            "sbt-camerawidget",
+            "sbt-cpzm",
+            "sbt-dialwidget",
+            "sbt-domedock",
+            "sbt-ebox",
+            "sbt-essentialsbin",
+            "sbt-flzm",
+            "sbt-frzm",
+            "sbt-gatewaydock",
+            "sbt-other",
+            "sbt-pdu",
+            "sbt-powerbin",
+            "sbt-rtd",
+            "sbt-sdu",
+            "sbt-speakerbin",
+            "sbt-togglewidget",
+            "sbt-ttcm",
+            "sbt-usbcwidget",
+            "system-labcar",
+            "system-LV_bench",
+            "system-other",
+            "system-physapps_bench",
+            "Yellowboard"
+          ],
+          "displayName": "Environment Found",
+          "inputType": "DROPDOWN",
+          "required": false,
+          "variableName": "Environment"
+        },
+        {
+          "defaultValue": [
+            "ADAS",
+            "Albion",
+            "Albion - Build & Infrastructure",
+            "Albion - Diagnostics",
+            "Albion - FOSS",
+            "Albion - Infra BSP",
+            "Albion - Multimedia",
+            "Albion - Platform",
+            "Albion - Projection",
+            "Albion - QA",
+            "Albion - Realtime&Safety",
+            "Albion - System Integration",
+            "Andrizons - Energy App",
+            "Andrizons - Launcher",
+            "Andrizons - Platform Services",
+            "Andrizons - Radio App",
+            "Andrizons - Settings App",
+            "Andrizons - System UI App",
+            "Andrizons - Theming",
+            "Andrizons (TRIAGE)",
+            "Andrizons - Vehicle Frameworks",
+            "Andrizons - Vehicle Services",
+            "Battery Algorithms",
+            "Campground",
+            "Campground - CI/CD",
+            "Campground - Cloud",
+            "Campground - Conversions",
+            "Campground - Fault Viewer",
+            "Campground - Interactions",
+            "Campground - Logging",
+            "Campground - NoteBook",
+            "Campground - Projects",
+            "Campground - Settings",
+            "Campground - UDS",
+            "CE1 Bootloader",
+            "CE1 Network Specifications",
+            "CE1 Platform",
+            "CE1 Time",
+            "Charge Port Zonal Module (CPZM)",
+            "Chassis",
+            "Chassis - EBB",
+            "Chassis - EPAS",
+            "Chassis - EPB",
+            "Chassis - RCM",
+            "Chassis - TPMS",
+            "Cloud",
+            "Core OS / Kirin",
+            "Core OS / Ogre",
+            "Cybersecurity",
+            "Data Model",
+            "E Box",
+            "FUSA",
+            "GHS - Bootloader",
+            "GHS - Platform",
+            "Hardware",
+            "Hardware Handlers",
+            "Horizons - Application Frameworks",
+            "Horizons - ASA",
+            "Horizons - Camera",
+            "Horizons - Core UI",
+            "Horizons DevOps",
+            "Horizons - Driver Information",
+            "Horizons - Functional Safety",
+            "Horizons Gherkin Test Infrastructure",
+            "Horizons - Mr. Fusion 3D Framework",
+            "Horizons - Platform Services",
+            "Horizons (TRIAGE)",
+            "Horizons - Vehicle Frameworks",
+            "Horizons - Vehicle Services",
+            "Inverter / Drive Unit (xDU)",
+            "IVI - Chime",
+            "IVI - Tuner",
+            "JIRA CCB",
+            "Labcar Bringup",
+            "Merlin",
+            "Ordo Framework",
+            "OTA",
+            "P833 Software - General",
+            "PAE DevOps",
+            "phys-app",
+            "Phys-app-Bin-landings",
+            "Phys-app-Bins",
+            "Phys-app-Bins-Interface-Board",
+            "Phys-app-Bins-SpeakerBin",
+            "Phys-app-Docks-Dome-dock",
+            "Phys-app-Docks-Driver-dock",
+            "Phys-app-Docks-Gateway-dock",
+            "Phys-app-Docks-Platform",
+            "Phys-app-EssentialsBin",
+            "phys-app-ideation",
+            "phys-apps-android",
+            "phys-app-sdk",
+            "phys-apps-firmware",
+            "phys-app-tooling",
+            "phys-app-widgets",
+            "Phys-app-Widgets-Alfie",
+            "Phys-app-Widgets-Camera",
+            "Phys-app-Widgets-Dial",
+            "Phys-app-Widgets-Platform",
+            "Phys-app-Widgets-Toggle-Display",
+            "Phys-app-Widgets-USBC",
+            "Platform - GHS Integration",
+            "Platform - GHS Multi",
+            "Platform - GHS uvelOSity",
+            "Platform - NXP",
+            "Platform - TUXERA",
+            "SEA - Auxon Products",
+            "SEA - CE1 Logging",
+            "SEA - DMCA Milestones",
+            "SEA - Spec Driven Systems Engineering",
+            "SEA - System Simulation (SIL + SIL/HIL)",
+            "Supplier Software",
+            "Systems and Integration",
+            "TCU",
+            "Tools/Infra - Delivery",
+            "Tools & Infrastructure",
+            "Tools/Infra - UDS",
+            "Tools/Infra - Vehicle Communications",
+            "TTCM",
+            "Vehicle Apps and Features",
+            "vehicle-packaging",
+            "V&V",
+            "V&V - CPZM HIL",
+            "V&V - E-Box HIL",
+            "V&V - ECU SBT",
+            "V&V - Infrastructure",
+            "V&V - LV Bench",
+            "V&V - Physical Apps",
+            "V&V - System Test",
+            "V&V - xDU HIL",
+            "V&V - Zonal HIL",
+            "Zonal",
+            "Zonal - Body",
+            "Zonal - Hardware",
+            "Zonal - Motion",
+            "Zonal - Platform",
+            "Zonal - Power Distribution",
+            "Zonal - Thermal"
+          ],
+          "displayName": "Component",
+          "inputType": "DROPDOWN",
+          "required": true,
+          "variableName": "Component"
+        },
+        {
+          "defaultValue": [
+            "P0",
+            "P1",
+            "P2",
+            "P3",
+            "P4"
+          ],
+          "displayName": "Priority",
+          "inputType": "DROPDOWN",
+          "required": false,
+          "variableName": "Priority"
+        },
+        {
+          "defaultValue": [
+            "Critical",
+            "High",
+            "Medium",
+            "Low"
+          ],
+          "displayName": "Severity",
+          "inputType": "DROPDOWN",
+          "required": false,
+          "variableName": "Severity"
+        },
+        {
+          "defaultValue": "",
+          "displayName": "Affected Vehicle(s)",
+          "inputType": "TEXT",
+          "required": false,
+          "variableName": "Affected"
+        },
+        {
+          "defaultValue": [
+            "26.48",
+            "26.44",
+            "26.40",
+            "26.36",
+            "26.32",
+            "26.28",
+            "26.24",
+            "26.20",
+            "26.16",
+            "26.12",
+            "26.04",
+            "feature-beta-vehicle-testing",
+            "T&I"
+          ],
+          "displayName": "Affects Version (Required for Bugs)",
+          "inputType": "DROPDOWN",
+          "required": false,
+          "variableName": "version"
+        }
+      ],
+      "issueFilter": {
+        "filterType": "ISSUE_TYPE",
+        "value": [
+          "Change request",
+          "Investigation",
+          "Issue",
+          "Sub-task",
+          "Concern Ticket",
+          "Bug",
+          "Story",
+          "Task",
+          "Epic",
+          "Initiative",
+          "Theme",
+          "Device Transmittals",
+          "Network Architecture",
+          "FITS",
+          "Packaging",
+          "Diagnostics",
+          "Validation",
+          "Solve Ticket"
+        ]
+      },
+      "jQLFilter": null
+    }
+  },
+  "updated": 1782142305346,
+  "writeAccessType": "UNRESTRICTED"
+}

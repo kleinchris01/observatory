@@ -1,0 +1,740 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:10e644de-d96b-4816-9029-d6cf8f0aec37",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "687799827",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1731941987967",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "domain"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{reporter.emailAddress.split(\"@\").get(1)}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "687799828",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "{{domain}}"
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "714177459",
+              "parentId": "714188734",
+              "schemaVersion": 11,
+              "type": "jira.issue.transition",
+              "value": {
+                "advancedFields": null,
+                "destinationStatus": {
+                  "type": "NAME",
+                  "value": "External Check"
+                },
+                "operations": [],
+                "sendNotifications": true,
+                "transitionMatch": ""
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "714188734",
+              "conditions": [],
+              "connectionId": null,
+              "id": "714188735",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{domain}}",
+                "operator": "NOT_EQUALS",
+                "second": "ford.com"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "714188734",
+          "parentId": "714188733",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "687799830",
+              "parentId": "714188736",
+              "schemaVersion": 1,
+              "type": "jira.issue.refresh.issue",
+              "value": {
+                "delayMs": null
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "687799831",
+              "parentId": "714188736",
+              "schemaVersion": 1,
+              "type": "jira.issue.outgoing.webhook",
+              "value": {
+                "contentType": "custom",
+                "continueOnErrorEnabled": false,
+                "customBody": "grant_type=client_credentials&client_id=2699247d-c7a7-464e-bd58-67504278886a&client_secret=[[REDACTED:96497140]]&scope=https://graph.microsoft.com/.default",
+                "headers": [
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1708925083470",
+                    "name": "Content-Type",
+                    "value": "application/x-www-form-urlencoded"
+                  }
+                ],
+                "method": "GET",
+                "responseEnabled": true,
+                "sendIssue": false,
+                "url": "https://login.microsoftonline.com/c990bb7a-51f4-439b-bd36-9c07fb1041c0/oauth2/v2.0/token",
+                "urlSecure": false
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "687799832",
+              "parentId": "714188736",
+              "schemaVersion": 1,
+              "type": "jira.create.variable",
+              "value": {
+                "id": "_customsmartvalue_id_1708925251283",
+                "lazy": false,
+                "name": {
+                  "type": "FREE",
+                  "value": "graphtoken"
+                },
+                "query": {
+                  "type": "SMART",
+                  "value": "{{webhookResponse.body.access_token}}"
+                },
+                "type": "SMART"
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "687799833",
+              "parentId": "714188736",
+              "schemaVersion": 1,
+              "type": "jira.issue.outgoing.webhook",
+              "value": {
+                "contentType": "empty",
+                "continueOnErrorEnabled": false,
+                "customBody": "grant_type=client_credentials&client_id=2699247d-c7a7-464e-bd58-67504278886a&client_secret=[[REDACTED:5d417630]]&scope=https://graph.microsoft.com/.default",
+                "headers": [
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1708927850887",
+                    "name": "",
+                    "value": ""
+                  },
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1708927851629",
+                    "name": "Authorization",
+                    "value": "Bearer {{graphtoken}}"
+                  }
+                ],
+                "method": "GET",
+                "responseEnabled": true,
+                "sendIssue": false,
+                "url": "https://graph.microsoft.com/v1.0/users/{{issue.reporter.emailAddress}}",
+                "urlSecure": false
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "687799834",
+              "parentId": "714188736",
+              "schemaVersion": 1,
+              "type": "jira.create.variable",
+              "value": {
+                "id": "_customsmartvalue_id_1708925251283",
+                "lazy": false,
+                "name": {
+                  "type": "FREE",
+                  "value": "userid"
+                },
+                "query": {
+                  "type": "SMART",
+                  "value": "{{webhookResponse.body.id}}"
+                },
+                "type": "SMART"
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "687799835",
+              "parentId": "714188736",
+              "schemaVersion": 1,
+              "type": "jira.create.variable",
+              "value": {
+                "id": "_customsmartvalue_id_1708925251283",
+                "lazy": false,
+                "name": {
+                  "type": "FREE",
+                  "value": "username"
+                },
+                "query": {
+                  "type": "SMART",
+                  "value": "{{webhookResponse.body.mail.split(\"@\").first}}"
+                },
+                "type": "SMART"
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "687799836",
+              "parentId": "714188736",
+              "schemaVersion": 1,
+              "type": "codebarrel.action.log",
+              "value": "User ID: {{userid}}, Username: {{username}}"
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "687799840",
+              "parentId": "714188736",
+              "schemaVersion": 1,
+              "type": "jira.issue.outgoing.webhook",
+              "value": {
+                "contentType": "empty",
+                "continueOnErrorEnabled": false,
+                "customBody": "grant_type=client_credentials&client_id=2699247d-c7a7-464e-bd58-67504278886a&client_secret=[[REDACTED:5d417630]]&scope=https://graph.microsoft.com/.default",
+                "headers": [
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1708927850887",
+                    "name": "",
+                    "value": ""
+                  },
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1708927851629",
+                    "name": "Authorization",
+                    "value": "Bearer {{graphtoken}}"
+                  }
+                ],
+                "method": "GET",
+                "responseEnabled": true,
+                "sendIssue": false,
+                "url": "https://graph.microsoft.com/v1.0/users/{{userid}}?$select=onPremisesExtensionAttributes",
+                "urlSecure": false
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "687799841",
+              "parentId": "714188736",
+              "schemaVersion": 1,
+              "type": "jira.create.variable",
+              "value": {
+                "id": "_customsmartvalue_id_1711999595001",
+                "lazy": false,
+                "name": {
+                  "type": "FREE",
+                  "value": "employeetype"
+                },
+                "query": {
+                  "type": "SMART",
+                  "value": "{{webhookResponse.body.onPremisesExtensionAttributes.extensionAttribute15}}"
+                },
+                "type": "SMART"
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "687799853",
+                      "parentId": "714188739",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "Employee Type"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:radiobuttons",
+                            "type": "SET",
+                            "value": {
+                              "type": "NAME",
+                              "value": "Internal"
+                            }
+                          },
+                          {
+                            "field": {
+                              "type": "ID",
+                              "value": "description"
+                            },
+                            "fieldType": "description",
+                            "type": "SET",
+                            "value": "*Reporter Name:* {{reporter.displayName}}\n*Reporter CDSID:* {{reporter.emailAddress.split(\"@\").first.toUpperCase()}}\n*Jira Projected Requested:* {{customfield_11373.Project_Name}}\n*Access Requested:* {{customfield_11475}}{{issue.customfield_19213}}{{issue.customfield_19214}}\n*Reason for Access:* {{issue.customfield_12966}}"
+                          }
+                        ],
+                        "sendNotifications": false
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714188337",
+                      "parentId": "714188739",
+                      "schemaVersion": 11,
+                      "type": "jira.issue.transition",
+                      "value": {
+                        "advancedFields": null,
+                        "destinationStatus": {
+                          "type": "NAME",
+                          "value": "Disclosure"
+                        },
+                        "operations": [],
+                        "sendNotifications": true,
+                        "transitionMatch": ""
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "714188739",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714188740",
+                      "parentId": null,
+                      "schemaVersion": 1,
+                      "type": "jira.comparator.condition",
+                      "value": {
+                        "first": "{{employeetype}}",
+                        "operator": "EQUALS",
+                        "second": "F"
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "714188739",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714188741",
+                      "parentId": null,
+                      "schemaVersion": 1,
+                      "type": "jira.comparator.condition",
+                      "value": {
+                        "first": "{{employeetype}}",
+                        "operator": "EQUALS",
+                        "second": "H"
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "714188739",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714188742",
+                      "parentId": null,
+                      "schemaVersion": 1,
+                      "type": "jira.comparator.condition",
+                      "value": {
+                        "first": "{{employeetype}}",
+                        "operator": "EQUALS",
+                        "second": "P"
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "714188739",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714188743",
+                      "parentId": null,
+                      "schemaVersion": 1,
+                      "type": "jira.comparator.condition",
+                      "value": {
+                        "first": "{{employeetype}}",
+                        "operator": "EQUALS",
+                        "second": "N"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "714188739",
+                  "parentId": "714188738",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ANY"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "687799863",
+                      "parentId": "714188744",
+                      "schemaVersion": 1,
+                      "type": "jira.issue.refresh.issue",
+                      "value": {
+                        "delayMs": null
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "687799864",
+                      "parentId": "714188744",
+                      "schemaVersion": 11,
+                      "type": "jira.issue.transition",
+                      "value": {
+                        "advancedFields": null,
+                        "destinationStatus": {
+                          "type": "NAME",
+                          "value": "External Check"
+                        },
+                        "operations": [],
+                        "sendNotifications": true,
+                        "transitionMatch": ""
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "714188744",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714188745",
+                      "parentId": null,
+                      "schemaVersion": 1,
+                      "type": "jira.comparator.condition",
+                      "value": {
+                        "first": "{{employeetype}}",
+                        "operator": "NOT_EQUALS",
+                        "second": "F"
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "714188744",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714188746",
+                      "parentId": null,
+                      "schemaVersion": 1,
+                      "type": "jira.comparator.condition",
+                      "value": {
+                        "first": "{{employeetype}}",
+                        "operator": "NOT_EQUALS",
+                        "second": "H"
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "714188744",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714188747",
+                      "parentId": null,
+                      "schemaVersion": 1,
+                      "type": "jira.comparator.condition",
+                      "value": {
+                        "first": "{{employeetype}}",
+                        "operator": "NOT_EQUALS",
+                        "second": "P"
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "714188744",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714188748",
+                      "parentId": null,
+                      "schemaVersion": 1,
+                      "type": "jira.comparator.condition",
+                      "value": {
+                        "first": "{{employeetype}}",
+                        "operator": "NOT_EQUALS",
+                        "second": "N"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "714188744",
+                  "parentId": "714188738",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                }
+              ],
+              "component": "CONDITION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "714188738",
+              "parentId": "714188736",
+              "schemaVersion": 1,
+              "type": "jira.condition.container.block",
+              "value": null
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "714188736",
+              "conditions": [],
+              "connectionId": null,
+              "id": "714188737",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{domain}}",
+                "operator": "EQUALS",
+                "second": "ford.com"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "714188736",
+          "parentId": "714188733",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "714188733",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1731627739905,
+  "description": "Pull Employee type from Azure.  Send to External Check if not Internal (F,H,P,N).  For Internal, update Employee Type and Description, then transition to Disclosure.",
+  "id": 22988281,
+  "idUuid": "01932d0e-6b01-75d0-a892-be154e54e611",
+  "labels": [
+    758924,
+    911815
+  ],
+  "name": "Jira - 2a - Employee Check",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "687799824",
+        "conditions": [],
+        "connectionId": null,
+        "id": "52649414-c2ba-4c0b-be13-4dd005e391bf",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": true,
+            "source": null,
+            "type": "NAME",
+            "value": "[\"Jira Access\",\"ADVEV Access\"]"
+          },
+          "comparison": "ONE_OF",
+          "selectedField": {
+            "type": "NAME",
+            "value": "Request Type"
+          },
+          "selectedFieldType": "com.atlassian.servicedesk:vp-origin"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "687799824",
+        "conditions": [],
+        "connectionId": null,
+        "id": "e772541d-0ef9-4cb2-b731-5d5223fea614",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": true,
+            "source": null,
+            "type": "NAME",
+            "value": "[\"Jira\"]"
+          },
+          "comparison": "CONTAINS_EXACTLY",
+          "selectedField": {
+            "type": "NAME",
+            "value": "ADT Tool(s)"
+          },
+          "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "687799824",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:transitioned",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+      ],
+      "eventKey": "jira:issue_updated",
+      "fromStatus": [],
+      "issueEvent": "issue_generic",
+      "toStatus": [
+        {
+          "type": "NAME",
+          "value": "Employee Check"
+        }
+      ]
+    }
+  },
+  "updated": 1780095818196,
+  "writeAccessType": "UNRESTRICTED"
+}

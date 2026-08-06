@@ -1,0 +1,108 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "c910d9e4-73de-4da8-b604-facee49a4119",
+      "parentId": null,
+      "schemaVersion": 2,
+      "type": "jira.issue.add.watcher",
+      "value": {
+        "removeAll": false,
+        "removeWatchers": [],
+        "watchers": [
+          {
+            "type": "SMART",
+            "value": "{{issue.Collaborators}}"
+          },
+          {
+            "type": "SMART",
+            "value": "{{issue.Issue Participants}}"
+          },
+          {
+            "type": "SMART",
+            "value": "{{issue.Approver}}"
+          },
+          {
+            "type": "SMART",
+            "value": "{{issue.customfield_12059}}"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1776359508178,
+  "description": "",
+  "id": 32903817,
+  "idUuid": "019d9747-08d2-7601-b76d-7c1c4c7b24ae",
+  "labels": [],
+  "name": "Update Watchers to collaborators/ issue participants/ DRI/ Approver",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10066",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10042"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "ab6b16ce-c7b3-4a5c-a386-32906a609521",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10042",
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10066"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Collaborators"
+        },
+        {
+          "type": "fieldName",
+          "value": "Issue Participants"
+        },
+        {
+          "type": "fieldName",
+          "value": "Responsible D&R/DRI"
+        },
+        {
+          "type": "fieldName",
+          "value": "Approver"
+        }
+      ]
+    }
+  },
+  "updated": 1776359611901,
+  "writeAccessType": "OWNER_ONLY"
+}

@@ -1,0 +1,188 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:c9c3dfc4-eef5-4087-8b1a-8ee188485a9b",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "dd4ef0e0-7b05-4f29-bd4e-fb42b87955f1",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.lookup.issues",
+      "value": {
+        "id": "_customsmartvalue_id_1774407258445",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "lookupIssues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "parent = {{issue.key}}"
+        },
+        "type": "JQL"
+      }
+    },
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "2d85760b-f0af-4b4f-b1ed-6782b0c158cb",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.comparator.condition",
+      "value": {
+        "first": "{{lookupIssues.size}}",
+        "operator": "GREATER_THAN",
+        "second": "0"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "5f13a6a5-c0b7-4a68-a135-34714574afb5",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.lookup.issues",
+      "value": {
+        "id": "_customsmartvalue_id_1774407484078",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "lookupIssues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "parent = {{issue.key}} AND fixVersion >= \"{{issue.fixVersions.first.name}}\""
+        },
+        "type": "JQL"
+      }
+    },
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "b3fc66d2-3577-4533-99c0-d53aa6298dc8",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.comparator.condition",
+      "value": {
+        "first": "{{lookupIssues.size}}",
+        "operator": "EQUALS",
+        "second": "0"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "6055f528-3ad0-4458-a668-4eb565f3989c",
+      "parentId": null,
+      "schemaVersion": 2,
+      "type": "jira.issue.comment",
+      "value": {
+        "addCommentOnce": false,
+        "comment": "All child issues of this Epic have earlier Fix Versions than the Epic's Fix Version ({{issue.fixVersions.first.name}}). Please review the Fix Versions for this Epic and its child issues.",
+        "commentVisibility": null,
+        "publicComment": false,
+        "sendNotifications": true
+      }
+    }
+  ],
+  "created": 1774449444822,
+  "description": "We will add a comment to the parent  when we change fixVersion on the parent only if ALL children have earlier fixVersion ( not just one of them) .  The earlier fix versions might be different, and it is okay. ",
+  "id": 32582208,
+  "idUuid": "019d256d-c7d7-7770-89eb-ca988e037d77",
+  "labels": [
+    1048769
+  ],
+  "name": "Add comment to Parent when changing the fix version, when ALL the children have earlier fix version.",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10104"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10104"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "1419bf06-fa45-4d41-ae48-03c0ebdd8eb5",
+        "conditions": [],
+        "connectionId": null,
+        "id": "a37fbea2-7283-4abb-ab29-b6af00519ab1",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "10000"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "1419bf06-fa45-4d41-ae48-03c0ebdd8eb5",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10104"
+      ],
+      "fields": [
+        {
+          "type": "field",
+          "value": "fixVersions"
+        }
+      ]
+    }
+  },
+  "updated": 1774449673914,
+  "writeAccessType": "OWNER_ONLY"
+}

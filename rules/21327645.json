@@ -1,0 +1,706 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "661705961",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": null,
+          "type": "NAME",
+          "value": "Inventory Addition"
+        },
+        "comparison": "EQUALS",
+        "selectedField": {
+          "type": "NAME",
+          "value": "Request Type"
+        },
+        "selectedFieldType": "com.atlassian.servicedesk:vp-origin"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "661705963",
+          "parentId": "661705962",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "NAME",
+              "value": "Part"
+            },
+            "comparison": "EQUALS",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Part Object Type"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:radiobuttons"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "661705964",
+          "parentId": "661705962",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "Quantity is {{issue.Quantity.round}}"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "661705965",
+          "parentId": "661705962",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{issue.customfield_11853}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{issue.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{issue.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{issue.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Quantity In Inventory",
+                "value": "{{issue.Quantity.round}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Quantity Ordered",
+                "value": "{{issue.Quantity.round}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Manufacturer",
+                "value": "{{issue.Supplier Name}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{issue.Part Number}}"
+              }
+            ],
+            "objectTypeId": "72",
+            "objectTypeLabel": "Module",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "661705962",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "661705967",
+          "parentId": "661705966",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "NAME",
+              "value": "Harness"
+            },
+            "comparison": "EQUALS",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Part Object Type"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:radiobuttons"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "661705968",
+          "parentId": "661705966",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "Quantity is {{issue.Quantity.round}}"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "661705969",
+          "parentId": "661705966",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{issue.customfield_11853}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Quantity Ordered",
+                "value": "{{issue.Quantity.round}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{issue.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{issue.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{issue.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Quantity In Inventory",
+                "value": "{{issue.Quantity.round}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{issue.Part Number}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Manufacturer",
+                "value": "{{issue.Supplier Name}}"
+              }
+            ],
+            "objectTypeId": "87",
+            "objectTypeLabel": "Harness",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "661705966",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "661705971",
+          "parentId": "661705970",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "NAME",
+              "value": "Connector"
+            },
+            "comparison": "EQUALS",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Part Object Type"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:radiobuttons"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "661705972",
+          "parentId": "661705970",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "Quantity is {{issue.Quantity.round}}"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "661705973",
+          "parentId": "661705970",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{issue.customfield_11853}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{issue.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{issue.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{issue.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Quantity In Inventory",
+                "value": "{{issue.Quantity.round}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Quantity Ordered",
+                "value": "{{issue.Quantity.round}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{issue.Part Number}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Manufacturer",
+                "value": "{{issue.Supplier Name}}"
+              }
+            ],
+            "objectTypeId": "89",
+            "objectTypeLabel": "Connector",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "661705970",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "661705975",
+          "parentId": "661705974",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "NAME",
+              "value": "Terminal"
+            },
+            "comparison": "EQUALS",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Part Object Type"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:radiobuttons"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "661705976",
+          "parentId": "661705974",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "Quantity is {{issue.Quantity.round}}"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "661705977",
+          "parentId": "661705974",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{issue.customfield_11853}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{issue.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{issue.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{issue.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Quantity In Inventory",
+                "value": "{{issue.Quantity.round}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Quantity Ordered",
+                "value": "{{issue.Quantity.round}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Availability",
+                "value": "Available"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{issue.Part Number}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Manufacturer",
+                "value": "{{issue.Supplier Name}}"
+              }
+            ],
+            "objectTypeId": "91",
+            "objectTypeLabel": "Pin",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "661705974",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "661705979",
+          "parentId": "661705978",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "NAME",
+              "value": "Specialty Tools"
+            },
+            "comparison": "EQUALS",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Part Object Type"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:radiobuttons"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "661705980",
+          "parentId": "661705978",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "Quantity is {{issue.Quantity.round}}"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "661705981",
+          "parentId": "661705978",
+          "schemaVersion": 1,
+          "type": "cmdb.object.create",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": true,
+                "name": "Name",
+                "value": "{{issue.customfield_11853}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Current Location",
+                "value": "{{issue.Current Location}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Room",
+                "value": "{{issue.Room}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Storage Unit",
+                "value": "{{issue.Storage Unit}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Quantity In Inventory",
+                "value": "{{issue.Quantity.round}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Quantity Ordered",
+                "value": "{{issue.Quantity.round}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Part/Model Number",
+                "value": "{{issue.Part Number}}"
+              },
+              {
+                "isLabel": false,
+                "name": "Manufacturer",
+                "value": "{{issue.Supplier Name}}"
+              }
+            ],
+            "objectTypeId": "71",
+            "objectTypeLabel": "Specialty Tools",
+            "schemaId": "15",
+            "schemaLabel": "Part Inventory Management",
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "661705978",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1723766742415,
+  "description": "",
+  "id": 21327645,
+  "idUuid": "01915881-1d8f-74bf-b072-24a64cfd32b0",
+  "labels": [
+    846526,
+    851239
+  ],
+  "name": "Create New Parts after approval on inventory addition requests",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "661705960",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:transitioned",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+      ],
+      "eventKey": "jira:issue_updated",
+      "fromStatus": [
+        {
+          "type": "NAME",
+          "value": "Approval"
+        }
+      ],
+      "issueEvent": "issue_generic",
+      "toStatus": [
+        {
+          "type": "NAME",
+          "value": "In Progress"
+        }
+      ]
+    }
+  },
+  "updated": 1736185542472,
+  "writeAccessType": "UNRESTRICTED"
+}

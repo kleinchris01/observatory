@@ -1,0 +1,167 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:bb6a7ce1-880d-460d-8237-79b014076859",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "717873534",
+      "parentId": null,
+      "schemaVersion": 6,
+      "type": "jira.user.condition",
+      "value": {
+        "conditions": [
+          {
+            "check": "USER_IS",
+            "criteria": [
+              {
+                "type": "ID",
+                "value": "712020:6130b769-6cc3-4dec-892a-3fc1a5ebe72f"
+              }
+            ],
+            "field": "assignee"
+          },
+          {
+            "check": "USER_IS",
+            "criteria": [
+              {
+                "type": "ID",
+                "value": "712020:48088e3b-ef51-40aa-827f-705336bacb59"
+              }
+            ],
+            "field": "assignee"
+          },
+          {
+            "check": "USER_IS",
+            "criteria": [
+              {
+                "type": "ID",
+                "value": "712020:5e96b340-9c1e-4098-8787-13a025898af2"
+              }
+            ],
+            "field": "assignee"
+          },
+          {
+            "check": "USER_IS",
+            "criteria": [
+              {
+                "type": "ID",
+                "value": "712020:a94319f2-cb87-43f5-bfb8-e74f0ec29266"
+              }
+            ],
+            "field": "assignee"
+          },
+          {
+            "check": "USER_IS",
+            "criteria": [
+              {
+                "type": "ID",
+                "value": "712020:334a6c4c-6480-4ee8-b579-c5749291ae10"
+              }
+            ],
+            "field": "assignee"
+          },
+          {
+            "check": "USER_IS",
+            "criteria": [
+              {
+                "type": "ID",
+                "value": "712020:cd881fe0-99a8-412a-bfb8-3196330938f0"
+              }
+            ],
+            "field": "assignee"
+          },
+          {
+            "check": "USER_IS",
+            "criteria": [
+              {
+                "type": "ID",
+                "value": "712020:25f72437-a74d-4d2a-b86b-2d988f87d19f"
+              }
+            ],
+            "field": "assignee"
+          },
+          {
+            "check": "USER_IS",
+            "criteria": [
+              {
+                "type": "ID",
+                "value": "712020:7eb3e4f8-9914-47af-b98d-4bc22f842b3d"
+              }
+            ],
+            "field": "assignee"
+          }
+        ],
+        "operator": "OR"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "717873535",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": "{\n    \"fields\": {\n        \"Team\": \"Phy Apps Platform\"\n        }\n}\n",
+        "operations": [],
+        "sendNotifications": false
+      }
+    }
+  ],
+  "created": 1751061223558,
+  "description": "",
+  "id": 29507772,
+  "idUuid": "0197b361-d886-7047-88fd-82d82dc4df8d",
+  "labels": [],
+  "name": "Platform team - Phy Apps- Assign Team",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10104"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10104"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "717873533",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10104"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1751061314105,
+  "writeAccessType": "OWNER_ONLY"
+}

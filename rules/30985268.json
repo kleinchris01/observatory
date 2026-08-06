@@ -1,0 +1,545 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "c9a872b7-9433-4459-968a-a40a6c9c9a8d",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "End Date (Calculated): {{issue.customfield_18455}}"
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "2a115c4e-bdd7-4255-b630-f08dc794505e",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.refresh.issue",
+      "value": {
+        "delayMs": null
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "62418105-fc03-422b-a99d-e5065b52363b",
+              "parentId": "8e698173-133f-4e35-8421-8e88b70935f2",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Duration (days)"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+                    "type": "SET",
+                    "value": "{{fieldChange.fromString}}"
+                  }
+                ],
+                "sendNotifications": true
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "7efb84b7-592f-43a2-bffd-3659cd5ba9d1",
+              "parentId": "8e698173-133f-4e35-8421-8e88b70935f2",
+              "schemaVersion": 2,
+              "type": "jira.issue.comment",
+              "value": {
+                "addCommentOnce": false,
+                "comment": "Duration (days) cannot exceed 90 days. Please input a valid value between 0-90 days.",
+                "commentVisibility": null,
+                "publicComment": true,
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "8e698173-133f-4e35-8421-8e88b70935f2",
+              "conditions": [],
+              "connectionId": null,
+              "id": "39849c99-7b3d-44b8-b04a-3693458fe2b3",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "VALUE",
+                  "value": "90"
+                },
+                "comparison": "GREATER_THAN",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Duration (days)"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "8e698173-133f-4e35-8421-8e88b70935f2",
+              "conditions": [],
+              "connectionId": null,
+              "id": "cb07a8f1-4926-4a38-8d6e-19878d9bc34a",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": null,
+                "comparison": "NOT_EMPTY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Deviation Start Date"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:datepicker"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "8e698173-133f-4e35-8421-8e88b70935f2",
+          "parentId": "4c1a9a61-d4ff-4e5f-b515-744e9e1f29c8",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "225c84a3-9522-4348-8a61-b94b39faa2cb",
+              "parentId": "5703a825-a9d7-416d-bc5b-d106cefa5b45",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Duration (days)"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+                    "type": "SET",
+                    "value": "{{fieldChange.fromString}}"
+                  }
+                ],
+                "sendNotifications": true
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "0ad03f93-2975-4fb7-9fee-9065d7b0f118",
+              "parentId": "5703a825-a9d7-416d-bc5b-d106cefa5b45",
+              "schemaVersion": 2,
+              "type": "jira.issue.comment",
+              "value": {
+                "addCommentOnce": false,
+                "comment": "Duration (days) cannot be a negative number. Please input a valid value between 0-90 days.",
+                "commentVisibility": null,
+                "publicComment": true,
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "5703a825-a9d7-416d-bc5b-d106cefa5b45",
+              "conditions": [],
+              "connectionId": null,
+              "id": "fdcf28bd-2b0e-47c2-8f60-d5ed536ba4e3",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "VALUE",
+                  "value": "0"
+                },
+                "comparison": "LESS_THAN",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Duration (days)"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "5703a825-a9d7-416d-bc5b-d106cefa5b45",
+              "conditions": [],
+              "connectionId": null,
+              "id": "508e6a45-4ab5-45c7-874c-888437e86bfd",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": null,
+                "comparison": "NOT_EMPTY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Deviation Start Date"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:datepicker"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "5703a825-a9d7-416d-bc5b-d106cefa5b45",
+          "parentId": "4c1a9a61-d4ff-4e5f-b515-744e9e1f29c8",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "c6a1cf93-3b69-4337-97a5-6dc4ef7977ee",
+              "parentId": "4ad74469-44ff-45c3-880b-6b4c6dd0b8ae",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": "{\n  \"fields\": {\n    \"customfield_18455\": \"{{issue.customfield_18454.plusDays(issue.customfield_12636).format(\\\"yyyy-MM-dd\\\")}}\"\n  }\n}\n",
+                "operations": [],
+                "sendNotifications": false
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "4ad74469-44ff-45c3-880b-6b4c6dd0b8ae",
+              "conditions": [],
+              "connectionId": null,
+              "id": "43a35077-d955-4c62-8037-3b773923fd6b",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "RANGE",
+                  "value": "{\"from\":\"-1\",\"to\":\"91\"}"
+                },
+                "comparison": "BETWEEN",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Duration (days)"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "4ad74469-44ff-45c3-880b-6b4c6dd0b8ae",
+              "conditions": [],
+              "connectionId": null,
+              "id": "7f286d25-4d77-4a31-90a7-314ad6dc1713",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": null,
+                "comparison": "NOT_EMPTY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Deviation Start Date"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:datepicker"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "4ad74469-44ff-45c3-880b-6b4c6dd0b8ae",
+          "parentId": "4c1a9a61-d4ff-4e5f-b515-744e9e1f29c8",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "aebe847a-80cf-4b9b-90ec-46e5f5610336",
+              "parentId": "76157c9a-0e5d-4123-add5-36ad47de01e9",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": "",
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "End Date (Calculated)"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:datepicker",
+                    "type": "SET",
+                    "value": null
+                  }
+                ],
+                "sendNotifications": false
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "77c1bdc8-e507-443a-9805-9f384a15ce7e",
+              "parentId": "76157c9a-0e5d-4123-add5-36ad47de01e9",
+              "schemaVersion": 1,
+              "type": "codebarrel.action.log",
+              "value": "End Date (Calculated): {{issue.customfield_18455}}"
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "76157c9a-0e5d-4123-add5-36ad47de01e9",
+              "conditions": [],
+              "connectionId": null,
+              "id": "052e4cc0-aa0e-4d13-bd4e-e161cd941d16",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": null,
+                "comparison": "EMPTY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Duration (days)"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "76157c9a-0e5d-4123-add5-36ad47de01e9",
+              "conditions": [],
+              "connectionId": null,
+              "id": "26cf2d67-9f81-458a-a209-9db71a46a57a",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": null,
+                "comparison": "EMPTY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Deviation Start Date"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:datepicker"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "76157c9a-0e5d-4123-add5-36ad47de01e9",
+          "parentId": "4c1a9a61-d4ff-4e5f-b515-744e9e1f29c8",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ANY"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "4c1a9a61-d4ff-4e5f-b515-744e9e1f29c8",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1764750790916,
+  "description": "This automation will check if the Duration (days) field is between 0-90, any changes outside of it will be reverted to the original value. This will also auto populate Calculated Duration (End Date) based on Deviation Start Date + Duration (days)",
+  "id": 30985268,
+  "idUuid": "019ae358-1105-73a7-937f-72fee5e6a3a0",
+  "labels": [],
+  "name": "SOLVE: Build Deviation - Check Duration (days) and auto populate End Date (Calculated) based on Deviation Start Date + Duration (days)",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "387234b4-303c-41fb-990c-80e8f55fd5f4",
+        "conditions": [],
+        "connectionId": null,
+        "id": "d168e89a-2d30-4378-8112-499dd45c3f82",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "12654"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "387234b4-303c-41fb-990c-80e8f55fd5f4",
+        "conditions": [],
+        "connectionId": null,
+        "id": "cdf57d61-b0ed-45ae-9e01-ad0b3cf0e068",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "13141"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "project"
+          },
+          "selectedFieldType": "project"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "387234b4-303c-41fb-990c-80e8f55fd5f4",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [
+        "create",
+        "edit",
+        "transition"
+      ],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Duration (days)"
+        },
+        {
+          "type": "fieldName",
+          "value": "Deviation Start Date"
+        }
+      ]
+    }
+  },
+  "updated": 1782741482216,
+  "writeAccessType": "UNRESTRICTED"
+}

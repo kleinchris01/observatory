@@ -1,0 +1,134 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "ce96d483-1e45-47cf-8df8-a5c3184151bc",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.comparator.condition",
+      "value": {
+        "first": "{{issue.customfield_11426}}",
+        "operator": "REGEX_NOT_MATCHES",
+        "second": "^BASE-([1-9][0-9]*)$|^$"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "d5a67445-1238-48f6-8ba2-89d6403e276b",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Requirement Baseline"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+            "type": "SET",
+            "value": "Invalid format. Please follow: BASE-([1-9][0-9]*). For example, BASE-1234 will work but BASE-00012 will not."
+          }
+        ],
+        "sendNotifications": false
+      }
+    }
+  ],
+  "created": 1764791812812,
+  "description": "",
+  "id": 30996324,
+  "idUuid": "019ae5ca-02cc-7587-970e-7ee569c661c3",
+  "labels": [],
+  "name": "Requirements Baseline Validator",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10104"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10104"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "789e370b-491c-40e3-a699-79aaab0e64df",
+        "conditions": [],
+        "connectionId": null,
+        "id": "2f80244c-4f3c-4c84-a3e3-d83a0f209c7f",
+        "parentId": null,
+        "schemaVersion": 6,
+        "type": "jira.user.condition",
+        "value": {
+          "conditions": [
+            {
+              "check": "USER_IS_NOT",
+              "criteria": [
+                {
+                  "type": "ID",
+                  "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+                }
+              ],
+              "field": "initiator"
+            }
+          ],
+          "operator": "OR"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "789e370b-491c-40e3-a699-79aaab0e64df",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [
+        "edit",
+        "transition",
+        "assign"
+      ],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10104"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Requirement Baseline"
+        }
+      ]
+    }
+  },
+  "updated": 1776889071550,
+  "writeAccessType": "UNRESTRICTED"
+}
