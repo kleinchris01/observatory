@@ -26,6 +26,9 @@ const RqtIndexView = React.lazy(() =>
 const WorkflowTab = React.lazy(() =>
   import("./tabs/WorkflowTab").then((m) => ({ default: m.WorkflowTab }))
 );
+const AutomationTab = React.lazy(() =>
+  import("./tabs/AutomationTab").then((m) => ({ default: m.AutomationTab }))
+);
 const OverviewDashboard = React.lazy(() =>
   import("./components/OverviewDashboard").then((m) => ({ default: m.OverviewDashboard }))
 );
@@ -166,6 +169,7 @@ export function AdminApp() {
     { key: "fields", label: "Field Browser", icon: "layers" },
     { key: "projects", label: "Project Usage", icon: "folder" },
     { key: "workflows", label: "Workflows", icon: "activity" },
+    { key: "automation", label: "Automation", icon: "refreshCw" },
     { key: "reports", label: "Reports", icon: "barChart" },
     { key: "scans", label: "Scans", icon: "zap" },
     { key: "config", label: "Configuration", icon: "settings" },
@@ -255,6 +259,10 @@ export function AdminApp() {
           ) : activeTab === "workflows" ? (
             <React.Suspense fallback={<div className="empty-state">Loading…</div>}>
               <WorkflowTab />
+            </React.Suspense>
+          ) : activeTab === "automation" ? (
+            <React.Suspense fallback={<div className="empty-state">Loading…</div>}>
+              <AutomationTab />
             </React.Suspense>
           ) : activeTab === "reports" ? (
             <ReportsTab siteOrigin={siteOrigin} selectedFieldIds={selectedFieldIds} onSetSelectedFieldIds={setSelectedFieldIds} autoGenerate={pendingReportGenerate} onAutoGenerateConsumed={() => setPendingReportGenerate(false)} />

@@ -84,6 +84,7 @@ const mocks = vi.hoisted(() => ({
   loadRqtFieldIssueIndex: vi.fn(),
   loadIssueRqtValues: vi.fn(),
   readWorkflowSnapshotMeta: vi.fn(),
+  readAutomationAnalysis: vi.fn(),
   loadWorkflowSchemes: vi.fn(),
   loadWorkflowSchemeProjects: vi.fn(),
   loadWorkflowSchemeForProject: vi.fn().mockResolvedValue(null),
@@ -150,6 +151,10 @@ vi.mock("./lib/queues.js", () => ({
 vi.mock("./lib/scan-engine.js", () => ({
   queueIssueScanWorker: mocks.queueIssueScanWorker,
   completeIssueScanFinalization: mocks.completeIssueScanFinalization,
+}));
+
+vi.mock("./lib/store/automation.js", () => ({
+  readAutomationAnalysis: mocks.readAutomationAnalysis,
 }));
 
 vi.mock("./lib/project-store.js", () => ({
@@ -288,6 +293,7 @@ import {
 const {
   saveReportDefinition,
   startProjectUsageReportJob,
+  getAutomationInsights,
 } = __RAW_ADMIN_ONLY_FUNCTIONS;
 
 const {
@@ -2906,6 +2912,95 @@ describe("getProjectsView workflow correlation", () => {
     expect(result.workflowScheme).toBeNull();
     expect(result.selectedProject.projectId).toBe("10");
     expect(result.projects).toHaveLength(2);
+  });
+});
+
+describe("getAutomationInsights", () => {
+  const doc = {
+    schemaVersion: 1,
+    refreshedAt: 1754400000000,
+    source: "export-file",
+    estate: { ruleCount: 1477, enabledCount: 874, disabledCount: 603 },
+    findings: [{ id: 1, name: "Send to approval", topSeverity: "high", risks: [{ code: "embedded-credential", severity: "high" }] }],
+    findingsTotal: 468,
+    cascades: [{ sourceId: 1, targetId: 2, field: "Actual SEOBD", selfTriggering: false }],
+    cascadesTotal: 1457,
+    selfTriggeringTotal: 123,
+  };
+
+  test("reports unavailable rather than empty when the analysis has never been built", async () => {
+    mocks.readAutomationAnalysis.mockResolvedValue(null);
+
+    const result = await getAutomationInsights({ payload: {}, context: ctxWithAccount() });
+
+    expect(result.available).toBe(false);
+    expect(result.reason).toBe("no-analysis");
+  });
+
+  test("returns the stored estate and findings", async () => {
+    mocks.readAutomationAnalysis.mockResolvedValue(doc);
+
+    const result = await getAutomationInsights({ payload: {}, context: ctxWithAccount() });
+
+    expect(result.available).toBe(true);
+    expect(result.estate).toMatchObject({ ruleCount: 1477, enabledCount: 874 });
+    expect(result.findings).toHaveLength(1);
+    expect(result.refreshedAt).toBe(1754400000000);
+  });
+
+  // The stored lists are capped. Reporting only what survived truncation would present a
+  // partial list as the complete set of problems on the site.
+  test("reports the true totals alongside the truncated lists", async () => {
+    mocks.readAutomationAnalysis.mockResolvedValue(doc);
+
+    const result = await getAutomationInsights({ payload: {}, context: ctxWithAccount() });
+
+    expect(result.findingsTotal).toBe(468);
+    expect(result.cascadesTotal).toBe(1457);
+    expect(result.selfTriggeringTotal).toBe(123);
+  });
+
+  test("falls back to list lengths when a document predates the total fields", async () => {
+    mocks.readAutomationAnalysis.mockResolvedValue({ ...doc, findingsTotal: undefined, cascadesTotal: undefined });
+
+    const result = await getAutomationInsights({ payload: {}, context: ctxWithAccount() });
+
+    expect(result.findingsTotal).toBe(1);
+    expect(result.cascadesTotal).toBe(1);
+  });
+
+  // A document written by an older build can be missing any of these. Each field falls back
+  // to an empty value rather than reaching the client as undefined, where the tab would
+  // render "undefined rules" or throw on a map of nothing.
+  test("fills every absent field rather than passing undefined to the tab", async () => {
+    mocks.readAutomationAnalysis.mockResolvedValue({ schemaVersion: 1 });
+
+    const result = await getAutomationInsights({ payload: {}, context: ctxWithAccount() });
+
+    expect(result).toMatchObject({
+      available: true,
+      refreshedAt: null,
+      source: "unknown",
+      estate: null,
+      findings: [],
+      findingsTotal: 0,
+      cascades: [],
+      cascadesTotal: 0,
+      selfTriggeringTotal: 0,
+    });
+  });
+
+  test("propagates a storage failure rather than reporting a clean estate", async () => {
+    mocks.readAutomationAnalysis.mockRejectedValue(new Error("kvs exploded"));
+
+    await expect(getAutomationInsights({ payload: {}, context: ctxWithAccount() })).rejects.toThrow("kvs exploded");
+  });
+
+  // Rule names, project scope and outbound hosts together describe the site's integration
+  // surface. This must not be reachable from the macro handler.
+  test("is registered admin-only, not shared with the macro handler", () => {
+    expect(Object.keys(ADMIN_ONLY_FUNCTIONS)).toContain("getAutomationInsights");
+    expect(Object.keys(SHARED_RESOLVER_FUNCTIONS)).not.toContain("getAutomationInsights");
   });
 });
 
