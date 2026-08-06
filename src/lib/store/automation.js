@@ -23,31 +23,57 @@ export {
   buildAnalysisDocument,
 } from "../automation-analysis.js";
 
-const KEY_PREFIX = "automation:analysis:";
+// Four documents under four keys rather than one.
+//
+// A KVS value holds roughly 240 KB. The analysis alone is ~130 KB on the reference site and
+// the field index another ~116 KB, so a single document would not fit. Splitting also means
+// the tab's first paint fetches only the analysis: the field and status indexes are loaded
+// when someone opens those sections, which most visits never do.
+export const AUTOMATION_PARTS = {
+  analysis: "automation:analysis:",
+  fields: "automation:fields:",
+  statuses: "automation:statuses:",
+  directory: "automation:directory:",
+};
 
-function keyFor(scopeKey) {
-  return `${KEY_PREFIX}${scopeKey}`;
+function keyFor(part, scopeKey) {
+  const prefix = AUTOMATION_PARTS[part];
+  if (!prefix) throw new Error(`unknown automation storage part: ${part}`);
+  return `${prefix}${scopeKey}`;
 }
 
-export async function writeAutomationAnalysis(scopeKey, document) {
-  await kvs.set(keyFor(scopeKey), document);
+export async function writeAutomationPart(scopeKey, part, document) {
+  await kvs.set(keyFor(part, scopeKey), document);
   return document;
 }
 
 // Returns null rather than throwing when nothing has been built yet. "No analysis" is the
 // normal state on a fresh install, not an error, and the tab renders an empty state for it.
-export async function readAutomationAnalysis(scopeKey) {
+export async function readAutomationPart(scopeKey, part) {
   const stored = await kvs
-    .get(keyFor(scopeKey))
-    .catch(fallbackOn("automation.analysis_read_failed", () => null, { scopeKey }));
+    .get(keyFor(part, scopeKey))
+    .catch(fallbackOn("automation.part_read_failed", () => null, { scopeKey, part }));
   if (!stored || typeof stored !== "object") return null;
   // A document written by an older build may not have the fields the current UI reads.
-  // Surfacing the version lets the resolver say "rebuild required" instead of rendering
-  // half a page.
+  // Returning null lets the caller say "rebuild required" instead of rendering half a page.
   if (stored.schemaVersion !== 1) return null;
   return stored;
 }
 
+export function writeAutomationAnalysis(scopeKey, document) {
+  return writeAutomationPart(scopeKey, "analysis", document);
+}
+
+export function readAutomationAnalysis(scopeKey) {
+  return readAutomationPart(scopeKey, "analysis");
+}
+
 export async function clearAutomationAnalysis(scopeKey) {
-  await kvs.delete(keyFor(scopeKey)).catch(fallbackOn("automation.analysis_clear_failed", () => null, { scopeKey }));
+  // Every part goes, not just the analysis. Leaving a stale field index behind would let
+  // the Fields section render data from a build the estate no longer matches.
+  await Promise.all(
+    Object.keys(AUTOMATION_PARTS).map((part) =>
+      kvs.delete(keyFor(part, scopeKey)).catch(fallbackOn("automation.part_clear_failed", () => null, { scopeKey, part }))
+    )
+  );
 }
