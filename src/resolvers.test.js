@@ -2969,6 +2969,27 @@ describe("getAutomationInsights", () => {
     expect(result.cascadesTotal).toBe(1);
   });
 
+  // A document written by an older build can be missing any of these. Each field falls back
+  // to an empty value rather than reaching the client as undefined, where the tab would
+  // render "undefined rules" or throw on a map of nothing.
+  test("fills every absent field rather than passing undefined to the tab", async () => {
+    mocks.readAutomationAnalysis.mockResolvedValue({ schemaVersion: 1 });
+
+    const result = await getAutomationInsights({ payload: {}, context: ctxWithAccount() });
+
+    expect(result).toMatchObject({
+      available: true,
+      refreshedAt: null,
+      source: "unknown",
+      estate: null,
+      findings: [],
+      findingsTotal: 0,
+      cascades: [],
+      cascadesTotal: 0,
+      selfTriggeringTotal: 0,
+    });
+  });
+
   test("propagates a storage failure rather than reporting a clean estate", async () => {
     mocks.readAutomationAnalysis.mockRejectedValue(new Error("kvs exploded"));
 
