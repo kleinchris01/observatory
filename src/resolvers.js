@@ -106,6 +106,9 @@ import {
 import {
   readAutomationAnalysis,
   writeAutomationAnalysis,
+  readAutomationPart,
+  writeAutomationPart,
+  AUTOMATION_PARTS,
   MAX_STORED_FINDINGS,
   MAX_STORED_CASCADES,
 } from "./lib/store/automation.js";
@@ -835,6 +838,72 @@ async function saveAutomationAnalysis({ payload, context }) {
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
     console.error("saveAutomationAnalysis failed:", error);
+    throw error;
+  }
+}
+
+
+// Store one of the supporting index documents: the field index, the status index, or the
+// rule directory.
+//
+// Written separately from the analysis, and deliberately BEFORE it. The analysis document
+// is what getAutomationInsights checks to decide whether anything has been built, so
+// writing it last makes it the commit point: if the browser fails partway through an
+// import, the tab keeps showing its empty state rather than an estate summary whose Fields
+// section is missing or belongs to a previous build.
+async function saveAutomationIndex({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const installationKey = getInstallationKey(context);
+    const part = payload?.part;
+    const document = payload?.document;
+
+    // The analysis has its own resolver, with its own validation and the server clock
+    // stamp. Routing it through here would bypass both.
+    if (part === "analysis" || !Object.prototype.hasOwnProperty.call(AUTOMATION_PARTS, part)) {
+      throw new Error(`unknown automation index part: ${part}`);
+    }
+    if (!document || typeof document !== "object" || Array.isArray(document)) {
+      throw new Error("document must be an object");
+    }
+    if (document.schemaVersion !== 1) {
+      throw new Error(`unsupported index schemaVersion: ${document.schemaVersion}`);
+    }
+
+    await writeAutomationPart(installationKey, part, document);
+    return { saved: true, part };
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("saveAutomationIndex failed:", error);
+    throw error;
+  }
+}
+
+
+// Fetch a supporting index on demand. The field index is ~116 KB; sending it with the
+// first paint would slow the tab for every visit that never opens the Fields section.
+async function getAutomationIndex({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const installationKey = getInstallationKey(context);
+    const part = payload?.part;
+    if (part === "analysis" || !Object.prototype.hasOwnProperty.call(AUTOMATION_PARTS, part)) {
+      throw new Error(`unknown automation index part: ${part}`);
+    }
+
+    const document = await readAutomationPart(installationKey, part);
+    if (!document) return { available: false, part, reason: "no-index" };
+
+    return {
+      available: true,
+      part,
+      total: document.total ?? 0,
+      entries: document.entries ?? [],
+      rules: document.rules ?? [],
+    };
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("getAutomationIndex failed:", error);
     throw error;
   }
 }
@@ -3350,7 +3419,9 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
 
   // Automation rule analysis
   getAutomationInsights,   // Admin read: enumerates rule names, project scope and outbound hosts
+  getAutomationIndex,      // Admin read: field / status reference index and the rule directory
   saveAutomationAnalysis,  // Mutating: replaces the stored automation analysis document
+  saveAutomationIndex,     // Mutating: replaces one supporting index document
 
   // Project usage job management
   getProjectUsageJobs,     // Admin read: lists all field-level project-usage jobs with logs

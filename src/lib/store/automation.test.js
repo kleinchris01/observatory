@@ -13,12 +13,15 @@ vi.mock("../logger.js", () => ({
 }));
 
 const {
+  AUTOMATION_PARTS,
   MAX_STORED_CASCADES,
   MAX_STORED_FINDINGS,
   buildAnalysisDocument,
   clearAutomationAnalysis,
   readAutomationAnalysis,
+  readAutomationPart,
   writeAutomationAnalysis,
+  writeAutomationPart,
 } = await import("./automation.js");
 
 const estate = { ruleCount: 3, enabledCount: 2, disabledCount: 1 };
@@ -127,14 +130,59 @@ describe("readAutomationAnalysis", () => {
 });
 
 describe("clearAutomationAnalysis", () => {
-  it("deletes the scope's document", async () => {
+  // Every part goes. A stale field index left behind would let the Fields section render
+  // data from a build the estate no longer matches.
+  it("deletes every part, not just the analysis", async () => {
     mocks.delete.mockResolvedValue(undefined);
     await clearAutomationAnalysis("scope-a");
-    expect(mocks.delete).toHaveBeenCalledWith("automation:analysis:scope-a");
+
+    const deleted = mocks.delete.mock.calls.map((c) => c[0]).sort();
+    expect(deleted).toEqual([
+      "automation:analysis:scope-a",
+      "automation:directory:scope-a",
+      "automation:fields:scope-a",
+      "automation:statuses:scope-a",
+    ]);
   });
 
   it("swallows a delete failure rather than failing the caller", async () => {
     mocks.delete.mockRejectedValue(new Error("kvs down"));
     await expect(clearAutomationAnalysis("s")).resolves.toBeUndefined();
+  });
+});
+
+describe("automation storage parts", () => {
+  it("namespaces each part under its own key", async () => {
+    await writeAutomationPart("s1", "fields", { schemaVersion: 1, entries: [] });
+    expect(mocks.set).toHaveBeenCalledWith("automation:fields:s1", { schemaVersion: 1, entries: [] });
+  });
+
+  it("exposes the four parts the pipeline writes", () => {
+    expect(Object.keys(AUTOMATION_PARTS).sort()).toEqual(["analysis", "directory", "fields", "statuses"]);
+  });
+
+  it("refuses an unknown part rather than writing to a computed key", async () => {
+    await expect(writeAutomationPart("s1", "../escape", {})).rejects.toThrow(/unknown automation storage part/);
+  });
+
+  it("reads a part back", async () => {
+    mocks.get.mockResolvedValue({ schemaVersion: 1, total: 735 });
+    await expect(readAutomationPart("s1", "fields")).resolves.toMatchObject({ total: 735 });
+    expect(mocks.get).toHaveBeenCalledWith("automation:fields:s1");
+  });
+
+  it("returns null for a part that has never been built", async () => {
+    mocks.get.mockResolvedValue(undefined);
+    await expect(readAutomationPart("s1", "statuses")).resolves.toBeNull();
+  });
+
+  it("returns null rather than throwing when the read fails", async () => {
+    mocks.get.mockRejectedValue(new Error("kvs down"));
+    await expect(readAutomationPart("s1", "fields")).resolves.toBeNull();
+  });
+
+  it("rejects a part written by a different schema version", async () => {
+    mocks.get.mockResolvedValue({ schemaVersion: 2, entries: [] });
+    await expect(readAutomationPart("s1", "fields")).resolves.toBeNull();
   });
 });
