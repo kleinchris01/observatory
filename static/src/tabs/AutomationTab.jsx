@@ -2,6 +2,7 @@ import React from "react";
 import { invoke } from "@forge/bridge";
 import { formatRelativeTime, formatNumber } from "../utils";
 import { BarList, Chip, EmptyState, FindingRow, Panel, StatRow, StatTile } from "../components/ui";
+import { analyzeRules } from "../../../src/lib/automation-analysis";
 
 // Governance view over the site's Jira Automation rules.
 //
@@ -51,19 +52,49 @@ export function findingDetailLine(rule) {
   return parts.join(" · ");
 }
 
+// Reads a rule export and derives the analysis in the browser.
+//
+// The export is ~10 MB and the backend cannot fetch rules itself yet, so the parsing and
+// analysis happen here and only the finished document -- around 130 KB -- is sent to be
+// stored. Shipping the raw file through invoke() would be a hundredfold larger payload for
+// the same result.
+export async function analyzeExportFile(file, { now = Date.now() } = {}) {
+  const text = await file.text();
+
+  let payload;
+  try {
+    payload = JSON.parse(text);
+  } catch {
+    throw new Error("That file is not valid JSON. Export the rules again from Jira and retry.");
+  }
+
+  const rules = payload?.rules;
+  if (!Array.isArray(rules) || rules.length === 0) {
+    throw new Error("That file has no rules in it. Pick the automation-rules export from Jira, not another JSON file.");
+  }
+
+  return analyzeRules(rules, { source: file.name || "export-file", now });
+}
+
 export function AutomationTab() {
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
   const [severityFilter, setSeverityFilter] = React.useState("all");
   const [search, setSearch] = React.useState("");
+  const [importing, setImporting] = React.useState(false);
+  const [importError, setImportError] = React.useState("");
+  const fileInputRef = React.useRef(null);
+
+  const load = React.useCallback(async () => {
+    const result = await invoke("getAutomationInsights", {});
+    setData(result);
+    return result;
+  }, []);
 
   React.useEffect(() => {
     let cancelled = false;
-    invoke("getAutomationInsights", {})
-      .then((result) => {
-        if (!cancelled) setData(result);
-      })
+    load()
       .catch((err) => {
         if (!cancelled) setError(err?.message || "Failed to load automation insights.");
       })
@@ -73,7 +104,48 @@ export function AutomationTab() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [load]);
+
+  async function handleImport(event) {
+    const file = event.target.files?.[0];
+    // Cleared immediately so picking the same file twice still fires a change event.
+    event.target.value = "";
+    if (!file) return;
+
+    setImporting(true);
+    setImportError("");
+    try {
+      const analysis = await analyzeExportFile(file);
+      await invoke("saveAutomationAnalysis", { analysis });
+      await load();
+    } catch (err) {
+      setImportError(err?.message || "Could not import that export.");
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  const importControl = (
+    <div className="automation-import">
+      <input
+        type="file"
+        accept="application/json,.json"
+        ref={fileInputRef}
+        onChange={handleImport}
+        className="automation-import__input"
+        aria-label="Automation rule export file"
+      />
+      <button
+        type="button"
+        className="automation-import__button"
+        onClick={() => fileInputRef.current?.click()}
+        disabled={importing}
+      >
+        {importing ? "Analyzing…" : data?.available ? "Re-import export" : "Import rule export"}
+      </button>
+      {importError ? <span className="automation-import__error">{importError}</span> : null}
+    </div>
+  );
 
   const findings = React.useMemo(() => {
     const rows = data?.findings ?? [];
@@ -102,12 +174,12 @@ export function AutomationTab() {
   // "0 findings" here would be a claim the data does not support.
   if (!data?.available) {
     return (
-      <EmptyState>
+      <EmptyState action={importControl}>
         <strong>No automation analysis yet.</strong>
         <div>
-          Rules have not been analyzed for this site. Once an analysis has been built, this tab
-          reports which fields and statuses automation depends on, which rules carry
-          credentials, and where rules can trigger each other.
+          Export your automation rules from Jira (Settings → System → Automation rules → Export)
+          and import the file here. It is read in your browser, so the rules themselves never
+          leave this page — only the summary is stored.
         </div>
       </EmptyState>
     );
@@ -133,8 +205,11 @@ export function AutomationTab() {
       </StatRow>
 
       <div className="automation-tab__meta">
-        Analyzed {data.refreshedAt ? formatRelativeTime(data.refreshedAt) : "at an unknown time"}
-        {data.source ? ` from ${data.source}` : ""}.
+        <span>
+          Analyzed {data.refreshedAt ? formatRelativeTime(data.refreshedAt) : "at an unknown time"}
+          {data.source ? ` from ${data.source}` : ""}.
+        </span>
+        {importControl}
       </div>
 
       <Panel

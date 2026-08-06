@@ -103,7 +103,12 @@ import {
   computeSchemeCategoryBalance,
   summarizeWorkflowInsights,
 } from "./lib/workflow-insights.js";
-import { readAutomationAnalysis } from "./lib/store/automation.js";
+import {
+  readAutomationAnalysis,
+  writeAutomationAnalysis,
+  MAX_STORED_FINDINGS,
+  MAX_STORED_CASCADES,
+} from "./lib/store/automation.js";
 import {
   STRUCTURAL_SYSTEM_FIELDS,
   isFieldValueNonEmpty,
@@ -764,6 +769,72 @@ async function getAutomationInsights({ context }) {
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
     console.error("getAutomationInsights failed:", error);
+    throw error;
+  }
+}
+
+
+// Store an analysis built by the admin's browser from an exported rule file.
+//
+// The site's rules are not reachable from the backend yet: the Automation API needs scopes
+// this app does not hold, and adding them requires the admin to re-consent. Meanwhile the
+// same export file already gets produced weekly for the committed rule snapshot, so this
+// takes the analysis the browser derived from that file. The whole 9 MB export never
+// crosses the invoke boundary -- only the bounded document, around 130 KB.
+//
+// The payload is admin-supplied and therefore validated, not trusted. An admin can already
+// read everything in it, so the risk is not disclosure; it is a malformed or oversized
+// document wedging the tab for everyone, or a client-side cap regression quietly writing a
+// value too large for KVS to hold. Caps are re-applied here rather than assumed.
+async function saveAutomationAnalysis({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const installationKey = getInstallationKey(context);
+    const document = payload?.analysis;
+
+    if (!document || typeof document !== "object" || Array.isArray(document)) {
+      throw new Error("analysis must be an object");
+    }
+    if (document.schemaVersion !== 1) {
+      throw new Error(`unsupported analysis schemaVersion: ${document.schemaVersion}`);
+    }
+    if (!document.estate || typeof document.estate !== "object") {
+      throw new Error("analysis.estate is required");
+    }
+
+    const findings = Array.isArray(document.findings) ? document.findings : [];
+    const cascades = Array.isArray(document.cascades) ? document.cascades : [];
+
+    const stored = {
+      schemaVersion: 1,
+      // Server clock, not the browser's. A workstation with a skewed clock would otherwise
+      // stamp an analysis as hours old or hours in the future, and the staleness warning
+      // this drives is the reason anyone trusts the numbers.
+      refreshedAt: Date.now(),
+      source: typeof document.source === "string" ? document.source.slice(0, 64) : "unknown",
+      estate: document.estate,
+      findings: findings.slice(0, MAX_STORED_FINDINGS),
+      // Totals describe the estate, not the truncated list, so they are taken from the
+      // payload rather than recomputed from what survived slicing.
+      findingsTotal: Number(document.findingsTotal) || findings.length,
+      cascades: cascades.slice(0, MAX_STORED_CASCADES),
+      cascadesTotal: Number(document.cascadesTotal) || cascades.length,
+      selfTriggeringTotal: Number(document.selfTriggeringTotal) || 0,
+    };
+
+    await writeAutomationAnalysis(installationKey, stored);
+
+    logger.info("automation.analysis_saved", {
+      installationKey,
+      ruleCount: stored.estate?.ruleCount ?? null,
+      findingsTotal: stored.findingsTotal,
+      source: stored.source,
+    });
+
+    return { saved: true, refreshedAt: stored.refreshedAt };
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("saveAutomationAnalysis failed:", error);
     throw error;
   }
 }
@@ -3279,6 +3350,7 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
 
   // Automation rule analysis
   getAutomationInsights,   // Admin read: enumerates rule names, project scope and outbound hosts
+  saveAutomationAnalysis,  // Mutating: replaces the stored automation analysis document
 
   // Project usage job management
   getProjectUsageJobs,     // Admin read: lists all field-level project-usage jobs with logs

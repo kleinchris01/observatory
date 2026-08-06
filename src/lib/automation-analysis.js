@@ -422,6 +422,77 @@ export function findTriggerCascades(rules = [], options = {}) {
   return cascades;
 }
 
+// KVS caps a single value at roughly 240 KB. The reference site produces 675 rules with
+// findings and 1,457 cascade edges; storing all of them came to 184 KB, which leaves too
+// little headroom for a site half again as large. These bounds hold the document near
+// 130 KB regardless of estate size.
+//
+// Truncation is always visible: the totals are computed before slicing, so the UI says
+// "showing 200 of 675" rather than presenting a partial list as the whole picture.
+export const MAX_STORED_FINDINGS = 200;
+export const MAX_STORED_CASCADES = 150;
+
+// Lives here rather than in the store because both sides need it and neither owns it: the
+// browser builds this document when importing an export file, and the backend builds it
+// when fetching rules from the API. The store's job is persistence, not shape.
+//
+// This module imports nothing, which is what makes that possible -- pulling in @forge/kvs
+// would make the whole analysis unimportable from the frontend bundle.
+export function buildAnalysisDocument({ estate, summaries = [], cascades = [], refreshedAt = Date.now(), source = "unknown" }) {
+  // Rules with no findings are the majority and carry no information here; the estate
+  // counts already say how many there are.
+  const withFindings = summaries
+    .filter((summary) => summary.risks.length > 0)
+    .sort((a, b) => (SEVERITY_ORDER[a.topSeverity] ?? 99) - (SEVERITY_ORDER[b.topSeverity] ?? 99));
+
+  const selfTriggering = cascades.filter((c) => c.selfTriggering);
+  const others = cascades.filter((c) => !c.selfTriggering);
+
+  return {
+    schemaVersion: 1,
+    refreshedAt,
+    source,
+    estate,
+    findingsTotal: withFindings.length,
+    findings: withFindings.slice(0, MAX_STORED_FINDINGS).map(compactSummary),
+    cascadesTotal: cascades.length,
+    selfTriggeringTotal: selfTriggering.length,
+    // Self-triggering loops are both the most likely to be real and the cheapest to fix,
+    // so they survive truncation ahead of cross-rule edges.
+    cascades: [...selfTriggering, ...others].slice(0, MAX_STORED_CASCADES),
+  };
+}
+
+function compactSummary(summary) {
+  return {
+    id: summary.id,
+    name: summary.name,
+    state: summary.state,
+    enabled: summary.enabled,
+    triggerType: summary.triggerType,
+    updated: summary.updated,
+    actionCount: summary.actionCount,
+    projectIds: (summary.projectIds ?? []).slice(0, 10),
+    projectCount: (summary.projectIds ?? []).length,
+    writesFields: (summary.writesFields ?? []).slice(0, 10),
+    topSeverity: summary.topSeverity,
+    risks: summary.risks,
+  };
+}
+
+// One call that turns raw rules into the document the tab reads. Wrapping the three steps
+// keeps the browser and the backend from drifting into two slightly different pipelines.
+export function analyzeRules(rules = [], { source = "unknown", now = Date.now() } = {}) {
+  const options = { now };
+  return buildAnalysisDocument({
+    estate: summarizeEstate(rules, options),
+    summaries: rules.map((rule) => summarizeRule(rule, options)),
+    cascades: findTriggerCascades(rules, options),
+    refreshedAt: now,
+    source,
+  });
+}
+
 export function summarizeEstate(rules = [], options = {}) {
   const { fields, statuses, summaries } = buildReferenceIndex(rules, options);
   const byTrigger = new Map();

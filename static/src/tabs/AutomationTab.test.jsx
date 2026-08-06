@@ -3,7 +3,21 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { invoke } from "@forge/bridge";
-import { AutomationTab, findingDetailLine, triggerLabel } from "./AutomationTab";
+import { AutomationTab, analyzeExportFile, findingDetailLine, triggerLabel } from "./AutomationTab";
+
+function exportFile(payload, name = "automation-rules-202608060201.json") {
+  return new File([JSON.stringify(payload)], name, { type: "application/json" });
+}
+
+const RULE = {
+  id: 1, name: "Set due date", state: "ENABLED", canOtherRuleTrigger: false, updated: 1,
+  trigger: { id: "t", component: "TRIGGER", type: "jira.issue.field.changed", value: { fields: [{ type: "fieldName", value: "Actual SEOBD" }] }, children: [], conditions: [] },
+  components: [{
+    id: "a", component: "ACTION", type: "jira.issue.edit", children: [], conditions: [],
+    value: { operations: [{ field: { type: "NAME", value: "Post sourcing cost review" }, type: "SET", value: "{{now}}" }] },
+  }],
+  projects: [{ projectId: "10518" }],
+};
 
 function analysis(overrides = {}) {
   return {
@@ -79,6 +93,30 @@ describe("findingDetailLine", () => {
 
   it("appends the disabled state", () => {
     expect(findingDetailLine({ triggerType: null, projectCount: 0, enabled: false })).toBe("No trigger · site-wide · disabled");
+  });
+});
+
+describe("analyzeExportFile", () => {
+  it("derives a storable analysis document from a real export shape", async () => {
+    const doc = await analyzeExportFile(exportFile({ cloud: true, rules: [RULE] }));
+
+    expect(doc).toMatchObject({ schemaVersion: 1, source: "automation-rules-202608060201.json" });
+    expect(doc.estate).toMatchObject({ ruleCount: 1, enabledCount: 1, disabledCount: 0 });
+    // The rule triggers on one field and writes another, so both are counted.
+    expect(doc.estate.fieldsReferenced).toBe(2);
+  });
+
+  it("rejects a file that is not JSON, naming the fix", async () => {
+    const bad = new File(["<html>not json</html>"], "wrong.json", { type: "application/json" });
+    await expect(analyzeExportFile(bad)).rejects.toThrow(/not valid JSON.*Export the rules again/s);
+  });
+
+  it("rejects valid JSON that is not a rule export", async () => {
+    await expect(analyzeExportFile(exportFile({ something: "else" }))).rejects.toThrow(/no rules in it/);
+  });
+
+  it("rejects an export with an empty rule list rather than storing an empty estate", async () => {
+    await expect(analyzeExportFile(exportFile({ rules: [] }))).rejects.toThrow(/no rules in it/);
   });
 });
 
@@ -220,5 +258,85 @@ describe("AutomationTab", () => {
     await screen.findByText("1,477");
     expect(invoke).toHaveBeenCalledTimes(1);
     expect(invoke).toHaveBeenCalledWith("getAutomationInsights", {});
+  });
+
+  describe("importing an export", () => {
+    it("offers the import control from the empty state", async () => {
+      invoke.mockResolvedValue({ available: false, reason: "no-analysis" });
+      render(<AutomationTab />);
+      expect(await screen.findByRole("button", { name: /import rule export/i })).toBeInTheDocument();
+    });
+
+    it("says the rules stay in the browser, because that is the reason it is safe", async () => {
+      invoke.mockResolvedValue({ available: false, reason: "no-analysis" });
+      render(<AutomationTab />);
+      expect(await screen.findByText(/never leave this page/i)).toBeInTheDocument();
+    });
+
+    // The whole point of analyzing client-side: the 10 MB export must not cross invoke().
+    it("sends the derived analysis, not the raw export", async () => {
+      const user = userEvent.setup();
+      invoke.mockResolvedValueOnce({ available: false, reason: "no-analysis" });
+      invoke.mockResolvedValueOnce({ saved: true });
+      invoke.mockResolvedValueOnce(analysis());
+
+      const { container } = render(<AutomationTab />);
+      await screen.findByRole("button", { name: /import rule export/i });
+
+      await user.upload(container.querySelector("input[type=file]"), exportFile({ rules: [RULE] }));
+
+      await waitFor(() => expect(invoke).toHaveBeenCalledWith("saveAutomationAnalysis", expect.any(Object)));
+      const [, payload] = invoke.mock.calls.find((c) => c[0] === "saveAutomationAnalysis");
+      expect(payload.analysis.schemaVersion).toBe(1);
+      expect(payload.analysis).not.toHaveProperty("rules");
+      expect(JSON.stringify(payload)).not.toContain("jira.issue.edit");
+    });
+
+    it("reloads the insights after a successful import", async () => {
+      const user = userEvent.setup();
+      invoke.mockResolvedValueOnce({ available: false, reason: "no-analysis" });
+      invoke.mockResolvedValueOnce({ saved: true });
+      invoke.mockResolvedValueOnce(analysis());
+
+      const { container } = render(<AutomationTab />);
+      await screen.findByRole("button", { name: /import rule export/i });
+
+      await user.upload(container.querySelector("input[type=file]"), exportFile({ rules: [RULE] }));
+
+      expect(await screen.findByText("1,477")).toBeInTheDocument();
+    });
+
+    it("shows the parse error against the control and keeps the empty state usable", async () => {
+      const user = userEvent.setup();
+      invoke.mockResolvedValue({ available: false, reason: "no-analysis" });
+
+      const { container } = render(<AutomationTab />);
+      await screen.findByRole("button", { name: /import rule export/i });
+
+      await user.upload(container.querySelector("input[type=file]"), exportFile({ notRules: true }));
+
+      expect(await screen.findByText(/no rules in it/i)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /import rule export/i })).toBeEnabled();
+      expect(invoke).not.toHaveBeenCalledWith("saveAutomationAnalysis", expect.anything());
+    });
+
+    it("surfaces a save failure rather than pretending the import worked", async () => {
+      const user = userEvent.setup();
+      invoke.mockResolvedValueOnce({ available: false, reason: "no-analysis" });
+      invoke.mockRejectedValueOnce(new Error("kvs write refused"));
+
+      const { container } = render(<AutomationTab />);
+      await screen.findByRole("button", { name: /import rule export/i });
+
+      await user.upload(container.querySelector("input[type=file]"), exportFile({ rules: [RULE] }));
+
+      expect(await screen.findByText(/kvs write refused/)).toBeInTheDocument();
+    });
+
+    it("offers a re-import once an analysis exists", async () => {
+      invoke.mockResolvedValue(analysis());
+      render(<AutomationTab />);
+      expect(await screen.findByRole("button", { name: /re-import export/i })).toBeInTheDocument();
+    });
   });
 });
