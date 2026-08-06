@@ -6793,3 +6793,33 @@ code {
 }
 
 .automation-usage__truncation { margin-top: 0.5rem; font-size: 0.75rem; color: var(--muted); }
+
+/* ── Rule deep links ──────────────────────────────────────────────────────
+   Underline on hover only. These appear in dense lists -- 116 rules on one
+   field -- where permanently underlining every name turns the block into
+   noise, and the pointer plus colour already read as a link. */
+
+.rule-link,
+.automation-usage__name--link {
+  color: var(--cool);
+  text-decoration: none;
+  cursor: pointer;
+}
+.rule-link:hover,
+.automation-usage__name--link:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.rule-link:focus-visible,
+.automation-usage__name--link:focus-visible {
+  outline: 2px solid var(--cool);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* Disabled rules keep the dimming their row already carries; the link colour
+   would otherwise fight it and make a switched-off rule look active. */
+.automation-usage__rule--disabled .automation-usage__name--link,
+.ref-detail__rule--disabled .rule-link {
+  color: inherit;
+}

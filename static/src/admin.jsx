@@ -262,7 +262,7 @@ export function AdminApp() {
             </React.Suspense>
           ) : activeTab === "automation" ? (
             <React.Suspense fallback={<div className="empty-state">Loading…</div>}>
-              <AutomationTab />
+              <AutomationTab siteOrigin={siteOrigin} />
             </React.Suspense>
           ) : activeTab === "reports" ? (
             <ReportsTab siteOrigin={siteOrigin} selectedFieldIds={selectedFieldIds} onSetSelectedFieldIds={setSelectedFieldIds} autoGenerate={pendingReportGenerate} onAutoGenerateConsumed={() => setPendingReportGenerate(false)} />

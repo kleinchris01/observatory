@@ -1,6 +1,6 @@
 import React from "react";
 import { invoke } from "@forge/bridge";
-import { formatRelativeTime, formatNumber } from "../utils";
+import { formatRelativeTime, formatNumber, buildAutomationRuleUrl, handleJiraLinkClick } from "../utils";
 import { BarList, Chip, EmptyState, FindingRow, Panel, StatRow, StatTile } from "../components/ui";
 import { SubNavLayout } from "../components/admin/primitives";
 import { Icon } from "../components/Icons";
@@ -119,6 +119,29 @@ export function riskDetail(risk) {
   }
 }
 
+// A rule name that opens the rule in Jira.
+//
+// Falls back to plain text when the site origin is unknown -- an anchor that silently does
+// nothing on click is worse than a label.
+export function RuleLink({ id, name, siteOrigin, className = "" }) {
+  const href = buildAutomationRuleUrl(siteOrigin, id);
+  const label = name || `Rule ${id}`;
+  if (!href) return <span className={className}>{label}</span>;
+
+  return (
+    <a
+      className={`rule-link ${className}`.trim()}
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      title={`Open "${label}" in Jira automation`}
+      onClick={(event) => { event.stopPropagation(); handleJiraLinkClick(event, href); }}
+    >
+      {label}
+    </a>
+  );
+}
+
 // ── Reference explorer ──────────────────────────────────────────────────────
 
 // Proportional strip showing how a field or status is used. Three numbers in three columns
@@ -144,7 +167,7 @@ function DirectionBar({ entry }) {
   );
 }
 
-function ReferenceRow({ entry, expanded, onToggle, directory }) {
+function ReferenceRow({ entry, expanded, onToggle, directory, siteOrigin }) {
   const total = entry.writeCount + entry.readCount + entry.triggerCount;
 
   return (
@@ -184,7 +207,7 @@ function ReferenceRow({ entry, expanded, onToggle, directory }) {
                     const rule = directory?.get(id);
                     return (
                       <li key={id} className={rule && !rule.enabled ? "ref-detail__rule ref-detail__rule--disabled" : "ref-detail__rule"}>
-                        <span className="ref-detail__name">{rule?.name ?? `Rule ${id}`}</span>
+                        <RuleLink id={id} name={rule?.name} siteOrigin={siteOrigin} className="ref-detail__name" />
                         {rule ? <span className="ref-detail__meta">{triggerLabel(rule.triggerType)}{rule.enabled ? "" : " · disabled"}</span> : null}
                       </li>
                     );
@@ -222,7 +245,7 @@ export function sortEntries(entries, sortKey) {
   return rows.sort((a, b) => b[`${sortKey}Count`] - a[`${sortKey}Count`]);
 }
 
-function ReferenceExplorer({ noun, index, directory, loading, error, onRetry }) {
+function ReferenceExplorer({ noun, index, directory, loading, error, onRetry, siteOrigin }) {
   const [search, setSearch] = React.useState("");
   const [sortKey, setSortKey] = React.useState("total");
   const [expanded, setExpanded] = React.useState(null);
@@ -290,6 +313,7 @@ function ReferenceExplorer({ noun, index, directory, loading, error, onRetry }) 
               key={entry.label}
               entry={entry}
               directory={directory}
+              siteOrigin={siteOrigin}
               expanded={expanded === entry.label}
               onToggle={() => setExpanded(expanded === entry.label ? null : entry.label)}
             />
@@ -337,7 +361,7 @@ export function groupCascades(cascades = []) {
   });
 }
 
-function CascadeSection({ data }) {
+function CascadeSection({ data, siteOrigin }) {
   const groups = React.useMemo(() => groupCascades(data.cascades), [data.cascades]);
 
   if (!data.cascadesTotal) {
@@ -365,11 +389,11 @@ function CascadeSection({ data }) {
               <Chip tone={g.selfTriggering ? "warning" : "neutral"}>
                 {g.selfTriggering ? "Self-triggering" : "Cascade"}
               </Chip>
-              <span className="cascade__rule">{g.sourceName ?? `Rule ${g.sourceId}`}</span>
+              <RuleLink id={g.sourceId} name={g.sourceName} siteOrigin={siteOrigin} className="cascade__rule" />
               {!g.selfTriggering ? (
                 <>
                   <span className="cascade__arrow" aria-label="triggers">→</span>
-                  <span className="cascade__rule">{g.targetName ?? `Rule ${g.targetId}`}</span>
+                  <RuleLink id={g.targetId} name={g.targetName} siteOrigin={siteOrigin} className="cascade__rule" />
                 </>
               ) : null}
             </div>
@@ -414,7 +438,7 @@ export function filterFindings(findings, { search = "", severity = "all", risk =
   });
 }
 
-function FindingsSection({ data, findings, loading, error, onRetry }) {
+function FindingsSection({ data, findings, loading, error, onRetry, siteOrigin }) {
   const [filters, setFilters] = React.useState({ search: "", severity: "all", risk: "all", state: "all", trigger: "all" });
   const [page, setPage] = React.useState(0);
 
@@ -506,7 +530,7 @@ function FindingsSection({ data, findings, loading, error, onRetry }) {
             <FindingRow
               key={rule.id}
               tone={SEVERITY_TONE[rule.topSeverity] ?? "info"}
-              title={rule.name || `Rule ${rule.id}`}
+              title={<RuleLink id={rule.id} name={rule.name} siteOrigin={siteOrigin} />}
               detail={
                 <>
                   <span>{findingDetailLine(rule)}</span>
@@ -558,7 +582,7 @@ export function Pager({ page, pageCount, total, onChange }) {
 
 // ── Tab ─────────────────────────────────────────────────────────────────────
 
-export function AutomationTab() {
+export function AutomationTab({ siteOrigin }) {
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
@@ -781,6 +805,7 @@ export function AutomationTab() {
               loading={indexState.fields?.loading}
               error={indexState.fields?.error}
               onRetry={() => loadIndex("fields")}
+              siteOrigin={siteOrigin}
             />
           </Panel>
         ) : section === "statuses" ? (
@@ -796,6 +821,7 @@ export function AutomationTab() {
               loading={indexState.statuses?.loading}
               error={indexState.statuses?.error}
               onRetry={() => loadIndex("statuses")}
+              siteOrigin={siteOrigin}
             />
           </Panel>
         ) : section === "cascades" ? (
@@ -804,7 +830,7 @@ export function AutomationTab() {
             icon="refreshCw"
             description="A rule that writes a field another rule watches can start a cascade. Self-triggering rules write a field they themselves trigger on, and loop without a second rule involved."
           >
-            <CascadeSection data={data} />
+            <CascadeSection data={data} siteOrigin={siteOrigin} />
           </Panel>
         ) : (
           <Panel
@@ -818,6 +844,7 @@ export function AutomationTab() {
               loading={indexState.findings?.loading}
               error={indexState.findings?.error}
               onRetry={() => loadIndex("findings")}
+              siteOrigin={siteOrigin}
             />
           </Panel>
         )}
