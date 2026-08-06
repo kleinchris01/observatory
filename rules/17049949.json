@@ -1,0 +1,99 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "565393203",
+          "parentId": "565393199",
+          "schemaVersion": 5,
+          "type": "jira.issue.outgoing.email",
+          "value": {
+            "bcc": [],
+            "body": "Hello, \n\nThis is a notification that <strong>{{triggerObject.Name}} - {{object.key}}</strong> was set to inactive on {{now.shortDate}}.\n\nTo set it to active, please navigate to the object schema and change the status attribute to \"Object Active\".\n\n<strong><a href=\"https://ford-advev.atlassian.net/jira/servicedesk/assets/object-schema/6?mode=object&typeId=17&view=list\">Inactive Equipment</a></strong>\n\nThank you,\n\nAutomation for Jira",
+            "cc": [],
+            "convertLineBreaks": true,
+            "fromName": "",
+            "mimeType": "text/html",
+            "replyTo": "",
+            "subject": "{{triggerObject.Name}} marked as inactive",
+            "to": [
+              {
+                "type": "FREE",
+                "value": "earaki1@ford.com"
+              }
+            ]
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "565393199",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.object.related",
+      "value": {
+        "cmdbQuery": "Status = \"Object Inactive\"",
+        "schemaId": "6",
+        "schemaLabel": "Prototype Testing Schema",
+        "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+      }
+    }
+  ],
+  "created": 1703022288931,
+  "description": "",
+  "id": 17049949,
+  "idUuid": "018c8409-e023-7e01-8d58-2e7189f219f9",
+  "labels": [],
+  "name": "Notify stakeholder when object marked as inactive",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "565393196",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "cmdb.object.trigger",
+    "value": {
+      "operation": "UPDATED",
+      "schemaId": "6",
+      "schemaLabel": "Prototype Testing Schema",
+      "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+    }
+  },
+  "updated": 1703031699640,
+  "writeAccessType": "UNRESTRICTED"
+}

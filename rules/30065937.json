@@ -1,0 +1,229 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "623d205d562ab90069f94743",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "722271710",
+          "parentId": "722271709",
+          "schemaVersion": 1,
+          "type": "jira.jql.condition",
+          "value": "key = \"FUSA-241\""
+        }
+      ],
+      "component": "ORCHESTRATION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "722271709",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "automation.orchestration.fragment",
+      "value": {
+        "inputProjections": [],
+        "isOptional": false,
+        "name": "Group 1",
+        "outputProjections": []
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "722271713",
+              "parentId": "722271712",
+              "schemaVersion": 12,
+              "type": "jira.issue.create",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "summary"
+                    },
+                    "fieldType": "summary",
+                    "type": "SET",
+                    "value": "{{FeatureName}}"
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "description"
+                    },
+                    "fieldType": "description",
+                    "type": "SET",
+                    "value": "This task is used to track the ECV deliverables for (i) Safety Goal completion and alignment and (ii) HW TSRs completion for Features.\n\nDefinition of Done:\n\t1) SGs are aligned with Enterprise ratings.\nHW TSRs are in Jama and pushed to review."
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "project"
+                    },
+                    "fieldType": "project",
+                    "type": "SET",
+                    "value": {
+                      "type": "COPY",
+                      "value": "current"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "issuetype"
+                    },
+                    "fieldType": "issuetype",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "10023"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "parent"
+                    },
+                    "fieldType": "parent",
+                    "type": "SET",
+                    "value": {
+                      "type": "COPY",
+                      "value": "current"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "duedate"
+                    },
+                    "fieldType": "duedate",
+                    "type": "SET",
+                    "value": "2025-09-17"
+                  }
+                ],
+                "sendNotifications": false
+              }
+            }
+          ],
+          "component": "BRANCH",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "722271712",
+          "parentId": "722271711",
+          "schemaVersion": 1,
+          "type": "jira.smart.values.branch",
+          "value": {
+            "id": "_customsmartvalue_id_1756587251781",
+            "lazy": false,
+            "name": {
+              "type": "FREE",
+              "value": "FeatureName"
+            },
+            "query": {
+              "type": "SMART",
+              "value": "{{issue.description.split(\"\\n\")}}"
+            },
+            "type": "SMART"
+          }
+        }
+      ],
+      "component": "ORCHESTRATION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "722271711",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "automation.orchestration.fragment",
+      "value": {
+        "inputProjections": [],
+        "isOptional": false,
+        "name": "Group 2",
+        "outputProjections": []
+      }
+    }
+  ],
+  "created": 1756588650933,
+  "description": "",
+  "id": 30065937,
+  "idUuid": "0198fcd7-b1b5-7bc9-8780-0f3dba69ed39",
+  "labels": [],
+  "name": "Feature Creation Stories for EVC",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11409"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11409"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [
+    {
+      "tagType": "ORCHESTRATION_CONFIG_ID",
+      "tagValue": "be1562a4-85e6-11f0-920d-49dc66dc97c5"
+    },
+    {
+      "tagType": "ORCHESTRATION_VERSION",
+      "tagValue": "1"
+    },
+    {
+      "tagType": "ORCHESTRATION",
+      "tagValue": null
+    }
+  ],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "722271708",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [
+        "edit"
+      ],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11409"
+      ],
+      "fields": [
+        {
+          "type": "field",
+          "value": "duedate"
+        }
+      ]
+    }
+  },
+  "updated": 1756588650933,
+  "writeAccessType": "UNRESTRICTED"
+}

@@ -1,0 +1,2484 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:c9c3dfc4-eef5-4087-8b1a-8ee188485a9b",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "39b190af-3a34-4ac1-9280-7d766774facf",
+                  "parentId": "d3d3666f-fbe6-49bb-ac66-5ee8701d8efd",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.create",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "summary"
+                        },
+                        "fieldType": "summary",
+                        "type": "SET",
+                        "value": "Material chosen is taken from Standard Materials Library"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "description"
+                        },
+                        "fieldType": "description",
+                        "type": "SET",
+                        "value": "Material chosen is taken from Standard Materials Library"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "project"
+                        },
+                        "fieldType": "project",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "issuetype"
+                        },
+                        "fieldType": "issuetype",
+                        "type": "SET",
+                        "value": {
+                          "type": "ID",
+                          "value": "10023"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "parent"
+                        },
+                        "fieldType": "parent",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "trigger"
+                        }
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "290a6740-2293-4b3e-8736-1e14b34c0d37",
+                  "parentId": "d3d3666f-fbe6-49bb-ac66-5ee8701d8efd",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.create",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "summary"
+                        },
+                        "fieldType": "summary",
+                        "type": "SET",
+                        "value": "Core Material Specification "
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "description"
+                        },
+                        "fieldType": "description",
+                        "type": "SET",
+                        "value": "Core Material Specification "
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "project"
+                        },
+                        "fieldType": "project",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "issuetype"
+                        },
+                        "fieldType": "issuetype",
+                        "type": "SET",
+                        "value": {
+                          "type": "ID",
+                          "value": "10023"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "parent"
+                        },
+                        "fieldType": "parent",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "trigger"
+                        }
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "9352c78d-71af-4491-8c25-956ba1fac11c",
+                  "parentId": "d3d3666f-fbe6-49bb-ac66-5ee8701d8efd",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.create",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "summary"
+                        },
+                        "fieldType": "summary",
+                        "type": "SET",
+                        "value": "Part Thickness "
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "description"
+                        },
+                        "fieldType": "description",
+                        "type": "SET",
+                        "value": "Part Thickness "
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "project"
+                        },
+                        "fieldType": "project",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "issuetype"
+                        },
+                        "fieldType": "issuetype",
+                        "type": "SET",
+                        "value": {
+                          "type": "ID",
+                          "value": "10023"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "parent"
+                        },
+                        "fieldType": "parent",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "trigger"
+                        }
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "b6f5f391-4171-4478-b1e0-da48156a0a73",
+                  "parentId": "d3d3666f-fbe6-49bb-ac66-5ee8701d8efd",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.create",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "summary"
+                        },
+                        "fieldType": "summary",
+                        "type": "SET",
+                        "value": "Stamping feasibility Complete - One step and full autoform"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "description"
+                        },
+                        "fieldType": "description",
+                        "type": "SET",
+                        "value": "Stamping feasibility Complete - One step and full autoform"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "project"
+                        },
+                        "fieldType": "project",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "issuetype"
+                        },
+                        "fieldType": "issuetype",
+                        "type": "SET",
+                        "value": {
+                          "type": "ID",
+                          "value": "10023"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "parent"
+                        },
+                        "fieldType": "parent",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "trigger"
+                        }
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "c8567f59-1d5e-4634-babf-ee4bd232eb39",
+                  "parentId": "d3d3666f-fbe6-49bb-ac66-5ee8701d8efd",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.create",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "summary"
+                        },
+                        "fieldType": "summary",
+                        "type": "SET",
+                        "value": "Material Utilization %"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "description"
+                        },
+                        "fieldType": "description",
+                        "type": "SET",
+                        "value": "Material Utilization %"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "project"
+                        },
+                        "fieldType": "project",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "issuetype"
+                        },
+                        "fieldType": "issuetype",
+                        "type": "SET",
+                        "value": {
+                          "type": "ID",
+                          "value": "10023"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "parent"
+                        },
+                        "fieldType": "parent",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "trigger"
+                        }
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "06cfb741-78a6-4931-9b22-e70e695f2c27",
+                  "parentId": "d3d3666f-fbe6-49bb-ac66-5ee8701d8efd",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.create",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "summary"
+                        },
+                        "fieldType": "summary",
+                        "type": "SET",
+                        "value": "Part Maturity"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "description"
+                        },
+                        "fieldType": "description",
+                        "type": "SET",
+                        "value": "Part Maturity"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "project"
+                        },
+                        "fieldType": "project",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "issuetype"
+                        },
+                        "fieldType": "issuetype",
+                        "type": "SET",
+                        "value": {
+                          "type": "ID",
+                          "value": "10023"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "parent"
+                        },
+                        "fieldType": "parent",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "trigger"
+                        }
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "778baa3d-29a0-4f3c-8f07-ce339ee53356",
+                  "parentId": "d3d3666f-fbe6-49bb-ac66-5ee8701d8efd",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.create",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "summary"
+                        },
+                        "fieldType": "summary",
+                        "type": "SET",
+                        "value": "Is this a service part"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "description"
+                        },
+                        "fieldType": "description",
+                        "type": "SET",
+                        "value": "Is this a service part"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "project"
+                        },
+                        "fieldType": "project",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "issuetype"
+                        },
+                        "fieldType": "issuetype",
+                        "type": "SET",
+                        "value": {
+                          "type": "ID",
+                          "value": "10023"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "parent"
+                        },
+                        "fieldType": "parent",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "trigger"
+                        }
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "e73d09cb-3419-4a45-842c-a9740b3d277f",
+                  "parentId": "d3d3666f-fbe6-49bb-ac66-5ee8701d8efd",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.create",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "summary"
+                        },
+                        "fieldType": "summary",
+                        "type": "SET",
+                        "value": "General Notes Completed"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "description"
+                        },
+                        "fieldType": "description",
+                        "type": "SET",
+                        "value": "General Notes Completed"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "project"
+                        },
+                        "fieldType": "project",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "issuetype"
+                        },
+                        "fieldType": "issuetype",
+                        "type": "SET",
+                        "value": {
+                          "type": "ID",
+                          "value": "10023"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "parent"
+                        },
+                        "fieldType": "parent",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "trigger"
+                        }
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "fef34b6d-8de8-47e8-a1da-32407c31d7f1",
+                  "parentId": "d3d3666f-fbe6-49bb-ac66-5ee8701d8efd",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.create",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "summary"
+                        },
+                        "fieldType": "summary",
+                        "type": "SET",
+                        "value": "GD&T Completed - LD in Team Center"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "description"
+                        },
+                        "fieldType": "description",
+                        "type": "SET",
+                        "value": "GD&T Completed - LD in Team Center"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "project"
+                        },
+                        "fieldType": "project",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "issuetype"
+                        },
+                        "fieldType": "issuetype",
+                        "type": "SET",
+                        "value": {
+                          "type": "ID",
+                          "value": "10023"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "parent"
+                        },
+                        "fieldType": "parent",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "trigger"
+                        }
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "651f5cf5-ae1e-499e-8278-b2d3cc4d26f2",
+                  "parentId": "d3d3666f-fbe6-49bb-ac66-5ee8701d8efd",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.create",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "summary"
+                        },
+                        "fieldType": "summary",
+                        "type": "SET",
+                        "value": "GD&T Completed - PMI in CAD"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "description"
+                        },
+                        "fieldType": "description",
+                        "type": "SET",
+                        "value": "GD&T Completed - PMI in CAD"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "project"
+                        },
+                        "fieldType": "project",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "issuetype"
+                        },
+                        "fieldType": "issuetype",
+                        "type": "SET",
+                        "value": {
+                          "type": "ID",
+                          "value": "10023"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "parent"
+                        },
+                        "fieldType": "parent",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "trigger"
+                        }
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "bf08ae62-2703-4aaa-83a4-aa51f357dd4d",
+                  "parentId": "d3d3666f-fbe6-49bb-ac66-5ee8701d8efd",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.create",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "summary"
+                        },
+                        "fieldType": "summary",
+                        "type": "SET",
+                        "value": "Part Marking Complete "
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "description"
+                        },
+                        "fieldType": "description",
+                        "type": "SET",
+                        "value": "Part Marking Complete"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "project"
+                        },
+                        "fieldType": "project",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "issuetype"
+                        },
+                        "fieldType": "issuetype",
+                        "type": "SET",
+                        "value": {
+                          "type": "ID",
+                          "value": "10023"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "parent"
+                        },
+                        "fieldType": "parent",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "trigger"
+                        }
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "403a747a-8c7b-4f29-a06b-736f48d4ddca",
+                  "parentId": "d3d3666f-fbe6-49bb-ac66-5ee8701d8efd",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.create",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "summary"
+                        },
+                        "fieldType": "summary",
+                        "type": "SET",
+                        "value": "Tolerance Markups Complete - Initial Assembly Build Book"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "description"
+                        },
+                        "fieldType": "description",
+                        "type": "SET",
+                        "value": "Tolerance Markups Complete - Initial Assembly Build Book"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "project"
+                        },
+                        "fieldType": "project",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "issuetype"
+                        },
+                        "fieldType": "issuetype",
+                        "type": "SET",
+                        "value": {
+                          "type": "ID",
+                          "value": "10023"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "parent"
+                        },
+                        "fieldType": "parent",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "trigger"
+                        }
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "d61d1a2f-a38c-4df5-8742-8641a4a6c807",
+                  "parentId": "d3d3666f-fbe6-49bb-ac66-5ee8701d8efd",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.create",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "summary"
+                        },
+                        "fieldType": "summary",
+                        "type": "SET",
+                        "value": "Detail Tolerance with DVA PMI Complete in CAD - Includes Critical Tolerances "
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "description"
+                        },
+                        "fieldType": "description",
+                        "type": "SET",
+                        "value": "Detail Tolerance with DVA PMI Complete in CAD - Includes Critical Tolerances"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "project"
+                        },
+                        "fieldType": "project",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "issuetype"
+                        },
+                        "fieldType": "issuetype",
+                        "type": "SET",
+                        "value": {
+                          "type": "ID",
+                          "value": "10023"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "parent"
+                        },
+                        "fieldType": "parent",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "trigger"
+                        }
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "5f455789-1452-4e1a-b000-acb07c51962c",
+                  "parentId": "d3d3666f-fbe6-49bb-ac66-5ee8701d8efd",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.create",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "summary"
+                        },
+                        "fieldType": "summary",
+                        "type": "SET",
+                        "value": "VO Alignment on Cycle time and number of welds complete "
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "description"
+                        },
+                        "fieldType": "description",
+                        "type": "SET",
+                        "value": "VO Alignment on Cycle time and number of welds complete"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "project"
+                        },
+                        "fieldType": "project",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "issuetype"
+                        },
+                        "fieldType": "issuetype",
+                        "type": "SET",
+                        "value": {
+                          "type": "ID",
+                          "value": "10023"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "parent"
+                        },
+                        "fieldType": "parent",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "trigger"
+                        }
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "f942ec64-da7d-45ea-86ba-1df67cb8371c",
+                  "parentId": "d3d3666f-fbe6-49bb-ac66-5ee8701d8efd",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.create",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "summary"
+                        },
+                        "fieldType": "summary",
+                        "type": "SET",
+                        "value": "Joining Files Complete and Released"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "description"
+                        },
+                        "fieldType": "description",
+                        "type": "SET",
+                        "value": "Joining Files Complete and Released"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "project"
+                        },
+                        "fieldType": "project",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "issuetype"
+                        },
+                        "fieldType": "issuetype",
+                        "type": "SET",
+                        "value": {
+                          "type": "ID",
+                          "value": "10023"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "parent"
+                        },
+                        "fieldType": "parent",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "trigger"
+                        }
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "2dfa72ad-50bd-4891-9c96-f0d0271368aa",
+                  "parentId": "d3d3666f-fbe6-49bb-ac66-5ee8701d8efd",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.create",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "summary"
+                        },
+                        "fieldType": "summary",
+                        "type": "SET",
+                        "value": "Delta Welds Identified"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "description"
+                        },
+                        "fieldType": "description",
+                        "type": "SET",
+                        "value": "Delta Welds Identified"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "project"
+                        },
+                        "fieldType": "project",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "issuetype"
+                        },
+                        "fieldType": "issuetype",
+                        "type": "SET",
+                        "value": {
+                          "type": "ID",
+                          "value": "10023"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "parent"
+                        },
+                        "fieldType": "parent",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "trigger"
+                        }
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "363473bf-32f3-4bf5-845b-6773062ed974",
+                  "parentId": "d3d3666f-fbe6-49bb-ac66-5ee8701d8efd",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.create",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "summary"
+                        },
+                        "fieldType": "summary",
+                        "type": "SET",
+                        "value": "Weld Grouping Identified "
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "description"
+                        },
+                        "fieldType": "description",
+                        "type": "SET",
+                        "value": "Weld Grouping Identified"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "project"
+                        },
+                        "fieldType": "project",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "issuetype"
+                        },
+                        "fieldType": "issuetype",
+                        "type": "SET",
+                        "value": {
+                          "type": "ID",
+                          "value": "10023"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "parent"
+                        },
+                        "fieldType": "parent",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "trigger"
+                        }
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "8ebfd9c8-098e-4082-aa49-9f88eaa82cb8",
+                  "parentId": "d3d3666f-fbe6-49bb-ac66-5ee8701d8efd",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.create",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "summary"
+                        },
+                        "fieldType": "summary",
+                        "type": "SET",
+                        "value": "Joining Stackup for Welds Complete "
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "description"
+                        },
+                        "fieldType": "description",
+                        "type": "SET",
+                        "value": "Joining Stackup for Welds Complete"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "project"
+                        },
+                        "fieldType": "project",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "issuetype"
+                        },
+                        "fieldType": "issuetype",
+                        "type": "SET",
+                        "value": {
+                          "type": "ID",
+                          "value": "10023"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "parent"
+                        },
+                        "fieldType": "parent",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "trigger"
+                        }
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "0c2eb1b1-c130-42f6-aed6-394a2d55b6bc",
+                  "parentId": "d3d3666f-fbe6-49bb-ac66-5ee8701d8efd",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.create",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "summary"
+                        },
+                        "fieldType": "summary",
+                        "type": "SET",
+                        "value": "Bulk material (Sealer, Adhesive) Released "
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "description"
+                        },
+                        "fieldType": "description",
+                        "type": "SET",
+                        "value": "Bulk material (Sealer, Adhesive) Released"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "project"
+                        },
+                        "fieldType": "project",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "issuetype"
+                        },
+                        "fieldType": "issuetype",
+                        "type": "SET",
+                        "value": {
+                          "type": "ID",
+                          "value": "10023"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "parent"
+                        },
+                        "fieldType": "parent",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "trigger"
+                        }
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "6c437a9d-9153-47eb-bd87-39421eaab5e7",
+                  "parentId": "d3d3666f-fbe6-49bb-ac66-5ee8701d8efd",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.create",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "summary"
+                        },
+                        "fieldType": "summary",
+                        "type": "SET",
+                        "value": "Carry Over or In Production Fastener Selected "
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "description"
+                        },
+                        "fieldType": "description",
+                        "type": "SET",
+                        "value": "Carry Over or In Production Fastener Selected "
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "project"
+                        },
+                        "fieldType": "project",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "issuetype"
+                        },
+                        "fieldType": "issuetype",
+                        "type": "SET",
+                        "value": {
+                          "type": "ID",
+                          "value": "10023"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "parent"
+                        },
+                        "fieldType": "parent",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "trigger"
+                        }
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "017fef54-36a1-4572-be5a-7bc2c81a9efb",
+                  "parentId": "d3d3666f-fbe6-49bb-ac66-5ee8701d8efd",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.create",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "summary"
+                        },
+                        "fieldType": "summary",
+                        "type": "SET",
+                        "value": "Fastener Testing Required and Completed "
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "description"
+                        },
+                        "fieldType": "description",
+                        "type": "SET",
+                        "value": "Fastener Testing Required and Completed "
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "project"
+                        },
+                        "fieldType": "project",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "issuetype"
+                        },
+                        "fieldType": "issuetype",
+                        "type": "SET",
+                        "value": {
+                          "type": "ID",
+                          "value": "10023"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "parent"
+                        },
+                        "fieldType": "parent",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "trigger"
+                        }
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "a21b7c64-c81f-4c38-b796-7558fac909bd",
+                  "parentId": "d3d3666f-fbe6-49bb-ac66-5ee8701d8efd",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.create",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "summary"
+                        },
+                        "fieldType": "summary",
+                        "type": "SET",
+                        "value": "Attaching Parts added in CATIA"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "description"
+                        },
+                        "fieldType": "description",
+                        "type": "SET",
+                        "value": "Attaching Parts added in CATIA"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "project"
+                        },
+                        "fieldType": "project",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "issuetype"
+                        },
+                        "fieldType": "issuetype",
+                        "type": "SET",
+                        "value": {
+                          "type": "ID",
+                          "value": "10023"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "parent"
+                        },
+                        "fieldType": "parent",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "trigger"
+                        }
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "ce3b076d-e4a2-4428-99f7-fdb9ea022b53",
+                  "parentId": "d3d3666f-fbe6-49bb-ac66-5ee8701d8efd",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.create",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "summary"
+                        },
+                        "fieldType": "summary",
+                        "type": "SET",
+                        "value": "Torque attributes added in CATIA (Must include, nom, varm critical and res) "
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "description"
+                        },
+                        "fieldType": "description",
+                        "type": "SET",
+                        "value": "Torque attributes added in CATIA (Must include, nom, varm critical and res) "
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "project"
+                        },
+                        "fieldType": "project",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "issuetype"
+                        },
+                        "fieldType": "issuetype",
+                        "type": "SET",
+                        "value": {
+                          "type": "ID",
+                          "value": "10023"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "parent"
+                        },
+                        "fieldType": "parent",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "trigger"
+                        }
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "d5f450b8-30ac-4584-81ff-85b1bece581a",
+                  "parentId": "d3d3666f-fbe6-49bb-ac66-5ee8701d8efd",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.create",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "summary"
+                        },
+                        "fieldType": "summary",
+                        "type": "SET",
+                        "value": "DPA 1 - Dynamic / Static"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "description"
+                        },
+                        "fieldType": "description",
+                        "type": "SET",
+                        "value": "DPA 1 - Dynamic / Static"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "project"
+                        },
+                        "fieldType": "project",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "issuetype"
+                        },
+                        "fieldType": "issuetype",
+                        "type": "SET",
+                        "value": {
+                          "type": "ID",
+                          "value": "10023"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "parent"
+                        },
+                        "fieldType": "parent",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "trigger"
+                        }
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "8129da81-4d2f-4086-9f46-47be916224c9",
+                  "parentId": "d3d3666f-fbe6-49bb-ac66-5ee8701d8efd",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.create",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "summary"
+                        },
+                        "fieldType": "summary",
+                        "type": "SET",
+                        "value": "DPA 2 - Craftsmanship "
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "description"
+                        },
+                        "fieldType": "description",
+                        "type": "SET",
+                        "value": "DPA 2 - Craftsmanship"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "project"
+                        },
+                        "fieldType": "project",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "issuetype"
+                        },
+                        "fieldType": "issuetype",
+                        "type": "SET",
+                        "value": {
+                          "type": "ID",
+                          "value": "10023"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "parent"
+                        },
+                        "fieldType": "parent",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "trigger"
+                        }
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "cdf4fc90-4a97-44dd-8ea6-cfcfb4cdaa8c",
+                  "parentId": "d3d3666f-fbe6-49bb-ac66-5ee8701d8efd",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.create",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "summary"
+                        },
+                        "fieldType": "summary",
+                        "type": "SET",
+                        "value": "DPA 3 - Variation"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "description"
+                        },
+                        "fieldType": "description",
+                        "type": "SET",
+                        "value": "DPA 3 - Variation"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "project"
+                        },
+                        "fieldType": "project",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "issuetype"
+                        },
+                        "fieldType": "issuetype",
+                        "type": "SET",
+                        "value": {
+                          "type": "ID",
+                          "value": "10023"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "parent"
+                        },
+                        "fieldType": "parent",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "trigger"
+                        }
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "780a560b-a7ac-4238-a130-401f104aeeba",
+                  "parentId": "d3d3666f-fbe6-49bb-ac66-5ee8701d8efd",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.create",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "summary"
+                        },
+                        "fieldType": "summary",
+                        "type": "SET",
+                        "value": "DPA 4 - Serviceability "
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "description"
+                        },
+                        "fieldType": "description",
+                        "type": "SET",
+                        "value": "DPA 4 - Serviceability "
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "project"
+                        },
+                        "fieldType": "project",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "issuetype"
+                        },
+                        "fieldType": "issuetype",
+                        "type": "SET",
+                        "value": {
+                          "type": "ID",
+                          "value": "10023"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "parent"
+                        },
+                        "fieldType": "parent",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "trigger"
+                        }
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "72cfe6c3-378b-4fe0-9649-61b14c0e5067",
+                  "parentId": "d3d3666f-fbe6-49bb-ac66-5ee8701d8efd",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.create",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "summary"
+                        },
+                        "fieldType": "summary",
+                        "type": "SET",
+                        "value": "DPA 5 - Manufacturing MAKE Tickets and Internal SCCAF "
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "description"
+                        },
+                        "fieldType": "description",
+                        "type": "SET",
+                        "value": "DPA 5 - Manufacturing MAKE Tickets and Internal SCCAF "
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "project"
+                        },
+                        "fieldType": "project",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "issuetype"
+                        },
+                        "fieldType": "issuetype",
+                        "type": "SET",
+                        "value": {
+                          "type": "ID",
+                          "value": "10023"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "parent"
+                        },
+                        "fieldType": "parent",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "trigger"
+                        }
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "f876a8ae-92dc-4320-ab15-5cd5a3d7a03c",
+                  "parentId": "d3d3666f-fbe6-49bb-ac66-5ee8701d8efd",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.create",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "summary"
+                        },
+                        "fieldType": "summary",
+                        "type": "SET",
+                        "value": "DPA 6 - Outstanding Packaging and Ergo "
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "description"
+                        },
+                        "fieldType": "description",
+                        "type": "SET",
+                        "value": "DPA 6 - Outstanding Packaging and Ergo "
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "project"
+                        },
+                        "fieldType": "project",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "issuetype"
+                        },
+                        "fieldType": "issuetype",
+                        "type": "SET",
+                        "value": {
+                          "type": "ID",
+                          "value": "10023"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "parent"
+                        },
+                        "fieldType": "parent",
+                        "type": "SET",
+                        "value": {
+                          "type": "COPY",
+                          "value": "trigger"
+                        }
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                }
+              ],
+              "component": "CONDITION_BLOCK",
+              "conditionParentId": null,
+              "conditions": [
+                {
+                  "children": [],
+                  "component": "CONDITION",
+                  "conditionParentId": "d3d3666f-fbe6-49bb-ac66-5ee8701d8efd",
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "5e858589-a575-4163-96c9-9bd97ffeaa4f",
+                  "parentId": null,
+                  "schemaVersion": 3,
+                  "type": "jira.issue.condition",
+                  "value": {
+                    "compareValue": {
+                      "modifier": null,
+                      "multiValue": false,
+                      "source": null,
+                      "type": "VALUE",
+                      "value": "CP3"
+                    },
+                    "comparison": "EQUALS",
+                    "selectedField": {
+                      "type": "ID",
+                      "value": "summary"
+                    },
+                    "selectedFieldType": "summary"
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "CONDITION",
+                  "conditionParentId": "d3d3666f-fbe6-49bb-ac66-5ee8701d8efd",
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "202f3b9d-ebe9-4d1b-8389-975ab19d700e",
+                  "parentId": null,
+                  "schemaVersion": 3,
+                  "type": "jira.issue.condition",
+                  "value": {
+                    "compareValue": {
+                      "modifier": null,
+                      "multiValue": false,
+                      "source": null,
+                      "type": "VALUE",
+                      "value": "CP4"
+                    },
+                    "comparison": "EQUALS",
+                    "selectedField": {
+                      "type": "ID",
+                      "value": "summary"
+                    },
+                    "selectedFieldType": "summary"
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "CONDITION",
+                  "conditionParentId": "d3d3666f-fbe6-49bb-ac66-5ee8701d8efd",
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "60be8334-901c-487d-a15d-26d69d3fe90d",
+                  "parentId": null,
+                  "schemaVersion": 3,
+                  "type": "jira.issue.condition",
+                  "value": {
+                    "compareValue": {
+                      "modifier": null,
+                      "multiValue": false,
+                      "source": null,
+                      "type": "VALUE",
+                      "value": "CP5"
+                    },
+                    "comparison": "EQUALS",
+                    "selectedField": {
+                      "type": "ID",
+                      "value": "summary"
+                    },
+                    "selectedFieldType": "summary"
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "CONDITION",
+                  "conditionParentId": "d3d3666f-fbe6-49bb-ac66-5ee8701d8efd",
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "84caf3e2-b580-4ff8-af66-23a550a67c91",
+                  "parentId": null,
+                  "schemaVersion": 3,
+                  "type": "jira.issue.condition",
+                  "value": {
+                    "compareValue": {
+                      "modifier": null,
+                      "multiValue": false,
+                      "source": null,
+                      "type": "VALUE",
+                      "value": "OKTD"
+                    },
+                    "comparison": "EQUALS",
+                    "selectedField": {
+                      "type": "ID",
+                      "value": "summary"
+                    },
+                    "selectedFieldType": "summary"
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "CONDITION",
+                  "conditionParentId": "d3d3666f-fbe6-49bb-ac66-5ee8701d8efd",
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "e44cdd5c-559c-448f-b6dc-4fbe459fb607",
+                  "parentId": null,
+                  "schemaVersion": 3,
+                  "type": "jira.issue.condition",
+                  "value": {
+                    "compareValue": {
+                      "modifier": null,
+                      "multiValue": false,
+                      "source": null,
+                      "type": "VALUE",
+                      "value": "OKTC"
+                    },
+                    "comparison": "EQUALS",
+                    "selectedField": {
+                      "type": "ID",
+                      "value": "summary"
+                    },
+                    "selectedFieldType": "summary"
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "CONDITION",
+                  "conditionParentId": "d3d3666f-fbe6-49bb-ac66-5ee8701d8efd",
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "4f296be9-8572-4ee9-baf2-0ff652416b26",
+                  "parentId": null,
+                  "schemaVersion": 3,
+                  "type": "jira.issue.condition",
+                  "value": {
+                    "compareValue": {
+                      "modifier": null,
+                      "multiValue": false,
+                      "source": null,
+                      "type": "VALUE",
+                      "value": "OKTT"
+                    },
+                    "comparison": "EQUALS",
+                    "selectedField": {
+                      "type": "ID",
+                      "value": "summary"
+                    },
+                    "selectedFieldType": "summary"
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "CONDITION",
+                  "conditionParentId": "d3d3666f-fbe6-49bb-ac66-5ee8701d8efd",
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "dc9c6a78-9c55-494f-bb21-773c22c1fb4c",
+                  "parentId": null,
+                  "schemaVersion": 3,
+                  "type": "jira.issue.condition",
+                  "value": {
+                    "compareValue": {
+                      "modifier": null,
+                      "multiValue": false,
+                      "source": null,
+                      "type": "VALUE",
+                      "value": "CP 2.5"
+                    },
+                    "comparison": "EQUALS",
+                    "selectedField": {
+                      "type": "ID",
+                      "value": "summary"
+                    },
+                    "selectedFieldType": "summary"
+                  }
+                }
+              ],
+              "connectionId": null,
+              "id": "d3d3666f-fbe6-49bb-ac66-5ee8701d8efd",
+              "parentId": "724b197d-01d3-48f2-80a6-9b39b0e6c4de",
+              "schemaVersion": 1,
+              "type": "jira.condition.if.block",
+              "value": {
+                "conditionMatchType": "ANY"
+              }
+            }
+          ],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "724b197d-01d3-48f2-80a6-9b39b0e6c4de",
+          "parentId": "6ccdfc52-8ad6-4e2f-93d4-433d2b92a17a",
+          "schemaVersion": 1,
+          "type": "jira.condition.container.block",
+          "value": null
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "26e0009b-2ab0-4a68-b45a-9ffdcb402a48",
+              "parentId": "2c044ba8-06b4-48f9-bdc2-7c116b94af4d",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "assignee"
+                    },
+                    "fieldType": "assignee",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "assignee",
+                        "type": "ID",
+                        "value": "assignee"
+                      },
+                      "sourceIssue": "parent"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "ADVEV Vehicle Platform"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "NAME",
+                        "value": "CE1"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "ADVEV Vehicle Program"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "U833"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "BRANCH",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "2c044ba8-06b4-48f9-bdc2-7c116b94af4d",
+          "parentId": "6ccdfc52-8ad6-4e2f-93d4-433d2b92a17a",
+          "schemaVersion": 1,
+          "type": "jira.issue.related",
+          "value": {
+            "compareValue": 0,
+            "jql": "",
+            "linkTypes": [],
+            "onlyUpdatedIssues": false,
+            "relatedType": "children",
+            "similarityLimit": 40
+          }
+        }
+      ],
+      "component": "ORCHESTRATION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "6ccdfc52-8ad6-4e2f-93d4-433d2b92a17a",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "automation.orchestration.fragment",
+      "value": {
+        "inputProjections": [],
+        "isOptional": false,
+        "name": "Group 1",
+        "outputProjections": []
+      }
+    }
+  ],
+  "created": 1777400721508,
+  "description": "Created tasks under the EPIC\nThis rule runs in 2 parts since there are many tasks to be created",
+  "id": 33074252,
+  "idUuid": "019dd556-b065-7b94-845c-e830d0a332ef",
+  "labels": [],
+  "name": "Create (checklist items) tasks under the EPIC (when EPIC has Parent) - 1",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10031"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10031"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [
+    {
+      "tagType": "ORCHESTRATION_CONFIG_ID",
+      "tagValue": "8e5fb5cc-43fd-11f1-966a-570554f3a265"
+    },
+    {
+      "tagType": "ORCHESTRATION_VERSION",
+      "tagValue": "2"
+    },
+    {
+      "tagType": "ORCHESTRATION",
+      "tagValue": null
+    }
+  ],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "0757046c-3f67-4fd6-94a5-881dc6733735",
+        "conditions": [],
+        "connectionId": null,
+        "id": "7bb18f4e-a84c-4647-b28f-323408bd1472",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": true,
+            "source": null,
+            "type": "ID",
+            "value": "[\"10000\"]"
+          },
+          "comparison": "ONE_OF",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "0757046c-3f67-4fd6-94a5-881dc6733735",
+        "conditions": [],
+        "connectionId": null,
+        "id": "4481cb7e-32a8-4898-a9f7-c9a96909ae4d",
+        "parentId": null,
+        "schemaVersion": 1,
+        "type": "jira.issues.related.condition",
+        "value": {
+          "compareJql": "",
+          "compareValue": 0,
+          "jql": "",
+          "linkTypes": [],
+          "operator": "present",
+          "relatedJql": "",
+          "relatedType": "parent",
+          "similarityLimit": 40
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "0757046c-3f67-4fd6-94a5-881dc6733735",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10031"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1777489170423,
+  "writeAccessType": "OWNER_ONLY"
+}

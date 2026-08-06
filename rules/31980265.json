@@ -1,0 +1,140 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "712020:9b52b270-bb29-4f87-880d-7c4412cc01b8"
+  },
+  "authorAccountId": "712020:9b52b270-bb29-4f87-880d-7c4412cc01b8",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "3d43e11e-1001-4f33-a5e5-5bcd381c6f61",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": null,
+          "type": "ID",
+          "value": "11419"
+        },
+        "comparison": "EQUALS",
+        "selectedField": {
+          "type": "ID",
+          "value": "issuetype"
+        },
+        "selectedFieldType": "issuetype"
+      }
+    },
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "4449b678-2a5a-4f16-8808-c4948c065961",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": null,
+          "type": "ID",
+          "value": "1"
+        },
+        "comparison": "NOT_EQUAL",
+        "selectedField": {
+          "type": "ID",
+          "value": "priority"
+        },
+        "selectedFieldType": "priority"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "7c2cfd6e-6cbe-4d83-94bf-e37640a01768",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "msteams.notification",
+      "value": {
+        "body": "This issue has been flagged as a {{issue.priority.name}} issue.\n\nThe assignee must provide an update in the ticket within one week of this post. Please pull in additional team members as needed into the thread to discuss next steps.\n\nIssue Details:\n- **Issue Key & Summary:** {{issue.key}} — {{issue.summary}}  \n- **Assignee:** {{issue.assignee.displayName}}  \n- **Created by:** {{issue.reporter.displayName}}  \n- **Priority:** {{issue.priority.name}}  \n\nYou can view the issue here: {{issue.toUrl}}",
+        "imageUrl": null,
+        "includeIssueSummary": false,
+        "subTitle": null,
+        "teamsWorkflowURL": "https://defaultc990bb7a51f4439bbd369c07fb1041.c0.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/711a4da1ab524977bc3e1964a615f739/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=nCCKr3XLJAvil2fUj8LGFVOtE4GgqHegxREU_BLSg_Y",
+        "teamsWorkflowUrlSecure": false,
+        "title": "A {{issue.priority.name}} Issue:  {{issue.key}} — {{issue.summary}}  has transitioned to Containment",
+        "webhookUrl": null
+      }
+    }
+  ],
+  "created": 1770920277615,
+  "description": "In the EEAI project, when a FITS work type issue is transitioned out of Triage and the priority is 0, send a notification to an MS Teams channel.",
+  "id": 31980265,
+  "idUuid": "019c5312-f66f-72a9-b890-45de1404b0cd",
+  "labels": [],
+  "name": "MS Teams for FITS Work Type NOT Priority 0",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10520"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10520"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "1003f3f4-7017-4e83-b649-fa851b58b8ef",
+    "parentId": null,
+    "schemaVersion": -1,
+    "type": "jira.issue.event.trigger:transitioned",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10520"
+      ],
+      "eventKey": "jira:issue_updated",
+      "fromStatus": [
+        {
+          "type": "NAME",
+          "value": "Triage"
+        }
+      ],
+      "issueEvent": "issue_generic",
+      "toStatus": [
+        {
+          "type": "NAME",
+          "value": "Containment"
+        }
+      ]
+    }
+  },
+  "updated": 1770920277615,
+  "writeAccessType": "UNRESTRICTED"
+}

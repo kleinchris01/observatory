@@ -1,0 +1,379 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:ff83829a-323a-48cb-9717-235304678d0e",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ORCHESTRATION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "99f25f3c-0812-4471-953e-c554ac3bbfb9",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "automation.orchestration.instruction.continue-when",
+      "value": {
+        "event": null,
+        "name": "delay-until-__NEW__COMPONENT__e9b582cf-5e96-4e8c-911f-0c6065af7b7b",
+        "outputProjections": null,
+        "waitTime": 3600
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "3a76b754-f4ad-4f26-9953-700cc4f274bf",
+                  "parentId": "b49729df-c6e8-4d19-b2ee-b31cb671bc8e",
+                  "schemaVersion": 2,
+                  "type": "jira.issue.comment",
+                  "value": {
+                    "addCommentOnce": true,
+                    "comment": "@{{issue.reporter.displayName}} ✅ Great news!\nThe results for your DVA Request are now ready\nfor your review.\n\nAction Required:\nPlease review the results and respond within 48 hours:\n→ APPROVE — Reply with your approval so we can\n  move this ticket to COMPLETED\n→ REVISIONS NEEDED — Add your feedback as a comment\n  if changes are required\n\nTicket Details:\n→ Ticket: {{issue.key}}\n→ Summary: {{issue.summary}}\n→ Analyst: @{{issue.assignee.displayName}}\n\nThank you for your patience while we worked\nthrough your request!\n",
+                    "commentVisibility": null,
+                    "publicComment": false,
+                    "sendNotifications": true
+                  }
+                }
+              ],
+              "component": "ORCHESTRATION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "b49729df-c6e8-4d19-b2ee-b31cb671bc8e",
+              "parentId": "1f8d4477-a818-4c3b-ab2f-6eea68b4d2dd",
+              "schemaVersion": 1,
+              "type": "automation.orchestration.fragment",
+              "value": {
+                "inputProjections": [],
+                "isOptional": false,
+                "name": "Group 3",
+                "outputProjections": []
+              }
+            }
+          ],
+          "component": "ORCHESTRATION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "1f8d4477-a818-4c3b-ab2f-6eea68b4d2dd",
+          "parentId": "dd4a2c6d-0f1e-4c88-ba71-c9400afd4e4b",
+          "schemaVersion": 1,
+          "type": "automation.orchestration.split-parallel.child",
+          "value": {
+            "branchName": "Branch 1",
+            "conditionMatchType": null
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ORCHESTRATION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "64964a4f-c018-426c-9f0e-4beed1af27e2",
+              "parentId": "8fbfab38-061a-487f-af3d-4bb83a2a308d",
+              "schemaVersion": 1,
+              "type": "automation.orchestration.instruction.continue-when",
+              "value": {
+                "event": null,
+                "name": "delay-until-__NEW__COMPONENT__635279d0-2077-48ff-be3d-40a1cc1ba1b6",
+                "outputProjections": null,
+                "waitTime": 172800
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "fa80ec7f-034b-4804-8bf1-5308f852075e",
+                  "parentId": "af1a3125-9938-405a-a043-a346b873ca06",
+                  "schemaVersion": 5,
+                  "type": "jira.issue.outgoing.email",
+                  "value": {
+                    "bcc": [],
+                    "body": "Item not Transitioned\n\n{{issue.summary}}",
+                    "cc": [
+                      {
+                        "type": "COPY",
+                        "value": "assignee"
+                      }
+                    ],
+                    "convertLineBreaks": true,
+                    "fromName": "",
+                    "mimeType": "text/html",
+                    "replyTo": "",
+                    "subject": "{{issue.customfield_14955}} / {{assignee.displayName}} / ",
+                    "to": [
+                      {
+                        "type": "SMART",
+                        "value": "{{issue.assignee.emailAddress}}"
+                      }
+                    ]
+                  }
+                }
+              ],
+              "component": "ORCHESTRATION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "af1a3125-9938-405a-a043-a346b873ca06",
+              "parentId": "8fbfab38-061a-487f-af3d-4bb83a2a308d",
+              "schemaVersion": 1,
+              "type": "automation.orchestration.fragment",
+              "value": {
+                "inputProjections": [],
+                "isOptional": false,
+                "name": "Group 5",
+                "outputProjections": []
+              }
+            }
+          ],
+          "component": "ORCHESTRATION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "8fbfab38-061a-487f-af3d-4bb83a2a308d",
+          "parentId": "dd4a2c6d-0f1e-4c88-ba71-c9400afd4e4b",
+          "schemaVersion": 1,
+          "type": "automation.orchestration.split-parallel.child",
+          "value": {
+            "branchName": "Branch 2",
+            "conditionMatchType": null
+          }
+        }
+      ],
+      "component": "ORCHESTRATION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "dd4a2c6d-0f1e-4c88-ba71-c9400afd4e4b",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "automation.orchestration.instruction.split-parallel",
+      "value": {
+        "branches": [
+          {
+            "branchName": "Branch 1",
+            "components": [
+              {
+                "children": [
+                  {
+                    "children": [],
+                    "component": "ACTION",
+                    "conditions": [],
+                    "id": "__NEW__COMPONENT__bd94ce37-abca-47a2-8a8f-512a7dc31190",
+                    "type": "jira.issue.comment",
+                    "value": {
+                      "addCommentOnce": true,
+                      "comment": "@{{issue.reporter.displayName}} ✅ Great news!\nThe results for your DVA Request are now ready\nfor your review.\n\nAction Required:\nPlease review the results and respond within 48 hours:\n→ APPROVE — Reply with your approval so we can\n  move this ticket to COMPLETED\n→ REVISIONS NEEDED — Add your feedback as a comment\n  if changes are required\n\nTicket Details:\n→ Ticket: {{issue.key}}\n→ Summary: {{issue.summary}}\n→ Analyst: @{{issue.assignee.displayName}}\n\nThank you for your patience while we worked\nthrough your request!\n",
+                      "publicComment": false,
+                      "sendNotifications": true
+                    }
+                  }
+                ],
+                "component": "ORCHESTRATION",
+                "conditions": [],
+                "id": "__NEW__COMPONENT__11d67246-3c38-4778-b77e-3808c53a0424",
+                "type": "automation.orchestration.fragment",
+                "value": {
+                  "inputProjections": [],
+                  "name": "Group 3",
+                  "outputProjections": []
+                }
+              }
+            ]
+          },
+          {
+            "branchName": "Branch 2",
+            "components": [
+              {
+                "children": [],
+                "component": "ORCHESTRATION",
+                "conditions": [],
+                "id": "__NEW__COMPONENT__635279d0-2077-48ff-be3d-40a1cc1ba1b6",
+                "type": "automation.orchestration.instruction.continue-when",
+                "value": {
+                  "name": "",
+                  "selectedTab": "TIME_OPTION",
+                  "waitTime": 172800
+                }
+              },
+              {
+                "children": [
+                  {
+                    "children": [],
+                    "component": "ACTION",
+                    "conditions": [],
+                    "id": "__NEW__COMPONENT__69edf220-ff17-4d0a-a58f-fc42ca44a838",
+                    "type": "jira.issue.outgoing.email",
+                    "value": {
+                      "bcc": [],
+                      "body": "Item not Transitioned\n\n{{issue.summary}}",
+                      "cc": [
+                        {
+                          "type": "COPY",
+                          "value": "assignee"
+                        }
+                      ],
+                      "convertLineBreaks": true,
+                      "from": "",
+                      "fromName": "",
+                      "mimeType": "text/html",
+                      "replyTo": "",
+                      "subject": "{{issue.customfield_14955}} / {{assignee.displayName}} / ",
+                      "to": [
+                        {
+                          "type": "SMART",
+                          "value": "{{issue.assignee.emailAddress}}"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "component": "ORCHESTRATION",
+                "conditions": [],
+                "id": "__NEW__COMPONENT__fa00843e-709a-4245-aea8-7616bf70ff51",
+                "type": "automation.orchestration.fragment",
+                "value": {
+                  "inputProjections": [],
+                  "name": "Group 5",
+                  "outputProjections": []
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1773190386431,
+  "description": "",
+  "id": 32366415,
+  "idUuid": "019cda62-12ff-7a2b-834f-e87522f028db",
+  "labels": [],
+  "name": "DVA REQUEST - RESULTS UNDER REVIEW",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10485"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10485"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [
+    {
+      "tagType": "ORCHESTRATION_CONFIG_ID",
+      "tagValue": "ab5ce8eb-1ce4-11f1-8fbc-958ad952bb0f"
+    },
+    {
+      "tagType": "ORCHESTRATION_VERSION",
+      "tagValue": "1"
+    },
+    {
+      "tagType": "ORCHESTRATION",
+      "tagValue": null
+    }
+  ],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "57c6efc1-bde8-47a3-ad7c-929afd390dc5",
+        "conditions": [],
+        "connectionId": null,
+        "id": "3882b954-f3f0-41b0-ab93-4ef173a9ef7b",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "11255"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "57c6efc1-bde8-47a3-ad7c-929afd390dc5",
+        "conditions": [],
+        "connectionId": null,
+        "id": "ce8723b2-1663-4e2b-81f3-53b811d8a773",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": true,
+            "source": null,
+            "type": "NAME",
+            "value": "[\"Results Under Review\"]"
+          },
+          "comparison": "ONE_OF",
+          "selectedField": {
+            "type": "ID",
+            "value": "status"
+          },
+          "selectedFieldType": "status"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "57c6efc1-bde8-47a3-ad7c-929afd390dc5",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:updated",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10485"
+      ],
+      "eventKey": "jira:issue_updated",
+      "issueEvent": "issue_updated"
+    }
+  },
+  "updated": 1773190386431,
+  "writeAccessType": "OWNER_ONLY"
+}

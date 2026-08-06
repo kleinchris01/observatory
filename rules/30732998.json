@@ -1,0 +1,144 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:28aa8ca0-9dfa-46ef-8b60-0dd30eb04ac1",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "aa55192f-f5f5-462a-a510-fd0e04952e56",
+      "parentId": null,
+      "schemaVersion": 5,
+      "type": "jira.issue.outgoing.email",
+      "value": {
+        "bcc": [],
+        "body": "{{issue.summary}} has been transitioned to done, meaning evidence has been uploaded for this requirement. \n\n{{issue.url}}",
+        "cc": [],
+        "convertLineBreaks": true,
+        "fromName": "",
+        "mimeType": "text/html",
+        "replyTo": "",
+        "subject": "New Item Transitioned To Done",
+        "to": [
+          {
+            "type": "FREE",
+            "value": "mremenak@ford.com"
+          },
+          {
+            "type": "FREE",
+            "value": "kstefano@ford.com"
+          },
+          {
+            "type": "FREE",
+            "value": "cmoren64@ford.com"
+          },
+          {
+            "type": "FREE",
+            "value": "hnguy166@ford.com"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1762366746147,
+  "description": "",
+  "id": 30732998,
+  "idUuid": "019a553e-6e23-7390-9863-d0ccf582394c",
+  "labels": [],
+  "name": "Evidence Ready to Upload",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11145"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11145"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "021a0506-e381-4a20-bcd1-693d4554ef79",
+        "conditions": [],
+        "connectionId": null,
+        "id": "3c2988e6-71fd-4284-b192-4bf71b00c574",
+        "parentId": null,
+        "schemaVersion": 1,
+        "type": "jira.jql.condition",
+        "value": "parent in (PREH-596, BITRON-1260, BITRON-1259, BITRON-727, BCS-221, GOERTEK-192, GOERTEK-144, BCS-530)"
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "021a0506-e381-4a20-bcd1-693d4554ef79",
+        "conditions": [],
+        "connectionId": null,
+        "id": "1a3cadab-517e-4ece-9b8a-297dc6434ce2",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "NAME",
+            "value": "Engineering Verification Complete"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "NAME",
+            "value": "ADVEV Checkpoints & Milestones"
+          },
+          "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "021a0506-e381-4a20-bcd1-693d4554ef79",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:transitioned",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11145"
+      ],
+      "eventKey": "jira:issue_updated",
+      "fromStatus": [],
+      "issueEvent": "issue_generic",
+      "toStatus": [
+        {
+          "type": "NAME",
+          "value": "Done"
+        },
+        {
+          "type": "NAME",
+          "value": "Closed"
+        }
+      ]
+    }
+  },
+  "updated": 1763411498505,
+  "writeAccessType": "UNRESTRICTED"
+}

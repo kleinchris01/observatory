@@ -1,0 +1,128 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:c9c3dfc4-eef5-4087-8b1a-8ee188485a9b",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "d6152f80-5471-4687-bcfb-eab2a38282ca",
+      "parentId": null,
+      "schemaVersion": 2,
+      "type": "jira.issue.add.watcher",
+      "value": {
+        "removeAll": false,
+        "removeWatchers": [],
+        "watchers": [
+          {
+            "type": "ID",
+            "value": "712020:0f1434d9-6af0-4a4d-94e9-98784eeff43b"
+          },
+          {
+            "type": "ID",
+            "value": "712020:1389d49a-22b6-48ff-ac5b-11dcb0896ae9"
+          },
+          {
+            "type": "ID",
+            "value": "712020:c45173c5-04ef-4a09-9301-ebfb53811121"
+          },
+          {
+            "type": "ID",
+            "value": "712020:38c9cbad-0c84-46de-857c-b89d40de35dd"
+          },
+          {
+            "type": "ID",
+            "value": "712020:6a47281e-536f-4081-8541-ae5dcd1365d5"
+          },
+          {
+            "type": "ID",
+            "value": "712020:1ba67662-5af2-43ea-ba68-98d8354edc5e"
+          },
+          {
+            "type": "ID",
+            "value": "712020:c7abf5e7-d41c-48da-9904-ceaaccc1bbb7"
+          },
+          {
+            "type": "ID",
+            "value": "712020:378d35e4-446e-4990-bcce-b97d1140dcc1"
+          },
+          {
+            "type": "ID",
+            "value": "712020:5d97a321-606c-4806-b847-b959900a80d3"
+          },
+          {
+            "type": "ID",
+            "value": "712020:f2fdc9c4-e548-4d8f-9e73-97f1fbd71f5e"
+          },
+          {
+            "type": "ID",
+            "value": "712020:9fb7e938-ea8e-45b9-a8d4-39657ddaeae6"
+          },
+          {
+            "type": "ID",
+            "value": "712020:170e3ce9-6eac-4afc-9657-82da2f867b54"
+          },
+          {
+            "type": "ID",
+            "value": "712020:311c58aa-e62f-49a1-b3e5-222ff325537c"
+          },
+          {
+            "type": "ID",
+            "value": "712020:00cef56f-8407-4ec6-ba60-bba4dbeb5736"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1764884601482,
+  "description": "This rule adds a stable list of users as WATCHERS to any JIRA work items within the ADVEV CAE management space.",
+  "id": 31014404,
+  "idUuid": "019aeb51-da8b-7ad5-a9b9-679c22b22b23",
+  "labels": [],
+  "name": "Manual : Add standard watchers to work items in JIRA",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10042"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10042"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "1f9e8963-735b-4aca-8a4f-09d9de3d660d",
+    "parentId": null,
+    "schemaVersion": 3,
+    "type": "jira.manual.trigger.issue",
+    "value": {
+      "groups": [],
+      "inputFromUsers": false,
+      "inputPrompts": [],
+      "issueFilter": null,
+      "jQLFilter": null
+    }
+  },
+  "updated": 1764885088785,
+  "writeAccessType": "UNRESTRICTED"
+}

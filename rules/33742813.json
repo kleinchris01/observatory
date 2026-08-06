@@ -1,0 +1,194 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:975c8bf8-d86c-4dee-842f-4e9c3c3a541e",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "7d630c5b-fbef-45d6-82c5-983ebb5f7c44",
+              "parentId": "4a8c77f9-9be8-40aa-a8da-d0362a52e4a7",
+              "schemaVersion": 1,
+              "type": "jira.proforma.form.add.action",
+              "value": {
+                "allowDuplicates": false,
+                "formVisibility": "internal",
+                "templateFormsConfig": {
+                  "projectId": 13141,
+                  "templateFormIds": [
+                    5014561291672918
+                  ]
+                }
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "4a8c77f9-9be8-40aa-a8da-d0362a52e4a7",
+              "conditions": [],
+              "connectionId": null,
+              "id": "ac11c9da-7cf8-4c9a-951b-1143288d7450",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{userInputs.trigger}}",
+                "operator": "EQUALS",
+                "second": "Add Solution Matrix Form"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "4a8c77f9-9be8-40aa-a8da-d0362a52e4a7",
+          "parentId": "94a823f1-044f-4a00-b96a-1679adc4dcb8",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "fe1e0fa3-21e1-41ec-bfb1-66b50d35856c",
+              "parentId": "2cd50a7a-d251-4178-83c2-e11a1defc03b",
+              "schemaVersion": 1,
+              "type": "jira.proforma.form.change.status.action",
+              "value": {
+                "formStatus": "OPEN",
+                "templateFormsConfiguration": {
+                  "projectId": 13141,
+                  "templateFormIds": [
+                    "1f5cab4e-8e96-450c-b67a-bc3daac0e12b"
+                  ]
+                }
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "2cd50a7a-d251-4178-83c2-e11a1defc03b",
+              "conditions": [],
+              "connectionId": null,
+              "id": "9ca99fb7-30e7-47a8-94ef-aea7803272af",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{userInputs.trigger}}",
+                "operator": "EQUALS",
+                "second": "Set Form to Open for Edits"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "2cd50a7a-d251-4178-83c2-e11a1defc03b",
+          "parentId": "94a823f1-044f-4a00-b96a-1679adc4dcb8",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "94a823f1-044f-4a00-b96a-1679adc4dcb8",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1782471285374,
+  "description": "This automation runs two different actions based on user input.\n\nIf user input is Add Solution Matrix Form, then a Solution Matrix Form will be attached to the work item.\n\nIf user input is Set Form to Open for Edits, then the status of the Solution Matrix Form will be set to Open for Edits",
+  "id": 33742813,
+  "idUuid": "019f0391-5a80-7895-a7ef-e784f16e919b",
+  "labels": [],
+  "name": "SOLVE: Issue - Solution Matrix Form Actions",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "f5f60ba4-d65e-4023-ace7-f34783b15bd2",
+    "parentId": null,
+    "schemaVersion": 3,
+    "type": "jira.manual.trigger.issue",
+    "value": {
+      "groups": [
+        "dea6f738-2d14-4e6c-8a22-251412647bad",
+        "47121d05-cb75-4aa7-8b2a-6362300b9367",
+        "3cf1d344-eec5-44ff-9edc-7a57fc56651d",
+        "ff749a24-17a0-42ee-99cf-45feb6688039"
+      ],
+      "inputFromUsers": true,
+      "inputPrompts": [
+        {
+          "defaultValue": [
+            "Add Solution Matrix Form",
+            "Set Form to Open for Edits"
+          ],
+          "displayName": "Select Trigger",
+          "inputType": "DROPDOWN",
+          "required": false,
+          "variableName": "trigger"
+        }
+      ],
+      "issueFilter": {
+        "filterType": "ISSUE_TYPE",
+        "value": [
+          "Solve Ticket"
+        ]
+      },
+      "jQLFilter": null
+    }
+  },
+  "updated": 1782795810089,
+  "writeAccessType": "OWNER_ONLY"
+}

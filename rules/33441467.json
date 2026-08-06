@@ -1,0 +1,181 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:0904cf3d-a0e9-4d3d-8c01-8825365c9245",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "0747903a-886e-4cda-866e-0bbade4be93c",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADVEV Vehicle Platform"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+            "type": "SET",
+            "value": [
+              {
+                "type": "NAME",
+                "value": "CE1"
+              }
+            ]
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADVEV Vehicle Program"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+            "type": "SET",
+            "value": {
+              "type": "NAME",
+              "value": "U833"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "SIT/Attribute"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+            "type": "SET",
+            "value": [
+              {
+                "type": "NAME",
+                "value": "Seats"
+              }
+            ]
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "priority"
+            },
+            "fieldType": "priority",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "3"
+            }
+          }
+        ],
+        "sendNotifications": false
+      }
+    },
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "f1775764-3f3e-4340-9456-de07dbbc9637",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": true,
+          "source": null,
+          "type": "OBJECT",
+          "value": "[{\"label\":\"Motor\",\"value\":\"Motor\",\"fieldValue\":{\"type\":\"NAME\",\"value\":\"Motor\"},\"disabled\":false},{\"label\":\"Switch\",\"value\":\"Switch\",\"fieldValue\":{\"type\":\"NAME\",\"value\":\"Switch\"},\"disabled\":false},{\"label\":\"Wire Harness\",\"value\":\"Wire Harness\",\"fieldValue\":{\"type\":\"NAME\",\"value\":\"Wire Harness\"},\"disabled\":false},{\"label\":\"ODS\",\"value\":\"ODS\",\"fieldValue\":{\"type\":\"NAME\",\"value\":\"ODS\"},\"errored\":false,\"disabled\":false}]"
+        },
+        "comparison": "CONTAINS_ANY",
+        "selectedField": {
+          "type": "ID",
+          "value": "components"
+        },
+        "selectedFieldType": "components"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "83737e57-54a9-4a52-bc3b-cdebd0183a1f",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Collaborators"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+            "type": "SET",
+            "value": [
+              {
+                "type": "ID",
+                "value": "712020:af937efe-d9cc-42a6-b78c-d01a153f3fd7"
+              }
+            ]
+          }
+        ],
+        "sendNotifications": true
+      }
+    }
+  ],
+  "created": 1780081755694,
+  "description": "",
+  "id": 33441467,
+  "idUuid": "019e7524-062e-70a7-997d-e2a607c8a110",
+  "labels": [],
+  "name": "Basic Info Population",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13881"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13881"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "a9b26f91-39f3-4a9f-9339-9a362fbc3b00",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13881"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1780086815592,
+  "writeAccessType": "OWNER_ONLY"
+}

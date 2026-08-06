@@ -1,0 +1,281 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:10e644de-d96b-4816-9029-d6cf8f0aec37",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "632105218",
+              "parentId": "632105216",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "FAB Card Owner"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "712020:5e5b3fd5-44bc-466f-a06d-9d5d176faa40"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "632105216",
+              "conditions": [],
+              "connectionId": null,
+              "id": "707772878",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "ID",
+                  "value": "[\"627aa4b7f29dcb0068f88120\"]"
+                },
+                "comparison": "ONE_OF",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "FAB Card Owner"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "632105216",
+          "parentId": "632105215",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ANY"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "632105221",
+              "parentId": "632105219",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "FAB Card Owner"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "712020:3ffac824-3b9d-472b-9bb8-c46698fd36ed"
+                    }
+                  }
+                ],
+                "sendNotifications": false
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "632105219",
+              "conditions": [],
+              "connectionId": null,
+              "id": "707772879",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "ID",
+                  "value": "[\"712020:2604be6e-9e2a-4c33-80c2-b478328a00e0\"]"
+                },
+                "comparison": "ONE_OF",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "FAB Card Owner"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "632105219",
+          "parentId": "632105215",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ANY"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "6f0b5c11-df22-4ac0-bf2c-5d732ee92e30",
+              "parentId": "50249fa8-ed23-4ec3-bc8f-9d2e14f5f27a",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "FAB Card Owner"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "712020:011b41b2-da80-44b2-8f1a-c1ad7b945d99"
+                    }
+                  }
+                ],
+                "sendNotifications": false
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "50249fa8-ed23-4ec3-bc8f-9d2e14f5f27a",
+              "conditions": [],
+              "connectionId": null,
+              "id": "e988aa5c-9697-442b-b009-0309aad6e6f8",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "ID",
+                  "value": "[\"712020:5c3400e0-01ec-4501-9f2f-2eaa4c9d94dd\"]"
+                },
+                "comparison": "ONE_OF",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "FAB Card Owner"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "50249fa8-ed23-4ec3-bc8f-9d2e14f5f27a",
+          "parentId": "632105215",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ANY"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "632105215",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1731702066164,
+  "description": "",
+  "id": 23008415,
+  "idUuid": "0193317c-8bf4-7b64-9b16-49ceec4d772d",
+  "labels": [],
+  "name": "Assign Sit Leads",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10290"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10290"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "632105213",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10290"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1781528738021,
+  "writeAccessType": "UNRESTRICTED"
+}

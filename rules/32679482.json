@@ -1,0 +1,80 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:055a5bcc-7db2-46a9-8337-ce40c198f7c1",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "b979dbc6-0759-4b69-a199-3d3e0d52ce00",
+      "parentId": null,
+      "schemaVersion": 2,
+      "type": "jira.issue.add.watcher",
+      "value": {
+        "removeAll": false,
+        "removeWatchers": [],
+        "watchers": [
+          {
+            "type": "ID",
+            "value": "712020:82a4626a-a231-4f18-abe4-89246a05ba43"
+          },
+          {
+            "type": "ID",
+            "value": "712020:055a5bcc-7db2-46a9-8337-ce40c198f7c1"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1774988293827,
+  "description": "",
+  "id": 32679482,
+  "idUuid": "019d458b-f6c3-786f-8297-c26afcdfc123",
+  "labels": [],
+  "name": "Add TPM and Lead as watcher",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10020"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10020"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "72a49f2a-7d57-49b4-bbe7-0cdf113788a2",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10020"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1774988293827,
+  "writeAccessType": "OWNER_ONLY"
+}

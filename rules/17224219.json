@@ -1,0 +1,97 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "565393285",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.condition.query",
+      "value": {
+        "cmdbField": null,
+        "cmdbQuery": "objectType = Equipment AND Status = \"Object Inactive\"",
+        "type": "OBJECT"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "565393288",
+      "parentId": null,
+      "schemaVersion": 5,
+      "type": "jira.issue.outgoing.email",
+      "value": {
+        "bcc": [],
+        "body": "Hello, \n\nThis is a notification that <strong>{{object.Name}} - {{object.key}}</strong> was set to inactive on {{now.shortDate}}.\n\nTo set it to active, please navigate to the object schema and change the status attribute to \"Object Active\".\n\n<strong><a href=\"https://ford-advev.atlassian.net/jira/servicedesk/assets/object-schema/6?mode=object&typeId=17&view=list\">Inactive Equipment</a></strong>\n\nThank you,\n\nAutomation for Jira\n\n",
+        "cc": [],
+        "convertLineBreaks": true,
+        "fromName": "",
+        "mimeType": "text/html",
+        "replyTo": "",
+        "subject": "{{object.Name}} marked as inactive",
+        "to": [
+          {
+            "type": "FREE",
+            "value": "earaki1@ford.com"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1704753472043,
+  "description": "",
+  "id": 17224219,
+  "idUuid": "018ceb39-a22b-7040-8c48-095987a7b5d5",
+  "labels": [],
+  "name": "Notify stakeholder when object marked as inactive",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "565393280",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "cmdb.object.trigger",
+    "value": {
+      "operation": "UPDATED",
+      "schemaId": "6",
+      "schemaLabel": "Prototype Testing Schema",
+      "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+    }
+  },
+  "updated": 1704753782052,
+  "writeAccessType": "UNRESTRICTED"
+}

@@ -1,0 +1,120 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "6206e14e506317006b09a777",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "654940608",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.lookup.issues",
+      "value": {
+        "id": "_customsmartvalue_id_1734380828721",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "lookupIssues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "project = FIN AND type = Sub-Task AND status = \"Work in progress\" AND summary ~ \"WBS\" ORDER BY created DESC"
+        },
+        "type": "JQL"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "654940609",
+      "parentId": null,
+      "schemaVersion": 5,
+      "type": "action.send-templated-email",
+      "value": {
+        "cc": [
+          {
+            "type": "FREE",
+            "value": "swocks@ford.com"
+          }
+        ],
+        "convertLineBreaks": false,
+        "legacyConfig": true,
+        "sendGroupedEmails": true,
+        "templateContextData": {
+          "body": "<html>\n<body>\n<p>Hi,</p>\n<p>Here's the latest open items for the WBS budget setup (sub-tasks in status \"WORK IN PROGRESS\").</p>\n<p>Jira Dashboard: https://ford-advev.atlassian.net/jira/dashboards/11348</p>\n<p>Please update the sub-task status to \"DONE\" when complete.</p>\n\n<table border=\"1\" cellpadding=\"5\" cellspacing=\"0\">\n<tr>\n  <th>Sub-Task Key</th>\n  <th>Parent Issue</th>\n  <th>Parent Summary</th>\n  <th>ADVEV Vehicle Program</th>\n  <th>SIT/Attribute</th>\n  <th>Total Vendor Tooling Cost</th>\n  <th>Suppliers</th>\n  <th>Supplier Location</th>\n  <th>Part Number</th>\n  <th>GPID</th>\n  <th>Reporter</th>\n  <th>Engineer</th>\n  <th>Buyer</th>\n  <th>GSM</th>\n  <th>Sub-Task Last Comment</th>\n</tr>\n{{#lookupIssues}}\n<tr>\n  <td><a href=\"https://ford-advev.atlassian.net/browse/{{key}}\">{{key}}</a></td>\n  <td><a href=\"https://ford-advev.atlassian.net/browse/{{parent.key}}\">{{parent.key}}</a></td>\n  <td>{{parent.summary}}</td>\n  <td>{{parent.customfield_11104}}</td>\n  <td>{{parent.customfield_11492}}</td>\n  <td>{{parent.customfield_12889}}</td>\n  <td>{{parent.customfield_12143}}</td>\n  <td>{{parent.customfield_12891}}</td>\n  <td>{{parent.customfield_11825}}</td>\n  <td>{{parent.customfield_12486}}</td>\n  <td>{{parent.reporter.displayName}}</td>\n  <td>{{parent.customfield_10978.displayName}}</td>\n  <td>{{parent.customfield_11189.displayName}}</td>\n  <td>{{parent.customfield_12893.displayName}}</td>\n  <td>{{comment.0.body}}</td>\n</tr>\n{{/lookupIssues}}\n</table>\n\n<p>This is a 1/day Jira automation.</p>\n<p>For any questions please reach out to Sam Wocks.</p>\n</body>\n</html>\n",
+          "bodyType": "HTML",
+          "fromEmailAddress": "automation@ford-advev.atlassian.net",
+          "fromName": "Sam Wocks - Automation",
+          "replyToEmailAddress": "swocks@ford.com",
+          "subject": "WBS Budget Open items"
+        },
+        "to": [
+          {
+            "type": "FREE",
+            "value": "dchintal@ford.com"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1734375851061,
+  "description": "",
+  "id": 23585438,
+  "idUuid": "0193d0db-4435-7035-bb1f-bd9fd8c7f132",
+  "labels": [],
+  "name": "WBS email 1/day",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10551"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10551"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "654940607",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "nosearch",
+      "jql": "",
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=PST8PDT:20241216T160000\nRRULE:FREQ=WEEKLY;BYHOUR=20;BYMINUTE=0;BYSECOND=0;BYDAY=MO,TU,WE,TH,SU;INTERVAL=1\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1785125107440,
+  "writeAccessType": "UNRESTRICTED"
+}

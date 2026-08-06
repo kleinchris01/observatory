@@ -1,0 +1,118 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "712020:9b52b270-bb29-4f87-880d-7c4412cc01b8"
+  },
+  "authorAccountId": "712020:9b52b270-bb29-4f87-880d-7c4412cc01b8",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "837fb3b9-49e6-46d5-b40b-4b02a4a35c48",
+      "parentId": null,
+      "schemaVersion": 6,
+      "type": "jira.user.condition",
+      "value": {
+        "conditions": [
+          {
+            "check": "USER_IS",
+            "criteria": [
+              {
+                "type": "ID",
+                "value": "712020:dd3b035b-232d-4bac-a4d4-1332a9e993df"
+              }
+            ],
+            "field": "customfield_11090"
+          }
+        ],
+        "operator": "OR"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "23b68e4f-5098-4266-89d0-7513cf3bf27c",
+      "parentId": null,
+      "schemaVersion": 5,
+      "type": "jira.issue.outgoing.email",
+      "value": {
+        "bcc": [],
+        "body": "Jacob, \n\nYou have been added as a collaborator on issue\n {{issue.key}} : ({{issue.summary}}).\n\nYou can view the issue here: {{issue.toUrl}}\n\nBest regards,\nJira Automation Team",
+        "cc": [],
+        "convertLineBreaks": true,
+        "fromName": "Jira Automation Team",
+        "mimeType": "text/html",
+        "subject": "You have been added as a collaborator for {{issue.key}} ",
+        "to": [
+          {
+            "type": "FREE",
+            "value": "jlang61@ford.com"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1776873232180,
+  "description": "When jlang61@ford.com is added as a collaborator on an issue, send them an email notification.",
+  "id": 32982874,
+  "idUuid": "019db5e5-d734-7198-b962-2a63316dc752",
+  "labels": [],
+  "name": "Email Jacob Land when he is added as a Collaborator ",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10816",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10125"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "3d273c49-41d0-4df0-a102-321b7220f94c",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [
+        "edit",
+        "create"
+      ],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10125",
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10816"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Collaborators"
+        }
+      ]
+    }
+  },
+  "updated": 1776888698738,
+  "writeAccessType": "UNRESTRICTED"
+}

@@ -1,0 +1,320 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "712020:b3ce70e6-7267-48b5-b3ea-56a554b0f4d0"
+  },
+  "authorAccountId": "712020:b3ce70e6-7267-48b5-b3ea-56a554b0f4d0",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "fd98cab5-e967-4874-bb84-7cc42fcb2666",
+              "parentId": "3bb429a5-3722-4e8a-a6dc-dc9885a645e0",
+              "schemaVersion": 11,
+              "type": "jira.issue.transition",
+              "value": {
+                "advancedFields": null,
+                "destinationStatus": {
+                  "type": "NAME",
+                  "value": "To Do"
+                },
+                "operations": [],
+                "sendNotifications": true,
+                "transitionMatch": null
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "3bb429a5-3722-4e8a-a6dc-dc9885a645e0",
+              "conditions": [],
+              "connectionId": null,
+              "id": "b34b7d9b-24b3-4b77-ad78-89f7c159781d",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "VALUE",
+                  "value": "{\"type\":\"RELATIVE\",\"relativeValue\":{\"interval\":\"DAYS\",\"tense\":\"AGO\",\"amount\":\"1\"}}"
+                },
+                "comparison": "IS_AFTER",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Start date"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:datepicker"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "3bb429a5-3722-4e8a-a6dc-dc9885a645e0",
+          "parentId": "c12199da-c456-4528-8d94-9e9d4919209d",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "ec9efba9-c172-40d4-98fe-4ed17703e0e5",
+              "parentId": "5b772c4f-8208-4d5b-a287-4b21a447728f",
+              "schemaVersion": 11,
+              "type": "jira.issue.transition",
+              "value": {
+                "advancedFields": null,
+                "destinationStatus": {
+                  "type": "NAME",
+                  "value": "To Do"
+                },
+                "operations": [],
+                "sendNotifications": true,
+                "transitionMatch": null
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "5b772c4f-8208-4d5b-a287-4b21a447728f",
+              "conditions": [],
+              "connectionId": null,
+              "id": "e0a0a9d7-bdd0-428b-9de2-5aaaed2cb1f6",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": "current",
+                  "type": "FIELD",
+                  "value": ""
+                },
+                "comparison": "EMPTY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Start date"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:datepicker"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "5b772c4f-8208-4d5b-a287-4b21a447728f",
+          "parentId": "c12199da-c456-4528-8d94-9e9d4919209d",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ANY"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "ac0bef07-6e8c-4baf-bd20-9f00d75cd63c",
+              "parentId": "d0bdab69-4702-4df0-a40b-09b259b34a4c",
+              "schemaVersion": 11,
+              "type": "jira.issue.transition",
+              "value": {
+                "advancedFields": null,
+                "destinationStatus": {
+                  "type": "NAME",
+                  "value": "In Progress"
+                },
+                "operations": [],
+                "sendNotifications": true,
+                "transitionMatch": null
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "d0bdab69-4702-4df0-a40b-09b259b34a4c",
+              "conditions": [],
+              "connectionId": null,
+              "id": "9ea83ab6-7cd0-4b5d-9786-202fdff63853",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": "current",
+                  "type": "FIELD",
+                  "value": "duedate"
+                },
+                "comparison": "IS_BEFORE",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Start date"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:datepicker"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "d0bdab69-4702-4df0-a40b-09b259b34a4c",
+          "parentId": "c12199da-c456-4528-8d94-9e9d4919209d",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "3aea8173-2de9-4c05-a7f0-c5c09599a13c",
+              "parentId": "1f590167-0809-4068-a2de-b22a873c9291",
+              "schemaVersion": 11,
+              "type": "jira.issue.transition",
+              "value": {
+                "advancedFields": null,
+                "destinationStatus": {
+                  "type": "NAME",
+                  "value": "Done"
+                },
+                "operations": [],
+                "sendNotifications": true,
+                "transitionMatch": null
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "1f590167-0809-4068-a2de-b22a873c9291",
+              "conditions": [],
+              "connectionId": null,
+              "id": "2003bb75-ed94-4bdc-8eea-e863c8e5ec6b",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "VALUE",
+                  "value": "{\"type\":\"RELATIVE\",\"relativeValue\":{\"interval\":\"DAYS\",\"tense\":\"FROM_NOW\",\"amount\":\"1\"}}"
+                },
+                "comparison": "IS_AFTER",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Completed date"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:datepicker"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "1f590167-0809-4068-a2de-b22a873c9291",
+          "parentId": "c12199da-c456-4528-8d94-9e9d4919209d",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "c12199da-c456-4528-8d94-9e9d4919209d",
+      "parentId": null,
+      "schemaVersion": -1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1767721265525,
+  "description": "Automatically transitions issue status based on the start date, due date, and completion date.",
+  "id": 31422520,
+  "idUuid": "019b9465-e975-7ebe-ade4-02a8b3c8dbfc",
+  "labels": [],
+  "name": "Update Issue Status Based on Dates",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10110"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10110"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "d372a0d6-576c-4f1a-b290-3e45c029919f",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:updated",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10110"
+      ],
+      "eventKey": "jira:issue_updated",
+      "issueEvent": "issue_updated"
+    }
+  },
+  "updated": 1767809114646,
+  "writeAccessType": "UNRESTRICTED"
+}

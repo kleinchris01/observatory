@@ -1,0 +1,104 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "4c441aa6-3132-4311-b150-ff864385184c",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "- Issue Key: {{issue.key}} - ADVEV Field: {{issue.ADVEV Vehicle Program.value}} - Program Field: {{issue.Program.value}} - Project: {{issue.project.key}} Security Level Rationale: U833 is absent, and valid P833 intent was confirmed (either via the ADVEV field, or via the Program field within the approved ECM/PREA projects). The issue is being aligned to P833 Default.  "
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "5421b0c2-aabe-448f-b49e-9e63bfd5daf2",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "security"
+            },
+            "fieldType": "security",
+            "type": "SET",
+            "value": {
+              "type": "NAME",
+              "value": "P833 Default"
+            }
+          }
+        ],
+        "sendNotifications": false
+      }
+    }
+  ],
+  "created": 1777067934963,
+  "description": "This rule is the management automation to set and maintain the proper vehicle program information security levels.",
+  "id": 33027245,
+  "idUuid": "019dc180-c4f3-744d-8950-ffd95edcb1f7",
+  "labels": [
+    1056296
+  ],
+  "name": "Set P833 Default Security Level - ADVEV Vehicle Program/Program fields (Scheduled)",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11574",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10029"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "dafb35e2-f298-4326-902c-df7b4bf6487f",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "(   \"ADVEV Vehicle Program\" = \"P833\"   OR   (\"Program [Select List (multiple choices)]\" = \"P833\" AND project in (ECM, PREA)) ) AND (   \"ADVEV Vehicle Program\" != \"U833\"   AND   \"Program [Select List (multiple choices)]\" != \"U833\" ) AND level in (\"CE1 Default\", \"U833 Default\", EMPTY) AND level != \"P833 Default\" ",
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/Los_Angeles:20260402T133610\nRRULE:FREQ=WEEKLY;BYHOUR=9;BYMINUTE=0;BYSECOND=0;BYDAY=TH;INTERVAL=1\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1777659711468,
+  "writeAccessType": "UNRESTRICTED"
+}

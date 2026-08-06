@@ -1,0 +1,158 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:c9c3dfc4-eef5-4087-8b1a-8ee188485a9b",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "f6eb6ee9-b8f1-43c8-81f0-1ce8b973728a",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Vehicle ID"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+            "type": "SET",
+            "value": [
+              {
+                "type": "SMART",
+                "value": "{{issue.Vehicle Object Number}}"
+              }
+            ]
+          }
+        ],
+        "sendNotifications": true
+      }
+    }
+  ],
+  "created": 1784675719881,
+  "description": "",
+  "id": 33976493,
+  "idUuid": "019f86f6-5ac8-7cdc-bbad-8b2329f09149",
+  "labels": [],
+  "name": "Manual trigger to copy Vehicle Object Number to Vehicle ID for Durability Test",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11112"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11112"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "af5ad944-abcb-4bfb-82ea-9f89fc101098",
+        "conditions": [],
+        "connectionId": null,
+        "id": "c9f6d530-fc30-40f9-8818-dd8377798624",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": true,
+            "source": null,
+            "type": "NAME",
+            "value": "[\"Cancelled\",\"Completed\",\"Not Applicable\"]"
+          },
+          "comparison": "NOT_ONE_OF",
+          "selectedField": {
+            "type": "ID",
+            "value": "status"
+          },
+          "selectedFieldType": "status"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "af5ad944-abcb-4bfb-82ea-9f89fc101098",
+        "conditions": [],
+        "connectionId": null,
+        "id": "3a104d47-6929-4ee9-ad0c-4e30dc6feea9",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": null,
+          "comparison": "NOT_EMPTY",
+          "selectedField": {
+            "type": "NAME",
+            "value": "Vehicle Object Number"
+          },
+          "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "af5ad944-abcb-4bfb-82ea-9f89fc101098",
+        "conditions": [],
+        "connectionId": null,
+        "id": "dd8ee084-6ccb-4013-b61a-39da8d1b5c5c",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": null,
+          "comparison": "EMPTY",
+          "selectedField": {
+            "type": "NAME",
+            "value": "Vehicle ID"
+          },
+          "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "af5ad944-abcb-4bfb-82ea-9f89fc101098",
+    "parentId": null,
+    "schemaVersion": 3,
+    "type": "jira.manual.trigger.issue",
+    "value": {
+      "groups": [],
+      "inputFromUsers": false,
+      "inputPrompts": [],
+      "issueFilter": {
+        "filterType": "ISSUE_TYPE",
+        "value": [
+          "Durability Test"
+        ]
+      },
+      "jQLFilter": null
+    }
+  },
+  "updated": 1784675719881,
+  "writeAccessType": "OWNER_ONLY"
+}

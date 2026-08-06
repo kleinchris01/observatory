@@ -1,0 +1,307 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "9b0441b9-5b9e-423a-8f7a-2dfb71572859",
+              "parentId": "bc7c278b-dc26-4341-a0e3-062a22e86599",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": "{\n  \"update\": {\n    \"customfield_11090\": [\n      {\n        \"add\": { \"accountId\": \"640f7cdb407493675d4506a5\" }\n      }\n    ]\n  }\n}",
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "assignee"
+                    },
+                    "fieldType": "assignee",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "712020:f1f2ba71-549a-4584-ad9a-14cf54c79512"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "bc7c278b-dc26-4341-a0e3-062a22e86599",
+              "conditions": [],
+              "connectionId": null,
+              "id": "712ab78d-d534-4913-a38f-e53838b9cce9",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": "CASE_SENSITIVE",
+                  "multiValue": false,
+                  "source": null,
+                  "type": "VALUE",
+                  "value": "Software"
+                },
+                "comparison": "CONTAINS_ANY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "SIT/Attribute (Assets)"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "bc7c278b-dc26-4341-a0e3-062a22e86599",
+              "conditions": [],
+              "connectionId": null,
+              "id": "2e73e184-c1e9-4929-a453-49b4e227638a",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": "CASE_SENSITIVE",
+                  "multiValue": false,
+                  "source": null,
+                  "type": "VALUE",
+                  "value": "Electrical"
+                },
+                "comparison": "CONTAINS_ANY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "SIT/Attribute (Assets)"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "bc7c278b-dc26-4341-a0e3-062a22e86599",
+          "parentId": "b05b8e74-782a-40d3-93f4-223b41492f7d",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ANY"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "aede8644-4562-4cd7-a231-32fcd1237afe",
+              "parentId": "94b019ab-95a6-4109-8eb4-d48be07eae14",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "assignee"
+                    },
+                    "fieldType": "assignee",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "712020:69090088-e92e-4ff5-8441-c4b7ae41f85e"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "94b019ab-95a6-4109-8eb4-d48be07eae14",
+              "conditions": [],
+              "connectionId": null,
+              "id": "e901d791-3f68-4a9c-99fd-abbbdf39ce17",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "ID",
+                  "value": "712020:a5106eb0-ee8a-4483-9412-763feaa0ef93"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "ID",
+                  "value": "creator"
+                },
+                "selectedFieldType": "creator"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "94b019ab-95a6-4109-8eb4-d48be07eae14",
+          "parentId": "b05b8e74-782a-40d3-93f4-223b41492f7d",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "eeb77d98-d72d-4350-a633-ba391168862c",
+              "parentId": "3767c8b5-dc09-4745-bf3c-de6d55330141",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "assignee"
+                    },
+                    "fieldType": "assignee",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "712020:283f5a37-b9cb-4dd0-86d2-26116ff51361"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "3767c8b5-dc09-4745-bf3c-de6d55330141",
+          "parentId": "b05b8e74-782a-40d3-93f4-223b41492f7d",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "b05b8e74-782a-40d3-93f4-223b41492f7d",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1778747102018,
+  "description": "This automation automatically set an assignee to the work item",
+  "id": 33271574,
+  "idUuid": "019e2596-d341-7ff0-a06a-305b5907dd7a",
+  "labels": [],
+  "name": "SOLVE: Issue - Set Assignee on Ticket Creation",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "0b3ccd77-2e70-4565-a718-7456447ce2f1",
+        "conditions": [],
+        "connectionId": null,
+        "id": "1364ed57-1f80-444c-9844-a48a6e9c34ad",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "13364"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "0b3ccd77-2e70-4565-a718-7456447ce2f1",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1784846540049,
+  "writeAccessType": "UNRESTRICTED"
+}

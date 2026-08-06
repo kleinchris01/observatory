@@ -1,0 +1,280 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:10e644de-d96b-4816-9029-d6cf8f0aec37",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555646798",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.comparator.condition",
+      "value": {
+        "first": "{{comment.internal}}",
+        "operator": "EQUALS",
+        "second": "false"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "555646805",
+              "parentId": "555646802",
+              "schemaVersion": 11,
+              "type": "jira.issue.transition",
+              "value": {
+                "advancedFields": null,
+                "destinationStatus": {
+                  "type": "NAME",
+                  "value": "Waiting for customer"
+                },
+                "operations": [],
+                "sendNotifications": true,
+                "transitionMatch": null
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "555646802",
+              "conditions": [],
+              "connectionId": null,
+              "id": "555646803",
+              "parentId": null,
+              "schemaVersion": 6,
+              "type": "jira.user.condition",
+              "value": {
+                "conditions": [
+                  {
+                    "check": "IN_ROLE",
+                    "criteria": [
+                      {
+                        "type": "NAME",
+                        "value": "Service Desk Team"
+                      }
+                    ],
+                    "field": "initiator"
+                  }
+                ],
+                "operator": "AND"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "555646802",
+              "conditions": [],
+              "connectionId": null,
+              "id": "555646804",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "[\"In Progress\",\"Waiting for support\"]"
+                },
+                "comparison": "ONE_OF",
+                "selectedField": {
+                  "type": "ID",
+                  "value": "status"
+                },
+                "selectedFieldType": "status"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "555646802",
+          "parentId": "555646800",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "555646809",
+              "parentId": "555646806",
+              "schemaVersion": 11,
+              "type": "jira.issue.transition",
+              "value": {
+                "advancedFields": null,
+                "destinationStatus": {
+                  "type": "NAME",
+                  "value": "Waiting for support"
+                },
+                "operations": [],
+                "sendNotifications": true,
+                "transitionMatch": null
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "555646806",
+              "conditions": [],
+              "connectionId": null,
+              "id": "555646807",
+              "parentId": null,
+              "schemaVersion": 6,
+              "type": "jira.user.condition",
+              "value": {
+                "conditions": [
+                  {
+                    "check": "USER_IS",
+                    "criteria": [
+                      {
+                        "type": "SMART",
+                        "value": "{{issue.reporter}}"
+                      }
+                    ],
+                    "field": "initiator"
+                  }
+                ],
+                "operator": "AND"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "555646806",
+              "conditions": [],
+              "connectionId": null,
+              "id": "555646808",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "Waiting for customer"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "ID",
+                  "value": "status"
+                },
+                "selectedFieldType": "status"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "555646806",
+          "parentId": "555646800",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555646800",
+      "parentId": null,
+      "schemaVersion": -1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1694842757801,
+  "description": null,
+  "id": 14846706,
+  "idUuid": "018a9c80-22a9-790e-8abc-c0944f1b72d8",
+  "labels": [
+    423969
+  ],
+  "name": "Comment is added → update the status",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [
+    {
+      "tagType": "BILLABLE",
+      "tagValue": "true"
+    },
+    {
+      "tagType": "CREATION_TYPE",
+      "tagValue": "USER"
+    },
+    {
+      "tagType": "SAMPLE_RULE",
+      "tagValue": "service_desk"
+    },
+    {
+      "tagType": "TEMPLATE_ID",
+      "tagValue": "itsm_template_6"
+    }
+  ],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "555646795",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:commented",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+      ],
+      "eventTypes": []
+    }
+  },
+  "updated": 1719497401074,
+  "writeAccessType": "UNRESTRICTED"
+}

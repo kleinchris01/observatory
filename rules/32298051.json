@@ -1,0 +1,131 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:9b52b270-bb29-4f87-880d-7c4412cc01b8",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "9ce58d2c-b265-4a09-9a74-8611fc4d4a4f",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.clone",
+      "value": {
+        "advancedFields": "{\n    \"update\": {\n        \"issuelinks\": [\n            {\n                \"add\": {\n                    \"type\": {\n                        \"name\": \"Cloners\"\n                    },\n                    \"outwardIssue\": {\n                        \"key\": \"{{issue.key}}\"\n                    }\n                }\n            }\n        ]\n    }\n}",
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "project"
+            },
+            "fieldType": "project",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10066"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "fieldType": "issuetype",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10023"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": " {{issue.key}} - {{issue.summary}}"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "description"
+            },
+            "fieldType": "description",
+            "type": "SET",
+            "value": "Cloned from CRAFTSMANSHIP project: {{issue.key}}\nCRAFT Description: {{issue.description}}\n----\nVAST URL: {{issue.customfield_19313}}\nVAST LSID: {{issue.customfield_19315}}\nVAST From: {{issue.customfield_19316}}\nVAST To: {{issue.customfield_19317}}\n----\nLOCATION: (Primary): {{issue.customfield_16432}}\nLOCATION: (Secondary): {{issue.customfield_16433}}\n----\nDEFECT by SENSE: {{issue.customfield_18000}}\nDEFECT by CATEGORY: {{issue.customfield_18001}}\nDEFECT Sub CATEGORY: {{issue.customfield_18002}}\n----\nDEFECT by Origin: {{issue.customfield_20675}}\nForecast Build Phase at Resolution: {{issue.customfield_20779}}"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "attachment"
+            },
+            "fieldType": "attachment",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "attachment",
+                "type": "ID",
+                "value": "attachment"
+              },
+              "sourceIssue": "trigger"
+            }
+          }
+        ],
+        "sendNotifications": false
+      }
+    }
+  ],
+  "created": 1772731030287,
+  "description": "This rule allows the UI to manually trigger a CLONE to be created in the SSI project as a task",
+  "id": 32298051,
+  "idUuid": "019cbf00-db0f-7e22-9d61-855cbce441e7",
+  "labels": [],
+  "name": "CRAFT - Raise an SSI Update",
+  "notifyOnError": "EVERYERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11772"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11772"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "55a7d2ec-d999-4994-b3b2-9e06b641de64",
+    "parentId": null,
+    "schemaVersion": 3,
+    "type": "jira.manual.trigger.issue",
+    "value": {
+      "groups": [],
+      "inputFromUsers": false,
+      "inputPrompts": [],
+      "issueFilter": null,
+      "jQLFilter": null
+    }
+  },
+  "updated": 1776109679362,
+  "writeAccessType": "UNRESTRICTED"
+}

@@ -1,0 +1,2080 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:10e644de-d96b-4816-9029-d6cf8f0aec37",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "696221283",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": null,
+          "type": "VALUE",
+          "value": "1"
+        },
+        "comparison": "GREATER_THAN",
+        "selectedField": {
+          "type": "NAME",
+          "value": "Line Item Count"
+        },
+        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float"
+      }
+    },
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "695467600",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": null,
+          "type": "ID",
+          "value": "10264"
+        },
+        "comparison": "EQUALS",
+        "selectedField": {
+          "type": "ID",
+          "value": "issuetype"
+        },
+        "selectedFieldType": "issuetype"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "695467611",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1740498058662",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "costone"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{#=}}{{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-one}}*{{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-one}}{{/}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "695467612",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1740498058662",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "costtwo"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{#=}}{{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-two}}*{{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-two}}{{/}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "695467613",
+              "parentId": "696221285",
+              "schemaVersion": 1,
+              "type": "jira.create.variable",
+              "value": {
+                "id": "_customsmartvalue_id_1740498058662",
+                "lazy": false,
+                "name": {
+                  "type": "FREE",
+                  "value": "costthree"
+                },
+                "query": {
+                  "type": "SMART",
+                  "value": "{{#=}}{{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-three}}*{{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-three}}{{/}}"
+                },
+                "type": "SMART"
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "696221285",
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221286",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "VALUE",
+                  "value": "3"
+                },
+                "comparison": "GREATER_THAN_OR_EQUAL_TO",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Line Item Count"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "696221285",
+          "parentId": "696221284",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "696221284",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "695467614",
+              "parentId": "696221288",
+              "schemaVersion": 1,
+              "type": "jira.create.variable",
+              "value": {
+                "id": "_customsmartvalue_id_1740498058662",
+                "lazy": false,
+                "name": {
+                  "type": "FREE",
+                  "value": "costfour"
+                },
+                "query": {
+                  "type": "SMART",
+                  "value": "{{#=}}{{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-three}}*{{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-three}}{{/}}"
+                },
+                "type": "SMART"
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "696221288",
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221289",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "VALUE",
+                  "value": "4"
+                },
+                "comparison": "GREATER_THAN_OR_EQUAL_TO",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Line Item Count"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "696221288",
+          "parentId": "696221287",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "696221287",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "695467615",
+              "parentId": "696221291",
+              "schemaVersion": 1,
+              "type": "jira.create.variable",
+              "value": {
+                "id": "_customsmartvalue_id_1740498058662",
+                "lazy": false,
+                "name": {
+                  "type": "FREE",
+                  "value": "costfive"
+                },
+                "query": {
+                  "type": "SMART",
+                  "value": "{{#=}}{{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-five}}*{{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-five}}{{/}}"
+                },
+                "type": "SMART"
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "696221291",
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221292",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "VALUE",
+                  "value": "5"
+                },
+                "comparison": "GREATER_THAN_OR_EQUAL_TO",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Line Item Count"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "696221291",
+          "parentId": "696221290",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "696221290",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "695467616",
+              "parentId": "696221294",
+              "schemaVersion": 1,
+              "type": "jira.create.variable",
+              "value": {
+                "id": "_customsmartvalue_id_1740498058662",
+                "lazy": false,
+                "name": {
+                  "type": "FREE",
+                  "value": "costsix"
+                },
+                "query": {
+                  "type": "SMART",
+                  "value": "{{#=}}{{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-six}}*{{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-six}}{{/}}"
+                },
+                "type": "SMART"
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "696221294",
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221295",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "VALUE",
+                  "value": "6"
+                },
+                "comparison": "GREATER_THAN_OR_EQUAL_TO",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Line Item Count"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "696221294",
+          "parentId": "696221293",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "696221293",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "695467617",
+              "parentId": "696221297",
+              "schemaVersion": 1,
+              "type": "jira.create.variable",
+              "value": {
+                "id": "_customsmartvalue_id_1740498058662",
+                "lazy": false,
+                "name": {
+                  "type": "FREE",
+                  "value": "costseven"
+                },
+                "query": {
+                  "type": "SMART",
+                  "value": "{{#=}}{{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-seven}}*{{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-seven}}{{/}}"
+                },
+                "type": "SMART"
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "696221297",
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221298",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "VALUE",
+                  "value": "7"
+                },
+                "comparison": "GREATER_THAN_OR_EQUAL_TO",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Line Item Count"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "696221297",
+          "parentId": "696221296",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "696221296",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "695467618",
+              "parentId": "696221300",
+              "schemaVersion": 1,
+              "type": "jira.create.variable",
+              "value": {
+                "id": "_customsmartvalue_id_1740498058662",
+                "lazy": false,
+                "name": {
+                  "type": "FREE",
+                  "value": "costeight"
+                },
+                "query": {
+                  "type": "SMART",
+                  "value": "{{#=}}{{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-eight}}*{{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-eight}}{{/}}"
+                },
+                "type": "SMART"
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "696221300",
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221301",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "VALUE",
+                  "value": "8"
+                },
+                "comparison": "GREATER_THAN_OR_EQUAL_TO",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Line Item Count"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "696221300",
+          "parentId": "696221299",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "696221299",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "695467619",
+              "parentId": "696221303",
+              "schemaVersion": 1,
+              "type": "jira.create.variable",
+              "value": {
+                "id": "_customsmartvalue_id_1740498058662",
+                "lazy": false,
+                "name": {
+                  "type": "FREE",
+                  "value": "costnine"
+                },
+                "query": {
+                  "type": "SMART",
+                  "value": "{{#=}}{{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-nine}}*{{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-nine}}{{/}}"
+                },
+                "type": "SMART"
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "696221303",
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221304",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "VALUE",
+                  "value": "9"
+                },
+                "comparison": "GREATER_THAN_OR_EQUAL_TO",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Line Item Count"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "696221303",
+          "parentId": "696221302",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "696221302",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "720553041",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "action.wait.for.time.duration",
+      "value": {
+        "randomWaitInterval": null,
+        "waitTimeInSeconds": 10
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "695467620",
+              "parentId": "696221306",
+              "schemaVersion": 1,
+              "type": "jira.create.variable",
+              "value": {
+                "id": "_customsmartvalue_id_1740498058662",
+                "lazy": false,
+                "name": {
+                  "type": "FREE",
+                  "value": "costten"
+                },
+                "query": {
+                  "type": "SMART",
+                  "value": "{{#=}}{{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-ten}}*{{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-ten}}{{/}}"
+                },
+                "type": "SMART"
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "695467624",
+              "parentId": "696221306",
+              "schemaVersion": 1,
+              "type": "jira.create.variable",
+              "value": {
+                "id": "_customsmartvalue_id_1740498058662",
+                "lazy": false,
+                "name": {
+                  "type": "FREE",
+                  "value": "totalcostten"
+                },
+                "query": {
+                  "type": "SMART",
+                  "value": "{{#=}}{{costone}}+{{costtwo}}+{{costthree}}+{{costfour}}+{{costfive}}+{{costsix}}+{{costseven}}+{{costeight}}+{{costnine}}+{{costten}}{{/}}"
+                },
+                "type": "SMART"
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "695467625",
+              "parentId": "696221306",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "description"
+                    },
+                    "fieldType": "description",
+                    "type": "SET",
+                    "value": "*Item to Order* - *Quantity* - *Price per Item*\n1. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-one}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-one}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-one}}\n\n2. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-two}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-two}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-two}}\n\n3. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-three}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-three}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-three}}\n\n4. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-four}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-four}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-four}}\n\n5. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-five}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-five}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-five}}\n\n6. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-six}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-six}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-six}}\n\n7. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-seven}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-seven}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-seven}}\n\n8. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-eight}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-eight}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-eight}}\n\n9. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-nine}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-nine}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-nine}}\n\n10. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-ten}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-ten}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-ten}}\n\n*Total Cost*:\n{{totalcostten}}"
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Total Cost"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+                    "type": "SET",
+                    "value": "{{totalcostten}}"
+                  }
+                ],
+                "sendNotifications": true
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "695467626",
+              "parentId": "696221306",
+              "schemaVersion": 1,
+              "type": "jira.issue.create.subtasks",
+              "value": {
+                "subtasks": [
+                  {
+                    "id": "_subid_1726253851162",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-one}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510391891",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-two}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510395118",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-three}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510397318",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-four}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510398327",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-five}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510399044",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-six}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510399783",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-seven}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510400563",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-eight}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510401787",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-nine}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510555978",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-ten}}",
+                    "type": "10022"
+                  }
+                ]
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "696221306",
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221307",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "VALUE",
+                  "value": "10"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Line Item Count"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "696221306",
+          "parentId": "696221305",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221310",
+              "parentId": "696221308",
+              "schemaVersion": 1,
+              "type": "jira.create.variable",
+              "value": {
+                "id": "_customsmartvalue_id_1740498058662",
+                "lazy": false,
+                "name": {
+                  "type": "FREE",
+                  "value": "totalcostnine"
+                },
+                "query": {
+                  "type": "SMART",
+                  "value": "{{#=}}{{costone}}+{{costtwo}}+{{costthree}}+{{costfour}}+{{costfive}}+{{costsix}}+{{costseven}}+{{costeight}}+{{costnine}}{{/}}"
+                },
+                "type": "SMART"
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221311",
+              "parentId": "696221308",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "description"
+                    },
+                    "fieldType": "description",
+                    "type": "SET",
+                    "value": "*Item to Order* - *Quantity* - *Price per Item*\n1. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-one}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-one}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-one}}\n\n2. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-two}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-two}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-two}}\n\n3. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-three}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-three}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-three}}\n\n4. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-four}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-four}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-four}}\n\n5. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-five}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-five}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-five}}\n\n6. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-six}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-six}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-six}}\n\n7. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-seven}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-seven}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-seven}}\n\n8. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-eight}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-eight}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-eight}}\n\n9. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-nine}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-nine}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-nine}}\n\n*Total Cost*:\n{{totalcostnine}}"
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Total Cost"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+                    "type": "SET",
+                    "value": "{{totalcostnine}}"
+                  }
+                ],
+                "sendNotifications": true
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221312",
+              "parentId": "696221308",
+              "schemaVersion": 1,
+              "type": "jira.issue.create.subtasks",
+              "value": {
+                "subtasks": [
+                  {
+                    "id": "_subid_1726253851162",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-one}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510391891",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-two}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510395118",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-three}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510397318",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-four}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510398327",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-five}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510399044",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-six}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510399783",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-seven}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510400563",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-eight}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510401787",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-nine}}",
+                    "type": "10022"
+                  }
+                ]
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "696221308",
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221309",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "VALUE",
+                  "value": "9"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Line Item Count"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "696221308",
+          "parentId": "696221305",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221315",
+              "parentId": "696221313",
+              "schemaVersion": 1,
+              "type": "jira.create.variable",
+              "value": {
+                "id": "_customsmartvalue_id_1740498058662",
+                "lazy": false,
+                "name": {
+                  "type": "FREE",
+                  "value": "totalcosteight"
+                },
+                "query": {
+                  "type": "SMART",
+                  "value": "{{#=}}{{costone}}+{{costtwo}}+{{costthree}}+{{costfour}}+{{costfive}}+{{costsix}}+{{costseven}}+{{costeight}}{{/}}"
+                },
+                "type": "SMART"
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221316",
+              "parentId": "696221313",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "description"
+                    },
+                    "fieldType": "description",
+                    "type": "SET",
+                    "value": "*Item to Order* - *Quantity* - *Price per Item*\n1. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-one}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-one}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-one}}\n\n2. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-two}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-two}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-two}}\n\n3. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-three}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-three}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-three}}\n\n4. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-four}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-four}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-four}}\n\n5. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-five}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-five}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-five}}\n\n6. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-six}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-six}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-six}}\n\n7. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-seven}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-seven}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-seven}}\n\n8. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-eight}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-eight}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-eight}}\n\n*Total Cost*:\n{{totalcosteight}}"
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Total Cost"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+                    "type": "SET",
+                    "value": "{{totalcosteight}}"
+                  }
+                ],
+                "sendNotifications": true
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221317",
+              "parentId": "696221313",
+              "schemaVersion": 1,
+              "type": "jira.issue.create.subtasks",
+              "value": {
+                "subtasks": [
+                  {
+                    "id": "_subid_1726253851162",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-one}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510391891",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-two}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510395118",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-three}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510397318",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-four}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510398327",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-five}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510399044",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-six}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510399783",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-seven}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510400563",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-eight}}",
+                    "type": "10022"
+                  }
+                ]
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "696221313",
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221314",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "VALUE",
+                  "value": "8"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Line Item Count"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "696221313",
+          "parentId": "696221305",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221320",
+              "parentId": "696221318",
+              "schemaVersion": 1,
+              "type": "jira.create.variable",
+              "value": {
+                "id": "_customsmartvalue_id_1740498058662",
+                "lazy": false,
+                "name": {
+                  "type": "FREE",
+                  "value": "totalcostseven"
+                },
+                "query": {
+                  "type": "SMART",
+                  "value": "{{#=}}{{costone}}+{{costtwo}}+{{costthree}}+{{costfour}}+{{costfive}}+{{costsix}}+{{costseven}}{{/}}"
+                },
+                "type": "SMART"
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221321",
+              "parentId": "696221318",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "description"
+                    },
+                    "fieldType": "description",
+                    "type": "SET",
+                    "value": "*Item to Order* - *Quantity* - *Price per Item*\n1. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-one}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-one}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-one}}\n\n2. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-two}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-two}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-two}}\n\n3. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-three}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-three}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-three}}\n\n4. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-four}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-four}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-four}}\n\n5. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-five}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-five}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-five}}\n\n6. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-six}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-six}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-six}}\n\n7. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-seven}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-seven}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-seven}}\n\n*Total Cost*:\n{{totalcostseven}}"
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Total Cost"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+                    "type": "SET",
+                    "value": "{{totalcostseven}}"
+                  }
+                ],
+                "sendNotifications": true
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221322",
+              "parentId": "696221318",
+              "schemaVersion": 1,
+              "type": "jira.issue.create.subtasks",
+              "value": {
+                "subtasks": [
+                  {
+                    "id": "_subid_1726253851162",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-one}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510391891",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-two}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510395118",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-three}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510397318",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-four}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510398327",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-five}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510399044",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-six}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510399783",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-seven}}",
+                    "type": "10022"
+                  }
+                ]
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "696221318",
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221319",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "VALUE",
+                  "value": "7"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Line Item Count"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "696221318",
+          "parentId": "696221305",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221325",
+              "parentId": "696221323",
+              "schemaVersion": 1,
+              "type": "jira.create.variable",
+              "value": {
+                "id": "_customsmartvalue_id_1740498058662",
+                "lazy": false,
+                "name": {
+                  "type": "FREE",
+                  "value": "totalcostsix"
+                },
+                "query": {
+                  "type": "SMART",
+                  "value": "{{#=}}{{costone}}+{{costtwo}}+{{costthree}}+{{costfour}}+{{costfive}}+{{costsix}}{{/}}"
+                },
+                "type": "SMART"
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221326",
+              "parentId": "696221323",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "description"
+                    },
+                    "fieldType": "description",
+                    "type": "SET",
+                    "value": "*Item to Order* - *Quantity* - *Price per Item*\n1. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-one}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-one}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-one}}\n\n2. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-two}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-two}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-two}}\n\n3. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-three}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-three}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-three}}\n\n4. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-four}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-four}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-four}}\n\n5. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-five}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-five}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-five}}\n\n6. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-six}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-six}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-six}}\n\n*Total Cost*:\n{{totalcostsix}}"
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Total Cost"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+                    "type": "SET",
+                    "value": "{{totalcostsix}}"
+                  }
+                ],
+                "sendNotifications": true
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221327",
+              "parentId": "696221323",
+              "schemaVersion": 1,
+              "type": "jira.issue.create.subtasks",
+              "value": {
+                "subtasks": [
+                  {
+                    "id": "_subid_1726253851162",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-one}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510391891",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-two}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510395118",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-three}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510397318",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-four}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510398327",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-five}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510399044",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-six}}",
+                    "type": "10022"
+                  }
+                ]
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "696221323",
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221324",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "VALUE",
+                  "value": "6"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Line Item Count"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "696221323",
+          "parentId": "696221305",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221330",
+              "parentId": "696221328",
+              "schemaVersion": 1,
+              "type": "jira.create.variable",
+              "value": {
+                "id": "_customsmartvalue_id_1740498058662",
+                "lazy": false,
+                "name": {
+                  "type": "FREE",
+                  "value": "totalcostfive"
+                },
+                "query": {
+                  "type": "SMART",
+                  "value": "{{#=}}{{costone}}+{{costtwo}}+{{costthree}}+{{costfour}}+{{costfive}}{{/}}"
+                },
+                "type": "SMART"
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221331",
+              "parentId": "696221328",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "description"
+                    },
+                    "fieldType": "description",
+                    "type": "SET",
+                    "value": "*Item to Order* - *Quantity* - *Price per Item*\n1. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-one}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-one}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-one}}\n\n2. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-two}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-two}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-two}}\n\n3. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-three}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-three}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-three}}\n\n4. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-four}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-four}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-four}}\n\n5. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-five}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-five}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-five}}\n\n*Total Cost*:\n{{totalcostfive}}"
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Total Cost"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+                    "type": "SET",
+                    "value": "{{totalcostfive}}"
+                  }
+                ],
+                "sendNotifications": true
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221332",
+              "parentId": "696221328",
+              "schemaVersion": 1,
+              "type": "jira.issue.create.subtasks",
+              "value": {
+                "subtasks": [
+                  {
+                    "id": "_subid_1726253851162",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-one}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510391891",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-two}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510395118",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-three}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510397318",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-four}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510398327",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-five}}",
+                    "type": "10022"
+                  }
+                ]
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "696221328",
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221329",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "VALUE",
+                  "value": "5"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Line Item Count"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "696221328",
+          "parentId": "696221305",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221335",
+              "parentId": "696221333",
+              "schemaVersion": 1,
+              "type": "jira.create.variable",
+              "value": {
+                "id": "_customsmartvalue_id_1740498058662",
+                "lazy": false,
+                "name": {
+                  "type": "FREE",
+                  "value": "totalcostfour"
+                },
+                "query": {
+                  "type": "SMART",
+                  "value": "{{#=}}{{costone}}+{{costtwo}}+{{costthree}}+{{costfour}}{{/}}"
+                },
+                "type": "SMART"
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221336",
+              "parentId": "696221333",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "description"
+                    },
+                    "fieldType": "description",
+                    "type": "SET",
+                    "value": "*Item to Order* - *Quantity* - *Price per Item*\n1. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-one}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-one}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-one}}\n\n2. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-two}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-two}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-two}}\n\n3. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-three}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-three}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-three}}\n\n4. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-four}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-four}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-four}}\n\n*Total Cost*:\n{{totalcostfour}}"
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Total Cost"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+                    "type": "SET",
+                    "value": "{{totalcostfour}}"
+                  }
+                ],
+                "sendNotifications": true
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221337",
+              "parentId": "696221333",
+              "schemaVersion": 1,
+              "type": "jira.issue.create.subtasks",
+              "value": {
+                "subtasks": [
+                  {
+                    "id": "_subid_1726253851162",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-one}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510391891",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-two}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510395118",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-three}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510397318",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-four}}",
+                    "type": "10022"
+                  }
+                ]
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "696221333",
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221334",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "VALUE",
+                  "value": "4"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Line Item Count"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "696221333",
+          "parentId": "696221305",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221340",
+              "parentId": "696221338",
+              "schemaVersion": 1,
+              "type": "jira.create.variable",
+              "value": {
+                "id": "_customsmartvalue_id_1740498058662",
+                "lazy": false,
+                "name": {
+                  "type": "FREE",
+                  "value": "totalcostthree"
+                },
+                "query": {
+                  "type": "SMART",
+                  "value": "{{#=}}{{costone}}+{{costtwo}}+{{costthree}}{{/}}"
+                },
+                "type": "SMART"
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221341",
+              "parentId": "696221338",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "description"
+                    },
+                    "fieldType": "description",
+                    "type": "SET",
+                    "value": "*Item to Order* - *Quantity* - *Price per Item*\n1. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-one}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-one}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-one}}\n\n2. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-two}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-two}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-two}}\n\n3. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-three}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-three}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-three}}\n\n*Total Cost*:\n{{totalcostthree}}"
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Total Cost"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+                    "type": "SET",
+                    "value": "{{totalcostthree}}"
+                  }
+                ],
+                "sendNotifications": true
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221342",
+              "parentId": "696221338",
+              "schemaVersion": 1,
+              "type": "jira.issue.create.subtasks",
+              "value": {
+                "subtasks": [
+                  {
+                    "id": "_subid_1726253851162",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-one}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510391891",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-two}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510395118",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-three}}",
+                    "type": "10022"
+                  }
+                ]
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "696221338",
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221339",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "VALUE",
+                  "value": "3"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Line Item Count"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "696221338",
+          "parentId": "696221305",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221345",
+              "parentId": "696221343",
+              "schemaVersion": 1,
+              "type": "jira.create.variable",
+              "value": {
+                "id": "_customsmartvalue_id_1740498058662",
+                "lazy": false,
+                "name": {
+                  "type": "FREE",
+                  "value": "totalcosttwo"
+                },
+                "query": {
+                  "type": "SMART",
+                  "value": "{{#=}}{{costone}}+{{costtwo}}{{/}}"
+                },
+                "type": "SMART"
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221346",
+              "parentId": "696221343",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "description"
+                    },
+                    "fieldType": "description",
+                    "type": "SET",
+                    "value": "*Item to Order* - *Quantity* - *Price per Item*\n1. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-one}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-one}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-one}}\n\n2. {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-two}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.amount-two}} - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.cost-two}}\n\n*Total Cost*:\n{{totalcosttwo}}"
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Total Cost"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+                    "type": "SET",
+                    "value": "{{totalcosttwo}}"
+                  }
+                ],
+                "sendNotifications": true
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221347",
+              "parentId": "696221343",
+              "schemaVersion": 1,
+              "type": "jira.issue.create.subtasks",
+              "value": {
+                "subtasks": [
+                  {
+                    "id": "_subid_1726253851162",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-one}}",
+                    "type": "10022"
+                  },
+                  {
+                    "id": "_subid_1740510391891",
+                    "summary": "Order Item - {{issue.forms.27d69d4b-0e43-4436-8cf3-9dd540b051d0.name-two}}",
+                    "type": "10022"
+                  }
+                ]
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "696221343",
+              "conditions": [],
+              "connectionId": null,
+              "id": "696221344",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "VALUE",
+                  "value": "2"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Line Item Count"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "696221343",
+          "parentId": "696221305",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "696221305",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1740673826715,
+  "description": "",
+  "id": 25695560,
+  "idUuid": "0195483e-bf9b-7ae6-8624-564267ab945c",
+  "labels": [],
+  "name": "Form Data - 2 - Multiple Items",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10290"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10290"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "696221282",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "VALUE_ADDED",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10290"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Line Item Count"
+        }
+      ]
+    }
+  },
+  "updated": 1754521139698,
+  "writeAccessType": "UNRESTRICTED"
+}

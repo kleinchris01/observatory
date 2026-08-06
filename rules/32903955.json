@@ -1,0 +1,112 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "712020:c373315f-65dd-49f0-af9d-607e5a47bc62"
+  },
+  "authorAccountId": "712020:c373315f-65dd-49f0-af9d-607e5a47bc62",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "bafb7a6b-76a0-4934-8ed0-f787961210f1",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Program ID"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+            "type": "SET",
+            "value": ""
+          }
+        ],
+        "sendNotifications": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "a1dd9369-047e-40b3-a7ba-6ffd66b7dc92",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Admin 1"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+            "type": "SET",
+            "value": "1A1"
+          }
+        ],
+        "sendNotifications": false
+      }
+    }
+  ],
+  "created": 1776360771949,
+  "description": "Clears all the text from the Program ID fields at all levels and updates the Admin 1 field with those values.  ",
+  "id": 32903955,
+  "idUuid": "019d975a-516d-7b0d-a47d-f23236807880",
+  "labels": [],
+  "name": "Clear Program ID Field and update Admin 1 Field",
+  "notifyOnError": "NEVER",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10914"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10914"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "aede3f37-25ac-4324-9fda-ba9d1fcef18f",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "Project = \"Electrical System Testing\" AND \"Program ID\" is not EMPTY AND \"Total Duration\" = 14.4",
+      "onlyUpdatedIssues": true,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=US/Pacific:20260414T130000\nRRULE:FREQ=DAILY;BYHOUR=11;BYMINUTE=0;BYSECOND=0;INTERVAL=1;COUNT=3\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1776360771949,
+  "writeAccessType": "OWNER_ONLY"
+}

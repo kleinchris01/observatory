@@ -1,0 +1,90 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "6206e14e506317006b09a777",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "585774747",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.create.subtasks",
+      "value": {
+        "subtasks": [
+          {
+            "id": "_subid_1725579465701",
+            "summary": "Eng. team creates first principles cost est. / mountain chart",
+            "type": "10022"
+          },
+          {
+            "id": "_subid_1725579483039",
+            "summary": "Cost est. / mountain chart received from supplier",
+            "type": "10022"
+          },
+          {
+            "id": "_subid_1725579490328",
+            "summary": "Buyer, Engineer, and ED&T team reviews mountain charts and makes recommendations",
+            "type": "10022"
+          },
+          {
+            "id": "_subid_1725579526186",
+            "summary": "Buyer provides rationale if quote is higher than cost estimate",
+            "type": "10022"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1725579566907,
+  "description": "",
+  "id": 21748982,
+  "idUuid": "0191c48e-9f3b-74a0-8c37-f35931de5d3a",
+  "labels": [],
+  "name": "Create sub-tasks for new issue",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10188"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10188"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "585774746",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10188"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1725579566907,
+  "writeAccessType": "UNRESTRICTED"
+}

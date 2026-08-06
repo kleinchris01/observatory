@@ -1,0 +1,389 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "6206e14e506317006b09a777",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714349423",
+                      "parentId": "714349420",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "GPID"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:labels",
+                            "type": "SET",
+                            "value": [
+                              {
+                                "type": "FREE",
+                                "value": "CA251"
+                              }
+                            ]
+                          }
+                        ],
+                        "sendNotifications": true
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "714349420",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714349421",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": {
+                          "modifier": null,
+                          "multiValue": true,
+                          "source": null,
+                          "type": "NAME",
+                          "value": "[\"Chassis\",\"Aerodynamics\",\"Body Structures\",\"CAE\",\"Closures\",\"Design & Styling\",\"Digital Transformation\",\"Durability\",\"Ergonomics\",\"Exteriors\",\"Interiors\",\"Manufacturing\",\"Modeling\"]"
+                        },
+                        "comparison": "CONTAINS_ANY",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "SIT/Attribute"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "714349420",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714349422",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": {
+                          "modifier": null,
+                          "multiValue": true,
+                          "source": null,
+                          "type": "NAME",
+                          "value": "[\"SIT 1 - Interior\",\"SIT 2 - Seats\",\"SIT 3 - Exterior\",\"SIT 4 - Thermal\",\"SIT 6 - Chassis\",\"SIT 7 - Closure\",\"SIT 9 - Body Structures\"]"
+                        },
+                        "comparison": "ONE_OF",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "SIT Number"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "714349420",
+                  "parentId": "714349419",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ANY"
+                  }
+                }
+              ],
+              "component": "CONDITION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "714349419",
+              "parentId": "714349417",
+              "schemaVersion": 1,
+              "type": "jira.condition.container.block",
+              "value": null
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "714349417",
+              "conditions": [],
+              "connectionId": null,
+              "id": "714349418",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "ID",
+                  "value": "10231"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "ID",
+                  "value": "issuetype"
+                },
+                "selectedFieldType": "issuetype"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "714349417",
+          "parentId": "714349416",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "714349416",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714349431",
+                      "parentId": "714349428",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "GPID"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:labels",
+                            "type": "SET",
+                            "value": [
+                              {
+                                "type": "FREE",
+                                "value": "CA255"
+                              }
+                            ]
+                          }
+                        ],
+                        "sendNotifications": true
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "714349428",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714349429",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": {
+                          "modifier": null,
+                          "multiValue": true,
+                          "source": null,
+                          "type": "NAME",
+                          "value": "[\"Aerodynamics\",\"Body Structures\",\"CAE\",\"Chassis\",\"Closures\",\"Design & Styling\",\"Digital Transformation\",\"Durability\",\"Ergonomics\",\"Exteriors\",\"Interiors\",\"Manufacturing\",\"Modeling\"]"
+                        },
+                        "comparison": "CONTAINS_ANY",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "SIT/Attribute"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect"
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "714349428",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "714349430",
+                      "parentId": null,
+                      "schemaVersion": 3,
+                      "type": "jira.issue.condition",
+                      "value": {
+                        "compareValue": {
+                          "modifier": null,
+                          "multiValue": true,
+                          "source": null,
+                          "type": "NAME",
+                          "value": "[\"SIT 1 - Interior\",\"SIT 2 - Seats\",\"SIT 3 - Exterior\",\"SIT 4 - Thermal\",\"SIT 6 - Chassis\",\"SIT 7 - Closure\",\"SIT 9 - Body Structures\"]"
+                        },
+                        "comparison": "ONE_OF",
+                        "selectedField": {
+                          "type": "NAME",
+                          "value": "SIT Number"
+                        },
+                        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "714349428",
+                  "parentId": "714349427",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ANY"
+                  }
+                }
+              ],
+              "component": "CONDITION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "714349427",
+              "parentId": "714349425",
+              "schemaVersion": 1,
+              "type": "jira.condition.container.block",
+              "value": null
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "714349425",
+              "conditions": [],
+              "connectionId": null,
+              "id": "714349426",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "ID",
+                  "value": "10396"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "ID",
+                  "value": "issuetype"
+                },
+                "selectedFieldType": "issuetype"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "714349425",
+          "parentId": "714349424",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "714349424",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1748472985399,
+  "description": "",
+  "id": 28813892,
+  "idUuid": "0197191c-7737-7db4-aef8-b69e8b065e4d",
+  "labels": [],
+  "name": "GPID",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10551"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10551"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "714349415",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10551"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1748472985399,
+  "writeAccessType": "UNRESTRICTED"
+}

@@ -1,0 +1,176 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "ea97ef36-1ebd-4d34-a6dc-2acc3cc84bbd",
+          "parentId": "8a89b221-712c-40ab-a2af-a1be876ec42c",
+          "schemaVersion": 1,
+          "type": "cmdb.lookup.objects",
+          "value": {
+            "customSmartValue": {
+              "id": "_customsmartvalue_id_1763411362050",
+              "lazy": false,
+              "name": {
+                "type": "FREE",
+                "value": "lookupObjects"
+              },
+              "query": {
+                "type": "SMART",
+                "value": "objectTypeId = 175 AND \"Part Number (EIN)\" IN (\"{{issue.customfield_11380}}\", \"{{issue.customfield_11423}}\", \"{{issue.customfield_11825}}\", \"{{issue.customfield_17898}}\", \"{{issue.customfield_17896}}\")"
+              },
+              "type": "IQL"
+            },
+            "schemaId": "55",
+            "searchResultsLimit": 100,
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "8c1562fe-e12c-42f2-be7f-4f4f61579512",
+          "parentId": "8a89b221-712c-40ab-a2af-a1be876ec42c",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "Object Key: {{lookupObjects.key}}) - Object Part Number (EIN): ({{lookupObjects.label}})"
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "4ab2782e-b554-4149-a963-882911b36cfd",
+          "parentId": "8a89b221-712c-40ab-a2af-a1be876ec42c",
+          "schemaVersion": 1,
+          "type": "jira.comparator.condition",
+          "value": {
+            "first": "{{lookupObjects.size}}",
+            "operator": "GREATER_THAN",
+            "second": "0"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "39323538-8e23-4b91-b8c9-ace9f6be150c",
+          "parentId": "8a89b221-712c-40ab-a2af-a1be876ec42c",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Part Numbers"
+                },
+                "fieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype",
+                "type": "SET",
+                "value": "key in ({{lookupObjects.key}})"
+              }
+            ],
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "ORCHESTRATION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "8a89b221-712c-40ab-a2af-a1be876ec42c",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "automation.orchestration.fragment",
+      "value": {
+        "inputProjections": [],
+        "isOptional": false,
+        "name": "Group 1",
+        "outputProjections": []
+      }
+    }
+  ],
+  "created": 1763412729418,
+  "description": "",
+  "id": 30841483,
+  "idUuid": "019a9396-de4d-7b68-b859-b53b6df4582b",
+  "labels": [
+    1035548
+  ],
+  "name": "Update Part Number Asset field",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10110"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10110"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [
+    {
+      "tagType": "ORCHESTRATION_CONFIG_ID",
+      "tagValue": "59805134-fd5e-11f0-9a34-f96e1e7baa95"
+    },
+    {
+      "tagType": "ORCHESTRATION_VERSION",
+      "tagValue": "4"
+    },
+    {
+      "tagType": "ORCHESTRATION",
+      "tagValue": null
+    }
+  ],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "53449474-d0e9-4ce7-9995-29cf6cfa78b2",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "\"Part Numbers\" is empty and (\"New part number[Short text]\" is not empty OR \"Part Number[Short text]\" is not empty or \"Part Number(s)[Short text]\" is not empty or \"Part from 3DX\" is not empty or \"Current part number[Short text]\" is not empty or \"Device Part Number[Short text]\" is not empty)",
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/Los_Angeles:20251117T122032\nRRULE:FREQ=WEEKLY;BYHOUR=9;BYMINUTE=0;BYSECOND=0;BYDAY=MO;INTERVAL=1\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1769724209838,
+  "writeAccessType": "UNRESTRICTED"
+}

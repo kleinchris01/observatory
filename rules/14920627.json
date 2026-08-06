@@ -1,0 +1,226 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:10e644de-d96b-4816-9029-d6cf8f0aec37",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "464074228",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.lookup.objects",
+      "value": {
+        "customSmartValue": {
+          "id": "_customsmartvalue_id_1653479892844",
+          "lazy": false,
+          "name": {
+            "type": "FREE",
+            "value": "lookupObjects"
+          },
+          "query": {
+            "type": "SMART",
+            "value": "\"Project_Id\"={{webhookData.project.id}}"
+          },
+          "type": "IQL"
+        },
+        "schemaId": "2",
+        "searchResultsLimit": 100,
+        "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "464074232",
+              "parentId": "464074230",
+              "schemaVersion": 1,
+              "type": "codebarrel.action.log",
+              "value": "{{lookupObjects}} The project doesn't exist in Assets or it has been deleted before."
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "464074230",
+              "conditions": [],
+              "connectionId": null,
+              "id": "464074231",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{lookupObjects}}",
+                "operator": "EQUALS",
+                "second": ""
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "464074230",
+          "parentId": "464074229",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "464074234",
+              "parentId": "464074233",
+              "schemaVersion": 1,
+              "type": "jira.issue.outgoing.webhook",
+              "value": {
+                "contentType": "custom",
+                "continueOnErrorEnabled": true,
+                "customBody": "\n{\n    \"objectTypeId\": \"2\",\n  \"attributes\": [\n    {\n      \"objectTypeAttributeId\": \"24\",\n      \"objectAttributeValues\": [\n        {\n          \"value\": \"False\"\n        }\n      ]\n    }\n ]\n}",
+                "headers": [
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1653481079291",
+                    "name": "Authorization",
+                    "value": "Basic anBvbG1hbjFAZm9yZC5jb206QVRBVFQzeEZmR0Ywemc3QjhyUjFyamhMTjdmUXZ6RVdhZW9MV1h3YWF1aVhhNDhUTGR5c0o3WVk1UVcxZXJMTzl2S211aWFMRXZBQjV3bGlFSk1iakpyQ1pUYkw2SXp2WnU2YUdVUGtwQS1rWl9JZVp0cFlkZmhVVUIxS0JSMFcyeEtvUEYzdTd1RWJ4eXYwa1h1YW5zQUNXTG5jYnc4WjlQeTE1RFZ2MVNucWRQdFYwR3UwNmxRPTc4Mjc5MDRD"
+                  },
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1653481128497",
+                    "name": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1653481129608",
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "method": "PUT",
+                "responseEnabled": true,
+                "sendIssue": false,
+                "url": "https://api.atlassian.com/jsm/insight//workspace/c77afb26-c55c-4af4-861f-5e2907f8719d/v1/object/{{lookupObjects.id}}",
+                "urlSecure": false
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "464074235",
+              "parentId": "464074233",
+              "schemaVersion": 1,
+              "type": "codebarrel.action.log",
+              "value": "PUT response was {{webResponse.status}} "
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "464074236",
+              "parentId": "464074233",
+              "schemaVersion": 1,
+              "type": "codebarrel.action.log",
+              "value": "BODY: {{webResponse.body}}"
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "464074233",
+          "parentId": "464074229",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "464074229",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1695224210506,
+  "description": "This automation updates or delete a project asset in the Project schema. ",
+  "id": 14920627,
+  "idUuid": "018ab33c-a44a-7b57-a60b-a4b08c1c0427",
+  "labels": [
+    445636
+  ],
+  "name": "Project Schema Synchronizer - When project is trashed (soft-deleted)",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [
+    {
+      "tagType": "WEBHOOK_TOKEN",
+      "tagValue": "[[REDACTED:21c711a7]]"
+    }
+  ],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "464074227",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.incoming.webhook",
+    "value": {
+      "jql": null,
+      "searchOrProvide": "none",
+      "webhookToken": "[[REDACTED:21c711a7]]"
+    }
+  },
+  "updated": 1777997250782,
+  "writeAccessType": "UNRESTRICTED"
+}

@@ -1,0 +1,189 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555675052",
+          "parentId": "555675050",
+          "schemaVersion": 1,
+          "type": "jira.issue.outgoing.webhook",
+          "value": {
+            "contentType": "empty",
+            "continueOnErrorEnabled": false,
+            "customBody": null,
+            "headers": [
+              {
+                "headerSecure": false,
+                "id": "_header_1717087096198",
+                "name": "Accept",
+                "value": ""
+              },
+              {
+                "headerSecure": false,
+                "id": "_header_1717087191064",
+                "name": "Authorization",
+                "value": "Basic Y2tsZWluNTBAZm9yZC5jb206QVRBVFQzeEZmR0YwazNaRzJjVDFWM09MNVF5VjRzdUo4OWhXYTROREFpSzRKV3dQVU1ua3dhdEdNR2hia3U0VGZ2NkdtTUUzSGNxSHpWc3RrdFR4VVFnTkR2djJLSmZ5QlRyY1R4MUh3bFdPVEJORUZFN2ZxaVpsWTNxQm4tZ1BTZDA2bHNnV0w2c1RuTmVpT3R0VkYzX29fOVYyNjB0MG5hNE05RkRTUU55WGJxVVJDUnctSmdrPTM3NUIwNjc1"
+              }
+            ],
+            "method": "GET",
+            "responseEnabled": true,
+            "sendIssue": false,
+            "url": "https://ford-advev.atlassian.net/rest/api/3/groups/picker?query={{issue.IT Collaborators.name.urlEncode}}&maxResults=1",
+            "urlSecure": false
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555675054",
+          "parentId": "555675050",
+          "schemaVersion": 1,
+          "type": "jira.issue.outgoing.webhook",
+          "value": {
+            "contentType": "empty",
+            "continueOnErrorEnabled": false,
+            "customBody": null,
+            "headers": [
+              {
+                "headerSecure": false,
+                "id": "_header_1717087289143",
+                "name": "Accept",
+                "value": ""
+              },
+              {
+                "headerSecure": false,
+                "id": "_header_1717087382198",
+                "name": "Authorization",
+                "value": "Basic Y2tsZWluNTBAZm9yZC5jb206QVRBVFQzeEZmR0YwazNaRzJjVDFWM09MNVF5VjRzdUo4OWhXYTROREFpSzRKV3dQVU1ua3dhdEdNR2hia3U0VGZ2NkdtTUUzSGNxSHpWc3RrdFR4VVFnTkR2djJLSmZ5QlRyY1R4MUh3bFdPVEJORUZFN2ZxaVpsWTNxQm4tZ1BTZDA2bHNnV0w2c1RuTmVpT3R0VkYzX29fOVYyNjB0MG5hNE05RkRTUU55WGJxVVJDUnctSmdrPTM3NUIwNjc1"
+              }
+            ],
+            "method": "GET",
+            "responseEnabled": true,
+            "sendIssue": false,
+            "url": "https://ford-advev.atlassian.net/rest/api/3/group/member?groupId={{webResponse.body.groups.groupId}}",
+            "urlSecure": false
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555675057",
+          "parentId": "555675050",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Collaborators"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                "type": "SET",
+                "value": [
+                  {
+                    "type": "SMART",
+                    "value": "{{webResponse.body.values.accountId}}"
+                  },
+                  {
+                    "type": "COPY",
+                    "value": "current"
+                  }
+                ]
+              }
+            ],
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555675050",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1717088438063,
+  "description": "",
+  "id": 19692522,
+  "idUuid": "018fca72-472f-728d-b4be-81f4f50f3ba2",
+  "labels": [
+    423959,
+    423965
+  ],
+  "name": "Set IT Collaborators",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10015"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10015"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "555675049",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10015"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "IT Collaborators"
+        }
+      ]
+    }
+  },
+  "updated": 1717099634832,
+  "writeAccessType": "UNRESTRICTED"
+}

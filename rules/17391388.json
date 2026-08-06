@@ -1,0 +1,257 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555668399",
+          "parentId": "555668396",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "ID",
+              "value": "10017"
+            },
+            "comparison": "EQUALS",
+            "selectedField": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "selectedFieldType": "issuetype"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555668402",
+          "parentId": "555668396",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "ADT Goal is {{triggerIssue.customfield_11666}}"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555668404",
+          "parentId": "555668396",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "Focus Area(s) is {{triggerIssue.customfield_11668}}"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555668408",
+          "parentId": "555668396",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "Champion(s) is {{triggerIssue.customfield_11479.displayName}}"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555668410",
+          "parentId": "555668396",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": "{\n  \"update\": {\n    \"customfield_11666\": [\n      {\n        \"remove\": \"{{triggerIssue.customfield_11666}}\"\n      }\n    ],\n    \"customfield_11668\": [\n      {\n        \"remove\": \"{{triggerIssue.customfield_11668}}\"\n      }\n    ],\n    \"customfield_11479\": [\n      {\n        \"remove\": \"{{triggerIssue.customfield_11479}}\"\n      }\n    ]\n  }\n}\n",
+            "operations": [],
+            "sendNotifications": false
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555668396",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [
+          "Goal of"
+        ],
+        "onlyUpdatedIssues": false,
+        "relatedType": "linked",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555668413",
+          "parentId": "555668412",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "ID",
+              "value": "10017"
+            },
+            "comparison": "EQUALS",
+            "selectedField": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "selectedFieldType": "issuetype"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555668415",
+          "parentId": "555668412",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "ADT Goal is {{destinationIssue.customfield_11666}}"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555668417",
+          "parentId": "555668412",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "Focus Area(s) is {{destinationIssue.customfield_11668}}"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555668419",
+          "parentId": "555668412",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "Champion(s) is {{destinationIssue.customfield_11479.displayName}}"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555668423",
+          "parentId": "555668412",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": "{\n  \"update\": {\n    \"customfield_11666\": [\n      {\n        \"remove\": \"{{destinationIssue.customfield_11666}}\"\n      }\n    ],\n    \"customfield_11668\": [\n      {\n        \"remove\": \"{{destinationIssue.customfield_11668}}\"\n      }\n    ],\n    \"customfield_11479\": [\n      {\n        \"remove\": \"{{destinationIssue.customfield_11479}}\"\n      }\n    ]\n  }\n}\n",
+            "operations": [],
+            "sendNotifications": false
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555668412",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [
+          "Sub-goal of"
+        ],
+        "onlyUpdatedIssues": false,
+        "relatedType": "linked",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1705699342559,
+  "description": "",
+  "id": 17391388,
+  "idUuid": "018d239a-78df-7cb4-9006-92b75f417e60",
+  "labels": [
+    844607
+  ],
+  "name": "Remove focus area and champion(s) to sub-goals",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10056",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10061",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "555668391",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:link_deleted",
+    "value": {
+      "linkTypes": [
+        "Goal/Sub-goal"
+      ]
+    }
+  },
+  "updated": 1721316712246,
+  "writeAccessType": "UNRESTRICTED"
+}

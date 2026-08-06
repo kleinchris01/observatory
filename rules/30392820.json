@@ -1,0 +1,197 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "623d205d562ab90069f94743",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "c969671a-17ce-44d0-b18c-73bff9c2cb30",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1759422024418",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "SubTaskSummary"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "NXP S32K396, NXP FS2633, ACS 37601"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "13678949-db2d-43e3-8a97-a473c60d9c04",
+          "parentId": "3ef2b8df-c61b-41f7-a056-824cd3de7e95",
+          "schemaVersion": 12,
+          "type": "jira.issue.create",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "summary"
+                },
+                "fieldType": "summary",
+                "type": "SET",
+                "value": "{{SingleTaskSummary}}"
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "description"
+                },
+                "fieldType": "description",
+                "type": "SET",
+                "value": "This captures the FuSa related work for the component.\n\nThe work is delivered by UL and reviewed by Ford engineers."
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "project"
+                },
+                "fieldType": "project",
+                "type": "SET",
+                "value": {
+                  "type": "COPY",
+                  "value": "current"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "issuetype"
+                },
+                "fieldType": "issuetype",
+                "type": "SET",
+                "value": {
+                  "type": "ID",
+                  "value": "10022"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "parent"
+                },
+                "fieldType": "parent",
+                "type": "SET",
+                "value": {
+                  "type": "COPY",
+                  "value": "trigger"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "assignee"
+                },
+                "fieldType": "assignee",
+                "type": "SET",
+                "value": {
+                  "type": "ID",
+                  "value": "712020:b96a3d25-f157-484b-bbc9-a3ddce884f42"
+                }
+              }
+            ],
+            "sendNotifications": false
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "3ef2b8df-c61b-41f7-a056-824cd3de7e95",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.smart.values.branch",
+      "value": {
+        "id": "_customsmartvalue_id_1759420421686",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "SingleTaskSummary"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{SubTaskSummary.split(\",\")}}"
+        },
+        "type": "SMART"
+      }
+    }
+  ],
+  "created": 1759422354184,
+  "description": "",
+  "id": 30392820,
+  "idUuid": "0199a5be-9308-752c-b5ba-ca101ec74d84",
+  "labels": [],
+  "name": "FLZM UL Work Products Task Creation",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11409"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11409"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "473d405c-467b-499b-a960-37d5c70f529e",
+    "parentId": null,
+    "schemaVersion": 3,
+    "type": "jira.manual.trigger.issue",
+    "value": {
+      "groups": [],
+      "inputFromUsers": false,
+      "inputPrompts": [
+        {
+          "defaultValue": [
+            "Option1"
+          ],
+          "displayName": "Automation Rule",
+          "inputType": "DROPDOWN",
+          "required": false,
+          "variableName": "Test"
+        }
+      ],
+      "issueFilter": null,
+      "jQLFilter": null
+    }
+  },
+  "updated": 1759766198756,
+  "writeAccessType": "UNRESTRICTED"
+}

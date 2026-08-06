@@ -1,0 +1,223 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "81e8eb75-aee8-4c00-b4b8-322ab6b4c411",
+              "parentId": "0f4604ed-2ac0-4d9a-b522-4db8b83affcf",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": "{\n  \"fields\": {\n    \"customfield_16365\": {\n      \"value\": \"None \"\n    }\n  }\n}",
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Solution Status"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": null
+                  }
+                ],
+                "sendNotifications": false
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "0f4604ed-2ac0-4d9a-b522-4db8b83affcf",
+              "conditions": [],
+              "connectionId": null,
+              "id": "125bc4f1-5218-4007-9134-85ebf426d371",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": null,
+                "comparison": "EMPTY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Solution Status"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "0f4604ed-2ac0-4d9a-b522-4db8b83affcf",
+          "parentId": "a07cd850-6ff7-4be0-8af8-0980d64997f4",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "a07cd850-6ff7-4be0-8af8-0980d64997f4",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "725c69e4-1690-459e-a3c6-d3eee3dc4da0",
+              "parentId": "ce1f84b8-b513-4fa2-ba44-47a0ffba579e",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": "",
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Solution Object"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                    "type": "SET",
+                    "value": "None"
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "ce1f84b8-b513-4fa2-ba44-47a0ffba579e",
+              "conditions": [],
+              "connectionId": null,
+              "id": "b9aebe04-71db-4e4a-84e6-543b5f582b71",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": null,
+                "comparison": "EMPTY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Solution Object"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "ce1f84b8-b513-4fa2-ba44-47a0ffba579e",
+          "parentId": "9f4dc020-1dd5-4c8d-9b7a-847c6c3b5fd3",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "9f4dc020-1dd5-4c8d-9b7a-847c6c3b5fd3",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1774353756284,
+  "description": "Showing of \"None\" when Solution Status and Solution Object have no value",
+  "id": 32568148,
+  "idUuid": "019d1fb9-b07a-7063-a03b-dd1149da03fc",
+  "labels": [],
+  "name": "CE1 - Showing of \"None\" when Solution Status and Solution Object have no value",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "5af9cd3a-e714-4fc4-93ff-8460f3bc1f65",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [
+        "create",
+        "edit",
+        "transition"
+      ],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+      ],
+      "fields": [
+        {
+          "type": "field",
+          "value": "status"
+        },
+        {
+          "type": "fieldName",
+          "value": "Solution Status"
+        },
+        {
+          "type": "fieldName",
+          "value": "Solution Object"
+        }
+      ]
+    }
+  },
+  "updated": 1774353756284,
+  "writeAccessType": "UNRESTRICTED"
+}

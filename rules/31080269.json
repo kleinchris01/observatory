@@ -1,0 +1,112 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:c9c3dfc4-eef5-4087-8b1a-8ee188485a9b",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "e394e926-e528-4def-9814-420047557187",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Collaborators"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+            "type": "SET",
+            "value": [
+              {
+                "type": "SMART",
+                "value": "{{issue.Collaborators}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.ED&T Contact(s)}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.Global Vendor Tooling Contact(s)}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.Supply Chain Director}}"
+              }
+            ]
+          }
+        ],
+        "sendNotifications": false
+      }
+    }
+  ],
+  "created": 1765340321559,
+  "description": "Following roles are added to the Collaborators field :\n\n- Supply Chain Lead / Global Director  -- (removed since its a label field) \n- Global Vendor Tooling Contact(s)\n- ED&T Contact(s)\n- Supply Chain Director",
+  "id": 31080269,
+  "idUuid": "019b067b-9717-72aa-84ec-bd2a623b2f88",
+  "labels": [],
+  "name": "Add Others to Collaborators",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10518"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10518"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "534f55b6-c0ed-4681-824e-c8143cfa93e6",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "VALUE_ADDED",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10518"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "ED&T Contact(s)"
+        },
+        {
+          "type": "fieldName",
+          "value": "Global Vendor Tooling Contact(s)"
+        },
+        {
+          "type": "fieldName",
+          "value": "Supply Chain Director"
+        }
+      ]
+    }
+  },
+  "updated": 1765940534803,
+  "writeAccessType": "UNRESTRICTED"
+}

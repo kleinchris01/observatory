@@ -1,0 +1,113 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "62a4d77e451c00006968630f",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "bcf2ebec-fa75-473d-b776-de6d83aebdc3",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.lookup.issues",
+      "value": {
+        "id": "_customsmartvalue_id_1781652209260",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "lookupIssues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "(reporter = 62a4d77e451c00006968630f OR assignee = 62a4d77e451c00006968630f) AND updated >= -1d ORDER BY updated DESC"
+        },
+        "type": "JQL"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "a1692689-7a17-4ed3-a673-5b5c0dd80484",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "action.send-templated-email",
+      "value": {
+        "convertLineBreaks": false,
+        "legacyConfig": true,
+        "sendGroupedEmails": true,
+        "templateContextData": {
+          "body": "<h3>RAP Daily Update — {{now.format(\"MMM dd, yyyy\")}}</h3>\n<p>All activity in the last 24 hours:</p>\n\n{{#lookupIssues}}\n<h4><a href=\"{{url}}\">{{key}}</a> — {{summary}}</h4>\n<p><strong>Status:</strong> {{status.name}} | <strong>Priority:</strong> {{priority.name}} | <strong>Due:</strong> {{duedate.format(\"MMM dd, yyyy\")}}</p>\n\n<table style=\"border-collapse: collapse; width: 100%; font-family: Arial, sans-serif; margin-bottom: 8px;\">\n  <tr style=\"background-color: #f2f2f2;\">\n    <th style=\"border: 1px solid #ddd; padding: 6px; text-align: left;\">Who</th>\n    <th style=\"border: 1px solid #ddd; padding: 6px; text-align: left;\">Change</th>\n    <th style=\"border: 1px solid #ddd; padding: 6px; text-align: left;\">From</th>\n    <th style=\"border: 1px solid #ddd; padding: 6px; text-align: left;\">To</th>\n  </tr>\n  {{#changelog.histories}}\n  {{#items}}\n  <tr>\n    <td style=\"border: 1px solid #ddd; padding: 6px;\">{{author.displayName}}</td>\n    <td style=\"border: 1px solid #ddd; padding: 6px;\">{{field}}</td>\n    <td style=\"border: 1px solid #ddd; padding: 6px;\">{{fromString}}</td>\n    <td style=\"border: 1px solid #ddd; padding: 6px;\">{{toString}}</td>\n  </tr>\n  {{/items}}\n  {{/changelog.histories}}\n</table>\n\n{{#comments}}\n<p style=\"margin: 4px 0; padding: 6px; background: #f9f9f9; border-left: 3px solid #ddd;\">\n  <strong>💬 {{author.displayName}}:</strong> {{body}}\n</p>\n{{/comments}}\n\n<hr style=\"border: none; border-top: 1px solid #eee; margin: 16px 0;\">\n{{/lookupIssues}}",
+          "bodyType": "HTML",
+          "emailName": "JIRA Daily Summary",
+          "fromEmailAddress": "jira@ford-advev.atlassian.net",
+          "subject": "RAP Daily Update — {{now.format(\"MMM d, yyyy\")}}"
+        },
+        "to": [
+          {
+            "type": "FREE",
+            "value": "rwalsh47@ford.com"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1781652357203,
+  "description": "",
+  "id": 33651472,
+  "idUuid": "019ed2c1-8052-7070-bfc1-33fdc01252e8",
+  "labels": [],
+  "name": "Robert JIRA Status",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13578"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13578"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "74bc7a98-b618-4761-bcb7-0c2ab3c780a2",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "nosearch",
+      "jql": "",
+      "onlyUpdatedIssues": true,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/Los_Angeles:20260616T162100\nRRULE:FREQ=WEEKLY;BYHOUR=8;BYMINUTE=0;BYSECOND=0;BYDAY=MO,TU,WE,TH,FR;INTERVAL=1\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1781657405598,
+  "writeAccessType": "OWNER_ONLY"
+}

@@ -1,0 +1,89 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "63f77cb60154af3bb2b05bb5"
+  },
+  "authorAccountId": "63f77cb60154af3bb2b05bb5",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "723866341",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "msteams.notification",
+      "value": {
+        "body": "\n{{initiator.displayName}} assigned {{issue.key}} 😎",
+        "imageUrl": null,
+        "includeIssueSummary": true,
+        "subTitle": null,
+        "teamsWorkflowURL": "https://defaultc990bb7a51f4439bbd369c07fb1041.c0.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/c30e910c4c544260abc97f66faaac1d2/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=PNqOav5SLvbl_uDx6Gat5b4PrVAHBlbYjCKFtcrfCMo",
+        "teamsWorkflowUrlSecure": false,
+        "title": "New Assignment",
+        "webhookUrl": null
+      }
+    }
+  ],
+  "created": 1758133156567,
+  "description": "Sends a notification to a CE1 DOORS whenever an issue is assigned to Scott Cromwell, Robert Giannella, or David Fleet.",
+  "id": 30242811,
+  "idUuid": "019958e6-fad7-7d3c-92a3-e74267290641",
+  "labels": [],
+  "name": "Alert when Assigned",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10023"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10023"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "723866339",
+        "conditions": [],
+        "connectionId": null,
+        "id": "723867844",
+        "parentId": null,
+        "schemaVersion": 1,
+        "type": "jira.jql.condition",
+        "value": "project in (CLOSE, CAE, MAKE, PVBM, VEHINT, SSI, \"ADVEV FINANCE\") AND assignee in ( 63f77cb60154af3bb2b05bb5, 712020:1c4c03aa-923b-461d-964d-7b2036d8c0ea, 712020:ed1c3d52-cb15-40b7-ba2d-9b15c6766895 ) or \"Responsible D&R/DRI[User Picker (single user)]\" in ( 63f77cb60154af3bb2b05bb5, 712020:1c4c03aa-923b-461d-964d-7b2036d8c0ea, 712020:ed1c3d52-cb15-40b7-ba2d-9b15c6766895 )"
+      }
+    ],
+    "connectionId": null,
+    "id": "723866339",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:assigned",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10023"
+      ],
+      "eventKey": "jira.issue.event.trigger:updated",
+      "issueEvent": "issue_assigned"
+    }
+  },
+  "updated": 1758247498106,
+  "writeAccessType": "UNRESTRICTED"
+}

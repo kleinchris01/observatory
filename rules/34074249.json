@@ -1,0 +1,128 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "99369e2f-d13c-4747-893e-206e722446a5",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Merged to"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+            "type": "SET",
+            "value": "{{pullRequest.title}}"
+          }
+        ],
+        "sendNotifications": true
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "69c8a8cd-8a7c-487e-aea2-8e8fea657d80",
+      "parentId": null,
+      "schemaVersion": 2,
+      "type": "jira.issue.comment",
+      "value": {
+        "addCommentOnce": true,
+        "comment": "Pull request \"{{pullRequest.title}}\" has been merged. 🎉\n\nPull Request link: {{pullRequest.url}}\n\nMerged by {{pullRequest.mergedBy.displayName}} on {{now.shortDateTime}}",
+        "commentVisibility": null,
+        "publicComment": false,
+        "sendNotifications": true
+      }
+    }
+  ],
+  "created": 1785518539084,
+  "description": "",
+  "id": 34074249,
+  "idUuid": "019fb932-c14c-7816-86ce-46429925aeda",
+  "labels": [],
+  "name": "Update Merged to on Sub-task PR merged",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10104"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10104"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [
+    {
+      "tagType": "USES_DEVOPS_INTEGRATION",
+      "tagValue": "PULL_REQUEST"
+    }
+  ],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "c2486c06-30c2-4a82-9eff-eb48000961f9",
+        "conditions": [],
+        "connectionId": null,
+        "id": "3fb62f65-2579-4998-b6ca-c8d17fc54568",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "10022"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "c2486c06-30c2-4a82-9eff-eb48000961f9",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "devops.pr.event.trigger:merged",
+    "value": {
+      "tagType": "USES_DEVOPS_INTEGRATION",
+      "tagValue": "PULL_REQUEST"
+    }
+  },
+  "updated": 1785518594674,
+  "writeAccessType": "OWNER_ONLY"
+}

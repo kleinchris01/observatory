@@ -1,0 +1,213 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "a66c40a6-4082-4474-92ba-a379fba27700",
+      "parentId": null,
+      "schemaVersion": 2,
+      "type": "jira.issue.link",
+      "value": {
+        "issue": {
+          "type": "SMART",
+          "value": "{{destinationIssue}}"
+        },
+        "linkType": "outward:10030"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "a3578c3b-acc6-43d8-aeee-906ced6c7153",
+      "parentId": null,
+      "schemaVersion": 2,
+      "type": "jira.issue.comment",
+      "value": {
+        "addCommentOnce": false,
+        "comment": "{{initiator.displayName}} attempted to remove a link involving this Deviation Tracking request, which is not allowed. This link is required for traceability and system integrity and cannot be removed manually.\n\nThe attempt to remove it has been automatically reversed.\n\nIf this action was in error or support is needed, please contact the [ADVEV Helpdesk support team|https://ford-advev.atlassian.net/servicedesk/customer/portal/3].",
+        "commentVisibility": null,
+        "publicComment": true,
+        "sendNotifications": true
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "559de9f9-2374-4f77-8164-bfd8becc84fe",
+          "parentId": "a6d4baad-07df-4fa9-8de2-bcc876b6c5bb",
+          "schemaVersion": 2,
+          "type": "jira.issue.comment",
+          "value": {
+            "addCommentOnce": false,
+            "comment": "{{initiator.displayName}} attempted to remove a link involving a Deviation Tracking request, which is not allowed. This link is required for traceability and system integrity and cannot be removed manually.\n\nThe attempt to remove it has been automatically reversed.\n\nIf this action was in error or support is needed, please contact the [ADVEV Helpdesk support team|https://ford-advev.atlassian.net/servicedesk/customer/portal/3].",
+            "commentVisibility": null,
+            "publicComment": true,
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "a6d4baad-07df-4fa9-8de2-bcc876b6c5bb",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "destination",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1763552390509,
+  "description": "Since work item link deletions cannot be restricted, this automation acts as a workaround. When a link to a Deviation Tracking is deleted, the automation automatically restores the link and adds a comment to notify the user of the action.",
+  "id": 30856807,
+  "idUuid": "019a9be9-ed6f-7af1-a3eb-bfca406ebb2d",
+  "labels": [],
+  "name": "SOLVE: Deviation - Relink Deleted Deviation Tracking Work Item Link",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "e924b5c1-3652-4cf6-8479-a6bc8925f67b",
+        "conditions": [],
+        "connectionId": null,
+        "id": "84c8b517-3ce7-451a-b414-6b68135e7f0c",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "13141"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "project"
+          },
+          "selectedFieldType": "project"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "e924b5c1-3652-4cf6-8479-a6bc8925f67b",
+        "conditions": [],
+        "connectionId": null,
+        "id": "76eda0ed-fa58-42d7-aee2-14aa61201272",
+        "parentId": null,
+        "schemaVersion": 6,
+        "type": "jira.user.condition",
+        "value": {
+          "conditions": [
+            {
+              "check": "NOT_IN_ROLE",
+              "criteria": [
+                {
+                  "type": "NAME",
+                  "value": "Administrators"
+                },
+                {
+                  "type": "NAME",
+                  "value": "Administrators-EXTERNAL"
+                }
+              ],
+              "field": "initiator"
+            }
+          ],
+          "operator": "OR"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "e924b5c1-3652-4cf6-8479-a6bc8925f67b",
+        "conditions": [],
+        "connectionId": null,
+        "id": "bc47616e-1035-4c02-a3f9-339d8f1542dc",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": true,
+            "source": null,
+            "type": "ID",
+            "value": "[\"12621\",\"12654\"]"
+          },
+          "comparison": "ONE_OF",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "e924b5c1-3652-4cf6-8479-a6bc8925f67b",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:link_deleted",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+      ],
+      "linkTypes": [
+        "Polaris work item link"
+      ]
+    }
+  },
+  "updated": 1781518239869,
+  "writeAccessType": "UNRESTRICTED"
+}

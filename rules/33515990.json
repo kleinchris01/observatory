@@ -1,0 +1,167 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:7b1a40d2-238f-459b-84d8-a79358548d83",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "319a2b46-7b8b-4fcc-b133-63483797d295",
+              "parentId": "cd24fdf3-6c55-460f-bf6a-ef3db3ae9264",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Post Creation Automation Status"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "Moved to SOLVE"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "cd24fdf3-6c55-460f-bf6a-ef3db3ae9264",
+              "conditions": [],
+              "connectionId": null,
+              "id": "e3346737-402e-491d-aaee-7638682c2817",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "Issue"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Request Type"
+                },
+                "selectedFieldType": "com.atlassian.servicedesk:vp-origin"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "cd24fdf3-6c55-460f-bf6a-ef3db3ae9264",
+              "conditions": [],
+              "connectionId": null,
+              "id": "a54b685e-644f-490f-84b0-2440a6095077",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "ID",
+                  "value": "13364"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "ID",
+                  "value": "issuetype"
+                },
+                "selectedFieldType": "issuetype"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "cd24fdf3-6c55-460f-bf6a-ef3db3ae9264",
+          "parentId": "ff5c475b-59bc-44fe-9e68-098f14c61880",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ANY"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "ff5c475b-59bc-44fe-9e68-098f14c61880",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1780595985669,
+  "description": "his automation is triggered when a work item is moved into the Solve Hub (SOLVE) space from another space. When the work item has a Request Type of Issue or an Issue Type of Solve Ticket, the automation updates the Post Creation Automation Status field to \"Moved to SOLVE\". This field update acts as a trigger for the SOLVE: Ticket Creation Initializer Listener, which performs the post-conversion initialization activities required to configure the work item as a SOLVE ticket, including populating default values, establishing required relationships, and preparing the ticket for SOLVE-specific processing.",
+  "id": 33515990,
+  "idUuid": "019e93ca-8d05-7972-b521-3ec72116e5c9",
+  "labels": [],
+  "name": "SOLVE: Issue - Handle Work Items Moved to SOLVE",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "a73987ba-e746-4d63-a38f-dc76be2abf26",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:moved",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+      ],
+      "eventKey": "jira:issue_updated",
+      "issueEvent": "issue_moved",
+      "sourceProject": "-1999",
+      "targetProject": "13141"
+    }
+  },
+  "updated": 1782652933550,
+  "writeAccessType": "OWNER_ONLY"
+}

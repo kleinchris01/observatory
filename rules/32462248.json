@@ -1,0 +1,491 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:c9c3dfc4-eef5-4087-8b1a-8ee188485a9b",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "CONDITION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "e7a7540e-04b0-410c-b7d8-988a2f19523a",
+                  "parentId": "c29428b7-c5a9-48a5-a249-bb0d4eb5d7b2",
+                  "schemaVersion": 3,
+                  "type": "jira.issue.condition",
+                  "value": {
+                    "compareValue": {
+                      "modifier": null,
+                      "multiValue": false,
+                      "source": null,
+                      "type": "ID",
+                      "value": "10031"
+                    },
+                    "comparison": "EQUALS",
+                    "selectedField": {
+                      "type": "ID",
+                      "value": "issuetype"
+                    },
+                    "selectedFieldType": "issuetype"
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "3c9bd7be-dd20-40dc-8229-fd3ae8b2182a",
+                  "parentId": "c29428b7-c5a9-48a5-a249-bb0d4eb5d7b2",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.edit",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "NAME",
+                          "value": "Vehicle Object Number"
+                        },
+                        "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                        "type": "COPY",
+                        "value": {
+                          "copyOptions": [],
+                          "sourceField": {
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                            "type": "NAME",
+                            "value": "Vehicle Object Number"
+                          },
+                          "sourceIssue": "parent"
+                        }
+                      }
+                    ],
+                    "sendNotifications": true
+                  }
+                }
+              ],
+              "component": "ORCHESTRATION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "c29428b7-c5a9-48a5-a249-bb0d4eb5d7b2",
+              "parentId": "722c419a-b59e-45a7-b76a-4465d5c398c1",
+              "schemaVersion": 1,
+              "type": "automation.orchestration.fragment",
+              "value": {
+                "inputProjections": [],
+                "isOptional": false,
+                "name": "Group 2",
+                "outputProjections": []
+              }
+            }
+          ],
+          "component": "ORCHESTRATION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "722c419a-b59e-45a7-b76a-4465d5c398c1",
+          "parentId": "9735efd6-828c-495a-a1c6-8b7d2e51abf3",
+          "schemaVersion": 1,
+          "type": "automation.orchestration.split-parallel.child",
+          "value": {
+            "branchName": "Issue Type : Incident",
+            "conditionMatchType": null
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "CONDITION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "34bb6389-3c83-49e9-8a84-90c1c981d88c",
+                  "parentId": "a0f9c355-fe81-4b17-8735-6361defcc049",
+                  "schemaVersion": 3,
+                  "type": "jira.issue.condition",
+                  "value": {
+                    "compareValue": {
+                      "modifier": null,
+                      "multiValue": false,
+                      "source": null,
+                      "type": "ID",
+                      "value": "11190"
+                    },
+                    "comparison": "EQUALS",
+                    "selectedField": {
+                      "type": "ID",
+                      "value": "issuetype"
+                    },
+                    "selectedFieldType": "issuetype"
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "0e148254-99c7-4dad-b283-7f605164a218",
+                  "parentId": "a0f9c355-fe81-4b17-8735-6361defcc049",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.edit",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "NAME",
+                          "value": "Vehicle Object Number"
+                        },
+                        "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                        "type": "COPY",
+                        "value": {
+                          "copyOptions": [],
+                          "sourceField": {
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                            "type": "NAME",
+                            "value": "Vehicle Object Number"
+                          },
+                          "sourceIssue": "parent"
+                        }
+                      }
+                    ],
+                    "sendNotifications": true
+                  }
+                }
+              ],
+              "component": "ORCHESTRATION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "a0f9c355-fe81-4b17-8735-6361defcc049",
+              "parentId": "b800cb4d-bd2f-430f-a25d-c29e30d45c77",
+              "schemaVersion": 1,
+              "type": "automation.orchestration.fragment",
+              "value": {
+                "inputProjections": [],
+                "isOptional": false,
+                "name": "Group 3",
+                "outputProjections": []
+              }
+            }
+          ],
+          "component": "ORCHESTRATION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "b800cb4d-bd2f-430f-a25d-c29e30d45c77",
+          "parentId": "9735efd6-828c-495a-a1c6-8b7d2e51abf3",
+          "schemaVersion": 1,
+          "type": "automation.orchestration.split-parallel.child",
+          "value": {
+            "branchName": "Issue Type : Action Item",
+            "conditionMatchType": null
+          }
+        }
+      ],
+      "component": "ORCHESTRATION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "9735efd6-828c-495a-a1c6-8b7d2e51abf3",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "automation.orchestration.instruction.split-parallel",
+      "value": {
+        "branches": [
+          {
+            "branchName": "Issue Type : Incident",
+            "components": [
+              {
+                "checksum": null,
+                "children": [
+                  {
+                    "checksum": null,
+                    "children": [],
+                    "component": "CONDITION",
+                    "conditionParentId": null,
+                    "conditions": [],
+                    "connectionId": null,
+                    "id": "e7a7540e-04b0-410c-b7d8-988a2f19523a",
+                    "parentId": "c29428b7-c5a9-48a5-a249-bb0d4eb5d7b2",
+                    "schemaVersion": 3,
+                    "type": "jira.issue.condition",
+                    "value": {
+                      "compareValue": {
+                        "modifier": null,
+                        "multiValue": false,
+                        "source": null,
+                        "type": "ID",
+                        "value": "10031"
+                      },
+                      "comparison": "EQUALS",
+                      "selectedField": {
+                        "type": "ID",
+                        "value": "issuetype"
+                      },
+                      "selectedFieldType": "issuetype"
+                    }
+                  },
+                  {
+                    "checksum": null,
+                    "children": [],
+                    "component": "ACTION",
+                    "conditionParentId": null,
+                    "conditions": [],
+                    "connectionId": null,
+                    "id": "3c9bd7be-dd20-40dc-8229-fd3ae8b2182a",
+                    "parentId": "c29428b7-c5a9-48a5-a249-bb0d4eb5d7b2",
+                    "schemaVersion": 12,
+                    "type": "jira.issue.edit",
+                    "value": {
+                      "advancedFields": null,
+                      "operations": [
+                        {
+                          "field": {
+                            "type": "NAME",
+                            "value": "Vehicle Object Number"
+                          },
+                          "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                          "type": "COPY",
+                          "value": {
+                            "copyOptions": [],
+                            "sourceField": {
+                              "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                              "type": "NAME",
+                              "value": "Vehicle Object Number"
+                            },
+                            "sourceIssue": "parent"
+                          }
+                        }
+                      ],
+                      "sendNotifications": true
+                    }
+                  }
+                ],
+                "component": "ORCHESTRATION",
+                "conditionParentId": null,
+                "conditions": [],
+                "connectionId": null,
+                "id": "c29428b7-c5a9-48a5-a249-bb0d4eb5d7b2",
+                "parentId": "722c419a-b59e-45a7-b76a-4465d5c398c1",
+                "schemaVersion": 1,
+                "type": "automation.orchestration.fragment",
+                "value": {
+                  "inputProjections": [],
+                  "isOptional": false,
+                  "name": "Group 2",
+                  "outputProjections": []
+                }
+              }
+            ]
+          },
+          {
+            "branchName": "Issue Type : Action Item",
+            "components": [
+              {
+                "checksum": null,
+                "children": [
+                  {
+                    "checksum": null,
+                    "children": [],
+                    "component": "CONDITION",
+                    "conditionParentId": null,
+                    "conditions": [],
+                    "connectionId": null,
+                    "id": "34bb6389-3c83-49e9-8a84-90c1c981d88c",
+                    "parentId": "a0f9c355-fe81-4b17-8735-6361defcc049",
+                    "schemaVersion": 3,
+                    "type": "jira.issue.condition",
+                    "value": {
+                      "compareValue": {
+                        "modifier": null,
+                        "multiValue": false,
+                        "source": null,
+                        "type": "ID",
+                        "value": "11190"
+                      },
+                      "comparison": "EQUALS",
+                      "selectedField": {
+                        "type": "ID",
+                        "value": "issuetype"
+                      },
+                      "selectedFieldType": "issuetype"
+                    }
+                  },
+                  {
+                    "checksum": null,
+                    "children": [],
+                    "component": "ACTION",
+                    "conditionParentId": null,
+                    "conditions": [],
+                    "connectionId": null,
+                    "id": "0e148254-99c7-4dad-b283-7f605164a218",
+                    "parentId": "a0f9c355-fe81-4b17-8735-6361defcc049",
+                    "schemaVersion": 12,
+                    "type": "jira.issue.edit",
+                    "value": {
+                      "advancedFields": null,
+                      "operations": [
+                        {
+                          "field": {
+                            "type": "NAME",
+                            "value": "Vehicle Object Number"
+                          },
+                          "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                          "type": "COPY",
+                          "value": {
+                            "copyOptions": [],
+                            "sourceField": {
+                              "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                              "type": "NAME",
+                              "value": "Vehicle Object Number"
+                            },
+                            "sourceIssue": "parent"
+                          }
+                        }
+                      ],
+                      "sendNotifications": true
+                    }
+                  }
+                ],
+                "component": "ORCHESTRATION",
+                "conditionParentId": null,
+                "conditions": [],
+                "connectionId": null,
+                "id": "a0f9c355-fe81-4b17-8735-6361defcc049",
+                "parentId": "b800cb4d-bd2f-430f-a25d-c29e30d45c77",
+                "schemaVersion": 1,
+                "type": "automation.orchestration.fragment",
+                "value": {
+                  "inputProjections": [],
+                  "isOptional": false,
+                  "name": "Group 3",
+                  "outputProjections": []
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1773718900433,
+  "description": "This automation rule will copy the Vehicle Object Number from parent (Test activity) to its immediate child (Action Item), when new Action item  or Incident is created",
+  "id": 32462248,
+  "idUuid": "019cf9e2-8ed1-77ad-ab33-946078bf2177",
+  "labels": [],
+  "name": "Cascade VEHICLE OBJECT NUMBER from Test Activity to hierarchy, when new Action item or Incident is created",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11112"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11112"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [
+    {
+      "tagType": "ORCHESTRATION_CONFIG_ID",
+      "tagValue": "9f71ac31-21b5-11f1-be41-47788c229753"
+    },
+    {
+      "tagType": "ORCHESTRATION_VERSION",
+      "tagValue": "5"
+    },
+    {
+      "tagType": "ORCHESTRATION",
+      "tagValue": null
+    }
+  ],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "ab2200f6-229e-4f03-b671-5e29bfef97c6",
+        "conditions": [],
+        "connectionId": null,
+        "id": "6c9a1442-050d-4530-a79d-b950465c971b",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "11112"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "project"
+          },
+          "selectedFieldType": "project"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "ab2200f6-229e-4f03-b671-5e29bfef97c6",
+        "conditions": [],
+        "connectionId": null,
+        "id": "092e5321-cdcf-47a2-905c-f544cc956d6e",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": null,
+          "comparison": "NOT_EMPTY",
+          "selectedField": {
+            "type": "NAME",
+            "value": "Top Level Parent"
+          },
+          "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "ab2200f6-229e-4f03-b671-5e29bfef97c6",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11112"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1773719935745,
+  "writeAccessType": "OWNER_ONLY"
+}

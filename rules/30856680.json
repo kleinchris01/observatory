@@ -1,0 +1,632 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "f8e90327-c1cc-4f46-ac43-78d29d1952bd",
+              "parentId": "35b2d07c-524d-430c-a43f-06db2ba719bb",
+              "schemaVersion": 2,
+              "type": "jira.issue.comment",
+              "value": {
+                "addCommentOnce": false,
+                "comment": "An Eng. Requirement Deviation request already exists for this work item. Issue creation has been skipped to prevent duplication.\n\nIf this is an error or support is required, please contact the [ADVEV Helpdesk|https://ford-advev.atlassian.net/servicedesk/customer/portal/3].",
+                "commentVisibility": null,
+                "publicComment": true,
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "35b2d07c-524d-430c-a43f-06db2ba719bb",
+              "conditions": [],
+              "connectionId": null,
+              "id": "727cd1dc-d2c1-4a3a-a980-2141be32351a",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.issues.related.condition",
+              "value": {
+                "compareJql": "project = \"Program Requests Evaluation & Approval\"",
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [],
+                "operator": "somematch",
+                "relatedJql": "",
+                "relatedType": "linked",
+                "similarityLimit": 40
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "35b2d07c-524d-430c-a43f-06db2ba719bb",
+          "parentId": "0a8820ac-bbab-480f-ba53-51e7da8821aa",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "f8cff0a6-e603-4296-a268-58d9ff77efb3",
+              "parentId": "c0cd3f1b-2f05-4b75-bcd8-b30b23415265",
+              "schemaVersion": 2,
+              "type": "jira.issue.comment",
+              "value": {
+                "addCommentOnce": false,
+                "comment": "No assignee is set in the originating work item. Please update the work item with an assignee before proceeding.",
+                "commentVisibility": null,
+                "publicComment": true,
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "c0cd3f1b-2f05-4b75-bcd8-b30b23415265",
+              "conditions": [],
+              "connectionId": null,
+              "id": "ac0db4ee-b3cc-4b09-9b04-05dd2e44ac35",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": null,
+                "comparison": "EMPTY",
+                "selectedField": {
+                  "type": "ID",
+                  "value": "assignee"
+                },
+                "selectedFieldType": "assignee"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "c0cd3f1b-2f05-4b75-bcd8-b30b23415265",
+          "parentId": "0a8820ac-bbab-480f-ba53-51e7da8821aa",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "3279e039-034d-4da8-83a7-b17eaf144616",
+              "parentId": "fae29ee7-680d-442f-8734-c81e4839fda9",
+              "schemaVersion": 12,
+              "type": "jira.issue.create",
+              "value": {
+                "advancedFields": "",
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "summary"
+                    },
+                    "fieldType": "summary",
+                    "type": "SET",
+                    "value": "{{issue.summary}}"
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "project"
+                    },
+                    "fieldType": "project",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "13141"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "issuetype"
+                    },
+                    "fieldType": "issuetype",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "12621"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "reporter"
+                    },
+                    "fieldType": "reporter",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{initiator}}"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "issuelinks"
+                    },
+                    "fieldType": "issuelinks",
+                    "type": "SET",
+                    "value": {
+                      "issue": {
+                        "type": "COPY",
+                        "value": "trigger"
+                      },
+                      "linkType": "inward:10033"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "attachment"
+                    },
+                    "fieldType": "attachment",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "attachment",
+                        "type": "ID",
+                        "value": "attachment"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "description"
+                    },
+                    "fieldType": "description",
+                    "type": "SET",
+                    "value": "{{userInputs.description}}"
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Requirement Level"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{userInputs.requirementLevel}}"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Reason"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                    "type": "SET",
+                    "value": "{{userInputs.reasonField}}"
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Conformance Methods"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{userInputs.conformanceMethods}}"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Model Year "
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "SMART",
+                        "value": "{{userInputs.modelYear}}"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "ADVEV Checkpoints & Milestones"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{userInputs.advevCheckpointsandMilestones}}"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Requirement Revision"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                    "type": "SET",
+                    "value": "{{userInputs.requirementRevision}}"
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "SIT"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{userInputs.sitField}}"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Program "
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "SMART",
+                        "value": "{{userInputs.program}}"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Requirement ID"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                    "type": "SET",
+                    "value": "{{userInputs.requirementID}}"
+                  }
+                ],
+                "sendNotifications": false
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "239e102e-996e-4c1f-b2aa-41548cc102fc",
+                      "parentId": "1b3e5842-5e14-4e60-a35e-a7eab22f8e2d",
+                      "schemaVersion": 2,
+                      "type": "jira.issue.comment",
+                      "value": {
+                        "addCommentOnce": false,
+                        "comment": "An Eng. Requirement Deviation request was created successfully. \n\nTrack the issue here: [{{createdIssue.key}}].\n\nFor questions related to automation or updates, contact the [ADVEV Helpdesk|https://ford-advev.atlassian.net/servicedesk/customer/portal/3].",
+                        "commentVisibility": null,
+                        "publicComment": true,
+                        "sendNotifications": true
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "1b3e5842-5e14-4e60-a35e-a7eab22f8e2d",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "422e3557-f120-4d0e-bd09-28e2cc19a84a",
+                      "parentId": null,
+                      "schemaVersion": 1,
+                      "type": "jira.comparator.condition",
+                      "value": {
+                        "first": "{{createdIssue.key}}",
+                        "operator": "NOT_EQUALS",
+                        "second": ""
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "1b3e5842-5e14-4e60-a35e-a7eab22f8e2d",
+                  "parentId": "4e32d44b-bf75-4eb7-a5a3-60a35d0b0fc9",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "3dddf5cd-f7cc-4f8d-a089-bbef79acb37c",
+                      "parentId": "3288cacc-add9-4986-bca2-206638485aa8",
+                      "schemaVersion": 2,
+                      "type": "jira.issue.comment",
+                      "value": {
+                        "addCommentOnce": false,
+                        "comment": "Eng. Requirement Deviation request creation failed. Please contact [ADVEV Helpdesk support team|https://ford-advev.atlassian.net/servicedesk/customer/portal/3].",
+                        "commentVisibility": null,
+                        "publicComment": true,
+                        "sendNotifications": true
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "3288cacc-add9-4986-bca2-206638485aa8",
+                  "parentId": "4e32d44b-bf75-4eb7-a5a3-60a35d0b0fc9",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                }
+              ],
+              "component": "CONDITION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "4e32d44b-bf75-4eb7-a5a3-60a35d0b0fc9",
+              "parentId": "fae29ee7-680d-442f-8734-c81e4839fda9",
+              "schemaVersion": 1,
+              "type": "jira.condition.container.block",
+              "value": null
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "fae29ee7-680d-442f-8734-c81e4839fda9",
+          "parentId": "0a8820ac-bbab-480f-ba53-51e7da8821aa",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "0a8820ac-bbab-480f-ba53-51e7da8821aa",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1763551368424,
+  "description": "Automation for creating Deviation Ticket from any project in the Jira instance. The data are either taken from the triggering ticket or user prompt.",
+  "id": 30856680,
+  "idUuid": "019a9bda-54ea-7e3d-bc19-3ddeffa61946",
+  "labels": [],
+  "name": "SOLVE: Eng. Requirement Deviation",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "a4e2e895-6823-410e-85f5-186580f49ec7",
+    "parentId": null,
+    "schemaVersion": 3,
+    "type": "jira.manual.trigger.issue",
+    "value": {
+      "groups": [],
+      "inputFromUsers": true,
+      "inputPrompts": [
+        {
+          "defaultValue": "",
+          "displayName": "Description",
+          "inputType": "PARAGRAPH",
+          "required": false,
+          "variableName": "description"
+        },
+        {
+          "defaultValue": [
+            "Battery",
+            "Body",
+            "Chassis",
+            "Closures",
+            "Drive Unit (DU)",
+            "Electrical",
+            "Exterior",
+            "Interior",
+            "Seats",
+            "Thermal"
+          ],
+          "displayName": "SIT/Attribute (Assets)",
+          "inputType": "DROPDOWN",
+          "required": true,
+          "variableName": "sitField"
+        },
+        {
+          "defaultValue": "",
+          "displayName": "Requirement ID",
+          "inputType": "TEXT",
+          "required": true,
+          "variableName": "requirementID"
+        },
+        {
+          "defaultValue": [
+            "Secondary",
+            "Primary",
+            "Executive"
+          ],
+          "displayName": "Requirement Level",
+          "inputType": "DROPDOWN",
+          "required": true,
+          "variableName": "requirementLevel"
+        },
+        {
+          "defaultValue": "0.0",
+          "displayName": "Requirement Revision",
+          "inputType": "TEXT",
+          "required": false,
+          "variableName": "requirementRevision"
+        },
+        {
+          "defaultValue": "",
+          "displayName": "Reason",
+          "inputType": "PARAGRAPH",
+          "required": true,
+          "variableName": "reasonField"
+        },
+        {
+          "defaultValue": [
+            "Future Product Change",
+            "Generic Requirement Change",
+            "Test Method Change"
+          ],
+          "displayName": "Conformance Methods",
+          "inputType": "DROPDOWN",
+          "required": true,
+          "variableName": "conformanceMethods"
+        },
+        {
+          "defaultValue": [
+            "CX815",
+            "P833",
+            "U833",
+            "V827",
+            "Not Listed"
+          ],
+          "displayName": "Program",
+          "inputType": "DROPDOWN",
+          "required": false,
+          "variableName": "programField"
+        },
+        {
+          "defaultValue": [
+            "MY2027",
+            "MY2028",
+            "MY2029",
+            "None"
+          ],
+          "displayName": "Model Year",
+          "inputType": "DROPDOWN",
+          "required": false,
+          "variableName": "modelYear"
+        },
+        {
+          "defaultValue": [
+            "CP0",
+            "CP1",
+            "CP2",
+            "CP3",
+            "CP4",
+            "CP5",
+            "Beta Build First Roller",
+            "Beta Build Driver Commissioned",
+            "FAA",
+            "Virtual Validation",
+            "EVC (Engineering Verification Complete)",
+            "Pre-DCV (Batch 1)",
+            "Pre-DCV (Batch 2)",
+            "DCV: First Build",
+            "DCV: First Commissioned",
+            "DCV Batch 1",
+            "DCV Batch 2",
+            "DCV Batch 3",
+            "DCV Batch 4",
+            "uFDJ (PDU)",
+            "uFDJ (SDU)",
+            "EPT (Early Production Trial)",
+            "PEC",
+            "Design Verification Complete",
+            "FEC",
+            "LR (Launch Readiness)",
+            "TT (Tooling Trial)",
+            "LS (Launch Sign-Off)",
+            "PP (Pilot Production)",
+            "J1/MP1 (Mass Production Build 1)",
+            "MP2 (Mass Production Build 2)",
+            "OKTB (Ok-to-Buy)",
+            "Post Job 1",
+            "Service",
+            "Not applicable",
+            "TBD"
+          ],
+          "displayName": "ADVEV Checkpoints & Milestones",
+          "inputType": "DROPDOWN",
+          "required": false,
+          "variableName": "advevCheckpointsAndMilestones"
+        }
+      ],
+      "issueFilter": null,
+      "jQLFilter": null
+    }
+  },
+  "updated": 1780577663344,
+  "writeAccessType": "UNRESTRICTED"
+}

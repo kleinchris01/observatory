@@ -1,0 +1,427 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "eeaaea33-f5ad-4165-a09a-d2ec19ac843b",
+          "parentId": "4a48756d-56a3-407e-94dc-a006be3a7c3c",
+          "schemaVersion": 1,
+          "type": "jira.jql.condition",
+          "value": "\"ADVEV Vehicle Program (Assets)\" = \"ari:cloud:cmdb::object/c77afb26-c55c-4af4-861f-5e2907f8719d/5894\" and level in (\"U833 Default\", \"P833 Default\")"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "ef8c6a13-ed47-4968-8ad7-aac80b23c3ec",
+          "parentId": "4a48756d-56a3-407e-94dc-a006be3a7c3c",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "security"
+                },
+                "fieldType": "security",
+                "type": "SET",
+                "value": {
+                  "type": "NAME",
+                  "value": "P833 Default"
+                }
+              }
+            ],
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "4a48756d-56a3-407e-94dc-a006be3a7c3c",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "23f91ca5-9333-4c07-a1a6-d000d71c8a08",
+          "parentId": "9cd0d24e-14ba-4fee-af7e-a8135ac72517",
+          "schemaVersion": 1,
+          "type": "jira.jql.condition",
+          "value": "\"ADVEV Vehicle Program (Assets)\" = \"ari:cloud:cmdb::object/c77afb26-c55c-4af4-861f-5e2907f8719d/5894\" and level in (\"U833 Secret\", \"P833 Secret\")"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "10a6add9-a087-4979-aac1-5885b7c48376",
+          "parentId": "9cd0d24e-14ba-4fee-af7e-a8135ac72517",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "security"
+                },
+                "fieldType": "security",
+                "type": "SET",
+                "value": {
+                  "type": "NAME",
+                  "value": "P833 Secret"
+                }
+              }
+            ],
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "9cd0d24e-14ba-4fee-af7e-a8135ac72517",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "78726622-3f33-49bc-9362-e7880dd0005d",
+          "parentId": "0bfddaec-14c9-4cc0-8c0e-91e4b4bea717",
+          "schemaVersion": 1,
+          "type": "jira.jql.condition",
+          "value": "\"ADVEV Vehicle Program (Assets)\" = \"ari:cloud:cmdb::object/c77afb26-c55c-4af4-861f-5e2907f8719d/5895\" and level in (\"P833 Default\", \"CE1 Default\")"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "aea6953b-c57f-4536-95ea-3296c556dc73",
+          "parentId": "0bfddaec-14c9-4cc0-8c0e-91e4b4bea717",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "security"
+                },
+                "fieldType": "security",
+                "type": "SET",
+                "value": {
+                  "type": "NAME",
+                  "value": "U833 Default"
+                }
+              }
+            ],
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "0bfddaec-14c9-4cc0-8c0e-91e4b4bea717",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "6580c5ab-da71-4cb7-aa10-f7ed48bc1ec6",
+          "parentId": "69f6eb74-095d-4d03-b07d-0cd11fc8b6a9",
+          "schemaVersion": 1,
+          "type": "jira.jql.condition",
+          "value": "\"ADVEV Vehicle Program (Assets)\" = \"ari:cloud:cmdb::object/c77afb26-c55c-4af4-861f-5e2907f8719d/5895\" and level in (\"P833 Secret\", \"CE1 Secret\")"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "07a3a511-304f-4ce2-925a-e964884c47d9",
+          "parentId": "69f6eb74-095d-4d03-b07d-0cd11fc8b6a9",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "security"
+                },
+                "fieldType": "security",
+                "type": "SET",
+                "value": {
+                  "type": "NAME",
+                  "value": "U833 Secret"
+                }
+              }
+            ],
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "69f6eb74-095d-4d03-b07d-0cd11fc8b6a9",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "7099e13c-a2b9-4ee5-940f-9084a0d4a656",
+          "parentId": "54a7f9ee-cf60-4135-b49d-d48f11a8aa49",
+          "schemaVersion": 1,
+          "type": "jira.jql.condition",
+          "value": "\"ADVEV Vehicle Program (Assets)\" not in (\"ari:cloud:cmdb::object/c77afb26-c55c-4af4-861f-5e2907f8719d/5894\",\"ari:cloud:cmdb::object/c77afb26-c55c-4af4-861f-5e2907f8719d/5895\") and level in (\"U833 Default\", \"P833 Default\")"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "f2bb9130-b5ab-4cbe-8f4b-49dcfe85bb9c",
+          "parentId": "54a7f9ee-cf60-4135-b49d-d48f11a8aa49",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "security"
+                },
+                "fieldType": "security",
+                "type": "SET",
+                "value": {
+                  "type": "NAME",
+                  "value": "CE1 Default"
+                }
+              }
+            ],
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "54a7f9ee-cf60-4135-b49d-d48f11a8aa49",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "58ebb24a-0914-4bb4-9946-b2358865b710",
+          "parentId": "cebc4c53-0ef3-4623-bac6-61f0609eac21",
+          "schemaVersion": 1,
+          "type": "jira.jql.condition",
+          "value": "\"ADVEV Vehicle Program (Assets)\" not in (\"ari:cloud:cmdb::object/c77afb26-c55c-4af4-861f-5e2907f8719d/5894\",\"ari:cloud:cmdb::object/c77afb26-c55c-4af4-861f-5e2907f8719d/5895\") and level in (\"U833 Secret\", \"P833 Secret\")"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "92141bd1-ae53-4d39-a5a4-303c454bd899",
+          "parentId": "cebc4c53-0ef3-4623-bac6-61f0609eac21",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "security"
+                },
+                "fieldType": "security",
+                "type": "SET",
+                "value": {
+                  "type": "NAME",
+                  "value": "CE1 Secret"
+                }
+              }
+            ],
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "cebc4c53-0ef3-4623-bac6-61f0609eac21",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1736803252505,
+  "description": "This rule is the management automation to set and maintain the proper vehicle program information security levels.",
+  "id": 23994694,
+  "idUuid": "0194618a-7919-7bf9-9b89-e4dc534cd71d",
+  "labels": [],
+  "name": "Set Issue Security - Global Vehicle Program Automation",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10110"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10110"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "667304929",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10110"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "ADVEV Vehicle Program (Assets)"
+        }
+      ]
+    }
+  },
+  "updated": 1774508864532,
+  "writeAccessType": "UNRESTRICTED"
+}

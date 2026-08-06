@@ -1,0 +1,192 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:b3ce70e6-7267-48b5-b3ea-56a554b0f4d0",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "713409675",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": null,
+          "type": "ID",
+          "value": "10029"
+        },
+        "comparison": "EQUALS",
+        "selectedField": {
+          "type": "ID",
+          "value": "issuetype"
+        },
+        "selectedFieldType": "issuetype"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "713409676",
+              "parentId": "714931597",
+              "schemaVersion": 5,
+              "type": "jira.issue.outgoing.email",
+              "value": {
+                "bcc": [],
+                "body": "This product is the property of Ford Motor Company and is considered confidential. Its security and location are critical.\n\nYou are responsible for its traceability. Keeping track of its whereabouts is crucial for our overall project management and security protocols.\n\nGiven its confidential nature and value, if this product is lost, stolen, or misplaced while it is assigned to you, you will be held accountable.\n\nIf you transfer ownership of the physical product, you must update the \"Assignee\" field in the corresponding Jira ticket for this product and comment the date of handover. This ensures we have a clear, documented chain of custody.\n\nThanks so much for your attention to these details and for helping us maintain the necessary security and traceability.\n\nPlease reach out to sjimen38@ford.com if any questions or concerns.\n\n \n\nNOTE: Inverter or Drive Unit Label contains a Jira QR Code for ease of locating the correct ticket.",
+                "cc": [],
+                "convertLineBreaks": true,
+                "fromName": "",
+                "mimeType": "text/html",
+                "replyTo": "",
+                "subject": "Notification: Liability of Handling Ford Property",
+                "to": [
+                  {
+                    "type": "COPY",
+                    "value": "assignee"
+                  }
+                ]
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "714931597",
+              "conditions": [],
+              "connectionId": null,
+              "id": "714931598",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "parent = pt2-4326"
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "714931597",
+              "conditions": [],
+              "connectionId": null,
+              "id": "714931599",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "parent = pt2-4586"
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "714931597",
+              "conditions": [],
+              "connectionId": null,
+              "id": "714931600",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "parent = pt2-4587"
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "714931597",
+              "conditions": [],
+              "connectionId": null,
+              "id": "714931601",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "parent = pt2-4588"
+            }
+          ],
+          "connectionId": null,
+          "id": "714931597",
+          "parentId": "714931596",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ANY"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "714931596",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1747856782306,
+  "description": "",
+  "id": 28632138,
+  "idUuid": "0196f461-f3e2-7a83-8c87-ad2c7c5d218b",
+  "labels": [],
+  "name": "Send Email to Assignee on Build Ticket Closure",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10125"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10125"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "713409674",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:transitioned",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10125"
+      ],
+      "eventKey": "jira:issue_updated",
+      "fromStatus": [],
+      "issueEvent": "issue_generic",
+      "toStatus": [
+        {
+          "type": "NAME",
+          "value": "Completed"
+        }
+      ]
+    }
+  },
+  "updated": 1748888018228,
+  "writeAccessType": "UNRESTRICTED"
+}

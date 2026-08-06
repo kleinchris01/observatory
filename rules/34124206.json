@@ -1,0 +1,228 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [
+    "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+    "712020:a10b6fde-0495-4dd3-b61c-f9f1cc59984f"
+  ],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "d78470c1-265c-4779-b6c3-1156a6efbb1d",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "Pull Request URL: {{pullRequest.url}} - Pull Request Destination Branch: {{pullRequest.destinationBranch}} - Pull Request Repo: {{pullRequest.destinationBranch.repository}} - "
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "36c2a560-1d5e-4e74-b975-86757fca4356",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.outgoing.webhook",
+      "value": {
+        "contentType": "empty",
+        "continueOnErrorEnabled": false,
+        "customBody": null,
+        "headers": [
+          {
+            "headerSecure": false,
+            "id": "_header_1785970518153",
+            "name": "Accept",
+            "value": "application/vnd.github+json"
+          },
+          {
+            "headerSecure": false,
+            "id": "_header_1785972244644",
+            "name": "Authorization",
+            "value": "Bearer <GITHUB_TOKEN>"
+          },
+          {
+            "headerSecure": false,
+            "id": "_header_1785972256127",
+            "name": "X-GitHub-Api-Version",
+            "value": "2022-11-28"
+          }
+        ],
+        "method": "GET",
+        "responseEnabled": true,
+        "sendIssue": false,
+        "url": "https://api.github.com/repos/{{pullRequest.destinationBranch.repository.url.substringAfter(\"github.com/\")}}/pulls/{{pullRequest.url.substringAfterLast(\"/\")}}",
+        "urlSecure": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "2c083fb8-d83d-4130-b278-d902ec8469ca",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1785972311157",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "mergeCommitSha"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{webResponse.body.merge_commit_sha}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "9147e611-f677-403a-80a5-13d61de2642e",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "Merge SHA: {{mergeCommitSha}}"
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "97be808a-5fd5-44f7-a1cb-311a3bd86872",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.outgoing.webhook",
+      "value": {
+        "contentType": "empty",
+        "continueOnErrorEnabled": false,
+        "customBody": null,
+        "headers": [
+          {
+            "headerSecure": false,
+            "id": "_header_1785970518153",
+            "name": "Accept",
+            "value": "application/vnd.github.raw+json"
+          },
+          {
+            "headerSecure": false,
+            "id": "_header_1785972244644",
+            "name": "Authorization",
+            "value": "Bearer <GITHUB_TOKEN>"
+          },
+          {
+            "headerSecure": false,
+            "id": "_header_1785972256127",
+            "name": "X-GitHub-Api-Version",
+            "value": "2022-11-28"
+          }
+        ],
+        "method": "GET",
+        "responseEnabled": true,
+        "sendIssue": false,
+        "url": "https://api.github.com/repos/{{pullRequest.destinationBranch.repository.url.substringAfter(\"github.com/\")}}/contents/versions.txt?ref={{mergeCommitSha}}",
+        "urlSecure": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "dac6a546-da0a-487c-9edf-734e8154c942",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "Response: {{webResponse.body.trim}}"
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "f04fd78e-3de6-442d-8689-63c6c15c16b1",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Merged to"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+            "type": "SET",
+            "value": "{{webResponse.body.trim}}"
+          }
+        ],
+        "sendNotifications": true
+      }
+    }
+  ],
+  "created": 1785972534306,
+  "description": "",
+  "id": 34124206,
+  "idUuid": "019fd442-2c22-7a88-9fff-693916ddc618",
+  "labels": [],
+  "name": "Update Merged to from versions .txt",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10104"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10104"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [
+    {
+      "tagType": "USES_DEVOPS_INTEGRATION",
+      "tagValue": "PULL_REQUEST"
+    }
+  ],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "f11c12c3-98da-4635-8c77-39cf36236c22",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "devops.pr.event.trigger:merged",
+    "value": {
+      "tagType": "USES_DEVOPS_INTEGRATION",
+      "tagValue": "PULL_REQUEST"
+    }
+  },
+  "updated": 1785972937515,
+  "writeAccessType": "SPECIFIED_USERS"
+}

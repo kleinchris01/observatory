@@ -1,0 +1,134 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:10e644de-d96b-4816-9029-d6cf8f0aec37",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555647007",
+      "parentId": null,
+      "schemaVersion": 6,
+      "type": "jira.user.condition",
+      "value": {
+        "conditions": [
+          {
+            "check": "NOT_IN_ROLE",
+            "criteria": [
+              {
+                "type": "NAME",
+                "value": "Commentors"
+              }
+            ],
+            "field": "assignee"
+          }
+        ],
+        "operator": "OR"
+      }
+    },
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555647011",
+      "parentId": null,
+      "schemaVersion": 6,
+      "type": "jira.user.condition",
+      "value": {
+        "conditions": [
+          {
+            "check": "IN_ROLE",
+            "criteria": [
+              {
+                "type": "NAME",
+                "value": "Commentors"
+              }
+            ],
+            "field": "initiator"
+          }
+        ],
+        "operator": "OR"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555647014",
+      "parentId": null,
+      "schemaVersion": 5,
+      "type": "jira.issue.assign",
+      "value": {
+        "assignType": "SPECIFY_USER",
+        "assignee": {
+          "type": "SMART",
+          "value": "{{initiator}}"
+        },
+        "excludedUsers": [],
+        "fieldToCopy": null,
+        "group": null,
+        "issueToCopy": null,
+        "itsmOpsOncall": null,
+        "jql": null,
+        "listAssignMethod": null,
+        "peopleTeamsCustomFieldId": null,
+        "restrictedToGroup": null,
+        "role": null,
+        "smartValue": null,
+        "userList": []
+      }
+    }
+  ],
+  "created": 1716300700436,
+  "description": "",
+  "id": 19501539,
+  "idUuid": "018f9b7e-5b14-735b-8ba4-3234f03387e9",
+  "labels": [],
+  "name": "Commentor Can Only Assign Commentor",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10044"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10044"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "555647005",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:assigned",
+    "value": {
+      "eventKey": "jira:issue_updated",
+      "issueEvent": "issue_assigned"
+    }
+  },
+  "updated": 1716301289259,
+  "writeAccessType": "UNRESTRICTED"
+}

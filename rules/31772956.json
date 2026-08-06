@@ -1,0 +1,161 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "667478b4-a32e-4519-bd86-080e189dd4b0",
+              "parentId": "ad7b9f41-608d-4d60-892b-324cf4ffcb90",
+              "schemaVersion": 2,
+              "type": "jira.issue.add.watcher",
+              "value": {
+                "removeAll": false,
+                "removeWatchers": [],
+                "watchers": [
+                  {
+                    "type": "SMART",
+                    "value": "{{issue.customfield_15640.Lead}}"
+                  }
+                ]
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "ad7b9f41-608d-4d60-892b-324cf4ffcb90",
+              "conditions": [],
+              "connectionId": null,
+              "id": "b6a9ce40-b0ed-4718-a672-2a99ad187721",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": null,
+                "comparison": "NOT_EMPTY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "SIT/Attribute (Assets)"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "ad7b9f41-608d-4d60-892b-324cf4ffcb90",
+          "parentId": "953eacf2-88b3-4d83-a76f-760757c14c9a",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "953eacf2-88b3-4d83-a76f-760757c14c9a",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1769794397697,
+  "description": "This automation to populate watchers with the SIT Lead attribute from SIT/Attribute (Assets) for notification.",
+  "id": 31772956,
+  "idUuid": "019c0ff7-6603-73b6-b09e-01297b6d1546",
+  "labels": [],
+  "name": "SOLVE: Deviation - SIT Lead added as Watchers",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "a086917f-f2e7-4790-9b67-baca3bf20e85",
+        "conditions": [],
+        "connectionId": null,
+        "id": "2991d4c9-8a38-4f8a-8795-83ccb2d09ae6",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": true,
+            "source": null,
+            "type": "ID",
+            "value": "[\"12654\",\"12621\"]"
+          },
+          "comparison": "ONE_OF",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "a086917f-f2e7-4790-9b67-baca3bf20e85",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [
+        "create",
+        "edit"
+      ],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "SIT/Attribute (Assets)"
+        }
+      ]
+    }
+  },
+  "updated": 1782742765021,
+  "writeAccessType": "UNRESTRICTED"
+}

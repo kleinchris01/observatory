@@ -1,0 +1,394 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "6206e14e506317006b09a777",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "686492793",
+              "parentId": "686492791",
+              "schemaVersion": 11,
+              "type": "jira.issue.transition",
+              "value": {
+                "advancedFields": null,
+                "destinationStatus": {
+                  "type": "NAME",
+                  "value": "In Progress"
+                },
+                "operations": [],
+                "sendNotifications": true,
+                "transitionMatch": ""
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "686492796",
+              "parentId": "686492791",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "labels"
+                    },
+                    "fieldType": "labels",
+                    "type": "ADDREMOVE",
+                    "value": {
+                      "ADD": [],
+                      "REMOVE": [
+                        {
+                          "type": "NAME",
+                          "value": "business-form"
+                        },
+                        {
+                          "type": "NAME",
+                          "value": "business-form-262"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "686492798",
+              "parentId": "686492791",
+              "schemaVersion": 12,
+              "type": "jira.issue.create",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "project"
+                    },
+                    "fieldType": "project",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "10551"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "issuetype"
+                    },
+                    "fieldType": "issuetype",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "10022"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "parent"
+                    },
+                    "fieldType": "parent",
+                    "type": "SET",
+                    "value": {
+                      "type": "COPY",
+                      "value": "current"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "summary"
+                    },
+                    "fieldType": "summary",
+                    "type": "SET",
+                    "value": "VT - Purchasing Ops team sets up WBS Budget"
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "description"
+                    },
+                    "fieldType": "description",
+                    "type": "SET",
+                    "value": ""
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "assignee"
+                    },
+                    "fieldType": "assignee",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "712020:8436ad80-3bad-4771-a997-6be7fcae551f"
+                    }
+                  }
+                ],
+                "sendNotifications": false
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "686492800",
+              "parentId": "686492791",
+              "schemaVersion": 5,
+              "type": "action.send-templated-email",
+              "value": {
+                "convertLineBreaks": true,
+                "legacyConfig": true,
+                "sendGroupedEmails": true,
+                "templateContextData": {
+                  "body": "Congrats, your Vendor Tooling Finance (FIN) request was successfully submitted!\n\nSummary: {{issue.summary}}\nLink: https://ford-advev.atlassian.net/browse/{{issue.key}}\n\nNext Steps:\n- In the link above, please see sub-task #1 to see the information that's needed in Jira in order to proceed (needed to setup the Material Masters and WBS budget in backend systems)\n- Please use the sub-task \"PARTIAL Funding Request #1\" to enter in the funding that's needed today, which should be <= the \"Total Vendor Tooling Cost\" amount. This will us finance track spending easier for your part.\n\n*Future Next Steps \n--> for your 2nd PARIAL Funding Request, or any questions, please reach out to @Samuel-Wocks ",
+                  "bodyType": "HTML",
+                  "emailName": "Chintala",
+                  "fromEmailAddress": "automation@ford-advev.atlassian.net",
+                  "fromName": "Jira automation",
+                  "subject": "Issue {{issue.summary}} Created!"
+                },
+                "to": [
+                  {
+                    "type": "COPY",
+                    "value": "reporter"
+                  }
+                ]
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "686492801",
+              "parentId": "686492791",
+              "schemaVersion": 2,
+              "type": "jira.issue.comment",
+              "value": {
+                "addCommentOnce": true,
+                "comment": "Next Steps / Comments\n- The Engineer/TPM is responsible to provide all info that's above the \"Description\" on the left side. This info is needed in order to streamline issuing the budget and issuing PO's in iERP.\n- The general finance strategy is to issue ≤80% of the TOTAL amount initially. The rationale is that by initially committing to less than the full amount, we create an opportunity to potentially reduce our overall expenses. When we commit 100% upfront, we eliminate any possibility of cost savings. \n\nPlease reach out to Sam Wocks for any questions",
+                "commentVisibility": null,
+                "publicComment": false,
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "686492791",
+              "conditions": [],
+              "connectionId": null,
+              "id": "686492792",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "ID",
+                  "value": "10396"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "ID",
+                  "value": "issuetype"
+                },
+                "selectedFieldType": "issuetype"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "686492791",
+          "parentId": "686492790",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "686492790",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "703931951",
+              "parentId": "686492803",
+              "schemaVersion": 2,
+              "type": "jira.issue.comment",
+              "value": {
+                "addCommentOnce": true,
+                "comment": "1. Please make sure that there's only one Part Number per request .\n2. Please make sure that the total ED&T includes financing charges.\n3. Please attach the mountain chart to the Jira.\n\nMessage Sam Wocks on Teams for any help, including cloning tickets.",
+                "commentVisibility": null,
+                "publicComment": false,
+                "sendNotifications": true
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "590086ea-286d-4647-86c6-a0f2fefdaad7",
+              "parentId": "686492803",
+              "schemaVersion": 11,
+              "type": "jira.issue.transition",
+              "value": {
+                "advancedFields": null,
+                "destinationStatus": {
+                  "type": "NAME",
+                  "value": "In Progress"
+                },
+                "operations": [],
+                "sendNotifications": true,
+                "transitionMatch": ""
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "686492803",
+              "conditions": [],
+              "connectionId": null,
+              "id": "686492804",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "ID",
+                  "value": "10231"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "ID",
+                  "value": "issuetype"
+                },
+                "selectedFieldType": "issuetype"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "686492803",
+          "parentId": "686492802",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "686492802",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1731990216679,
+  "description": "",
+  "id": 23059221,
+  "idUuid": "019342a9-5fe7-7175-9336-470a28bad441",
+  "labels": [],
+  "name": "All | New Requests",
+  "notifyOnError": "NEVER",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10551"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10551"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "686492789",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10551"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1785125044697,
+  "writeAccessType": "UNRESTRICTED"
+}

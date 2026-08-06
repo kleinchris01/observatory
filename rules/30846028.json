@@ -1,0 +1,203 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "1231730c-4207-4379-af82-471f13d52b83",
+              "parentId": "8b62f27c-0c60-471e-b0d2-66fc924ce85a",
+              "schemaVersion": 2,
+              "type": "jira.issue.comment",
+              "value": {
+                "addCommentOnce": false,
+                "comment": "Warning: Production Buyer / GSM cannot be left empty. Please enter a value. [~accountid:{{reporter.accountId}}]",
+                "commentVisibility": null,
+                "publicComment": false,
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "8b62f27c-0c60-471e-b0d2-66fc924ce85a",
+              "conditions": [],
+              "connectionId": null,
+              "id": "a7db2723-8c79-4fca-8b3c-90a34873a86a",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": null,
+                "comparison": "EMPTY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Production Buyer / GSM"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "8b62f27c-0c60-471e-b0d2-66fc924ce85a",
+              "conditions": [],
+              "connectionId": null,
+              "id": "4fb7a01e-5731-47ae-a47a-9546f854c2fa",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "[\"Standard\",\"Configuration\",\"Documentation\",\"Manufacturing Process/Quality\",\"Supplier Quality\",\"Appearance\",\"Software Only\"]"
+                },
+                "comparison": "ONE_OF",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Change Type"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "8b62f27c-0c60-471e-b0d2-66fc924ce85a",
+              "conditions": [],
+              "connectionId": null,
+              "id": "3fa173db-81f6-43d8-8d2c-53ca343b37e0",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{changelog.status.fromString}}",
+                "operator": "NOT_EQUALS",
+                "second": "{{changelog.status.toString}}"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "8b62f27c-0c60-471e-b0d2-66fc924ce85a",
+          "parentId": "00f18e76-1419-438a-bc44-29b839f48b00",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "00f18e76-1419-438a-bc44-29b839f48b00",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1763462884629,
+  "description": "",
+  "id": 30846028,
+  "idUuid": "019a9694-2d23-750f-80a2-b5a0d720ede4",
+  "labels": [],
+  "name": "CE1 - Auto comment when GSM is empty when work item is transitioned",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "7935b381-7b01-496d-9201-3782634cd9a8",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:transitioned",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+      ],
+      "eventKey": "jira:issue_updated",
+      "fromStatus": [],
+      "issueEvent": "issue_generic",
+      "toStatus": [
+        {
+          "type": "NAME",
+          "value": "Submitted"
+        },
+        {
+          "type": "NAME",
+          "value": "Needs more Information"
+        },
+        {
+          "type": "NAME",
+          "value": "In Approval"
+        },
+        {
+          "type": "NAME",
+          "value": "Rejected"
+        },
+        {
+          "type": "NAME",
+          "value": "Cancelled"
+        },
+        {
+          "type": "NAME",
+          "value": "PM Verifying and Prioritizing"
+        },
+        {
+          "type": "NAME",
+          "value": "Solution Implemented"
+        },
+        {
+          "type": "NAME",
+          "value": "ICA,RCA,PCA In-Progress"
+        },
+        {
+          "type": "NAME",
+          "value": "Solution In-Progress"
+        }
+      ]
+    }
+  },
+  "updated": 1776407285388,
+  "writeAccessType": "UNRESTRICTED"
+}

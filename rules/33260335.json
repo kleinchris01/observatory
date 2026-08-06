@@ -1,0 +1,103 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "471d7d16-5d87-4e8e-9f7e-d082c9acea95",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.proforma.form.add.action",
+      "value": {
+        "allowDuplicates": false,
+        "formVisibility": "internal",
+        "templateFormsConfig": {
+          "projectId": 13141,
+          "templateFormIds": [
+            5014561291672918
+          ]
+        }
+      }
+    }
+  ],
+  "created": 1778678018036,
+  "description": "This automation attaches the Solution Matrix form when a ticket is created",
+  "id": 33260335,
+  "idUuid": "019e2178-aff5-7ea9-8114-010178d4a7df",
+  "labels": [],
+  "name": "SOLVE: Issue - Attach Solution Matrix on CT Creation",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "2a2df9a2-bb89-42e8-a4e7-5933dc79e68b",
+        "conditions": [],
+        "connectionId": null,
+        "id": "a5a29f0b-6ee4-4e88-b3df-efcf8c0a539b",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "13364"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "2a2df9a2-bb89-42e8-a4e7-5933dc79e68b",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1782743625102,
+  "writeAccessType": "OWNER_ONLY"
+}

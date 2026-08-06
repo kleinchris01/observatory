@@ -1,0 +1,1328 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:10e644de-d96b-4816-9029-d6cf8f0aec37",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "694038988",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": null,
+          "type": "VALUE",
+          "value": "0"
+        },
+        "comparison": "GREATER_THAN",
+        "selectedField": {
+          "type": "NAME",
+          "value": "Number of Remote Links"
+        },
+        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "692177205",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.outgoing.webhook",
+      "value": {
+        "contentType": "empty",
+        "continueOnErrorEnabled": false,
+        "customBody": null,
+        "headers": [
+          {
+            "headerSecure": false,
+            "id": "_header_1732225013965",
+            "name": "",
+            "value": ""
+          },
+          {
+            "headerSecure": false,
+            "id": "_header_1732225171111",
+            "name": "Authorization",
+            "value": "Basic anBvbG1hbjFAZm9yZC5jb206QVRBVFQzeEZmR0YwdnVfWFBhSHZicjhqWkxCY0FGZ2NWZmNPUHYxUzhFQWpBbWQtbG10T3hCZGNPMnNBS1F0c2liZi02MWdyeVJYQ1l3elRtNGIxWXM5WjhBU1dnV3ZwVEkxdFFRS09kY1k1WE1xTUpuX2tDU1BGMEp0MmhlWjFRQjBpNTd6dW1aRTNGdnlNa0UwZllqaXcxWHY3SlpXOGpGUkh6S21WazF5ZGxqaDdZRTJjX1prPTlGQkE1NDU5"
+          }
+        ],
+        "method": "GET",
+        "responseEnabled": true,
+        "sendIssue": false,
+        "url": "https://ford-advev.atlassian.net/rest/api/2/issue/{{issue.key}}/remotelink",
+        "urlSecure": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "692177206",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "{{webResponse.body}}"
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "692177210",
+              "parentId": "692177208",
+              "schemaVersion": 1,
+              "type": "codebarrel.action.log",
+              "value": "{{webResponse.body.object.title}}"
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "692177211",
+              "parentId": "692177208",
+              "schemaVersion": 1,
+              "type": "codebarrel.action.log",
+              "value": "Link Count: {{webResponse.body.object.title.size}}"
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "692177212",
+              "parentId": "692177208",
+              "schemaVersion": 1,
+              "type": "jira.create.variable",
+              "value": {
+                "id": "_customsmartvalue_id_1732551721645",
+                "lazy": false,
+                "name": {
+                  "type": "FREE",
+                  "value": "size"
+                },
+                "query": {
+                  "type": "SMART",
+                  "value": "{{webResponse.body.object.title.size}}"
+                },
+                "type": "SMART"
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "692177213",
+              "parentId": "692177208",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "numberOfRemoteLinks"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+                    "type": "SET",
+                    "value": "{{size}}"
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "hasRemoteLink"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "Yes"
+                    }
+                  }
+                ],
+                "sendNotifications": false
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "692177215",
+                  "parentId": "692177214",
+                  "schemaVersion": 1,
+                  "type": "codebarrel.action.log",
+                  "value": "{{projectKey.split(\"-\").first}}"
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "692177217",
+                  "parentId": "692177214",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.edit",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "NAME",
+                          "value": "External Jira Project Key"
+                        },
+                        "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:labels",
+                        "type": "ADDREMOVE",
+                        "value": {
+                          "ADD": [
+                            {
+                              "type": "SMART",
+                              "value": "{{projectKey.split(\"-\").first}}"
+                            }
+                          ],
+                          "REMOVE": []
+                        }
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                }
+              ],
+              "component": "BRANCH",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "692177214",
+              "parentId": "692177208",
+              "schemaVersion": 1,
+              "type": "jira.smart.values.branch",
+              "value": {
+                "id": "_customsmartvalue_id_1732226913009",
+                "lazy": false,
+                "name": {
+                  "type": "FREE",
+                  "value": "projectKey"
+                },
+                "query": {
+                  "type": "SMART",
+                  "value": "{{webResponse.body.object.title}}"
+                },
+                "type": "SMART"
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "692177224",
+                      "parentId": "692177221",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "External Jira Issues"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                            "type": "SET",
+                            "value": "[{{webResponse.body.object.title.get(0)}}|{{webResponse.body.object.url.get(0)}}]"
+                          }
+                        ],
+                        "sendNotifications": false
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "692177221",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "692177223",
+                      "parentId": null,
+                      "schemaVersion": 1,
+                      "type": "jira.comparator.condition",
+                      "value": {
+                        "first": "{{size}}",
+                        "operator": "EQUALS",
+                        "second": "1"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "692177221",
+                  "parentId": "692177219",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "692177227",
+                      "parentId": "692177225",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "External Jira Issues"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                            "type": "SET",
+                            "value": "[{{webResponse.body.object.title.get(0)}}|{{webResponse.body.object.url.get(0)}}] \n[{{webResponse.body.object.title.get(1)}}|{{webResponse.body.object.url.get(1)}}]"
+                          }
+                        ],
+                        "sendNotifications": false
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "692177225",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "692177226",
+                      "parentId": null,
+                      "schemaVersion": 1,
+                      "type": "jira.comparator.condition",
+                      "value": {
+                        "first": "{{size}}",
+                        "operator": "EQUALS",
+                        "second": "2"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "692177225",
+                  "parentId": "692177219",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "692177230",
+                      "parentId": "692177228",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "External Jira Issues"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                            "type": "SET",
+                            "value": "[{{webResponse.body.object.title.get(0)}}|{{webResponse.body.object.url.get(0)}}] \n[{{webResponse.body.object.title.get(1)}}|{{webResponse.body.object.url.get(1)}}]\n[{{webResponse.body.object.title.get(2)}}|{{webResponse.body.object.url.get(2)}}] "
+                          }
+                        ],
+                        "sendNotifications": false
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "692177228",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "692177229",
+                      "parentId": null,
+                      "schemaVersion": 1,
+                      "type": "jira.comparator.condition",
+                      "value": {
+                        "first": "{{size}}",
+                        "operator": "EQUALS",
+                        "second": "3"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "692177228",
+                  "parentId": "692177219",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "692177233",
+                      "parentId": "692177231",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "External Jira Issues"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                            "type": "SET",
+                            "value": "[{{webResponse.body.object.title.get(0)}}|{{webResponse.body.object.url.get(0)}}] \n[{{webResponse.body.object.title.get(1)}}|{{webResponse.body.object.url.get(1)}}]\n[{{webResponse.body.object.title.get(2)}}|{{webResponse.body.object.url.get(2)}}] \n[{{webResponse.body.object.title.get(3)}}|{{webResponse.body.object.url.get(3)}}] "
+                          }
+                        ],
+                        "sendNotifications": false
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "692177231",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "692177232",
+                      "parentId": null,
+                      "schemaVersion": 1,
+                      "type": "jira.comparator.condition",
+                      "value": {
+                        "first": "{{size}}",
+                        "operator": "EQUALS",
+                        "second": "4"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "692177231",
+                  "parentId": "692177219",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "692177236",
+                      "parentId": "692177234",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "External Jira Issues"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                            "type": "SET",
+                            "value": "[{{webResponse.body.object.title.get(0)}}|{{webResponse.body.object.url.get(0)}}] \n[{{webResponse.body.object.title.get(1)}}|{{webResponse.body.object.url.get(1)}}]\n[{{webResponse.body.object.title.get(2)}}|{{webResponse.body.object.url.get(2)}}] \n[{{webResponse.body.object.title.get(3)}}|{{webResponse.body.object.url.get(3)}}] \n[{{webResponse.body.object.title.get(4)}}|{{webResponse.body.object.url.get(4)}}] "
+                          }
+                        ],
+                        "sendNotifications": false
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "692177234",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "692177235",
+                      "parentId": null,
+                      "schemaVersion": 1,
+                      "type": "jira.comparator.condition",
+                      "value": {
+                        "first": "{{size}}",
+                        "operator": "EQUALS",
+                        "second": "5"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "692177234",
+                  "parentId": "692177219",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "692177239",
+                      "parentId": "692177237",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "External Jira Issues"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                            "type": "SET",
+                            "value": "[{{webResponse.body.object.title.get(0)}}|{{webResponse.body.object.url.get(0)}}] \n[{{webResponse.body.object.title.get(1)}}|{{webResponse.body.object.url.get(1)}}]\n[{{webResponse.body.object.title.get(2)}}|{{webResponse.body.object.url.get(2)}}] \n[{{webResponse.body.object.title.get(3)}}|{{webResponse.body.object.url.get(3)}}] \n[{{webResponse.body.object.title.get(4)}}|{{webResponse.body.object.url.get(4)}}] \n[{{webResponse.body.object.title.get(5)}}|{{webResponse.body.object.url.get(5)}}] "
+                          }
+                        ],
+                        "sendNotifications": false
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "692177237",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "692177238",
+                      "parentId": null,
+                      "schemaVersion": 1,
+                      "type": "jira.comparator.condition",
+                      "value": {
+                        "first": "{{size}}",
+                        "operator": "EQUALS",
+                        "second": "6"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "692177237",
+                  "parentId": "692177219",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "692177242",
+                      "parentId": "692177240",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "External Jira Issues"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                            "type": "SET",
+                            "value": "[{{webResponse.body.object.title.get(0)}}|{{webResponse.body.object.url.get(0)}}] \n[{{webResponse.body.object.title.get(1)}}|{{webResponse.body.object.url.get(1)}}]\n[{{webResponse.body.object.title.get(2)}}|{{webResponse.body.object.url.get(2)}}] \n[{{webResponse.body.object.title.get(3)}}|{{webResponse.body.object.url.get(3)}}] \n[{{webResponse.body.object.title.get(4)}}|{{webResponse.body.object.url.get(4)}}] \n[{{webResponse.body.object.title.get(5)}}|{{webResponse.body.object.url.get(5)}}] \n[{{webResponse.body.object.title.get(6)}}|{{webResponse.body.object.url.get(6)}}] "
+                          }
+                        ],
+                        "sendNotifications": false
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "692177240",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "692177241",
+                      "parentId": null,
+                      "schemaVersion": 1,
+                      "type": "jira.comparator.condition",
+                      "value": {
+                        "first": "{{size}}",
+                        "operator": "EQUALS",
+                        "second": "7"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "692177240",
+                  "parentId": "692177219",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "692177245",
+                      "parentId": "692177243",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "External Jira Issues"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                            "type": "SET",
+                            "value": "[{{webResponse.body.object.title.get(0)}}|{{webResponse.body.object.url.get(0)}}] \n[{{webResponse.body.object.title.get(1)}}|{{webResponse.body.object.url.get(1)}}]\n[{{webResponse.body.object.title.get(2)}}|{{webResponse.body.object.url.get(2)}}] \n[{{webResponse.body.object.title.get(3)}}|{{webResponse.body.object.url.get(3)}}] \n[{{webResponse.body.object.title.get(4)}}|{{webResponse.body.object.url.get(4)}}] \n[{{webResponse.body.object.title.get(5)}}|{{webResponse.body.object.url.get(5)}}] \n[{{webResponse.body.object.title.get(6)}}|{{webResponse.body.object.url.get(6)}}] \n[{{webResponse.body.object.title.get(7)}}|{{webResponse.body.object.url.get(7)}}] "
+                          }
+                        ],
+                        "sendNotifications": false
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "692177243",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "692177244",
+                      "parentId": null,
+                      "schemaVersion": 1,
+                      "type": "jira.comparator.condition",
+                      "value": {
+                        "first": "{{size}}",
+                        "operator": "EQUALS",
+                        "second": "8"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "692177243",
+                  "parentId": "692177219",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "692177248",
+                      "parentId": "692177246",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "External Jira Issues"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                            "type": "SET",
+                            "value": "[{{webResponse.body.object.title.get(0)}}|{{webResponse.body.object.url.get(0)}}] \n[{{webResponse.body.object.title.get(1)}}|{{webResponse.body.object.url.get(1)}}]\n[{{webResponse.body.object.title.get(2)}}|{{webResponse.body.object.url.get(2)}}] \n[{{webResponse.body.object.title.get(3)}}|{{webResponse.body.object.url.get(3)}}] \n[{{webResponse.body.object.title.get(4)}}|{{webResponse.body.object.url.get(4)}}] \n[{{webResponse.body.object.title.get(5)}}|{{webResponse.body.object.url.get(5)}}] \n[{{webResponse.body.object.title.get(6)}}|{{webResponse.body.object.url.get(6)}}] \n[{{webResponse.body.object.title.get(7)}}|{{webResponse.body.object.url.get(7)}}] \n[{{webResponse.body.object.title.get(8)}}|{{webResponse.body.object.url.get(8)}}] "
+                          }
+                        ],
+                        "sendNotifications": false
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "692177246",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "692177247",
+                      "parentId": null,
+                      "schemaVersion": 1,
+                      "type": "jira.comparator.condition",
+                      "value": {
+                        "first": "{{size}}",
+                        "operator": "EQUALS",
+                        "second": "9"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "692177246",
+                  "parentId": "692177219",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "692177251",
+                      "parentId": "692177249",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "External Jira Issues"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                            "type": "SET",
+                            "value": "[{{webResponse.body.object.title.get(0)}}|{{webResponse.body.object.url.get(0)}}] \n[{{webResponse.body.object.title.get(1)}}|{{webResponse.body.object.url.get(1)}}]\n[{{webResponse.body.object.title.get(2)}}|{{webResponse.body.object.url.get(2)}}] \n[{{webResponse.body.object.title.get(3)}}|{{webResponse.body.object.url.get(3)}}] \n[{{webResponse.body.object.title.get(4)}}|{{webResponse.body.object.url.get(4)}}] \n[{{webResponse.body.object.title.get(5)}}|{{webResponse.body.object.url.get(5)}}] \n[{{webResponse.body.object.title.get(6)}}|{{webResponse.body.object.url.get(6)}}] \n[{{webResponse.body.object.title.get(7)}}|{{webResponse.body.object.url.get(7)}}] \n[{{webResponse.body.object.title.get(8)}}|{{webResponse.body.object.url.get(8)}}] \n[{{webResponse.body.object.title.get(9)}}|{{webResponse.body.object.url.get(9)}}]   "
+                          }
+                        ],
+                        "sendNotifications": false
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "692177249",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "692177250",
+                      "parentId": null,
+                      "schemaVersion": 1,
+                      "type": "jira.comparator.condition",
+                      "value": {
+                        "first": "{{size}}",
+                        "operator": "EQUALS",
+                        "second": "10"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "692177249",
+                  "parentId": "692177219",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "692177254",
+                      "parentId": "692177252",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "External Jira Issues"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                            "type": "SET",
+                            "value": "[{{webResponse.body.object.title.get(0)}}|{{webResponse.body.object.url.get(0)}}] \n[{{webResponse.body.object.title.get(1)}}|{{webResponse.body.object.url.get(1)}}]\n[{{webResponse.body.object.title.get(2)}}|{{webResponse.body.object.url.get(2)}}] \n[{{webResponse.body.object.title.get(3)}}|{{webResponse.body.object.url.get(3)}}] \n[{{webResponse.body.object.title.get(4)}}|{{webResponse.body.object.url.get(4)}}] \n[{{webResponse.body.object.title.get(5)}}|{{webResponse.body.object.url.get(5)}}] \n[{{webResponse.body.object.title.get(6)}}|{{webResponse.body.object.url.get(6)}}] \n[{{webResponse.body.object.title.get(7)}}|{{webResponse.body.object.url.get(7)}}] \n[{{webResponse.body.object.title.get(8)}}|{{webResponse.body.object.url.get(8)}}] \n[{{webResponse.body.object.title.get(9)}}|{{webResponse.body.object.url.get(9)}}]  \n[{{webResponse.body.object.title.get(10)}}|{{webResponse.body.object.url.get(10)}}] "
+                          }
+                        ],
+                        "sendNotifications": false
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "692177252",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "692177253",
+                      "parentId": null,
+                      "schemaVersion": 1,
+                      "type": "jira.comparator.condition",
+                      "value": {
+                        "first": "{{size}}",
+                        "operator": "EQUALS",
+                        "second": "11"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "692177252",
+                  "parentId": "692177219",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "692177257",
+                      "parentId": "692177255",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "External Jira Issues"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                            "type": "SET",
+                            "value": "[{{webResponse.body.object.title.get(0)}}|{{webResponse.body.object.url.get(0)}}] \n[{{webResponse.body.object.title.get(1)}}|{{webResponse.body.object.url.get(1)}}]\n[{{webResponse.body.object.title.get(2)}}|{{webResponse.body.object.url.get(2)}}] \n[{{webResponse.body.object.title.get(3)}}|{{webResponse.body.object.url.get(3)}}] \n[{{webResponse.body.object.title.get(4)}}|{{webResponse.body.object.url.get(4)}}] \n[{{webResponse.body.object.title.get(5)}}|{{webResponse.body.object.url.get(5)}}] \n[{{webResponse.body.object.title.get(6)}}|{{webResponse.body.object.url.get(6)}}] \n[{{webResponse.body.object.title.get(7)}}|{{webResponse.body.object.url.get(7)}}] \n[{{webResponse.body.object.title.get(8)}}|{{webResponse.body.object.url.get(8)}}] \n[{{webResponse.body.object.title.get(9)}}|{{webResponse.body.object.url.get(9)}}] \n[{{webResponse.body.object.title.get(10)}}|{{webResponse.body.object.url.get(10)}}] \n[{{webResponse.body.object.title.get(11)}}|{{webResponse.body.object.url.get(11)}}]       "
+                          }
+                        ],
+                        "sendNotifications": false
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "692177255",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "692177256",
+                      "parentId": null,
+                      "schemaVersion": 1,
+                      "type": "jira.comparator.condition",
+                      "value": {
+                        "first": "{{size}}",
+                        "operator": "EQUALS",
+                        "second": "12"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "692177255",
+                  "parentId": "692177219",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "692177260",
+                      "parentId": "692177258",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "External Jira Issues"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                            "type": "SET",
+                            "value": "[{{webResponse.body.object.title.get(0)}}|{{webResponse.body.object.url.get(0)}}] \n[{{webResponse.body.object.title.get(1)}}|{{webResponse.body.object.url.get(1)}}]\n[{{webResponse.body.object.title.get(2)}}|{{webResponse.body.object.url.get(2)}}] \n[{{webResponse.body.object.title.get(3)}}|{{webResponse.body.object.url.get(3)}}] \n[{{webResponse.body.object.title.get(4)}}|{{webResponse.body.object.url.get(4)}}] \n[{{webResponse.body.object.title.get(5)}}|{{webResponse.body.object.url.get(5)}}] \n[{{webResponse.body.object.title.get(6)}}|{{webResponse.body.object.url.get(6)}}] \n[{{webResponse.body.object.title.get(7)}}|{{webResponse.body.object.url.get(7)}}] \n[{{webResponse.body.object.title.get(8)}}|{{webResponse.body.object.url.get(8)}}] \n[{{webResponse.body.object.title.get(9)}}|{{webResponse.body.object.url.get(9)}}] \n[{{webResponse.body.object.title.get(10)}}|{{webResponse.body.object.url.get(10)}}] \n[{{webResponse.body.object.title.get(11)}}|{{webResponse.body.object.url.get(11)}}]  \n[{{webResponse.body.object.title.get(12)}}|{{webResponse.body.object.url.get(12)}}]    "
+                          }
+                        ],
+                        "sendNotifications": false
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "692177258",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "692177259",
+                      "parentId": null,
+                      "schemaVersion": 1,
+                      "type": "jira.comparator.condition",
+                      "value": {
+                        "first": "{{size}}",
+                        "operator": "EQUALS",
+                        "second": "13"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "692177258",
+                  "parentId": "692177219",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "692177263",
+                      "parentId": "692177261",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "External Jira Issues"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                            "type": "SET",
+                            "value": "[{{webResponse.body.object.title.get(0)}}|{{webResponse.body.object.url.get(0)}}] \n[{{webResponse.body.object.title.get(1)}}|{{webResponse.body.object.url.get(1)}}]\n[{{webResponse.body.object.title.get(2)}}|{{webResponse.body.object.url.get(2)}}] \n[{{webResponse.body.object.title.get(3)}}|{{webResponse.body.object.url.get(3)}}] \n[{{webResponse.body.object.title.get(4)}}|{{webResponse.body.object.url.get(4)}}] \n[{{webResponse.body.object.title.get(5)}}|{{webResponse.body.object.url.get(5)}}] \n[{{webResponse.body.object.title.get(6)}}|{{webResponse.body.object.url.get(6)}}] \n[{{webResponse.body.object.title.get(7)}}|{{webResponse.body.object.url.get(7)}}] \n[{{webResponse.body.object.title.get(8)}}|{{webResponse.body.object.url.get(8)}}] \n[{{webResponse.body.object.title.get(9)}}|{{webResponse.body.object.url.get(9)}}] \n[{{webResponse.body.object.title.get(10)}}|{{webResponse.body.object.url.get(10)}}] \n[{{webResponse.body.object.title.get(11)}}|{{webResponse.body.object.url.get(11)}}]  \n[{{webResponse.body.object.title.get(12)}}|{{webResponse.body.object.url.get(12)}}]\n[{{webResponse.body.object.title.get(13)}}|{{webResponse.body.object.url.get(13)}}]     "
+                          }
+                        ],
+                        "sendNotifications": false
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "692177261",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "692177262",
+                      "parentId": null,
+                      "schemaVersion": 1,
+                      "type": "jira.comparator.condition",
+                      "value": {
+                        "first": "{{size}}",
+                        "operator": "EQUALS",
+                        "second": "14"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "692177261",
+                  "parentId": "692177219",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "692177266",
+                      "parentId": "692177264",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "External Jira Issues"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                            "type": "SET",
+                            "value": "[{{webResponse.body.object.title.get(0)}}|{{webResponse.body.object.url.get(0)}}] \n[{{webResponse.body.object.title.get(1)}}|{{webResponse.body.object.url.get(1)}}]\n[{{webResponse.body.object.title.get(2)}}|{{webResponse.body.object.url.get(2)}}] \n[{{webResponse.body.object.title.get(3)}}|{{webResponse.body.object.url.get(3)}}] \n[{{webResponse.body.object.title.get(4)}}|{{webResponse.body.object.url.get(4)}}] \n[{{webResponse.body.object.title.get(5)}}|{{webResponse.body.object.url.get(5)}}] \n[{{webResponse.body.object.title.get(6)}}|{{webResponse.body.object.url.get(6)}}] \n[{{webResponse.body.object.title.get(7)}}|{{webResponse.body.object.url.get(7)}}] \n[{{webResponse.body.object.title.get(8)}}|{{webResponse.body.object.url.get(8)}}] \n[{{webResponse.body.object.title.get(9)}}|{{webResponse.body.object.url.get(9)}}] \n[{{webResponse.body.object.title.get(10)}}|{{webResponse.body.object.url.get(10)}}] \n[{{webResponse.body.object.title.get(11)}}|{{webResponse.body.object.url.get(11)}}]  \n[{{webResponse.body.object.title.get(12)}}|{{webResponse.body.object.url.get(12)}}]\n[{{webResponse.body.object.title.get(13)}}|{{webResponse.body.object.url.get(13)}}]  \n[{{webResponse.body.object.title.get(14)}}|{{webResponse.body.object.url.get(14)}}]    "
+                          }
+                        ],
+                        "sendNotifications": false
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "692177264",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "692177265",
+                      "parentId": null,
+                      "schemaVersion": 1,
+                      "type": "jira.comparator.condition",
+                      "value": {
+                        "first": "{{size}}",
+                        "operator": "EQUALS",
+                        "second": "15"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "692177264",
+                  "parentId": "692177219",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                }
+              ],
+              "component": "CONDITION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "692177219",
+              "parentId": "692177208",
+              "schemaVersion": 1,
+              "type": "jira.condition.container.block",
+              "value": null
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "692177208",
+              "conditions": [],
+              "connectionId": null,
+              "id": "692177209",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{webResponse.body}}",
+                "operator": "NOT_EQUALS",
+                "second": ""
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "692177208",
+          "parentId": "692177207",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "692177269",
+              "parentId": "692177267",
+              "schemaVersion": 1,
+              "type": "codebarrel.action.log",
+              "value": "No Remote Links"
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "692177270",
+              "parentId": "692177267",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "hasRemoteLink"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "No"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "External Jira Issues"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                    "type": "SET",
+                    "value": ""
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "External Jira Project Key"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:labels",
+                    "type": "SET",
+                    "value": []
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "numberOfRemoteLinks"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+                    "type": "SET",
+                    "value": "0"
+                  }
+                ],
+                "sendNotifications": false
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "692177267",
+              "conditions": [],
+              "connectionId": null,
+              "id": "692177268",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{webResponse.body}}",
+                "operator": "EQUALS",
+                "second": ""
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "692177267",
+          "parentId": "692177207",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "692177207",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1732225725025,
+  "description": "",
+  "id": 23134102,
+  "idUuid": "019350b2-f261-79cb-aa65-f9caeb9ce135",
+  "labels": [],
+  "name": "Remote Link",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10056",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10061",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [
+    {
+      "tagType": "WEBHOOK_TOKEN",
+      "tagValue": "[[REDACTED:95f3ddac]]"
+    }
+  ],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "694038987",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "VALUE_ADDED",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10061",
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027",
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10056"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Number of Remote Links"
+        }
+      ]
+    }
+  },
+  "updated": 1740082351484,
+  "writeAccessType": "UNRESTRICTED"
+}

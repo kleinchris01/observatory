@@ -1,0 +1,160 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:6ac082fb-14e4-4e7c-b04e-5fb66eaeef08",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555681303",
+          "parentId": "555681302",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "ID",
+              "value": "10001"
+            },
+            "comparison": "NOT_EQUAL",
+            "selectedField": {
+              "type": "ID",
+              "value": "status"
+            },
+            "selectedFieldType": "status"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555681304",
+          "parentId": "555681302",
+          "schemaVersion": 11,
+          "type": "jira.issue.transition",
+          "value": {
+            "advancedFields": null,
+            "destinationStatus": {
+              "type": "ID",
+              "value": "10001"
+            },
+            "operations": [
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "resolution"
+                },
+                "fieldType": "resolution",
+                "type": "SET",
+                "value": {
+                  "type": "COPY",
+                  "value": "parent"
+                }
+              }
+            ],
+            "sendNotifications": true,
+            "transitionMatch": null
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555681302",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": null,
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "children",
+        "similarityLimit": 0
+      }
+    }
+  ],
+  "created": 1718308138810,
+  "description": null,
+  "id": 19945476,
+  "idUuid": "01901325-6f3a-7f3a-a2be-e18f90832eba",
+  "labels": [],
+  "name": "When parent is completed → then close all the child issues present",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [
+    {
+      "projectId": "10031",
+      "projectTypeKey": "software"
+    }
+  ],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10031"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10031"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [
+    {
+      "tagType": "CREATION_TYPE",
+      "tagValue": "RECOMMENDED"
+    },
+    {
+      "tagType": "SAMPLE_RULE",
+      "tagValue": "software"
+    },
+    {
+      "tagType": "TEMPLATE_ID",
+      "tagValue": "software_template_31"
+    }
+  ],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "555681301",
+    "parentId": null,
+    "schemaVersion": -1,
+    "type": "jira.issue.event.trigger:transitioned",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10031"
+      ],
+      "eventKey": "jira:issue_updated",
+      "fromStatus": [],
+      "issueEvent": "issue_generic",
+      "toStatus": [
+        {
+          "type": "ID",
+          "value": "10001"
+        }
+      ]
+    }
+  },
+  "updated": 1718308138810,
+  "writeAccessType": "UNRESTRICTED"
+}

@@ -1,0 +1,135 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "82c37a5c-958a-487d-97fb-19a2a7064ed6",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": true,
+          "source": null,
+          "type": "ID",
+          "value": "[\"10024\",\"10000\",\"10020\",\"10023\"]"
+        },
+        "comparison": "ONE_OF",
+        "selectedField": {
+          "type": "ID",
+          "value": "issuetype"
+        },
+        "selectedFieldType": "issuetype"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "0ca77642-f31c-40fb-9614-ad259cd5a16b",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "msteams.notification",
+      "value": {
+        "body": "New Jira issue created:  \n\n- **Issue Key & Summary:** {{issue.key}} — {{issue.summary}}  \n- **Created by:** {{issue.reporter.displayName}}  \n- **Issue Type:** {{issue.issueType.name}}  \n- **Severity:** {{issue.Severity}}  \n- **Priority:** {{issue.priority.name}}  \n- **Assignee:** {{issue.assignee.displayName}}  \n\n[Open in Jira]({{issue.url}})",
+        "imageUrl": null,
+        "includeIssueSummary": false,
+        "subTitle": null,
+        "teamsWorkflowURL": "https://defaultc990bb7a51f4439bbd369c07fb1041.c0.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/83fa74642ed64a61a40bde671c7c2fd6/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=x4AAcU85QtvZlFMs50gsX6fJEnPbpINg6Ejirtu6itU",
+        "teamsWorkflowUrlSecure": false,
+        "title": "Review Required!:  **{{issue.key}}** - **{{issue.summary}}**",
+        "webhookUrl": null
+      }
+    }
+  ],
+  "created": 1762552645419,
+  "description": "This rule notifies the MS Teams channel '\"Critical Bug Reports\" when a bug with critical severity or P0 priority is created.",
+  "id": 30757933,
+  "idUuid": "019a6053-072b-7643-b808-3c9ac1fece17",
+  "labels": [],
+  "name": "Notify MS Teams: CCB Review = Needs Review",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10104"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10104"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "98ed44d5-a53e-4a83-8987-a5ce82cae83e",
+        "conditions": [],
+        "connectionId": null,
+        "id": "9d2db199-ddea-4406-97a4-88310a4b2276",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "NAME",
+            "value": "Needs Review"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "NAME",
+            "value": "CCB Review"
+          },
+          "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "98ed44d5-a53e-4a83-8987-a5ce82cae83e",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "VALUE_ADDED",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10104"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "CCB Review"
+        }
+      ]
+    }
+  },
+  "updated": 1762553553773,
+  "writeAccessType": "UNRESTRICTED"
+}

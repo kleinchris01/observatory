@@ -1,0 +1,229 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "236e64ff-5034-4276-804d-393040045522",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Collaborators"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+            "type": "SET",
+            "value": [
+              {
+                "type": "SMART",
+                "value": "{{null}}"
+              }
+            ]
+          }
+        ],
+        "sendNotifications": true
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "730db674-2ea4-4d38-bddb-c837c5d3ef86",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "action.wait.for.time.duration",
+      "value": {
+        "randomWaitInterval": null,
+        "waitTimeInSeconds": 10
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "709642303",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Collaborators"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+            "type": "SET",
+            "value": [
+              {
+                "type": "SMART",
+                "value": "{{issue.ADVEV Global Supply Manager}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.Buyer}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.Buyer - China}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.SIT Lead}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.SIT Technical Program Manager}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.LL6 Manager}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.LL5 Manager}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.Supply Chain Program Manager}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.Product Development Program Manager}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.Finance Lead}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.ED&T Contact(s)}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.Global Vendor Tooling Contact(s)}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.Buyer - India}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.CE1 Engineer}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.customfield_12750}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.Supply Chain Director}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.customfield_12753}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.customfield_12752}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.customfield_12893}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.customfield_18101}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.customfield_12496}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.customfield_12749}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.customfield_14814}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.customfield_12751}}"
+              }
+            ]
+          }
+        ],
+        "sendNotifications": false
+      }
+    }
+  ],
+  "created": 1746128210261,
+  "description": "",
+  "id": 27988750,
+  "idUuid": "01968d5a-0955-7a46-8858-30064613d03d",
+  "labels": [],
+  "name": "Update Collaborators Across GSM",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10518"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10518"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "709642302",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "project =\"ADVEV Production Part Sourcing\"",
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/Los_Angeles:20250501T123600\nRRULE:FREQ=DAILY;BYHOUR=20;BYMINUTE=0;BYSECOND=0;INTERVAL=1\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1765947833553,
+  "writeAccessType": "UNRESTRICTED"
+}

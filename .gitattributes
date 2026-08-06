@@ -1,0 +1,6 @@
+# The rule snapshot is written with LF by scripts/snapshot-rules.mjs and compared
+# byte-for-byte against what is already on disk to decide which rules actually changed.
+# With core.autocrlf=true the checkout would rewrite these to CRLF, every comparison would
+# mismatch, and each weekly run would report all 1,477 rules as modified.
+rules/**   text eol=lf
+scripts/** text eol=lf

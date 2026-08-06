@@ -1,0 +1,316 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:10e644de-d96b-4816-9029-d6cf8f0aec37",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "33001320-31b3-4565-95bf-9c54e767eeb4",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1776971718650",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "jiraauth"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "Basic anBvbG1hbjFAZm9yZC5jb206QVRBVFQzeEZmR0Ywemc3QjhyUjFyamhMTjdmUXZ6RVdhZW9MV1h3YWF1aVhhNDhUTGR5c0o3WVk1UVcxZXJMTzl2S211aWFMRXZBQjV3bGlFSk1iakpyQ1pUYkw2SXp2WnU2YUdVUGtwQS1rWl9JZVp0cFlkZmhVVUIxS0JSMFcyeEtvUEYzdTd1RWJ4eXYwa1h1YW5zQUNXTG5jYnc4WjlQeTE1RFZ2MVNucWRQdFYwR3UwNmxRPTc4Mjc5MDRD"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "b1b5b812-e7a5-4882-a84a-683476ee2e85",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "{{jiraauth}}"
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "c65a4af9-0d5b-494c-b35e-ecf0cc18426a",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "Project ID looking up: {{customfield_11373.Project_Id}}"
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "30f141b2-e74d-45f8-bd2e-a7d18f8dbe6b",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1776971718650",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "projectid"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{customfield_11373.Project_Id}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "522784c9-43a8-4f46-8508-0c8c9d74650b",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.lookup.objects",
+      "value": {
+        "customSmartValue": {
+          "id": "_customsmartvalue_id_1776971803332",
+          "lazy": false,
+          "name": {
+            "type": "FREE",
+            "value": "lookupObjects"
+          },
+          "query": {
+            "type": "SMART",
+            "value": "Project_Id = {{projectid}}"
+          },
+          "type": "IQL"
+        },
+        "schemaId": "2",
+        "searchResultsLimit": 100,
+        "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "1d56bd98-04b6-462b-800e-c19e850d5bd1",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "{{lookupObjects.Project_Id}}"
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "6d5f1701-c0dc-451b-9cc1-aafa72e6e93c",
+          "parentId": "74cc2af3-c0b9-4768-9d77-9b70e47a8050",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "NAME",
+              "value": "Developer (ie, Power Users: All of above + Move, Archive, Manage Sprints; cannot approve new members or administer the project)"
+            },
+            "comparison": "EQUALS",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Project Role"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:radiobuttons"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "f07f935a-3075-476e-85a9-7d6ef9526aa3",
+          "parentId": "74cc2af3-c0b9-4768-9d77-9b70e47a8050",
+          "schemaVersion": 1,
+          "type": "jira.issue.outgoing.webhook",
+          "value": {
+            "contentType": "empty",
+            "continueOnErrorEnabled": false,
+            "customBody": null,
+            "headers": [
+              {
+                "headerSecure": false,
+                "id": "_header_1776971888184",
+                "name": "Accept",
+                "value": "application/json"
+              },
+              {
+                "headerSecure": false,
+                "id": "_header_1776971904027",
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "headerSecure": false,
+                "id": "_header_1776971909075",
+                "name": "Authorization",
+                "value": "{{jiraauth}}"
+              }
+            ],
+            "method": "GET",
+            "responseEnabled": false,
+            "sendIssue": false,
+            "url": "https://ford-advev.atlassian.net/rest/api/3/project/{{lookupObjects.Project_Id}}/role/10008",
+            "urlSecure": false
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "41725801-ab50-4622-8852-c8e45f2d9e6f",
+          "parentId": "74cc2af3-c0b9-4768-9d77-9b70e47a8050",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "Reporter ID - {{issue.reporter.accountId}}"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "121d6966-89f8-4e04-9e28-d4caebb341ad",
+          "parentId": "74cc2af3-c0b9-4768-9d77-9b70e47a8050",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "Response - {{webhookResponse}}"
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "a3bc3429-37e8-438d-be08-d70b224d3e7a",
+          "parentId": "74cc2af3-c0b9-4768-9d77-9b70e47a8050",
+          "schemaVersion": 1,
+          "type": "jira.comparator.condition",
+          "value": {
+            "first": "{{webhookResponse}}",
+            "operator": "CONTAINS",
+            "second": "{{issue.reporter.accountId}}"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "42751e32-fee6-406c-a287-868e42d63ee6",
+          "parentId": "74cc2af3-c0b9-4768-9d77-9b70e47a8050",
+          "schemaVersion": 11,
+          "type": "jira.issue.transition",
+          "value": {
+            "advancedFields": null,
+            "destinationStatus": {
+              "type": "NAME",
+              "value": "Done"
+            },
+            "operations": [],
+            "sendNotifications": true,
+            "transitionMatch": ""
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "74cc2af3-c0b9-4768-9d77-9b70e47a8050",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1776972028534,
+  "description": "",
+  "id": 32997385,
+  "idUuid": "019dbbc9-5a76-7832-831b-8e4add915bf7",
+  "labels": [],
+  "name": "Project Access Test",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "53a093dc-faba-46f5-8e20-bdabf534f122",
+    "parentId": null,
+    "schemaVersion": 3,
+    "type": "jira.manual.trigger.issue",
+    "value": {
+      "groups": [],
+      "inputFromUsers": false,
+      "inputPrompts": [],
+      "issueFilter": null,
+      "jQLFilter": null
+    }
+  },
+  "updated": 1776972028534,
+  "writeAccessType": "OWNER_ONLY"
+}

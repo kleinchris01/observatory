@@ -1,0 +1,124 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "902ebc66-a92a-4a0d-88ed-d9b413f2cf9d",
+          "parentId": "2fa955db-cd0a-402f-a0f8-47f585ae89be",
+          "schemaVersion": 1,
+          "type": "cmdb.object.edit.attributes",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": null,
+                "name": "Prototype Analyst",
+                "value": "{{issue.customfield_20708.accountId}}"
+              }
+            ]
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "2fa955db-cd0a-402f-a0f8-47f585ae89be",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.object.related",
+      "value": {
+        "cmdbQuery": "Key IN ({{issue.Part Numbers.Key}})",
+        "schemaId": "55",
+        "schemaLabel": "Parts from 3DX",
+        "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+      }
+    }
+  ],
+  "created": 1776380659008,
+  "description": "",
+  "id": 32906266,
+  "idUuid": "019d9889-c540-7785-b78d-33ecd688f0d4",
+  "labels": [],
+  "name": "2c) Update Prototype Analyst Part Attribute when Prototype Analyst",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10518"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10518"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "fbcde72e-21e4-46ea-8afe-a86b96a52caf",
+        "conditions": [],
+        "connectionId": null,
+        "id": "79ceae7a-21a0-4956-9e4b-78239f67e3d3",
+        "parentId": null,
+        "schemaVersion": 1,
+        "type": "jira.jql.condition",
+        "value": "Project = GSM"
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "fbcde72e-21e4-46ea-8afe-a86b96a52caf",
+        "conditions": [],
+        "connectionId": null,
+        "id": "bd64e9ea-3202-4569-b252-8fdc4e0c56ca",
+        "parentId": null,
+        "schemaVersion": 1,
+        "type": "jira.jql.condition",
+        "value": "\"Part Numbers\" is not empty"
+      }
+    ],
+    "connectionId": null,
+    "id": "fbcde72e-21e4-46ea-8afe-a86b96a52caf",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10518"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Prototype Analyst"
+        }
+      ]
+    }
+  },
+  "updated": 1776380659008,
+  "writeAccessType": "OWNER_ONLY"
+}

@@ -1,0 +1,200 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:5c26858c-30b6-4481-943d-ea8df46c8526",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "565395047",
+      "parentId": null,
+      "schemaVersion": -1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "number-Of-Days-Before-Due-Inclusion",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "numberOfDaysBeforeDueInclusion"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "7"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "565395051",
+      "parentId": null,
+      "schemaVersion": -1,
+      "type": "jira.lookup.issues",
+      "value": {
+        "id": "outer-lookup-id",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "lookupIssues"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "duedate <= endOfDay({{numberOfDaysBeforeDueInclusion}}) AND statusCategory != done AND assignee != empty"
+        },
+        "type": "JQL"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "565395056",
+          "parentId": "565395054",
+          "schemaVersion": -1,
+          "type": "jira.lookup.issues",
+          "value": {
+            "id": "inner-lookup-id",
+            "lazy": false,
+            "name": {
+              "type": "FREE",
+              "value": "lookupIssues"
+            },
+            "query": {
+              "type": "SMART",
+              "value": "duedate <= endOfDay({{numberOfDaysBeforeDueInclusion}}) AND statusCategory != done AND assignee = {{distinctAssignee}}"
+            },
+            "type": "JQL"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "565395060",
+          "parentId": "565395054",
+          "schemaVersion": 5,
+          "type": "jira.issue.outgoing.email",
+          "value": {
+            "bcc": [],
+            "body": "Hello {{distinctAssignee.displayName}},\n\nThe following issues are due within next 7 days:\n{{#lookupIssues}}\n<a href=\"{{url}}\">{{key}} - {{summary}}</a>\n{{/}}\n\nRegards,\n\nJira Automation",
+            "cc": [
+              {
+                "type": "COPY",
+                "value": "customfield_11090"
+              }
+            ],
+            "convertLineBreaks": true,
+            "mimeType": "text/html",
+            "subject": "Issues Due Within 7 Days",
+            "to": [
+              {
+                "type": "SMART",
+                "value": "{{distinctAssignee.emailAddress}}"
+              }
+            ]
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "565395054",
+      "parentId": null,
+      "schemaVersion": -1,
+      "type": "jira.smart.values.branch",
+      "value": {
+        "id": "assignee-branch-id",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "distinctAssignee"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{lookupIssues.assignee.distinct}}"
+        },
+        "type": "SMART"
+      }
+    }
+  ],
+  "created": 1719382762077,
+  "description": "Never miss a deadline with email reminders. When a task is near due, this rule will automatically send email notification to the assignee.",
+  "id": 20151042,
+  "idUuid": "01905332-e25d-703d-976b-9fbdbc3e13a5",
+  "labels": [],
+  "name": "When a task is near due → send email reminder",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10100"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10100"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [
+    {
+      "tagType": "CREATION_TYPE",
+      "tagValue": "USER"
+    },
+    {
+      "tagType": "SAMPLE_RULE",
+      "tagValue": "global"
+    },
+    {
+      "tagType": "TEMPLATE_ID",
+      "tagValue": "software_template_20"
+    }
+  ],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "565395046",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "parent in (vme-7502) AND (due <= 7d)",
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=Asia/Calcutta:20240626T143230\nRRULE:FREQ=HOURLY;INTERVAL=1;BYSECOND=0\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1719399956753,
+  "writeAccessType": "UNRESTRICTED"
+}

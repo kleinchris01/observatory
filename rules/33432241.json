@@ -1,0 +1,86 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:655cd3bb-9b5d-44eb-9d1a-8fdc86d4371e",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "5a7c7dd7-8044-415c-bc23-9e95a0d2bf6f",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "description"
+            },
+            "fieldType": "description",
+            "type": "SET",
+            "value": "{{issue.description}}\n\n----\nh3. Test Plan Information Below (use Target Start for the scheduled test Start Date)\n||Test Lead| |\n||Test Location| |\n||Test Vehicle| |\n||Test Support Required| |\n||Test Ticket (PVFM)| |\n||Test Prep/Instrumentation\\\\(include PVFM ticket)| |\n||Test Shipping Required\\\\(include PVFM ticket)| |\n||Retrofits/Reworks Required\\\\(include PVFM ticket)| |"
+          }
+        ],
+        "sendNotifications": false
+      }
+    }
+  ],
+  "created": 1780014030935,
+  "description": "",
+  "id": 33432241,
+  "idUuid": "019e711a-a057-7055-821e-122f89b58067",
+  "labels": [],
+  "name": "AW Vehicle Level Test Automation Test",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10008"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10008"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "53be1b91-5f34-4b36-a067-f3ed819b75a7",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "project = \"CH\" AND labels = \"SIT6_VehicleLevelTest\" AND description !~ \"Test Lead\"",
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/Los_Angeles:20260522T170600\nRRULE:FREQ=WEEKLY;BYHOUR=9;BYMINUTE=0;BYSECOND=0;BYDAY=SU;INTERVAL=1;UNTIL=20261231T080000Z\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1780016282167,
+  "writeAccessType": "OWNER_ONLY"
+}

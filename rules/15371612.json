@@ -1,0 +1,249 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:10e644de-d96b-4816-9029-d6cf8f0aec37",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "565391777",
+          "parentId": "565391775",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": "CASE_SENSITIVE",
+              "multiValue": false,
+              "source": null,
+              "type": "VALUE",
+              "value": "PLACE YOUR FEEDBACK HERE"
+            },
+            "comparison": "EQUALS",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Interview Feedback"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "565391779",
+          "parentId": "565391775",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": null,
+            "comparison": "NOT_EMPTY",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Interview Scorecard"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "565391781",
+          "parentId": "565391775",
+          "schemaVersion": 5,
+          "type": "jira.issue.outgoing.email",
+          "value": {
+            "bcc": [],
+            "body": "Hi {{issue.assignee.Displayname}}!\n\nIt seems you have provided your score for your interview ticket ({{issue.key}}), but did not provide your written feedback.  Please go to your assigned interview ticket to provide your written feedback in the field titled: Interview Feedback.\n\nInterview Ticket - {{issue.key}}: {{issue.url}}\n\nIf for whatever reason, written feedback does not apply to you, for this interview: please put Not Applicable in the Interview Feedback field.\n\nPlease note that commenting has been disabled on the Interview ticket.  Reach out to your candidate's recruiter, {{issue.recruiter.displayName}}, if you have any questions.",
+            "cc": [],
+            "convertLineBreaks": true,
+            "fromName": "Recruiter Bot",
+            "mimeType": "text/html",
+            "replyTo": "",
+            "subject": "Interview Feedback Not Complete - {{issue.key}}",
+            "to": [
+              {
+                "type": "COPY",
+                "value": "assignee"
+              }
+            ]
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "565391775",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "565391783",
+          "parentId": "565391782",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": "CASE_SENSITIVE",
+              "multiValue": false,
+              "source": null,
+              "type": "VALUE",
+              "value": "PLACE YOUR FEEDBACK HERE"
+            },
+            "comparison": "NOT_EQUAL",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Interview Feedback"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "565391784",
+          "parentId": "565391782",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": null,
+            "comparison": "EMPTY",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Interview Scorecard"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "565391785",
+          "parentId": "565391782",
+          "schemaVersion": 5,
+          "type": "jira.issue.outgoing.email",
+          "value": {
+            "bcc": [],
+            "body": "Hi {{issue.assignee.Displayname}}!\n\nIt seems you have provided your written feedback for your interview ticket ({{issue.key}}), but did not provide your score.  Please go to your assigned interview ticket to provide your score in the field titled: Interview Scorecard.\n\nIf for whatever reason, a score does not apply to you, for this interview: please select the No Score Required Option.\n\nInterview Ticket - {{issue.key}}: {{issue.url}}\n\nPlease note that commenting has been disabled on the Interview ticket.  Reach out to your candidate's recruiter, {{issue.recruiter.displayName}}, if you have any questions.",
+            "cc": [],
+            "convertLineBreaks": true,
+            "fromName": "Recruiter Bot",
+            "mimeType": "text/html",
+            "replyTo": "",
+            "subject": "Interview Scorecard Not Complete - {{issue.key}}",
+            "to": [
+              {
+                "type": "COPY",
+                "value": "assignee"
+              }
+            ]
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "565391782",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1697228522110,
+  "description": "",
+  "id": 15371612,
+  "idUuid": "018b2ab4-027e-7a6e-a9b4-5bd8ad1abffb",
+  "labels": [
+    423960,
+    693916
+  ],
+  "name": "Interview - 2.5 - Feedback Half Filled Out / Ping Interviewer",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10041"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10041"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "565391773",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "issuetype in (\"HM Interview\", Interview) AND status in (\"Waiting for Feedback\", \"Waiting for Manager Feedback\") AND updated >= -1h ",
+      "onlyUpdatedIssues": true,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/Denver:20231013T130835\nRRULE:FREQ=HOURLY;INTERVAL=1;BYSECOND=0\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1697228522110,
+  "writeAccessType": "UNRESTRICTED"
+}

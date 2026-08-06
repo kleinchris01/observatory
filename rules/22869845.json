@@ -1,0 +1,87 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:5c26858c-30b6-4481-943d-ea8df46c8526",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "626741696",
+      "parentId": null,
+      "schemaVersion": 5,
+      "type": "jira.issue.outgoing.email",
+      "value": {
+        "bcc": [],
+        "body": "Hi,\n\nPlease find the below report:\n<a href = \"https://azureford-my.sharepoint.com/:x:/r/personal/pselva20_ford_com/_layouts/15/Doc.aspx?sourcedoc=%7BD9CCC40D-065C-46AE-A69A-0A4007AD1795%7D&file=Disc_Pavithra.xlsx&action=default&mobileredirect=true\" >Report</a>\n\nThanks,",
+        "cc": [],
+        "convertLineBreaks": true,
+        "fromName": "",
+        "mimeType": "text/html",
+        "replyTo": "",
+        "subject": "Daily tracker report",
+        "to": [
+          {
+            "type": "FREE",
+            "value": "pselva20@ford.com"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1731047286747,
+  "description": "",
+  "id": 22869845,
+  "idUuid": "01930a75-67db-700c-8a91-20776d6d119d",
+  "labels": [],
+  "name": "Mail Notification of the report",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10044"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10044"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "626741695",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "nosearch",
+      "jql": "",
+      "onlyUpdatedIssues": true,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=Asia/Calcutta:20241108T115504\nRRULE:FREQ=MINUTELY;INTERVAL=5;BYSECOND=0\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1731050201132,
+  "writeAccessType": "UNRESTRICTED"
+}

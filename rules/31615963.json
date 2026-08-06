@@ -1,0 +1,359 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "815de980-fd3c-46c2-a851-66b83adec7c7",
+              "parentId": "840ee7ff-da0d-42eb-8937-e6a04097f2ea",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": "{\n  \"update\": {\n    \"customfield_11090\": [\n      {\n        \"add\": { \"accountId\": \"70121:569776dc-4e2e-4a90-a632-3f3a1c03b3ed\" }\n      },\n      {\n        \"add\": { \"accountId\": \"62a4d6d0e318a500693ab958\" }\n      },\n      {\n        \"add\": { \"accountId\": \"712020:9e1ab9f0-cc1d-40c0-9d5b-9d3cf7241946\" }\n      }\n    ]\n  }\n}",
+                "operations": [],
+                "sendNotifications": false
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "840ee7ff-da0d-42eb-8937-e6a04097f2ea",
+              "conditions": [],
+              "connectionId": null,
+              "id": "4717c919-0a83-4369-9e1a-714ae577f881",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{changelog.Requirement Level.fromString}}",
+                "operator": "EQUALS",
+                "second": "Secondary"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "840ee7ff-da0d-42eb-8937-e6a04097f2ea",
+              "conditions": [],
+              "connectionId": null,
+              "id": "d9406b21-d960-46f3-8150-2c53214db019",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{changelog.Requirement Level.toString}}",
+                "operator": "REGEX_MATCHES",
+                "second": "Primary"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "840ee7ff-da0d-42eb-8937-e6a04097f2ea",
+          "parentId": "7ec9451c-c825-4b73-8fe9-b43e8249e9f8",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "d7c8e66f-6b6f-4ad0-b500-24bebbed24fb",
+              "parentId": "0b8b4f4b-f799-47a7-81f8-630419560d1d",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": "{\n  \"update\": {\n    \"customfield_11090\": [\n      {\n        \"add\": { \"accountId\": \"70121:569776dc-4e2e-4a90-a632-3f3a1c03b3ed\" }\n      },\n      {\n        \"add\": { \"accountId\": \"62a4d6d0e318a500693ab958\" }\n      },\n      {\n        \"add\": { \"accountId\": \"712020:9e1ab9f0-cc1d-40c0-9d5b-9d3cf7241946\" }\n      }\n    ]\n  }\n}",
+                "operations": [],
+                "sendNotifications": false
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "0b8b4f4b-f799-47a7-81f8-630419560d1d",
+              "conditions": [],
+              "connectionId": null,
+              "id": "e2db9cf5-ecc1-4f7f-acc9-2ef53632e867",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{changelog.Requirement Level.fromString}}",
+                "operator": "EQUALS",
+                "second": "Secondary"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "0b8b4f4b-f799-47a7-81f8-630419560d1d",
+              "conditions": [],
+              "connectionId": null,
+              "id": "aa57ba87-bf8b-468c-813f-ae711734f77c",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{changelog.Requirement Level.toString}}",
+                "operator": "REGEX_MATCHES",
+                "second": "Executive"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "0b8b4f4b-f799-47a7-81f8-630419560d1d",
+          "parentId": "7ec9451c-c825-4b73-8fe9-b43e8249e9f8",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "08e68413-cc99-48b6-8186-cd4d55f4b03e",
+              "parentId": "d91cd996-136e-4277-b8c1-1fe8ad96948f",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": "{\n  \"update\": {\n    \"customfield_11090\": [\n      {\n        \"add\": { \"accountId\": \"70121:569776dc-4e2e-4a90-a632-3f3a1c03b3ed\" }\n      },\n      {\n        \"add\": { \"accountId\": \"62a4d6d0e318a500693ab958\" }\n      },\n      {\n        \"add\": { \"accountId\": \"712020:9e1ab9f0-cc1d-40c0-9d5b-9d3cf7241946\" }\n      }\n    ]\n  }\n}",
+                "operations": [],
+                "sendNotifications": false
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "d91cd996-136e-4277-b8c1-1fe8ad96948f",
+              "conditions": [],
+              "connectionId": null,
+              "id": "44f588d1-82f4-49ca-b996-19f96fabca6c",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{changelog.Requirement Level.fromString}}",
+                "operator": "EQUALS",
+                "second": "Primary"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "d91cd996-136e-4277-b8c1-1fe8ad96948f",
+              "conditions": [],
+              "connectionId": null,
+              "id": "bd834002-ed0a-41b7-9827-6e18be2e0528",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{changelog.Requirement Level.toString}}",
+                "operator": "REGEX_MATCHES",
+                "second": "Executive"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "d91cd996-136e-4277-b8c1-1fe8ad96948f",
+          "parentId": "7ec9451c-c825-4b73-8fe9-b43e8249e9f8",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "dd826bf1-68db-48b9-9d5d-f71f4259c73b",
+              "parentId": "d52c7fd5-b153-48dd-b4fb-eb5b001ac000",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": "{\n  \"update\": {\n    \"customfield_11090\": [\n      {\n        \"add\": { \"accountId\": \"70121:569776dc-4e2e-4a90-a632-3f3a1c03b3ed\" }\n      },\n      {\n        \"add\": { \"accountId\": \"62a4d6d0e318a500693ab958\" }\n      },\n      {\n        \"add\": { \"accountId\": \"712020:9e1ab9f0-cc1d-40c0-9d5b-9d3cf7241946\" }\n      }\n    ]\n  }\n}",
+                "operations": [],
+                "sendNotifications": false
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "d52c7fd5-b153-48dd-b4fb-eb5b001ac000",
+              "conditions": [],
+              "connectionId": null,
+              "id": "37713c86-42e3-4120-98f0-52393621b83d",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{changelog.Requirement Level.fromString}}",
+                "operator": "EQUALS",
+                "second": "Executive"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "d52c7fd5-b153-48dd-b4fb-eb5b001ac000",
+              "conditions": [],
+              "connectionId": null,
+              "id": "2f61977b-6cae-4ce9-9781-f8987b9cba63",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{changelog.Requirement Level.toString}}",
+                "operator": "REGEX_MATCHES",
+                "second": "Primary"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "d52c7fd5-b153-48dd-b4fb-eb5b001ac000",
+          "parentId": "7ec9451c-c825-4b73-8fe9-b43e8249e9f8",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "7ec9451c-c825-4b73-8fe9-b43e8249e9f8",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1768923249727,
+  "description": "This automation is responsible for the ASO Collaborators handling based on the value of the Requirement Level",
+  "id": 31615963,
+  "idUuid": "019bdc0a-bc40-7942-b61b-01077b17435d",
+  "labels": [],
+  "name": "SOLVE: Eng. Requirement Deviation - Handles ASO Collaborators based on Requirement Level",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "001605b5-7d48-49ff-ba3e-53c117ad7365",
+        "conditions": [],
+        "connectionId": null,
+        "id": "0e4eb935-df59-43a0-95f8-eee360462026",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "12621"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "001605b5-7d48-49ff-ba3e-53c117ad7365",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [
+        "edit"
+      ],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Requirement Level"
+        }
+      ]
+    }
+  },
+  "updated": 1782742997924,
+  "writeAccessType": "UNRESTRICTED"
+}

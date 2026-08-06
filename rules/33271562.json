@@ -1,0 +1,1968 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "5ffbe124-41ec-4260-92ed-f881f9f83aa8",
+              "parentId": "4e06b138-c758-46f4-8fdb-234c2d0b0da2",
+              "schemaVersion": 1,
+              "type": "jira.issue.outgoing.webhook",
+              "value": {
+                "contentType": "empty",
+                "continueOnErrorEnabled": true,
+                "customBody": null,
+                "headers": [
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1770634861121",
+                    "name": "Content-Type",
+                    "value": "Application/JSON"
+                  },
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1770634884566",
+                    "name": "Accept",
+                    "value": "Application/JSON"
+                  },
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1770634894907",
+                    "name": "Authorization",
+                    "value": "Basic c2FkdmV2ZWNAZm9yZC5jb206QVRBVFQzeEZmR0YwdjNLckVFbFRJOU80X3hqQWtLVWdNSjl3cVh4QkNVZldqdFB2Y01PcjlmdGRta0cwQkZhanU0cnZtb0pNZHNESVQ5ZFZRMlNYWHdmMzctb05Jakg2cVpQVkw5R3pHOG1GMVRFM1BhMzc0RFduMURNYktSWlppQzkzVVBVdVVnOVpNWVAzU3Aydno4SUxTVk9GMVZrZXJMUnNXS19vY203a2owNE4wcnVHWlUwPTFDNTkwREJE"
+                  }
+                ],
+                "method": "GET",
+                "responseEnabled": true,
+                "sendIssue": false,
+                "url": "https://ford-advev.atlassian.net/rest/api/3/issue/{{issue.key}}/properties/SIMPSN_Key",
+                "urlSecure": false
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "8543fb2e-7c9a-41af-a7c8-0384bc98b7f0",
+              "parentId": "4e06b138-c758-46f4-8fdb-234c2d0b0da2",
+              "schemaVersion": 1,
+              "type": "jira.create.variable",
+              "value": {
+                "id": "_customsmartvalue_id_1770636022041",
+                "lazy": false,
+                "name": {
+                  "type": "FREE",
+                  "value": "simpsnKey"
+                },
+                "query": {
+                  "type": "SMART",
+                  "value": "{{webResponse.body.value}}"
+                },
+                "type": "SMART"
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "04882f4e-f9b5-46f7-94c5-a8a79f0bcdab",
+              "parentId": "4e06b138-c758-46f4-8fdb-234c2d0b0da2",
+              "schemaVersion": 1,
+              "type": "jira.issue.outgoing.webhook",
+              "value": {
+                "contentType": "empty",
+                "continueOnErrorEnabled": true,
+                "customBody": null,
+                "headers": [
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1770642359605",
+                    "name": "Content-Type",
+                    "value": "Application/JSON"
+                  },
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1770642391795",
+                    "name": "Accept",
+                    "value": "Application/JSON"
+                  },
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1770642401055",
+                    "name": "Authorization",
+                    "value": "Basic c2FkdmV2ZWNAZm9yZC5jb206QVRBVFQzeEZmR0YwdjNLckVFbFRJOU80X3hqQWtLVWdNSjl3cVh4QkNVZldqdFB2Y01PcjlmdGRta0cwQkZhanU0cnZtb0pNZHNESVQ5ZFZRMlNYWHdmMzctb05Jakg2cVpQVkw5R3pHOG1GMVRFM1BhMzc0RFduMURNYktSWlppQzkzVVBVdVVnOVpNWVAzU3Aydno4SUxTVk9GMVZrZXJMUnNXS19vY203a2owNE4wcnVHWlUwPTFDNTkwREJE"
+                  }
+                ],
+                "method": "GET",
+                "responseEnabled": true,
+                "sendIssue": false,
+                "url": "https://ford-advev.atlassian.net/rest/api/3/issue/{{issue.key}}/remotelink",
+                "urlSecure": false
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "CONDITION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "78383f3d-1198-4e59-afb5-5b533d39917e",
+                  "parentId": "1a7d7abb-a20d-4162-a9ab-00e84d0e230a",
+                  "schemaVersion": 1,
+                  "type": "jira.comparator.condition",
+                  "value": {
+                    "first": "{{ecmRemote.object.url}}",
+                    "operator": "REGEX_CONTAINS",
+                    "second": "^https://ford-quality.atlassian.net/browse/{{simpsnKey}}"
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "efdca8ba-070f-4fa4-866d-bb65ba703de4",
+                  "parentId": "1a7d7abb-a20d-4162-a9ab-00e84d0e230a",
+                  "schemaVersion": 1,
+                  "type": "jira.issue.outgoing.webhook",
+                  "value": {
+                    "contentType": "empty",
+                    "continueOnErrorEnabled": true,
+                    "customBody": null,
+                    "headers": [
+                      {
+                        "headerSecure": false,
+                        "id": "_header_1770642598597",
+                        "name": "Content-Type",
+                        "value": "Application/JSON"
+                      },
+                      {
+                        "headerSecure": false,
+                        "id": "_header_1770642624585",
+                        "name": "Accept",
+                        "value": "Application/JSON"
+                      },
+                      {
+                        "headerSecure": false,
+                        "id": "_header_1770642635299",
+                        "name": "Authorization",
+                        "value": "Basic c2FkdmV2ZWNAZm9yZC5jb206QVRBVFQzeEZmR0YwdjNLckVFbFRJOU80X3hqQWtLVWdNSjl3cVh4QkNVZldqdFB2Y01PcjlmdGRta0cwQkZhanU0cnZtb0pNZHNESVQ5ZFZRMlNYWHdmMzctb05Jakg2cVpQVkw5R3pHOG1GMVRFM1BhMzc0RFduMURNYktSWlppQzkzVVBVdVVnOVpNWVAzU3Aydno4SUxTVk9GMVZrZXJMUnNXS19vY203a2owNE4wcnVHWlUwPTFDNTkwREJE"
+                      }
+                    ],
+                    "method": "DELETE",
+                    "responseEnabled": true,
+                    "sendIssue": false,
+                    "url": "https://ford-advev.atlassian.net/rest/api/3/issue/{{issue.key}}/remotelink/{{ecmRemote.id}}",
+                    "urlSecure": false
+                  }
+                }
+              ],
+              "component": "BRANCH",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "1a7d7abb-a20d-4162-a9ab-00e84d0e230a",
+              "parentId": "4e06b138-c758-46f4-8fdb-234c2d0b0da2",
+              "schemaVersion": 1,
+              "type": "jira.smart.values.branch",
+              "value": {
+                "id": "_customsmartvalue_id_1772636404478",
+                "lazy": false,
+                "name": {
+                  "type": "FREE",
+                  "value": "ecmRemote"
+                },
+                "query": {
+                  "type": "SMART",
+                  "value": "{{webResponse.body}}"
+                },
+                "type": "SMART"
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "bcedb68f-6b59-41cf-8990-4129dd48e670",
+              "parentId": "4e06b138-c758-46f4-8fdb-234c2d0b0da2",
+              "schemaVersion": 1,
+              "type": "jira.issue.outgoing.webhook",
+              "value": {
+                "contentType": "empty",
+                "continueOnErrorEnabled": true,
+                "customBody": null,
+                "headers": [
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1770634861121",
+                    "name": "Content-Type",
+                    "value": "Application/JSON"
+                  },
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1770634884566",
+                    "name": "Accept",
+                    "value": "Application/JSON"
+                  },
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1770634894907",
+                    "name": "Authorization",
+                    "value": "Basic c2FkdmV2ZWNAZm9yZC5jb206QVRBVFQzeEZmR0YwdjNLckVFbFRJOU80X3hqQWtLVWdNSjl3cVh4QkNVZldqdFB2Y01PcjlmdGRta0cwQkZhanU0cnZtb0pNZHNESVQ5ZFZRMlNYWHdmMzctb05Jakg2cVpQVkw5R3pHOG1GMVRFM1BhMzc0RFduMURNYktSWlppQzkzVVBVdVVnOVpNWVAzU3Aydno4SUxTVk9GMVZrZXJMUnNXS19vY203a2owNE4wcnVHWlUwPTFDNTkwREJE"
+                  }
+                ],
+                "method": "DELETE",
+                "responseEnabled": true,
+                "sendIssue": false,
+                "url": "https://ford-advev.atlassian.net/rest/api/3/issue/{{issue.key}}/properties/SIMPSN_Key",
+                "urlSecure": false
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "01edbdf3-d0be-46dc-889a-703cc2a7e655",
+              "parentId": "4e06b138-c758-46f4-8fdb-234c2d0b0da2",
+              "schemaVersion": 1,
+              "type": "jira.issue.outgoing.webhook",
+              "value": {
+                "contentType": "empty",
+                "continueOnErrorEnabled": true,
+                "customBody": null,
+                "headers": [
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1770634861121",
+                    "name": "Content-Type",
+                    "value": "Application/JSON"
+                  },
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1770634884566",
+                    "name": "Accept",
+                    "value": "Application/JSON"
+                  },
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1770634894907",
+                    "name": "Authorization",
+                    "value": "Basic c2FkdmV2ZWNAZm9yZC5jb206QVRBVFQzeEZmR0YwdjNLckVFbFRJOU80X3hqQWtLVWdNSjl3cVh4QkNVZldqdFB2Y01PcjlmdGRta0cwQkZhanU0cnZtb0pNZHNESVQ5ZFZRMlNYWHdmMzctb05Jakg2cVpQVkw5R3pHOG1GMVRFM1BhMzc0RFduMURNYktSWlppQzkzVVBVdVVnOVpNWVAzU3Aydno4SUxTVk9GMVZrZXJMUnNXS19vY203a2owNE4wcnVHWlUwPTFDNTkwREJE"
+                  }
+                ],
+                "method": "DELETE",
+                "responseEnabled": true,
+                "sendIssue": false,
+                "url": "https://ford-advev.atlassian.net/rest/api/3/issue/{{issue.key}}/properties/Sync_Status",
+                "urlSecure": false
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "c93def28-9025-4e7f-b495-38f3ed35eb32",
+              "parentId": "4e06b138-c758-46f4-8fdb-234c2d0b0da2",
+              "schemaVersion": 1,
+              "type": "jira.issue.outgoing.webhook",
+              "value": {
+                "contentType": "empty",
+                "continueOnErrorEnabled": true,
+                "customBody": null,
+                "headers": [
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1770642359605",
+                    "name": "Content-Type",
+                    "value": "Application/JSON"
+                  },
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1770642391795",
+                    "name": "Accept",
+                    "value": "Application/JSON"
+                  },
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1770642401055",
+                    "name": "Authorization",
+                    "value": "Basic aXNpbXBzbkBmb3JkLmNvbTpBVEFUVDN4RmZHRjB5OFhfWnJTX0dZb0lfRmZuZG5MaUhvOGV4RGduLWMwSFp0NUQwTVJaclZwdW91dTQwSzE2ajROeHhyZTJuQnF1alJyZU14VjF0NGZ5LWowa2NBUWNSSVRSVE4zSUxJTFBzR3VaZTVGZXo4dGdkWGdzM1UwaE10MVliYnQ1bTZwdW5JSGhkQVo2YnZnRGRRdEwxRlhraUZuOUhLazI2MHMweEJLSkZNdWdjZzQ9MzZCOTc4ODE="
+                  }
+                ],
+                "method": "GET",
+                "responseEnabled": true,
+                "sendIssue": false,
+                "url": "https://ford-quality.atlassian.net/rest/api/3/issue/{{simpsnKey}}/remotelink",
+                "urlSecure": false
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "CONDITION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "e832df91-044e-4428-ad74-c752fec2c143",
+                  "parentId": "52912714-2d59-4ca3-b049-a9213b9be9a2",
+                  "schemaVersion": 1,
+                  "type": "jira.comparator.condition",
+                  "value": {
+                    "first": "{{prevSimpsn.object.url}}",
+                    "operator": "REGEX_CONTAINS",
+                    "second": "^https://ford-advev.atlassian.net/browse/{{issue.key}}"
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "0546e175-fd0a-41ef-8568-c3fc5192d708",
+                  "parentId": "52912714-2d59-4ca3-b049-a9213b9be9a2",
+                  "schemaVersion": 1,
+                  "type": "jira.issue.outgoing.webhook",
+                  "value": {
+                    "contentType": "empty",
+                    "continueOnErrorEnabled": true,
+                    "customBody": null,
+                    "headers": [
+                      {
+                        "headerSecure": false,
+                        "id": "_header_1770642598597",
+                        "name": "Authorization",
+                        "value": "Basic aXNpbXBzbkBmb3JkLmNvbTpBVEFUVDN4RmZHRjB5OFhfWnJTX0dZb0lfRmZuZG5MaUhvOGV4RGduLWMwSFp0NUQwTVJaclZwdW91dTQwSzE2ajROeHhyZTJuQnF1alJyZU14VjF0NGZ5LWowa2NBUWNSSVRSVE4zSUxJTFBzR3VaZTVGZXo4dGdkWGdzM1UwaE10MVliYnQ1bTZwdW5JSGhkQVo2YnZnRGRRdEwxRlhraUZuOUhLazI2MHMweEJLSkZNdWdjZzQ9MzZCOTc4ODE="
+                      },
+                      {
+                        "headerSecure": false,
+                        "id": "_header_1770642624585",
+                        "name": "Content-Type",
+                        "value": "Application/JSON"
+                      },
+                      {
+                        "headerSecure": false,
+                        "id": "_header_1770642635299",
+                        "name": "Accept",
+                        "value": "Application/JSON"
+                      }
+                    ],
+                    "method": "DELETE",
+                    "responseEnabled": true,
+                    "sendIssue": false,
+                    "url": "https://ford-quality.atlassian.net/rest/api/3/issue/{{simpsnKey}}/remotelink/{{prevSimpsn.id}}",
+                    "urlSecure": false
+                  }
+                }
+              ],
+              "component": "BRANCH",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "52912714-2d59-4ca3-b049-a9213b9be9a2",
+              "parentId": "4e06b138-c758-46f4-8fdb-234c2d0b0da2",
+              "schemaVersion": 1,
+              "type": "jira.smart.values.branch",
+              "value": {
+                "id": "_customsmartvalue_id_1772636587014",
+                "lazy": false,
+                "name": {
+                  "type": "FREE",
+                  "value": "prevSimpsn"
+                },
+                "query": {
+                  "type": "SMART",
+                  "value": "{{webResponse.body}}"
+                },
+                "type": "SMART"
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "cc5a5096-ab7e-4d9e-bc95-7d3220a5709a",
+              "parentId": "4e06b138-c758-46f4-8fdb-234c2d0b0da2",
+              "schemaVersion": 1,
+              "type": "jira.issue.outgoing.webhook",
+              "value": {
+                "contentType": "empty",
+                "continueOnErrorEnabled": true,
+                "customBody": null,
+                "headers": [
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1770634861121",
+                    "name": "Content-Type",
+                    "value": "Application/JSON"
+                  },
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1770634884566",
+                    "name": "Accept",
+                    "value": "Application/JSON"
+                  },
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1770634894907",
+                    "name": "Authorization",
+                    "value": "Basic aXNpbXBzbkBmb3JkLmNvbTpBVEFUVDN4RmZHRjB5OFhfWnJTX0dZb0lfRmZuZG5MaUhvOGV4RGduLWMwSFp0NUQwTVJaclZwdW91dTQwSzE2ajROeHhyZTJuQnF1alJyZU14VjF0NGZ5LWowa2NBUWNSSVRSVE4zSUxJTFBzR3VaZTVGZXo4dGdkWGdzM1UwaE10MVliYnQ1bTZwdW5JSGhkQVo2YnZnRGRRdEwxRlhraUZuOUhLazI2MHMweEJLSkZNdWdjZzQ9MzZCOTc4ODE="
+                  }
+                ],
+                "method": "DELETE",
+                "responseEnabled": true,
+                "sendIssue": false,
+                "url": "https://ford-quality.atlassian.net/rest/api/3/issue/{{simpsnKey}}/properties/ADVEV_Key",
+                "urlSecure": false
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "32fe2cb1-39e0-40e7-8b64-83d292381b2d",
+              "parentId": "4e06b138-c758-46f4-8fdb-234c2d0b0da2",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Launch Issue"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "No"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "982653e6-9451-499a-b7b1-c2310761e232",
+              "parentId": "4e06b138-c758-46f4-8fdb-234c2d0b0da2",
+              "schemaVersion": 2,
+              "type": "jira.issue.comment",
+              "value": {
+                "addCommentOnce": false,
+                "comment": "SIMPSN link [{{simpsnKey}}|https://ford-quality.atlassian.net/browse/{{simpsnKey}}] connection has been removed from this ticket. Any changes from this ticket and previously linked SIMPSN ticket will not be reflected to each other.",
+                "commentVisibility": null,
+                "publicComment": true,
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "4e06b138-c758-46f4-8fdb-234c2d0b0da2",
+              "conditions": [],
+              "connectionId": null,
+              "id": "55ba8c1f-b57c-4cc1-930f-973a9d6bfd3e",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{userInputs.simpsnTrigger}}",
+                "operator": "EQUALS",
+                "second": "Remove"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "4e06b138-c758-46f4-8fdb-234c2d0b0da2",
+          "parentId": "b0c83d23-63f4-42c8-b846-3a4f458a3ef0",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "ce3777a8-f69d-4bfc-a742-7856ceba9459",
+              "parentId": "c4c6a19e-04de-4758-919e-0fd5459a4971",
+              "schemaVersion": 2,
+              "type": "jira.issue.comment",
+              "value": {
+                "addCommentOnce": false,
+                "comment": "SIMPSN ID didn't filled up properly. Please fill up the field in the user prompt to proceed",
+                "commentVisibility": null,
+                "publicComment": true,
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "c4c6a19e-04de-4758-919e-0fd5459a4971",
+              "conditions": [],
+              "connectionId": null,
+              "id": "ca0c13ab-2b40-431e-aedf-329a0fd1fe26",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{userInputs.simpsnTrigger}}",
+                "operator": "EQUALS",
+                "second": "Replace"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "c4c6a19e-04de-4758-919e-0fd5459a4971",
+              "conditions": [],
+              "connectionId": null,
+              "id": "124f7545-7834-462e-8d88-1554a76e8312",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{userInputs.simpsnId}}",
+                "operator": "EQUALS",
+                "second": "LV28P833-"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "c4c6a19e-04de-4758-919e-0fd5459a4971",
+          "parentId": "b0c83d23-63f4-42c8-b846-3a4f458a3ef0",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "9a85b571-23a1-44d3-90f1-bc3bffd34220",
+              "parentId": "f155c708-35d1-4bf7-a444-4cccc971cfff",
+              "schemaVersion": 1,
+              "type": "jira.issue.outgoing.webhook",
+              "value": {
+                "contentType": "empty",
+                "continueOnErrorEnabled": true,
+                "customBody": null,
+                "headers": [
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1770635749926",
+                    "name": "Authorization",
+                    "value": "Basic aXNpbXBzbkBmb3JkLmNvbTpBVEFUVDN4RmZHRjB5OFhfWnJTX0dZb0lfRmZuZG5MaUhvOGV4RGduLWMwSFp0NUQwTVJaclZwdW91dTQwSzE2ajROeHhyZTJuQnF1alJyZU14VjF0NGZ5LWowa2NBUWNSSVRSVE4zSUxJTFBzR3VaZTVGZXo4dGdkWGdzM1UwaE10MVliYnQ1bTZwdW5JSGhkQVo2YnZnRGRRdEwxRlhraUZuOUhLazI2MHMweEJLSkZNdWdjZzQ9MzZCOTc4ODE="
+                  },
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1770635832812",
+                    "name": "Content-Type",
+                    "value": "Application/JSON"
+                  },
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1770635843146",
+                    "name": "Accept",
+                    "value": "Application/JSON"
+                  }
+                ],
+                "method": "GET",
+                "responseEnabled": true,
+                "sendIssue": false,
+                "url": "https://ford-quality.atlassian.net/rest/api/3/issue/{{userInputs.simpsnId}}",
+                "urlSecure": false
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "3f61287b-66c5-479c-a628-88153a402ee6",
+                      "parentId": "179c617a-6599-420e-b0ad-f72e8096aea0",
+                      "schemaVersion": 1,
+                      "type": "jira.issue.outgoing.webhook",
+                      "value": {
+                        "contentType": "empty",
+                        "continueOnErrorEnabled": true,
+                        "customBody": null,
+                        "headers": [
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770634861121",
+                            "name": "Content-Type",
+                            "value": "Application/JSON"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770634884566",
+                            "name": "Accept",
+                            "value": "Application/JSON"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770634894907",
+                            "name": "Authorization",
+                            "value": "Basic c2FkdmV2ZWNAZm9yZC5jb206QVRBVFQzeEZmR0YwdjNLckVFbFRJOU80X3hqQWtLVWdNSjl3cVh4QkNVZldqdFB2Y01PcjlmdGRta0cwQkZhanU0cnZtb0pNZHNESVQ5ZFZRMlNYWHdmMzctb05Jakg2cVpQVkw5R3pHOG1GMVRFM1BhMzc0RFduMURNYktSWlppQzkzVVBVdVVnOVpNWVAzU3Aydno4SUxTVk9GMVZrZXJMUnNXS19vY203a2owNE4wcnVHWlUwPTFDNTkwREJE"
+                          }
+                        ],
+                        "method": "GET",
+                        "responseEnabled": true,
+                        "sendIssue": false,
+                        "url": "https://ford-advev.atlassian.net/rest/api/3/issue/{{issue.key}}/properties/SIMPSN_Key",
+                        "urlSecure": false
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "d2a95eff-86fc-49e5-a1b3-f36ae6bf77e1",
+                      "parentId": "179c617a-6599-420e-b0ad-f72e8096aea0",
+                      "schemaVersion": 1,
+                      "type": "jira.create.variable",
+                      "value": {
+                        "id": "_customsmartvalue_id_1770636022041",
+                        "lazy": false,
+                        "name": {
+                          "type": "FREE",
+                          "value": "simpsnKey"
+                        },
+                        "query": {
+                          "type": "SMART",
+                          "value": "{{webResponse.body.value}}"
+                        },
+                        "type": "SMART"
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "c758d825-9542-49cc-a0c5-4dbf20365040",
+                      "parentId": "179c617a-6599-420e-b0ad-f72e8096aea0",
+                      "schemaVersion": 1,
+                      "type": "codebarrel.action.log",
+                      "value": "Status: {{webResponse.status}}  Body: {{webResponse.body.value}}"
+                    },
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "59891df1-1693-444f-a7d3-35144028dc24",
+                      "parentId": "179c617a-6599-420e-b0ad-f72e8096aea0",
+                      "schemaVersion": 1,
+                      "type": "jira.issue.outgoing.webhook",
+                      "value": {
+                        "contentType": "empty",
+                        "continueOnErrorEnabled": true,
+                        "customBody": null,
+                        "headers": [
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770642359605",
+                            "name": "Content-Type",
+                            "value": "Application/JSON"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770642391795",
+                            "name": "Accept",
+                            "value": "Application/JSON"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770642401055",
+                            "name": "Authorization",
+                            "value": "Basic c2FkdmV2ZWNAZm9yZC5jb206QVRBVFQzeEZmR0YwdjNLckVFbFRJOU80X3hqQWtLVWdNSjl3cVh4QkNVZldqdFB2Y01PcjlmdGRta0cwQkZhanU0cnZtb0pNZHNESVQ5ZFZRMlNYWHdmMzctb05Jakg2cVpQVkw5R3pHOG1GMVRFM1BhMzc0RFduMURNYktSWlppQzkzVVBVdVVnOVpNWVAzU3Aydno4SUxTVk9GMVZrZXJMUnNXS19vY203a2owNE4wcnVHWlUwPTFDNTkwREJE"
+                          }
+                        ],
+                        "method": "GET",
+                        "responseEnabled": true,
+                        "sendIssue": false,
+                        "url": "https://ford-advev.atlassian.net/rest/api/3/issue/{{issue.key}}/remotelink",
+                        "urlSecure": false
+                      }
+                    },
+                    {
+                      "children": [
+                        {
+                          "children": [],
+                          "component": "CONDITION",
+                          "conditionParentId": null,
+                          "conditions": [],
+                          "connectionId": null,
+                          "id": "0f0aec20-6961-46ff-96ea-b09823ccd80c",
+                          "parentId": "49f653b0-792e-4e8f-ac6f-c9f74f36b091",
+                          "schemaVersion": 1,
+                          "type": "jira.comparator.condition",
+                          "value": {
+                            "first": "{{ecmRemote.object.url}}",
+                            "operator": "REGEX_CONTAINS",
+                            "second": "^https://ford-quality.atlassian.net/browse/{{simpsnKey}}"
+                          }
+                        },
+                        {
+                          "children": [],
+                          "component": "ACTION",
+                          "conditionParentId": null,
+                          "conditions": [],
+                          "connectionId": null,
+                          "id": "18767ba8-2b24-4f44-bd10-802de1bec757",
+                          "parentId": "49f653b0-792e-4e8f-ac6f-c9f74f36b091",
+                          "schemaVersion": 1,
+                          "type": "jira.issue.outgoing.webhook",
+                          "value": {
+                            "contentType": "empty",
+                            "continueOnErrorEnabled": true,
+                            "customBody": null,
+                            "headers": [
+                              {
+                                "headerSecure": false,
+                                "id": "_header_1770642598597",
+                                "name": "Content-Type",
+                                "value": "Application/JSON"
+                              },
+                              {
+                                "headerSecure": false,
+                                "id": "_header_1770642624585",
+                                "name": "Accept",
+                                "value": "Application/JSON"
+                              },
+                              {
+                                "headerSecure": false,
+                                "id": "_header_1770642635299",
+                                "name": "Authorization",
+                                "value": "Basic c2FkdmV2ZWNAZm9yZC5jb206QVRBVFQzeEZmR0YwdjNLckVFbFRJOU80X3hqQWtLVWdNSjl3cVh4QkNVZldqdFB2Y01PcjlmdGRta0cwQkZhanU0cnZtb0pNZHNESVQ5ZFZRMlNYWHdmMzctb05Jakg2cVpQVkw5R3pHOG1GMVRFM1BhMzc0RFduMURNYktSWlppQzkzVVBVdVVnOVpNWVAzU3Aydno4SUxTVk9GMVZrZXJMUnNXS19vY203a2owNE4wcnVHWlUwPTFDNTkwREJE"
+                              }
+                            ],
+                            "method": "DELETE",
+                            "responseEnabled": true,
+                            "sendIssue": false,
+                            "url": "https://ford-advev.atlassian.net/rest/api/3/issue/{{issue.key}}/remotelink/{{ecmRemote.id}}",
+                            "urlSecure": false
+                          }
+                        }
+                      ],
+                      "component": "BRANCH",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "49f653b0-792e-4e8f-ac6f-c9f74f36b091",
+                      "parentId": "179c617a-6599-420e-b0ad-f72e8096aea0",
+                      "schemaVersion": 1,
+                      "type": "jira.smart.values.branch",
+                      "value": {
+                        "id": "_customsmartvalue_id_1772637283042",
+                        "lazy": false,
+                        "name": {
+                          "type": "FREE",
+                          "value": "ecmRemote"
+                        },
+                        "query": {
+                          "type": "SMART",
+                          "value": "{{webResponse.body}}"
+                        },
+                        "type": "SMART"
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "0ebb57a5-5ee1-4ff4-873c-1ba42545ef28",
+                      "parentId": "179c617a-6599-420e-b0ad-f72e8096aea0",
+                      "schemaVersion": 1,
+                      "type": "jira.issue.outgoing.webhook",
+                      "value": {
+                        "contentType": "empty",
+                        "continueOnErrorEnabled": true,
+                        "customBody": null,
+                        "headers": [
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770634861121",
+                            "name": "Content-Type",
+                            "value": "Application/JSON"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770634884566",
+                            "name": "Accept",
+                            "value": "Application/JSON"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770634894907",
+                            "name": "Authorization",
+                            "value": "Basic c2FkdmV2ZWNAZm9yZC5jb206QVRBVFQzeEZmR0YwdjNLckVFbFRJOU80X3hqQWtLVWdNSjl3cVh4QkNVZldqdFB2Y01PcjlmdGRta0cwQkZhanU0cnZtb0pNZHNESVQ5ZFZRMlNYWHdmMzctb05Jakg2cVpQVkw5R3pHOG1GMVRFM1BhMzc0RFduMURNYktSWlppQzkzVVBVdVVnOVpNWVAzU3Aydno4SUxTVk9GMVZrZXJMUnNXS19vY203a2owNE4wcnVHWlUwPTFDNTkwREJE"
+                          }
+                        ],
+                        "method": "DELETE",
+                        "responseEnabled": true,
+                        "sendIssue": false,
+                        "url": "https://ford-advev.atlassian.net/rest/api/3/issue/{{issue.key}}/properties/SIMPSN_Key",
+                        "urlSecure": false
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "bf358bb0-e76f-4ea2-bc87-3bb4779e6cfc",
+                      "parentId": "179c617a-6599-420e-b0ad-f72e8096aea0",
+                      "schemaVersion": 1,
+                      "type": "jira.issue.outgoing.webhook",
+                      "value": {
+                        "contentType": "empty",
+                        "continueOnErrorEnabled": true,
+                        "customBody": null,
+                        "headers": [
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770642359605",
+                            "name": "Content-Type",
+                            "value": "Application/JSON"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770642391795",
+                            "name": "Accept",
+                            "value": "Application/JSON"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770642401055",
+                            "name": "Authorization",
+                            "value": "Basic aXNpbXBzbkBmb3JkLmNvbTpBVEFUVDN4RmZHRjB5OFhfWnJTX0dZb0lfRmZuZG5MaUhvOGV4RGduLWMwSFp0NUQwTVJaclZwdW91dTQwSzE2ajROeHhyZTJuQnF1alJyZU14VjF0NGZ5LWowa2NBUWNSSVRSVE4zSUxJTFBzR3VaZTVGZXo4dGdkWGdzM1UwaE10MVliYnQ1bTZwdW5JSGhkQVo2YnZnRGRRdEwxRlhraUZuOUhLazI2MHMweEJLSkZNdWdjZzQ9MzZCOTc4ODE="
+                          }
+                        ],
+                        "method": "GET",
+                        "responseEnabled": true,
+                        "sendIssue": false,
+                        "url": "https://ford-quality.atlassian.net/rest/api/3/issue/{{simpsnKey}}/remotelink",
+                        "urlSecure": false
+                      }
+                    },
+                    {
+                      "children": [
+                        {
+                          "children": [],
+                          "component": "CONDITION",
+                          "conditionParentId": null,
+                          "conditions": [],
+                          "connectionId": null,
+                          "id": "b0ad9237-ea61-496e-ba0b-b4f9f87a2302",
+                          "parentId": "37e9e103-9869-4521-bf67-61e91516329f",
+                          "schemaVersion": 1,
+                          "type": "jira.comparator.condition",
+                          "value": {
+                            "first": "{{prevSimpsn.object.url}}",
+                            "operator": "REGEX_CONTAINS",
+                            "second": "^https://ford-advev.atlassian.net/browse/{{issue.key}}"
+                          }
+                        },
+                        {
+                          "children": [],
+                          "component": "ACTION",
+                          "conditionParentId": null,
+                          "conditions": [],
+                          "connectionId": null,
+                          "id": "7aa91bef-fea1-4a3b-a98b-64eec4dd3b18",
+                          "parentId": "37e9e103-9869-4521-bf67-61e91516329f",
+                          "schemaVersion": 1,
+                          "type": "jira.issue.outgoing.webhook",
+                          "value": {
+                            "contentType": "empty",
+                            "continueOnErrorEnabled": true,
+                            "customBody": null,
+                            "headers": [
+                              {
+                                "headerSecure": false,
+                                "id": "_header_1770642598597",
+                                "name": "Authorization",
+                                "value": "Basic aXNpbXBzbkBmb3JkLmNvbTpBVEFUVDN4RmZHRjB5OFhfWnJTX0dZb0lfRmZuZG5MaUhvOGV4RGduLWMwSFp0NUQwTVJaclZwdW91dTQwSzE2ajROeHhyZTJuQnF1alJyZU14VjF0NGZ5LWowa2NBUWNSSVRSVE4zSUxJTFBzR3VaZTVGZXo4dGdkWGdzM1UwaE10MVliYnQ1bTZwdW5JSGhkQVo2YnZnRGRRdEwxRlhraUZuOUhLazI2MHMweEJLSkZNdWdjZzQ9MzZCOTc4ODE="
+                              },
+                              {
+                                "headerSecure": false,
+                                "id": "_header_1770642624585",
+                                "name": "Content-Type",
+                                "value": "Application/JSON"
+                              },
+                              {
+                                "headerSecure": false,
+                                "id": "_header_1770642635299",
+                                "name": "Accept",
+                                "value": "Application/JSON"
+                              }
+                            ],
+                            "method": "DELETE",
+                            "responseEnabled": true,
+                            "sendIssue": false,
+                            "url": "https://ford-quality.atlassian.net/rest/api/3/issue/{{simpsnKey}}/remotelink/{{prevSimpsn.id}}",
+                            "urlSecure": false
+                          }
+                        }
+                      ],
+                      "component": "BRANCH",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "37e9e103-9869-4521-bf67-61e91516329f",
+                      "parentId": "179c617a-6599-420e-b0ad-f72e8096aea0",
+                      "schemaVersion": 1,
+                      "type": "jira.smart.values.branch",
+                      "value": {
+                        "id": "_customsmartvalue_id_1772637345937",
+                        "lazy": false,
+                        "name": {
+                          "type": "FREE",
+                          "value": "prevSimpsn"
+                        },
+                        "query": {
+                          "type": "SMART",
+                          "value": "{{webResponse.body}}"
+                        },
+                        "type": "SMART"
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "627c8276-581d-4811-8467-c70197c0d048",
+                      "parentId": "179c617a-6599-420e-b0ad-f72e8096aea0",
+                      "schemaVersion": 1,
+                      "type": "jira.issue.outgoing.webhook",
+                      "value": {
+                        "contentType": "empty",
+                        "continueOnErrorEnabled": true,
+                        "customBody": null,
+                        "headers": [
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770634861121",
+                            "name": "Content-Type",
+                            "value": "Application/JSON"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770634884566",
+                            "name": "Accept",
+                            "value": "Application/JSON"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770634894907",
+                            "name": "Authorization",
+                            "value": "Basic aXNpbXBzbkBmb3JkLmNvbTpBVEFUVDN4RmZHRjB5OFhfWnJTX0dZb0lfRmZuZG5MaUhvOGV4RGduLWMwSFp0NUQwTVJaclZwdW91dTQwSzE2ajROeHhyZTJuQnF1alJyZU14VjF0NGZ5LWowa2NBUWNSSVRSVE4zSUxJTFBzR3VaZTVGZXo4dGdkWGdzM1UwaE10MVliYnQ1bTZwdW5JSGhkQVo2YnZnRGRRdEwxRlhraUZuOUhLazI2MHMweEJLSkZNdWdjZzQ9MzZCOTc4ODE="
+                          }
+                        ],
+                        "method": "DELETE",
+                        "responseEnabled": true,
+                        "sendIssue": false,
+                        "url": "https://ford-quality.atlassian.net/rest/api/3/issue/{{simpsnKey}}/properties/ADVEV_Key",
+                        "urlSecure": false
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "67025fe2-087b-4920-be50-4e5ef22ca8f7",
+                      "parentId": "179c617a-6599-420e-b0ad-f72e8096aea0",
+                      "schemaVersion": 1,
+                      "type": "jira.issue.outgoing.webhook",
+                      "value": {
+                        "contentType": "empty",
+                        "continueOnErrorEnabled": true,
+                        "customBody": null,
+                        "headers": [
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770642359605",
+                            "name": "Content-Type",
+                            "value": "Application/JSON"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770642391795",
+                            "name": "Accept",
+                            "value": "Application/JSON"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770642401055",
+                            "name": "Authorization",
+                            "value": "Basic aXNpbXBzbkBmb3JkLmNvbTpBVEFUVDN4RmZHRjB5OFhfWnJTX0dZb0lfRmZuZG5MaUhvOGV4RGduLWMwSFp0NUQwTVJaclZwdW91dTQwSzE2ajROeHhyZTJuQnF1alJyZU14VjF0NGZ5LWowa2NBUWNSSVRSVE4zSUxJTFBzR3VaZTVGZXo4dGdkWGdzM1UwaE10MVliYnQ1bTZwdW5JSGhkQVo2YnZnRGRRdEwxRlhraUZuOUhLazI2MHMweEJLSkZNdWdjZzQ9MzZCOTc4ODE="
+                          }
+                        ],
+                        "method": "GET",
+                        "responseEnabled": true,
+                        "sendIssue": false,
+                        "url": "https://ford-quality.atlassian.net/rest/api/3/issue/{{userInputs.simpsnId}}/remotelink",
+                        "urlSecure": false
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "08afc8b6-a6ea-4a92-8655-818c4f6a555a",
+                      "parentId": "179c617a-6599-420e-b0ad-f72e8096aea0",
+                      "schemaVersion": 1,
+                      "type": "jira.create.variable",
+                      "value": {
+                        "id": "_customsmartvalue_id_1770804963386",
+                        "lazy": false,
+                        "name": {
+                          "type": "FREE",
+                          "value": "simpsnBeforeAdvevKey"
+                        },
+                        "query": {
+                          "type": "SMART",
+                          "value": "{{webResponse.body.object.title}}"
+                        },
+                        "type": "SMART"
+                      }
+                    },
+                    {
+                      "children": [
+                        {
+                          "children": [],
+                          "component": "CONDITION",
+                          "conditionParentId": null,
+                          "conditions": [],
+                          "connectionId": null,
+                          "id": "ed763847-3602-4151-b86d-97410627c43c",
+                          "parentId": "ba142441-d38a-4de3-b734-b19ab641b329",
+                          "schemaVersion": 1,
+                          "type": "jira.comparator.condition",
+                          "value": {
+                            "first": "{{simpsnRemote.object.url}}",
+                            "operator": "REGEX_CONTAINS",
+                            "second": "^https://ford-advev.atlassian.net/browse/{{simpsnBeforeAdvevKey}}"
+                          }
+                        },
+                        {
+                          "children": [],
+                          "component": "ACTION",
+                          "conditionParentId": null,
+                          "conditions": [],
+                          "connectionId": null,
+                          "id": "3ef73a72-4a2e-4cd9-9bc2-f59d179be34d",
+                          "parentId": "ba142441-d38a-4de3-b734-b19ab641b329",
+                          "schemaVersion": 1,
+                          "type": "jira.issue.outgoing.webhook",
+                          "value": {
+                            "contentType": "empty",
+                            "continueOnErrorEnabled": true,
+                            "customBody": null,
+                            "headers": [
+                              {
+                                "headerSecure": false,
+                                "id": "_header_1770642598597",
+                                "name": "Authorization",
+                                "value": "Basic aXNpbXBzbkBmb3JkLmNvbTpBVEFUVDN4RmZHRjB5OFhfWnJTX0dZb0lfRmZuZG5MaUhvOGV4RGduLWMwSFp0NUQwTVJaclZwdW91dTQwSzE2ajROeHhyZTJuQnF1alJyZU14VjF0NGZ5LWowa2NBUWNSSVRSVE4zSUxJTFBzR3VaZTVGZXo4dGdkWGdzM1UwaE10MVliYnQ1bTZwdW5JSGhkQVo2YnZnRGRRdEwxRlhraUZuOUhLazI2MHMweEJLSkZNdWdjZzQ9MzZCOTc4ODE="
+                              },
+                              {
+                                "headerSecure": false,
+                                "id": "_header_1770642624585",
+                                "name": "Content-Type",
+                                "value": "Application/JSON"
+                              },
+                              {
+                                "headerSecure": false,
+                                "id": "_header_1770642635299",
+                                "name": "Accept",
+                                "value": "Application/JSON"
+                              }
+                            ],
+                            "method": "DELETE",
+                            "responseEnabled": true,
+                            "sendIssue": false,
+                            "url": "https://ford-quality.atlassian.net/rest/api/3/issue/{{userInputs.simpsnId}}/remotelink/{{simpsnRemote.id}}",
+                            "urlSecure": false
+                          }
+                        }
+                      ],
+                      "component": "BRANCH",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "ba142441-d38a-4de3-b734-b19ab641b329",
+                      "parentId": "179c617a-6599-420e-b0ad-f72e8096aea0",
+                      "schemaVersion": 1,
+                      "type": "jira.smart.values.branch",
+                      "value": {
+                        "id": "_customsmartvalue_id_1772637428291",
+                        "lazy": false,
+                        "name": {
+                          "type": "FREE",
+                          "value": "simpsnRemote"
+                        },
+                        "query": {
+                          "type": "SMART",
+                          "value": "{{webResponse.body}}"
+                        },
+                        "type": "SMART"
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "25d6e2ef-e7a8-4932-a37f-07983504203c",
+                      "parentId": "179c617a-6599-420e-b0ad-f72e8096aea0",
+                      "schemaVersion": 1,
+                      "type": "jira.issue.outgoing.webhook",
+                      "value": {
+                        "contentType": "empty",
+                        "continueOnErrorEnabled": true,
+                        "customBody": null,
+                        "headers": [
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770634861121",
+                            "name": "Content-Type",
+                            "value": "Application/JSON"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770634884566",
+                            "name": "Accept",
+                            "value": "Application/JSON"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770634894907",
+                            "name": "Authorization",
+                            "value": "Basic aXNpbXBzbkBmb3JkLmNvbTpBVEFUVDN4RmZHRjB5OFhfWnJTX0dZb0lfRmZuZG5MaUhvOGV4RGduLWMwSFp0NUQwTVJaclZwdW91dTQwSzE2ajROeHhyZTJuQnF1alJyZU14VjF0NGZ5LWowa2NBUWNSSVRSVE4zSUxJTFBzR3VaZTVGZXo4dGdkWGdzM1UwaE10MVliYnQ1bTZwdW5JSGhkQVo2YnZnRGRRdEwxRlhraUZuOUhLazI2MHMweEJLSkZNdWdjZzQ9MzZCOTc4ODE="
+                          }
+                        ],
+                        "method": "DELETE",
+                        "responseEnabled": true,
+                        "sendIssue": false,
+                        "url": "https://ford-quality.atlassian.net/rest/api/3/issue/{{simpsnKey}}/properties/ADVEV_Key",
+                        "urlSecure": false
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "aacef6c5-ce3b-4274-bb27-c68b67594063",
+                      "parentId": "179c617a-6599-420e-b0ad-f72e8096aea0",
+                      "schemaVersion": 1,
+                      "type": "codebarrel.action.log",
+                      "value": "{{simpsnBeforeAdvevKey}}"
+                    },
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "21900d7f-fc28-4bc0-8801-fcf3019e7d91",
+                      "parentId": "179c617a-6599-420e-b0ad-f72e8096aea0",
+                      "schemaVersion": 1,
+                      "type": "jira.issue.outgoing.webhook",
+                      "value": {
+                        "contentType": "empty",
+                        "continueOnErrorEnabled": true,
+                        "customBody": null,
+                        "headers": [
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770642359605",
+                            "name": "Content-Type",
+                            "value": "Application/JSON"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770642391795",
+                            "name": "Accept",
+                            "value": "Application/JSON"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770642401055",
+                            "name": "Authorization",
+                            "value": "Basic c2FkdmV2ZWNAZm9yZC5jb206QVRBVFQzeEZmR0YwdjNLckVFbFRJOU80X3hqQWtLVWdNSjl3cVh4QkNVZldqdFB2Y01PcjlmdGRta0cwQkZhanU0cnZtb0pNZHNESVQ5ZFZRMlNYWHdmMzctb05Jakg2cVpQVkw5R3pHOG1GMVRFM1BhMzc0RFduMURNYktSWlppQzkzVVBVdVVnOVpNWVAzU3Aydno4SUxTVk9GMVZrZXJMUnNXS19vY203a2owNE4wcnVHWlUwPTFDNTkwREJE"
+                          }
+                        ],
+                        "method": "GET",
+                        "responseEnabled": true,
+                        "sendIssue": false,
+                        "url": "https://ford-advev.atlassian.net/rest/api/3/issue/{{simpsnBeforeAdvevKey}}/remotelink",
+                        "urlSecure": false
+                      }
+                    },
+                    {
+                      "children": [
+                        {
+                          "children": [],
+                          "component": "CONDITION",
+                          "conditionParentId": null,
+                          "conditions": [],
+                          "connectionId": null,
+                          "id": "d2f97dc4-8f08-457e-9604-347aa6b7c5bd",
+                          "parentId": "6e7a86bc-1204-4452-881b-022b8677c609",
+                          "schemaVersion": 1,
+                          "type": "jira.comparator.condition",
+                          "value": {
+                            "first": "{{prevECM.object.url}}",
+                            "operator": "REGEX_CONTAINS",
+                            "second": "^https://ford-quality.atlassian.net/browse/{{userInputs.simpsnId}}"
+                          }
+                        },
+                        {
+                          "children": [],
+                          "component": "ACTION",
+                          "conditionParentId": null,
+                          "conditions": [],
+                          "connectionId": null,
+                          "id": "afbdd8ec-02e8-4580-bfdb-d6282ff8730c",
+                          "parentId": "6e7a86bc-1204-4452-881b-022b8677c609",
+                          "schemaVersion": 1,
+                          "type": "jira.issue.outgoing.webhook",
+                          "value": {
+                            "contentType": "empty",
+                            "continueOnErrorEnabled": true,
+                            "customBody": null,
+                            "headers": [
+                              {
+                                "headerSecure": false,
+                                "id": "_header_1770642598597",
+                                "name": "Content-Type",
+                                "value": "Application/JSON"
+                              },
+                              {
+                                "headerSecure": false,
+                                "id": "_header_1770642624585",
+                                "name": "Accept",
+                                "value": "Application/JSON"
+                              },
+                              {
+                                "headerSecure": false,
+                                "id": "_header_1770642635299",
+                                "name": "Authorization",
+                                "value": "Basic c2FkdmV2ZWNAZm9yZC5jb206QVRBVFQzeEZmR0YwdjNLckVFbFRJOU80X3hqQWtLVWdNSjl3cVh4QkNVZldqdFB2Y01PcjlmdGRta0cwQkZhanU0cnZtb0pNZHNESVQ5ZFZRMlNYWHdmMzctb05Jakg2cVpQVkw5R3pHOG1GMVRFM1BhMzc0RFduMURNYktSWlppQzkzVVBVdVVnOVpNWVAzU3Aydno4SUxTVk9GMVZrZXJMUnNXS19vY203a2owNE4wcnVHWlUwPTFDNTkwREJE"
+                              }
+                            ],
+                            "method": "DELETE",
+                            "responseEnabled": true,
+                            "sendIssue": false,
+                            "url": "https://ford-advev.atlassian.net/rest/api/3/issue/{{simpsnBeforeAdvevKey}}/remotelink/{{prevECM.id}}",
+                            "urlSecure": false
+                          }
+                        }
+                      ],
+                      "component": "BRANCH",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "6e7a86bc-1204-4452-881b-022b8677c609",
+                      "parentId": "179c617a-6599-420e-b0ad-f72e8096aea0",
+                      "schemaVersion": 1,
+                      "type": "jira.smart.values.branch",
+                      "value": {
+                        "id": "_customsmartvalue_id_1772637475956",
+                        "lazy": false,
+                        "name": {
+                          "type": "FREE",
+                          "value": "prevECM"
+                        },
+                        "query": {
+                          "type": "SMART",
+                          "value": "{{webResponse.body}}"
+                        },
+                        "type": "SMART"
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "2ec65388-9eed-4cbb-85e2-9db4f236583a",
+                      "parentId": "179c617a-6599-420e-b0ad-f72e8096aea0",
+                      "schemaVersion": 1,
+                      "type": "jira.issue.outgoing.webhook",
+                      "value": {
+                        "contentType": "empty",
+                        "continueOnErrorEnabled": true,
+                        "customBody": null,
+                        "headers": [
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770634861121",
+                            "name": "Content-Type",
+                            "value": "Application/JSON"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770634884566",
+                            "name": "Accept",
+                            "value": "Application/JSON"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770634894907",
+                            "name": "Authorization",
+                            "value": "Basic c2FkdmV2ZWNAZm9yZC5jb206QVRBVFQzeEZmR0YwdjNLckVFbFRJOU80X3hqQWtLVWdNSjl3cVh4QkNVZldqdFB2Y01PcjlmdGRta0cwQkZhanU0cnZtb0pNZHNESVQ5ZFZRMlNYWHdmMzctb05Jakg2cVpQVkw5R3pHOG1GMVRFM1BhMzc0RFduMURNYktSWlppQzkzVVBVdVVnOVpNWVAzU3Aydno4SUxTVk9GMVZrZXJMUnNXS19vY203a2owNE4wcnVHWlUwPTFDNTkwREJE"
+                          }
+                        ],
+                        "method": "DELETE",
+                        "responseEnabled": true,
+                        "sendIssue": false,
+                        "url": "https://ford-advev.atlassian.net/rest/api/3/issue/{{simpsnBeforeAdvevKey}}/properties/SIMPSN_Key",
+                        "urlSecure": false
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "07df1fc4-22c7-4c3f-a012-b3b69b5a4eb5",
+                      "parentId": "179c617a-6599-420e-b0ad-f72e8096aea0",
+                      "schemaVersion": 1,
+                      "type": "jira.issue.outgoing.webhook",
+                      "value": {
+                        "contentType": "empty",
+                        "continueOnErrorEnabled": true,
+                        "customBody": null,
+                        "headers": [
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770634861121",
+                            "name": "Content-Type",
+                            "value": "Application/JSON"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770634884566",
+                            "name": "Accept",
+                            "value": "Application/JSON"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770634894907",
+                            "name": "Authorization",
+                            "value": "Basic c2FkdmV2ZWNAZm9yZC5jb206QVRBVFQzeEZmR0YwdjNLckVFbFRJOU80X3hqQWtLVWdNSjl3cVh4QkNVZldqdFB2Y01PcjlmdGRta0cwQkZhanU0cnZtb0pNZHNESVQ5ZFZRMlNYWHdmMzctb05Jakg2cVpQVkw5R3pHOG1GMVRFM1BhMzc0RFduMURNYktSWlppQzkzVVBVdVVnOVpNWVAzU3Aydno4SUxTVk9GMVZrZXJMUnNXS19vY203a2owNE4wcnVHWlUwPTFDNTkwREJE"
+                          }
+                        ],
+                        "method": "DELETE",
+                        "responseEnabled": true,
+                        "sendIssue": false,
+                        "url": "https://ford-advev.atlassian.net/rest/api/3/issue/{{simpsnBeforeAdvevKey}}/properties/Sync_Status",
+                        "urlSecure": false
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "9ea04fcb-fb79-489e-8a6f-dd2166978195",
+                      "parentId": "179c617a-6599-420e-b0ad-f72e8096aea0",
+                      "schemaVersion": 1,
+                      "type": "jira.issue.outgoing.webhook",
+                      "value": {
+                        "contentType": "custom",
+                        "continueOnErrorEnabled": true,
+                        "customBody": "{\n  \"fields\": {\n    \"customfield_19785\": {\n      \"value\": \"No\"\n    }\n  }\n}\n",
+                        "headers": [
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770763321423",
+                            "name": "Authorization",
+                            "value": "Basic c2FkdmV2ZWNAZm9yZC5jb206QVRBVFQzeEZmR0YwdjNLckVFbFRJOU80X3hqQWtLVWdNSjl3cVh4QkNVZldqdFB2Y01PcjlmdGRta0cwQkZhanU0cnZtb0pNZHNESVQ5ZFZRMlNYWHdmMzctb05Jakg2cVpQVkw5R3pHOG1GMVRFM1BhMzc0RFduMURNYktSWlppQzkzVVBVdVVnOVpNWVAzU3Aydno4SUxTVk9GMVZrZXJMUnNXS19vY203a2owNE4wcnVHWlUwPTFDNTkwREJE"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770763383273",
+                            "name": "Content-Type",
+                            "value": "Application/JSON"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770763396668",
+                            "name": "Accept",
+                            "value": "Application/JSON"
+                          }
+                        ],
+                        "method": "PUT",
+                        "responseEnabled": true,
+                        "sendIssue": false,
+                        "url": "https://ford-advev.atlassian.net/rest/api/3/issue/{{simpsnBeforeAdvevKey}}",
+                        "urlSecure": false
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "225317b5-33aa-4328-af39-272dfd706235",
+                      "parentId": "179c617a-6599-420e-b0ad-f72e8096aea0",
+                      "schemaVersion": 1,
+                      "type": "jira.issue.outgoing.webhook",
+                      "value": {
+                        "contentType": "custom",
+                        "continueOnErrorEnabled": true,
+                        "customBody": "{\n  \"object\": {\n    \"url\": \"https://ford-quality.atlassian.net/browse/{{userInputs.simpsnId}}\",\n    \"title\": \"{{userInputs.simpsnId}}\"\n  }\n}",
+                        "headers": [
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770762884590",
+                            "name": "Authorization",
+                            "value": "Basic c2FkdmV2ZWNAZm9yZC5jb206QVRBVFQzeEZmR0YwdjNLckVFbFRJOU80X3hqQWtLVWdNSjl3cVh4QkNVZldqdFB2Y01PcjlmdGRta0cwQkZhanU0cnZtb0pNZHNESVQ5ZFZRMlNYWHdmMzctb05Jakg2cVpQVkw5R3pHOG1GMVRFM1BhMzc0RFduMURNYktSWlppQzkzVVBVdVVnOVpNWVAzU3Aydno4SUxTVk9GMVZrZXJMUnNXS19vY203a2owNE4wcnVHWlUwPTFDNTkwREJE"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770763212663",
+                            "name": "Content-Type",
+                            "value": "Application/JSON"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770763217621",
+                            "name": "Accept",
+                            "value": "Application/JSON"
+                          }
+                        ],
+                        "method": "POST",
+                        "responseEnabled": true,
+                        "sendIssue": false,
+                        "url": "https://ford-advev.atlassian.net/rest/api/3/issue/{{issue.key}}/remotelink",
+                        "urlSecure": false
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "e798d81c-fad5-44e0-a1ee-1c369687d62b",
+                      "parentId": "179c617a-6599-420e-b0ad-f72e8096aea0",
+                      "schemaVersion": 1,
+                      "type": "jira.issue.outgoing.webhook",
+                      "value": {
+                        "contentType": "custom",
+                        "continueOnErrorEnabled": true,
+                        "customBody": "\"{{userInputs.simpsnId}}\"",
+                        "headers": [
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770763321423",
+                            "name": "Authorization",
+                            "value": "Basic c2FkdmV2ZWNAZm9yZC5jb206QVRBVFQzeEZmR0YwdjNLckVFbFRJOU80X3hqQWtLVWdNSjl3cVh4QkNVZldqdFB2Y01PcjlmdGRta0cwQkZhanU0cnZtb0pNZHNESVQ5ZFZRMlNYWHdmMzctb05Jakg2cVpQVkw5R3pHOG1GMVRFM1BhMzc0RFduMURNYktSWlppQzkzVVBVdVVnOVpNWVAzU3Aydno4SUxTVk9GMVZrZXJMUnNXS19vY203a2owNE4wcnVHWlUwPTFDNTkwREJE"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770763383273",
+                            "name": "Content-Type",
+                            "value": "Application/JSON"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770763396668",
+                            "name": "Accept",
+                            "value": "Application/JSON"
+                          }
+                        ],
+                        "method": "PUT",
+                        "responseEnabled": true,
+                        "sendIssue": false,
+                        "url": "https://ford-advev.atlassian.net/rest/api/3/issue/{{issue.key}}/properties/SIMPSN_Key",
+                        "urlSecure": false
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "7a717ac5-0331-42cc-82aa-a052bc173c3f",
+                      "parentId": "179c617a-6599-420e-b0ad-f72e8096aea0",
+                      "schemaVersion": 1,
+                      "type": "jira.issue.outgoing.webhook",
+                      "value": {
+                        "contentType": "custom",
+                        "continueOnErrorEnabled": true,
+                        "customBody": "\"Active\"",
+                        "headers": [
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770763321423",
+                            "name": "Authorization",
+                            "value": "Basic c2FkdmV2ZWNAZm9yZC5jb206QVRBVFQzeEZmR0YwdjNLckVFbFRJOU80X3hqQWtLVWdNSjl3cVh4QkNVZldqdFB2Y01PcjlmdGRta0cwQkZhanU0cnZtb0pNZHNESVQ5ZFZRMlNYWHdmMzctb05Jakg2cVpQVkw5R3pHOG1GMVRFM1BhMzc0RFduMURNYktSWlppQzkzVVBVdVVnOVpNWVAzU3Aydno4SUxTVk9GMVZrZXJMUnNXS19vY203a2owNE4wcnVHWlUwPTFDNTkwREJE"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770763383273",
+                            "name": "Content-Type",
+                            "value": "Application/JSON"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770763396668",
+                            "name": "Accept",
+                            "value": "Application/JSON"
+                          }
+                        ],
+                        "method": "PUT",
+                        "responseEnabled": true,
+                        "sendIssue": false,
+                        "url": "https://ford-advev.atlassian.net/rest/api/3/issue/{{issue.key}}/properties/Sync_Status",
+                        "urlSecure": false
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "c5bfd0b9-23d2-40bc-8a6a-48a00ec2f161",
+                      "parentId": "179c617a-6599-420e-b0ad-f72e8096aea0",
+                      "schemaVersion": 1,
+                      "type": "jira.issue.outgoing.webhook",
+                      "value": {
+                        "contentType": "custom",
+                        "continueOnErrorEnabled": true,
+                        "customBody": "{\n  \"object\": {\n    \"url\": \"https://ford-advev.atlassian.net/browse/{{issue.key}}\",\n    \"title\": \"{{issue.key}}\"\n  }\n}",
+                        "headers": [
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770763433209",
+                            "name": "Authorization",
+                            "value": "Basic aXNpbXBzbkBmb3JkLmNvbTpBVEFUVDN4RmZHRjB5OFhfWnJTX0dZb0lfRmZuZG5MaUhvOGV4RGduLWMwSFp0NUQwTVJaclZwdW91dTQwSzE2ajROeHhyZTJuQnF1alJyZU14VjF0NGZ5LWowa2NBUWNSSVRSVE4zSUxJTFBzR3VaZTVGZXo4dGdkWGdzM1UwaE10MVliYnQ1bTZwdW5JSGhkQVo2YnZnRGRRdEwxRlhraUZuOUhLazI2MHMweEJLSkZNdWdjZzQ9MzZCOTc4ODE="
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770763511273",
+                            "name": "Content-Type",
+                            "value": "Application/JSON"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770763521392",
+                            "name": "Accept",
+                            "value": "Application/JSON"
+                          }
+                        ],
+                        "method": "POST",
+                        "responseEnabled": true,
+                        "sendIssue": false,
+                        "url": "https://ford-quality.atlassian.net/rest/api/3/issue/{{userInputs.simpsnId}}/remotelink",
+                        "urlSecure": false
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "9bdd4b85-72c6-4022-b062-64a7a007c057",
+                      "parentId": "179c617a-6599-420e-b0ad-f72e8096aea0",
+                      "schemaVersion": 1,
+                      "type": "jira.issue.outgoing.webhook",
+                      "value": {
+                        "contentType": "custom",
+                        "continueOnErrorEnabled": false,
+                        "customBody": "\"{{issue.key}}\"",
+                        "headers": [
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770763433209",
+                            "name": "Authorization",
+                            "value": "Basic aXNpbXBzbkBmb3JkLmNvbTpBVEFUVDN4RmZHRjB5OFhfWnJTX0dZb0lfRmZuZG5MaUhvOGV4RGduLWMwSFp0NUQwTVJaclZwdW91dTQwSzE2ajROeHhyZTJuQnF1alJyZU14VjF0NGZ5LWowa2NBUWNSSVRSVE4zSUxJTFBzR3VaZTVGZXo4dGdkWGdzM1UwaE10MVliYnQ1bTZwdW5JSGhkQVo2YnZnRGRRdEwxRlhraUZuOUhLazI2MHMweEJLSkZNdWdjZzQ9MzZCOTc4ODE="
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770763511273",
+                            "name": "Content-Type",
+                            "value": "Application/JSON"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770763521392",
+                            "name": "Accept",
+                            "value": "Application/JSON"
+                          }
+                        ],
+                        "method": "PUT",
+                        "responseEnabled": false,
+                        "sendIssue": false,
+                        "url": "https://ford-quality.atlassian.net/rest/api/3/issue/{{userInputs.simpsnId}}/properties/ADVEV_Key",
+                        "urlSecure": false
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "124c066a-7f0f-4349-9a62-7c51ce72ac8c",
+                      "parentId": "179c617a-6599-420e-b0ad-f72e8096aea0",
+                      "schemaVersion": 1,
+                      "type": "jira.issue.outgoing.webhook",
+                      "value": {
+                        "contentType": "custom",
+                        "continueOnErrorEnabled": true,
+                        "customBody": "{\n  \"fields\": {\n    \"customfield_19785\": {\n      \"value\": \"Yes\"\n    }\n  }\n}\n",
+                        "headers": [
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770763321423",
+                            "name": "Authorization",
+                            "value": "Basic c2FkdmV2ZWNAZm9yZC5jb206QVRBVFQzeEZmR0YwdjNLckVFbFRJOU80X3hqQWtLVWdNSjl3cVh4QkNVZldqdFB2Y01PcjlmdGRta0cwQkZhanU0cnZtb0pNZHNESVQ5ZFZRMlNYWHdmMzctb05Jakg2cVpQVkw5R3pHOG1GMVRFM1BhMzc0RFduMURNYktSWlppQzkzVVBVdVVnOVpNWVAzU3Aydno4SUxTVk9GMVZrZXJMUnNXS19vY203a2owNE4wcnVHWlUwPTFDNTkwREJE"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770763383273",
+                            "name": "Content-Type",
+                            "value": "Application/JSON"
+                          },
+                          {
+                            "headerSecure": false,
+                            "id": "_header_1770763396668",
+                            "name": "Accept",
+                            "value": "Application/JSON"
+                          }
+                        ],
+                        "method": "PUT",
+                        "responseEnabled": true,
+                        "sendIssue": false,
+                        "url": "https://ford-advev.atlassian.net/rest/api/3/issue/{{issue.key}}",
+                        "urlSecure": false
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "c8b207a3-60b7-43c8-bb3b-04305ed3bd32",
+                      "parentId": "179c617a-6599-420e-b0ad-f72e8096aea0",
+                      "schemaVersion": 2,
+                      "type": "jira.issue.comment",
+                      "value": {
+                        "addCommentOnce": false,
+                        "comment": "Re-linking processed successfully. Link has been established thru https://ford-quality.atlassian.net/browse/{{userInputs.simpsnId}}",
+                        "commentVisibility": null,
+                        "publicComment": true,
+                        "sendNotifications": true
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "179c617a-6599-420e-b0ad-f72e8096aea0",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "a013ba88-f73e-46d4-8b5b-1cd80edfe818",
+                      "parentId": null,
+                      "schemaVersion": 1,
+                      "type": "jira.comparator.condition",
+                      "value": {
+                        "first": "{{userInputs.simpsnId}}",
+                        "operator": "REGEX_CONTAINS",
+                        "second": "^LV28P833-"
+                      }
+                    },
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "179c617a-6599-420e-b0ad-f72e8096aea0",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "4c31b4d7-5912-47fc-b53c-d46f43c22b1b",
+                      "parentId": null,
+                      "schemaVersion": 1,
+                      "type": "jira.comparator.condition",
+                      "value": {
+                        "first": "{{webResponse.status}}",
+                        "operator": "EQUALS",
+                        "second": "200"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "179c617a-6599-420e-b0ad-f72e8096aea0",
+                  "parentId": "ca3807d2-4f70-4fad-85c8-0efd6d425582",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "7d2557e7-5796-41ad-a3aa-413e962fceda",
+                      "parentId": "2fe20092-6270-4623-bccc-9d6f7da87be3",
+                      "schemaVersion": 2,
+                      "type": "jira.issue.comment",
+                      "value": {
+                        "addCommentOnce": false,
+                        "comment": "{{userInputs.simpsnId}} is not a valid LV28P833 work item key or work item does not exist. Kindly confirm whether your input is right.",
+                        "commentVisibility": null,
+                        "publicComment": true,
+                        "sendNotifications": true
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "2fe20092-6270-4623-bccc-9d6f7da87be3",
+                  "parentId": "ca3807d2-4f70-4fad-85c8-0efd6d425582",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                }
+              ],
+              "component": "CONDITION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "ca3807d2-4f70-4fad-85c8-0efd6d425582",
+              "parentId": "f155c708-35d1-4bf7-a444-4cccc971cfff",
+              "schemaVersion": 1,
+              "type": "jira.condition.container.block",
+              "value": null
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "f155c708-35d1-4bf7-a444-4cccc971cfff",
+              "conditions": [],
+              "connectionId": null,
+              "id": "d6e05c76-f7a7-4a36-9ef2-8de04f8ecd99",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{userInputs.simpsnTrigger}}",
+                "operator": "EQUALS",
+                "second": "Replace"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "f155c708-35d1-4bf7-a444-4cccc971cfff",
+              "conditions": [],
+              "connectionId": null,
+              "id": "e2bc0f56-6b24-4134-bcaf-959f4d99ede2",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{userInputs.simpsnId}}",
+                "operator": "REGEX_CONTAINS",
+                "second": "^LV28P833-\\d+"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "f155c708-35d1-4bf7-a444-4cccc971cfff",
+          "parentId": "b0c83d23-63f4-42c8-b846-3a4f458a3ef0",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "b0c83d23-63f4-42c8-b846-3a4f458a3ef0",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1778746989518,
+  "description": "This automation remove or replace a sync SIMPSN work item to SOLVE based on the user input. \n\nIf trigger is Remove, it will do the following:\n- Remove weblink from the current SOLVE work item \n- Remove the SIMPSN_Key property from the current work item\n- Remove the Sync_Status property from the current work item\n- Remove weblink from the current SIMPSN linked work item\n- Remove the ADVEV_Key property to the current SIMPSN linked work item\n- Set the value of the Launch Issue to No for the current work item\n- Add a comment to the work item\n\nIf trigger is Replace, it will do the following:\n- Remove weblink to the current SOLVE work item \n- Remove the SIMPSN_Key property to the current work item\n- Remove weblink to the current SIMPSN linked work item\n- Remove the ADVEV_Key property to the current SIMPSN linked work item\n- Remove the weblink to the SIMPSN work item from the user input\n- Remove the ADVEV_Key property to the SIMPSN work item from the user input\n- Remove the weblink to the SOLVE linked work item from the user input\n- Remove the SIMPSN_Key property to the SOLVE linked work item from the user input\n- Remove the Sync_Status property from the SOLVE linked work item from the user input\n- Set the value of the Launch Issue to No for the SOLVE linked work item from the user input\n- Associate the new SIMPN work item (based on user input) to the current work item\n- Associate the SIMPSN_Key property to the new SOLVE work item\n- Associate the Sync_Status property to the current SOLVE work item with a value of Active\n- Associate the new ECM work item to the SIMPSN work item (based from user input)\n- Associate the ADVEV_Key with the current SOLVE work item key to the SIMPSN work item (based from user input)\n- Set the value of Launch Issue to Yes to the current work item\n- Add a comment",
+  "id": 33271562,
+  "idUuid": "019e2595-1bce-73fd-93c0-fc10349d9032",
+  "labels": [],
+  "name": "SOLVE: Issue - Remove/Replace P833 SIMPSN Issue",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "35a21325-c9f9-41a0-afe9-ff3d4bb39895",
+    "parentId": null,
+    "schemaVersion": 3,
+    "type": "jira.manual.trigger.issue",
+    "value": {
+      "groups": [],
+      "inputFromUsers": true,
+      "inputPrompts": [
+        {
+          "defaultValue": [
+            "Remove",
+            "Replace"
+          ],
+          "displayName": "Select Trigger",
+          "inputType": "DROPDOWN",
+          "required": true,
+          "variableName": "simpsnTrigger"
+        },
+        {
+          "defaultValue": "LV28P833-",
+          "displayName": "SIMPSN Ticket ID (Fill up when Replace trigger selected)",
+          "inputType": "TEXT",
+          "required": false,
+          "variableName": "simpsnId"
+        }
+      ],
+      "issueFilter": {
+        "filterType": "ISSUE_TYPE",
+        "value": [
+          "Solve Ticket"
+        ]
+      },
+      "jQLFilter": null
+    }
+  },
+  "updated": 1782746497813,
+  "writeAccessType": "OWNER_ONLY"
+}

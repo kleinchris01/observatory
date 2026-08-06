@@ -1,0 +1,349 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:10e644de-d96b-4816-9029-d6cf8f0aec37",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555659581",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.refresh.issue",
+      "value": {
+        "delayMs": null
+      }
+    },
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555659586",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": null,
+        "comparison": "NOT_EMPTY",
+        "selectedField": {
+          "type": "NAME",
+          "value": "Manager Screen Date"
+        },
+        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:datepicker"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555659590",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.create",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": "{{triggerIssue.summary}} - HM Feedback"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "description"
+            },
+            "fieldType": "description",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "description",
+                "type": "ID",
+                "value": "description"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "project"
+            },
+            "fieldType": "project",
+            "type": "SET",
+            "value": {
+              "type": "COPY",
+              "value": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuetype"
+            },
+            "fieldType": "issuetype",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "10054"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "assignee"
+            },
+            "fieldType": "assignee",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                "type": "NAME",
+                "value": "Hiring Manager"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "LinkedIn Profile"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:url",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:url",
+                "type": "NAME",
+                "value": "LinkedIn Profile"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Interviewee"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "summary",
+                "type": "ID",
+                "value": "summary"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Hiring Manager"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                "type": "NAME",
+                "value": "Hiring Manager"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Recruiter"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                "type": "NAME",
+                "value": "Recruiter"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Recruiting Coordinator"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                "type": "NAME",
+                "value": "Recruiting Coordinator"
+              },
+              "sourceIssue": "current"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "security"
+            },
+            "fieldType": "security",
+            "type": "SET",
+            "value": {
+              "type": "NAME",
+              "value": "Interview Scorecard"
+            }
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "issuelinks"
+            },
+            "fieldType": "issuelinks",
+            "type": "SET",
+            "value": {
+              "issue": {
+                "type": "COPY",
+                "value": "trigger"
+              },
+              "linkType": "outward:10014"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Epic Link"
+            },
+            "fieldType": "com.pyxis.greenhopper.jira:gh-epic-link",
+            "type": "SET",
+            "value": {
+              "type": "ID",
+              "value": "AR2-54"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Job Name"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+            "type": "SET",
+            "value": "{{triggerIssue.Epic Name}}"
+          },
+          {
+            "field": {
+              "type": "ID",
+              "value": "attachment"
+            },
+            "fieldType": "attachment",
+            "type": "COPY",
+            "value": {
+              "copyOptions": [],
+              "sourceField": {
+                "fieldType": "attachment",
+                "type": "ID",
+                "value": "attachment"
+              },
+              "sourceIssue": "trigger"
+            }
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Interview Feedback"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+            "type": "SET",
+            "value": "PLACE YOUR FEEDBACK HERE"
+          }
+        ],
+        "sendNotifications": false
+      }
+    }
+  ],
+  "created": 1694842757961,
+  "description": "",
+  "id": 14846743,
+  "idUuid": "018a9c80-2349-730c-8b67-6b82d18cf6c9",
+  "labels": [
+    423960,
+    693917
+  ],
+  "name": "Interview - 1c - Create Hiring Manager Interview",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10041",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10016"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "555659575",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:transitioned",
+    "value": {
+      "eventKey": "jira:issue_updated",
+      "fromStatus": [
+        {
+          "type": "NAME",
+          "value": "Technical Assessment"
+        },
+        {
+          "type": "NAME",
+          "value": "Recruiter Screen"
+        }
+      ],
+      "issueEvent": "issue_generic",
+      "toStatus": [
+        {
+          "type": "NAME",
+          "value": "Manager Screen"
+        }
+      ]
+    }
+  },
+  "updated": 1722977068131,
+  "writeAccessType": "UNRESTRICTED"
+}

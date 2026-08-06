@@ -1,0 +1,157 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:055a5bcc-7db2-46a9-8337-ce40c198f7c1",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "2ab7d0ea-a2d5-488e-a73b-e4f6784e9dbd",
+      "parentId": null,
+      "schemaVersion": 2,
+      "type": "jira.issue.add.watcher",
+      "value": {
+        "removeAll": false,
+        "removeWatchers": [],
+        "watchers": [
+          {
+            "type": "ID",
+            "value": "712020:6aab3886-cc6e-447e-a9c5-afc989bc8536"
+          },
+          {
+            "type": "ID",
+            "value": "712020:788bcf82-275b-4385-89b6-0816e2a6ec16"
+          },
+          {
+            "type": "ID",
+            "value": "712020:055a5bcc-7db2-46a9-8337-ce40c198f7c1"
+          },
+          {
+            "type": "ID",
+            "value": "712020:82a4626a-a231-4f18-abe4-89246a05ba43"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1774471270202,
+  "description": "",
+  "id": 32587241,
+  "idUuid": "019d26ba-cf3a-7287-b23d-a344053a289b",
+  "labels": [],
+  "name": "Thermal Apps Watchers",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11673"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11673"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "d9d1ca53-498e-4b2f-a1d7-9f0939578119",
+        "conditions": [],
+        "connectionId": null,
+        "id": "3b100fcc-eff4-4d24-aceb-a2a796b59adc",
+        "parentId": null,
+        "schemaVersion": 6,
+        "type": "jira.user.condition",
+        "value": {
+          "conditions": [
+            {
+              "check": "USER_IS",
+              "criteria": [
+                {
+                  "type": "ID",
+                  "value": "712020:f5524f24-842d-45e3-b01a-0f2ffbd1a97b"
+                },
+                {
+                  "type": "ID",
+                  "value": "712020:2d622651-de1b-4dac-9322-a2fed301ec11"
+                },
+                {
+                  "type": "ID",
+                  "value": "712020:788bcf82-275b-4385-89b6-0816e2a6ec16"
+                },
+                {
+                  "type": "ID",
+                  "value": "712020:6286dbd8-7bf4-4392-9d43-ba22a21bfd69"
+                },
+                {
+                  "type": "ID",
+                  "value": "712020:a6e1e823-f874-45b7-9829-bf77d9a051f0"
+                },
+                {
+                  "type": "ID",
+                  "value": "712020:7754d9b3-4860-43b3-be15-d26bd840b21b"
+                },
+                {
+                  "type": "ID",
+                  "value": "712020:70ab395f-91b1-48b0-9833-5ce077d88d61"
+                },
+                {
+                  "type": "ID",
+                  "value": "712020:f35030f5-7876-4fe6-a65b-bfe8a4f1a6da"
+                },
+                {
+                  "type": "ID",
+                  "value": "62a4e5614e1a640070c65fcd"
+                },
+                {
+                  "type": "ID",
+                  "value": "62a4e0846a7b750068a5274d"
+                }
+              ],
+              "field": "assignee"
+            }
+          ],
+          "operator": "OR"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "d9d1ca53-498e-4b2f-a1d7-9f0939578119",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11673"
+      ],
+      "fields": [
+        {
+          "type": "field",
+          "value": "assignee"
+        }
+      ]
+    }
+  },
+  "updated": 1774471270202,
+  "writeAccessType": "OWNER_ONLY"
+}

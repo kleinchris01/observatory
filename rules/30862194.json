@@ -1,0 +1,662 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "CONDITION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "c97106a8-eb9d-44d5-af6d-132321836c00",
+                  "parentId": "6acb678f-582e-43bd-8c43-991aaa7c0ce8",
+                  "schemaVersion": 3,
+                  "type": "jira.issue.condition",
+                  "value": {
+                    "compareValue": {
+                      "modifier": null,
+                      "multiValue": true,
+                      "source": null,
+                      "type": "NAME",
+                      "value": "[\"Amanda-Dixon-Walsh\"]"
+                    },
+                    "comparison": "CONTAINS_EXACTLY",
+                    "selectedField": {
+                      "type": "NAME",
+                      "value": "Supply Chain Lead / Global Director"
+                    },
+                    "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:labels"
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "180349fd-2867-4998-85ea-febfe9df8dcf",
+                  "parentId": "6acb678f-582e-43bd-8c43-991aaa7c0ce8",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.edit",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "NAME",
+                          "value": "Supply Chain Director"
+                        },
+                        "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                        "type": "SET",
+                        "value": [
+                          {
+                            "type": "ID",
+                            "value": "712020:9041041b-755d-4351-b77c-27dbae1aab87"
+                          }
+                        ]
+                      },
+                      {
+                        "field": {
+                          "type": "NAME",
+                          "value": "Collaborators"
+                        },
+                        "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                        "type": "SET",
+                        "value": [
+                          {
+                            "type": "SMART",
+                            "value": "{{issue.collaborators}}"
+                          },
+                          {
+                            "type": "ID",
+                            "value": "712020:9041041b-755d-4351-b77c-27dbae1aab87"
+                          }
+                        ]
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                }
+              ],
+              "component": "ORCHESTRATION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "6acb678f-582e-43bd-8c43-991aaa7c0ce8",
+              "parentId": "dfbd3e3e-1427-451c-af38-c24b41e8f247",
+              "schemaVersion": 1,
+              "type": "automation.orchestration.fragment",
+              "value": {
+                "inputProjections": [],
+                "isOptional": false,
+                "name": "Group 1",
+                "outputProjections": []
+              }
+            }
+          ],
+          "component": "ORCHESTRATION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "dfbd3e3e-1427-451c-af38-c24b41e8f247",
+          "parentId": "83948614-21a4-4095-a622-ff70bf254e2f",
+          "schemaVersion": 1,
+          "type": "automation.orchestration.split-parallel.child",
+          "value": {
+            "branchName": "Branch 1",
+            "conditionMatchType": null
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "CONDITION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "b40fdf50-154c-4259-aa23-3b62b20f27b7",
+                  "parentId": "7f6c355d-0ea4-425c-a003-06cb902ca020",
+                  "schemaVersion": 3,
+                  "type": "jira.issue.condition",
+                  "value": {
+                    "compareValue": {
+                      "modifier": null,
+                      "multiValue": true,
+                      "source": null,
+                      "type": "NAME",
+                      "value": "[\"Jeff-Jones\"]"
+                    },
+                    "comparison": "CONTAINS_EXACTLY",
+                    "selectedField": {
+                      "type": "NAME",
+                      "value": "Supply Chain Lead / Global Director"
+                    },
+                    "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:labels"
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "3fb48bfc-78a6-41db-aa9b-a95bb5a7acc9",
+                  "parentId": "7f6c355d-0ea4-425c-a003-06cb902ca020",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.edit",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "NAME",
+                          "value": "Supply Chain Director"
+                        },
+                        "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                        "type": "SET",
+                        "value": [
+                          {
+                            "type": "ID",
+                            "value": "712020:c9b40ee9-0c9e-4f7b-80aa-8dc2719fc614"
+                          }
+                        ]
+                      },
+                      {
+                        "field": {
+                          "type": "NAME",
+                          "value": "Collaborators"
+                        },
+                        "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                        "type": "SET",
+                        "value": [
+                          {
+                            "type": "SMART",
+                            "value": "{{issue.Collaborators}}"
+                          },
+                          {
+                            "type": "ID",
+                            "value": "712020:315ec866-92b6-4a25-bca5-ce16a834b7a5"
+                          }
+                        ]
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                }
+              ],
+              "component": "ORCHESTRATION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "7f6c355d-0ea4-425c-a003-06cb902ca020",
+              "parentId": "fee545e1-748c-4480-bea2-a304e4bbbdd6",
+              "schemaVersion": 1,
+              "type": "automation.orchestration.fragment",
+              "value": {
+                "inputProjections": [],
+                "isOptional": false,
+                "name": "Group 3",
+                "outputProjections": []
+              }
+            }
+          ],
+          "component": "ORCHESTRATION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "fee545e1-748c-4480-bea2-a304e4bbbdd6",
+          "parentId": "83948614-21a4-4095-a622-ff70bf254e2f",
+          "schemaVersion": 1,
+          "type": "automation.orchestration.split-parallel.child",
+          "value": {
+            "branchName": "Branch 2",
+            "conditionMatchType": null
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "CONDITION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "6682f1b0-0b99-4c8c-a2cb-788fe3055db1",
+                  "parentId": "6a0bf2ee-f763-49ed-a39a-e30db36c39d4",
+                  "schemaVersion": 3,
+                  "type": "jira.issue.condition",
+                  "value": {
+                    "compareValue": {
+                      "modifier": null,
+                      "multiValue": true,
+                      "source": null,
+                      "type": "NAME",
+                      "value": "[\"Jim-Dearbaugh\"]"
+                    },
+                    "comparison": "CONTAINS_EXACTLY",
+                    "selectedField": {
+                      "type": "NAME",
+                      "value": "Supply Chain Lead / Global Director"
+                    },
+                    "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:labels"
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "68b348f6-849f-4e05-ba66-9c1e1057de91",
+                  "parentId": "6a0bf2ee-f763-49ed-a39a-e30db36c39d4",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.edit",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "NAME",
+                          "value": "Supply Chain Director"
+                        },
+                        "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                        "type": "SET",
+                        "value": [
+                          {
+                            "type": "ID",
+                            "value": "712020:2917b606-d880-44aa-a2eb-0d4e08092414"
+                          }
+                        ]
+                      },
+                      {
+                        "field": {
+                          "type": "NAME",
+                          "value": "Collaborators"
+                        },
+                        "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                        "type": "SET",
+                        "value": [
+                          {
+                            "type": "SMART",
+                            "value": "{{issue.Collaborators}}"
+                          },
+                          {
+                            "type": "ID",
+                            "value": "712020:2917b606-d880-44aa-a2eb-0d4e08092414"
+                          }
+                        ]
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                }
+              ],
+              "component": "ORCHESTRATION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "6a0bf2ee-f763-49ed-a39a-e30db36c39d4",
+              "parentId": "0b48adb6-ae48-4f1b-b5c9-e3f9c78076d3",
+              "schemaVersion": 1,
+              "type": "automation.orchestration.fragment",
+              "value": {
+                "inputProjections": [],
+                "isOptional": false,
+                "name": "Group 4",
+                "outputProjections": []
+              }
+            }
+          ],
+          "component": "ORCHESTRATION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "0b48adb6-ae48-4f1b-b5c9-e3f9c78076d3",
+          "parentId": "83948614-21a4-4095-a622-ff70bf254e2f",
+          "schemaVersion": 1,
+          "type": "automation.orchestration.split-parallel.child",
+          "value": {
+            "branchName": "Branch 3",
+            "conditionMatchType": null
+          }
+        }
+      ],
+      "component": "ORCHESTRATION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "83948614-21a4-4095-a622-ff70bf254e2f",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "automation.orchestration.instruction.split-parallel",
+      "value": {
+        "branches": [
+          {
+            "branchName": "Branch 1",
+            "components": [
+              {
+                "children": [
+                  {
+                    "children": [],
+                    "component": "CONDITION",
+                    "conditions": [],
+                    "id": "__NEW__COMPONENT__0458b90b-27e5-4e20-8bd3-f10b3787851c",
+                    "type": "jira.issue.condition",
+                    "value": {
+                      "compareValue": {
+                        "multiValue": true,
+                        "type": "NAME",
+                        "value": "[\"Amanda-Dixon-Walsh\"]"
+                      },
+                      "comparison": "CONTAINS_EXACTLY",
+                      "selectedField": {
+                        "type": "NAME",
+                        "value": "Supply Chain Lead / Global Director"
+                      },
+                      "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:labels"
+                    }
+                  },
+                  {
+                    "children": [],
+                    "component": "ACTION",
+                    "conditions": [],
+                    "id": "__NEW__COMPONENT__da3aa003-f026-4485-8ad1-d90ba66de562",
+                    "type": "jira.issue.edit",
+                    "value": {
+                      "operations": [
+                        {
+                          "field": {
+                            "type": "NAME",
+                            "value": "Supply Chain Director"
+                          },
+                          "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                          "type": "SET",
+                          "value": [
+                            {
+                              "type": "ID",
+                              "value": "712020:9041041b-755d-4351-b77c-27dbae1aab87"
+                            }
+                          ]
+                        },
+                        {
+                          "field": {
+                            "type": "NAME",
+                            "value": "Collaborators"
+                          },
+                          "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                          "type": "SET",
+                          "value": [
+                            {
+                              "type": "SMART",
+                              "value": "{{issue.collaborators}}"
+                            },
+                            {
+                              "type": "ID",
+                              "value": "712020:9041041b-755d-4351-b77c-27dbae1aab87"
+                            }
+                          ]
+                        }
+                      ],
+                      "sendNotifications": false
+                    }
+                  }
+                ],
+                "component": "ORCHESTRATION",
+                "conditions": [],
+                "id": "__NEW__COMPONENT__a7669382-f907-4332-ba66-5505ed19b852",
+                "type": "automation.orchestration.fragment",
+                "value": {
+                  "inputProjections": [],
+                  "name": "Group 1",
+                  "outputProjections": []
+                }
+              }
+            ]
+          },
+          {
+            "branchName": "Branch 2",
+            "components": [
+              {
+                "children": [
+                  {
+                    "children": [],
+                    "component": "CONDITION",
+                    "conditions": [],
+                    "id": "__NEW__COMPONENT__67b84885-7605-4f97-85b5-559d87180e63",
+                    "type": "jira.issue.condition",
+                    "value": {
+                      "compareValue": {
+                        "multiValue": true,
+                        "type": "NAME",
+                        "value": "[\"Jeff-Jones\"]"
+                      },
+                      "comparison": "CONTAINS_EXACTLY",
+                      "selectedField": {
+                        "type": "NAME",
+                        "value": "Supply Chain Lead / Global Director"
+                      },
+                      "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:labels"
+                    }
+                  },
+                  {
+                    "children": [],
+                    "component": "ACTION",
+                    "conditions": [],
+                    "id": "__NEW__COMPONENT__54ecea2e-a366-4958-9cf3-5e7ab1486cb6",
+                    "type": "jira.issue.edit",
+                    "value": {
+                      "operations": [
+                        {
+                          "field": {
+                            "type": "NAME",
+                            "value": "Supply Chain Director"
+                          },
+                          "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                          "type": "SET",
+                          "value": [
+                            {
+                              "type": "ID",
+                              "value": "712020:c9b40ee9-0c9e-4f7b-80aa-8dc2719fc614"
+                            }
+                          ]
+                        },
+                        {
+                          "field": {
+                            "type": "NAME",
+                            "value": "Collaborators"
+                          },
+                          "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                          "type": "SET",
+                          "value": [
+                            {
+                              "type": "SMART",
+                              "value": "{{issue.Collaborators}}"
+                            },
+                            {
+                              "type": "ID",
+                              "value": "712020:315ec866-92b6-4a25-bca5-ce16a834b7a5"
+                            }
+                          ]
+                        }
+                      ],
+                      "sendNotifications": false
+                    }
+                  }
+                ],
+                "component": "ORCHESTRATION",
+                "conditions": [],
+                "id": "__NEW__COMPONENT__ca43bf49-3310-46d4-9acb-630307bfd998",
+                "type": "automation.orchestration.fragment",
+                "value": {
+                  "inputProjections": [],
+                  "name": "Group 3",
+                  "outputProjections": []
+                }
+              }
+            ]
+          },
+          {
+            "branchName": "Branch 3",
+            "components": [
+              {
+                "children": [
+                  {
+                    "children": [],
+                    "component": "CONDITION",
+                    "conditions": [],
+                    "id": "__NEW__COMPONENT__501b7152-5594-443f-b92c-b9c59111939f",
+                    "type": "jira.issue.condition",
+                    "value": {
+                      "compareValue": {
+                        "multiValue": true,
+                        "type": "NAME",
+                        "value": "[\"Jim-Dearbaugh\"]"
+                      },
+                      "comparison": "CONTAINS_EXACTLY",
+                      "selectedField": {
+                        "type": "NAME",
+                        "value": "Supply Chain Lead / Global Director"
+                      },
+                      "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:labels"
+                    }
+                  },
+                  {
+                    "children": [],
+                    "component": "ACTION",
+                    "conditions": [],
+                    "id": "__NEW__COMPONENT__bfdab7df-2a18-4e32-8d2f-5911f9914f4b",
+                    "type": "jira.issue.edit",
+                    "value": {
+                      "operations": [
+                        {
+                          "field": {
+                            "type": "NAME",
+                            "value": "Supply Chain Director"
+                          },
+                          "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                          "type": "SET",
+                          "value": [
+                            {
+                              "type": "ID",
+                              "value": "712020:2917b606-d880-44aa-a2eb-0d4e08092414"
+                            }
+                          ]
+                        },
+                        {
+                          "field": {
+                            "type": "NAME",
+                            "value": "Collaborators"
+                          },
+                          "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                          "type": "SET",
+                          "value": [
+                            {
+                              "type": "SMART",
+                              "value": "{{issue.Collaborators}}"
+                            },
+                            {
+                              "type": "ID",
+                              "value": "712020:2917b606-d880-44aa-a2eb-0d4e08092414"
+                            }
+                          ]
+                        }
+                      ],
+                      "sendNotifications": false
+                    }
+                  }
+                ],
+                "component": "ORCHESTRATION",
+                "conditions": [],
+                "id": "__NEW__COMPONENT__a0c285ec-7d78-4a47-9d7c-b67c702459b6",
+                "type": "automation.orchestration.fragment",
+                "value": {
+                  "inputProjections": [],
+                  "name": "Group 4",
+                  "outputProjections": []
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1763596221629,
+  "description": "",
+  "id": 30862194,
+  "idUuid": "019a9e86-bcbd-78e1-9132-452feefc2742",
+  "labels": [],
+  "name": "Update Supply Chain Director fields",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [
+    {
+      "tagType": "ORCHESTRATION_CONFIG_ID",
+      "tagValue": "83185927-c5a2-11f0-9b0e-a5377e8efbfc"
+    },
+    {
+      "tagType": "ORCHESTRATION_VERSION",
+      "tagValue": "1"
+    },
+    {
+      "tagType": "ORCHESTRATION",
+      "tagValue": null
+    }
+  ],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "ab09447c-44ad-442d-bf7a-879142fa3485",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "project = GSM and \"Supply Chain Lead / Global Director\" is not empty",
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/Los_Angeles:20251119T154043\nRRULE:FREQ=WEEKLY;BYHOUR=9;BYMINUTE=0;BYSECOND=0;BYDAY=WE;INTERVAL=1\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1763596221629,
+  "writeAccessType": "UNRESTRICTED"
+}

@@ -1,0 +1,78 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555646855",
+      "parentId": null,
+      "schemaVersion": 2,
+      "type": "jira.issue.comment",
+      "value": {
+        "addCommentOnce": true,
+        "comment": "Hello [~{{issue.assignee.accountId}}],\n\nThe \"CE1 Platform\" option for the ADVEV Vehicle Program field has been disabled in favor of the new ADVEV Vehicle Platform field. The CE1 option has already been added to account for this change.\n\nAction:\nFor accuracy in reporting, please select the appropriate value for the ADVEV Vehicle Program (P833, Not applicable, etc.) on this issue at your earliest convenience.",
+        "commentVisibility": null,
+        "publicComment": false,
+        "sendNotifications": true
+      }
+    }
+  ],
+  "created": 1721424003066,
+  "description": "",
+  "id": 20605554,
+  "idUuid": "0190ccdd-bffa-77b3-9656-cf958c0f4dff",
+  "labels": [],
+  "name": "comment on CE1 platform issues to change the value",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "555646851",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "\"ADVEV Vehicle Program[Dropdown]\"= \"CE1 Platform\" and project NOT IN (\"ADVEV Digital Transformation\",\"ADVEV Support\",\"ADVEV Software Tools\",\"ADVEV Vehicle Development Framework\") AND reporter not in (712020:10e644de-d96b-4816-9029-d6cf8f0aec37, 712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6,712020:85f2fb94-1e54-45c4-a961-b4af65b3ae3c)",
+      "onlyUpdatedIssues": true,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/Los_Angeles:20240719T141345\nRRULE:FREQ=WEEKLY;BYHOUR=9;BYMINUTE=0;BYSECOND=0;BYDAY=FR;INTERVAL=1\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1721424003066,
+  "writeAccessType": "UNRESTRICTED"
+}

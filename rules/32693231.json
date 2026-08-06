@@ -1,0 +1,147 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "640f7cdb407493675d4506a5",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "d9c7e266-e086-49d1-99bd-808eada159ab",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "msteams.notification",
+      "value": {
+        "body": "Issue Details:\n- **Issue Key & Summary:** {{issue.key}} — {{issue.summary}} \n- **Severity:** {{issue.customfield_11354}} \n- **Reporter:** {{issue.reporter.displayName}} \n- **Vehicle ID:** {{issue.customfield_15903.first.value}}\n- **SW Version:** {{issue.customfield_20443.child.value}}\n\nYou can view the issue here: {{issue.toUrl}}",
+        "imageUrl": "https://d283vu6e5qi87p.cloudfront.net/automation/prod/automation-logo.svg",
+        "includeIssueSummary": false,
+        "subTitle": "",
+        "teamsWorkflowURL": "https://defaultc990bb7a51f4439bbd369c07fb1041.c0.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/ca0ac793650a40bf8cde724ccf3e39cd/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=aCSJjuMrNyoJ8nl-R_FbQp6dQUe4s1PJ6y9fJi9zg1M",
+        "teamsWorkflowUrlSecure": false,
+        "title": "A {{issue.customfield_11354}} Issue Has Been Created",
+        "webhookUrl": ""
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "37643286-8397-42e7-b6fe-49ac33bd4884",
+      "parentId": null,
+      "schemaVersion": 2,
+      "type": "jira.issue.comment",
+      "value": {
+        "addCommentOnce": true,
+        "comment": "🔗 [View Triage Discussion Thread in Teams|https://teams.microsoft.com/l/channel/19%3Aa-hdCk3aD2clT2dZjCirMxMSE4UCR0su5sK_eD7IWYY1%40thread.tacv2/Workflow%20Automation%20Staging%20Channel?groupId=437ddf60-306d-49f8-8992-6eadcecdab3c&tenantId=c990bb7a-51f4-439b-bd36-9c07fb1041c0&searchQuery={{issue.key}}]\nContact Erin Beaver ([ebeaver1@ford.com|mailto:ebeaver1@ford.com]) for access",
+        "commentVisibility": null,
+        "publicComment": false,
+        "sendNotifications": true
+      }
+    }
+  ],
+  "created": 1775048856865,
+  "description": "",
+  "id": 32693231,
+  "idUuid": "019d4928-1521-7eab-bbbd-70544980a351",
+  "labels": [],
+  "name": "DEV: Post to Microsoft Teams for P0/P1 PVFM Issues",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10816"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10816"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "aa5fccc0-c55b-492c-a205-6af70ef9e6b8",
+        "conditions": [],
+        "connectionId": null,
+        "id": "3b09a10f-91b7-45ac-a9c6-2ff1a9e878f0",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "10147"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "aa5fccc0-c55b-492c-a205-6af70ef9e6b8",
+        "conditions": [],
+        "connectionId": null,
+        "id": "67448936-5d66-4859-b5e7-27ecfdd29582",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": true,
+            "source": null,
+            "type": "NAME",
+            "value": "[\"0: Vehicle Grounded\",\"1: Vehicle Functionality Degraded\"]"
+          },
+          "comparison": "ONE_OF",
+          "selectedField": {
+            "type": "NAME",
+            "value": "Severity"
+          },
+          "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "aa5fccc0-c55b-492c-a205-6af70ef9e6b8",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10816"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1781198853264,
+  "writeAccessType": "UNRESTRICTED"
+}

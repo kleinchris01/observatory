@@ -1,0 +1,184 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:c9c3dfc4-eef5-4087-8b1a-8ee188485a9b",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "b9b14e9f-61cf-4960-8901-4a91408dd42a",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Duration (days)"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+            "type": "SET",
+            "value": "{{issue.Start Date.diff(issue.Due date).days}}"
+          }
+        ],
+        "sendNotifications": false
+      }
+    }
+  ],
+  "created": 1781711113043,
+  "description": "Duration (Days) calculation for CAEPT project when date fields change.",
+  "id": 33660714,
+  "idUuid": "019ed642-0b53-7607-b3c8-7b98de6e0bad",
+  "labels": [],
+  "name": "Duration (Days) calculation for CAEPT project when date fields change.",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11112"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11112"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "a56fb513-5b8d-4cfb-ac69-ff0e1dd1d338",
+        "conditions": [],
+        "connectionId": null,
+        "id": "92222983-cbdd-4a96-8d00-192b5fafc68e",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "11112"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "project"
+          },
+          "selectedFieldType": "project"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "a56fb513-5b8d-4cfb-ac69-ff0e1dd1d338",
+        "conditions": [],
+        "connectionId": null,
+        "id": "011ffadc-dfdc-4e67-9f53-6f69471319e6",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": true,
+            "source": null,
+            "type": "ID",
+            "value": "[\"11188\",\"11189\",\"10022\",\"11190\"]"
+          },
+          "comparison": "ONE_OF",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "a56fb513-5b8d-4cfb-ac69-ff0e1dd1d338",
+        "conditions": [],
+        "connectionId": null,
+        "id": "d6fd3a32-f8f5-4924-a7aa-4e9d03fe46ff",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": null,
+          "comparison": "NOT_EMPTY",
+          "selectedField": {
+            "type": "ID",
+            "value": "duedate"
+          },
+          "selectedFieldType": "duedate"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "a56fb513-5b8d-4cfb-ac69-ff0e1dd1d338",
+        "conditions": [],
+        "connectionId": null,
+        "id": "8d3df96a-1f11-46a4-b495-4a2fb06b7ebb",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": null,
+          "comparison": "NOT_EMPTY",
+          "selectedField": {
+            "type": "NAME",
+            "value": "Start date"
+          },
+          "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:datepicker"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "a56fb513-5b8d-4cfb-ac69-ff0e1dd1d338",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11112"
+      ],
+      "fields": [
+        {
+          "type": "field",
+          "value": "duedate"
+        },
+        {
+          "type": "fieldName",
+          "value": "Start date"
+        }
+      ]
+    }
+  },
+  "updated": 1781711824708,
+  "writeAccessType": "OWNER_ONLY"
+}

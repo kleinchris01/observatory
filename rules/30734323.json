@@ -1,0 +1,144 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "699a2fd4-d4a4-4d24-bd11-358436252cc3",
+      "parentId": null,
+      "schemaVersion": 10,
+      "type": "jira.sd.create.request",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "summary"
+            },
+            "fieldType": "summary",
+            "type": "SET",
+            "value": "Audit 3rd Party Plugins for License Expiration"
+          },
+          {
+            "field": {
+              "type": "NAME",
+              "value": "ADT Tool(s)"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+            "type": "SET",
+            "value": [
+              {
+                "type": "NAME",
+                "value": "Jira"
+              },
+              {
+                "type": "NAME",
+                "value": "Confluence"
+              }
+            ]
+          }
+        ],
+        "requestType": "1469",
+        "sendNotifications": false,
+        "serviceDesk": "3"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "c9dd988d-eab5-4789-813a-e69440ffd5e6",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "action.send-templated-email",
+      "value": {
+        "convertLineBreaks": false,
+        "legacyConfig": true,
+        "sendGroupedEmails": false,
+        "templateContextData": {
+          "body": "{\"version\":1,\"type\":\"doc\",\"content\":[{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"Hello ADVEV Connect Team,\"}]},{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"This is a reminder that our Confluence plugins are expiring on the 5th of the month and we need to instantiate the trials to ensure we do not lose access for end users.\"}]},{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"Please follow up with Dave and the hub team to ensure we have continuity of service.\"}]},{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"Best,\"}]},{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"Automation for Jira\"}]}]}",
+          "bodyType": "ADF",
+          "emailName": "Confluence Plugin Trials are Expiring Soon",
+          "fromEmailAddress": "jira@ford-advev.atlassian.net",
+          "fromName": "Automation for Jira",
+          "subject": "Confluence Plugin Trials are Expiring Soon"
+        },
+        "to": [
+          {
+            "type": "FREE",
+            "value": "jpolman1@ford.com"
+          },
+          {
+            "type": "FREE",
+            "value": "cklein50@ford.com"
+          },
+          {
+            "type": "FREE",
+            "value": "rkhatcha@ford.com"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1762374238946,
+  "description": "This rule creates a new General Request in the AETS project with the summary 'Audit 3rd Party Plugins for Trial Expiration' on a scheduled basis.",
+  "id": 30734323,
+  "idUuid": "019a55b0-c2e2-7287-9308-16df0e0800b7",
+  "labels": [],
+  "name": "Audit 3rd Party Plugins for Trial Expiration",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "2c41eebb-b5ed-4f1e-84e7-d1187000a4d8",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "nosearch",
+      "jql": null,
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=US/Pacific:20230415T132800\nRRULE:FREQ=MONTHLY;INTERVAL=1;BYHOUR=7;BYMINUTE=0;BYSECOND=0;BYMONTHDAY=1\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1770159325275,
+  "writeAccessType": "UNRESTRICTED"
+}

@@ -1,0 +1,408 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "6dfbe68f-979a-4fc9-9067-5cae0c3f6da8",
+              "parentId": "bf3b1051-3d28-4024-bb3e-a21e2ff548ac",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Part Maturity"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "Production"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "bf3b1051-3d28-4024-bb3e-a21e2ff548ac",
+              "conditions": [],
+              "connectionId": null,
+              "id": "9a39d981-cdd8-4e33-b8d9-2711930cc691",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{issue.customfield_15714.Part Maturity Status}}",
+                "operator": "CONTAINS",
+                "second": "Production"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "bf3b1051-3d28-4024-bb3e-a21e2ff548ac",
+          "parentId": "51f88437-a1cd-4f9f-acab-fa69cc57ddd4",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "a9bd01a0-6675-4cf1-a61e-119d35f29eab",
+              "parentId": "b036448c-3954-4dca-87ce-5bbfbdf9fc39",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Part Maturity"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "Tooled"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "b036448c-3954-4dca-87ce-5bbfbdf9fc39",
+              "conditions": [],
+              "connectionId": null,
+              "id": "3e15941d-64a0-4b8c-9a6c-e1cc2230ed7f",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{issue.customfield_15714.Part Maturity Status}}",
+                "operator": "CONTAINS",
+                "second": "Tooled"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "b036448c-3954-4dca-87ce-5bbfbdf9fc39",
+          "parentId": "51f88437-a1cd-4f9f-acab-fa69cc57ddd4",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "26f293c3-24fc-4b60-8668-3dbd531c1826",
+              "parentId": "bc66f978-4b4f-46ab-a32a-ac095d22f10f",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Part Maturity"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "Prototype"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "bc66f978-4b4f-46ab-a32a-ac095d22f10f",
+              "conditions": [],
+              "connectionId": null,
+              "id": "f71fe0aa-26e1-4a38-b5be-138f4701d2cc",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{issue.customfield_15714.Part Maturity Status}}",
+                "operator": "CONTAINS",
+                "second": "Prototype"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "bc66f978-4b4f-46ab-a32a-ac095d22f10f",
+          "parentId": "51f88437-a1cd-4f9f-acab-fa69cc57ddd4",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "a31ea075-393d-47bd-bef6-00d79c28a0d7",
+              "parentId": "83fd6c4f-656f-4ba7-9093-36927d70f3c9",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Part Maturity"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "Virtual"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "83fd6c4f-656f-4ba7-9093-36927d70f3c9",
+              "conditions": [],
+              "connectionId": null,
+              "id": "1e6a621a-9f78-4fae-9147-c9d9ae2e052c",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{issue.customfield_15714.Part Maturity Status}}",
+                "operator": "CONTAINS",
+                "second": "Virtual"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "83fd6c4f-656f-4ba7-9093-36927d70f3c9",
+          "parentId": "51f88437-a1cd-4f9f-acab-fa69cc57ddd4",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "35ffce68-3306-43ee-9d3a-c243d39920b0",
+              "parentId": "0aa42b77-b88b-4435-991d-bdb12a1417a3",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Part Maturity"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": null
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "0aa42b77-b88b-4435-991d-bdb12a1417a3",
+          "parentId": "51f88437-a1cd-4f9f-acab-fa69cc57ddd4",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "51f88437-a1cd-4f9f-acab-fa69cc57ddd4",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "ed8b7e3d-75ad-408f-bc7e-b4da02d81dff",
+      "parentId": null,
+      "schemaVersion": 2,
+      "type": "jira.issue.comment",
+      "value": {
+        "addCommentOnce": false,
+        "comment": "Part Maturity updated based on the modified Part Numbers.",
+        "commentVisibility": null,
+        "publicComment": false,
+        "sendNotifications": true
+      }
+    }
+  ],
+  "created": 1778748988136,
+  "description": "This automation updates the Part Maturity field based on the highest-level Part Maturity Status of the Part Number(s) Asset Object Field.\n\nThe hierarchy is as follows: Production > Tooled > Prototype > Virtual",
+  "id": 33271746,
+  "idUuid": "019e25b3-9ae8-717c-9b70-a0c661c69ff6",
+  "labels": [],
+  "name": "SOLVE: Issue - Set Part Maturity Status on Part Number Change",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "a76a16fb-b4f7-4ef1-a598-800ee2b31ccf",
+        "conditions": [],
+        "connectionId": null,
+        "id": "75b4dc99-e86b-434d-8ce4-9cdcfc8da3d5",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "13364"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "a76a16fb-b4f7-4ef1-a598-800ee2b31ccf",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [
+        "edit",
+        "transition",
+        "assign"
+      ],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Parts"
+        }
+      ]
+    }
+  },
+  "updated": 1781192240915,
+  "writeAccessType": "UNRESTRICTED"
+}

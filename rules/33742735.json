@@ -1,0 +1,115 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:975c8bf8-d86c-4dee-842f-4e9c3c3a541e",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "fb67b615-44b1-41a6-86a1-48377bc95b7b",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.proforma.form.change.status.action",
+      "value": {
+        "formStatus": "OPEN",
+        "templateFormsConfiguration": {
+          "projectId": 13141,
+          "templateFormIds": [
+            "1f5cab4e-8e96-450c-b67a-bc3daac0e12b"
+          ]
+        }
+      }
+    }
+  ],
+  "created": 1782470389915,
+  "description": "This automation updates the status of the Solution Matrix Form to Open for Edits on work item transition",
+  "id": 33742735,
+  "idUuid": "019f0383-b09b-7133-a226-bc5661a3c971",
+  "labels": [],
+  "name": "SOLVE: Issue - Update Solution Matrix Forms Status to Open for Edits Depending on Issue Transition",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "af4342c2-8a0e-4a59-b507-641c5174ff49",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:transitioned",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+      ],
+      "eventKey": "jira:issue_updated",
+      "fromStatus": [
+        {
+          "type": "NAME",
+          "value": "Completed"
+        },
+        {
+          "type": "NAME",
+          "value": "Solution In-Progress"
+        },
+        {
+          "type": "NAME",
+          "value": "Released (Pending Verification)"
+        },
+        {
+          "type": "NAME",
+          "value": "Pending Prevention"
+        },
+        {
+          "type": "NAME",
+          "value": "In Approval"
+        }
+      ],
+      "issueEvent": "issue_generic",
+      "toStatus": [
+        {
+          "type": "NAME",
+          "value": "Pending Containment"
+        },
+        {
+          "type": "NAME",
+          "value": "Triaging"
+        },
+        {
+          "type": "NAME",
+          "value": "Pending Root Cause"
+        },
+        {
+          "type": "NAME",
+          "value": "Pending Solution Definition"
+        }
+      ]
+    }
+  },
+  "updated": 1782748606573,
+  "writeAccessType": "OWNER_ONLY"
+}

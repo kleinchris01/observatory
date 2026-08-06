@@ -1,0 +1,180 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "594502b1-93c8-4415-ba00-27f6a75ca307",
+              "parentId": "d6c2aa33-9dab-497b-9872-f310424bbf58",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "External Share Warning"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                    "type": "SET",
+                    "value": "{panel:bgColor=#FFF7D6|borderColor=#FFAB00}\nh3. *{color:#ff5630}Warning!{color} This work item is shared with an External Supplier.*\nAny changes will be visible with the supplier.\n{panel}"
+                  }
+                ],
+                "sendNotifications": false
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "d6c2aa33-9dab-497b-9872-f310424bbf58",
+              "conditions": [],
+              "connectionId": null,
+              "id": "ce6b362e-43aa-43a2-be69-00aa09f96740",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": null,
+                "comparison": "NOT_EMPTY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Supplier Contacts"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "d6c2aa33-9dab-497b-9872-f310424bbf58",
+          "parentId": "90a5740b-32d8-4529-8ce2-cf0f01e53731",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "8e8674a2-e196-4db3-9bd1-0b7bff1acd74",
+              "parentId": "b9eec54e-f410-4f2f-8baf-51c46b365e5b",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "External Share Warning"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                    "type": "SET",
+                    "value": ""
+                  }
+                ],
+                "sendNotifications": false
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "b9eec54e-f410-4f2f-8baf-51c46b365e5b",
+          "parentId": "90a5740b-32d8-4529-8ce2-cf0f01e53731",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "90a5740b-32d8-4529-8ce2-cf0f01e53731",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1778750210818,
+  "description": "This automation displays the warning banner in the External Share Warning field when a SOLVE ticket is shared to a supplier.",
+  "id": 33271879,
+  "idUuid": "019e25c6-4302-7276-89b2-6e605754ec93",
+  "labels": [],
+  "name": "SOLVE: Issue - Show Warning Message when Shared with Supplier",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "3b673761-3bfc-4a88-b13b-32e2efcedd10",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [
+        "edit",
+        "transition"
+      ],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Supplier Contacts"
+        }
+      ]
+    }
+  },
+  "updated": 1782823006181,
+  "writeAccessType": "OWNER_ONLY"
+}

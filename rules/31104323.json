@@ -1,0 +1,139 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "6400d1457c30bbd6b33ec121",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "a8af7aeb-6f93-47bc-bd8d-7d03498e698d",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": true,
+          "source": null,
+          "type": "NAME",
+          "value": "[\"Megatron\"]"
+        },
+        "comparison": "CONTAINS_ANY",
+        "selectedField": {
+          "type": "ID",
+          "value": "labels"
+        },
+        "selectedFieldType": "labels"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "37f520e2-f365-469a-9647-46e3b13f0d16",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "action.send-templated-email",
+      "value": {
+        "convertLineBreaks": false,
+        "legacyConfig": true,
+        "sendGroupedEmails": false,
+        "templateContextData": {
+          "body": "{\"version\":1,\"type\":\"doc\",\"content\":[{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"New Jira Work Item with Megatron Label created.\"}]},{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"{{issue.key}}\",\"marks\":[{\"type\":\"code\"}]}]}]}",
+          "bodyType": "ADF",
+          "emailName": "Megatron Jira Work Item Created",
+          "fromEmailAddress": "jira@ford-advev.atlassian.net",
+          "subject": "Megatron Jira Work Item Created"
+        },
+        "to": [
+          {
+            "type": "FREE",
+            "value": "arhyndre@ford.com"
+          }
+        ]
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "86922c57-3a9f-4f91-97ac-b346e7d81c23",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "action.send-templated-email",
+      "value": {
+        "convertLineBreaks": false,
+        "legacyConfig": true,
+        "sendGroupedEmails": false,
+        "templateContextData": {
+          "body": "{\"version\":1,\"type\":\"doc\",\"content\":[{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"{{issue.key}}\",\"marks\":[{\"type\":\"code\"}]}]}]}",
+          "bodyType": "ADF",
+          "emailName": "Megatron Jira Work Item Created",
+          "fromEmailAddress": "jira@ford-advev.atlassian.net",
+          "subject": "Megatron Jira Work Item Created"
+        },
+        "to": [
+          {
+            "type": "FREE",
+            "value": "arhyndre@ford.com"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1765472256676,
+  "description": "",
+  "id": 31104323,
+  "idUuid": "019b0e58-c2a3-7694-8e7a-d92bfbcbe501",
+  "labels": [],
+  "name": "Megatron Jira Work Item Created",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10101"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10101"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "bb1871dd-58e1-4692-99d6-3d5b9cddbc38",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10101"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1765472256676,
+  "writeAccessType": "UNRESTRICTED"
+}

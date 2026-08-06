@@ -1,0 +1,248 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:10e644de-d96b-4816-9029-d6cf8f0aec37",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "474372649",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.outgoing.webhook",
+      "value": {
+        "contentType": "empty",
+        "continueOnErrorEnabled": false,
+        "customBody": null,
+        "headers": [
+          {
+            "headerSecure": false,
+            "id": "_header_1718066537081",
+            "name": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "headerSecure": false,
+            "id": "_header_1718066573830",
+            "name": "Accept",
+            "value": "application/json"
+          },
+          {
+            "headerSecure": false,
+            "id": "_header_1718066578785",
+            "name": "Authorization",
+            "value": "Bearer [[REDACTED:2fc905f4]]"
+          }
+        ],
+        "method": "GET",
+        "responseEnabled": true,
+        "sendIssue": false,
+        "url": "https://www.eesewiki.ford.com/rest/api/search?cql=type=page+and+space=ADT",
+        "urlSecure": false
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "474372651",
+          "parentId": "474372650",
+          "schemaVersion": 1,
+          "type": "jira.create.variable",
+          "value": {
+            "id": "_customsmartvalue_id_1718067067545",
+            "lazy": false,
+            "name": {
+              "type": "FREE",
+              "value": "space"
+            },
+            "query": {
+              "type": "SMART",
+              "value": "{{results._expandable.space.split(\"space/\").last}}"
+            },
+            "type": "SMART"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "474372652",
+          "parentId": "474372650",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "{{space}}"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "474372653",
+          "parentId": "474372650",
+          "schemaVersion": 1,
+          "type": "cmdb.lookup.objects",
+          "value": {
+            "customSmartValue": {
+              "id": "_customsmartvalue_id_1718069336459",
+              "lazy": false,
+              "name": {
+                "type": "FREE",
+                "value": "lookupObjects"
+              },
+              "query": {
+                "type": "SMART",
+                "value": "\"id\"={{results.id}}"
+              },
+              "type": "IQL"
+            },
+            "schemaId": "12",
+            "searchResultsLimit": 100,
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "474372654",
+          "parentId": "474372650",
+          "schemaVersion": 1,
+          "type": "jira.comparator.condition",
+          "value": {
+            "first": "{{lookupObjects}}",
+            "operator": "NOT_EQUALS",
+            "second": ""
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "474372655",
+          "parentId": "474372650",
+          "schemaVersion": 1,
+          "type": "jira.issue.outgoing.webhook",
+          "value": {
+            "contentType": "custom",
+            "continueOnErrorEnabled": false,
+            "customBody": "{\n    \"objectTypeId\": \"56\",\n  \"attributes\": [\n    {\n      \"objectTypeAttributeId\": \"465\",\n      \"objectAttributeValues\": [\n        {\n          \"value\": \"{{results.status}}\"\n        }\n      ]\n    },\n   \n {\n      \"objectTypeAttributeId\": \"461\",\n      \"objectAttributeValues\": [\n        {\n          \"value\": \"{{results.title}}\"\n        }\n      ]\n    }\n]\n}",
+            "headers": [
+              {
+                "headerSecure": false,
+                "id": "_header_1718072040515",
+                "name": "Accept",
+                "value": "application/json"
+              },
+              {
+                "headerSecure": false,
+                "id": "_header_1718072521746",
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "headerSecure": false,
+                "id": "_header_1718072522375",
+                "name": "Authorization",
+                "value": "Basic anBvbG1hbjFAZm9yZC5jb206QVRBVFQzeEZmR0YwdnVfWFBhSHZicjhqWkxCY0FGZ2NWZmNPUHYxUzhFQWpBbWQtbG10T3hCZGNPMnNBS1F0c2liZi02MWdyeVJYQ1l3elRtNGIxWXM5WjhBU1dnV3ZwVEkxdFFRS09kY1k1WE1xTUpuX2tDU1BGMEp0MmhlWjFRQjBpNTd6dW1aRTNGdnlNa0UwZllqaXcxWHY3SlpXOGpGUkh6S21WazF5ZGxqaDdZRTJjX1prPTlGQkE1NDU5"
+              }
+            ],
+            "method": "PUT",
+            "responseEnabled": true,
+            "sendIssue": false,
+            "url": "https://api.atlassian.com/jsm/insight/workspace/c77afb26-c55c-4af4-861f-5e2907f8719d/v1/object/{{lookupObjects.Id}}",
+            "urlSecure": false
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "474372650",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.smart.values.branch",
+      "value": {
+        "id": "_customsmartvalue_id_1718066685571",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "results"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{webhookResponse.body.results.content}}"
+        },
+        "type": "SMART"
+      }
+    }
+  ],
+  "created": 1718073155019,
+  "description": "",
+  "id": 19873878,
+  "idUuid": "01900523-ddcb-79f9-82ae-1089d2c50208",
+  "labels": [],
+  "name": "Confluence Space Synchronizer - Edit",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "474372648",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "nosearch",
+      "jql": "",
+      "onlyUpdatedIssues": true,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/Denver:20240610T184140\nRRULE:FREQ=WEEKLY;BYHOUR=9;BYMINUTE=0;BYSECOND=0;BYDAY=MO;INTERVAL=1\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1718981771718,
+  "writeAccessType": "UNRESTRICTED"
+}

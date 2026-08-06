@@ -1,0 +1,173 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:5c26858c-30b6-4481-943d-ea8df46c8526",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "599699075",
+              "parentId": "599699072",
+              "schemaVersion": 5,
+              "type": "jira.issue.outgoing.email",
+              "value": {
+                "bcc": [],
+                "body": "Hello {{issue.Assignee.displayName}},\n\nThe following tasks  are pending and there is no progress\n\n<a href=\"{{issue.url}}\">{{issue.key}} - {{issue.summary}}</a>\n\n\nRegards,\n\nJira Automation",
+                "cc": [
+                  {
+                    "type": "COPY",
+                    "value": "customfield_11090"
+                  }
+                ],
+                "convertLineBreaks": true,
+                "fromName": "",
+                "mimeType": "text/html",
+                "replyTo": "",
+                "subject": "Due Date crossed and there is no progress",
+                "to": [
+                  {
+                    "type": "COPY",
+                    "value": "assignee"
+                  }
+                ]
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "599699072",
+              "conditions": [],
+              "connectionId": null,
+              "id": "599699073",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "VALUE",
+                  "value": "{\"type\":\"RELATIVE\",\"relativeValue\":{\"interval\":\"DAYS\",\"tense\":\"FROM_NOW\",\"amount\":\"30\"}}"
+                },
+                "comparison": "IS_AFTER",
+                "selectedField": {
+                  "type": "ID",
+                  "value": "duedate"
+                },
+                "selectedFieldType": "duedate"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "599699072",
+              "conditions": [],
+              "connectionId": null,
+              "id": "599699074",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "Done"
+                },
+                "comparison": "NOT_EQUAL",
+                "selectedField": {
+                  "type": "ID",
+                  "value": "status"
+                },
+                "selectedFieldType": "status"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "599699072",
+          "parentId": "599699071",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "599699071",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1720694233485,
+  "description": "",
+  "id": 20438276,
+  "idUuid": "0190a15e-598d-7feb-bc51-7c0bc239f374",
+  "labels": [],
+  "name": "Due Date crossed and there is no progress",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10102"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10102"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "599699070",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "(ISSUE IN portfolioChildIssuesOf(\"PTME-3605\") OR  ISSUE IN portfolioChildIssuesOf(\"PTME-3604\") OR ISSUE IN portfolioChildIssuesOf(\"PTME-3603\") OR ISSUE IN portfolioChildIssuesOf(\"PTME-3602\") OR ISSUE IN portfolioChildIssuesOf(\"PTME-3570\") OR ISSUE IN portfolioChildIssuesOf(\"PTME-3564\") OR ISSUE IN portfolioChildIssuesOf(\"PTME-3546\") OR ISSUE IN portfolioChildIssuesOf(\"PTME-3526\") OR ISSUE IN portfolioChildIssuesOf(\"PTME-3520\") OR ISSUE IN portfolioChildIssuesOf(\"PTME-3242\") OR ISSUE IN portfolioChildIssuesOf(\"PTME-525\") OR ISSUE IN portfolioChildIssuesOf(\"PTME-524\") OR ISSUE IN portfolioChildIssuesOf(\"PTME-523\") OR ISSUE IN portfolioChildIssuesOf(\"PTME-522\") OR ISSUE IN portfolioChildIssuesOf(\"PTME-521\") OR ISSUE IN portfolioChildIssuesOf(\"PTME-520\") OR ISSUE IN portfolioChildIssuesOf(\"PTME-519\") OR ISSUE IN portfolioChildIssuesOf(\"PTME-182\") OR ISSUE IN portfolioChildIssuesOf(\"PTME-181\") OR ISSUE IN portfolioChildIssuesOf(\"PTME-180\") OR ISSUE IN portfolioChildIssuesOf(\"PTME-179\") OR ISSUE IN portfolioChildIssuesOf(\"PTME-178\") OR ISSUE IN portfolioChildIssuesOf(\"PTME-177\") OR ISSUE IN portfolioChildIssuesOf(\"PTME-176\") OR ISSUE IN portfolioChildIssuesOf(\"PTME-175\") OR ISSUE IN portfolioChildIssuesOf(\"PTME-174\") OR ISSUE IN portfolioChildIssuesOf(\"PTME-172\") OR ISSUE IN portfolioChildIssuesOf(\"PTME-171\") OR ISSUE IN portfolioChildIssuesOf(\"PTME-170\") OR ISSUE IN portfolioChildIssuesOf(\"PTME-169\") OR ISSUE IN portfolioChildIssuesOf(\"PTME-167\"))",
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/Chihuahua:20240711T160100\nRRULE:FREQ=DAILY;BYHOUR=9;BYMINUTE=0;BYSECOND=0;INTERVAL=7\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1727672130241,
+  "writeAccessType": "UNRESTRICTED"
+}

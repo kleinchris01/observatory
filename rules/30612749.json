@@ -1,0 +1,122 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:4c1c0b0f-7c6e-425d-8cc3-7fc662219281",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "176f1bfc-1045-41e2-b818-e27166e4c154",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "action.send-templated-email",
+      "value": {
+        "convertLineBreaks": false,
+        "legacyConfig": true,
+        "sendGroupedEmails": false,
+        "templateContextData": {
+          "body": "{\"version\":1,\"type\":\"doc\",\"content\":[{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"Hello, \"}]},{\"type\":\"paragraph\",\"content\":[]},{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"You have created \"},{\"type\":\"text\",\"text\":\"{{issue.url}}.\",\"marks\":[{\"type\":\"code\"}]}]},{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"Please reference this email for EEAI number and status moving forward.\"}]},{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"Cheers\"}]},{\"type\":\"paragraph\",\"content\":[{\"type\":\"text\",\"text\":\"Joshua Yakel\"}]}]}",
+          "bodyType": "ADF",
+          "emailName": "EEAI Initiated",
+          "fromEmailAddress": "jira@ford-advev.atlassian.net",
+          "fromName": "Joshua Yakel",
+          "replyToEmailAddress": "jyakel@ford.com",
+          "replyToName": "",
+          "subject": "EEAI Initiated"
+        },
+        "to": [
+          {
+            "type": "COPY",
+            "value": "assignee"
+          },
+          {
+            "type": "COPY",
+            "value": "customfield_11090"
+          },
+          {
+            "type": "COPY",
+            "value": "reporter"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1761257535907,
+  "description": "",
+  "id": 30612749,
+  "idUuid": "019a1321-39a1-74ec-8da8-8ce76bf30373",
+  "labels": [],
+  "name": "Yakel Rule",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10520"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10520"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "ef6bb7a7-e0e7-456b-8c19-835ecf4a4417",
+        "conditions": [],
+        "connectionId": null,
+        "id": "1fb86884-0328-4150-987d-e35a3f96ee75",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "10038"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "ef6bb7a7-e0e7-456b-8c19-835ecf4a4417",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10520"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1761418021247,
+  "writeAccessType": "UNRESTRICTED"
+}

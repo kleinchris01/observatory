@@ -1,0 +1,86 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:a9c23f2a-398a-482c-a7af-bfef117d6726",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "4b124268-d177-4cde-8ea4-dbdc6c8d5a4f",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": "{\n    \"fields\": {\n        \"customfield_11419\": [\"{{issue.parent.customfield_11419}}\"]\n    }\n}\n",
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Station Number"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:labels",
+            "type": "SET",
+            "value": []
+          }
+        ],
+        "sendNotifications": true
+      }
+    }
+  ],
+  "created": 1770210521501,
+  "description": "Populates 'Station Number' field of sub-tasks by copying the same 'Station Number' as the parent (task).",
+  "id": 31839438,
+  "idUuid": "019c28c4-f19d-7587-9f04-811dd1ea5715",
+  "labels": [],
+  "name": "Bulk Station Number Cleanup (Sub-tasks)",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10101"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10101"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "6d87ba5d-80e2-4333-9df9-512ad9c330f4",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "project = \"BME\" AND issuetype in subTaskIssueTypes()",
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/New_York:20260204T080200\nRRULE:FREQ=MINUTELY;INTERVAL=30;BYSECOND=0\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1780073358678,
+  "writeAccessType": "OWNER_ONLY"
+}

@@ -15,6 +15,7 @@
     "test:backend": "vitest run --project backend",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "rules:snapshot": "node scripts/snapshot-rules.mjs",
     "deploy": "npm run build && forge deploy",
     "deploy:dev": "npm run build && forge deploy",
     "deploy:staging": "npm run test && npm run build && forge deploy --environment staging",

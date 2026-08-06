@@ -1,0 +1,379 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "8946bae5-daf1-45f6-a0fe-0e8001e18aa3",
+              "parentId": "1f63a6e7-d68c-4cef-9d59-8008e501cebc",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Root Cause Analysis"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                    "type": "SET",
+                    "value": "Not Applicable"
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Business Case"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                    "type": "SET",
+                    "value": ""
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "1f63a6e7-d68c-4cef-9d59-8008e501cebc",
+              "conditions": [],
+              "connectionId": null,
+              "id": "a3c5ac92-8423-4a7a-9c16-513448453b19",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{issue.customfield_14952}}",
+                "operator": "EQUALS",
+                "second": "Configuration"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "1f63a6e7-d68c-4cef-9d59-8008e501cebc",
+          "parentId": "234fce51-9944-462c-9b45-265469dd411c",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ANY"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "6003449b-9fea-4765-b928-49d255d6f984",
+                      "parentId": "6afe9664-58fe-4bc9-958f-577eafd049b1",
+                      "schemaVersion": 12,
+                      "type": "jira.issue.edit",
+                      "value": {
+                        "advancedFields": null,
+                        "operations": [
+                          {
+                            "field": {
+                              "type": "NAME",
+                              "value": "Root Cause Analysis"
+                            },
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                            "type": "SET",
+                            "value": ""
+                          }
+                        ],
+                        "sendNotifications": true
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "6afe9664-58fe-4bc9-958f-577eafd049b1",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "e72e63a4-d0b2-44a8-8c65-643740a9f1c5",
+                      "parentId": null,
+                      "schemaVersion": 1,
+                      "type": "jira.comparator.condition",
+                      "value": {
+                        "first": "{{issue.customfield_14946}}",
+                        "operator": "EQUALS",
+                        "second": "Not Applicable"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "6afe9664-58fe-4bc9-958f-577eafd049b1",
+                  "parentId": "5981a7d3-9c13-49d2-b5a0-8fde9f5b25de",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                }
+              ],
+              "component": "CONDITION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "5981a7d3-9c13-49d2-b5a0-8fde9f5b25de",
+              "parentId": "c3571184-de17-4dfa-870e-6fec6a6dc0b4",
+              "schemaVersion": 1,
+              "type": "jira.condition.container.block",
+              "value": null
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "0f7fbee3-ae7c-4363-918a-e5c2422d9a93",
+              "parentId": "c3571184-de17-4dfa-870e-6fec6a6dc0b4",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Business Case"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                    "type": "SET",
+                    "value": "Not Applicable"
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "c3571184-de17-4dfa-870e-6fec6a6dc0b4",
+              "conditions": [],
+              "connectionId": null,
+              "id": "9fdbae7e-0ad0-49ad-9798-bedfa81a49ce",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{issue.customfield_14952}}",
+                "operator": "EQUALS",
+                "second": "Standard"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "c3571184-de17-4dfa-870e-6fec6a6dc0b4",
+              "conditions": [],
+              "connectionId": null,
+              "id": "11215e58-9941-4ec7-b03d-76ddc89e3287",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{issue.customfield_14952}}",
+                "operator": "EQUALS",
+                "second": "Documentation"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "c3571184-de17-4dfa-870e-6fec6a6dc0b4",
+              "conditions": [],
+              "connectionId": null,
+              "id": "40921123-da66-4f0e-8047-9013c8a429d5",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{issue.customfield_14952}}",
+                "operator": "EQUALS",
+                "second": "Manufacturing Process/Quality"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "c3571184-de17-4dfa-870e-6fec6a6dc0b4",
+              "conditions": [],
+              "connectionId": null,
+              "id": "095eba6c-3eab-443d-9157-d81de5829d26",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{issue.customfield_14952}}",
+                "operator": "EQUALS",
+                "second": "Supplier Quality"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "c3571184-de17-4dfa-870e-6fec6a6dc0b4",
+              "conditions": [],
+              "connectionId": null,
+              "id": "97d75209-2c24-4858-9a6b-fb5234a5d797",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{issue.customfield_14952}}",
+                "operator": "EQUALS",
+                "second": "Appearance"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "c3571184-de17-4dfa-870e-6fec6a6dc0b4",
+              "conditions": [],
+              "connectionId": null,
+              "id": "60124f9c-1782-4cc3-9d6c-7bde18d0a0f1",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{issue.customfield_14952}}",
+                "operator": "EQUALS",
+                "second": "Software Only"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "c3571184-de17-4dfa-870e-6fec6a6dc0b4",
+          "parentId": "234fce51-9944-462c-9b45-265469dd411c",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ANY"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "234fce51-9944-462c-9b45-265469dd411c",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1778744707712,
+  "description": "This automation changes the value of Root Cause Analysis and Business Case Depending on the Change Type field",
+  "id": 33271211,
+  "idUuid": "019e2572-4a80-71e0-9a8c-62aa1cdc9c19",
+  "labels": [],
+  "name": "SOLVE: Issue - Change RCA, BC to NA upon Issue Edit View",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "3c5ddf65-fc88-4a8f-b55b-c3fded0a991d",
+        "conditions": [],
+        "connectionId": null,
+        "id": "819b1fbb-04cd-438e-aedf-71065b0eff21",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "NAME",
+            "value": "Issue"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "NAME",
+            "value": "Request Type"
+          },
+          "selectedFieldType": "com.atlassian.servicedesk:vp-origin"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "3c5ddf65-fc88-4a8f-b55b-c3fded0a991d",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [
+        "edit"
+      ],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Change Type"
+        }
+      ]
+    }
+  },
+  "updated": 1782744022875,
+  "writeAccessType": "UNRESTRICTED"
+}

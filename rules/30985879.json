@@ -1,0 +1,162 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "91d43127-d3ed-4d1b-a643-650442cfea5a",
+          "parentId": "802f3e80-125b-49df-8097-b0d723c6048f",
+          "schemaVersion": 11,
+          "type": "jira.issue.transition",
+          "value": {
+            "advancedFields": null,
+            "destinationStatus": {
+              "type": "NAME",
+              "value": "Closed"
+            },
+            "operations": [],
+            "sendNotifications": true,
+            "transitionMatch": ""
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "802f3e80-125b-49df-8097-b0d723c6048f",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "status = \"Active\" AND \"Program [Select List (multiple choices)]\" = \"{{userInputs.program}}\" AND \"Model Year [Select List (multiple choices)]\" = \"{{userInputs.modelYear}}\" AND \"ADVEV Checkpoints & Milestones[Dropdown]\" = \"{{userInputs.advevCheckpointsAndMilestones}}\"",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "jql",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1764754892143,
+  "description": "This automation transitions work items to Closed status based on user input values for Program, Model Year, and ACM.",
+  "id": 30985879,
+  "idUuid": "019ae396-a56f-79ea-81fc-9119c73e5cc4",
+  "labels": [],
+  "name": "SOLVE: Build Deviation - Mass Closure",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "c73ad6fe-dd46-4e28-984a-11302ac3c7b2",
+    "parentId": null,
+    "schemaVersion": 3,
+    "type": "jira.manual.trigger.issue",
+    "value": {
+      "groups": [
+        "5b37d77e-fbe0-405e-a6c3-248b5511dc2d",
+        "47121d05-cb75-4aa7-8b2a-6362300b9367",
+        "f3e83f85-6d4b-49f6-88ce-d3a2c42b4489",
+        "993e0277-1a97-4c6c-b852-84263fc47e6a"
+      ],
+      "inputFromUsers": true,
+      "inputPrompts": [
+        {
+          "defaultValue": [
+            "P833",
+            "CX815",
+            "U833",
+            "V827",
+            "Not Listed"
+          ],
+          "displayName": "Program",
+          "inputType": "DROPDOWN",
+          "required": true,
+          "variableName": "program"
+        },
+        {
+          "defaultValue": [
+            "MY2027",
+            "MY2028",
+            "MY2029",
+            "None"
+          ],
+          "displayName": "Model Year",
+          "inputType": "DROPDOWN",
+          "required": true,
+          "variableName": "modelYear"
+        },
+        {
+          "defaultValue": [
+            "CP0",
+            "CP1",
+            "CP2",
+            "CP3",
+            "CP4",
+            "CP5",
+            "Beta Build First Roller",
+            "Beta Build Driver Commissioned",
+            "Engineering Verification Complete",
+            "DCV: First Build",
+            "DCV: First Commissioned",
+            "EPT (Early Production Trial)",
+            "Design Verification Complete",
+            "TT (Tooling Trial)",
+            "PP (Pilot Production)",
+            "J1/MP1 (Mass Production Build 1)",
+            "DCV Batch 1",
+            "DCV Batch 2",
+            "DCV Batch 3",
+            "DCV Batch 4",
+            "Not applicable",
+            "TBD"
+          ],
+          "displayName": "ADVEV Checkpoints & Milestones",
+          "inputType": "DROPDOWN",
+          "required": false,
+          "variableName": "advevCheckpointsAndMilestones"
+        }
+      ],
+      "issueFilter": {
+        "filterType": "ISSUE_TYPE",
+        "value": [
+          "Build Deviation"
+        ]
+      },
+      "jQLFilter": null
+    }
+  },
+  "updated": 1782742213088,
+  "writeAccessType": "UNRESTRICTED"
+}

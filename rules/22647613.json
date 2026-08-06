@@ -1,0 +1,925 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:10e644de-d96b-4816-9029-d6cf8f0aec37",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "629440508",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": null,
+          "type": "NAME",
+          "value": "ADVEV Access"
+        },
+        "comparison": "EQUALS",
+        "selectedField": {
+          "type": "NAME",
+          "value": "Request Type"
+        },
+        "selectedFieldType": "com.atlassian.servicedesk:vp-origin"
+      }
+    },
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "629440509",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": true,
+          "source": null,
+          "type": "NAME",
+          "value": "[\"Lightsource\"]"
+        },
+        "comparison": "ONE_OF",
+        "selectedField": {
+          "type": "NAME",
+          "value": "ADVEV Tool"
+        },
+        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "629440510",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.outgoing.webhook",
+      "value": {
+        "contentType": "custom",
+        "continueOnErrorEnabled": false,
+        "customBody": "grant_type=client_credentials&client_id=2699247d-c7a7-464e-bd58-67504278886a&client_secret=[[REDACTED:5d417630]]&scope=https://graph.microsoft.com/.default",
+        "headers": [
+          {
+            "headerSecure": false,
+            "id": "_header_1708925083470",
+            "name": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "method": "GET",
+        "responseEnabled": true,
+        "sendIssue": false,
+        "url": "https://login.microsoftonline.com/c990bb7a-51f4-439b-bd36-9c07fb1041c0/oauth2/v2.0/token",
+        "urlSecure": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "629440511",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1708925251283",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "graphtoken"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{webhookResponse.body.access_token}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "629440512",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.outgoing.webhook",
+      "value": {
+        "contentType": "empty",
+        "continueOnErrorEnabled": false,
+        "customBody": "grant_type=client_credentials&client_id=2699247d-c7a7-464e-bd58-67504278886a&client_secret=[[REDACTED:5d417630]]&scope=https://graph.microsoft.com/.default",
+        "headers": [
+          {
+            "headerSecure": false,
+            "id": "_header_1708927850887",
+            "name": "",
+            "value": ""
+          },
+          {
+            "headerSecure": false,
+            "id": "_header_1708927851629",
+            "name": "Authorization",
+            "value": "Bearer {{graphtoken}}"
+          }
+        ],
+        "method": "GET",
+        "responseEnabled": true,
+        "sendIssue": false,
+        "url": "https://graph.microsoft.com/v1.0/users/{{issue.reporter.emailAddress}}",
+        "urlSecure": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "629440513",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "{{webhookResponse.body}}"
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "629440514",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1708927912200",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "userid"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{webhookResponse.body.id}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "629440515",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1708927912200",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "firstname"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{webhookResponse.body.givenName}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "629440516",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1708927912200",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "lastname"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{webhookResponse.body.surname}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "629440517",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1708927912200",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "mail"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{webhookResponse.body.mail}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "629440523",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.refresh.issue",
+      "value": {
+        "delayMs": null
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "629440527",
+              "parentId": "629440525",
+              "schemaVersion": 1,
+              "type": "jira.issue.outgoing.webhook",
+              "value": {
+                "contentType": "custom",
+                "continueOnErrorEnabled": true,
+                "customBody": "{\n  \"query\": \"mutation InviteUsersToTeam($email: String!, $teamid: ID!, $role: UserRole) {\\n  accountsInviteUsersToTeam(\\n    input: {\\n      # Identifies the team that you want to invite the users to\\n      teamId: $teamid\\n      # The email addresses that you want to invite to the team\\n      emailAddresses: [$email]\\n      # The role on the team that you want the invited users to assume\\n      # This is optional, and will default to the SUPPLY_CHAIN role\\n      forRole: $role\\n    }\\n  ) {\\n    # Optional query with the invites that were created/accepted\\n    results {\\n      # If the user didn't already request to be on the team, a team invite is now created for the user\\n      ... on TeamInviteEdge {\\n          node {\\n            # The user that was invited\\n            user {\\n              # If the invited email already existed on LightSource as a user\\n              ... on LightSourceUser {\\n                 id\\n                 emailAddress\\n              }\\n              # If the invited email didn't already exist on LightSource\\n              ... on InvitedUser {\\n                 email\\n              }\\n            }\\n          }\\n }\\n      # If a user already requested to be on the team, then sending the invite will automatically accept their request\\n      ... on JoinTeamRequestEdge {\\n        node {\\n          requestingUser {\\n             display\\n             emailAddress\\n   }\\n }\\n      }\\n    }\\n  }\\n}\",\n  \"variables\": {\n    \"email\": \"{{mail}}\",\n    \"teamid\": \"A_2UPJdHw4-x5g\",\n    \"role\": \"SUPPLY_CHAIN\"\n  }\n}\n",
+                "headers": [
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1709764656883",
+                    "name": "Origin",
+                    "value": "https://lightsource.ai"
+                  },
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1709766215928",
+                    "name": "Authorization",
+                    "value": "Bearer [[REDACTED:e1cc3a74]]"
+                  },
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1731454908915",
+                    "name": "",
+                    "value": ""
+                  }
+                ],
+                "method": "POST",
+                "responseEnabled": true,
+                "sendIssue": false,
+                "url": "https://api.lightsource.ai/graphql",
+                "urlSecure": false
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "629440528",
+              "parentId": "629440525",
+              "schemaVersion": 1,
+              "type": "codebarrel.action.log",
+              "value": "{{webResponse.status}}{{webResponse.body}}"
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "629440529",
+              "parentId": "629440525",
+              "schemaVersion": 1,
+              "type": "jira.issue.outgoing.webhook",
+              "value": {
+                "contentType": "custom",
+                "continueOnErrorEnabled": true,
+                "customBody": "{\n    \"@odata.id\": \"https://graph.microsoft.com/v1.0/directoryObjects/{{userid}}\"\n}",
+                "headers": [
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1717105569276",
+                    "name": "",
+                    "value": ""
+                  },
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1717105592174",
+                    "name": "Authorization",
+                    "value": "Bearer {{graphtoken}}"
+                  }
+                ],
+                "method": "POST",
+                "responseEnabled": true,
+                "sendIssue": false,
+                "url": "https://graph.microsoft.com/v1.0/groups/67875cf0-18e3-4791-b4b5-91186eeed4df/members/$ref",
+                "urlSecure": false
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "629440530",
+              "parentId": "629440525",
+              "schemaVersion": 11,
+              "type": "jira.issue.transition",
+              "value": {
+                "advancedFields": null,
+                "destinationStatus": {
+                  "type": "NAME",
+                  "value": "Done"
+                },
+                "operations": [],
+                "sendNotifications": true,
+                "transitionMatch": ""
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "629440525",
+              "conditions": [],
+              "connectionId": null,
+              "id": "629440526",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "Supply Chain"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Lightsource Access"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "629440525",
+          "parentId": "629440524",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "629440533",
+              "parentId": "629440531",
+              "schemaVersion": 1,
+              "type": "jira.issue.outgoing.webhook",
+              "value": {
+                "contentType": "custom",
+                "continueOnErrorEnabled": true,
+                "customBody": "{\n  \"query\": \"mutation InviteUsersToTeam($email: String!, $teamid: ID!, $role: UserRole) {\\n  accountsInviteUsersToTeam(\\n    input: {\\n      # Identifies the team that you want to invite the users to\\n      teamId: $teamid\\n      # The email addresses that you want to invite to the team\\n      emailAddresses: [$email]\\n      # The role on the team that you want the invited users to assume\\n      # This is optional, and will default to the SUPPLY_CHAIN role\\n      forRole: $role\\n    }\\n  ) {\\n    # Optional query with the invites that were created/accepted\\n    results {\\n      # If the user didn't already request to be on the team, a team invite is now created for the user\\n      ... on TeamInviteEdge {\\n          node {\\n            # The user that was invited\\n            user {\\n              # If the invited email already existed on LightSource as a user\\n              ... on LightSourceUser {\\n                 id\\n                 emailAddress\\n              }\\n              # If the invited email didn't already exist on LightSource\\n              ... on InvitedUser {\\n                 email\\n              }\\n            }\\n          }\\n }\\n      # If a user already requested to be on the team, then sending the invite will automatically accept their request\\n      ... on JoinTeamRequestEdge {\\n        node {\\n          requestingUser {\\n             display\\n             emailAddress\\n   }\\n }\\n      }\\n    }\\n  }\\n}\",\n  \"variables\": {\n    \"email\": \"{{mail}}\",\n    \"teamid\": \"A_2UPJdHw4-x5g\",\n    \"role\": \"ENGINEERING\"\n  }\n}\n",
+                "headers": [
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1709764656883",
+                    "name": "Origin",
+                    "value": "https://lightsource.ai"
+                  },
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1709766215928",
+                    "name": "Authorization",
+                    "value": "Bearer [[REDACTED:e1cc3a74]]"
+                  },
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1731455715149",
+                    "name": "",
+                    "value": ""
+                  }
+                ],
+                "method": "POST",
+                "responseEnabled": true,
+                "sendIssue": false,
+                "url": "https://api.lightsource.ai/graphql",
+                "urlSecure": false
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "629440534",
+              "parentId": "629440531",
+              "schemaVersion": 1,
+              "type": "codebarrel.action.log",
+              "value": "{{webResponse.status}}{{webResponse.body}}"
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "629440535",
+              "parentId": "629440531",
+              "schemaVersion": 1,
+              "type": "jira.issue.outgoing.webhook",
+              "value": {
+                "contentType": "custom",
+                "continueOnErrorEnabled": true,
+                "customBody": "{\n    \"@odata.id\": \"https://graph.microsoft.com/v1.0/directoryObjects/{{userid}}\"\n}",
+                "headers": [
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1717105569276",
+                    "name": "",
+                    "value": ""
+                  },
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1717105592174",
+                    "name": "Authorization",
+                    "value": "Bearer {{graphtoken}}"
+                  }
+                ],
+                "method": "POST",
+                "responseEnabled": true,
+                "sendIssue": false,
+                "url": "https://graph.microsoft.com/v1.0/groups/3e1c73a5-7002-43b4-b544-e74b70f8fc42/members/$ref",
+                "urlSecure": false
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "629440536",
+              "parentId": "629440531",
+              "schemaVersion": 11,
+              "type": "jira.issue.transition",
+              "value": {
+                "advancedFields": null,
+                "destinationStatus": {
+                  "type": "NAME",
+                  "value": "Done"
+                },
+                "operations": [],
+                "sendNotifications": true,
+                "transitionMatch": ""
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "629440531",
+              "conditions": [],
+              "connectionId": null,
+              "id": "629440532",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "Engineering"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Lightsource Access"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "629440531",
+          "parentId": "629440524",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "629440539",
+              "parentId": "629440537",
+              "schemaVersion": 1,
+              "type": "jira.issue.outgoing.webhook",
+              "value": {
+                "contentType": "custom",
+                "continueOnErrorEnabled": true,
+                "customBody": "{\n  \"query\": \"mutation InviteUsersToTeam($email: String!, $teamid: ID!, $role: UserRole) {\\n  accountsInviteUsersToTeam(\\n    input: {\\n      # Identifies the team that you want to invite the users to\\n      teamId: $teamid\\n      # The email addresses that you want to invite to the team\\n      emailAddresses: [$email]\\n      # The role on the team that you want the invited users to assume\\n      # This is optional, and will default to the SUPPLY_CHAIN role\\n      forRole: $role\\n    }\\n  ) {\\n    # Optional query with the invites that were created/accepted\\n    results {\\n      # If the user didn't already request to be on the team, a team invite is now created for the user\\n      ... on TeamInviteEdge {\\n          node {\\n            # The user that was invited\\n            user {\\n              # If the invited email already existed on LightSource as a user\\n              ... on LightSourceUser {\\n                 id\\n                 emailAddress\\n              }\\n              # If the invited email didn't already exist on LightSource\\n              ... on InvitedUser {\\n                 email\\n              }\\n            }\\n          }\\n }\\n      # If a user already requested to be on the team, then sending the invite will automatically accept their request\\n      ... on JoinTeamRequestEdge {\\n        node {\\n          requestingUser {\\n             display\\n             emailAddress\\n   }\\n }\\n      }\\n    }\\n  }\\n}\",\n  \"variables\": {\n    \"email\": \"{{mail}}\",\n    \"teamid\": \"A_2UPJdHw4-x5g\",\n    \"role\": \"FINANCE\"\n  }\n}\n",
+                "headers": [
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1709764656883",
+                    "name": "Origin",
+                    "value": "https://lightsource.ai"
+                  },
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1709766215928",
+                    "name": "Authorization",
+                    "value": "Bearer [[REDACTED:e1cc3a74]]"
+                  },
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1731455721400",
+                    "name": "",
+                    "value": ""
+                  }
+                ],
+                "method": "POST",
+                "responseEnabled": true,
+                "sendIssue": false,
+                "url": "https://api.lightsource.ai/graphql",
+                "urlSecure": false
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "629440540",
+              "parentId": "629440537",
+              "schemaVersion": 1,
+              "type": "jira.issue.outgoing.webhook",
+              "value": {
+                "contentType": "custom",
+                "continueOnErrorEnabled": true,
+                "customBody": "{\n    \"@odata.id\": \"https://graph.microsoft.com/v1.0/directoryObjects/{{userid}}\"\n}",
+                "headers": [
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1717105569276",
+                    "name": "",
+                    "value": ""
+                  },
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1717105592174",
+                    "name": "Authorization",
+                    "value": "Bearer {{graphtoken}}"
+                  }
+                ],
+                "method": "POST",
+                "responseEnabled": true,
+                "sendIssue": false,
+                "url": "https://graph.microsoft.com/v1.0/groups/1e308d8e-6144-4d57-8edf-4aed0d67c226/members/$ref",
+                "urlSecure": false
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "629440541",
+              "parentId": "629440537",
+              "schemaVersion": 11,
+              "type": "jira.issue.transition",
+              "value": {
+                "advancedFields": null,
+                "destinationStatus": {
+                  "type": "NAME",
+                  "value": "Done"
+                },
+                "operations": [],
+                "sendNotifications": true,
+                "transitionMatch": ""
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "629440537",
+              "conditions": [],
+              "connectionId": null,
+              "id": "629440538",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "Finance"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Lightsource Access"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "629440537",
+          "parentId": "629440524",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "629440544",
+              "parentId": "629440542",
+              "schemaVersion": 1,
+              "type": "jira.issue.outgoing.webhook",
+              "value": {
+                "contentType": "custom",
+                "continueOnErrorEnabled": true,
+                "customBody": "{\n  \"query\": \"mutation InviteUsersToTeam($email: String!, $teamid: ID!, $role: UserRole) {\\n  accountsInviteUsersToTeam(\\n    input: {\\n      # Identifies the team that you want to invite the users to\\n      teamId: $teamid\\n      # The email addresses that you want to invite to the team\\n      emailAddresses: [$email]\\n      # The role on the team that you want the invited users to assume\\n      # This is optional, and will default to the SUPPLY_CHAIN role\\n      forRole: $role\\n    }\\n  ) {\\n    # Optional query with the invites that were created/accepted\\n    results {\\n      # If the user didn't already request to be on the team, a team invite is now created for the user\\n      ... on TeamInviteEdge {\\n          node {\\n            # The user that was invited\\n            user {\\n              # If the invited email already existed on LightSource as a user\\n              ... on LightSourceUser {\\n                 id\\n                 emailAddress\\n              }\\n              # If the invited email didn't already exist on LightSource\\n              ... on InvitedUser {\\n                 email\\n              }\\n            }\\n          }\\n }\\n      # If a user already requested to be on the team, then sending the invite will automatically accept their request\\n      ... on JoinTeamRequestEdge {\\n        node {\\n          requestingUser {\\n             display\\n             emailAddress\\n   }\\n }\\n      }\\n    }\\n  }\\n}\",\n  \"variables\": {\n    \"email\": \"{{mail}}\",\n    \"teamid\": \"A_2UPJdHw4-x5g\",\n    \"role\": \"ADMIN\"\n  }\n}\n",
+                "headers": [
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1709764656883",
+                    "name": "Origin",
+                    "value": "https://lightsource.ai"
+                  },
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1709766215928",
+                    "name": "Authorization",
+                    "value": "Bearer [[REDACTED:e1cc3a74]]"
+                  },
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1731455727103",
+                    "name": "",
+                    "value": ""
+                  }
+                ],
+                "method": "POST",
+                "responseEnabled": true,
+                "sendIssue": false,
+                "url": "https://api.lightsource.ai/graphql",
+                "urlSecure": false
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "629440545",
+              "parentId": "629440542",
+              "schemaVersion": 1,
+              "type": "jira.issue.outgoing.webhook",
+              "value": {
+                "contentType": "custom",
+                "continueOnErrorEnabled": true,
+                "customBody": "{\n    \"@odata.id\": \"https://graph.microsoft.com/v1.0/directoryObjects/{{userid}}\"\n}",
+                "headers": [
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1717105569276",
+                    "name": "",
+                    "value": ""
+                  },
+                  {
+                    "headerSecure": false,
+                    "id": "_header_1717105592174",
+                    "name": "Authorization",
+                    "value": "Bearer {{graphtoken}}"
+                  }
+                ],
+                "method": "POST",
+                "responseEnabled": true,
+                "sendIssue": false,
+                "url": "https://graph.microsoft.com/v1.0/groups/277d157a-5edd-44c8-b995-f2173da11cbc/members/$ref",
+                "urlSecure": false
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "629440546",
+              "parentId": "629440542",
+              "schemaVersion": 11,
+              "type": "jira.issue.transition",
+              "value": {
+                "advancedFields": null,
+                "destinationStatus": {
+                  "type": "NAME",
+                  "value": "Done"
+                },
+                "operations": [],
+                "sendNotifications": true,
+                "transitionMatch": ""
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "629440542",
+              "conditions": [],
+              "connectionId": null,
+              "id": "629440543",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "Admin"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Lightsource Access"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "629440542",
+          "parentId": "629440524",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "629440524",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1730136567377,
+  "description": "",
+  "id": 22647613,
+  "idUuid": "0192d42c-ee51-7aa2-b899-20d0cdb55657",
+  "labels": [
+    639670,
+    725287
+  ],
+  "name": "LightSource - 2 - User Provisioning",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "629440507",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:transitioned",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+      ],
+      "eventKey": "jira:issue_updated",
+      "fromStatus": [
+        {
+          "type": "NAME",
+          "value": "Project Owner Approval"
+        }
+      ],
+      "issueEvent": "issue_generic",
+      "toStatus": [
+        {
+          "type": "NAME",
+          "value": "Owner Approved"
+        }
+      ]
+    }
+  },
+  "updated": 1752696058326,
+  "writeAccessType": "UNRESTRICTED"
+}

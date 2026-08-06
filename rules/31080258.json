@@ -1,0 +1,120 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:c9c3dfc4-eef5-4087-8b1a-8ee188485a9b",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "fb4cef17-5787-4202-9c9c-bb37a617b4aa",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Collaborators"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+            "type": "SET",
+            "value": [
+              {
+                "type": "SMART",
+                "value": "{{issue.Collaborators}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.customfield_12496}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.customfield_12749}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.customfield_14814}}"
+              },
+              {
+                "type": "SMART",
+                "value": "{{issue.customfield_12751}}"
+              }
+            ]
+          }
+        ],
+        "sendNotifications": true
+      }
+    }
+  ],
+  "created": 1765340218017,
+  "description": "Following Leads are added to the Collaborators field :\n\n- SIT Lead\n- Supplier Quality Lead (DIE)\n- Supplier Quality Lead (STA)\n- Finance Lead\n",
+  "id": 31080258,
+  "idUuid": "019b067a-02a2-7f56-9d76-7e1e5b48d889",
+  "labels": [],
+  "name": "Add Leads to Collaborators",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10518"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10518"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "1cde5f77-c0e5-49ff-96b5-7ca3c5ea3b36",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "VALUE_ADDED",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10518"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Finance Lead"
+        },
+        {
+          "type": "fieldName",
+          "value": "SIT Lead"
+        },
+        {
+          "type": "fieldName",
+          "value": "Supplier Quality Lead (DIE)"
+        },
+        {
+          "type": "fieldName",
+          "value": "Supplier Quality Lead (STA)"
+        }
+      ]
+    }
+  },
+  "updated": 1765941948996,
+  "writeAccessType": "UNRESTRICTED"
+}

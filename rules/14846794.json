@@ -1,0 +1,853 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555678840",
+          "parentId": "555678837",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "NAME",
+              "value": "Apple - Small Size Notebook - MB Air 13”"
+            },
+            "comparison": "EQUALS",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Equipment Choice"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555678842",
+          "parentId": "555678837",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Equipment Specs"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                "type": "SET",
+                "value": "https://www.hardware.ford.com/GHD?qryCategory=2&qryConfiguration=94&x=11&y=9\n\nNOTE:  MB Air 15” not yet available in the US until MB Air 13” depleted the inventory. Other Region may be available to order.\n\nModel: Apple MacBook AIR - 13\"\nProcessor: M2 (8-core CPU, 8-core GPU)\nMemory: 16.0 GB\nStorage: 256 GB Solid State Drive\nGraphics: 8-Core GPU\nDisplay: 3.6\" Liquid Retina Display\nWeight: 2.7 lbs/1.24 Kg\n"
+              }
+            ],
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555678837",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555678845",
+          "parentId": "555678844",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "NAME",
+              "value": "Apple -Small Size Notebook - MB Pro 13” with Touch Bar"
+            },
+            "comparison": "EQUALS",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Equipment Choice"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555678847",
+          "parentId": "555678844",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Equipment Specs"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                "type": "SET",
+                "value": "NOTE: This model is still available if requested.  This is ideal if you are a MEWS user and require a 2nd computer.\n\nModel: Apple MacBook Pro 13” with Touch Bar\nProcessor: M1 Pro (8-Core CPU, 14-Core GPU)\nMemory: 16 GB\nStorage:  512 GB Solid State Drive\nGraphics:  14-Core GPU\nDisplay: 13” Liquid Retina Display\nWeight: 3.02 pounds/1.37 kg"
+              }
+            ],
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555678844",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555678851",
+          "parentId": "555678849",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "NAME",
+              "value": "Apple - Mid Size Notebook - MB Pro 14”"
+            },
+            "comparison": "EQUALS",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Equipment Choice"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555678853",
+          "parentId": "555678849",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Equipment Specs"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                "type": "SET",
+                "value": "https://www.hardware.ford.com/GHD?qryCategory=2&qryConfiguration=89&x=8&y=7\n\nModel: Apple MacBook Pro - 14\"\nProcessor: M1 Pro (8-Core CPU, 14-Core GPU)\nMemory: 16.0 GB\nStorage:  512 GB Solid State Drive\nGraphics:  14-Core GPU\nDisplay: 14\" Liquid Retina XDR Display\nWeight: 3.5 lbs/1.59 Kg"
+              }
+            ],
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555678849",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555678857",
+          "parentId": "555678855",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "NAME",
+              "value": "Apple - Full Size Notebook - MB Pro 16” - Standard"
+            },
+            "comparison": "EQUALS",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Equipment Choice"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555678860",
+          "parentId": "555678855",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Equipment Specs"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                "type": "SET",
+                "value": "NOTE:  If non-heavy Mac users that don’t require high RAM\nhttps://www.hardware.ford.com/GHD?qryCategory=2&qryConfiguration=88&x=8&y=6\n\nModel: Apple MacBook Pro - 16\"\nProcessor: M1 Pro (10-Core CPU, 16-Core GPU)\nMemory: 16.0 GB\nStorage:  1.0 TB Solid State Drive\nGraphics:  16-Core GPU\nDisplay: 16\" Liquid Retina XDR Display\nWeight: 4.7 lbs/2.1 kg"
+              }
+            ],
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555678855",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555678865",
+          "parentId": "555678863",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "NAME",
+              "value": "Apple  - Full Size Notebook - MB Pro 16” - 32 G RAM"
+            },
+            "comparison": "EQUALS",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Equipment Choice"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555678868",
+          "parentId": "555678863",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Equipment Specs"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                "type": "SET",
+                "value": "NOTE: if you require 32 G RAM, video processing, Adobe CS users, Constantly maxing out 16G RAM then request for 32G RAM\nFill out PC Request > https://www.itconnect.ford.com/ > Search PC Request > For Business Case = Constantly maxing out 16G RAM, requires 32G.  For PC and Components Specs = Copy specs below\n\nModel: Apple MacBook Pro - 16\"\nProcessor: M1 Pro (10-Core CPU, 16-Core GPU)\nMemory: 32.0 GB\nStorage:  1.0 TB Solid State Drive\nGraphics:  16-Core GPU\nDisplay: 16\" Liquid Retina XDR Display\nWeight: 4.7 lbs/2.1 kg"
+              }
+            ],
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555678863",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555678872",
+          "parentId": "555678870",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "NAME",
+              "value": "Dell - Mid Size Notebook (MSN)"
+            },
+            "comparison": "EQUALS",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Equipment Choice"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555678874",
+          "parentId": "555678870",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Equipment Specs"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                "type": "SET",
+                "value": "https://www.hardware.ford.com/GHD?qryCategory=2&qryConfiguration=4&x=5&y=3\n\nModel: Dell Latitude 7440\nProcessor: 13th Gen Intel Core i7-1365U vPro (12 MB cache, 10 cores, up to 5.2 GHz Turbo)\nMemory: 32GB (LPDDR5)\nStorage: M.2 512GB M.2 PCIe NVMe Solid State Drive Class 35\nGraphics: Intel Iris Xe\nDisplay: Ultralight Laptop 14\" QHD+(2560x1600) AG Touch, ComfView+, IPS, 400 nit, 5MP IR Cam+IP Weight: 2.73 lbs/1.24 Kg "
+              }
+            ],
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555678870",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555678877",
+          "parentId": "555678875",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "NAME",
+              "value": "Dell - Full Size Notebook (FSN)"
+            },
+            "comparison": "EQUALS",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Equipment Choice"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555678878",
+          "parentId": "555678875",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Equipment Specs"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                "type": "SET",
+                "value": "https://www.hardware.ford.com/GHD?qryCategory=2&qryConfiguration=3&x=9&y=11\n\nModel: Dell Latitude 5440\nProcessor: Intel Core i5-1350P (4P/8E, 4.7 GHz, 12 MB)\nMemory: 16.0 GB\nStorage: M.2 512 GB M.2 PCIe NVMe Class 35 SSD\nGraphics: Intel Iris Xe\nDisplay: 14.0” FHD (1920 x 1080) 16:9 LED\nWeight: 3.5 lbs/1.59 Kg\n"
+              }
+            ],
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555678875",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555678883",
+          "parentId": "555678880",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "NAME",
+              "value": "Dell - Advanced Full Size Notebook (AFSN)"
+            },
+            "comparison": "EQUALS",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Equipment Choice"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555678884",
+          "parentId": "555678880",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Equipment Specs"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                "type": "SET",
+                "value": "https://www.hardware.ford.com/GHD?qryCategory=2&qryConfiguration=65&x=13&y=6\n\nModel: Dell Latitude 5540\nProcessor: Intel Core i5-1350P (4P/8E, 4.7 GHz, 12 MB)\nMemory: 32.0 GB\nStorage: 512 GB M.2 PCIe NVMe Class 35 SSD\nGraphics: Intel Iris Xe\nDisplay: 15.6” FHD (1920 x 1080) Non-Touch, Anti-Glare\nWeight: 3.46 lbs/1.61 kg\n"
+              }
+            ],
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555678880",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555678890",
+          "parentId": "555678887",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "NAME",
+              "value": "Dell - Advanced Full Size Notebook with Nvidia Graphics (ANVH)"
+            },
+            "comparison": "EQUALS",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Equipment Choice"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555678893",
+          "parentId": "555678887",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Equipment Specs"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                "type": "SET",
+                "value": "Fill out an Exception Request > https://azureford.sharepoint.com/_forms/default.aspx or Fill out PC Request > https://www.itconnect.ford.com/ > Search PC Request > For Business Case = ANVH required for NVIDIA graphics processing,  For PC and Components Specs = Copy specs below\n\nModel: Dell Latitude 5540\nProcessor:13th Generation Intel(R) Core (TM) i7-1370P vPro\nMemory: 32.0 GB\nStorage: 512 GB M.2 PCIe NVMe Class 35 SSD\nGraphics: Nvidia GeForce MX550 Discrete Graphics w/Thunderbolt\nDisplay: 15.6\" FHD (1920x1080) Non-Touch, AG, IPS, 250 nits, FHD Cam, WLAN\nWeight: 3.46 lbs/1.61 kg "
+              }
+            ],
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555678887",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555678900",
+          "parentId": "555678896",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "NAME",
+              "value": "Dell - Mobile Engineering Workstation (MEWS)"
+            },
+            "comparison": "EQUALS",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Equipment Choice"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555678903",
+          "parentId": "555678896",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Equipment Specs"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                "type": "SET",
+                "value": "https://www.hardware.ford.com/GHD?qryCategory=3&qryConfiguration=59&x=6&y=6\n\nModel: Dell Precision 7780\nProcessor:1Intel Core i7-13850HX (8P/12E, 2.1 GHz, 30 MB)\nMemory: 64.0 GB\nStorage: 1.0 TB Solid State Drive\nGraphics: NVIDIA RTX 3500 Ada (PCIe/12GB)\nDisplay: 17.3\" FHD, 1920x1080\nWeight: 7.08 lbs/3.21 Kg \n"
+              }
+            ],
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555678896",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555678908",
+          "parentId": "555678905",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "NAME",
+              "value": "Dell - Mobile Engineering Workstation (AV MEWS)"
+            },
+            "comparison": "EQUALS",
+            "selectedField": {
+              "type": "NAME",
+              "value": "Equipment Choice"
+            },
+            "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555678910",
+          "parentId": "555678905",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Equipment Specs"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                "type": "SET",
+                "value": "Fill out PC Request > https://www.itconnect.ford.com/ > Search PC Request > For Business Case = AV MEWS required, belong to ADAS Team, For PC and Components Specs = Copy specs below\n\nModel: Dell Precision 7780\nProcessor:1Intel Core i7-13850HX (8P/12E, 2.1 GHz, 30 MB)\nMemory: 64.0 GB\nStorage: 2 TB Solid State Drive\nGraphics: NVIDIA RTXA5500 w/ 16 GB\nDisplay: 17.3\" FHD, 1920x1080\nWeight: 7.08 lbs/3.21 Kg\n"
+              }
+            ],
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555678905",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1694842758118,
+  "description": "",
+  "id": 14846794,
+  "idUuid": "018a9c80-23e6-7b1c-8498-6a3a1492955b",
+  "labels": [
+    423959,
+    423965
+  ],
+  "name": "Update Equipment Specs",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10015"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10015"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "555678835",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "VALUE_ADDED",
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Equipment Choice"
+        }
+      ]
+    }
+  },
+  "updated": 1694843984513,
+  "writeAccessType": "UNRESTRICTED"
+}

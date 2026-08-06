@@ -1,0 +1,686 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "d4add11e-6682-4a84-9edc-4ca6662d47f7",
+              "parentId": "d54bbac3-36a5-48f3-8387-b2f433188afc",
+              "schemaVersion": 2,
+              "type": "jira.issue.comment",
+              "value": {
+                "addCommentOnce": false,
+                "comment": "A CE1 issue already exists for this work item. Issue creation has been skipped to prevent duplication.\n\nIf this is an error or support is required, please contact the [ADVEV Helpdesk|https://ford-advev.atlassian.net/servicedesk/customer/portal/3].",
+                "commentVisibility": null,
+                "publicComment": false,
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "d54bbac3-36a5-48f3-8387-b2f433188afc",
+              "conditions": [],
+              "connectionId": null,
+              "id": "3a80e4c0-41b5-4922-9d33-df9974eab7ce",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.issues.related.condition",
+              "value": {
+                "compareJql": "project = \"Solve Hub\"",
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [],
+                "operator": "somematch",
+                "relatedJql": "",
+                "relatedType": "linked",
+                "similarityLimit": 40
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "d54bbac3-36a5-48f3-8387-b2f433188afc",
+          "parentId": "e1af2399-be46-413e-a131-6c24be69d925",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "04a825f7-2ef9-4365-bc13-54eb1d1349d3",
+              "parentId": "e4d54298-b8ec-4d44-94c9-859606e337cf",
+              "schemaVersion": 2,
+              "type": "jira.issue.comment",
+              "value": {
+                "addCommentOnce": false,
+                "comment": "No assignee is set in the originating work item. Please update the work item with an assignee before proceeding.",
+                "commentVisibility": null,
+                "publicComment": false,
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "e4d54298-b8ec-4d44-94c9-859606e337cf",
+              "conditions": [],
+              "connectionId": null,
+              "id": "8aee8e92-4956-400e-889c-b996c1a8065a",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": null,
+                "comparison": "EMPTY",
+                "selectedField": {
+                  "type": "ID",
+                  "value": "assignee"
+                },
+                "selectedFieldType": "assignee"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "e4d54298-b8ec-4d44-94c9-859606e337cf",
+          "parentId": "e1af2399-be46-413e-a131-6c24be69d925",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "b57c9f1a-2527-4a2e-9eae-4331ea118257",
+              "parentId": "59af2e77-e959-437a-8581-0c45cbaf2d78",
+              "schemaVersion": 2,
+              "type": "jira.issue.comment",
+              "value": {
+                "addCommentOnce": false,
+                "comment": "You triggered the automation inside the ECM/SOLVE Project.\nAuto-creation of Solve ticket is cancelled",
+                "commentVisibility": null,
+                "publicComment": false,
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "59af2e77-e959-437a-8581-0c45cbaf2d78",
+              "conditions": [],
+              "connectionId": null,
+              "id": "f6979f04-da7e-43ab-bccc-18b114c0aa79",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "ID",
+                  "value": "[\"13141\",\"11178\"]"
+                },
+                "comparison": "ONE_OF",
+                "selectedField": {
+                  "type": "ID",
+                  "value": "project"
+                },
+                "selectedFieldType": "project"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "59af2e77-e959-437a-8581-0c45cbaf2d78",
+          "parentId": "e1af2399-be46-413e-a131-6c24be69d925",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "bfb50f40-25cc-4be6-9385-e4f7a227c46d",
+              "parentId": "48c05a99-ad9f-4aaf-b97c-25be14dbd28c",
+              "schemaVersion": 12,
+              "type": "jira.issue.create",
+              "value": {
+                "advancedFields": "",
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "summary"
+                    },
+                    "fieldType": "summary",
+                    "type": "SET",
+                    "value": "{{issue.summary}}"
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "project"
+                    },
+                    "fieldType": "project",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "13141"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "issuetype"
+                    },
+                    "fieldType": "issuetype",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "13364"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Issue Initiator"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{issue.assignee}}"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "issuelinks"
+                    },
+                    "fieldType": "issuelinks",
+                    "type": "SET",
+                    "value": {
+                      "issue": {
+                        "type": "COPY",
+                        "value": "trigger"
+                      },
+                      "linkType": "outward:10030"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "attachment"
+                    },
+                    "fieldType": "attachment",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "attachment",
+                        "type": "ID",
+                        "value": "attachment"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Part Number(s)"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                    "type": "SET",
+                    "value": "{{userInputs.partNumbers}}"
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Root Cause Analysis"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                    "type": "SET",
+                    "value": "{{userInputs.rootCauseAnalysis}}"
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "reporter"
+                    },
+                    "fieldType": "reporter",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{initiator}}"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "SIT"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{userInputs.sit}}"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Activity"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{userInputs.activity}}"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Intermediate Containment Action (ICA)"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+                    "type": "SET",
+                    "value": "{{userInputs.intermediateContainmentAction}}"
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Change Type"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{userInputs.changeType}}"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "VIN (Vehicle Identification Number)"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                    "type": "SET",
+                    "value": "{{userInputs.vinNumber}}"
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Program "
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "SMART",
+                        "value": "{{userInputs.program}}"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Severity"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{userInputs.severity}}"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "description"
+                    },
+                    "fieldType": "description",
+                    "type": "SET",
+                    "value": "{{issue.description}}"
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Launch Issue"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{userInputs.launchIssue}}"
+                    }
+                  }
+                ],
+                "sendNotifications": false
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "53c6c8d6-be67-47c2-a80d-4f65d2895725",
+                      "parentId": "66172607-89f5-48a7-ae22-e38fbe74b2dc",
+                      "schemaVersion": 2,
+                      "type": "jira.issue.comment",
+                      "value": {
+                        "addCommentOnce": false,
+                        "comment": "A CE1 Issue was created successfully. Program Management has been notified. Please connect with Program Management or the Issue Champion (if assigned already) for the next steps.\n\nTrack the issue here: [{{createdIssue.key}}].\n\nFor questions related to automation or updates, contact the [ADVEV Helpdesk|https://ford-advev.atlassian.net/servicedesk/customer/portal/3].",
+                        "commentVisibility": null,
+                        "publicComment": false,
+                        "sendNotifications": true
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "66172607-89f5-48a7-ae22-e38fbe74b2dc",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "eb582e4d-79c5-4a91-bbfc-db563b7e0abe",
+                      "parentId": null,
+                      "schemaVersion": 1,
+                      "type": "jira.comparator.condition",
+                      "value": {
+                        "first": "{{createdIssue.key}}",
+                        "operator": "NOT_EQUALS",
+                        "second": ""
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "66172607-89f5-48a7-ae22-e38fbe74b2dc",
+                  "parentId": "75661f3e-7feb-4213-843b-0fa5d6ff55f9",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                },
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "671fb74f-0a3c-4bb4-b564-02f364e07070",
+                      "parentId": "429b7d3b-c00d-4ee2-89e7-64c2535db3fd",
+                      "schemaVersion": 2,
+                      "type": "jira.issue.comment",
+                      "value": {
+                        "addCommentOnce": false,
+                        "comment": "CE1 Issue creation failed. Please contact [ADVEV Helpdesk support team|https://ford-advev.atlassian.net/servicedesk/customer/portal/3].",
+                        "commentVisibility": null,
+                        "publicComment": false,
+                        "sendNotifications": true
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "429b7d3b-c00d-4ee2-89e7-64c2535db3fd",
+                  "parentId": "75661f3e-7feb-4213-843b-0fa5d6ff55f9",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                }
+              ],
+              "component": "CONDITION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "75661f3e-7feb-4213-843b-0fa5d6ff55f9",
+              "parentId": "48c05a99-ad9f-4aaf-b97c-25be14dbd28c",
+              "schemaVersion": 1,
+              "type": "jira.condition.container.block",
+              "value": null
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "48c05a99-ad9f-4aaf-b97c-25be14dbd28c",
+          "parentId": "e1af2399-be46-413e-a131-6c24be69d925",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "e1af2399-be46-413e-a131-6c24be69d925",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1778755051220,
+  "description": "Automation for creating Solve Ticket from any project in the Jira instance. The  data are either taken from the triggering ticket or user prompt.",
+  "id": 33272541,
+  "idUuid": "019e2610-1ed4-7e44-a8be-6708104b14a8",
+  "labels": [],
+  "name": "SOLVE: Log CE1 Issue",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "d5853f35-d3f3-47f5-baef-844ea9b3fd65",
+    "parentId": null,
+    "schemaVersion": 3,
+    "type": "jira.manual.trigger.issue",
+    "value": {
+      "groups": [],
+      "inputFromUsers": true,
+      "inputPrompts": [
+        {
+          "defaultValue": [
+            "Control Plan",
+            "Craftsmanship",
+            "Drive Events",
+            "End of Line",
+            "Ergo",
+            "Manufacturing Builds",
+            "Service",
+            "Testing & Validation",
+            "Other"
+          ],
+          "displayName": "Activity",
+          "inputType": "DROPDOWN",
+          "required": true,
+          "variableName": "activity"
+        },
+        {
+          "defaultValue": [
+            "CX815",
+            "P833",
+            "U833",
+            "V827",
+            "Not Listed"
+          ],
+          "displayName": "Program",
+          "inputType": "DROPDOWN",
+          "required": true,
+          "variableName": "program"
+        },
+        {
+          "defaultValue": "",
+          "displayName": "VIN (Vehicle Identification Number)",
+          "inputType": "TEXT",
+          "required": false,
+          "variableName": "vinNumber"
+        },
+        {
+          "defaultValue": "",
+          "displayName": "Part Number(s)",
+          "inputType": "TEXT",
+          "required": true,
+          "variableName": "partNumbers"
+        },
+        {
+          "defaultValue": [
+            "Battery",
+            "Body",
+            "Chassis",
+            "Closures",
+            "Drive Unit (DU)",
+            "Electrical",
+            "Exterior",
+            "Interior",
+            "Seats",
+            "Thermal"
+          ],
+          "displayName": "SIT",
+          "inputType": "DROPDOWN",
+          "required": false,
+          "variableName": "sit"
+        },
+        {
+          "defaultValue": [
+            "Low",
+            "Medium",
+            "High"
+          ],
+          "displayName": "Severity",
+          "inputType": "DROPDOWN",
+          "required": true,
+          "variableName": "severity"
+        },
+        {
+          "defaultValue": [
+            "Yes",
+            "No"
+          ],
+          "displayName": "Launch Issue",
+          "inputType": "DROPDOWN",
+          "required": true,
+          "variableName": "launchIssue"
+        },
+        {
+          "defaultValue": [
+            "Standard",
+            "Configuration",
+            "Manufacturing Process/Quality",
+            "Documentation",
+            "Supplier Quality",
+            "Software Only",
+            "Appearance"
+          ],
+          "displayName": "Change Type",
+          "inputType": "DROPDOWN",
+          "required": false,
+          "variableName": "changeType"
+        },
+        {
+          "defaultValue": "",
+          "displayName": "Intermediate Containment Action (ICA)",
+          "inputType": "PARAGRAPH",
+          "required": false,
+          "variableName": "intermediateContainmentAction"
+        },
+        {
+          "defaultValue": "",
+          "displayName": "Root Cause Analysis",
+          "inputType": "PARAGRAPH",
+          "required": false,
+          "variableName": "rootCauseAnalysis"
+        }
+      ],
+      "issueFilter": null,
+      "jQLFilter": null
+    }
+  },
+  "updated": 1780338101575,
+  "writeAccessType": "UNRESTRICTED"
+}

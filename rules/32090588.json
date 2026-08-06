@@ -1,0 +1,111 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "712020:ff83829a-323a-48cb-9717-235304678d0e"
+  },
+  "authorAccountId": "712020:ff83829a-323a-48cb-9717-235304678d0e",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": "91ddd648-dcc9-4ad2-bba6-e6b26c528e03",
+      "id": "3a21de0d-5a65-4caa-acfc-f29445ee92d9",
+      "parentId": null,
+      "schemaVersion": -1,
+      "type": "rovo.invoke-agent.action",
+      "value": {
+        "activationId": "c00f469e-4652-45ac-ab90-9b46c078ff84",
+        "agentAAID": "712020:a61605e4-69a8-426d-830e-548de7498775",
+        "agentDisplayName": null,
+        "agentId": "262c37be-d9e8-44cd-b8d3-dec6df317cb3",
+        "agentInstruction": "A PDF has been attached to the issue. Please review the document and provide feedback.",
+        "agentNamedId": "262c37be-d9e8-44cd-b8d3-dec6df317cb3",
+        "allowAgentToExecuteActions": false,
+        "invocationMode": "USER",
+        "isVerified": false,
+        "tagType": "EXTERNAL_AGENT_ID",
+        "tagValue": "262c37be-d9e8-44cd-b8d3-dec6df317cb3"
+      }
+    }
+  ],
+  "created": 1771548613156,
+  "description": "This rule triggers an AI review using the ASME Review agent when a PDF is attached to an issue of type 'Drawing Validation - Revision'.",
+  "id": 32090588,
+  "idUuid": "019c7886-9a24-7920-8b79-be54e975b074",
+  "labels": [],
+  "name": "Trigger AI Review on PDF Attachment",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10485"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10485"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [
+    {
+      "tagType": "EXTERNAL_AGENT_ID",
+      "tagValue": "262c37be-d9e8-44cd-b8d3-dec6df317cb3"
+    }
+  ],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "50f1f0ba-db42-4e7f-9453-b0a1dd945b09",
+        "conditions": [],
+        "connectionId": null,
+        "id": "d8572736-52e1-44c6-afd2-88b9a8cbd5bc",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "11089"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "50f1f0ba-db42-4e7f-9453-b0a1dd945b09",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:updated",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10485"
+      ],
+      "eventKey": "jira:issue_updated",
+      "issueEvent": "issue_updated"
+    }
+  },
+  "updated": 1773082085318,
+  "writeAccessType": "UNRESTRICTED"
+}

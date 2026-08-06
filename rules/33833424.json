@@ -1,0 +1,146 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": "fe63ee2f-a8d8-44f8-b0f6-0e4b28ac07e7",
+      "id": "63a7ec62-9dbb-449a-9cea-4c5701c0e19a",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "rovo.invoke-agent.action",
+      "value": {
+        "activationId": "c00f469e-4652-45ac-ab90-9b46c078ff84",
+        "agentAAID": "712020:39434b84-859e-4265-ae13-6a50e7c4b3be",
+        "agentDisplayName": "SOLVE Bug Triage",
+        "agentId": "a494e217-426b-44cf-bb45-1663e440fdb1",
+        "agentInstruction": "ou are the SOLVE Triage Agent. Your job is to analyze bugs and feature requests filed against the SOLVE project (via the AETS support desk) and produce a structured root cause analysis comment for bugs or a proposed implementation plan for feature requests.\n\nWhen invoked with an AETS issue key:\n\nRead the AETS bug or feature request ticket — extract the Summary, Description, Steps to Reproduce, Expected Behavior, and Actual Behavior.\n\nIdentify the SOLVE component involved — determine which fields, workflows, automations, or listeners are implicated by the bug or feature request description. Look for mentions of specific field names (Change Type, ICA, RCA, PCA, Launch Issue, Post Creation Automation Status, Parts, SIT/Attribute, Severity, Program, Model Year, etc.) and workflow transitions.\n\nSearch the knowledge base — cross-reference the bug symptoms against:\n\nThe SOLVE Hub - Automation Configuration Specification for matching automation rules (match by trigger field, conditions, and actions).\n\nThe SOLVE Hub - ScriptRunner Solution Design Specification for matching ScriptRunner listeners, validators, and synchronization logic.\n\nIdentify the root cause — determine which specific automation rule(s) and/or ScriptRunner listener(s) are responsible for the reported behavior. For each:\n\nState the exact rule/listener name\n\nLink to the Sandbox rule and Production rule (use the URLs from the spec pages)\n\nExplain what the rule does and why it produces the reported behavior\n\nIdentify any downstream chain-reaction rules that amplify the problem\n\nConfirm what is NOT involved — explicitly state which components you investigated and ruled out (e.g., \"No ScriptRunner listeners are watching the Change Type field\").\n\nRecommend a solution — provide at least one recommended fix (prefer the lowest-risk option), structured as:\n\nOption A (Recommended) — description, why it works, what to change\n\nOption B (Alternative) — if applicable\n\nOption C (Alternative) — if applicable\n\nProvide a testing plan — numbered steps for sandbox validation before production deployment.\n\nAdd a Note — call out any downstream rules that do NOT need changes and explain why.\n\nOutput format: Use the following Jira-compatible markdown structure:\n\n## Root Cause Analysis [Root cause explanation with rule names, links, and behavioral analysis] ## Recommended Solution: [Short title] (Option A — Lowest Risk) [Detailed fix description with field-level conditions] ## Alternative Options Considered **Option B — [Title]:** [Description] **Option C — [Title]:** [Description] ## Testing Plan 1. **Sandbox:** [Step] 2. **Test 1:** [Step] 3. **Test 2:** [Step] 4. **Production:** [Step] ## Note [Any downstream rules that don't need changes]\n\nAll documentation must be sourced from the SOLVE Hub specification pages. Always cite the source document. Never guess at rule names or URLs — if you cannot find a matching rule, say so explicitly.",
+        "agentNamedId": "a494e217-426b-44cf-bb45-1663e440fdb1",
+        "allowAgentToExecuteActions": false,
+        "invocationMode": "USER",
+        "isVerified": false,
+        "tagType": "EXTERNAL_AGENT_ID",
+        "tagValue": "a494e217-426b-44cf-bb45-1663e440fdb1"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "c2de3ccc-b7b8-464b-bf26-8c84da5ba7bb",
+      "parentId": null,
+      "schemaVersion": 2,
+      "type": "jira.issue.comment",
+      "value": {
+        "actingAsUserAAID": "712020:39434b84-859e-4265-ae13-6a50e7c4b3be",
+        "addCommentOnce": true,
+        "comment": "{{agentResponse}}",
+        "commentVisibility": null,
+        "publicComment": false,
+        "sendNotifications": true
+      }
+    }
+  ],
+  "created": 1783551672002,
+  "description": "",
+  "id": 33833424,
+  "idUuid": "019f43f6-bec2-7810-97fe-a3204c1a8d9f",
+  "labels": [],
+  "name": "Analyze Solve Request",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [
+    {
+      "tagType": "EXTERNAL_AGENT_ID",
+      "tagValue": "a494e217-426b-44cf-bb45-1663e440fdb1"
+    }
+  ],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "e584a3a8-7b68-4ccf-a3ca-243139badef8",
+        "conditions": [],
+        "connectionId": null,
+        "id": "915120ce-df37-43a3-96ab-632ae1acf11a",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": true,
+            "source": null,
+            "type": "NAME",
+            "value": "[\"Report an Issue\",\"Feature Request\"]"
+          },
+          "comparison": "ONE_OF",
+          "selectedField": {
+            "type": "NAME",
+            "value": "Request Type"
+          },
+          "selectedFieldType": "com.atlassian.servicedesk:vp-origin"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "e584a3a8-7b68-4ccf-a3ca-243139badef8",
+        "conditions": [],
+        "connectionId": null,
+        "id": "7958e766-566a-442c-91a0-3e694094bb6c",
+        "parentId": null,
+        "schemaVersion": 1,
+        "type": "cmdb.condition.query",
+        "value": {
+          "cmdbField": "customfield_11373",
+          "cmdbQuery": "Project_Name LIKE \"Solve Hub\"",
+          "type": "ISSUE"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "e584a3a8-7b68-4ccf-a3ca-243139badef8",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1784822882186,
+  "writeAccessType": "OWNER_ONLY"
+}

@@ -1,0 +1,1077 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:4cddb49a-31ba-4b16-9a9a-3b444fba9c73",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "711696395",
+              "parentId": "711696393",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "assignee"
+                    },
+                    "fieldType": "assignee",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "712020:3c701f86-8836-499b-a3b7-a9b5eda14487"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Collaborators"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "ID",
+                        "value": "5cc242fc326cf40e45499c22"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "CBG"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "NA"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "711696393",
+              "conditions": [],
+              "connectionId": null,
+              "id": "711696394",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "\"Process\\\\Assembly Line[Select List (cascading)]\" = Stator AND priority = P0 "
+            }
+          ],
+          "connectionId": null,
+          "id": "711696393",
+          "parentId": "711696392",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "711696398",
+              "parentId": "711696396",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "assignee"
+                    },
+                    "fieldType": "assignee",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "5c477ed11487971712d68f1e"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Collaborators"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "ID",
+                        "value": "712020:56fc372e-ca7b-4952-8a59-b6f55818d51c"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "CBG"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "NA"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "711696396",
+              "conditions": [],
+              "connectionId": null,
+              "id": "711696397",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "\"Process\\\\Assembly Line[Select List (cascading)]\" = Stator AND priority  = P1 "
+            }
+          ],
+          "connectionId": null,
+          "id": "711696396",
+          "parentId": "711696392",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "711696401",
+              "parentId": "711696399",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "assignee"
+                    },
+                    "fieldType": "assignee",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "5c477ed11487971712d68f1e"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Collaborators"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "ID",
+                        "value": "712020:270f3243-5851-45a1-9e9c-5476f1660e2b"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "CBG"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "NA"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "711696399",
+              "conditions": [],
+              "connectionId": null,
+              "id": "711696400",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "\"Process\\\\Assembly Line[Select List (cascading)]\" = Stator AND priority in (p3,p4,None,\"Not set\") "
+            }
+          ],
+          "connectionId": null,
+          "id": "711696399",
+          "parentId": "711696392",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "711696404",
+              "parentId": "711696402",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "assignee"
+                    },
+                    "fieldType": "assignee",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "712020:1ddaed7a-a5da-439d-86de-a3d117a9340a"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Collaborators"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "ID",
+                        "value": "5cc242fc326cf40e45499c22"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "CBG"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "NA"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "711696402",
+              "conditions": [],
+              "connectionId": null,
+              "id": "711696403",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "\"Process\\\\Assembly Line[Select List (cascading)]\" = Rotor  AND priority = p0"
+            }
+          ],
+          "connectionId": null,
+          "id": "711696402",
+          "parentId": "711696392",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "711698884",
+              "parentId": "711698882",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "assignee"
+                    },
+                    "fieldType": "assignee",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "712020:80bcfa81-17c2-472a-92c0-8aca88aff9ca"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Collaborators"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "ID",
+                        "value": "712020:56fc372e-ca7b-4952-8a59-b6f55818d51c"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "CBG"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "NA"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "711698882",
+              "conditions": [],
+              "connectionId": null,
+              "id": "711698883",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "\"Process\\\\Assembly Line[Select List (cascading)]\" = Rotor  AND priority = p1"
+            }
+          ],
+          "connectionId": null,
+          "id": "711698882",
+          "parentId": "711696392",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "711698887",
+              "parentId": "711698885",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "assignee"
+                    },
+                    "fieldType": "assignee",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "712020:80bcfa81-17c2-472a-92c0-8aca88aff9ca"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Collaborators"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "ID",
+                        "value": "712020:270f3243-5851-45a1-9e9c-5476f1660e2b"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "CBG"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "NA"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "711698885",
+              "conditions": [],
+              "connectionId": null,
+              "id": "711698886",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "\"Process\\\\Assembly Line[Select List (cascading)]\" = Rotor AND priority in (p3,p4,None,\"Not set\") "
+            }
+          ],
+          "connectionId": null,
+          "id": "711698885",
+          "parentId": "711696392",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "711751197",
+              "parentId": "711751195",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "assignee"
+                    },
+                    "fieldType": "assignee",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "712020:b85d0aaa-ff5e-4fe9-b7e0-cde6a493146e"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Collaborators"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "ID",
+                        "value": "5cc242fc326cf40e45499c22"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "CBG"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "NA"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "711751195",
+              "conditions": [],
+              "connectionId": null,
+              "id": "711751196",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "\"Process\\\\Assembly Line[Select List (cascading)]\" = Inverter AND priority = p0"
+            }
+          ],
+          "connectionId": null,
+          "id": "711751195",
+          "parentId": "711696392",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "711751485",
+              "parentId": "711751482",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "assignee"
+                    },
+                    "fieldType": "assignee",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "712020:783e3c8a-2fa2-4494-b425-950ae1effe9e"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Collaborators"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "ID",
+                        "value": "712020:56fc372e-ca7b-4952-8a59-b6f55818d51c"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "CBG"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": null
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "711751482",
+              "conditions": [],
+              "connectionId": null,
+              "id": "711751483",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "\"Process\\\\Assembly Line[Select List (cascading)]\" = Inverter AND priority = p1"
+            }
+          ],
+          "connectionId": null,
+          "id": "711751482",
+          "parentId": "711696392",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "711759892",
+              "parentId": "711759890",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "assignee"
+                    },
+                    "fieldType": "assignee",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "712020:783e3c8a-2fa2-4494-b425-950ae1effe9e"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Collaborators"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "ID",
+                        "value": "712020:8129dd21-48f2-40e8-94d1-3b800b8c21da"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "CBG"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "NA"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "711759890",
+              "conditions": [],
+              "connectionId": null,
+              "id": "711759891",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "\"Process\\\\Assembly Line[Select List (cascading)]\" = Inverter AND priority in (p3,p4,None,\"Not set\") "
+            }
+          ],
+          "connectionId": null,
+          "id": "711759890",
+          "parentId": "711696392",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "712242342",
+              "parentId": "711759893",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "assignee"
+                    },
+                    "fieldType": "assignee",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "5e7ab0bf79f5ad0c3405b5ec"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Collaborators"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "ID",
+                        "value": "5cc242fc326cf40e45499c22"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "CBG"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "NA"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "711759893",
+              "conditions": [],
+              "connectionId": null,
+              "id": "711759894",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "\"Process\\\\Assembly Line[Select List (cascading)]\" = \"Power Unit Assembly\" AND priority = p0"
+            }
+          ],
+          "connectionId": null,
+          "id": "711759893",
+          "parentId": "711696392",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "711760369",
+              "parentId": "711760367",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "assignee"
+                    },
+                    "fieldType": "assignee",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "5c3365b3f9cb4734ae1c0e91"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Collaborators"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "ID",
+                        "value": "712020:56fc372e-ca7b-4952-8a59-b6f55818d51c"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "CBG"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "NA"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "711760367",
+              "conditions": [],
+              "connectionId": null,
+              "id": "711760368",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "\"Process\\\\Assembly Line[Select List (cascading)]\" = \"Power Unit Assembly\" AND priority = p1"
+            }
+          ],
+          "connectionId": null,
+          "id": "711760367",
+          "parentId": "711696392",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "711760372",
+              "parentId": "711760370",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "assignee"
+                    },
+                    "fieldType": "assignee",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "5c3365b3f9cb4734ae1c0e91"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Collaborators"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "ID",
+                        "value": "712020:8129dd21-48f2-40e8-94d1-3b800b8c21da"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "CBG"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "NA"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "711760370",
+              "conditions": [],
+              "connectionId": null,
+              "id": "711760371",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "\"Process\\\\Assembly Line[Select List (cascading)]\" = \"Power Unit Assembly\" AND priority in (p3,p4,None,\"Not set\") "
+            }
+          ],
+          "connectionId": null,
+          "id": "711760370",
+          "parentId": "711696392",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "711696392",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1747052353294,
+  "description": "",
+  "id": 28336793,
+  "idUuid": "0196c46f-570e-773c-850b-731575d684b9",
+  "labels": [],
+  "name": "Auto Assign based on commodities",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10102"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10102"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "711696391",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.multiple.issue.event",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10102"
+      ],
+      "eventKey": null,
+      "events": [
+        {
+          "event": "issue_created",
+          "id": 1,
+          "key": "jira:issue_created",
+          "labelKey": "com.codebarrel.automation.trigger.multiple.created",
+          "system": false
+        },
+        {
+          "event": "issue_updated",
+          "id": 2,
+          "key": "jira:issue_updated",
+          "labelKey": "com.codebarrel.automation.trigger.multiple.updated",
+          "system": false
+        }
+      ],
+      "issueEvent": null
+    }
+  },
+  "updated": 1757682751523,
+  "writeAccessType": "UNRESTRICTED"
+}

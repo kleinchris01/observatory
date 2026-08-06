@@ -1,0 +1,174 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:c9c3dfc4-eef5-4087-8b1a-8ee188485a9b",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "395d1217-a6a8-4acc-b3ea-292bd62c760a",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Requirement Baseline"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+            "type": "SET",
+            "value": "{{issue.customfield_11806}}"
+          }
+        ],
+        "sendNotifications": true
+      }
+    }
+  ],
+  "created": 1759433386622,
+  "description": "Copy Requirement # to Requirement Baseline for Stories created in ADVEV CAE Management",
+  "id": 30394267,
+  "idUuid": "0199a666-ea7f-7d2f-b8b6-ff92c5bf489d",
+  "labels": [],
+  "name": "Copy Requirement # to Requirement Baseline for Stories created in ADVEV CAE Management",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10042"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10042"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "cfa34732-543e-40d1-950f-fa5047b258a9",
+        "conditions": [],
+        "connectionId": null,
+        "id": "354f4b5d-d866-4bd8-a8b4-42d26bec14a6",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "10020"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "cfa34732-543e-40d1-950f-fa5047b258a9",
+        "conditions": [],
+        "connectionId": null,
+        "id": "4f312f12-e2e3-42ab-bbb7-45440d8390fa",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "10042"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "project"
+          },
+          "selectedFieldType": "project"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "cfa34732-543e-40d1-950f-fa5047b258a9",
+        "conditions": [],
+        "connectionId": null,
+        "id": "b5ccdb7f-3808-4cb5-8fd6-bd26cd1ca77e",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": null,
+          "comparison": "EMPTY",
+          "selectedField": {
+            "type": "NAME",
+            "value": "Requirement Baseline"
+          },
+          "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "cfa34732-543e-40d1-950f-fa5047b258a9",
+        "conditions": [],
+        "connectionId": null,
+        "id": "89ba53b0-1e53-4bb4-b94b-b5300f4b1d59",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": null,
+          "comparison": "NOT_EMPTY",
+          "selectedField": {
+            "type": "NAME",
+            "value": "Requirement #"
+          },
+          "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "cfa34732-543e-40d1-950f-fa5047b258a9",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10042"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1765998165719,
+  "writeAccessType": "UNRESTRICTED"
+}
