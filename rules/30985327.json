@@ -1,0 +1,374 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "c0a31e2d-121c-42f7-8f6b-8f48c1cf73af",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "Total Cost: {{issue.customfield_12574}}"
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "654438b1-0d35-4943-94a4-f0701140af5b",
+              "parentId": "9945bf9a-079b-4f53-9662-9dba3b949df1",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": "{\n  \"fields\": {\n    \"customfield_12574\": \"{{#=}}{{issue.customfield_11830|0}} * {{issue.customfield_11987|0}}{{/}}\"\n  }\n}\n",
+                "operations": [],
+                "sendNotifications": false
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "45469494-63d1-41d8-b5c1-3f2ed820b77f",
+              "parentId": "9945bf9a-079b-4f53-9662-9dba3b949df1",
+              "schemaVersion": 1,
+              "type": "jira.issue.refresh.issue",
+              "value": {
+                "delayMs": null
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "166cdd96-f93b-497b-a35e-8686d5d7631d",
+              "parentId": "9945bf9a-079b-4f53-9662-9dba3b949df1",
+              "schemaVersion": 1,
+              "type": "codebarrel.action.log",
+              "value": "Total Cost: {{issue.customfield_12574}}"
+            },
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "166541a3-7303-45bb-8e29-0814d11e903c",
+                      "parentId": "6b3b6dda-8752-4425-8fb4-925e1c26593a",
+                      "schemaVersion": 2,
+                      "type": "jira.issue.comment",
+                      "value": {
+                        "addCommentOnce": false,
+                        "comment": "Total Cost exceeds the threshold",
+                        "commentVisibility": null,
+                        "publicComment": true,
+                        "sendNotifications": true
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "6b3b6dda-8752-4425-8fb4-925e1c26593a",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "63b24344-cc9c-4f6f-98bb-0a1ea582a641",
+                      "parentId": null,
+                      "schemaVersion": 1,
+                      "type": "jira.comparator.condition",
+                      "value": {
+                        "first": "{{issue.customfield_12574}}",
+                        "operator": "GREATER_THAN",
+                        "second": "{{issue.customfield_18375}}"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "6b3b6dda-8752-4425-8fb4-925e1c26593a",
+                  "parentId": "fee55c22-e124-4fbb-a17d-e703880ded72",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                }
+              ],
+              "component": "CONDITION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "fee55c22-e124-4fbb-a17d-e703880ded72",
+              "parentId": "9945bf9a-079b-4f53-9662-9dba3b949df1",
+              "schemaVersion": 1,
+              "type": "jira.condition.container.block",
+              "value": null
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "9945bf9a-079b-4f53-9662-9dba3b949df1",
+              "conditions": [],
+              "connectionId": null,
+              "id": "ebf19d88-2425-4ae3-a2af-ea1c9803da85",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": "current",
+                  "type": "FIELD",
+                  "value": ""
+                },
+                "comparison": "NOT_EMPTY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Supplier Piece Price Impact"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "9945bf9a-079b-4f53-9662-9dba3b949df1",
+              "conditions": [],
+              "connectionId": null,
+              "id": "542ddc7f-b70a-429f-9883-ed1eb1a4da36",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": null,
+                "comparison": "NOT_EMPTY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Quantity"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "9945bf9a-079b-4f53-9662-9dba3b949df1",
+          "parentId": "5c1c8bb8-54dd-4210-9448-1d5c9f3a69ca",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "ec349161-1bd5-41a3-b7ce-ed91ab8075bc",
+              "parentId": "1c305b93-da97-4620-ae72-5a298702aecc",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Total Cost"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+                    "type": "SET",
+                    "value": ""
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "1c305b93-da97-4620-ae72-5a298702aecc",
+              "conditions": [],
+              "connectionId": null,
+              "id": "d012bb81-c4db-452e-ba8e-df85f9d7229a",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": null,
+                "comparison": "EMPTY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Supplier Piece Price Impact"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "1c305b93-da97-4620-ae72-5a298702aecc",
+              "conditions": [],
+              "connectionId": null,
+              "id": "b3b71dfe-d93b-44c3-a353-191e97aa3a21",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": null,
+                "comparison": "EMPTY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Quantity"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "1c305b93-da97-4620-ae72-5a298702aecc",
+          "parentId": "5c1c8bb8-54dd-4210-9448-1d5c9f3a69ca",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ANY"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "5c1c8bb8-54dd-4210-9448-1d5c9f3a69ca",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1764751203493,
+  "description": "This automation compares the value of the Total Cost and Not to Exceed Cost fields.\n\nIf Total Cost is greater than Not to Exceed Cost then a comment will be added to the work item.",
+  "id": 30985327,
+  "idUuid": "019ae35e-5ca6-7d16-af17-7651a5b73d6d",
+  "labels": [],
+  "name": "SOLVE: Build Deviation - Compare the Total Cost -> Not to Exceed Cost",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "45fe3bc1-23c1-45be-883e-586ed6205c25",
+        "conditions": [],
+        "connectionId": null,
+        "id": "80cbe014-2f6d-4195-bb74-7a7b9a99f18f",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "12654"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "45fe3bc1-23c1-45be-883e-586ed6205c25",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [
+        "create",
+        "edit",
+        "transition"
+      ],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Supplier Piece Price Impact"
+        },
+        {
+          "type": "fieldName",
+          "value": "Quantity"
+        },
+        {
+          "type": "fieldName",
+          "value": "Not to Exceed Cost"
+        }
+      ]
+    }
+  },
+  "updated": 1782741609210,
+  "writeAccessType": "UNRESTRICTED"
+}

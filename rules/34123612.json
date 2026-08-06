@@ -1,0 +1,114 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": "c0f93fdf-7756-4b07-990b-300bf94ed281",
+      "id": "05348472-caed-4e7e-9edb-c4fbd8cde787",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "ai.generate-response.action",
+      "value": {
+        "prompt": "Create a Jira Cloud work item with the following configuration:\n\n1. Clone the triggering issue into the project AETS.\n2. Set the cloned issue type to Feature Request and set the corresponding request type.\n3. Copy these fields from the triggering issue to the cloned issue:\n\n   * Summary\n   * Description\n   * Due date\n   * Reporter\n   * ADT Tool(s)\nCarry over any other fields that are required to create the issue successfully.\n\n4. Add a comment summarizing the original ticket when cloned.\n\n5. Link the triggering issue and cloned issue using the issue link type \"Implements\", with the triggering issue as the source.\n6. After the clone is created successfully, add the label ADT_Dependency_Automation_Created to the original triggering issue.\n\nAdditional requirements:\n\n* Do not create a duplicate clone if the rule runs again.\n* Do not send notifications when creating or editing the issues.\n* Ensure the cloned issue is created only after both required labels are present, regardless of which label was added last.\n* Scope the rule to the ADT2 project.\n"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "c3b02778-5a84-4ace-bb8e-ab59af24e763",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "Agent response: {{rovoResponse}}"
+    }
+  ],
+  "created": 1785967043612,
+  "description": "",
+  "id": 34123612,
+  "idUuid": "019fd3ee-641c-79f1-ab88-306d9c53111d",
+  "labels": [],
+  "name": "Send to AETS Feature Request",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11475"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11475"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "282b74c0-5725-4d73-9f8f-6dd2c42e2cb6",
+        "conditions": [],
+        "connectionId": null,
+        "id": "a19228d2-a08a-4028-8ed1-d9e2e595b2e6",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": true,
+            "source": null,
+            "type": "NAME",
+            "value": "[\"SOLVE_Backlog_Confirmed\",\"IT_Dependency\"]"
+          },
+          "comparison": "CONTAINS_ALL",
+          "selectedField": {
+            "type": "ID",
+            "value": "labels"
+          },
+          "selectedFieldType": "labels"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "282b74c0-5725-4d73-9f8f-6dd2c42e2cb6",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "VALUE_ADDED",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11475"
+      ],
+      "fields": [
+        {
+          "type": "field",
+          "value": "labels"
+        }
+      ]
+    }
+  },
+  "updated": 1785967367604,
+  "writeAccessType": "OWNER_ONLY"
+}

@@ -1,0 +1,167 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:d92c251d-cfd7-487a-ba53-3c1d5ae74de4",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "699473841",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": null,
+          "type": "ID",
+          "value": "10023"
+        },
+        "comparison": "EQUALS",
+        "selectedField": {
+          "type": "ID",
+          "value": "issuetype"
+        },
+        "selectedFieldType": "issuetype"
+      }
+    },
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "699489032",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": true,
+          "source": null,
+          "type": "ID",
+          "value": "[\"712020:d92c251d-cfd7-487a-ba53-3c1d5ae74de4\",\"63bd809304b5f5c7b5ed225b\",\"62a4e50f954f50006fceb1c0\",\"712020:0f7ab9ac-c123-444c-91c1-fe456da72684\",\"712020:25c880e6-a34a-4404-b17f-305b942c6ba2\",\"712020:6982d293-5c7a-403e-ab42-8274a62cacbb\"]"
+        },
+        "comparison": "ONE_OF",
+        "selectedField": {
+          "type": "ID",
+          "value": "creator"
+        },
+        "selectedFieldType": "creator"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "699489033",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.create.subtasks",
+      "value": {
+        "subtasks": [
+          {
+            "id": "_subid_1742221995408",
+            "summary": "Test Objective",
+            "type": "10022"
+          },
+          {
+            "id": "_subid_1742222008823",
+            "summary": "Instrumentation Plan",
+            "type": "10022"
+          },
+          {
+            "id": "_subid_1742222018205",
+            "summary": "Part Readiness",
+            "type": "10022"
+          },
+          {
+            "id": "_subid_1742222027219",
+            "summary": "Build Workplan Completion",
+            "type": "10022"
+          },
+          {
+            "id": "_subid_1742222039554",
+            "summary": "DUT Sign Off",
+            "type": "10022"
+          },
+          {
+            "id": "_subid_1742222050507",
+            "summary": "DUT Shipment",
+            "type": "10022"
+          },
+          {
+            "id": "_subid_1742222057720",
+            "summary": "Test Execution",
+            "type": "10022"
+          },
+          {
+            "id": "_subid_1742222064010",
+            "summary": "Test Report",
+            "type": "10022"
+          },
+          {
+            "id": "_subid_1742222211309",
+            "summary": "Tear Down",
+            "type": "10022"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1742219697975,
+  "description": "",
+  "id": 26360420,
+  "idUuid": "0195a462-df37-78e7-9b6e-5c6ef0a48b14",
+  "labels": [],
+  "name": "Build & Test Subtask Generation Routine",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10584"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10584"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "699473840",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10584"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1754590316046,
+  "writeAccessType": "UNRESTRICTED"
+}

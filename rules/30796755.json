@@ -1,0 +1,136 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:28aa8ca0-9dfa-46ef-8b60-0dd30eb04ac1",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "23dd34d1-06aa-4e62-8faa-d4b4c574909f",
+      "parentId": null,
+      "schemaVersion": 5,
+      "type": "jira.issue.outgoing.email",
+      "value": {
+        "bcc": [],
+        "body": "{{issue.summary}} is ready to review.\n\n{{issue.url}}",
+        "cc": [],
+        "convertLineBreaks": true,
+        "fromName": "",
+        "mimeType": "text/html",
+        "replyTo": "",
+        "subject": "New Item Ready to Review",
+        "to": [
+          {
+            "type": "FREE",
+            "value": "mremenak@ford.com"
+          },
+          {
+            "type": "FREE",
+            "value": "mzyskows@ford.com"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1762967118590,
+  "description": "",
+  "id": 30796755,
+  "idUuid": "019a7907-62fe-721b-9799-dfe7f4c5b041",
+  "labels": [],
+  "name": "Requirement Ready for Review",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11244"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11244"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "d0db5b9f-bb21-4edc-b901-17ebdc3479ed",
+        "conditions": [],
+        "connectionId": null,
+        "id": "b854e5cd-bc48-44c4-8bdc-7e75efa7bdd7",
+        "parentId": null,
+        "schemaVersion": 1,
+        "type": "jira.jql.condition",
+        "value": "parent in (PREH-596, BITRON-1260, BITRON-1259, BITRON-727, BCS-221, GOERTEK-192, GOERTEK-144, BCS-530)"
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "d0db5b9f-bb21-4edc-b901-17ebdc3479ed",
+        "conditions": [],
+        "connectionId": null,
+        "id": "d875e25d-06a8-4ad1-9f75-d2601e56fc5d",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "NAME",
+            "value": "Engineering Verification Complete"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "NAME",
+            "value": "ADVEV Checkpoints & Milestones"
+          },
+          "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "d0db5b9f-bb21-4edc-b901-17ebdc3479ed",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:transitioned",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11244"
+      ],
+      "eventKey": "jira:issue_updated",
+      "fromStatus": [],
+      "issueEvent": "issue_generic",
+      "toStatus": [
+        {
+          "type": "NAME",
+          "value": "Ready for Review"
+        },
+        {
+          "type": "NAME",
+          "value": "In Review"
+        }
+      ]
+    }
+  },
+  "updated": 1763411414688,
+  "writeAccessType": "UNRESTRICTED"
+}

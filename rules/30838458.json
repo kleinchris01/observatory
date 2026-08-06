@@ -1,0 +1,116 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "557058:23a12005-01d4-411a-9b23-cadf03efb98b",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "2635c17d-2b33-4c10-8477-0eae628168ae",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "labels"
+            },
+            "fieldType": "labels",
+            "type": "ADDREMOVE",
+            "value": {
+              "ADD": [
+                {
+                  "type": "NAME",
+                  "value": "U833_Electrical"
+                }
+              ],
+              "REMOVE": []
+            }
+          }
+        ],
+        "sendNotifications": false
+      }
+    }
+  ],
+  "created": 1763400143470,
+  "description": "",
+  "id": 30838458,
+  "idUuid": "019a92d6-d26e-7238-b0bd-cb5d2607b970",
+  "labels": [],
+  "name": "U833 Arch Tickets",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10028"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10028"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "d4ac7a0b-e11b-4b97-83f7-4a0eac8e604a",
+        "conditions": [],
+        "connectionId": null,
+        "id": "8ac3e3f1-b6f9-4804-b6b6-80a06a91c092",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "VALUE",
+            "value": "[U833]"
+          },
+          "comparison": "CONTAINS",
+          "selectedField": {
+            "type": "ID",
+            "value": "summary"
+          },
+          "selectedFieldType": "summary"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "d4ac7a0b-e11b-4b97-83f7-4a0eac8e604a",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10028"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1763400805801,
+  "writeAccessType": "UNRESTRICTED"
+}

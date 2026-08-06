@@ -1,0 +1,146 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:3f063422-1c40-48f4-b245-30fa655ae231",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "b95de819-fa0e-47b7-bb87-c876e0319f4e",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": true,
+          "source": null,
+          "type": "NAME",
+          "value": "[\"Parking Lot\",\"Ready for Decision\",\"Approved\",\"PO Issued & Committed\",\"LLF Issued\",\"Done\",\"Open\"]"
+        },
+        "comparison": "ONE_OF",
+        "selectedField": {
+          "type": "ID",
+          "value": "status"
+        },
+        "selectedFieldType": "status"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "fffca6ad-172a-4bfa-9320-010cfeacc2c8",
+      "parentId": null,
+      "schemaVersion": 11,
+      "type": "jira.issue.transition",
+      "value": {
+        "advancedFields": null,
+        "destinationStatus": {
+          "type": "NAME",
+          "value": "In Progress"
+        },
+        "operations": [],
+        "sendNotifications": true,
+        "transitionMatch": ""
+      }
+    }
+  ],
+  "created": 1777044003803,
+  "description": "If there is a change in any ",
+  "id": 33014921,
+  "idUuid": "019dc013-9bdb-790f-8ab8-dc309f857e4b",
+  "labels": [],
+  "name": "Any Change in Key Data --> In Progress",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10551"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10551"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "1f7e224f-56e9-445c-b42b-4ef0c29e2041",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [
+        "edit"
+      ],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10551"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "SIT/Attribute"
+        },
+        {
+          "type": "fieldName",
+          "value": "ED&T Request Type"
+        },
+        {
+          "type": "fieldName",
+          "value": "Part Number"
+        },
+        {
+          "type": "fieldName",
+          "value": "Suppliers"
+        },
+        {
+          "type": "fieldName",
+          "value": "Supplier GSDB"
+        },
+        {
+          "type": "fieldName",
+          "value": "Total ED&T Cost"
+        },
+        {
+          "type": "fieldName",
+          "value": "GVT Estimate"
+        },
+        {
+          "type": "fieldName",
+          "value": "Total Vendor Tooling Cost"
+        },
+        {
+          "type": "fieldName",
+          "value": "Supplier Location"
+        },
+        {
+          "type": "fieldName",
+          "value": "Manufacturing CapEx Cost"
+        }
+      ]
+    }
+  },
+  "updated": 1777385464995,
+  "writeAccessType": "UNRESTRICTED"
+}

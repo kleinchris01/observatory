@@ -1,0 +1,258 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:7b1a40d2-238f-459b-84d8-a79358548d83",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "720827128",
+              "parentId": "720827126",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "assignee"
+                    },
+                    "fieldType": "assignee",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{issue.customfield_15706.accountId}}"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "720827132",
+                      "parentId": "720827130",
+                      "schemaVersion": 2,
+                      "type": "jira.issue.comment",
+                      "value": {
+                        "addCommentOnce": false,
+                        "comment": "Invalid Issue Champion. Please select a valid project user with necessary access to ensure the work item is assigned correctly.",
+                        "commentVisibility": null,
+                        "publicComment": false,
+                        "sendNotifications": true
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "720827130",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "720827131",
+                      "parentId": null,
+                      "schemaVersion": 6,
+                      "type": "jira.user.condition",
+                      "value": {
+                        "conditions": [
+                          {
+                            "check": "USER_IS",
+                            "criteria": [],
+                            "field": "customfield_15706"
+                          },
+                          {
+                            "check": "NOT_IN_ROLE",
+                            "criteria": [
+                              {
+                                "type": "NAME",
+                                "value": "Administrators"
+                              },
+                              {
+                                "type": "NAME",
+                                "value": "Administrators-EXTERNAL"
+                              },
+                              {
+                                "type": "NAME",
+                                "value": "Creators"
+                              },
+                              {
+                                "type": "NAME",
+                                "value": "Creators-EXTERNAL"
+                              },
+                              {
+                                "type": "NAME",
+                                "value": "Developers"
+                              },
+                              {
+                                "type": "NAME",
+                                "value": "Developers-EXTERNAL"
+                              },
+                              {
+                                "type": "NAME",
+                                "value": "Editors"
+                              },
+                              {
+                                "type": "NAME",
+                                "value": "Editors-EXTERNAL"
+                              }
+                            ],
+                            "field": "customfield_15706"
+                          }
+                        ],
+                        "operator": "OR"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "720827130",
+                  "parentId": "720827129",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                }
+              ],
+              "component": "CONDITION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "720827129",
+              "parentId": "720827126",
+              "schemaVersion": 1,
+              "type": "jira.condition.container.block",
+              "value": null
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "720827126",
+              "conditions": [],
+              "connectionId": null,
+              "id": "720827127",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "ICA,RCA,PCA In-Progress"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "ID",
+                  "value": "status"
+                },
+                "selectedFieldType": "status"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "720827126",
+          "parentId": "720827125",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ANY"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "720827125",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1755000631219,
+  "description": "Set Assignee to Issue Champion after CT transitions to \"Prioritized\" status",
+  "id": 29900495,
+  "idUuid": "01989e30-6fb4-71fc-a5fb-e766c98536c3",
+  "labels": [],
+  "name": "CE1 - Set Issue Champion as Assignee after successful auto-transition",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "720827124",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [
+        "edit",
+        "transition"
+      ],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Issue Champion"
+        },
+        {
+          "type": "field",
+          "value": "status"
+        }
+      ]
+    }
+  },
+  "updated": 1765799777312,
+  "writeAccessType": "UNRESTRICTED"
+}

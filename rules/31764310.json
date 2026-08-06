@@ -1,0 +1,411 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "38fc4ddd-d4eb-4ffa-8243-f18a07cfc4d8",
+              "parentId": "e5573af7-d12d-48bc-bb51-cabf48447867",
+              "schemaVersion": 11,
+              "type": "jira.issue.transition",
+              "value": {
+                "advancedFields": null,
+                "destinationStatus": {
+                  "type": "NAME",
+                  "value": "Blocked"
+                },
+                "operations": [],
+                "sendNotifications": true,
+                "transitionMatch": null
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "e5573af7-d12d-48bc-bb51-cabf48447867",
+              "conditions": [],
+              "connectionId": null,
+              "id": "47b42e40-3492-4ba0-ac3b-b160d2f2c702",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.issues.related.condition",
+              "value": {
+                "compareJql": "statusCategory != Done",
+                "compareValue": 0,
+                "jql": null,
+                "linkTypes": [
+                  "is blocked by"
+                ],
+                "operator": "somematch",
+                "relatedJql": null,
+                "relatedType": "linked",
+                "similarityLimit": 0
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "e5573af7-d12d-48bc-bb51-cabf48447867",
+              "conditions": [],
+              "connectionId": null,
+              "id": "888d53a9-095f-431b-9cb5-1472571b40a8",
+              "parentId": null,
+              "schemaVersion": -1,
+              "type": "jira.jql.condition",
+              "value": "status != Blocked"
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "e5573af7-d12d-48bc-bb51-cabf48447867",
+              "conditions": [],
+              "connectionId": null,
+              "id": "1823a8fb-2c8b-41aa-8bc0-c9a7ecf327c3",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "project not in (AST)"
+            }
+          ],
+          "connectionId": null,
+          "id": "e5573af7-d12d-48bc-bb51-cabf48447867",
+          "parentId": "5b266219-9710-4a35-9652-c30c3f6960f3",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "d75b2080-36c9-46dc-adec-758b5bc99172",
+              "parentId": "fff6c2c8-4ee4-41d8-bf98-1ed9771cfcb4",
+              "schemaVersion": 11,
+              "type": "jira.issue.transition",
+              "value": {
+                "advancedFields": null,
+                "destinationStatus": {
+                  "type": "NAME",
+                  "value": "Blocked"
+                },
+                "operations": [],
+                "sendNotifications": true,
+                "transitionMatch": null
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "fff6c2c8-4ee4-41d8-bf98-1ed9771cfcb4",
+              "conditions": [],
+              "connectionId": null,
+              "id": "1d987ed6-409d-4753-8521-184f6ddd8fc6",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.issues.related.condition",
+              "value": {
+                "compareJql": "statusCategory != Done",
+                "compareValue": 0,
+                "jql": null,
+                "linkTypes": [
+                  "is blocked by"
+                ],
+                "operator": "somematch",
+                "relatedJql": null,
+                "relatedType": "linked",
+                "similarityLimit": 0
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "fff6c2c8-4ee4-41d8-bf98-1ed9771cfcb4",
+              "conditions": [],
+              "connectionId": null,
+              "id": "0b8aec2a-0b44-46b3-ae0f-56f91575767b",
+              "parentId": null,
+              "schemaVersion": -1,
+              "type": "jira.jql.condition",
+              "value": "status != Blocked"
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "fff6c2c8-4ee4-41d8-bf98-1ed9771cfcb4",
+              "conditions": [],
+              "connectionId": null,
+              "id": "b1aa812e-b0aa-4193-bb9b-cef89331bc29",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "project = AST"
+            }
+          ],
+          "connectionId": null,
+          "id": "fff6c2c8-4ee4-41d8-bf98-1ed9771cfcb4",
+          "parentId": "5b266219-9710-4a35-9652-c30c3f6960f3",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "f43e33a5-5a06-41b2-a012-19019fc23f5a",
+              "parentId": "ded8b107-3d53-4071-a2a2-6bafe9f91646",
+              "schemaVersion": 11,
+              "type": "jira.issue.transition",
+              "value": {
+                "advancedFields": null,
+                "destinationStatus": {
+                  "type": "NAME",
+                  "value": "Backlog"
+                },
+                "operations": [],
+                "sendNotifications": true,
+                "transitionMatch": null
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "ded8b107-3d53-4071-a2a2-6bafe9f91646",
+              "conditions": [],
+              "connectionId": null,
+              "id": "3ea66108-4096-42aa-ada2-9c39a923251d",
+              "parentId": null,
+              "schemaVersion": -1,
+              "type": "jira.jql.condition",
+              "value": "status = Blocked"
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "ded8b107-3d53-4071-a2a2-6bafe9f91646",
+              "conditions": [],
+              "connectionId": null,
+              "id": "ef6d7903-24ae-4cbb-b0e5-c123e74856d1",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.issues.related.condition",
+              "value": {
+                "compareJql": "statusCategory != Done",
+                "compareValue": 0,
+                "jql": null,
+                "linkTypes": [
+                  "is blocked by"
+                ],
+                "operator": "nonematch",
+                "relatedJql": null,
+                "relatedType": "linked",
+                "similarityLimit": 0
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "ded8b107-3d53-4071-a2a2-6bafe9f91646",
+              "conditions": [],
+              "connectionId": null,
+              "id": "88f1fb3a-4e18-49b0-8016-febfd4206ddb",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "project != AETS"
+            }
+          ],
+          "connectionId": null,
+          "id": "ded8b107-3d53-4071-a2a2-6bafe9f91646",
+          "parentId": "5b266219-9710-4a35-9652-c30c3f6960f3",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "710427ff-d377-4b95-97d4-9ea02fd53e97",
+              "parentId": "5252931d-3499-452c-ba7e-b037a8c7c4c8",
+              "schemaVersion": 11,
+              "type": "jira.issue.transition",
+              "value": {
+                "advancedFields": null,
+                "destinationStatus": {
+                  "type": "NAME",
+                  "value": "Waiting for support"
+                },
+                "operations": [],
+                "sendNotifications": true,
+                "transitionMatch": null
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "5252931d-3499-452c-ba7e-b037a8c7c4c8",
+              "conditions": [],
+              "connectionId": null,
+              "id": "3ba9189b-da61-4693-9232-bfdf77089cbd",
+              "parentId": null,
+              "schemaVersion": -1,
+              "type": "jira.jql.condition",
+              "value": "status = Blocked"
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "5252931d-3499-452c-ba7e-b037a8c7c4c8",
+              "conditions": [],
+              "connectionId": null,
+              "id": "8ef1b26f-3333-4b42-8c7d-c87090ec4929",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.issues.related.condition",
+              "value": {
+                "compareJql": "statusCategory != Done",
+                "compareValue": 0,
+                "jql": null,
+                "linkTypes": [
+                  "is blocked by"
+                ],
+                "operator": "nonematch",
+                "relatedJql": null,
+                "relatedType": "linked",
+                "similarityLimit": 0
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "5252931d-3499-452c-ba7e-b037a8c7c4c8",
+              "conditions": [],
+              "connectionId": null,
+              "id": "df5c0131-c8e2-4c51-b1e0-8129112dfe82",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "Project = AETS"
+            }
+          ],
+          "connectionId": null,
+          "id": "5252931d-3499-452c-ba7e-b037a8c7c4c8",
+          "parentId": "5b266219-9710-4a35-9652-c30c3f6960f3",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "5b266219-9710-4a35-9652-c30c3f6960f3",
+      "parentId": null,
+      "schemaVersion": -1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1769714312608,
+  "description": "This rule enforces issue status transitions based on linked issues and project-specific conditions.",
+  "id": 31764310,
+  "idUuid": "019c0b31-659f-7cb9-be04-40e397d92d71",
+  "labels": [],
+  "name": "Daily State Auditor 2",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11574",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10110"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "225784ac-b24a-4a03-9355-ba6b43ff36b0",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "project in (AETS, \"ADVEV Connect (Jira, Confluence, SharePoint, Teams)\", TESTKP) AND status = blocked and issueLinkType is empty and issuetype != \"ADVEV Access\"",
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=US/Pacific:20230415T132829\nRRULE:FREQ=DAILY;BYHOUR=9;BYMINUTE=0\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1774890378264,
+  "writeAccessType": "UNRESTRICTED"
+}

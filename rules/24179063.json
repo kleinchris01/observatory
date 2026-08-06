@@ -1,0 +1,209 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:8601a1b3-738d-4e4e-a79d-808efd596a68",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "671040745",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": null,
+          "type": "ID",
+          "value": "10101"
+        },
+        "comparison": "EQUALS",
+        "selectedField": {
+          "type": "ID",
+          "value": "project"
+        },
+        "selectedFieldType": "project"
+      }
+    },
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "671040746",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.jql.condition",
+      "value": "labels = \"BME_Sta_Readiness\""
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "671040747",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.create.subtasks",
+      "value": {
+        "subtasks": [
+          {
+            "id": "_subid_1737131493024",
+            "summary": "Concept Design",
+            "type": "10022"
+          },
+          {
+            "id": "_subid_1737131508172",
+            "summary": "Detailed Design",
+            "type": "10022"
+          },
+          {
+            "id": "_subid_1737131509122",
+            "summary": "Machining/Purchasing",
+            "type": "10022"
+          },
+          {
+            "id": "_subid_1737131513284",
+            "summary": "Assembly",
+            "type": "10022"
+          },
+          {
+            "id": "_subid_1737131514106",
+            "summary": "Start up",
+            "type": "10022"
+          },
+          {
+            "id": "_subid_1737131514888",
+            "summary": "Supplier Tryout",
+            "type": "10022"
+          },
+          {
+            "id": "_subid_1737131515766",
+            "summary": "Supplier Runoff",
+            "type": "10022"
+          },
+          {
+            "id": "_subid_1737131516490",
+            "summary": "FAT",
+            "type": "10022"
+          },
+          {
+            "id": "_subid_1737131536685",
+            "summary": "Transportation",
+            "type": "10022"
+          },
+          {
+            "id": "_subid_1737131537467",
+            "summary": "Marshall Install",
+            "type": "10022"
+          },
+          {
+            "id": "_subid_1737131538317",
+            "summary": "SAT",
+            "type": "10022"
+          },
+          {
+            "id": "_subid_1737131546604",
+            "summary": "Yellow Pro-Tag",
+            "type": "10022"
+          },
+          {
+            "id": "_subid_1737131548065",
+            "summary": "Green Pro-Tag",
+            "type": "10022"
+          }
+        ]
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "671040748",
+      "parentId": null,
+      "schemaVersion": 5,
+      "type": "jira.issue.assign",
+      "value": {
+        "assignType": "SPECIFY_USER",
+        "assignee": {
+          "type": "COPY",
+          "value": "parent"
+        },
+        "excludedUsers": [],
+        "fieldToCopy": null,
+        "group": null,
+        "issueToCopy": null,
+        "itsmOpsOncall": null,
+        "jql": null,
+        "listAssignMethod": null,
+        "peopleTeamsCustomFieldId": null,
+        "restrictedToGroup": null,
+        "role": null,
+        "smartValue": null,
+        "userList": []
+      }
+    }
+  ],
+  "created": 1737131595321,
+  "description": "",
+  "id": 24179063,
+  "idUuid": "0194751c-9639-7402-888c-566f8146cf7a",
+  "labels": [],
+  "name": "BME Subtask",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10101"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10101"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "671040744",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "VALUE_ADDED",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10101"
+      ],
+      "fields": [
+        {
+          "type": "field",
+          "value": "labels"
+        }
+      ]
+    }
+  },
+  "updated": 1760386797761,
+  "writeAccessType": "OWNER_ONLY"
+}

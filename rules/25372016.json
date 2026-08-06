@@ -1,0 +1,112 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:5c26858c-30b6-4481-943d-ea8df46c8526",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "693516301",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.comparator.condition",
+      "value": {
+        "first": "{{now.diff(issue.duedate).days}}",
+        "operator": "EQUALS",
+        "second": "7"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "693516302",
+      "parentId": null,
+      "schemaVersion": 5,
+      "type": "jira.issue.outgoing.email",
+      "value": {
+        "bcc": [],
+        "body": "Hello {{issue.Assignee.displayName}},\n\nThis is a reminder that below issue is pending for your action in next 7 Days! <h4>Due Date Reminder Report</h4> <table border=\"1\"> <tr> <th>Summary</th> <th>Status</th> <th>Assignee</th> <th>Due Date</th> </tr> <tr><td><a href=\"{{url}}\">{{issue.key}} </a> -{{issue.summary}} </td> <td>{{issue.status.name}} </td> <td>{{issue.assignee.displayName}}</td> <td>{{issue.duedate.format(\"MMM dd,yyyy\")}}</td></tr> </table>\n\nRegards,\nJira Automation\n",
+        "cc": [
+          {
+            "type": "COPY",
+            "value": "reporter"
+          },
+          {
+            "type": "COPY",
+            "value": "customfield_10523"
+          }
+        ],
+        "convertLineBreaks": true,
+        "fromName": "",
+        "mimeType": "text/html",
+        "replyTo": "",
+        "subject": "Due Date Reminder- {{issue.issueType.name}} > {{issue.key}}",
+        "to": [
+          {
+            "type": "COPY",
+            "value": "assignee"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1739949591679,
+  "description": "",
+  "id": 25372016,
+  "idUuid": "01951d13-cc7f-7fe5-b2ff-4a135fb04e1d",
+  "labels": [],
+  "name": "Due Date Reminder",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10044"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10044"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "693516300",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "project = make",
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=Asia/Calcutta:20250219T124400\nRRULE:FREQ=WEEKLY;BYHOUR=10;BYMINUTE=0;BYSECOND=0;BYDAY=MO,TU,WE,TH,FR;INTERVAL=1\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1739949591679,
+  "writeAccessType": "UNRESTRICTED"
+}

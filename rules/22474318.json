@@ -1,0 +1,83 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:a72744f4-d380-4dcd-b24a-cf08919a8a6c",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "676929269",
+      "parentId": null,
+      "schemaVersion": 5,
+      "type": "jira.issue.outgoing.email",
+      "value": {
+        "bcc": [],
+        "body": "{{issue.key}}\n\n{{issue.summary}}\n\nDescription:\n{{issue.description}}\n\n\n\n\nYou successfully submitted your {{issue.issueType.name}} to the PT2 Team. Thanks! \n\nFind your issue by clicking the link.\n{{issue.url}}\n\nFor questions, contact...\nGarrett Smith\ngsmit618@ford.com\nOn #Slack and Teams \n",
+        "cc": [],
+        "convertLineBreaks": true,
+        "fromName": "PT2 Team Jira ",
+        "mimeType": "text/html",
+        "replyTo": "eengel7@ford.com",
+        "subject": "You created a Jira Ticket {{issue.key}} {{issue.summary}}",
+        "to": [
+          {
+            "additional": "INITIATOR",
+            "type": "REFERENCE",
+            "value": "INITIATOR"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1729203330936,
+  "description": "",
+  "id": 22474318,
+  "idUuid": "01929c8c-df78-764f-ae47-52eca78a79ba",
+  "labels": [],
+  "name": "Email all the people",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10125"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10125"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "676929268",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10125"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1772231072471,
+  "writeAccessType": "UNRESTRICTED"
+}

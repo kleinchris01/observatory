@@ -1,0 +1,247 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "7c782cc7-d9d6-472c-a907-ec9d76c62898",
+          "parentId": "49533606-c8c7-46a2-82f2-8cc3e2001c70",
+          "schemaVersion": 1,
+          "type": "jira.jql.condition",
+          "value": "\"Program [Select List (multiple choices)]\" = \"U833\" AND level in (\"CE1 Default\", \"P833 Default\", EMPTY)"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "5a2d43f8-fcbc-4dba-965f-9dafb61123f9",
+          "parentId": "49533606-c8c7-46a2-82f2-8cc3e2001c70",
+          "schemaVersion": 1,
+          "type": "jira.issue.set.security.level",
+          "value": {
+            "issueSecurityScheme": {
+              "type": "ID",
+              "value": "11142"
+            },
+            "securityLevel": {
+              "type": "ID",
+              "value": "11190"
+            }
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "49533606-c8c7-46a2-82f2-8cc3e2001c70",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "f822e9c2-5418-4630-b516-20bb31f2223b",
+          "parentId": "4a663049-d4d5-4f06-9c8f-8802d9e95f95",
+          "schemaVersion": 1,
+          "type": "jira.jql.condition",
+          "value": "\"Program [Select List (multiple choices)]\" = \"P833\" AND level in (\"CE1 Default\", \"U833 Default\", EMPTY)"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "f036c3c7-15be-4165-bd31-7484ee34c680",
+          "parentId": "4a663049-d4d5-4f06-9c8f-8802d9e95f95",
+          "schemaVersion": 1,
+          "type": "jira.issue.set.security.level",
+          "value": {
+            "issueSecurityScheme": {
+              "type": "ID",
+              "value": "11142"
+            },
+            "securityLevel": {
+              "type": "ID",
+              "value": "11188"
+            }
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "4a663049-d4d5-4f06-9c8f-8802d9e95f95",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "aecc8b00-f6cc-4639-af9d-7a7a2e0b6928",
+          "parentId": "30662a52-dd64-47cf-856e-ca86fbe56728",
+          "schemaVersion": 1,
+          "type": "jira.jql.condition",
+          "value": "\"Program [Select List (multiple choices)]\" not in (\"P833\", \"U833\") AND level in (\"P833 Default\", \"U833 Default\", EMPTY)"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "4bdfe85c-aa49-45cc-af8e-713ac521d117",
+          "parentId": "30662a52-dd64-47cf-856e-ca86fbe56728",
+          "schemaVersion": 1,
+          "type": "jira.issue.set.security.level",
+          "value": {
+            "issueSecurityScheme": {
+              "type": "ID",
+              "value": "11142"
+            },
+            "securityLevel": {
+              "type": "ID",
+              "value": "11155"
+            }
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "30662a52-dd64-47cf-856e-ca86fbe56728",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1776974257663,
+  "description": "",
+  "id": 32997624,
+  "idUuid": "019dbbeb-5dff-761b-83f5-40b174a4e6ab",
+  "labels": [
+    1056296
+  ],
+  "name": "Update Issue Security level based on Program field",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11574"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11574"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "29a7e6e5-035f-4322-b0a1-1f25abf78cde",
+        "conditions": [],
+        "connectionId": null,
+        "id": "26d88e9e-42f7-4a7c-9c32-6cf5f23222e0",
+        "parentId": null,
+        "schemaVersion": 1,
+        "type": "jira.jql.condition",
+        "value": "project in (ECM, PREA) AND level not in (\"CE1 Secret\")"
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "29a7e6e5-035f-4322-b0a1-1f25abf78cde",
+        "conditions": [],
+        "connectionId": null,
+        "id": "09db990c-a533-4c65-a564-fc7ba0b041a5",
+        "parentId": null,
+        "schemaVersion": 1,
+        "type": "jira.jql.condition",
+        "value": "(   \"ADVEV Vehicle Program\" is EMPTY   OR \"ADVEV Vehicle Program\" not in (\"P833\", \"U833\") )"
+      }
+    ],
+    "connectionId": null,
+    "id": "29a7e6e5-035f-4322-b0a1-1f25abf78cde",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11574"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Program "
+        }
+      ]
+    }
+  },
+  "updated": 1776974257663,
+  "writeAccessType": "OWNER_ONLY"
+}

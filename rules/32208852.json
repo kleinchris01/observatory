@@ -1,0 +1,78 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "3fc42c9a-9dc6-4e35-b1f6-4be483e222d0",
+      "parentId": null,
+      "schemaVersion": 2,
+      "type": "jira.issue.comment",
+      "value": {
+        "addCommentOnce": true,
+        "comment": "The reauthorization window has closed and is no longer available, as more than 7 days have passed since the issue transitioned to Closed",
+        "commentVisibility": null,
+        "publicComment": true,
+        "sendNotifications": true
+      }
+    }
+  ],
+  "created": 1772193469022,
+  "description": "This automation adds a comment to the work item if it is in Closed status for more than 7 days",
+  "id": 32208852,
+  "idUuid": "019c9ef6-5260-76ef-be92-b1e414493d26",
+  "labels": [],
+  "name": "SOLVE: Build Deviation - Adding of comment for ticket in Closed status for more than 7 days",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "dce586ba-b062-4daa-a5cb-ce381585ada0",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "project = SOLVE AND issuetype = \"Build Deviation\" AND status = Closed AND resolutiondate > -7d",
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/New_York:20260225T004900\nRRULE:FREQ=DAILY;BYHOUR=5;BYMINUTE=0;BYSECOND=0;INTERVAL=1\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1782741275449,
+  "writeAccessType": "OWNER_ONLY"
+}

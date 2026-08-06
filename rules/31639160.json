@@ -1,0 +1,78 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "6206eaee539d790069dfa3ab"
+  },
+  "authorAccountId": "6206eaee539d790069dfa3ab",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "6b9391c0-7c16-47d1-baa2-800f20c27df2",
+      "parentId": null,
+      "schemaVersion": 2,
+      "type": "confluence.create-page.action",
+      "value": {
+        "destinationPageTitle": "Sprint Report for {{sprint.name}}",
+        "destinationParentPage": {
+          "id": "47496345",
+          "title": "Sprint report out - Draft",
+          "type": "page"
+        },
+        "destinationSpace": {
+          "containsExternalCollaborators": false,
+          "id": "47480832",
+          "key": "CE1",
+          "label": "CE1"
+        },
+        "isPageBodyAdf": false
+      }
+    }
+  ],
+  "created": 1769035743034,
+  "description": "Automatically publish the SEIT-1 Sprint Report to the SysEng Sprint Release Notes page when a sprint is completed.",
+  "id": 31639160,
+  "idUuid": "019be2bf-3f3a-7daa-ba3f-76e9eac2b764",
+  "labels": [],
+  "name": "Publish SysEng Sprint Report to Confluence",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11376"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11376"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "b7ed9767-d279-4e9a-9954-da96e22cf851",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.sprint.event.trigger:closed",
+    "value": {
+      "boardId": 0,
+      "sprintNameFilter": ""
+    }
+  },
+  "updated": 1769035743034,
+  "writeAccessType": "UNRESTRICTED"
+}

@@ -1,0 +1,114 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "712020:ef8ccbc1-35f9-4772-90ee-5bce43de1055"
+  },
+  "authorAccountId": "712020:ef8ccbc1-35f9-4772-90ee-5bce43de1055",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "6ae9fe9c-952b-48c4-b82d-49f9c89afbc3",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": true,
+          "source": null,
+          "type": "ID",
+          "value": "[\"10023\",\"10000\",\"10022\"]"
+        },
+        "comparison": "ONE_OF",
+        "selectedField": {
+          "type": "ID",
+          "value": "issuetype"
+        },
+        "selectedFieldType": "issuetype"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "b9ae8584-f816-41a1-a5bd-c10ab3368102",
+      "parentId": null,
+      "schemaVersion": 2,
+      "type": "jira.issue.add.watcher",
+      "value": {
+        "removeAll": false,
+        "removeWatchers": [],
+        "watchers": [
+          {
+            "type": "ID",
+            "value": "712020:0bf1595f-a3db-4179-9e80-1b770e47195e"
+          },
+          {
+            "type": "ID",
+            "value": "712020:5542b8eb-04da-43d4-9777-0b672e17e5ea"
+          },
+          {
+            "type": "ID",
+            "value": "712020:452256a5-bd9d-4328-b1b2-7a9eaf5ed61a"
+          },
+          {
+            "type": "ID",
+            "value": "qm:e0f91677-9e45-46c9-8ef8-0b82c155610f:fcb93705-7770-44cf-ad33-540fa68e209a"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1775841734587,
+  "description": "When a new task or epic is created, automatically add specified people as watchers to ensure they are notified of updates.",
+  "id": 32813214,
+  "idUuid": "019d786a-6fbb-78c4-8fab-dd75d47eb7ea",
+  "labels": [],
+  "name": "Add Watchers When Task or Epic Is Created",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13307"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13307"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "aaeaf591-85e9-4a69-ad9a-97a2a8f13d96",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13307"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1775841734587,
+  "writeAccessType": "UNRESTRICTED"
+}

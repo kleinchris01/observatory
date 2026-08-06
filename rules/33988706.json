@@ -1,0 +1,384 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:c9c3dfc4-eef5-4087-8b1a-8ee188485a9b",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "f4249482-f2a9-4170-a72c-395f4cd0a7d4",
+                  "parentId": "4fb07306-811d-41fd-845e-f73da31beede",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.create",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "summary"
+                        },
+                        "fieldType": "summary",
+                        "type": "SET",
+                        "value": "ACE Ticket for Part - {{partNumberList.Name}}"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "description"
+                        },
+                        "fieldType": "description",
+                        "type": "SET",
+                        "value": "Automatically generated from GSM Sourcing Ticket {{triggerIssue.key}} for asset {{part.Name}}"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "project"
+                        },
+                        "fieldType": "project",
+                        "type": "SET",
+                        "value": {
+                          "type": "ID",
+                          "value": "10109"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "issuetype"
+                        },
+                        "fieldType": "issuetype",
+                        "type": "SET",
+                        "value": {
+                          "type": "ID",
+                          "value": "10127"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "NAME",
+                          "value": "ADVEV Vehicle Program"
+                        },
+                        "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                        "type": "COPY",
+                        "value": {
+                          "copyOptions": [],
+                          "sourceField": {
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                            "type": "NAME",
+                            "value": "ADVEV Vehicle Program"
+                          },
+                          "sourceIssue": "trigger"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "NAME",
+                          "value": "ADVEV Checkpoints & Milestones"
+                        },
+                        "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                        "type": "COPY",
+                        "value": {
+                          "copyOptions": [],
+                          "sourceField": {
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                            "type": "NAME",
+                            "value": "ADVEV Checkpoints & Milestones"
+                          },
+                          "sourceIssue": "trigger"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "NAME",
+                          "value": "SIT/Attribute"
+                        },
+                        "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                        "type": "COPY",
+                        "value": {
+                          "copyOptions": [],
+                          "sourceField": {
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                            "type": "NAME",
+                            "value": "SIT/Attribute"
+                          },
+                          "sourceIssue": "trigger"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "NAME",
+                          "value": "Part Number(s)"
+                        },
+                        "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                        "type": "COPY",
+                        "value": {
+                          "copyOptions": [],
+                          "sourceField": {
+                            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                            "type": "NAME",
+                            "value": "Part Number(s)"
+                          },
+                          "sourceIssue": "trigger"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "NAME",
+                          "value": "Part Numbers"
+                        },
+                        "fieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype",
+                        "type": "SET",
+                        "value": "\"Part Number (EIN)\" = \"{{partNumberList.Name}}\""
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "245ff49a-3382-498e-a8b1-4f78cc54c3fc",
+                  "parentId": "4fb07306-811d-41fd-845e-f73da31beede",
+                  "schemaVersion": 2,
+                  "type": "jira.issue.link",
+                  "value": {
+                    "issue": {
+                      "type": "COPY",
+                      "value": "created"
+                    },
+                    "linkType": "inward:10003"
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "90102fbe-b153-4aa1-84fd-ccdad96c5c0e",
+                  "parentId": "4fb07306-811d-41fd-845e-f73da31beede",
+                  "schemaVersion": 2,
+                  "type": "jira.issue.comment",
+                  "value": {
+                    "addCommentOnce": true,
+                    "comment": "Automation: ACE ticket {{createdIssue.key}} created for cost engineering support. [View ACE ticket](https://ford-advev.atlassian.net/browse/{{createdIssue.key}})",
+                    "commentVisibility": null,
+                    "publicComment": false,
+                    "sendNotifications": true
+                  }
+                }
+              ],
+              "component": "BRANCH",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "4fb07306-811d-41fd-845e-f73da31beede",
+              "parentId": "bac56be7-f797-4679-9ed0-b85802ea8036",
+              "schemaVersion": 1,
+              "type": "jira.smart.values.branch",
+              "value": {
+                "id": "_customsmartvalue_id_1782744331333",
+                "lazy": false,
+                "name": {
+                  "type": "FREE",
+                  "value": "partNumberList"
+                },
+                "query": {
+                  "type": "SMART",
+                  "value": "{{issue.customfield_15714}}"
+                },
+                "type": "SMART"
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "bac56be7-f797-4679-9ed0-b85802ea8036",
+              "conditions": [],
+              "connectionId": null,
+              "id": "b6f6a280-8b3a-421b-b52a-6e1d2869ea90",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": null,
+                "comparison": "NOT_EMPTY",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Part Numbers"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "bac56be7-f797-4679-9ed0-b85802ea8036",
+          "parentId": "85fdb24e-d20a-437c-a5f2-b3fb8b47ebdc",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "85fdb24e-d20a-437c-a5f2-b3fb8b47ebdc",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1784776241689,
+  "description": "",
+  "id": 33988706,
+  "idUuid": "019f8cf4-321a-7a73-b904-c00e8b04faea",
+  "labels": [],
+  "name": "Create ACE Ticket on GSM Transition to RFQ Active",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "62c43d89-fdae-4d39-8605-5f5ca5309aac",
+        "conditions": [],
+        "connectionId": null,
+        "id": "78ccfce7-3445-4317-884f-0f1bd8984338",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "10518"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "project"
+          },
+          "selectedFieldType": "project"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "62c43d89-fdae-4d39-8605-5f5ca5309aac",
+        "conditions": [],
+        "connectionId": null,
+        "id": "edeb1c52-80dd-4f64-a5aa-68a9a1d32d03",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "10594"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "62c43d89-fdae-4d39-8605-5f5ca5309aac",
+        "conditions": [],
+        "connectionId": null,
+        "id": "2facff65-44a2-442a-bb22-70d5f0dde7f3",
+        "parentId": null,
+        "schemaVersion": 1,
+        "type": "jira.issues.related.condition",
+        "value": {
+          "compareJql": "",
+          "compareValue": 0,
+          "jql": "",
+          "linkTypes": [
+            "relates to"
+          ],
+          "operator": "equals",
+          "relatedJql": "",
+          "relatedType": "linked",
+          "similarityLimit": 40
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "62c43d89-fdae-4d39-8605-5f5ca5309aac",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:transitioned",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+      ],
+      "eventKey": "jira:issue_updated",
+      "fromStatus": [],
+      "issueEvent": "issue_generic",
+      "toStatus": [
+        {
+          "type": "NAME",
+          "value": "RFQ Active"
+        }
+      ]
+    }
+  },
+  "updated": 1784776271754,
+  "writeAccessType": "OWNER_ONLY"
+}

@@ -1,0 +1,118 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "9948ac85-7b11-488b-917c-3b31241537a3",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Collaborators"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+            "type": "SET",
+            "value": [
+              {
+                "type": "ID",
+                "value": "712020:304af5e3-052f-4a52-80a4-2c529f873fe5"
+              },
+              {
+                "type": "ID",
+                "value": "712020:2455f93a-54d9-44e8-8225-d49d19cdb602"
+              },
+              {
+                "type": "ID",
+                "value": "712020:fc456e9f-710f-4731-88ce-1d0d17cfd8d3"
+              },
+              {
+                "type": "ID",
+                "value": "712020:d6c0cbeb-d922-4e3b-aebc-9d41aa715029"
+              },
+              {
+                "type": "ID",
+                "value": "712020:bdd153e3-f062-4dc9-bd56-3d59271d33a2"
+              },
+              {
+                "type": "ID",
+                "value": "712020:780f6f78-39ef-43b4-8108-2bb30ebde58f"
+              },
+              {
+                "type": "ID",
+                "value": "712020:6db3750f-96b6-41f4-8bc8-6e96671d6eb0"
+              },
+              {
+                "type": "ID",
+                "value": "712020:7630ead2-c9eb-4003-a1a1-4cb21b4afe5e"
+              },
+              {
+                "type": "ID",
+                "value": "712020:d718e013-b4b1-445e-a47d-bb1f934b7219"
+              }
+            ]
+          }
+        ],
+        "sendNotifications": true
+      }
+    }
+  ],
+  "created": 1779900479331,
+  "description": "",
+  "id": 33415117,
+  "idUuid": "019e6a55-f763-79b8-8e8f-a3fbc3e9f990",
+  "labels": [],
+  "name": "Update Collaborators",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13646"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13646"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "7c22d336-48bd-4e97-8f65-37baf4dd7a0a",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13646"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1779900680410,
+  "writeAccessType": "OWNER_ONLY"
+}

@@ -1,0 +1,197 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "712020:9b52b270-bb29-4f87-880d-7c4412cc01b8"
+  },
+  "authorAccountId": "712020:9b52b270-bb29-4f87-880d-7c4412cc01b8",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "2d85ecd7-ec46-48ec-9147-d69e8f63b888",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": null,
+          "type": "ID",
+          "value": "10148"
+        },
+        "comparison": "EQUALS",
+        "selectedField": {
+          "type": "ID",
+          "value": "issuetype"
+        },
+        "selectedFieldType": "issuetype"
+      }
+    },
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "866246e2-678d-4cca-9216-303ffec320d6",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": true,
+          "source": null,
+          "type": "NAME",
+          "value": "[\"Project Owner Approval\"]"
+        },
+        "comparison": "ONE_OF",
+        "selectedField": {
+          "type": "ID",
+          "value": "status"
+        },
+        "selectedFieldType": "status"
+      }
+    },
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "e37131e9-a490-40bd-83ca-44fd81d2f450",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": true,
+          "source": null,
+          "type": "ID",
+          "value": "[\"712020:a72744f4-d380-4dcd-b24a-cf08919a8a6c\",\"60f9b85b33876e0068ef12f0\"]"
+        },
+        "comparison": "CONTAINS_ANY",
+        "selectedField": {
+          "type": "NAME",
+          "value": "Project Owners"
+        },
+        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "a7b22daa-4d17-422c-b23d-cb6243601923",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Approvers"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker",
+            "type": "SET",
+            "value": [
+              {
+                "type": "ID",
+                "value": "712020:9b52b270-bb29-4f87-880d-7c4412cc01b8"
+              },
+              {
+                "type": "ID",
+                "value": "712020:cb7a1707-0336-4be0-b77b-4c7124994ea3"
+              }
+            ]
+          }
+        ],
+        "sendNotifications": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "2fbaad54-7a9c-4255-ad60-ab0797f0aec8",
+      "parentId": null,
+      "schemaVersion": 5,
+      "type": "jira.issue.outgoing.email",
+      "value": {
+        "bcc": [],
+        "body": "Hello,\n\nYou have been added as an Approver for the newly created ADVEV Access issue ({{issue.key}}) in the ADVEV Support project. Please review and take necessary action.\n\nIssue link: {{issue.toUrl}}\n\nThank you.",
+        "cc": [],
+        "convertLineBreaks": true,
+        "mimeType": "text/html",
+        "subject": "New PT2 or PVFM Jira Access Request is Pending {{issue.key}}",
+        "to": [
+          {
+            "type": "FREE",
+            "value": "dfish101@ford.com"
+          },
+          {
+            "type": "FREE",
+            "value": "kmin1@ford.com"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1777504729937,
+  "description": "When an ADVEV Access issue is created in the ADVEV Support (AETS) project and the Project owners field is gsmit618@ford.com, add dfish101@ford.com and kmin1@ford.com to the Approvers field, send them an email notification",
+  "id": 33099270,
+  "idUuid": "019ddb89-bb51-7320-a25d-b2d64f0dc358",
+  "labels": [],
+  "name": "PT2: Add Approvers and Notify on ADVEV Access Issue Creation for Specific Project Owner",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "bc7f93eb-44d9-48d7-b43f-eb75fb93eb7f",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1778087855869,
+  "writeAccessType": "UNRESTRICTED"
+}

@@ -1,0 +1,303 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:10e644de-d96b-4816-9029-d6cf8f0aec37",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "4cdbab35-b1b8-4609-967a-9a2812a22e48",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1778701265122",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "OGKEY"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{object.key}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "e0de086f-da1a-4a8c-8527-ba96634cb9fa",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1778701265122",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "SIT"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{object.\"SIT/Attribute team\"}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "c1cf3de1-9b3b-4347-b155-6fac19a52253",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "{{SIT}}"
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "fc65f3c7-317f-48fb-a991-83e149f7b035",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.lookup.objects",
+      "value": {
+        "customSmartValue": {
+          "id": "_customsmartvalue_id_1778701164340",
+          "lazy": false,
+          "name": {
+            "type": "FREE",
+            "value": "lookupObjects"
+          },
+          "query": {
+            "type": "SMART",
+            "value": "objectTypeId = 210 and key = {{SIT}}"
+          },
+          "type": "IQL"
+        },
+        "schemaId": "88",
+        "searchResultsLimit": 1,
+        "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "0c99adcc-3085-41ef-b8b0-b8b878bc2613",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1778701265122",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "SITNUMBER"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{lookupObjects.\"SIT Number\"}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "e2cb2a28-327c-417f-af27-b4fc1a5f6d09",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1778701265122",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "SITLEAD"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{lookupObjects.\"Lead\"}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "b163f48d-ab83-41cf-8017-0260af512792",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1778701265122",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "SITTYPE"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{lookupObjects.\"Type\"}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "a9050bf3-3071-456e-9668-2ef13e8c1697",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "SIT Number - {{SITNUMBER}} ; SIT Lead - {{SITLEAD}} : SIT Type - {{SITTYPE}}"
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "c9a1c47f-89b2-40f2-91ab-c511b535988b",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.lookup.objects",
+      "value": {
+        "customSmartValue": {
+          "id": "_customsmartvalue_id_1778701164340",
+          "lazy": false,
+          "name": {
+            "type": "FREE",
+            "value": "lookupObjects"
+          },
+          "query": {
+            "type": "SMART",
+            "value": "key = {{OGKEY}}"
+          },
+          "type": "IQL"
+        },
+        "schemaId": "2",
+        "searchResultsLimit": 1,
+        "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "40cb10fb-a281-464d-8db0-58d4720e941f",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.object.edit.attributes",
+      "value": {
+        "attributes": [
+          {
+            "isLabel": null,
+            "name": "SIT Lead",
+            "value": "{{SITLEAD}}"
+          },
+          {
+            "isLabel": null,
+            "name": "SIT Number",
+            "value": "{{SITNUMBER}}"
+          },
+          {
+            "isLabel": null,
+            "name": "Team Type",
+            "value": "{{SITTYPE}}"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1778701056586,
+  "description": "",
+  "id": 33263684,
+  "idUuid": "019e22d8-3a4a-7e24-ac43-4aebdd9a6a4d",
+  "labels": [],
+  "name": "Sit/Attribute Automation",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "bf957adc-30bd-4f86-a583-79aebd46eed8",
+        "conditions": [],
+        "connectionId": null,
+        "id": "2ef1bc0e-c952-4598-b964-b1043a25a85b",
+        "parentId": null,
+        "schemaVersion": 1,
+        "type": "cmdb.condition.query",
+        "value": {
+          "cmdbField": null,
+          "cmdbQuery": "\"SIT/Attribute team\" is not empty",
+          "type": "OBJECT"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "bf957adc-30bd-4f86-a583-79aebd46eed8",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "cmdb.object.trigger",
+    "value": {
+      "operation": "UPDATED",
+      "schemaId": "2",
+      "schemaLabel": "Project Schema",
+      "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+    }
+  },
+  "updated": 1778703037819,
+  "writeAccessType": "OWNER_ONLY"
+}

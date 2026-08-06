@@ -1,0 +1,102 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:e1b33b48-88ef-45ef-8f6b-5db22d126084",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": "e8a8ba32-f31a-461d-bd80-1514bbe9e2e0",
+      "id": "555649611",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "devops.github.create.branch",
+      "value": {
+        "branchName": "{{issue.components.name.toLowerCase}}/{{issue.summary.replaceAll(\" \", \"-\").toLowerCase}}",
+        "repository": {
+          "type": "ID",
+          "value": "ogre"
+        },
+        "sourceBranch": {
+          "type": "ID",
+          "value": "main"
+        }
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555649613",
+      "parentId": null,
+      "schemaVersion": 2,
+      "type": "jira.issue.comment",
+      "value": {
+        "addCommentOnce": false,
+        "comment": "Created branch: {{createdBranch}} ",
+        "commentVisibility": null,
+        "publicComment": false,
+        "sendNotifications": true
+      }
+    }
+  ],
+  "created": 1722026644026,
+  "description": "Creates a branch based on the Component of a story following the git naming scheme {component}/{summary}. This would only work on single component stories.",
+  "id": 20748730,
+  "idUuid": "0190f0c9-523a-7204-800f-946683a30e5f",
+  "labels": [],
+  "name": "Create Component Branch (from Story)",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10139"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10139"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "555649609",
+    "parentId": null,
+    "schemaVersion": 3,
+    "type": "jira.manual.trigger.issue",
+    "value": {
+      "groups": [
+        "2014d25e-05d7-4330-b31f-b4fccbe950d7"
+      ],
+      "inputFromUsers": false,
+      "inputPrompts": [],
+      "issueFilter": {
+        "filterType": "ISSUE_TYPE",
+        "value": [
+          "Story"
+        ]
+      },
+      "jQLFilter": null
+    }
+  },
+  "updated": 1722028427146,
+  "writeAccessType": "UNRESTRICTED"
+}

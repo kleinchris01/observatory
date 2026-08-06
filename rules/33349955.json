@@ -1,0 +1,133 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "ea7073f1-cf0f-43ae-a1b2-acab5578cc88",
+      "parentId": null,
+      "schemaVersion": 2,
+      "type": "jira.issue.add.watcher",
+      "value": {
+        "removeAll": false,
+        "removeWatchers": [
+          {
+            "type": "ID",
+            "value": "557058:d2e5bd5c-dc49-41eb-a6f0-5e01093666c1"
+          },
+          {
+            "type": "ID",
+            "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+          }
+        ],
+        "watchers": [
+          {
+            "type": "SMART",
+            "value": "{{issue.customfield_15640.TPM}}"
+          }
+        ]
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "dc1c0b58-b445-4303-8e4b-f665671a62f9",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "Added new TPM watcher for {{issue.customfield_15389}} -> {{issue.customfield_15389.TPM.displayName}}"
+    }
+  ],
+  "created": 1779286881332,
+  "description": "This automation adds the existing TPM from the SIT/Attribute (Assets) field to a watcher and removes ScriptRunner for Jira and Automation for Jira if ever added.",
+  "id": 33349955,
+  "idUuid": "019e45c3-3434-75f5-8077-98f33a916a3c",
+  "labels": [],
+  "name": "SOLVE: Issue - Notify TPMs based on SIT/Attribute (Assets) value",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "89bccc52-a983-443b-982e-d6d30ea072ce",
+        "conditions": [],
+        "connectionId": null,
+        "id": "30311165-9cfd-4854-a9ea-3cd25bbf77c4",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "13364"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "89bccc52-a983-443b-982e-d6d30ea072ce",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [
+        "create",
+        "edit"
+      ],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "SIT/Attribute (Assets)"
+        }
+      ]
+    }
+  },
+  "updated": 1782746204800,
+  "writeAccessType": "OWNER_ONLY"
+}

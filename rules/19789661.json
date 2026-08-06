@@ -1,0 +1,361 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:5c26858c-30b6-4481-943d-ea8df46c8526",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "555667360",
+              "parentId": "555667357",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": "{\n    \"fields\": {\n        \"Summary\":  \"Power Unit Assembly [Assy] {{issue.summary.toUpperCase()}}\"\n        }\n    }\n}",
+                "operations": [],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "555667357",
+              "conditions": [],
+              "connectionId": null,
+              "id": "555667358",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{issue.PTME Assembly line.value}}",
+                "operator": "EQUALS",
+                "second": "Power Unit Assembly"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "555667357",
+          "parentId": "555667356",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "555667366",
+              "parentId": "555667361",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": "{\n    \"fields\": {\n        \"Summary\":  \"Heat Treat [Assy] {{issue.summary.toUpperCase()}}\"\n        }\n    }\n}",
+                "operations": [],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "555667361",
+              "conditions": [],
+              "connectionId": null,
+              "id": "555667363",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{issue.PTME Assembly line.value}}",
+                "operator": "EQUALS",
+                "second": "Heat Treat"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "555667361",
+          "parentId": "555667356",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "555667371",
+              "parentId": "555667368",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": "{\n    \"fields\": {\n        \"Summary\":  \"Inverter [Assy] {{issue.summary.toUpperCase()}}\"\n        }\n    }\n}",
+                "operations": [],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "555667368",
+              "conditions": [],
+              "connectionId": null,
+              "id": "555667369",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{issue.PTME Assembly line.value}}",
+                "operator": "EQUALS",
+                "second": "Inverter"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "555667368",
+          "parentId": "555667356",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "555667377",
+              "parentId": "555667373",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": "{\n    \"fields\": {\n        \"Summary\":  \"Gears [Assy] {{issue.summary.toUpperCase()}}\"\n        }\n    }\n}",
+                "operations": [],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "555667373",
+              "conditions": [],
+              "connectionId": null,
+              "id": "555667375",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{issue.PTME Assembly line.value}}",
+                "operator": "EQUALS",
+                "second": "Gears"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "555667373",
+          "parentId": "555667356",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "555667382",
+              "parentId": "555667379",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": "{\n    \"fields\": {\n        \"Summary\":  \"Rotor [Assy] {{issue.summary.toUpperCase()}}\"\n        }\n    }\n}",
+                "operations": [],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "555667379",
+              "conditions": [],
+              "connectionId": null,
+              "id": "555667381",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{issue.PTME Assembly line.value}}",
+                "operator": "EQUALS",
+                "second": "Rotor"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "555667379",
+          "parentId": "555667356",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "555667385",
+              "parentId": "555667383",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": "{\n    \"fields\": {\n        \"Summary\":  \"Stator [Assy] {{issue.summary.toUpperCase()}}\"\n        }\n    }\n}",
+                "operations": [],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "555667383",
+              "conditions": [],
+              "connectionId": null,
+              "id": "555667384",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{issue.PTME Assembly line.value}}",
+                "operator": "EQUALS",
+                "second": "Stator"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "555667383",
+          "parentId": "555667356",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555667356",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1717596476735,
+  "description": "",
+  "id": 19789661,
+  "idUuid": "018fe8ba-553f-7872-8ef3-a25e849a7e0c",
+  "labels": [],
+  "name": "PTME LRCA",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10102"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10102"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "555667354",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "project = PTME AND parentEpic = PTME-3242",
+      "onlyUpdatedIssues": true,
+      "schedule": {
+        "cronExpression": "05/06/24 08:11:00 pm.",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=Asia/Calcutta:20240605T194355\nRRULE:FREQ=MINUTELY;INTERVAL=5;BYSECOND=0\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1717598390499,
+  "writeAccessType": "UNRESTRICTED"
+}

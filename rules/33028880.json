@@ -1,0 +1,104 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "07796c4b-f1e3-4db4-98d6-9b0cfe7d15b4",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "- Issue Key: {{issue.key}} - ADVEV Field: {{issue.ADVEV Vehicle Program.value}} - Program Field: {{issue.Program.value}} - Project: {{issue.project.key}} Security Level Rationale: No valid U833 or P833 intent was found. Any P833 value in the Program field was ignored as a false positive because the issue is not in the ECM or PREA projects. The issue is falling back to the baseline CE1 Default. "
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "e4627fd4-6df2-44f9-ba9e-b3c75c9e2335",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "security"
+            },
+            "fieldType": "security",
+            "type": "SET",
+            "value": {
+              "type": "NAME",
+              "value": "CE1 Default"
+            }
+          }
+        ],
+        "sendNotifications": false
+      }
+    }
+  ],
+  "created": 1777068125617,
+  "description": "This rule is the management automation to set and maintain the proper vehicle program information security levels.",
+  "id": 33028880,
+  "idUuid": "019dc183-adb1-7796-a1f0-0a3bcb605c3e",
+  "labels": [
+    1056296
+  ],
+  "name": "Set CE1 Default Security Level - ADVEV Vehicle Program/Program fields (Scheduled)",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11574",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10029"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "9ca98903-60a4-4aca-bed4-f74a068a823a",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "(   \"ADVEV Vehicle Program\" not in (\"P833\", \"U833\") ) AND (   \"Program [Select List (multiple choices)]\" != \"U833\" ) AND (   \"Program [Select List (multiple choices)]\" != \"P833\"   OR project not in (ECM, PREA) ) AND (   level in (\"P833 Default\", \"U833 Default\")   OR level is EMPTY ) AND level != \"CE1 Default\"",
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/Los_Angeles:20260402T133610\nRRULE:FREQ=WEEKLY;BYHOUR=9;BYMINUTE=0;BYSECOND=0;BYDAY=TH;INTERVAL=1\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1777659751944,
+  "writeAccessType": "UNRESTRICTED"
+}

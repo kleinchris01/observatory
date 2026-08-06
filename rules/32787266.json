@@ -1,0 +1,109 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:a99b981f-0f57-463f-846e-bd831fed2aae",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "fbb334e2-8c64-4e76-85da-ba989ae33f63",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.jql.condition",
+      "value": "\"Requirement Baseline[Short text]\" is not empty and \"QA Assignee[User Picker (single user)]\" is not empty"
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "11cd85ce-0e26-478a-9250-4d54f76768ad",
+      "parentId": null,
+      "schemaVersion": 5,
+      "type": "jira.issue.outgoing.email",
+      "value": {
+        "bcc": [],
+        "body": "Hello,\n\nThe requirements for {{issue.key}} are now ready for QA. Please review the issue at the following link:\n{{issue.toUrl}}\n\nThank you.",
+        "cc": [],
+        "convertLineBreaks": true,
+        "fromName": "",
+        "mimeType": "text/html",
+        "replyTo": "",
+        "subject": "Requirements Ready for QA - {{issue.key}}",
+        "to": [
+          {
+            "type": "COPY",
+            "value": "customfield_12883"
+          },
+          {
+            "type": "COPY",
+            "value": "assignee"
+          },
+          {
+            "type": "COPY",
+            "value": "reporter"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1775694516975,
+  "description": "",
+  "id": 32787266,
+  "idUuid": "019d6fa4-12ef-7fbd-8f4b-7f03e8c67c44",
+  "labels": [],
+  "name": "Requirements Ready Notification",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10104"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10104"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "cb8e8e6e-cb0a-4d85-aefa-52388a4fe242",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:transitioned",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10104"
+      ],
+      "eventKey": "jira:issue_updated",
+      "fromStatus": [],
+      "issueEvent": "issue_generic",
+      "toStatus": [
+        {
+          "type": "NAME",
+          "value": "Verify"
+        }
+      ]
+    }
+  },
+  "updated": 1775697956500,
+  "writeAccessType": "OWNER_ONLY"
+}

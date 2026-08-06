@@ -1,0 +1,186 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:7b1a40d2-238f-459b-84d8-a79358548d83",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "7f1ffbb7-956f-4330-8772-926e673fcc8a",
+              "parentId": "0c4199b7-14a5-419e-a3ab-0dc2aa0e5ac9",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Post Creation Automation Status"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "Moved to SOLVE"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "0c4199b7-14a5-419e-a3ab-0dc2aa0e5ac9",
+              "conditions": [],
+              "connectionId": null,
+              "id": "202ad477-f039-4a7b-abf6-d40b50aff89d",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{fieldChange.fromString}}",
+                "operator": "EQUALS",
+                "second": "Eng. Requirement Deviation"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "0c4199b7-14a5-419e-a3ab-0dc2aa0e5ac9",
+              "conditions": [],
+              "connectionId": null,
+              "id": "a6570e59-7aab-4efd-bf0f-02b5126cc92f",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{fieldChange.fromString}}",
+                "operator": "EQUALS",
+                "second": "Build Deviation"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "0c4199b7-14a5-419e-a3ab-0dc2aa0e5ac9",
+              "conditions": [],
+              "connectionId": null,
+              "id": "64bb9af8-8d67-4b8f-82da-c3b93a9498df",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{fieldChange.fromString}}",
+                "operator": "EQUALS",
+                "second": "Cost Savings Initiative"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "0c4199b7-14a5-419e-a3ab-0dc2aa0e5ac9",
+          "parentId": "b8677015-dd30-478f-9c28-a71686f01797",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ANY"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "b8677015-dd30-478f-9c28-a71686f01797",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1782210450317,
+  "description": "This automation toggles the Post Creation Automation Status field whenever a SOLVE work item is converted to the Issue request type. The field change serves as a trigger for a ScriptRunner listener (SOLVE: Ticket Creation Initializer Listener), which executes the initialization logic required to populate and configure the newly converted SOLVE work item.",
+  "id": 33719424,
+  "idUuid": "019ef405-538e-75a4-89b5-4237da02fb37",
+  "labels": [],
+  "name": "SOLVE: Issue - Handle Solve Work Items Moved to Issue",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "ecc03954-91c1-4a0d-9b6a-f03bbf119021",
+        "conditions": [],
+        "connectionId": null,
+        "id": "5ce5d20c-d10d-4e7d-b9ec-9ab943d4b25a",
+        "parentId": null,
+        "schemaVersion": 1,
+        "type": "jira.comparator.condition",
+        "value": {
+          "first": "{{fieldChange.toString}}",
+          "operator": "EQUALS",
+          "second": "Issue"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "ecc03954-91c1-4a0d-9b6a-f03bbf119021",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [
+        "edit"
+      ],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Request Type"
+        }
+      ]
+    }
+  },
+  "updated": 1782222690001,
+  "writeAccessType": "OWNER_ONLY"
+}

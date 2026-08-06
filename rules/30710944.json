@@ -1,0 +1,1336 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "e946d84c-60e2-4fe4-997b-58e953a73a0a",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "SW issue type = {{userInputs.Issue Type}}"
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "ddc03840-d457-407b-a921-6686d150bdc6",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1759258580750",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "oldComponentName"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{issue.components.name}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "7816cb29-37dd-470e-ae56-431c6aafb235",
+              "parentId": "8c69fa61-7ea7-4e4c-888d-a7153863f638",
+              "schemaVersion": 12,
+              "type": "jira.issue.create",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "summary"
+                    },
+                    "fieldType": "summary",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "summary",
+                        "type": "ID",
+                        "value": "summary"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "description"
+                    },
+                    "fieldType": "description",
+                    "type": "SET",
+                    "value": "1. Steps to reproduce:\n\n2. Expected behavior:\n\n3. Observed behavior:\n\n4. Time Stamp:\n\n5. Occurance:\n\n6. Git Hash (Issue Found):\n\n7. Vehicle ID:\n\n{{TriggerIssue.Description}}"
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "project"
+                    },
+                    "fieldType": "project",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "10104"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "issuetype"
+                    },
+                    "fieldType": "issuetype",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "10024"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "components"
+                    },
+                    "fieldType": "components",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "SMART",
+                        "value": "{{oldComponentName}}"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "attachment"
+                    },
+                    "fieldType": "attachment",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "attachment",
+                        "type": "ID",
+                        "value": "attachment"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "issuelinks"
+                    },
+                    "fieldType": "issuelinks",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "issuelinks",
+                        "type": "ID",
+                        "value": "issuelinks"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "priority"
+                    },
+                    "fieldType": "priority",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "priority",
+                        "type": "ID",
+                        "value": "priority"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "duedate"
+                    },
+                    "fieldType": "duedate",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "duedate",
+                        "type": "ID",
+                        "value": "duedate"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Environment Found"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                        "type": "NAME",
+                        "value": "Environment Found"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "labels"
+                    },
+                    "fieldType": "labels",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "SMART",
+                        "value": "{{triggerIssue.Labels}} "
+                      },
+                      {
+                        "type": "FREE",
+                        "value": "PVFM"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Severity"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "Critical"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "versions"
+                    },
+                    "fieldType": "versions",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "SMART",
+                        "value": "{{userInputs.version}}"
+                      }
+                    ]
+                  }
+                ],
+                "sendNotifications": false
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "5305361b-23ae-4432-9d64-3320f34e80c8",
+                  "parentId": "b5b2636b-d636-46df-b51b-c93bb2de5710",
+                  "schemaVersion": 2,
+                  "type": "jira.issue.link",
+                  "value": {
+                    "issue": {
+                      "type": "COPY",
+                      "value": "trigger"
+                    },
+                    "linkType": "inward:10001"
+                  }
+                }
+              ],
+              "component": "BRANCH",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "b5b2636b-d636-46df-b51b-c93bb2de5710",
+              "parentId": "8c69fa61-7ea7-4e4c-888d-a7153863f638",
+              "schemaVersion": 1,
+              "type": "jira.issue.related",
+              "value": {
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [],
+                "onlyUpdatedIssues": false,
+                "relatedType": "recentlycreated",
+                "similarityLimit": 40
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "8c69fa61-7ea7-4e4c-888d-a7153863f638",
+              "conditions": [],
+              "connectionId": null,
+              "id": "1d51db8c-42cd-4507-8358-0053ea7a4b49",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{userInputs.Issue Type}}",
+                "operator": "EQUALS",
+                "second": "Bug"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "8c69fa61-7ea7-4e4c-888d-a7153863f638",
+              "conditions": [],
+              "connectionId": null,
+              "id": "687dc314-0501-4571-800f-805985c57b31",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "0: Vehicle Grounded"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Severity"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "8c69fa61-7ea7-4e4c-888d-a7153863f638",
+          "parentId": "e7f55f6d-6d9c-4a18-ae71-beada2a39e47",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "738480db-dab5-4f87-b029-9b45db7a8226",
+              "parentId": "2e9f6af0-47b9-4d47-93e0-4b51fdc99efd",
+              "schemaVersion": 12,
+              "type": "jira.issue.create",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "summary"
+                    },
+                    "fieldType": "summary",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "summary",
+                        "type": "ID",
+                        "value": "summary"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "description"
+                    },
+                    "fieldType": "description",
+                    "type": "SET",
+                    "value": "1. Steps to reproduce:\n\n2. Expected behavior:\n\n3. Observed behavior:\n\n4. Time Stamp:\n\n5. Occurance:\n\n6. Git Hash (Issue Found):\n\n7. Vehicle ID:\n\n{{TriggerIssue.Description}}"
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "project"
+                    },
+                    "fieldType": "project",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "10104"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "issuetype"
+                    },
+                    "fieldType": "issuetype",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "10024"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "components"
+                    },
+                    "fieldType": "components",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "SMART",
+                        "value": "{{oldComponentName}}"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "attachment"
+                    },
+                    "fieldType": "attachment",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "attachment",
+                        "type": "ID",
+                        "value": "attachment"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "issuelinks"
+                    },
+                    "fieldType": "issuelinks",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "issuelinks",
+                        "type": "ID",
+                        "value": "issuelinks"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "priority"
+                    },
+                    "fieldType": "priority",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "priority",
+                        "type": "ID",
+                        "value": "priority"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "duedate"
+                    },
+                    "fieldType": "duedate",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "duedate",
+                        "type": "ID",
+                        "value": "duedate"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Environment Found"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                        "type": "NAME",
+                        "value": "Environment Found"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "labels"
+                    },
+                    "fieldType": "labels",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "SMART",
+                        "value": "{{triggerIssue.Labels}} "
+                      },
+                      {
+                        "type": "FREE",
+                        "value": "PVFM"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Severity"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "High"
+                    }
+                  }
+                ],
+                "sendNotifications": false
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "e33a9687-a6c2-48f9-8c06-0dabb92a15e6",
+                  "parentId": "3b0c9824-6af1-416a-a5e7-34c06c397af4",
+                  "schemaVersion": 2,
+                  "type": "jira.issue.link",
+                  "value": {
+                    "issue": {
+                      "type": "COPY",
+                      "value": "trigger"
+                    },
+                    "linkType": "inward:10001"
+                  }
+                }
+              ],
+              "component": "BRANCH",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "3b0c9824-6af1-416a-a5e7-34c06c397af4",
+              "parentId": "2e9f6af0-47b9-4d47-93e0-4b51fdc99efd",
+              "schemaVersion": 1,
+              "type": "jira.issue.related",
+              "value": {
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [],
+                "onlyUpdatedIssues": false,
+                "relatedType": "recentlycreated",
+                "similarityLimit": 40
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "2e9f6af0-47b9-4d47-93e0-4b51fdc99efd",
+              "conditions": [],
+              "connectionId": null,
+              "id": "38d53b4a-f5f4-4277-b7e2-4fb351052e89",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{userInputs.Issue Type}}",
+                "operator": "EQUALS",
+                "second": "Bug"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "2e9f6af0-47b9-4d47-93e0-4b51fdc99efd",
+              "conditions": [],
+              "connectionId": null,
+              "id": "0fb04c9a-a411-431d-b68e-c45838869f91",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "1: Vehicle Functionality Degraded"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Severity"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "2e9f6af0-47b9-4d47-93e0-4b51fdc99efd",
+          "parentId": "e7f55f6d-6d9c-4a18-ae71-beada2a39e47",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "e7945b89-2dd7-498d-912f-0121d17a9894",
+              "parentId": "0a688c05-2c16-446e-9dcb-d6decce1a7d9",
+              "schemaVersion": 12,
+              "type": "jira.issue.create",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "summary"
+                    },
+                    "fieldType": "summary",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "summary",
+                        "type": "ID",
+                        "value": "summary"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "description"
+                    },
+                    "fieldType": "description",
+                    "type": "SET",
+                    "value": "1. Steps to reproduce:\n\n2. Expected behavior:\n\n3. Observed behavior:\n\n4. Time Stamp:\n\n5. Occurance:\n\n6. Git Hash (Issue Found):\n\n7. Vehicle ID:\n\n{{TriggerIssue.Description}}"
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "project"
+                    },
+                    "fieldType": "project",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "10104"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "issuetype"
+                    },
+                    "fieldType": "issuetype",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "10024"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "components"
+                    },
+                    "fieldType": "components",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "SMART",
+                        "value": "{{oldComponentName}}"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "attachment"
+                    },
+                    "fieldType": "attachment",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "attachment",
+                        "type": "ID",
+                        "value": "attachment"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "issuelinks"
+                    },
+                    "fieldType": "issuelinks",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "issuelinks",
+                        "type": "ID",
+                        "value": "issuelinks"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "priority"
+                    },
+                    "fieldType": "priority",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "priority",
+                        "type": "ID",
+                        "value": "priority"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "duedate"
+                    },
+                    "fieldType": "duedate",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "duedate",
+                        "type": "ID",
+                        "value": "duedate"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Environment Found"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                        "type": "NAME",
+                        "value": "Environment Found"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "labels"
+                    },
+                    "fieldType": "labels",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "SMART",
+                        "value": "{{triggerIssue.Labels}} "
+                      },
+                      {
+                        "type": "FREE",
+                        "value": "PVFM"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Severity"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "Medium"
+                    }
+                  }
+                ],
+                "sendNotifications": false
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "3d76cf66-48f5-40d6-9ba0-8f5551720de8",
+                  "parentId": "ca568657-5012-4272-87ea-75c857ffcbfe",
+                  "schemaVersion": 2,
+                  "type": "jira.issue.link",
+                  "value": {
+                    "issue": {
+                      "type": "COPY",
+                      "value": "trigger"
+                    },
+                    "linkType": "inward:10001"
+                  }
+                }
+              ],
+              "component": "BRANCH",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "ca568657-5012-4272-87ea-75c857ffcbfe",
+              "parentId": "0a688c05-2c16-446e-9dcb-d6decce1a7d9",
+              "schemaVersion": 1,
+              "type": "jira.issue.related",
+              "value": {
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [],
+                "onlyUpdatedIssues": false,
+                "relatedType": "recentlycreated",
+                "similarityLimit": 40
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "0a688c05-2c16-446e-9dcb-d6decce1a7d9",
+              "conditions": [],
+              "connectionId": null,
+              "id": "30647604-60e3-4f69-b932-6db1ce0b965f",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{userInputs.Issue Type}}",
+                "operator": "EQUALS",
+                "second": "Bug"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "0a688c05-2c16-446e-9dcb-d6decce1a7d9",
+              "conditions": [],
+              "connectionId": null,
+              "id": "d3de9e90-27f5-44a9-b2eb-b0668f791cde",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "[\"2: Nuisance\"]"
+                },
+                "comparison": "ONE_OF",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Severity"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "0a688c05-2c16-446e-9dcb-d6decce1a7d9",
+          "parentId": "e7f55f6d-6d9c-4a18-ae71-beada2a39e47",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "f94f1a33-bee5-444f-818a-31158315126c",
+              "parentId": "7cb3859c-8810-4d1c-988a-094038d3d2fb",
+              "schemaVersion": 12,
+              "type": "jira.issue.create",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "summary"
+                    },
+                    "fieldType": "summary",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "summary",
+                        "type": "ID",
+                        "value": "summary"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "description"
+                    },
+                    "fieldType": "description",
+                    "type": "SET",
+                    "value": "1. Steps to reproduce:\n\n2. Expected behavior:\n\n3. Observed behavior:\n\n4. Time Stamp:\n\n5. Occurance:\n\n6. Git Hash (Issue Found):\n\n7. Vehicle ID:\n\n{{TriggerIssue.Description}}"
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "project"
+                    },
+                    "fieldType": "project",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "10104"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "issuetype"
+                    },
+                    "fieldType": "issuetype",
+                    "type": "SET",
+                    "value": {
+                      "type": "ID",
+                      "value": "10024"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "components"
+                    },
+                    "fieldType": "components",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "SMART",
+                        "value": "{{oldComponentName}}"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "attachment"
+                    },
+                    "fieldType": "attachment",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "attachment",
+                        "type": "ID",
+                        "value": "attachment"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "issuelinks"
+                    },
+                    "fieldType": "issuelinks",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "issuelinks",
+                        "type": "ID",
+                        "value": "issuelinks"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "priority"
+                    },
+                    "fieldType": "priority",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "priority",
+                        "type": "ID",
+                        "value": "priority"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "duedate"
+                    },
+                    "fieldType": "duedate",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "duedate",
+                        "type": "ID",
+                        "value": "duedate"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Environment Found"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "COPY",
+                    "value": {
+                      "copyOptions": [],
+                      "sourceField": {
+                        "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                        "type": "NAME",
+                        "value": "Environment Found"
+                      },
+                      "sourceIssue": "trigger"
+                    }
+                  },
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "labels"
+                    },
+                    "fieldType": "labels",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "SMART",
+                        "value": "{{triggerIssue.Labels}} "
+                      },
+                      {
+                        "type": "FREE",
+                        "value": "PVFM"
+                      }
+                    ]
+                  },
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Severity"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                    "type": "SET",
+                    "value": {
+                      "type": "NAME",
+                      "value": "Low"
+                    }
+                  }
+                ],
+                "sendNotifications": false
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "5d6dfa8e-a1d5-43ca-a3c7-7ac19c7856ac",
+                  "parentId": "88989746-90c7-4209-a2c7-c24ffaa8f62c",
+                  "schemaVersion": 2,
+                  "type": "jira.issue.link",
+                  "value": {
+                    "issue": {
+                      "type": "COPY",
+                      "value": "trigger"
+                    },
+                    "linkType": "inward:10001"
+                  }
+                }
+              ],
+              "component": "BRANCH",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "88989746-90c7-4209-a2c7-c24ffaa8f62c",
+              "parentId": "7cb3859c-8810-4d1c-988a-094038d3d2fb",
+              "schemaVersion": 1,
+              "type": "jira.issue.related",
+              "value": {
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [],
+                "onlyUpdatedIssues": false,
+                "relatedType": "recentlycreated",
+                "similarityLimit": 40
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "7cb3859c-8810-4d1c-988a-094038d3d2fb",
+              "conditions": [],
+              "connectionId": null,
+              "id": "3ff54476-6b40-49ff-9b6c-765bf43ce2a4",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{userInputs.Issue Type}}",
+                "operator": "EQUALS",
+                "second": "Bug"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "7cb3859c-8810-4d1c-988a-094038d3d2fb",
+              "conditions": [],
+              "connectionId": null,
+              "id": "22f48eb2-8005-460e-98ea-e27dee7b806c",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "3. Cosmetic"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "NAME",
+                  "value": "Severity"
+                },
+                "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "7cb3859c-8810-4d1c-988a-094038d3d2fb",
+          "parentId": "e7f55f6d-6d9c-4a18-ae71-beada2a39e47",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "e7f55f6d-6d9c-4a18-ae71-beada2a39e47",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1762196362023,
+  "description": "",
+  "id": 30710944,
+  "idUuid": "019a4b16-9327-7208-8a2e-c35b3962f79c",
+  "labels": [],
+  "name": "Clone to CAVPSE (PVFM)",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10816",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10104"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "c0f7c674-e33e-4296-801c-4be3f3cbdb8f",
+    "parentId": null,
+    "schemaVersion": 3,
+    "type": "jira.manual.trigger.issue",
+    "value": {
+      "groups": [],
+      "inputFromUsers": true,
+      "inputPrompts": [
+        {
+          "defaultValue": false,
+          "displayName": "I want to clone this issue to CAVPSE",
+          "inputType": "BOOLEAN",
+          "required": false,
+          "variableName": "Attestation"
+        },
+        {
+          "defaultValue": [
+            "Bug"
+          ],
+          "displayName": "Issue Type",
+          "inputType": "DROPDOWN",
+          "required": true,
+          "variableName": "Issue Type"
+        },
+        {
+          "defaultValue": false,
+          "displayName": "I confirm that the Components, Environment Found, and Severity fields are not empty on PVFM project.",
+          "inputType": "BOOLEAN",
+          "required": false,
+          "variableName": "SW Component"
+        },
+        {
+          "defaultValue": [
+            "26.48",
+            "26.44",
+            "26.40",
+            "26.36",
+            "26.32",
+            "26.28",
+            "26.24",
+            "26.20",
+            "26.16",
+            "26.12",
+            "26.08",
+            "26.04"
+          ],
+          "displayName": "Affects Version (required for bugs)",
+          "inputType": "DROPDOWN",
+          "required": false,
+          "variableName": "version"
+        }
+      ],
+      "issueFilter": {
+        "filterType": "ISSUE_TYPE",
+        "value": [
+          "Issue"
+        ]
+      },
+      "jQLFilter": null
+    }
+  },
+  "updated": 1771532234771,
+  "writeAccessType": "UNRESTRICTED"
+}

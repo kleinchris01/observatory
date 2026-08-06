@@ -1,0 +1,151 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:c9c3dfc4-eef5-4087-8b1a-8ee188485a9b",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "0258d129-acf7-4aa4-a1d6-514ad7df228b",
+      "parentId": null,
+      "schemaVersion": 2,
+      "type": "jira.issue.add.watcher",
+      "value": {
+        "removeAll": false,
+        "removeWatchers": [],
+        "watchers": [
+          {
+            "type": "SMART",
+            "value": "{{issue.\"Collaborators\"}}"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1774999051438,
+  "description": "Add Collaborators to Watchers for VIA project so that Watchers can receive notifications.",
+  "id": 32683255,
+  "idUuid": "019d4630-1caf-723f-9ec0-d227c9ba8f90",
+  "labels": [
+    1050482
+  ],
+  "name": "Add Collaborators to Watchers for VIA project",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10010"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10010"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "8a6e9ca3-3074-4337-8d1c-588e01b1dc61",
+        "conditions": [],
+        "connectionId": null,
+        "id": "4e9566ec-2c03-485e-9468-136f3e756403",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "10023"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "8a6e9ca3-3074-4337-8d1c-588e01b1dc61",
+        "conditions": [],
+        "connectionId": null,
+        "id": "f3a99c2a-4f00-493c-8ce4-d5927a51a42e",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "10010"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "project"
+          },
+          "selectedFieldType": "project"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "8a6e9ca3-3074-4337-8d1c-588e01b1dc61",
+        "conditions": [],
+        "connectionId": null,
+        "id": "f85d8561-e6cf-49d7-a741-52f3faa99202",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": null,
+          "comparison": "NOT_EMPTY",
+          "selectedField": {
+            "type": "NAME",
+            "value": "Collaborators"
+          },
+          "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "8a6e9ca3-3074-4337-8d1c-588e01b1dc61",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10010"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1774999103518,
+  "writeAccessType": "OWNER_ONLY"
+}

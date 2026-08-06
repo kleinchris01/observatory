@@ -1,0 +1,147 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:9b52b270-bb29-4f87-880d-7c4412cc01b8",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "ee0832ee-43a3-404a-b83c-e372e624b7ca",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": true,
+          "source": null,
+          "type": "NAME",
+          "value": "[\"Checked Out\"]"
+        },
+        "comparison": "ONE_OF",
+        "selectedField": {
+          "type": "ID",
+          "value": "status"
+        },
+        "selectedFieldType": "status"
+      }
+    },
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "b5136f79-b77a-49f9-9fee-8809d0ac1915",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": null,
+          "type": "ID",
+          "value": null
+        },
+        "comparison": "NOT_EMPTY",
+        "selectedField": {
+          "type": "ID",
+          "value": "assignee"
+        },
+        "selectedFieldType": "assignee"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "f7410496-30aa-4457-9ef2-f80c7a6f1153",
+      "parentId": null,
+      "schemaVersion": 5,
+      "type": "jira.issue.outgoing.email",
+      "value": {
+        "bcc": [
+          {
+            "type": "FREE",
+            "value": "gsmit618@ford.com"
+          }
+        ],
+        "body": "{{issue.assignee.displayName}},\n\nThe issue {{issue.key}} is now PAST DUE\nPlease update the estimated return date OR \nreturn the item to the quartermaster\n\nBest regards,\nQuartermaster",
+        "cc": [
+          {
+            "type": "FREE",
+            "value": "aphil159@ford.com"
+          }
+        ],
+        "convertLineBreaks": true,
+        "mimeType": "text/html",
+        "subject": "Action Required:  {{issue.key}} is now past due ",
+        "to": [
+          {
+            "type": "SMART",
+            "value": "{{issue.assignee.emailAddress}}"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1771966799124,
+  "description": "This rule sends an email to the assignee and aphil159@ford.com when the Est. Return Date field has passed for issues in the ATIQ project.",
+  "id": 32165912,
+  "idUuid": "019c9173-9d14-7a46-9573-0630cd08257b",
+  "labels": [],
+  "name": "Send Email for Past Est. Return Date",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13475"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13475"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "afde3270-949a-4b43-9286-2370b6c72c0a",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "project = ATIQ AND \"Est. Return Date:\" < now()",
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/Los_Angeles:20230415T132800\nRRULE:FREQ=DAILY;BYHOUR=6;BYMINUTE=0;BYSECOND=0;INTERVAL=1\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1776884108755,
+  "writeAccessType": "UNRESTRICTED"
+}

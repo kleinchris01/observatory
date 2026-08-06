@@ -1,0 +1,83 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "1c6e0e16-2d07-4fac-ae66-a54c48740cc9",
+      "parentId": null,
+      "schemaVersion": 5,
+      "type": "jira.issue.outgoing.email",
+      "value": {
+        "bcc": [],
+        "body": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>PO Request Received</title>\n</head>\n<body style=\"font-family: Arial, sans-serif; line-height: 1.3; color: #333; max-width: 600px; margin: 0 auto; padding: 10px;\">\n    \n    <div style=\"background-color: #00095B; padding: 10px; text-align: center;\">\n        <h1 style=\"color: #ffffff; margin: 0; font-size: 20px;\">PO Request Received</h1>\n    </div>\n    \n    <div style=\"background-color: #f4f4f4; padding: 10px; margin-top: 10px;\">\n        <p style=\"margin: 0 0 8px 0;\">Hello {{issue.reporter.displayName}},</p>\n        \n        <p style=\"margin: 0 0 8px 0;\">Thank you for submitting your <strong>AdvEV Non-Production PO Request</strong>. We have received your issue and it has been logged in our system.</p>\n        \n        <div style=\"background-color: #ffffff; padding: 8px; border-left: 4px solid #00095B; margin: 8px 0;\">\n            <p style=\"margin: 0;\"><strong>Issue Key:</strong> <a href=\"{{issue.url}}\" style=\"color: #00095B;\">{{issue.key}}</a></p>\n            <p style=\"margin: 3px 0 0 0;\"><strong>Title:</strong> {{issue.summary}}</p>\n        </div>\n        \n        <h2 style=\"color: #00095B; font-size: 15px; margin: 10px 0 5px 0;\">Next Steps</h2>\n        <ul style=\"padding-left: 20px; margin: 0 0 8px 0;\">\n            <li>Your request will be reviewed by the assigned team member</li>\n            <li>You will receive updates as the request progresses</li>\n            <li>Please monitor your Jira notifications for any questions or status changes</li>\n        </ul>\n        \n        <h2 style=\"color: #00095B; font-size: 15px; margin: 10px 0 3px 0;\">Request Summary</h2>\n        <div style=\"background-color: #ffffff; padding: 8px; margin: 0;\">\n            <p style=\"margin: 0 0 3px 0;\"><strong>Assignee:</strong> {{issue.assignee.displayName}}</p>\n            <p style=\"margin: 0 0 3px 0;\"><strong>Purchasing System:</strong> {{issue.\"Purchasing System\"}}</p>\n            <p style=\"margin: 0 0 3px 0;\"><strong>Supplier Name:</strong> {{issue.Suppliers}}</p>\n            <p style=\"margin: 0 0 3px 0;\"><strong>Supplier GSDB:</strong> {{issue.\"Supplier GSDB(s)\"}}</p>\n            <p style=\"margin: 0 0 3px 0;\"><strong>PO Cost:</strong> {{issue.\"Purchase Order Cost\"}}</p>\n            <p style=\"margin: 0 0 3px 0;\"><strong>PO Owner:</strong> {{issue.\"PO Owner\".displayName}}</p>\n            <p style=\"margin: 0 0 3px 0;\"><strong>Ship-to Location (ADVEV):</strong> {{issue.\"Ship-to Location (ADVEV Site)\"}}</p>\n            <p style=\"margin: 0 0 3px 0;\"><strong>Ship-to Location (non-ADVEV):</strong> {{issue.\"Ship-to Location (non-ADVEV Site)\"}}</p>\n            <p style=\"margin: 0 0 3px 0;\"><strong>GPID:</strong> {{issue.GPID}}</p>\n            <p style=\"margin: 0 0 3px 0;\"><strong>Cost Center:</strong> {{issue.\"Cost Center\"}}</p>\n            <p style=\"margin: 0 0 3px 0;\"><strong>SIT/Attribute:</strong> {{issue.\"SIT/Attribute\"}}</p>\n            <p style=\"margin: 0 0 3px 0;\"><strong>ADVEV Vehicle Program:</strong> {{issue.\"ADVEV Vehicle Program\"}}</p>\n            <p style=\"margin: 0 0 3px 0;\"><strong>Collaborators:</strong> {{#issue.Collaborators}}{{displayName}}{{^last}}, {{/}}{{/}}</p>\n            <p style=\"margin: 0;\"><strong>Purpose/Justification:</strong></p>\n            <div style=\"margin: 5px 0 0 0;\">{{{issue.description}}}</div>\n        </div>\n        \n        <h2 style=\"color: #00095B; font-size: 15px; margin: 10px 0 5px 0;\">Attachments</h2>\n        <ul style=\"padding-left: 20px; margin: 0 0 8px 0;\">\n            {{#issue.attachment}}\n            <li><a href=\"{{url}}\" style=\"color: #00095B;\">{{filename}}</a></li>\n            {{/}}\n        </ul>\n        \n        <div style=\"background-color: #fff3cd; border: 1px solid #ffc107; padding: 8px; margin: 8px 0; border-radius: 4px;\">\n            <p style=\"margin: 0;\"><strong>⚠️ Need to make changes?</strong></p>\n            <p style=\"margin: 3px 0 0 0;\">Please reply to this email or comment directly on the Jira issue.</p>\n        </div>\n        \n        <h2 style=\"color: #00095B; font-size: 15px; margin: 10px 0 5px 0;\">Helpful Resources</h2>\n        <ul style=\"padding-left: 20px; margin: 0 0 8px 0;\">\n            <li><a href=\"https://ford-advev.atlassian.net/wiki/spaces/ADT/pages/47289644/Submitting+Non-Production+Sourcing+Requests\" style=\"color: #00095B;\">Submitting Non-Production Sourcing Requests</a></li>\n            <li><a href=\"https://ford-advev.atlassian.net/wiki/spaces/ADT/pages/47292598/Financial+Resources\" style=\"color: #00095B;\">Financial Resources</a></li>\n            <li><a href=\"https://web.gsdb2.ford.com/GSDBHomepageWeb/home.do\" style=\"color: #00095B;\">GSDB Lookup</a></li>\n        </ul>\n        \n        <p style=\"margin: 8px 0 3px 0;\">If you have any questions, please don't hesitate to reach out.</p>\n        \n        <p style=\"margin: 0;\">Best regards,<br>\n        <strong>AdvEV Purchasing Team</strong></p>\n    </div>\n    \n    <div style=\"background-color: #e9e9e9; padding: 8px; margin-top: 10px; font-size: 12px; color: #666; text-align: center;\">\n        <p style=\"margin: 0;\">This is an automated message from the AdvEV Non-Production PO Request system.</p>\n        <p style=\"margin: 3px 0 0 0;\">Please do not reply directly to this email unless requesting changes.</p>\n    </div>\n    \n</body>\n</html>\n",
+        "cc": [],
+        "convertLineBreaks": true,
+        "fromName": "ADVEV Non-production Sourcing",
+        "mimeType": "text/html",
+        "replyTo": "dgray137@ford.com",
+        "subject": "New ANPS Request",
+        "to": [
+          {
+            "additional": "INITIATOR",
+            "type": "REFERENCE",
+            "value": "INITIATOR"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1761845028049,
+  "description": "",
+  "id": 30679055,
+  "idUuid": "019a3625-a4d1-7c3e-9a09-984e11ac38e1",
+  "labels": [],
+  "name": "Email Submission Receipt",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10137"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10137"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "a73ead34-5725-4311-9dc1-36a3b6ac26e1",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10137"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1761848063743,
+  "writeAccessType": "UNRESTRICTED"
+}

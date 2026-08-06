@@ -1,0 +1,102 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:28aa8ca0-9dfa-46ef-8b60-0dd30eb04ac1",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "bc5c218a-b814-42a6-a616-9bcefa06c3ba",
+      "parentId": null,
+      "schemaVersion": 5,
+      "type": "jira.issue.outgoing.email",
+      "value": {
+        "bcc": [],
+        "body": "{{issue.summary}} has evidence for you to upload.\n\n{{issue.url}}",
+        "cc": [],
+        "convertLineBreaks": true,
+        "fromName": "",
+        "mimeType": "text/html",
+        "replyTo": "",
+        "subject": "Restraints Requirement Has Evidence - {{issue.summary}}",
+        "to": [
+          {
+            "type": "FREE",
+            "value": "mholme74@ford.com"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1762988308487,
+  "description": "",
+  "id": 30799551,
+  "idUuid": "019a7a4a-b807-7027-9bf8-610f676d9cdc",
+  "labels": [],
+  "name": "Restraints Evidence Ready for Upload",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10022"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10022"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "0216acbe-12ff-4dee-bd03-b71f30952352",
+        "conditions": [],
+        "connectionId": null,
+        "id": "21f91423-8364-4480-b2eb-738d6ecd6e52",
+        "parentId": null,
+        "schemaVersion": 1,
+        "type": "jira.jql.condition",
+        "value": "parent in (RST-1125, RST-1355, RST-1140, RST-1139, RST-1138, RST-1135, RST-1136, RST-1137)"
+      }
+    ],
+    "connectionId": null,
+    "id": "0216acbe-12ff-4dee-bd03-b71f30952352",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:transitioned",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10022"
+      ],
+      "eventKey": "jira:issue_updated",
+      "fromStatus": [],
+      "issueEvent": "issue_generic",
+      "toStatus": [
+        {
+          "type": "NAME",
+          "value": "Done"
+        }
+      ]
+    }
+  },
+  "updated": 1765402436428,
+  "writeAccessType": "UNRESTRICTED"
+}

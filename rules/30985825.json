@@ -1,0 +1,154 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "49fd39e2-a6df-489d-a37c-7acf095f03c1",
+              "parentId": "d1056461-827d-4cc0-a387-5bc4d3d7dff5",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "End Date (Calculated)"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:datepicker",
+                    "type": "SET",
+                    "value": "{{fieldChange.from}}"
+                  }
+                ],
+                "sendNotifications": true
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "5e84237f-ea55-4ce5-8fa3-69d554e51a7f",
+              "parentId": "d1056461-827d-4cc0-a387-5bc4d3d7dff5",
+              "schemaVersion": 2,
+              "type": "jira.issue.comment",
+              "value": {
+                "addCommentOnce": false,
+                "comment": "Manual editing of End Date (Calculated) is not allowed. Please select a value for the Deviation Start Date and the Duration (days).",
+                "commentVisibility": null,
+                "publicComment": true,
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "d1056461-827d-4cc0-a387-5bc4d3d7dff5",
+              "conditions": [],
+              "connectionId": null,
+              "id": "d9b8c589-2d0f-469b-8d8c-29301a31edc9",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{initiator.displayName}}",
+                "operator": "NOT_CONTAINS",
+                "second": "Automation for Jira"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "d1056461-827d-4cc0-a387-5bc4d3d7dff5",
+          "parentId": "a701bf20-bbec-43f3-a3c0-c03ada1a41d1",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "a701bf20-bbec-43f3-a3c0-c03ada1a41d1",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1764754616090,
+  "description": "This automation reverts the value of End Date (Calculated) if manually change by users and a comment will be added to the work item.",
+  "id": 30985825,
+  "idUuid": "019ae392-6f1a-7bf5-93ee-5116617960fe",
+  "labels": [],
+  "name": "SOLVE: Build Deviation - Revert value of End Date (Calculated) if manually change",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "cb3ef38d-1b5a-4fc4-8884-de60b864d88e",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [
+        "create",
+        "edit",
+        "transition"
+      ],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "End Date (Calculated)"
+        }
+      ]
+    }
+  },
+  "updated": 1782742504672,
+  "writeAccessType": "UNRESTRICTED"
+}

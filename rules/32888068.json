@@ -1,0 +1,86 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "712020:c373315f-65dd-49f0-af9d-607e5a47bc62"
+  },
+  "authorAccountId": "712020:c373315f-65dd-49f0-af9d-607e5a47bc62",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "7d0686b2-4090-4229-b292-43aa4e58022c",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "NAME",
+              "value": "Program ID"
+            },
+            "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+            "type": "SET",
+            "value": ""
+          }
+        ],
+        "sendNotifications": true
+      }
+    }
+  ],
+  "created": 1776284015271,
+  "description": "This rule clears the Program ID field for all issues at a specific scheduled time. It uses a scheduled JQL trigger to find all Program ID with issues and then clears the field using an Edit Issue action.",
+  "id": 32888068,
+  "idUuid": "019d92c7-1aa7-7170-bfb3-99cf6afd28a7",
+  "labels": [],
+  "name": "Clear Program ID Fields at Scheduled Time",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10914"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10914"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "bd784551-7c32-4609-a5f2-f459ffcba01b",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "Project = \"Electrical System Testing\" AND \"Program ID\" is not EMPTY",
+      "onlyUpdatedIssues": true,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=US/Pacific:20260414T130000\nRRULE:FREQ=DAILY;BYHOUR=13;BYMINUTE=30;BYSECOND=0;INTERVAL=1;COUNT=5\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1776284751386,
+  "writeAccessType": "UNRESTRICTED"
+}

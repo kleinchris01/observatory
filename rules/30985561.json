@@ -1,0 +1,154 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "7e08d72c-bbfa-47d3-a9d9-fd8c778b8551",
+              "parentId": "3ba876e1-7cfe-42dc-97e1-7fbc48d0681a",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Extension Date"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:datepicker",
+                    "type": "SET",
+                    "value": ""
+                  }
+                ],
+                "sendNotifications": true
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "97d52100-8c1c-4912-8dd3-5a19cbc1e53b",
+              "parentId": "3ba876e1-7cfe-42dc-97e1-7fbc48d0681a",
+              "schemaVersion": 2,
+              "type": "jira.issue.comment",
+              "value": {
+                "addCommentOnce": false,
+                "comment": "The selected Extension Date is already in the past. \nPlease select today or a future date.",
+                "commentVisibility": null,
+                "publicComment": true,
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "3ba876e1-7cfe-42dc-97e1-7fbc48d0681a",
+              "conditions": [],
+              "connectionId": null,
+              "id": "7076e24e-ffc2-49e9-ae2c-1707f1902bd1",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{issue.customfield_18453}}",
+                "operator": "LESS_THAN",
+                "second": "{{now}}"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "3ba876e1-7cfe-42dc-97e1-7fbc48d0681a",
+          "parentId": "822d88fd-59a3-497d-88ef-329f568c69ea",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "822d88fd-59a3-497d-88ef-329f568c69ea",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1764753206323,
+  "description": "This automation checks if the value of Extension Date is less than today or future date. If so, inputted date will be removed and a comment will be added.",
+  "id": 30985561,
+  "idUuid": "019ae37c-ec33-743c-9d58-b10833171f7d",
+  "labels": [],
+  "name": "SOLVE: Build Deviation - Give an error if Extension Date < today or future",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "3260fd20-1277-47eb-9807-b1a18a29b614",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [
+        "create",
+        "edit",
+        "transition"
+      ],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Extension Date"
+        }
+      ]
+    }
+  },
+  "updated": 1782742122068,
+  "writeAccessType": "UNRESTRICTED"
+}

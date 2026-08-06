@@ -1,0 +1,748 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:a3693505-b855-4221-a1fa-23a50206e53a",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "82f41cd9-556f-4567-9315-8638d6a1276d",
+                  "parentId": "2e66a885-4e6c-444e-bb99-2ad84bbc9348",
+                  "schemaVersion": 1,
+                  "type": "jira.issue.create.subtasks",
+                  "value": {
+                    "subtasks": [
+                      {
+                        "id": "_subid_1774985570785",
+                        "summary": "Build Bench Frame",
+                        "type": "10022"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "ee34c3ad-1463-48fb-91a6-74f3d22da9e3",
+                  "parentId": "2e66a885-4e6c-444e-bb99-2ad84bbc9348",
+                  "schemaVersion": 5,
+                  "type": "jira.issue.assign",
+                  "value": {
+                    "assignType": "SPECIFY_USER",
+                    "assignee": {
+                      "type": "ID",
+                      "value": "712020:38d195ef-8c1e-47ed-8a70-497dbf8b9d05"
+                    },
+                    "excludedUsers": [],
+                    "fieldToCopy": null,
+                    "group": null,
+                    "issueToCopy": null,
+                    "itsmOpsOncall": null,
+                    "jql": null,
+                    "listAssignMethod": null,
+                    "peopleTeamsCustomFieldId": null,
+                    "restrictedToGroup": null,
+                    "role": null,
+                    "smartValue": null,
+                    "userList": []
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "7cb32e30-820a-4f9a-b9f5-ccbd94da1eca",
+                  "parentId": "2e66a885-4e6c-444e-bb99-2ad84bbc9348",
+                  "schemaVersion": 2,
+                  "type": "jira.issue.link",
+                  "value": {
+                    "issue": {
+                      "type": "COPY",
+                      "value": "trigger"
+                    },
+                    "linkType": "inward:10003"
+                  }
+                }
+              ],
+              "component": "ORCHESTRATION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "2e66a885-4e6c-444e-bb99-2ad84bbc9348",
+              "parentId": "597a6f6a-bf9f-4074-99ca-917ee2ed9953",
+              "schemaVersion": 1,
+              "type": "automation.orchestration.fragment",
+              "value": {
+                "inputProjections": [],
+                "isOptional": false,
+                "name": "Group 2",
+                "outputProjections": []
+              }
+            }
+          ],
+          "component": "ORCHESTRATION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "597a6f6a-bf9f-4074-99ca-917ee2ed9953",
+          "parentId": "aa67871b-6c03-4b5d-a46f-7cb32269d7dd",
+          "schemaVersion": 1,
+          "type": "automation.orchestration.split-parallel.child",
+          "value": {
+            "branchName": "Branch 1",
+            "conditionMatchType": null
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "a8ad3375-5d2a-49c0-ab14-34bab0774649",
+                  "parentId": "e7ca819b-7399-4c31-ac6f-652e9a56e9b9",
+                  "schemaVersion": 12,
+                  "type": "jira.issue.create",
+                  "value": {
+                    "advancedFields": null,
+                    "operations": [
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "summary"
+                        },
+                        "fieldType": "summary",
+                        "type": "SET",
+                        "value": "(Person who will recieve bench)"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "description"
+                        },
+                        "fieldType": "description",
+                        "type": "SET",
+                        "value": "Please wait for further instruction"
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "project"
+                        },
+                        "fieldType": "project",
+                        "type": "SET",
+                        "value": {
+                          "type": "ID",
+                          "value": "10125"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "issuetype"
+                        },
+                        "fieldType": "issuetype",
+                        "type": "SET",
+                        "value": {
+                          "type": "ID",
+                          "value": "10197"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "NAME",
+                          "value": "Logistic Location "
+                        },
+                        "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:radiobuttons",
+                        "type": "SET",
+                        "value": {
+                          "type": "NAME",
+                          "value": "Northern California (Palo Alto)"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "assignee"
+                        },
+                        "fieldType": "assignee",
+                        "type": "SET",
+                        "value": {
+                          "type": "ID",
+                          "value": "712020:836f2059-7645-40aa-8176-a7a2e584e112"
+                        }
+                      },
+                      {
+                        "field": {
+                          "type": "ID",
+                          "value": "issuelinks"
+                        },
+                        "fieldType": "issuelinks",
+                        "type": "SET",
+                        "value": {
+                          "issue": {
+                            "type": "COPY",
+                            "value": "trigger"
+                          },
+                          "linkType": "inward:10003"
+                        }
+                      }
+                    ],
+                    "sendNotifications": false
+                  }
+                }
+              ],
+              "component": "ORCHESTRATION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "e7ca819b-7399-4c31-ac6f-652e9a56e9b9",
+              "parentId": "ffd1930b-8b83-447a-89ce-2457d713eb80",
+              "schemaVersion": 1,
+              "type": "automation.orchestration.fragment",
+              "value": {
+                "inputProjections": [],
+                "isOptional": false,
+                "name": "Group 3",
+                "outputProjections": []
+              }
+            }
+          ],
+          "component": "ORCHESTRATION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "ffd1930b-8b83-447a-89ce-2457d713eb80",
+          "parentId": "aa67871b-6c03-4b5d-a46f-7cb32269d7dd",
+          "schemaVersion": 1,
+          "type": "automation.orchestration.split-parallel.child",
+          "value": {
+            "branchName": "Branch 2",
+            "conditionMatchType": null
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "f8a52ad0-0169-4fc9-95bc-a83081843ef0",
+                  "parentId": "9805b08b-75ff-4bba-a45e-4d8d475cf543",
+                  "schemaVersion": 1,
+                  "type": "jira.issue.create.subtasks",
+                  "value": {
+                    "subtasks": [
+                      {
+                        "id": "_subid_1774985745207",
+                        "summary": "Pack and Ship",
+                        "type": "10022"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "2f3c01f9-7352-4640-bcad-be5ea032db38",
+                  "parentId": "9805b08b-75ff-4bba-a45e-4d8d475cf543",
+                  "schemaVersion": 5,
+                  "type": "jira.issue.assign",
+                  "value": {
+                    "assignType": "SPECIFY_USER",
+                    "assignee": {
+                      "type": "ID",
+                      "value": "712020:836f2059-7645-40aa-8176-a7a2e584e112"
+                    },
+                    "excludedUsers": [],
+                    "fieldToCopy": null,
+                    "group": null,
+                    "issueToCopy": null,
+                    "itsmOpsOncall": null,
+                    "jql": null,
+                    "listAssignMethod": null,
+                    "peopleTeamsCustomFieldId": null,
+                    "restrictedToGroup": null,
+                    "role": null,
+                    "smartValue": null,
+                    "userList": []
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "cb60d182-16bb-47cf-91bd-eb483423aa72",
+                  "parentId": "9805b08b-75ff-4bba-a45e-4d8d475cf543",
+                  "schemaVersion": 2,
+                  "type": "jira.issue.link",
+                  "value": {
+                    "issue": {
+                      "type": "COPY",
+                      "value": "trigger"
+                    },
+                    "linkType": "inward:10003"
+                  }
+                }
+              ],
+              "component": "ORCHESTRATION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "9805b08b-75ff-4bba-a45e-4d8d475cf543",
+              "parentId": "8c981bdd-5992-4997-9aa5-3dbbd5a7f8d8",
+              "schemaVersion": 1,
+              "type": "automation.orchestration.fragment",
+              "value": {
+                "inputProjections": [],
+                "isOptional": false,
+                "name": "Group 4",
+                "outputProjections": []
+              }
+            }
+          ],
+          "component": "ORCHESTRATION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "8c981bdd-5992-4997-9aa5-3dbbd5a7f8d8",
+          "parentId": "aa67871b-6c03-4b5d-a46f-7cb32269d7dd",
+          "schemaVersion": 1,
+          "type": "automation.orchestration.split-parallel.child",
+          "value": {
+            "branchName": "Branch 3",
+            "conditionMatchType": null
+          }
+        }
+      ],
+      "component": "ORCHESTRATION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "aa67871b-6c03-4b5d-a46f-7cb32269d7dd",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "automation.orchestration.instruction.split-parallel",
+      "value": {
+        "branches": [
+          {
+            "branchName": "Branch 1",
+            "components": [
+              {
+                "checksum": null,
+                "children": [
+                  {
+                    "checksum": null,
+                    "children": [],
+                    "component": "ACTION",
+                    "conditionParentId": null,
+                    "conditions": [],
+                    "connectionId": null,
+                    "id": "82f41cd9-556f-4567-9315-8638d6a1276d",
+                    "parentId": "2e66a885-4e6c-444e-bb99-2ad84bbc9348",
+                    "schemaVersion": 1,
+                    "type": "jira.issue.create.subtasks",
+                    "value": {
+                      "subtasks": [
+                        {
+                          "id": "_subid_1774985570785",
+                          "summary": "Build Bench Frame",
+                          "type": "10022"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "checksum": null,
+                    "children": [],
+                    "component": "ACTION",
+                    "conditionParentId": null,
+                    "conditions": [],
+                    "connectionId": null,
+                    "id": "ee34c3ad-1463-48fb-91a6-74f3d22da9e3",
+                    "parentId": "2e66a885-4e6c-444e-bb99-2ad84bbc9348",
+                    "schemaVersion": 5,
+                    "type": "jira.issue.assign",
+                    "value": {
+                      "assignType": "SPECIFY_USER",
+                      "assignee": {
+                        "type": "ID",
+                        "value": "712020:38d195ef-8c1e-47ed-8a70-497dbf8b9d05"
+                      },
+                      "excludedUsers": [],
+                      "fieldToCopy": null,
+                      "group": null,
+                      "issueToCopy": null,
+                      "itsmOpsOncall": null,
+                      "jql": null,
+                      "listAssignMethod": null,
+                      "restrictedToGroup": null,
+                      "role": null,
+                      "smartValue": null,
+                      "userList": []
+                    }
+                  },
+                  {
+                    "checksum": null,
+                    "children": [],
+                    "component": "ACTION",
+                    "conditionParentId": null,
+                    "conditions": [],
+                    "connectionId": null,
+                    "id": "7cb32e30-820a-4f9a-b9f5-ccbd94da1eca",
+                    "parentId": "2e66a885-4e6c-444e-bb99-2ad84bbc9348",
+                    "schemaVersion": 2,
+                    "type": "jira.issue.link",
+                    "value": {
+                      "issue": {
+                        "type": "COPY",
+                        "value": "trigger"
+                      },
+                      "linkType": "inward:10003"
+                    }
+                  }
+                ],
+                "component": "ORCHESTRATION",
+                "conditionParentId": null,
+                "conditions": [],
+                "connectionId": null,
+                "id": "2e66a885-4e6c-444e-bb99-2ad84bbc9348",
+                "parentId": "597a6f6a-bf9f-4074-99ca-917ee2ed9953",
+                "schemaVersion": 1,
+                "type": "automation.orchestration.fragment",
+                "value": {
+                  "inputProjections": [],
+                  "isOptional": false,
+                  "name": "Group 2",
+                  "outputProjections": []
+                }
+              }
+            ]
+          },
+          {
+            "branchName": "Branch 2",
+            "components": [
+              {
+                "checksum": null,
+                "children": [
+                  {
+                    "checksum": null,
+                    "children": [],
+                    "component": "ACTION",
+                    "conditionParentId": null,
+                    "conditions": [],
+                    "connectionId": null,
+                    "id": "a8ad3375-5d2a-49c0-ab14-34bab0774649",
+                    "parentId": "e7ca819b-7399-4c31-ac6f-652e9a56e9b9",
+                    "schemaVersion": 12,
+                    "type": "jira.issue.create",
+                    "value": {
+                      "advancedFields": null,
+                      "operations": [
+                        {
+                          "field": {
+                            "type": "ID",
+                            "value": "summary"
+                          },
+                          "fieldType": "summary",
+                          "type": "SET",
+                          "value": "(Person who will recieve bench)"
+                        },
+                        {
+                          "field": {
+                            "type": "ID",
+                            "value": "description"
+                          },
+                          "fieldType": "description",
+                          "type": "SET",
+                          "value": "Please wait for further instruction"
+                        },
+                        {
+                          "field": {
+                            "type": "ID",
+                            "value": "project"
+                          },
+                          "fieldType": "project",
+                          "type": "SET",
+                          "value": {
+                            "type": "ID",
+                            "value": "10125"
+                          }
+                        },
+                        {
+                          "field": {
+                            "type": "ID",
+                            "value": "issuetype"
+                          },
+                          "fieldType": "issuetype",
+                          "type": "SET",
+                          "value": {
+                            "type": "ID",
+                            "value": "10197"
+                          }
+                        },
+                        {
+                          "field": {
+                            "type": "NAME",
+                            "value": "Logistic Location "
+                          },
+                          "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:radiobuttons",
+                          "type": "SET",
+                          "value": {
+                            "type": "NAME",
+                            "value": "Northern California (Palo Alto)"
+                          }
+                        },
+                        {
+                          "field": {
+                            "type": "ID",
+                            "value": "assignee"
+                          },
+                          "fieldType": "assignee",
+                          "type": "SET",
+                          "value": {
+                            "type": "ID",
+                            "value": "712020:836f2059-7645-40aa-8176-a7a2e584e112"
+                          }
+                        },
+                        {
+                          "field": {
+                            "type": "ID",
+                            "value": "issuelinks"
+                          },
+                          "fieldType": "issuelinks",
+                          "type": "SET",
+                          "value": {
+                            "issue": {
+                              "type": "COPY",
+                              "value": "trigger"
+                            },
+                            "linkType": "inward:10003"
+                          }
+                        }
+                      ],
+                      "sendNotifications": false
+                    }
+                  }
+                ],
+                "component": "ORCHESTRATION",
+                "conditionParentId": null,
+                "conditions": [],
+                "connectionId": null,
+                "id": "e7ca819b-7399-4c31-ac6f-652e9a56e9b9",
+                "parentId": "ffd1930b-8b83-447a-89ce-2457d713eb80",
+                "schemaVersion": 1,
+                "type": "automation.orchestration.fragment",
+                "value": {
+                  "inputProjections": [],
+                  "isOptional": false,
+                  "name": "Group 3",
+                  "outputProjections": []
+                }
+              }
+            ]
+          },
+          {
+            "branchName": "Branch 3",
+            "components": [
+              {
+                "checksum": null,
+                "children": [
+                  {
+                    "checksum": null,
+                    "children": [],
+                    "component": "ACTION",
+                    "conditionParentId": null,
+                    "conditions": [],
+                    "connectionId": null,
+                    "id": "f8a52ad0-0169-4fc9-95bc-a83081843ef0",
+                    "parentId": "9805b08b-75ff-4bba-a45e-4d8d475cf543",
+                    "schemaVersion": 1,
+                    "type": "jira.issue.create.subtasks",
+                    "value": {
+                      "subtasks": [
+                        {
+                          "id": "_subid_1774985745207",
+                          "summary": "Pack and Ship",
+                          "type": "10022"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "checksum": null,
+                    "children": [],
+                    "component": "ACTION",
+                    "conditionParentId": null,
+                    "conditions": [],
+                    "connectionId": null,
+                    "id": "2f3c01f9-7352-4640-bcad-be5ea032db38",
+                    "parentId": "9805b08b-75ff-4bba-a45e-4d8d475cf543",
+                    "schemaVersion": 5,
+                    "type": "jira.issue.assign",
+                    "value": {
+                      "assignType": "SPECIFY_USER",
+                      "assignee": {
+                        "type": "ID",
+                        "value": "712020:836f2059-7645-40aa-8176-a7a2e584e112"
+                      },
+                      "excludedUsers": [],
+                      "fieldToCopy": null,
+                      "group": null,
+                      "issueToCopy": null,
+                      "itsmOpsOncall": null,
+                      "jql": null,
+                      "listAssignMethod": null,
+                      "restrictedToGroup": null,
+                      "role": null,
+                      "smartValue": null,
+                      "userList": []
+                    }
+                  },
+                  {
+                    "checksum": null,
+                    "children": [],
+                    "component": "ACTION",
+                    "conditionParentId": null,
+                    "conditions": [],
+                    "connectionId": null,
+                    "id": "cb60d182-16bb-47cf-91bd-eb483423aa72",
+                    "parentId": "9805b08b-75ff-4bba-a45e-4d8d475cf543",
+                    "schemaVersion": 2,
+                    "type": "jira.issue.link",
+                    "value": {
+                      "issue": {
+                        "type": "COPY",
+                        "value": "trigger"
+                      },
+                      "linkType": "inward:10003"
+                    }
+                  }
+                ],
+                "component": "ORCHESTRATION",
+                "conditionParentId": null,
+                "conditions": [],
+                "connectionId": null,
+                "id": "9805b08b-75ff-4bba-a45e-4d8d475cf543",
+                "parentId": "8c981bdd-5992-4997-9aa5-3dbbd5a7f8d8",
+                "schemaVersion": 1,
+                "type": "automation.orchestration.fragment",
+                "value": {
+                  "inputProjections": [],
+                  "isOptional": false,
+                  "name": "Group 4",
+                  "outputProjections": []
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1774486545128,
+  "description": "",
+  "id": 32589511,
+  "idUuid": "019d27a3-e2e8-7df6-8238-3aa5209a0a46",
+  "labels": [],
+  "name": "HPCC Bench",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10125"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10125"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [
+    {
+      "tagType": "ORCHESTRATION_CONFIG_ID",
+      "tagValue": "040acbb7-2d3c-11f1-9049-7fff4d911191"
+    },
+    {
+      "tagType": "ORCHESTRATION_VERSION",
+      "tagValue": "5"
+    },
+    {
+      "tagType": "ORCHESTRATION",
+      "tagValue": null
+    }
+  ],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "a3a688a7-75f6-4cf9-8376-c9cce4433122",
+        "conditions": [],
+        "connectionId": null,
+        "id": "82b251d4-8dcf-44fb-94dd-0122826cbc42",
+        "parentId": null,
+        "schemaVersion": 1,
+        "type": "jira.comparator.condition",
+        "value": {
+          "first": "{{issue.summary}}",
+          "operator": "CONTAINS",
+          "second": "Bench"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "a3a688a7-75f6-4cf9-8376-c9cce4433122",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10125"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1774987120023,
+  "writeAccessType": "OWNER_ONLY"
+}

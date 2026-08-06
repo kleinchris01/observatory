@@ -1,0 +1,142 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "f2993e75-5daf-4529-97f6-d750f66323f7",
+      "parentId": null,
+      "schemaVersion": 5,
+      "type": "action.send-templated-email",
+      "value": {
+        "bcc": [
+          {
+            "type": "COPY",
+            "value": "customfield_10501"
+          }
+        ],
+        "convertLineBreaks": false,
+        "legacyConfig": true,
+        "sendGroupedEmails": true,
+        "templateContextData": {
+          "body": "<html>\n   <body style=\"font-family: Arial, sans-serif; color: #333; margin: 0; padding: 0;\">\n\n      <!-- ADVEV HEADER -->\n      <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\"\n            style=\"border-collapse: collapse; margin: 0 auto; background-color: #ffffff; max-width: 600px;\">\n        <tr>\n          <td style=\"padding: 20px; font-family: Arial, sans-serif;\">\n\n            <!-- Main Title -->\n            <div style=\"font-size: 26px; font-weight: 700; color: #000000; line-height: 1.2;\">\n              ADVEV Enterprise Change Management\n            </div>\n\n            <!-- Subtitle with inline line -->\n            <div style=\"font-size: 16px; font-weight: 400; color: #000000; margin-top: 6px; display: flex; align-items: center;\">\n              ADVEV Digital Transformation\n              <div style=\"flex-grow: 1; height: 2px; background-color: #52B178; margin-left: 10px;\"></div>\n            </div>\n\n          </td>\n        </tr>\n      </table>\n      <!-- END HEADER -->\n\n    <!-- Outer container for email safety -->\n    <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"border-collapse: collapse; background-color: #ffffff;\">\n      <tr>\n        <td align=\"center\" style=\"padding: 0;\">\n\n          <!-- Inner content container -->\n          <table role=\"presentation\" width=\"600\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"border-collapse: collapse; background-color: #ffffff;\">\n            \n            <!-- Deviation Approval Request Header -->\n            <tr style=\"background-color: #0747a6;\">\n              <td style=\"padding: 25px 20px; font-size: 28px; color: white; text-align: center;\">\n                <b> Deviation Approval Request</b>\n              </td>\n            </tr>\n\n            <!-- Personalized Greeting -->\n            <tr>\n              <td style=\"padding: 20px; font-size: 14px;\">\n                <b>Hello {{issue.fields.Approvers.displayName}},</b>\n              </td>\n            </tr>\n\n            <!-- Approval Context -->\n            <tr>\n              <td style=\"padding: 0 20px 10px 20px; font-size: 14px;\">\n                <b>Build Deviation Request with {{issue.key}} requires your approval.</b>\n              </td>\n            </tr>\n\n            <!-- Approve / Decline Buttons (Left-aligned) -->\n            <tr>\n              <td style=\"padding: 10px 20px; text-align: left;\">\n                <a href=\"{{issue.url}}?action=approve\" style=\"display: inline-block; padding: 10px 20px; background-color: #008000; color: white; text-decoration: none; font-weight: bold; border-radius: 4px; margin-right: 10px;\">\n                  Approve\n                </a>\n                <a href=\"{{issue.url}}?action=decline\" style=\"display: inline-block; padding: 10px 20px; background-color: #808080; color: white; text-decoration: none; font-weight: bold; border-radius: 4px;\">\n                  Decline\n                </a>\n              </td>\n            </tr>\n\n            <!-- Request Context -->\n            <tr>\n              <td style=\"padding: 10px 20px;\">\n                <b>Please review this Build Deviation Request, created by {{issue.fields.reporter.displayName}}.</b>\n               <hr style=\"border: none; border-top: 1px solid #ccc; margin: 15px 0;\">\n              </td>\n            </tr>\n\n            <!-- Ticket Details -->\n            <tr>\n              <td style=\"padding: 0 20px 10px 20px;\">\n                <strong>Title:</strong> {{issue.fields.summary}}<br>\n                <strong>Description:</strong> {{issue.fields.description}}<br>\n                <strong>Program:</strong> {{issue.customfield_14980}}<br>\n                <strong>ADVEV Checkpoints & Milestones:</strong> {{issue.customfield_11664}}<br>\n                <strong>SIT/Attribute (Assets):</strong> {{issue.customfield_15640.\"SIT\"}}<br>\n                <strong>Vehicle Saleable:</strong> {{issue.customfield_18374}}<br>\n                <strong>Plant:</strong> {{issue.customfield_11412}}<br>\n                <strong>Onsite Modification:</strong> {{issue.customfield_18445}}<br>\n                <strong>Labor (VO) Impact:</strong> {{issue.customfield_18446}}<br>\n                <strong>Part Rework:</strong> {{issue.customfield_18447}}<br>\n                <strong>Homologation or Regulatory Requirement:</strong> {{issue.customfield_18448}}<br>\n                <strong>Appearance Impact:</strong> {{issue.customfield_18449}}\n              </td>\n            </tr>\n\n            <!-- View Request (Left-aligned) -->\n            <tr>\n              <td style=\"padding: 20px; text-align: left;\">\n                <a href=\"https://ford-advev.atlassian.net/jira/servicedesk/projects/PREA/queues/custom/1848/{{issue.key}}\" style=\"display: inline-block; padding: 10px 20px; background-color: #0052CC; color: white; text-decoration: none; font-weight: bold; border-radius: 4px;\">\n                  View {{issue.key}} Request\n                </a>\n              </td>\n            </tr>\n\n            <!-- Shared With -->\n            <tr>\n              <td style=\"padding: 0 20px 20px 20px;\">\n                This request is shared with <b>{{issue.fields.reporter.displayName}}</b>.\n              </td>\n            </tr>\n\n          <!-- Contact Support Table -->\n          <table role=\"presentation\" width=\"600\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"border-collapse: collapse; margin-top: 10px; background-color: #0747a6;\">\n            <tr>\n              <td style=\"padding: 16px 20px; font-size: 14px; color: #ffffff; text-align: center;\">\n                Need help? \n                <a href=\"https://teams.microsoft.com/l/channel/19%3Ad7e86b471578489db65d488c6a084e0c%40thread.tacv2/help-advev-ecm?groupId=c350a4c7-0308-4f19-92a9-0817329c27a2&tenantId=c990bb7a-51f4-439b-bd36-9c07fb1041c0\" \n                   style=\"color: #ffffff; text-decoration: none; font-weight: bold; border-bottom: 2px solid #ffffff; padding-bottom: 2px;\">\n                  Contact Support\n                </a>\n              </td>\n            </tr>\n          </table>\n\n          <!-- Ford Logo -->\n          <div style=\"text-align: center; margin: 10px 0;\">\n            <img src=\"https://www.pngmart.com/files/22/Ford-Logo-PNG-Clipart.png\" \n                alt=\"Ford Logo\" \n                style=\"height: 60px;\">\n          </div>\n\n          <!-- Footer Table -->\n          <table role=\"presentation\" width=\"600\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"border-collapse: collapse; margin-top: 5px;\">\n            <tr>\n              <td style=\"padding: 10px 20px; font-size: 12px; color: black; text-align: center;\">\n                Powered by Jira Service Management\n              </td>\n            </tr>\n          </table>\n\n        </td>\n      </tr>\n    </table>\n  </body>\n</html>",
+          "bodyType": "HTML",
+          "fromEmailAddress": "jira@ford-advev.atlassian.net",
+          "fromName": "Jira automation",
+          "isCustomFromEmailDomain": "false",
+          "subject": "Build Deviation Approval Request - ADVEV Change Management"
+        },
+        "to": [
+          {
+            "type": "FREE",
+            "value": "sadvevec@ford.com"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1764751655616,
+  "description": "This automation sends out a Build Deviation customized approval email to approvers",
+  "id": 30985382,
+  "idUuid": "019ae365-42c1-7dca-9125-8593adf9f327",
+  "labels": [],
+  "name": "SOLVE: Build Deviation - Customized Approval Email",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "91a9d3ad-8403-4585-af7d-29b7fe11c55f",
+        "conditions": [],
+        "connectionId": null,
+        "id": "d34ec985-69af-4463-b693-7cc807de6abb",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "12654"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "91a9d3ad-8403-4585-af7d-29b7fe11c55f",
+        "conditions": [],
+        "connectionId": null,
+        "id": "cea02705-e2e8-41cf-9c17-a1438651765f",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "NAME",
+            "value": "In Approval"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "status"
+          },
+          "selectedFieldType": "status"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "91a9d3ad-8403-4585-af7d-29b7fe11c55f",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.approval.required.trigger",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+      ]
+    }
+  },
+  "updated": 1782741693129,
+  "writeAccessType": "UNRESTRICTED"
+}

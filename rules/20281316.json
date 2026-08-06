@@ -1,0 +1,191 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:5c26858c-30b6-4481-943d-ea8df46c8526",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "606790335",
+              "parentId": "606790333",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": "",
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Flagged"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "NAME",
+                        "value": "Behind Schedule"
+                      }
+                    ]
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "606790333",
+              "conditions": [],
+              "connectionId": null,
+              "id": "606790334",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "project = ptme AND parent  in (PTME-525,PTME-524,PTME-523,PTME-522,PTME-519,PTME-518,PTME-182,PTME-181,PTME-180,PTME-179,PTME-178,PTME-177,PTME-176,PTME-175,PTME-174,PTME-172,PTME-171,PTME-170,PTME-169,PTME-167,PTME-164,PTME-3242,PTME-3605,PTME-3604,PTME-3603,PTME-3602,PTME-3570,PTME-3564,PTME-3546,PTME-3526,PTME-3520)and \"Target start\" <= now() AND duedate <= now() AND  status IN (\"To Do\", \"In Progress\")"
+            }
+          ],
+          "connectionId": null,
+          "id": "606790333",
+          "parentId": "606790332",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "606790338",
+              "parentId": "606790336",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": "",
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Flagged"
+                    },
+                    "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes",
+                    "type": "SET",
+                    "value": [
+                      {
+                        "type": "NAME",
+                        "value": "Behind Schedule"
+                      }
+                    ]
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "606790336",
+              "conditions": [],
+              "connectionId": null,
+              "id": "606790337",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.jql.condition",
+              "value": "project = ptme AND parentEpic  in (PTME-525,PTME-524,PTME-523,PTME-522,PTME-519,PTME-518,PTME-182,PTME-181,PTME-180,PTME-179,PTME-178,PTME-177,PTME-176,PTME-175,PTME-174,PTME-172,PTME-171,PTME-170,PTME-169,PTME-167,PTME-164,PTME-3242)and duedate < now() AND status IN (\"To Do\",\"In Progress\")"
+            }
+          ],
+          "connectionId": null,
+          "id": "606790336",
+          "parentId": "606790332",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ANY"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "606790332",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1719989689162,
+  "description": "",
+  "id": 20281316,
+  "idUuid": "0190775f-db4a-7243-84d6-92c87044b3b2",
+  "labels": [],
+  "name": "Flagged field set",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10102"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10102"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "606790331",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "project = ptme ",
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=Asia/Calcutta:20240612T195511\nRRULE:FREQ=MINUTELY;INTERVAL=5;BYSECOND=0\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1728553295655,
+  "writeAccessType": "UNRESTRICTED"
+}

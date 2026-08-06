@@ -1,0 +1,281 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "98fceb9d-f810-4722-9dd0-259212add273",
+          "parentId": "c250f81d-2e55-4a1f-9731-ffd97ff7328c",
+          "schemaVersion": 1,
+          "type": "jira.jql.condition",
+          "value": "(   \"ADVEV Vehicle Program\" = \"P833\"   OR   (\"Program [Select List (multiple choices)]\" = \"P833\" AND project in (ECM, PREA)) ) AND (   \"ADVEV Vehicle Program\" != \"U833\"   AND   \"Program [Select List (multiple choices)]\" != \"U833\" ) AND level in (\"CE1 Default\", \"U833 Default\", EMPTY)"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "69c0559e-7d52-459c-ab0b-aec1b9d94361",
+          "parentId": "c250f81d-2e55-4a1f-9731-ffd97ff7328c",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "- Issue Key: {{issue.key}} - ADVEV Field: {{issue.ADVEV Vehicle Program.value}} - Program Field: {{issue.Program.value}} - Project: {{issue.project.key}} Security Level Rationale: U833 is absent, and valid P833 intent was confirmed (either via the ADVEV field, or via the Program field within the approved ECM/PREA projects). The issue is being aligned to P833 Default.  "
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "f15b1996-5341-4324-85a6-f2f45834f75b",
+          "parentId": "c250f81d-2e55-4a1f-9731-ffd97ff7328c",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "security"
+                },
+                "fieldType": "security",
+                "type": "SET",
+                "value": {
+                  "type": "NAME",
+                  "value": "P833 Default"
+                }
+              }
+            ],
+            "sendNotifications": false
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "c250f81d-2e55-4a1f-9731-ffd97ff7328c",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "5a9cf8bb-03d1-4ed6-9184-000b45167d43",
+          "parentId": "deaa0098-dbdf-49e2-813c-e40ee5d0a565",
+          "schemaVersion": 1,
+          "type": "jira.jql.condition",
+          "value": "(   \"ADVEV Vehicle Program\" = \"U833\"   OR   \"Program [Select List (multiple choices)]\" = \"U833\" ) AND level in (\"CE1 Default\", \"P833 Default\", EMPTY)"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "29aeda27-5a88-4c98-9c3b-ce03b1ef5d40",
+          "parentId": "deaa0098-dbdf-49e2-813c-e40ee5d0a565",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "- Issue Key: {{issue.key}} - ADVEV Field: {{issue.ADVEV Vehicle Program.value}} - Program Field: {{issue.Program.value}} - Project: {{issue.project.key}} Security Level Rationale: U833 is explicitly selected in either the ADVEV Vehicle Program or Program field, taking highest priority. The issue is being aligned to U833 Default.  "
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "f55edf40-b8fa-4ffa-aa20-1102d6dac8ba",
+          "parentId": "deaa0098-dbdf-49e2-813c-e40ee5d0a565",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "security"
+                },
+                "fieldType": "security",
+                "type": "SET",
+                "value": {
+                  "type": "NAME",
+                  "value": "U833 Default"
+                }
+              }
+            ],
+            "sendNotifications": false
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "deaa0098-dbdf-49e2-813c-e40ee5d0a565",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "cd09163f-71f3-4d33-ae51-607dfd4e98e5",
+          "parentId": "6f63c751-e9d1-44de-8762-b320e4309fb9",
+          "schemaVersion": 1,
+          "type": "jira.jql.condition",
+          "value": "(   \"ADVEV Vehicle Program\" not in (\"P833\", \"U833\") ) AND (   \"Program [Select List (multiple choices)]\" != \"U833\" ) AND (   \"Program [Select List (multiple choices)]\" != \"P833\"   OR project not in (ECM, PREA) ) AND (   level in (\"P833 Default\", \"U833 Default\")   OR level is EMPTY )"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "e57642f2-2e67-4141-8e0b-672da703c43a",
+          "parentId": "6f63c751-e9d1-44de-8762-b320e4309fb9",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "- Issue Key: {{issue.key}} - ADVEV Field: {{issue.ADVEV Vehicle Program.value}} - Program Field: {{issue.Program.value}} - Project: {{issue.project.key}} Security Level Rationale: No valid U833 or P833 intent was found. Any P833 value in the Program field was ignored as a false positive because the issue is not in the ECM or PREA projects. The issue is falling back to the baseline CE1 Default. "
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "843ec88c-dd46-4859-8226-24103b8c59d5",
+          "parentId": "6f63c751-e9d1-44de-8762-b320e4309fb9",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "security"
+                },
+                "fieldType": "security",
+                "type": "SET",
+                "value": {
+                  "type": "NAME",
+                  "value": "CE1 Default"
+                }
+              }
+            ],
+            "sendNotifications": false
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "6f63c751-e9d1-44de-8762-b320e4309fb9",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1775162582665,
+  "description": "This rule is the management automation to set and maintain the proper vehicle program information security levels.",
+  "id": 32713122,
+  "idUuid": "019d4fef-6689-7ce8-8e5f-15a7c5320c5b",
+  "labels": [
+    1056296
+  ],
+  "name": "Set Issue Security - Global Vehicle Program Automation - Scheduled",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11574"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11574"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "c3ee167c-d28e-4c5f-8ca4-b98fc5de9c48",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "project = \"ADVEV Connect (Jira, Confluence, SharePoint, Teams)\"",
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/Los_Angeles:20260402T133610\nRRULE:FREQ=WEEKLY;BYHOUR=9;BYMINUTE=0;BYSECOND=0;BYDAY=TH;INTERVAL=1\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1777060244203,
+  "writeAccessType": "UNRESTRICTED"
+}

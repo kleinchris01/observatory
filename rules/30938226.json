@@ -1,0 +1,1109 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "712020:a5106eb0-ee8a-4483-9412-763feaa0ef93"
+  },
+  "authorAccountId": "712020:975c8bf8-d86c-4dee-842f-4e9c3c3a541e",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "fda612cf-6a10-433a-ab4a-b92015cd397a",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "{{issue.customfield_18337}}"
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "7aa48c6e-1590-4654-bf5e-f67b61333b20",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1754708382017",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "numParts"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{issue.customfield_18337.trim.split(\"\\n\").size}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "7943f702-f1e7-4f9a-b10e-102191190ff1",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1754708182202",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "strAunTrim"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{issue.customfield_18337.split(\"\\n\").get(0).trim}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "df22577b-615e-4e9b-b3a9-a5a68c158faa",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1764162544458",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "strA"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{strAunTrim.replaceAll(\"^.*?-\",\"\").replaceAll(\"-[^-]*$\",\"\")}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "52a96ade-07e6-431c-b3e8-c306b5421999",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1754708182202",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "strBunTrim"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{issue.customfield_18337.split(\"\\n\").get(1).trim}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "7f12ebef-fc32-4bad-9d80-c89c59d154aa",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1764162544458",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "strB"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{strBunTrim.replaceAll(\"^.*?-\",\"\").replaceAll(\"-[^-]*$\",\"\")}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "c551b687-4153-44e0-9a9e-a66f9e8d954a",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1754708182202",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "strCunTrim"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{issue.customfield_18337.split(\"\\n\").get(2).trim}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "060788ee-0c48-4e3a-9848-6d488f0e99b7",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1764162544458",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "strC"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{strCunTrim.replaceAll(\"^.*?-\",\"\").replaceAll(\"-[^-]*$\",\"\")}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "203daf92-ffec-488b-a2a7-e7ac196d3784",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1754708182202",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "strDunTrim"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{issue.customfield_18337.split(\"\\n\").get(3).trim()}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "c82e8013-7494-4667-8d96-b577394b9a1c",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1764162544458",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "strD"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{strDunTrim.replaceAll(\"^.*?-\",\"\").replaceAll(\"-[^-]*$\",\"\")}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "16e0aa83-b161-4fe6-8d6b-d2afae4d4a0c",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1754708182202",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "strEunTrim"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{issue.customfield_18337.split(\"\\n\").get(4).trim}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "2b5f7b8e-c1d2-49ea-b7da-2838f0f25870",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1764162544458",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "strE"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{strEunTrim.replaceAll(\"^.*?-\",\"\").replaceAll(\"-[^-]*$\",\"\")}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "7d529dfe-4548-4166-8de7-fb35aef79117",
+              "parentId": "3c865e4b-0f71-4ddf-89be-c3bca51e71cd",
+              "schemaVersion": 1,
+              "type": "cmdb.lookup.objects",
+              "value": {
+                "customSmartValue": {
+                  "id": "_customsmartvalue_id_1754714582604",
+                  "lazy": false,
+                  "name": {
+                    "type": "FREE",
+                    "value": "lookupObjects"
+                  },
+                  "query": {
+                    "type": "SMART",
+                    "value": "\"Part Number (EIN)\" = \"{{strA}}\""
+                  },
+                  "type": "IQL"
+                },
+                "schemaId": "55",
+                "searchResultsLimit": 100,
+                "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "b04741ac-7343-454f-bc77-9c9204ef7e2c",
+              "parentId": "3c865e4b-0f71-4ddf-89be-c3bca51e71cd",
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{lookupObjects.size}}",
+                "operator": "EQUALS",
+                "second": "0"
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "7cda2b79-b764-42e0-a7a7-249d6b5224a0",
+              "parentId": "3c865e4b-0f71-4ddf-89be-c3bca51e71cd",
+              "schemaVersion": 2,
+              "type": "jira.issue.comment",
+              "value": {
+                "addCommentOnce": false,
+                "comment": "Warning: Part Number \"{{strA}}\" not found in Asset Table. Please update the Part Numbers field or contact the Jira Admin team via the [ADVEV Digital Transformation inbox|https://ford-advev.atlassian.net/servicedesk/customer/portal/3] for support.",
+                "commentVisibility": null,
+                "publicComment": false,
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "3c865e4b-0f71-4ddf-89be-c3bca51e71cd",
+              "conditions": [],
+              "connectionId": null,
+              "id": "4be19527-737b-4598-b39c-bb5b7fa902e1",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{numParts}}",
+                "operator": "GREATER_THAN",
+                "second": "0"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "3c865e4b-0f71-4ddf-89be-c3bca51e71cd",
+          "parentId": "c8efa3ea-229e-4927-afe8-900d02c97873",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "c8efa3ea-229e-4927-afe8-900d02c97873",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "99a87b70-accc-41e5-bdf0-f9dad6aece14",
+              "parentId": "48e073e0-1053-4c05-bdbe-5b09039078e1",
+              "schemaVersion": 1,
+              "type": "cmdb.lookup.objects",
+              "value": {
+                "customSmartValue": {
+                  "id": "_customsmartvalue_id_1754714792476",
+                  "lazy": false,
+                  "name": {
+                    "type": "FREE",
+                    "value": "lookupObjects"
+                  },
+                  "query": {
+                    "type": "SMART",
+                    "value": "\"Part Number (EIN)\" = \"{{strB}}\""
+                  },
+                  "type": "IQL"
+                },
+                "schemaId": "55",
+                "searchResultsLimit": 100,
+                "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "1d89f1b6-21c1-45ab-a266-edfd77f466d2",
+              "parentId": "48e073e0-1053-4c05-bdbe-5b09039078e1",
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{lookupObjects.size}}",
+                "operator": "EQUALS",
+                "second": "0"
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "fdb1d1a3-52bd-44a9-a0f0-6d2227801d91",
+              "parentId": "48e073e0-1053-4c05-bdbe-5b09039078e1",
+              "schemaVersion": 2,
+              "type": "jira.issue.comment",
+              "value": {
+                "addCommentOnce": false,
+                "comment": "Warning: Part Number \"{{strB}}\" not found in Asset Table. Please update the Part Numbers field or contact the Jira Admin team via the [ADVEV Digital Transformation inbox|https://ford-advev.atlassian.net/servicedesk/customer/portal/3] for support.",
+                "commentVisibility": null,
+                "publicComment": false,
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "48e073e0-1053-4c05-bdbe-5b09039078e1",
+              "conditions": [],
+              "connectionId": null,
+              "id": "842caa34-4602-4cf4-b9e5-cd0837a5144d",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{numParts}}",
+                "operator": "GREATER_THAN",
+                "second": "1"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "48e073e0-1053-4c05-bdbe-5b09039078e1",
+          "parentId": "7bd75fb1-e805-4250-904d-88b5da56cc6a",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "7bd75fb1-e805-4250-904d-88b5da56cc6a",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "732a4002-c6ef-4c4c-b120-275dfae1612f",
+              "parentId": "10405391-9cea-4530-872a-d58c1fab52a8",
+              "schemaVersion": 1,
+              "type": "cmdb.lookup.objects",
+              "value": {
+                "customSmartValue": {
+                  "id": "_customsmartvalue_id_1754714792476",
+                  "lazy": false,
+                  "name": {
+                    "type": "FREE",
+                    "value": "lookupObjects"
+                  },
+                  "query": {
+                    "type": "SMART",
+                    "value": "\"Part Number (EIN)\" = \"{{strC}}\""
+                  },
+                  "type": "IQL"
+                },
+                "schemaId": "55",
+                "searchResultsLimit": 100,
+                "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "7c09575a-63eb-4684-b911-15cf6700ac93",
+              "parentId": "10405391-9cea-4530-872a-d58c1fab52a8",
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{lookupObjects.size}}",
+                "operator": "EQUALS",
+                "second": "0"
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "d45610bd-ac40-4dce-a51f-3612195a7a8f",
+              "parentId": "10405391-9cea-4530-872a-d58c1fab52a8",
+              "schemaVersion": 2,
+              "type": "jira.issue.comment",
+              "value": {
+                "addCommentOnce": false,
+                "comment": "Warning: Part Number \"{{strC}}\" not found in Asset Table. Please update the Part Numbers field or contact the Jira Admin team via the [ADVEV Digital Transformation inbox|https://ford-advev.atlassian.net/servicedesk/customer/portal/3] for support.",
+                "commentVisibility": null,
+                "publicComment": false,
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "10405391-9cea-4530-872a-d58c1fab52a8",
+              "conditions": [],
+              "connectionId": null,
+              "id": "7f2e0d6f-84df-46bc-a3f8-ac81d5e91cc5",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{numParts}}",
+                "operator": "GREATER_THAN",
+                "second": "2"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "10405391-9cea-4530-872a-d58c1fab52a8",
+          "parentId": "ba6e073a-cd67-4729-964c-4964a9597fd1",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "ba6e073a-cd67-4729-964c-4964a9597fd1",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "a2381db7-c6f1-476e-a8a3-ed99a5720fa3",
+              "parentId": "60a252f6-5150-49f1-8910-1e357afb8f20",
+              "schemaVersion": 1,
+              "type": "cmdb.lookup.objects",
+              "value": {
+                "customSmartValue": {
+                  "id": "_customsmartvalue_id_1754714792476",
+                  "lazy": false,
+                  "name": {
+                    "type": "FREE",
+                    "value": "lookupObjects"
+                  },
+                  "query": {
+                    "type": "SMART",
+                    "value": "\"Part Number (EIN)\" = \"{{strD}}\""
+                  },
+                  "type": "IQL"
+                },
+                "schemaId": "55",
+                "searchResultsLimit": 100,
+                "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "c406b5d2-c144-4574-ae17-bb90b9f3bb9a",
+              "parentId": "60a252f6-5150-49f1-8910-1e357afb8f20",
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{lookupObjects.size}}",
+                "operator": "EQUALS",
+                "second": "0"
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "2be2908b-1208-489b-b0e9-2530f192bd2f",
+              "parentId": "60a252f6-5150-49f1-8910-1e357afb8f20",
+              "schemaVersion": 2,
+              "type": "jira.issue.comment",
+              "value": {
+                "addCommentOnce": false,
+                "comment": "Warning: Part Number \"{{strD}}\" not found in Asset Table. Please update the Part Numbers field or contact the Jira Admin team via the [ADVEV Digital Transformation inbox|https://ford-advev.atlassian.net/servicedesk/customer/portal/3] for support.",
+                "commentVisibility": null,
+                "publicComment": false,
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "60a252f6-5150-49f1-8910-1e357afb8f20",
+              "conditions": [],
+              "connectionId": null,
+              "id": "19b2e1b4-5c69-4028-a26c-715bd0830745",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{numParts}}",
+                "operator": "GREATER_THAN",
+                "second": "3"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "60a252f6-5150-49f1-8910-1e357afb8f20",
+          "parentId": "f2c9c307-57f8-4df2-97a4-683a49905030",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "f2c9c307-57f8-4df2-97a4-683a49905030",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "ceaf2efb-60c5-4231-890d-a3691cf286cc",
+              "parentId": "6ae79cda-2157-4d62-8962-29f4b6c17c87",
+              "schemaVersion": 1,
+              "type": "cmdb.lookup.objects",
+              "value": {
+                "customSmartValue": {
+                  "id": "_customsmartvalue_id_1754714792476",
+                  "lazy": false,
+                  "name": {
+                    "type": "FREE",
+                    "value": "lookupObjects"
+                  },
+                  "query": {
+                    "type": "SMART",
+                    "value": "\"Part Number (EIN)\" = \"{{strE}}\""
+                  },
+                  "type": "IQL"
+                },
+                "schemaId": "55",
+                "searchResultsLimit": 100,
+                "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "3096a525-6426-4925-bb22-560464499c57",
+              "parentId": "6ae79cda-2157-4d62-8962-29f4b6c17c87",
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{lookupObjects.size}}",
+                "operator": "EQUALS",
+                "second": "0"
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "fbb0c5cd-ef36-4ef9-b058-7a11a6a923d9",
+              "parentId": "6ae79cda-2157-4d62-8962-29f4b6c17c87",
+              "schemaVersion": 2,
+              "type": "jira.issue.comment",
+              "value": {
+                "addCommentOnce": false,
+                "comment": "Warning: Part Number \"{{strE}}\" not found in Asset Table. Please update the Part Numbers field or contact the Jira Admin team via the [ADVEV Digital Transformation inbox|https://ford-advev.atlassian.net/servicedesk/customer/portal/3] for support.",
+                "commentVisibility": null,
+                "publicComment": false,
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "6ae79cda-2157-4d62-8962-29f4b6c17c87",
+              "conditions": [],
+              "connectionId": null,
+              "id": "53b11162-e062-49c9-8890-a087e135fb6b",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{numParts}}",
+                "operator": "GREATER_THAN",
+                "second": "4"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "6ae79cda-2157-4d62-8962-29f4b6c17c87",
+          "parentId": "50a04bf6-bb4e-44c5-8892-ed4d73370af0",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "50a04bf6-bb4e-44c5-8892-ed4d73370af0",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "a4cdc75a-c211-4dc7-ac30-1fcbed3dbbef",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1754923757528",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "partsList"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{#if(not(strA.isEmpty))}}\"{{strA}}\"{{/}}{{#if(not(strB.isEmpty))}}, \"{{strB}}\"{{/}}{{#if(not(strC.isEmpty))}}, \"{{strC}}\"{{/}}{{#if(not(strD.isEmpty))}}, \"{{strD}}\"{{/}}{{#if(not(strE.isEmpty))}}, \"{{strE}}\"{{/}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "5033fc58-a0e9-49e5-a3f6-7431598c23ba",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "Parts List: {{partsList}}"
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "ffc26876-9daa-435f-bdbf-94fedcf40352",
+              "parentId": "9426bd19-4710-40ab-8034-5069c9ba575a",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Part Numbers"
+                    },
+                    "fieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype",
+                    "type": "SET",
+                    "value": "\"Part Number (EIN)\" IN ({{strA}},{{strB}},{{strC}},{{strD}},{{strE}})"
+                  }
+                ],
+                "sendNotifications": true
+              }
+            },
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "aa70b1a6-9f07-4f1b-ae43-19ddb53e4ebc",
+              "parentId": "9426bd19-4710-40ab-8034-5069c9ba575a",
+              "schemaVersion": 2,
+              "type": "jira.issue.comment",
+              "value": {
+                "addCommentOnce": false,
+                "comment": "The provided Part Numbers have exceeded the limit of 5. Only the first 5 have been processed.",
+                "commentVisibility": null,
+                "publicComment": false,
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "9426bd19-4710-40ab-8034-5069c9ba575a",
+              "conditions": [],
+              "connectionId": null,
+              "id": "c18e4341-bb7d-4d59-b815-1b85570857a5",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{numParts}}",
+                "operator": "GREATER_THAN",
+                "second": "5"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "9426bd19-4710-40ab-8034-5069c9ba575a",
+          "parentId": "0559fbd2-6b1e-40f1-87ef-54b9d8424c85",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "f0d49530-5fe9-4072-b034-4f13002d001b",
+              "parentId": "4530f3a2-1160-407d-bd17-1fd6530d68c5",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "NAME",
+                      "value": "Part Numbers"
+                    },
+                    "fieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype",
+                    "type": "SET",
+                    "value": "\"Part Number (EIN)\" IN ({{partsList}})"
+                  }
+                ],
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "4530f3a2-1160-407d-bd17-1fd6530d68c5",
+              "conditions": [],
+              "connectionId": null,
+              "id": "dd90073e-2f60-473c-877b-d9a20b0cacb1",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{numParts}}",
+                "operator": "GREATER_THAN",
+                "second": "0"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "4530f3a2-1160-407d-bd17-1fd6530d68c5",
+          "parentId": "0559fbd2-6b1e-40f1-87ef-54b9d8424c85",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "0559fbd2-6b1e-40f1-87ef-54b9d8424c85",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1764307386924,
+  "description": "This automation handles the processing that needs to be done when Part Number(s) is updated\n\n1. Splits the \"Product Name(s)\" newline-separated value in the Jira Form or CT Creation Automation Action, validates if each is a valid Part EID in the Part Number Assets, and adds each valid Part Number to the \"Part Numbers\" Assets Object field. \n2. Sync'ing Updating \"Part Maturity\" based on the selected \"Part Numbers\". \n3. Setting status and assignee if \"Part Maturity\" is Tooled or Production.",
+  "id": 30938226,
+  "idUuid": "019ac8ea-422e-7ec3-9d87-fff27e587fc7",
+  "labels": [],
+  "name": "CE1 - SIMPSN Part Numbers is Updated",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "5620e58d-bf51-4752-97a0-705d506d8f59",
+        "conditions": [],
+        "connectionId": null,
+        "id": "8cf3796d-6635-4211-a0ea-2a87a562a38b",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "11178"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "project"
+          },
+          "selectedFieldType": "project"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "5620e58d-bf51-4752-97a0-705d506d8f59",
+        "conditions": [],
+        "connectionId": null,
+        "id": "77b30cb2-176e-4dad-84d7-6772479c123c",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": null,
+          "comparison": "NOT_EMPTY",
+          "selectedField": {
+            "type": "NAME",
+            "value": "SIMPSN Part Numbers"
+          },
+          "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:textarea"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "5620e58d-bf51-4752-97a0-705d506d8f59",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [
+        "edit"
+      ],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11178"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "SIMPSN Part Numbers"
+        }
+      ]
+    }
+  },
+  "updated": 1764308458865,
+  "writeAccessType": "UNRESTRICTED"
+}

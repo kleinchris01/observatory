@@ -1,0 +1,200 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555651482",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": null,
+          "type": "NAME",
+          "value": "Test Planning"
+        },
+        "comparison": "EQUALS",
+        "selectedField": {
+          "type": "ID",
+          "value": "status"
+        },
+        "selectedFieldType": "status"
+      }
+    },
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555651484",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": null,
+        "comparison": "NOT_EMPTY",
+        "selectedField": {
+          "type": "NAME",
+          "value": "Test Date"
+        },
+        "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:datepicker"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555651485",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.object.create",
+      "value": {
+        "attributes": [
+          {
+            "isLabel": true,
+            "name": "Name",
+            "value": "{{triggerIssue.Equipment.name}} - {{triggerIssue.Test Date.shortDate}} - {{triggerIssue.Reporter.displayName}}"
+          },
+          {
+            "isLabel": false,
+            "name": "testDate",
+            "value": "{{triggerIssue.Test Date}}"
+          },
+          {
+            "isLabel": false,
+            "name": "reservedBy",
+            "value": "{{triggerIssue.Reporter}}"
+          },
+          {
+            "isLabel": false,
+            "name": "Room",
+            "value": "{{triggerIssue.Room}}"
+          },
+          {
+            "isLabel": false,
+            "name": "Location",
+            "value": "{{triggerIssue.Facility Location}}"
+          },
+          {
+            "isLabel": false,
+            "name": "Equipment",
+            "value": "{{triggerIssue.Equipment}}"
+          }
+        ],
+        "objectTypeId": "23",
+        "objectTypeLabel": "Reservation",
+        "schemaId": "6",
+        "schemaLabel": "Prototype Testing Schema",
+        "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "555651489",
+          "parentId": "555651486",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Reservation"
+                },
+                "fieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype",
+                "type": "SET",
+                "value": "Name = \"{{triggerIssue.Equipment.name}} - {{triggerIssue.Test Date.shortDate}} - {{triggerIssue.Reporter.displayName}}\""
+              }
+            ],
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555651486",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "current",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1702349004739,
+  "description": "",
+  "id": 16952913,
+  "idUuid": "018c5be8-5fc3-7c10-ab81-91dc129b1224",
+  "labels": [],
+  "name": "Create Reservation Object",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10075"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10075"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "555651481",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "VALUE_ADDED",
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Equipment"
+        }
+      ]
+    }
+  },
+  "updated": 1703018938884,
+  "writeAccessType": "UNRESTRICTED"
+}

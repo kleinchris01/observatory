@@ -1,0 +1,281 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:c9c3dfc4-eef5-4087-8b1a-8ee188485a9b",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "c742ed95-4580-4537-a3ca-e4e92818de0a",
+          "parentId": "14a18eb6-043d-48f9-a0d6-fb9757783177",
+          "schemaVersion": 1,
+          "type": "jira.lookup.issues",
+          "value": {
+            "id": "_customsmartvalue_id_1773979410690",
+            "lazy": false,
+            "name": {
+              "type": "FREE",
+              "value": "lookupIssues"
+            },
+            "query": {
+              "type": "SMART",
+              "value": "parent = {{issue.key}}"
+            },
+            "type": "JQL"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "b0f6fa6f-1037-40fb-b073-85cd0f9fd26b",
+          "parentId": "14a18eb6-043d-48f9-a0d6-fb9757783177",
+          "schemaVersion": 1,
+          "type": "jira.create.variable",
+          "value": {
+            "id": "_customsmartvalue_id_1773982532497",
+            "lazy": false,
+            "name": {
+              "type": "FREE",
+              "value": "TotalCount"
+            },
+            "query": {
+              "type": "SMART",
+              "value": "{{lookupIssues.size}}"
+            },
+            "type": "SMART"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "60e98a2e-c213-4dcb-a726-568b883a2189",
+          "parentId": "14a18eb6-043d-48f9-a0d6-fb9757783177",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "{{TotalCount}}"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "705584d3-eb16-4d9b-9061-2fee39d496ee",
+          "parentId": "14a18eb6-043d-48f9-a0d6-fb9757783177",
+          "schemaVersion": 1,
+          "type": "jira.lookup.issues",
+          "value": {
+            "id": "_customsmartvalue_id_1773979456291",
+            "lazy": false,
+            "name": {
+              "type": "FREE",
+              "value": "lookupIssues"
+            },
+            "query": {
+              "type": "SMART",
+              "value": "parent = {{issue.key}} AND status = Done"
+            },
+            "type": "JQL"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "b9f6ec74-e8ae-4c64-b034-0b565e29d56c",
+          "parentId": "14a18eb6-043d-48f9-a0d6-fb9757783177",
+          "schemaVersion": 1,
+          "type": "jira.create.variable",
+          "value": {
+            "id": "_customsmartvalue_id_1773982680138",
+            "lazy": false,
+            "name": {
+              "type": "FREE",
+              "value": "DoneCount"
+            },
+            "query": {
+              "type": "SMART",
+              "value": "{{lookupIssues.size}}"
+            },
+            "type": "SMART"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "7885ff9c-9a1c-4f0f-865c-f16248f0bcbd",
+          "parentId": "14a18eb6-043d-48f9-a0d6-fb9757783177",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "{{DoneCount}}"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "ec1e0bae-75b8-4782-8def-d7456e82f500",
+          "parentId": "14a18eb6-043d-48f9-a0d6-fb9757783177",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Child Completion %"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+                "type": "SET",
+                "value": " {{#=}}{{DoneCount}} / {{TotalCount}}{{/}} "
+              }
+            ],
+            "sendNotifications": true
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "93b35c7f-b07f-4b30-9b07-adb19b2192be",
+          "parentId": "14a18eb6-043d-48f9-a0d6-fb9757783177",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": " {{#=}}{{DoneCount}} / {{TotalCount}}{{/}} "
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "14a18eb6-043d-48f9-a0d6-fb9757783177",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "parent",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1780062754884,
+  "description": "When Epics under a Parent move to Done, calculate the % Completion of children for the parent Initiative for the BODY project.",
+  "id": 33437273,
+  "idUuid": "019e7402-1844-78d3-a228-3f3670a4e763",
+  "labels": [
+    1047628
+  ],
+  "name": "Set Child Completion % for parent based on Child completion",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10031"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10031"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "a5d9558a-a5e7-44b8-b69b-56d2628c7440",
+        "conditions": [],
+        "connectionId": null,
+        "id": "232dc730-bcba-447a-ac88-ef73dc3e04a3",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "10000"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "a5d9558a-a5e7-44b8-b69b-56d2628c7440",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:transitioned",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10031"
+      ],
+      "eventKey": "jira:issue_updated",
+      "fromStatus": [],
+      "issueEvent": "issue_generic",
+      "toStatus": [
+        {
+          "type": "NAME",
+          "value": "Done"
+        },
+        {
+          "type": "NAME",
+          "value": "Done and Implement"
+        },
+        {
+          "type": "NAME",
+          "value": "Won't Pursue"
+        },
+        {
+          "type": "NAME",
+          "value": "Canceled"
+        }
+      ]
+    }
+  },
+  "updated": 1780062867401,
+  "writeAccessType": "OWNER_ONLY"
+}

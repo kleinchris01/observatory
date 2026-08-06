@@ -1,0 +1,140 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "712020:b3e97506-4021-472d-b6fe-451555c1c9c2"
+  },
+  "authorAccountId": "712020:b3e97506-4021-472d-b6fe-451555c1c9c2",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "d8769351-f1c6-44f5-a8bf-6446aa0e8ea0",
+          "parentId": "5312c8dc-2c4e-47a1-9980-43c40ef91f74",
+          "schemaVersion": 3,
+          "type": "jira.issue.condition",
+          "value": {
+            "compareValue": {
+              "modifier": null,
+              "multiValue": false,
+              "source": null,
+              "type": "ID",
+              "value": null
+            },
+            "comparison": "NOT_EMPTY",
+            "selectedField": {
+              "type": "ID",
+              "value": "assignee"
+            },
+            "selectedFieldType": "assignee"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "7bb20122-43b6-45d7-bdf3-85ac22795e16",
+          "parentId": "5312c8dc-2c4e-47a1-9980-43c40ef91f74",
+          "schemaVersion": 5,
+          "type": "action.send-templated-email",
+          "value": {
+            "convertLineBreaks": true,
+            "legacyConfig": true,
+            "sendGroupedEmails": true,
+            "templateContextData": {
+              "body": "Hi {{issue.assignee.displayName}},\n\nThis is a reminder that the deadline for the issue {{issue.key}} is approaching. Please ensure that the necessary actions are taken to meet the deadline.\n\nBest regards,\n{{issue.reporter.displayName}}",
+              "bodyType": "HTML",
+              "fromEmailAddress": "automation@ford-advev.atlassian.net",
+              "fromName": "Jira automation",
+              "subject": "Reminder: Approaching Deadline for {{issue.key}}"
+            },
+            "to": [
+              {
+                "type": "SMART",
+                "value": "{{issue.assignee.emailAddress}}"
+              }
+            ]
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "5312c8dc-2c4e-47a1-9980-43c40ef91f74",
+      "parentId": null,
+      "schemaVersion": -1,
+      "type": "jira.smart.values.branch",
+      "value": {
+        "id": "id",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "issue"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{issues}}"
+        },
+        "type": "SMART"
+      }
+    }
+  ],
+  "created": 1773443110325,
+  "description": "This rule sends a notification for tickets with approaching deadlines.",
+  "id": 32418535,
+  "idUuid": "019ce972-55b5-7893-b815-a86139e5bf44",
+  "labels": [],
+  "name": "Send Notification for Approaching Deadlines",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10520"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10520"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "d299dcd8-341e-41cb-b765-54d337ffffa0",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "duedate <= endOfDay(\"+1\") AND status NOT IN (\"Done\", \"Rejected\", \"Pending Implementation\")",
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=Australia/Sydney:20230415T132829\nRRULE:FREQ=DAILY;BYHOUR=9;BYMINUTE=0\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1784562374155,
+  "writeAccessType": "UNRESTRICTED"
+}

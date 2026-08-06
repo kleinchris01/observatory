@@ -1,0 +1,201 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "705adb14-e70f-4ffb-acdf-ee1dd4713574",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1738805092275",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "CAVPSElinks"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{issue.\"FITS PCA Identified\".match(\"([A-Z]+-[0-9]+)\").join(\" \")}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "8a6f9054-d35a-4f3e-83f8-61b456debd32",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "CAVPSE Links are: {{CAVPSElinks}}"
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "91c864ae-eeeb-4069-9c3c-0ce4a1d8a3a6",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.create.variable",
+      "value": {
+        "id": "_customsmartvalue_id_1738806640536",
+        "lazy": false,
+        "name": {
+          "type": "FREE",
+          "value": "extractedKeys"
+        },
+        "query": {
+          "type": "SMART",
+          "value": "{{CAVPSElinks.split(\" \").distinct().join(\",\")}}"
+        },
+        "type": "SMART"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "2c53b9e9-706f-446f-bb30-3e9112a116fd",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "Extracted Keys are: {{extractedKeys}}"
+    },
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "5b1fc9a1-e108-4323-9b08-abe858ef0873",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.comparator.condition",
+      "value": {
+        "first": "{{extractedKeys}}",
+        "operator": "NOT_EQUALS",
+        "second": ""
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "3396739b-6ba8-4860-9a27-13b9bce0ed65",
+          "parentId": "7d9c2e39-afdf-49de-82f5-22a33f3badb6",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "Processed Keys are: {{extractedKeys}}"
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "bb1e5a73-92d7-4874-a95e-bdec990b5436",
+          "parentId": "7d9c2e39-afdf-49de-82f5-22a33f3badb6",
+          "schemaVersion": 2,
+          "type": "jira.issue.link",
+          "value": {
+            "issue": {
+              "type": "COPY",
+              "value": "trigger"
+            },
+            "linkType": "outward:10030"
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "7d9c2e39-afdf-49de-82f5-22a33f3badb6",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.related",
+      "value": {
+        "compareValue": 0,
+        "jql": "key in ({{extractedKeys}})",
+        "linkTypes": [],
+        "onlyUpdatedIssues": false,
+        "relatedType": "jql",
+        "similarityLimit": 40
+      }
+    }
+  ],
+  "created": 1772555024726,
+  "description": "",
+  "id": 32273486,
+  "idUuid": "019cb483-3956-7b2c-b528-1d611e1c3e8f",
+  "labels": [],
+  "name": "Automated link for TSI -> CAVPSE",
+  "notifyOnError": "NEVER",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11673",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10104"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "768afd99-39ec-4327-bee8-7cf961820572",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10104",
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11673"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "FITS PCA identified"
+        }
+      ]
+    }
+  },
+  "updated": 1772555118722,
+  "writeAccessType": "UNRESTRICTED"
+}

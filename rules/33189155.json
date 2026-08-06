@@ -1,0 +1,89 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:2aeda333-f7c5-4fdd-ae05-c23729740bfc",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "c3ad0ab2-bbc0-44ae-9c33-5bbd6cb615ee",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": "{{#if(issue.\"Jama Test Name\".contains(\"HALT\"))}}HALT{{/}}{{#if(issue.\"Jama Test Name\".contains(\"HS.KLT\"))}}HS.KLT{{/}}{{#if(issue.\"Jama Test Name\".contains(\"SKLT\"))}}{{#if(issue.\"Jama Test Name\".contains(\"HS.KLT\"))}}{{else}}SKLT{{/}}{{/}}{{#if(issue.\"Jama Test Name\".contains(\"Torque Reversal\"))}}Torque Reversal{{/}}{{#if(issue.\"Jama Test Name\".contains(\"Differentiation\"))}}Differentiation{{/}}{{#if(issue.\"Jama Test Name\".contains(\"Thermal\"))}}Thermal{{/}}{{#if(issue.\"Jama Test Name\".contains(\"Subgroup A\"))}}Subgroup A{{/}}{{#if(issue.\"Jama Test Name\".contains(\"Subgroup K\"))}}Subgroup K{{/}}{{#if(issue.\"Jama Test Name\".contains(\"Subgroup E\"))}}Subgroup E{{/}}{{#if(issue.\"Jama Test Name\".contains(\"Subgroup N\"))}}Subgroup N{{/}}\n\n",
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "labels"
+            },
+            "fieldType": "labels",
+            "type": "SET",
+            "value": []
+          }
+        ],
+        "sendNotifications": true
+      }
+    }
+  ],
+  "created": 1778113131606,
+  "description": "",
+  "id": 33189155,
+  "idUuid": "019dffcd-3456-7ee7-b3c8-d8eba36f103a",
+  "labels": [],
+  "name": "Jama Test Name Grouping",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10125"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10125"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "8f1c1765-b74f-41af-9b96-714ea8ac2c0d",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [
+        "edit"
+      ],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10125"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Jama Test Name"
+        }
+      ]
+    }
+  },
+  "updated": 1778113474976,
+  "writeAccessType": "OWNER_ONLY"
+}

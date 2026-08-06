@@ -1,0 +1,176 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "a9749a48-a98c-41df-8ca3-c4016f503536",
+          "parentId": "34e5dbfd-8bd3-4bf9-9451-24ab14e6ee7a",
+          "schemaVersion": 1,
+          "type": "cmdb.lookup.objects",
+          "value": {
+            "customSmartValue": {
+              "id": "_customsmartvalue_id_1763411362050",
+              "lazy": false,
+              "name": {
+                "type": "FREE",
+                "value": "lookupObjects"
+              },
+              "query": {
+                "type": "SMART",
+                "value": "objectTypeId = 590 and \"Model Year\" = \"{{issue.customfield_14979}}\""
+              },
+              "type": "IQL"
+            },
+            "schemaId": "18",
+            "searchResultsLimit": 100,
+            "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "56da8a00-8a73-487d-bd10-3705ed80208b",
+          "parentId": "34e5dbfd-8bd3-4bf9-9451-24ab14e6ee7a",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "Object Key: {{lookupObjects.key}} - Object Model Year: {{lookupObjects.label}}"
+        },
+        {
+          "children": [],
+          "component": "CONDITION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "28b40a05-d66e-409f-9a44-a7047590a627",
+          "parentId": "34e5dbfd-8bd3-4bf9-9451-24ab14e6ee7a",
+          "schemaVersion": 1,
+          "type": "jira.comparator.condition",
+          "value": {
+            "first": "{{lookupObjects.size}}",
+            "operator": "GREATER_THAN",
+            "second": "0"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "99dae0e7-af24-4eb2-810b-da01c4ff4368",
+          "parentId": "34e5dbfd-8bd3-4bf9-9451-24ab14e6ee7a",
+          "schemaVersion": 12,
+          "type": "jira.issue.edit",
+          "value": {
+            "advancedFields": null,
+            "operations": [
+              {
+                "field": {
+                  "type": "NAME",
+                  "value": "Model Year (Asset)"
+                },
+                "fieldType": "com.atlassian.jira.plugins.cmdb:cmdb-object-cftype",
+                "type": "SET",
+                "value": "key in ({{lookupObjects.key}})"
+              }
+            ],
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "ORCHESTRATION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "34e5dbfd-8bd3-4bf9-9451-24ab14e6ee7a",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "automation.orchestration.fragment",
+      "value": {
+        "inputProjections": [],
+        "isOptional": false,
+        "name": "Group 1",
+        "outputProjections": []
+      }
+    }
+  ],
+  "created": 1769736379213,
+  "description": "",
+  "id": 31766507,
+  "idUuid": "019c0c82-1b4d-7d39-8374-dfce5b2b9875",
+  "labels": [
+    1035548
+  ],
+  "name": "Update Model Year Asset field",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10110"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10110"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [
+    {
+      "tagType": "ORCHESTRATION_CONFIG_ID",
+      "tagValue": "ae5ca5db-fd7a-11f0-be51-73ce9d218679"
+    },
+    {
+      "tagType": "ORCHESTRATION_VERSION",
+      "tagValue": "1"
+    },
+    {
+      "tagType": "ORCHESTRATION",
+      "tagValue": null
+    }
+  ],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "c3b1eda3-f49d-4c62-852f-88c3db3cab12",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "\"Model Year [Select List (multiple choices)]\" is not empty and \"Model Year (Asset)\" is empty and \"Model Year [Select List (multiple choices)]\" != None",
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/Los_Angeles:20251117T122032\nRRULE:FREQ=WEEKLY;BYHOUR=9;BYMINUTE=0;BYSECOND=0;BYDAY=MO;INTERVAL=1\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1769736379213,
+  "writeAccessType": "UNRESTRICTED"
+}

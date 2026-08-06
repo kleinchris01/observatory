@@ -1,0 +1,146 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "712020:5b65907b-658c-417d-82fd-471d91c5951d"
+  },
+  "authorAccountId": "712020:5b65907b-658c-417d-82fd-471d91c5951d",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": "97f6cdbf-75ae-45ca-ba4f-4dbccb76fc37",
+      "id": "6c5d5066-f866-454c-86b0-5b2888be6f8d",
+      "parentId": null,
+      "schemaVersion": -1,
+      "type": "rovo.invoke-agent.action",
+      "value": {
+        "activationId": "c00f469e-4652-45ac-ab90-9b46c078ff84",
+        "agentAAID": "712020:712377ad-e627-42db-b059-407ad6b30039",
+        "agentDisplayName": null,
+        "agentId": "be995c91-7f1c-47c6-8bc7-8231df796482",
+        "agentInstruction": "Find SprintID of last completed sprint & Generate Release notes for Hermes from that",
+        "agentNamedId": "be995c91-7f1c-47c6-8bc7-8231df796482",
+        "allowAgentToExecuteActions": false,
+        "invocationMode": "USER",
+        "isVerified": false,
+        "tagType": "EXTERNAL_AGENT_ID",
+        "tagValue": "be995c91-7f1c-47c6-8bc7-8231df796482"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "7773396b-d436-4dd0-8f04-2e789dcf3903",
+      "parentId": null,
+      "schemaVersion": 5,
+      "type": "jira.issue.outgoing.email",
+      "value": {
+        "bcc": [],
+        "body": "{{agentResponse}}",
+        "cc": [],
+        "convertLineBreaks": true,
+        "fromName": "",
+        "mimeType": "text/html",
+        "replyTo": "",
+        "subject": "Sprint Release Notes ",
+        "to": [
+          {
+            "additional": "INITIATOR",
+            "type": "REFERENCE",
+            "value": "INITIATOR"
+          },
+          {
+            "type": "FREE",
+            "value": "schavan7@ford.com"
+          }
+        ]
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "702d3b21-76a5-43f9-993e-8c0ee1b70eb1",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "msteams.notification",
+      "value": {
+        "body": "{{agentResponse}}",
+        "imageUrl": "https://d283vu6e5qi87p.cloudfront.net/automation/prod/automation-logo.svg",
+        "includeIssueSummary": true,
+        "subTitle": "",
+        "teamsWorkflowURL": "https://teams.microsoft.com/l/app/c3a1996d-db0f-4857-a6ea-7aabf0266b00?source=app-header-share-entrypoint",
+        "teamsWorkflowUrlSecure": false,
+        "title": "Test Release Notes ",
+        "webhookUrl": ""
+      }
+    }
+  ],
+  "created": 1763072481618,
+  "description": "This rule triggers every Thursday at 2:30 PM PST to invoke a Rovo agent to generate release notes for Hermes based on the last completed sprint.",
+  "id": 30809957,
+  "idUuid": "019a7f4f-1952-752f-9140-72b45fcf2a08",
+  "labels": [],
+  "name": "Generate Release Notes for Hermes",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-software::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10056"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10056"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [
+    {
+      "tagType": "EXTERNAL_AGENT_ID",
+      "tagValue": "be995c91-7f1c-47c6-8bc7-8231df796482"
+    },
+    {
+      "tagType": "SOURCE",
+      "tagValue": "agent-studio"
+    }
+  ],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "95f3fdb0-b306-46fc-a6c4-af0b52f7ddb1",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "nosearch",
+      "jql": null,
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=US/Pacific:20230415T132829\nRRULE:FREQ=WEEKLY;BYDAY=TH;BYHOUR=14;BYMINUTE=0\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1763074170551,
+  "writeAccessType": "OWNER_ONLY"
+}

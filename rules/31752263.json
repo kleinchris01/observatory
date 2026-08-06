@@ -1,0 +1,495 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "124a9b0a-3e38-4958-9d34-ab1f7843cf13",
+          "parentId": "4e260001-e71b-47b3-b4d6-6abb44898922",
+          "schemaVersion": 3,
+          "type": "jira.set.entity.property",
+          "value": {
+            "entity": null,
+            "entityType": "ISSUE",
+            "key": "jsm-journey-workitem-context",
+            "value": "{\"executions\":[{{#issue.properties.get(\"jsm-journey-workitem-context\").executions}}{\"executionId\":{{executionId.asJsonString}},\"configurationId\":{{configurationId.asJsonString}},\"version\":{{version}}{{#if(exists(parentWorkItemId))}},\"parentWorkItemId\":{{parentWorkItemId}}{{/}}{{#if(exists(itemId))}},\"itemId\":{{itemId.asJsonString}}{{/}}},{{/}}{\"executionId\":\"{{rule.execution.id}}\",\"configurationId\":\"2707ccc0-d90c-43d2-ba2d-8b00abf768ba\",\"version\":4}],\"ids\":[{{#issue.properties.get(\"jsm-journey-workitem-context\").ids}}{{asJsonString}},{{/}}\"{{rule.execution.id}}\"],\"typeIds\":[{{#issue.properties.get(\"jsm-journey-workitem-context\").typeIds}}{{asJsonString}},{{/}}\"2707ccc0-d90c-43d2-ba2d-8b00abf768ba\"],\"versions\":[{{#issue.properties.get(\"jsm-journey-workitem-context\").versions}}{{asJsonString}},{{/}}\"2707ccc0-d90c-43d2-ba2d-8b00abf768ba#4\"],\"parentOfTypeIds\":[{{#issue.properties.get(\"jsm-journey-workitem-context\").parentOfTypeIds}}{{asJsonString}},{{/}}\"2707ccc0-d90c-43d2-ba2d-8b00abf768ba\"],\"itemIds\":[{{#issue.properties.get(\"jsm-journey-workitem-context\").itemIds}}{{asJsonString}}{{/}}]}"
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "18eecc7a-8308-42f3-b77a-9156fa89697f",
+          "parentId": "4e260001-e71b-47b3-b4d6-6abb44898922",
+          "schemaVersion": 1,
+          "type": "codebarrel.action.log",
+          "value": "Successfully initiated 'AST Merlin Journey' journey - Journey ID: {{ rule.execution.id }}"
+        }
+      ],
+      "component": "ORCHESTRATION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "4e260001-e71b-47b3-b4d6-6abb44898922",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "automation.orchestration.fragment",
+      "value": {
+        "inputProjections": [],
+        "isOptional": false,
+        "name": "Journey parent",
+        "outputProjections": [
+          {
+            "expression": "{{issue}}",
+            "key": "journeyParent"
+          },
+          {
+            "expression": "{{issue.id}}",
+            "key": "journeyParentId"
+          }
+        ]
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "01cccf60-4c7d-42a5-9b7f-0b6e8c9809c4",
+          "parentId": "c9794af0-feb8-4a7c-a03d-652627d66a89",
+          "schemaVersion": 12,
+          "type": "jira.issue.create",
+          "value": {
+            "advancedFields": "{\"fields\":{},\"properties\":[{\"value\":{\"executions\":[{\"executionId\":\"{{rule.execution.id}}\",\"configurationId\":\"2707ccc0-d90c-43d2-ba2d-8b00abf768ba\",\"itemId\":\"82c4c645-e6bf-4184-a20f-78d9826f2fab\",\"parentWorkItemId\":{{issue.id}},\"version\":4}],\"itemIds\":[\"82c4c645-e6bf-4184-a20f-78d9826f2fab\"],\"ids\":[\"{{rule.execution.id}}\"],\"typeIds\":[\"2707ccc0-d90c-43d2-ba2d-8b00abf768ba\"],\"versions\":[\"2707ccc0-d90c-43d2-ba2d-8b00abf768ba#4\"]},\"key\":\"jsm-journey-workitem-context\"}]}",
+            "operations": [
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "project"
+                },
+                "fieldType": "project",
+                "type": "SET",
+                "value": {
+                  "type": "ID",
+                  "value": "10056"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "issuetype"
+                },
+                "fieldType": "issuetype",
+                "type": "SET",
+                "value": {
+                  "type": "ID",
+                  "value": "10020"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "summary"
+                },
+                "fieldType": "summary",
+                "type": "SET",
+                "value": "{{journeyParent.summary}}"
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "customfield_16266"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "SET",
+                "value": {
+                  "type": "NAME",
+                  "value": "No"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "customfield_12570"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "SET",
+                "value": {
+                  "type": "SMART",
+                  "value": "{{journeyParent.customfield_12570}}"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "customfield_12572"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "SET",
+                "value": {
+                  "type": "SMART",
+                  "value": "{{journeyParent.customfield_12572}}"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "customfield_12571"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "SET",
+                "value": {
+                  "type": "SMART",
+                  "value": "{{journeyParent.customfield_12571}}"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "description"
+                },
+                "fieldType": "description",
+                "type": "SET",
+                "value": "{{journeyParent.Description}}"
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "reporter"
+                },
+                "fieldType": "reporter",
+                "type": "SET",
+                "value": {
+                  "type": "SMART",
+                  "value": "{{journeyParent.reporter}}"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "customfield_12871"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "SET",
+                "value": {
+                  "type": "SMART",
+                  "value": "{{journeyParent.customfield_12871}}"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "customfield_12882"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "SET",
+                "value": {
+                  "type": "SMART",
+                  "value": "{{journeyParent.customfield_12882}}"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "customfield_12573"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "SET",
+                "value": {
+                  "type": "SMART",
+                  "value": "{{journeyParent.customfield_12573}}"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "customfield_16267"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "SET",
+                "value": {
+                  "type": "NAME",
+                  "value": "New Feature"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "customfield_12872"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "SET",
+                "value": {
+                  "type": "SMART",
+                  "value": "{{journeyParent.customfield_12872}}"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "customfield_12577"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:select",
+                "type": "SET",
+                "value": {
+                  "type": "SMART",
+                  "value": "{{journeyParent.customfield_12577}}"
+                }
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "customfield_12874"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                "type": "SET",
+                "value": [
+                  {
+                    "type": "SMART",
+                    "value": "{{journeyParent.customfield_12874}}"
+                  }
+                ]
+              },
+              {
+                "field": {
+                  "type": "ID",
+                  "value": "customfield_11688"
+                },
+                "fieldType": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                "type": "SET",
+                "value": [
+                  {
+                    "type": "NAME",
+                    "value": "Merlin"
+                  }
+                ]
+              }
+            ],
+            "sendNotifications": true
+          }
+        },
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "8a8e7228-b4d6-455f-8c85-6ace5f075391",
+          "parentId": "c9794af0-feb8-4a7c-a03d-652627d66a89",
+          "schemaVersion": 1,
+          "type": "action.wait.for.time.duration",
+          "value": {
+            "randomWaitInterval": "THREE_TO_TEN_SEC",
+            "waitTimeInSeconds": null
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "70cb0307-4ab0-4857-9cae-afee9ac795a2",
+              "parentId": "386b0f2e-ee4c-4136-89a6-b4f435bc4b7d",
+              "schemaVersion": 2,
+              "type": "jira.issue.link",
+              "value": {
+                "issue": {
+                  "type": "COPY",
+                  "value": "created"
+                },
+                "linkType": "inward:10003"
+              }
+            }
+          ],
+          "component": "BRANCH",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "386b0f2e-ee4c-4136-89a6-b4f435bc4b7d",
+          "parentId": "c9794af0-feb8-4a7c-a03d-652627d66a89",
+          "schemaVersion": 1,
+          "type": "jira.issue.related",
+          "value": {
+            "compareValue": 0,
+            "jql": "",
+            "linkTypes": [],
+            "onlyUpdatedIssues": false,
+            "relatedType": "current",
+            "similarityLimit": 40
+          }
+        }
+      ],
+      "component": "ORCHESTRATION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "c9794af0-feb8-4a7c-a03d-652627d66a89",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "automation.orchestration.fragment",
+      "value": {
+        "inputProjections": [
+          {
+            "expression": "{{journeyParent}}",
+            "variable": "journeyParent"
+          }
+        ],
+        "isOptional": false,
+        "name": "Create AST issue for Merlin",
+        "outputProjections": [
+          {
+            "expression": "{{createdIssue}}",
+            "key": "82c4c645e6bf4184a20f78d9826f2fab"
+          },
+          {
+            "expression": "{{createdIssue.id}}",
+            "key": "82c4c645e6bf4184a20f78d9826f2fabId"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1769617812584,
+  "description": null,
+  "id": 31752263,
+  "idUuid": "019c0570-ec68-7cbd-bbc4-69962270f5b0",
+  "labels": [],
+  "name": "AST Merlin Journey - Journey V4",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [
+    {
+      "tagType": "EXTERNAL_AGENT_ID",
+      "tagValue": "jsm-journey-builder"
+    },
+    {
+      "tagType": "EXTERNAL_REF",
+      "tagValue": "journey:2707ccc0-d90c-43d2-ba2d-8b00abf768ba#4"
+    },
+    {
+      "tagType": "ORCHESTRATION_CONFIG_ID",
+      "tagValue": "9f697ed1-fc66-11f0-a968-e13a6ab42985"
+    },
+    {
+      "tagType": "ORCHESTRATION_VERSION",
+      "tagValue": "1"
+    },
+    {
+      "tagType": "ORCHESTRATION",
+      "tagValue": null
+    }
+  ],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "be023b23-01e6-4382-b1cd-6aebae0fe92a",
+        "conditions": [],
+        "connectionId": null,
+        "id": "8699fdef-2489-4d53-b46f-3966ef31b3bf",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "NAME",
+            "value": "Feature Request"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "NAME",
+            "value": "Request Type"
+          },
+          "selectedFieldType": "com.atlassian.servicedesk:vp-origin"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "be023b23-01e6-4382-b1cd-6aebae0fe92a",
+        "conditions": [],
+        "connectionId": null,
+        "id": "c873b538-e47b-4227-b939-1c1239e82a48",
+        "parentId": null,
+        "schemaVersion": 1,
+        "type": "jira.comparator.condition",
+        "value": {
+          "first": "{{issue.customfield_11688}}",
+          "operator": "EQUALS",
+          "second": "Merlin"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "be023b23-01e6-4382-b1cd-6aebae0fe92a",
+        "conditions": [],
+        "connectionId": null,
+        "id": "54f1e776-50a7-4eed-96cc-d1c8efd4b896",
+        "parentId": null,
+        "schemaVersion": 1,
+        "type": "jira.comparator.condition",
+        "value": {
+          "first": "{{issue.properties.jsm-journey-workitem-context.executions.last.configurationId}}",
+          "operator": "NOT_EQUALS",
+          "second": "2707ccc0-d90c-43d2-ba2d-8b00abf768ba"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "be023b23-01e6-4382-b1cd-6aebae0fe92a",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1769617812584,
+  "writeAccessType": "UNRESTRICTED"
+}

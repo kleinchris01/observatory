@@ -1,0 +1,166 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:9b52b270-bb29-4f87-880d-7c4412cc01b8",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "3f41a9b0-e2bc-4a91-aac1-868b962fef02",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "action.send-templated-email",
+      "value": {
+        "convertLineBreaks": false,
+        "legacyConfig": true,
+        "sendGroupedEmails": true,
+        "templateContextData": {
+          "body": "The EVDC Metrology issue - **Issue Key & Summary:** {{issue.key}} — {{issue.summary}}  \n\nhas been in {{issue.status.name}} status for over 72 hours.\n\nPlease review and take necessary action.\n\nYou can view the issue here: {{issue.toUrl}}\n\n",
+          "bodyType": "HTML",
+          "emailName": "72 Hour Email Reminder",
+          "fromEmailAddress": "jira@ford-advev.atlassian.net",
+          "fromName": "dnovotn4@ford.com",
+          "replyToEmailAddress": "dnovotn4@ford.com",
+          "replyToName": "Dennis Novotny",
+          "subject": "72Hour Status: {{issue.status.name}} Reminder: {{issue.key}} — {{issue.summary}}  "
+        },
+        "to": [
+          {
+            "type": "COPY",
+            "value": "reporter"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1784067883586,
+  "description": "",
+  "id": 33898920,
+  "idUuid": "019f62bb-8242-79a8-8620-ac57022e664c",
+  "labels": [],
+  "name": "EVDC Metrology 72 Hour Email reminder",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10485"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10485"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "dee03cba-88c0-4452-b823-0c69a4bb3299",
+        "conditions": [],
+        "connectionId": null,
+        "id": "a7303c6f-6aae-4bec-b04e-c86d6c0107eb",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "11254"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "dee03cba-88c0-4452-b823-0c69a4bb3299",
+        "conditions": [],
+        "connectionId": null,
+        "id": "bf63f798-4bf1-4cd1-9d96-394e5420e4e8",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": true,
+            "source": null,
+            "type": "NAME",
+            "value": "[\"Awaiting Data Input\",\"New\",\"Results Available\"]"
+          },
+          "comparison": "ONE_OF",
+          "selectedField": {
+            "type": "ID",
+            "value": "status"
+          },
+          "selectedFieldType": "status"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "dee03cba-88c0-4452-b823-0c69a4bb3299",
+        "conditions": [],
+        "connectionId": null,
+        "id": "188cb16d-05f8-4acb-89cc-bce40a11fafa",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "VALUE",
+            "value": "{\"type\":\"RELATIVE\",\"relativeValue\":{\"interval\":\"HOURS\",\"tense\":\"AGO\",\"amount\":\"72\"}}"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "NAME",
+            "value": "Time in Current Status"
+          },
+          "selectedFieldType": "com.atlassian.jira.plugin.system.customfieldtypes:datetime"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "dee03cba-88c0-4452-b823-0c69a4bb3299",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10485"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1784141399463,
+  "writeAccessType": "OWNER_ONLY"
+}

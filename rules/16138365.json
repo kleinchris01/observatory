@@ -1,0 +1,634 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "698219693",
+                  "parentId": "555642306",
+                  "schemaVersion": 1,
+                  "type": "jira.issue.refresh.issue",
+                  "value": {
+                    "delayMs": null
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "CONDITION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "555642307",
+                  "parentId": "555642306",
+                  "schemaVersion": 1,
+                  "type": "jira.jql.condition",
+                  "value": "project != AETS and status = blocked"
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "555642309",
+                  "parentId": "555642306",
+                  "schemaVersion": 11,
+                  "type": "jira.issue.transition",
+                  "value": {
+                    "advancedFields": null,
+                    "destinationStatus": {
+                      "type": "NAME",
+                      "value": "Backlog"
+                    },
+                    "operations": [],
+                    "sendNotifications": true,
+                    "transitionMatch": ""
+                  }
+                }
+              ],
+              "component": "BRANCH",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "555642306",
+              "parentId": "555642302",
+              "schemaVersion": 1,
+              "type": "jira.issue.related",
+              "value": {
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [],
+                "onlyUpdatedIssues": false,
+                "relatedType": "destination",
+                "similarityLimit": 40
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "698219697",
+                  "parentId": "555642317",
+                  "schemaVersion": 1,
+                  "type": "jira.issue.refresh.issue",
+                  "value": {
+                    "delayMs": null
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "CONDITION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "555642319",
+                  "parentId": "555642317",
+                  "schemaVersion": 1,
+                  "type": "jira.jql.condition",
+                  "value": "project = AETS and status = blocked"
+                },
+                {
+                  "children": [],
+                  "component": "CONDITION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "698220876",
+                  "parentId": "555642317",
+                  "schemaVersion": 1,
+                  "type": "jira.issues.related.condition",
+                  "value": {
+                    "compareJql": "",
+                    "compareValue": 0,
+                    "jql": "",
+                    "linkTypes": [
+                      "is blocked by"
+                    ],
+                    "operator": "notpresent",
+                    "relatedJql": "",
+                    "relatedType": "linked",
+                    "similarityLimit": 40
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "555642321",
+                  "parentId": "555642317",
+                  "schemaVersion": 11,
+                  "type": "jira.issue.transition",
+                  "value": {
+                    "advancedFields": null,
+                    "destinationStatus": {
+                      "type": "NAME",
+                      "value": "Waiting for support"
+                    },
+                    "operations": [],
+                    "sendNotifications": true,
+                    "transitionMatch": ""
+                  }
+                }
+              ],
+              "component": "BRANCH",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "555642317",
+              "parentId": "555642302",
+              "schemaVersion": 1,
+              "type": "jira.issue.related",
+              "value": {
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [],
+                "onlyUpdatedIssues": false,
+                "relatedType": "destination",
+                "similarityLimit": 40
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "555642302",
+              "conditions": [],
+              "connectionId": null,
+              "id": "555642305",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.issues.related.condition",
+              "value": {
+                "compareJql": "statusCategory = Done",
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [
+                  "is blocked by"
+                ],
+                "operator": "notpresent",
+                "relatedJql": "",
+                "relatedType": "linked",
+                "similarityLimit": 40
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "555642302",
+          "parentId": "555642301",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "CONDITION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "555642335",
+                  "parentId": "555642334",
+                  "schemaVersion": 1,
+                  "type": "jira.jql.condition",
+                  "value": "project != AETS and status = blocked"
+                },
+                {
+                  "children": [],
+                  "component": "CONDITION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "698220877",
+                  "parentId": "555642334",
+                  "schemaVersion": 1,
+                  "type": "jira.issues.related.condition",
+                  "value": {
+                    "compareJql": "statusCategory = Done",
+                    "compareValue": 0,
+                    "jql": "",
+                    "linkTypes": [
+                      "is blocked by"
+                    ],
+                    "operator": "allmatch",
+                    "relatedJql": "",
+                    "relatedType": "linked",
+                    "similarityLimit": 40
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "555642337",
+                  "parentId": "555642334",
+                  "schemaVersion": 11,
+                  "type": "jira.issue.transition",
+                  "value": {
+                    "advancedFields": null,
+                    "destinationStatus": {
+                      "type": "NAME",
+                      "value": "Backlog"
+                    },
+                    "operations": [],
+                    "sendNotifications": true,
+                    "transitionMatch": ""
+                  }
+                }
+              ],
+              "component": "BRANCH",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "555642334",
+              "parentId": "555642325",
+              "schemaVersion": 1,
+              "type": "jira.issue.related",
+              "value": {
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [
+                  "is blocked by"
+                ],
+                "onlyUpdatedIssues": false,
+                "relatedType": "destination",
+                "similarityLimit": 40
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "CONDITION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "555642343",
+                  "parentId": "555642342",
+                  "schemaVersion": 1,
+                  "type": "jira.jql.condition",
+                  "value": "project = AETS and status = blocked"
+                },
+                {
+                  "children": [],
+                  "component": "CONDITION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "698220878",
+                  "parentId": "555642342",
+                  "schemaVersion": 1,
+                  "type": "jira.issues.related.condition",
+                  "value": {
+                    "compareJql": "statusCategory = Done",
+                    "compareValue": 0,
+                    "jql": "",
+                    "linkTypes": [
+                      "is blocked by"
+                    ],
+                    "operator": "allmatch",
+                    "relatedJql": "",
+                    "relatedType": "linked",
+                    "similarityLimit": 40
+                  }
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "555642345",
+                  "parentId": "555642342",
+                  "schemaVersion": 11,
+                  "type": "jira.issue.transition",
+                  "value": {
+                    "advancedFields": null,
+                    "destinationStatus": {
+                      "type": "NAME",
+                      "value": "Waiting for support"
+                    },
+                    "operations": [],
+                    "sendNotifications": true,
+                    "transitionMatch": ""
+                  }
+                }
+              ],
+              "component": "BRANCH",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "555642342",
+              "parentId": "555642325",
+              "schemaVersion": 1,
+              "type": "jira.issue.related",
+              "value": {
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [
+                  "is blocked by"
+                ],
+                "onlyUpdatedIssues": false,
+                "relatedType": "destination",
+                "similarityLimit": 40
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "555642325",
+              "conditions": [],
+              "connectionId": null,
+              "id": "555642328",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.issues.related.condition",
+              "value": {
+                "compareJql": "statusCategory = Done",
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [
+                  "is blocked by"
+                ],
+                "operator": "allmatch",
+                "relatedJql": "",
+                "relatedType": "linked",
+                "similarityLimit": 40
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "555642325",
+          "parentId": "555642301",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "CONDITION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "c7b9da97-f121-4bd1-b93b-4c9f69edd08a",
+                  "parentId": "af424813-6bac-4dc2-859e-23ad637f9661",
+                  "schemaVersion": 1,
+                  "type": "jira.jql.condition",
+                  "value": "project != AETS and status = blocked"
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "301ce2e6-250e-4bc7-88ee-4e8786d45d7a",
+                  "parentId": "af424813-6bac-4dc2-859e-23ad637f9661",
+                  "schemaVersion": 11,
+                  "type": "jira.issue.transition",
+                  "value": {
+                    "advancedFields": null,
+                    "destinationStatus": {
+                      "type": "NAME",
+                      "value": "Backlog"
+                    },
+                    "operations": [],
+                    "sendNotifications": true,
+                    "transitionMatch": ""
+                  }
+                }
+              ],
+              "component": "BRANCH",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "af424813-6bac-4dc2-859e-23ad637f9661",
+              "parentId": "2abc187d-1602-49ad-8756-8f233486958d",
+              "schemaVersion": 1,
+              "type": "jira.issue.related",
+              "value": {
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [],
+                "onlyUpdatedIssues": false,
+                "relatedType": "current",
+                "similarityLimit": 40
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "component": "CONDITION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "83609ccc-8f56-40ea-be5e-9e7bf0f8cd92",
+                  "parentId": "0684f823-773c-46b5-986f-377c1de95a3a",
+                  "schemaVersion": 1,
+                  "type": "jira.jql.condition",
+                  "value": "project = AETS and status = blocked"
+                },
+                {
+                  "children": [],
+                  "component": "ACTION",
+                  "conditionParentId": null,
+                  "conditions": [],
+                  "connectionId": null,
+                  "id": "5ca12171-268f-447f-93c9-28ed0ff3cbb3",
+                  "parentId": "0684f823-773c-46b5-986f-377c1de95a3a",
+                  "schemaVersion": 11,
+                  "type": "jira.issue.transition",
+                  "value": {
+                    "advancedFields": null,
+                    "destinationStatus": {
+                      "type": "NAME",
+                      "value": "Waiting for support"
+                    },
+                    "operations": [],
+                    "sendNotifications": true,
+                    "transitionMatch": ""
+                  }
+                }
+              ],
+              "component": "BRANCH",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "0684f823-773c-46b5-986f-377c1de95a3a",
+              "parentId": "2abc187d-1602-49ad-8756-8f233486958d",
+              "schemaVersion": 1,
+              "type": "jira.issue.related",
+              "value": {
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [],
+                "onlyUpdatedIssues": false,
+                "relatedType": "current",
+                "similarityLimit": 40
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "2abc187d-1602-49ad-8756-8f233486958d",
+              "conditions": [],
+              "connectionId": null,
+              "id": "47f6316a-55b6-4692-807c-b3cd2d611525",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.issues.related.condition",
+              "value": {
+                "compareJql": "",
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [
+                  "blocks"
+                ],
+                "operator": "present",
+                "relatedJql": "",
+                "relatedType": "linked",
+                "similarityLimit": 40
+              }
+            },
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "2abc187d-1602-49ad-8756-8f233486958d",
+              "conditions": [],
+              "connectionId": null,
+              "id": "d7f026b7-52b2-4d66-a329-cd91d0b9ab6c",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.issues.related.condition",
+              "value": {
+                "compareJql": "statusCategory = Done",
+                "compareValue": 0,
+                "jql": "",
+                "linkTypes": [
+                  "blocks"
+                ],
+                "operator": "allmatch",
+                "relatedJql": "",
+                "relatedType": "linked",
+                "similarityLimit": 40
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "2abc187d-1602-49ad-8756-8f233486958d",
+          "parentId": "555642301",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "555642301",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1699575616294,
+  "description": "",
+  "id": 16138365,
+  "idUuid": "018bb699-d326-7c0f-88d3-9f2e7dfa50f9",
+  "labels": [
+    671536
+  ],
+  "name": "Blocking link deleted, send current issue to backlog",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11574",
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10110"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "555642296",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:link_deleted",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10027",
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11574",
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10110"
+      ],
+      "linkTypes": [
+        "Blocks"
+      ]
+    }
+  },
+  "updated": 1777047529338,
+  "writeAccessType": "UNRESTRICTED"
+}

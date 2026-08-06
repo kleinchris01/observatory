@@ -1,0 +1,218 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "2b814a52-08a5-4ed8-b763-748cf0c89e1a",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "Initiator: {{initiator.displayName}}"
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "a5bf5431-c880-493c-bf3f-ef55e76a6b97",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.outgoing.webhook",
+      "value": {
+        "contentType": "empty",
+        "continueOnErrorEnabled": true,
+        "customBody": null,
+        "headers": [
+          {
+            "headerSecure": false,
+            "id": "_header_1776169024423",
+            "name": "Authorization",
+            "value": "Basic Y3NpbWJvcmlAZm9yZC5jb206QVRBVFQzeEZmR0YwaDhGVzFGa1dBamdBcEVZeFhhOUxNQjRINVBUWGJkV0FuNVBtVmJ6N2IzSFMzdzZvLUVXZ3JCRkYxcXc1SjI1UlV6ZVN1cEVYTXE4MVRNYzFsVll3cFRVNDBlVjRqSHZ3U3NUNjQwbG52Z01tdmwtd3ZUWFBNTW1XTmlmSVg1RzZ5RHdHLWNvVmxsdW5hNlFQV0RpSkkxdXdSRm84cmEwTzlpNnFkNE5PZHpnPTNCREIwNjIy"
+          },
+          {
+            "headerSecure": false,
+            "id": "_header_1776169046917",
+            "name": "X-ExperimentalAPI",
+            "value": "opt-in"
+          }
+        ],
+        "method": "GET",
+        "responseEnabled": true,
+        "sendIssue": false,
+        "url": "https://api.atlassian.com/jira/forms/cloud/95d04bf4-e1b7-4b22-806f-8bc95698a196/issue/{{issue.key}}/form",
+        "urlSecure": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "fb47bdfe-1853-4426-9d4e-8be5abf0a2d7",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "Issue Key: {{issue}}"
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "db20c58c-2d21-4ff1-8f3b-20faa48374da",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "Current Forms: {{webResponse.body.id}}"
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "2bd1f596-b637-4050-b4e7-c860a74b9de8",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "{{forms.last}}"
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "829cfe59-8fc4-410f-ab8d-1265957f2a10",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.outgoing.webhook",
+      "value": {
+        "contentType": "empty",
+        "continueOnErrorEnabled": true,
+        "customBody": null,
+        "headers": [
+          {
+            "headerSecure": false,
+            "id": "_header_1776169024423",
+            "name": "Authorization",
+            "value": "Basic Y3NpbWJvcmlAZm9yZC5jb206QVRBVFQzeEZmR0YwaDhGVzFGa1dBamdBcEVZeFhhOUxNQjRINVBUWGJkV0FuNVBtVmJ6N2IzSFMzdzZvLUVXZ3JCRkYxcXc1SjI1UlV6ZVN1cEVYTXE4MVRNYzFsVll3cFRVNDBlVjRqSHZ3U3NUNjQwbG52Z01tdmwtd3ZUWFBNTW1XTmlmSVg1RzZ5RHdHLWNvVmxsdW5hNlFQV0RpSkkxdXdSRm84cmEwTzlpNnFkNE5PZHpnPTNCREIwNjIy"
+          },
+          {
+            "headerSecure": false,
+            "id": "_header_1776169046917",
+            "name": "X-ExperimentalAPI",
+            "value": "opt-in"
+          }
+        ],
+        "method": "DELETE",
+        "responseEnabled": true,
+        "sendIssue": false,
+        "url": "https://api.atlassian.com/jira/forms/cloud/95d04bf4-e1b7-4b22-806f-8bc95698a196/issue/{{issue.key}}/form/{{forms.last}}",
+        "urlSecure": false
+      }
+    }
+  ],
+  "created": 1778746229635,
+  "description": "This automation deletes the Solution Matrix attached by users. Action done by ServiceAccount will be ignored.",
+  "id": 33271508,
+  "idUuid": "019e2589-8384-7ce2-81da-88863559852c",
+  "labels": [],
+  "name": "SOLVE: Issue - Delete Manually Attached Solution Matrix Form",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "40db2f6d-715f-4b5b-8d8c-281c247be2c2",
+        "conditions": [],
+        "connectionId": null,
+        "id": "70f6e1a1-674e-4265-ab07-adf15e0a06ee",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "13364"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "40db2f6d-715f-4b5b-8d8c-281c247be2c2",
+        "conditions": [],
+        "connectionId": null,
+        "id": "f27b819d-6eac-42b1-bab3-ee79d1a61738",
+        "parentId": null,
+        "schemaVersion": 1,
+        "type": "jira.comparator.condition",
+        "value": {
+          "first": "{{initiator.displayName}}",
+          "operator": "NOT_EQUALS",
+          "second": "ServiceAccount ADVEV-ECM"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "40db2f6d-715f-4b5b-8d8c-281c247be2c2",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.proforma.form.attached.trigger",
+    "value": {
+      "formVisibility": "any",
+      "templateFormsConfiguration": {
+        "projectId": 13141,
+        "templateFormIds": [
+          "1f5cab4e-8e96-450c-b67a-bc3daac0e12b"
+        ]
+      }
+    }
+  },
+  "updated": 1782746047184,
+  "writeAccessType": "OWNER_ONLY"
+}

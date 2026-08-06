@@ -1,0 +1,258 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "f63a96c1-f0cc-4fcd-afa8-53401a985af6",
+              "parentId": "c606d5e0-3089-4297-8919-ee818db9c78c",
+              "schemaVersion": 12,
+              "type": "jira.issue.edit",
+              "value": {
+                "advancedFields": null,
+                "operations": [
+                  {
+                    "field": {
+                      "type": "ID",
+                      "value": "assignee"
+                    },
+                    "fieldType": "assignee",
+                    "type": "SET",
+                    "value": {
+                      "type": "SMART",
+                      "value": "{{issue.customfield_15706.accountId}}"
+                    }
+                  }
+                ],
+                "sendNotifications": true
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "component": "ACTION",
+                      "conditionParentId": null,
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "3341e4f2-4690-404c-a951-8ba1d39aa0d5",
+                      "parentId": "54c7c279-dbdf-4c5f-8661-0eae1d3d1587",
+                      "schemaVersion": 2,
+                      "type": "jira.issue.comment",
+                      "value": {
+                        "addCommentOnce": false,
+                        "comment": "Invalid Issue Champion. Please select a valid project user with necessary access to ensure the work item is assigned correctly.",
+                        "commentVisibility": null,
+                        "publicComment": true,
+                        "sendNotifications": true
+                      }
+                    }
+                  ],
+                  "component": "CONDITION_BLOCK",
+                  "conditionParentId": null,
+                  "conditions": [
+                    {
+                      "children": [],
+                      "component": "CONDITION",
+                      "conditionParentId": "54c7c279-dbdf-4c5f-8661-0eae1d3d1587",
+                      "conditions": [],
+                      "connectionId": null,
+                      "id": "b8aec664-8d57-454f-bfcd-0cae723325d4",
+                      "parentId": null,
+                      "schemaVersion": 6,
+                      "type": "jira.user.condition",
+                      "value": {
+                        "conditions": [
+                          {
+                            "check": "USER_IS",
+                            "criteria": [],
+                            "field": "customfield_15706"
+                          },
+                          {
+                            "check": "NOT_IN_ROLE",
+                            "criteria": [
+                              {
+                                "type": "NAME",
+                                "value": "Administrators"
+                              },
+                              {
+                                "type": "NAME",
+                                "value": "Administrators-EXTERNAL"
+                              },
+                              {
+                                "type": "NAME",
+                                "value": "Creators"
+                              },
+                              {
+                                "type": "NAME",
+                                "value": "Creators-EXTERNAL"
+                              },
+                              {
+                                "type": "NAME",
+                                "value": "Developers"
+                              },
+                              {
+                                "type": "NAME",
+                                "value": "Developers-EXTERNAL"
+                              },
+                              {
+                                "type": "NAME",
+                                "value": "Editors"
+                              },
+                              {
+                                "type": "NAME",
+                                "value": "Editors-EXTERNAL"
+                              }
+                            ],
+                            "field": "customfield_15706"
+                          }
+                        ],
+                        "operator": "OR"
+                      }
+                    }
+                  ],
+                  "connectionId": null,
+                  "id": "54c7c279-dbdf-4c5f-8661-0eae1d3d1587",
+                  "parentId": "506c8937-a468-4e29-8a97-c9b56de42430",
+                  "schemaVersion": 1,
+                  "type": "jira.condition.if.block",
+                  "value": {
+                    "conditionMatchType": "ALL"
+                  }
+                }
+              ],
+              "component": "CONDITION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "506c8937-a468-4e29-8a97-c9b56de42430",
+              "parentId": "c606d5e0-3089-4297-8919-ee818db9c78c",
+              "schemaVersion": 1,
+              "type": "jira.condition.container.block",
+              "value": null
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "c606d5e0-3089-4297-8919-ee818db9c78c",
+              "conditions": [],
+              "connectionId": null,
+              "id": "5630dad1-0a51-4066-b24f-aabb44352282",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": true,
+                  "source": null,
+                  "type": "NAME",
+                  "value": "[\"Pending Root Cause\",\"Pending Solution Definition\",\"Solution In-Progress\",\"Pending Prevention\",\"Pending Containment\",\"Released (Pending Verification)\"]"
+                },
+                "comparison": "ONE_OF",
+                "selectedField": {
+                  "type": "ID",
+                  "value": "status"
+                },
+                "selectedFieldType": "status"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "c606d5e0-3089-4297-8919-ee818db9c78c",
+          "parentId": "ec22c7ae-1128-4832-88f3-5e09c4b5efd6",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ANY"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "ec22c7ae-1128-4832-88f3-5e09c4b5efd6",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1778748896431,
+  "description": "This automation sets Issue Champion as assignee after a work item is transitioned to the intended statuses",
+  "id": 33271737,
+  "idUuid": "019e25b2-34af-710b-9728-a36f275c983f",
+  "labels": [],
+  "name": "SOLVE: Issue - Set Issue Champion as Assignee after successful auto-transition",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "85f896eb-a0ad-4202-84f1-6859a233f93b",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [
+        "edit",
+        "transition"
+      ],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Issue Champion"
+        },
+        {
+          "type": "field",
+          "value": "status"
+        }
+      ]
+    }
+  },
+  "updated": 1782747025467,
+  "writeAccessType": "UNRESTRICTED"
+}

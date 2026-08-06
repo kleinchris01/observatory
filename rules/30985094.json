@@ -1,0 +1,176 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "f8512a0e-cabf-4c94-b5d6-c6779cd633d5",
+              "parentId": "1994b1bc-044f-4711-8c86-ee45b862b3c3",
+              "schemaVersion": 2,
+              "type": "jira.issue.comment",
+              "value": {
+                "addCommentOnce": false,
+                "comment": "Reminder: This ticket will be automatically closed in 7 days.",
+                "commentVisibility": null,
+                "publicComment": true,
+                "sendNotifications": true
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "1994b1bc-044f-4711-8c86-ee45b862b3c3",
+              "conditions": [],
+              "connectionId": null,
+              "id": "6721dd5d-a120-47be-bc49-10e0a8517670",
+              "parentId": null,
+              "schemaVersion": 1,
+              "type": "jira.comparator.condition",
+              "value": {
+                "first": "{{issue.comments.last.body}}",
+                "operator": "NOT_CONTAINS",
+                "second": "Reminder: This ticket will be automatically closed in 7 days."
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "1994b1bc-044f-4711-8c86-ee45b862b3c3",
+          "parentId": "d9b22e97-a29c-4d89-b30f-903d4aa0c07d",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "d9b22e97-a29c-4d89-b30f-903d4aa0c07d",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1764749397325,
+  "description": "This automation adds an automated comment to the work item 7 days before closure.",
+  "id": 30985094,
+  "idUuid": "019ae342-cd58-75db-851d-c6b24afa8a70",
+  "labels": [],
+  "name": "SOLVE: Build Deviation - Add automated comment 7 days before auto-closure",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "c71b9624-2ab9-42e7-bbe8-3b9043cbf904",
+        "conditions": [],
+        "connectionId": null,
+        "id": "0a938554-8d27-4662-84aa-3c036cf1715c",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "13141"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "project"
+          },
+          "selectedFieldType": "project"
+        }
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "c71b9624-2ab9-42e7-bbe8-3b9043cbf904",
+        "conditions": [],
+        "connectionId": null,
+        "id": "faa07b7c-3aff-4253-80fc-610656516f43",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "12654"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "c71b9624-2ab9-42e7-bbe8-3b9043cbf904",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "project = SOLVE AND \"Request Type\" = \"Build Deviation (SOLVE)\" AND status = \"Active\" AND \"ADVEV Checkpoints & Milestones[Dropdown]\" IN (\"Post Job 1\", Service) AND ((\"Extension Date[Date]\" IS NOT EMPTY AND \"Extension Date[Date]\" = startOfDay(7d)) OR (\"Extension Date[Date]\" IS EMPTY AND \"End Date (Calculated)[Date]\" = startOfDay(7d)))",
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/New_York:20251106T000000\nRRULE:FREQ=DAILY;BYHOUR=0;BYMINUTE=0;BYSECOND=0;INTERVAL=1\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1782741187222,
+  "writeAccessType": "UNRESTRICTED"
+}

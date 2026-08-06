@@ -1,0 +1,121 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:9b52b270-bb29-4f87-880d-7c4412cc01b8",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "019072f9-0ca4-4476-adf4-7128c2752b0a",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": null,
+          "type": "VALUE",
+          "value": "{\"type\":\"RELATIVE\",\"relativeValue\":{\"interval\":\"DAYS\",\"tense\":\"AGO\",\"amount\":\"1\"}}"
+        },
+        "comparison": "IS_BEFORE",
+        "selectedField": {
+          "type": "ID",
+          "value": "duedate"
+        },
+        "selectedFieldType": "duedate"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "4494189a-719c-4640-9ffe-4d14b29a40e2",
+      "parentId": null,
+      "schemaVersion": 5,
+      "type": "jira.issue.outgoing.email",
+      "value": {
+        "bcc": [
+          {
+            "type": "FREE",
+            "value": "aloughea@ford.com"
+          }
+        ],
+        "body": "Hello,\n\nThe following {{issue.issueType.name}} is past the due date:\n\n- **Issue Key & Summary:** {{issue.key}} — {{issue.summary}}  \n\nPlease take the necessary actions to address it.\n\nBest regards,\nCRAFTMANSHIP automation \n\n[Open in Jira]({{issue.url}})",
+        "cc": [],
+        "convertLineBreaks": true,
+        "fromName": "CRAFTMANSHIP automation",
+        "mimeType": "text/html",
+        "subject": "Reminder: Overdue Issue: {{issue.key}} — {{issue.summary}}  ",
+        "to": [
+          {
+            "type": "SMART",
+            "value": "{{issue.assignee.emailAddress}}"
+          },
+          {
+            "type": "SMART",
+            "value": "{{issue.reporter.emailAddress}}"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1769450850222,
+  "description": "This rule sends an email reminder to the assignee and reporter of overdue issues in the CRAFT space, with a BCC to the space owner.",
+  "id": 31724016,
+  "idUuid": "019bfb7d-47ae-79c4-bf0d-cbe83be649b3",
+  "labels": [],
+  "name": "Send Reminder for Overdue Issues in CRAFT Space",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11772"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/11772"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "d5f59165-7832-4318-9f98-48339a39fd23",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "project = CRAFT AND status in (\"To Do\", \"Open\", Reopened, \"Stakeholder Review\",\"Awaiting Corrective Action\", Escalate) AND due < startOfDay() ORDER BY created DESC",
+      "onlyUpdatedIssues": false,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/Los_Angeles:20260125T120000\nRRULE:FREQ=DAILY;BYHOUR=9;BYMINUTE=0;BYSECOND=0;INTERVAL=1\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1776884050903,
+  "writeAccessType": "UNRESTRICTED"
+}

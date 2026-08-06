@@ -1,0 +1,124 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "bac7ccb6-e261-42a5-8805-a1fdd4a037ad",
+          "parentId": "17d10aeb-68a9-445b-be31-52f01143e599",
+          "schemaVersion": 1,
+          "type": "cmdb.object.edit.attributes",
+          "value": {
+            "attributes": [
+              {
+                "isLabel": null,
+                "name": "Production Buyer / GSM (Jira)",
+                "value": "{{issue.customfield_12893.accountId}}"
+              }
+            ]
+          }
+        }
+      ],
+      "component": "BRANCH",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "17d10aeb-68a9-445b-be31-52f01143e599",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "cmdb.object.related",
+      "value": {
+        "cmdbQuery": "Key IN ({{issue.Part Numbers.Key}})",
+        "schemaId": "55",
+        "schemaLabel": "Parts from 3DX",
+        "workspaceId": "c77afb26-c55c-4af4-861f-5e2907f8719d"
+      }
+    }
+  ],
+  "created": 1770832031898,
+  "description": "",
+  "id": 31953680,
+  "idUuid": "019c4dd0-709a-7341-8bef-efdb1204fa4d",
+  "labels": [],
+  "name": "1) Update Production Buyer / GSM on Part Object when part is added",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "1682c25d-8328-4917-84d0-86ca7bed72fd",
+        "conditions": [],
+        "connectionId": null,
+        "id": "6849588a-52fd-4f8b-936e-448f68fb6445",
+        "parentId": null,
+        "schemaVersion": 1,
+        "type": "jira.jql.condition",
+        "value": "Project = GSM"
+      },
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "1682c25d-8328-4917-84d0-86ca7bed72fd",
+        "conditions": [],
+        "connectionId": null,
+        "id": "80ddd78e-d16a-4941-90e3-39b8a2f38f95",
+        "parentId": null,
+        "schemaVersion": 1,
+        "type": "jira.jql.condition",
+        "value": "\"Production Buyer / GSM\" is not empty"
+      }
+    ],
+    "connectionId": null,
+    "id": "1682c25d-8328-4917-84d0-86ca7bed72fd",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Part Numbers"
+        }
+      ]
+    }
+  },
+  "updated": 1771880258152,
+  "writeAccessType": "OWNER_ONLY"
+}

@@ -1,0 +1,246 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:ff83829a-323a-48cb-9717-235304678d0e",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ORCHESTRATION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "f8697d4b-c030-4b67-836c-ddf201c9f6fe",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "automation.orchestration.instruction.continue-when",
+      "value": {
+        "event": {
+          "continueIfNoEvent": false,
+          "eventConditions": [
+            {
+              "compareValue": {
+                "modifier": null,
+                "multiValue": true,
+                "source": null,
+                "type": "NAME",
+                "value": "[\"New\"]"
+              },
+              "field": "STATUS",
+              "operator": "ONE_OF"
+            }
+          ],
+          "eventIdentifierExpression": "TriggerEntity",
+          "eventType": "ISSUE_UPDATED",
+          "properties": null
+        },
+        "name": "delay-until-__NEW__COMPONENT__67ca8579-88a1-4bf4-b62d-43dd79f637ad",
+        "outputProjections": null,
+        "waitTime": 172800
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "013c795a-e09c-49cf-ba41-075bedc4a4f6",
+          "parentId": "2d303860-1f9b-46d5-a002-26df7959975c",
+          "schemaVersion": 2,
+          "type": "jira.issue.comment",
+          "value": {
+            "addCommentOnce": true,
+            "comment": "@{{issue.assignee.displayName}} ⚠️ This DVA Request\nhas been in DE INPUT REVIEW status for 48 hours\nwith no update.\n\nAction Required:\nPlease review and transition this ticket to one\nof the following statuses:\n→ IN QUEUE — if the ticket is ready to proceed\n→ AWAITING DATA INPUT — if more information is needed\n\nTicket Details:\n→ Ticket: {{issue.key}}\n→ Summary: {{issue.summary}}\n→ Reporter: @{{issue.reporter.displayName}}\n\n@{{issue.reporter.displayName}} — Can you please\nconfirm if all required inputs have been provided\nso the team can proceed with your request?\n",
+            "commentVisibility": null,
+            "publicComment": false,
+            "sendNotifications": true
+          }
+        }
+      ],
+      "component": "ORCHESTRATION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "2d303860-1f9b-46d5-a002-26df7959975c",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "automation.orchestration.fragment",
+      "value": {
+        "inputProjections": [],
+        "isOptional": false,
+        "name": "Group 1",
+        "outputProjections": []
+      }
+    },
+    {
+      "children": [],
+      "component": "ORCHESTRATION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "b543ef28-cdea-41b7-b9dd-630af5d3c552",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "automation.orchestration.instruction.continue-when",
+      "value": {
+        "event": {
+          "continueIfNoEvent": false,
+          "eventConditions": [
+            {
+              "compareValue": {
+                "modifier": null,
+                "multiValue": true,
+                "source": null,
+                "type": "NAME",
+                "value": "[\"New\"]"
+              },
+              "field": "STATUS",
+              "operator": "ONE_OF"
+            }
+          ],
+          "eventIdentifierExpression": "TriggerEntity",
+          "eventType": "ISSUE_UPDATED",
+          "properties": null
+        },
+        "name": "delay-until-__NEW__COMPONENT__45d9fac1-3584-4c92-8c8e-2b647c405682",
+        "outputProjections": null,
+        "waitTime": 86400
+      }
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "component": "ACTION",
+          "conditionParentId": null,
+          "conditions": [],
+          "connectionId": null,
+          "id": "405b6dc5-9e22-4a06-ae38-d24427921071",
+          "parentId": "3b205ce4-b314-41d0-b573-68cd74475795",
+          "schemaVersion": 5,
+          "type": "jira.issue.outgoing.email",
+          "value": {
+            "bcc": [],
+            "body": "Item not Transitioned\n\n{{issue.summary}}",
+            "cc": [],
+            "convertLineBreaks": true,
+            "fromName": "",
+            "mimeType": "text/html",
+            "replyTo": "",
+            "subject": "{{issue.customfield_14955}} / {{assignee.displayName}} / ",
+            "to": [
+              {
+                "type": "FREE",
+                "value": "dnovotn4@ford.com"
+              }
+            ]
+          }
+        }
+      ],
+      "component": "ORCHESTRATION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "3b205ce4-b314-41d0-b573-68cd74475795",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "automation.orchestration.fragment",
+      "value": {
+        "inputProjections": [],
+        "isOptional": false,
+        "name": "Group 2",
+        "outputProjections": []
+      }
+    }
+  ],
+  "created": 1773189578199,
+  "description": "",
+  "id": 32366305,
+  "idUuid": "019cda55-bdd7-7a7d-be6e-a7f0a11b355c",
+  "labels": [],
+  "name": "DVA REQUEST - NEW ",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10485"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10485"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [
+    {
+      "tagType": "ORCHESTRATION_CONFIG_ID",
+      "tagValue": "5eab9f18-1ce5-11f1-8fbc-530a7c8a37c6"
+    },
+    {
+      "tagType": "ORCHESTRATION_VERSION",
+      "tagValue": "2"
+    },
+    {
+      "tagType": "ORCHESTRATION",
+      "tagValue": null
+    }
+  ],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "e9b90aca-7237-4ff6-8f75-27f8d95656ed",
+        "conditions": [],
+        "connectionId": null,
+        "id": "41253aea-1ac4-4d5c-99b9-7797880d723d",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "11255"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "e9b90aca-7237-4ff6-8f75-27f8d95656ed",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10485"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1773190687335,
+  "writeAccessType": "OWNER_ONLY"
+}

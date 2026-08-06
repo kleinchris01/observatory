@@ -1,0 +1,310 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [
+    "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  ],
+  "components": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "5673e850-ea42-4a0e-ad24-85da5e9cab7e",
+              "parentId": "e93cb575-a02c-4030-a39d-8d61654cedca",
+              "schemaVersion": 1,
+              "type": "jira.edit.request.type",
+              "value": {
+                "requestType": {
+                  "type": "NAME",
+                  "value": "Eng. Requirement Deviation"
+                },
+                "sendNotifications": false
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "e93cb575-a02c-4030-a39d-8d61654cedca",
+              "conditions": [],
+              "connectionId": null,
+              "id": "13b0901b-2424-4e85-878c-21be2dddffcd",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "ID",
+                  "value": "12621"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "ID",
+                  "value": "issuetype"
+                },
+                "selectedFieldType": "issuetype"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "e93cb575-a02c-4030-a39d-8d61654cedca",
+          "parentId": "ce7223a5-7038-4f15-82e4-aefa39ed7f0d",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "5c945488-ec56-480c-aede-acba7b9f5019",
+              "parentId": "5fbc9301-c4b2-47a8-9c53-791c072780b0",
+              "schemaVersion": 1,
+              "type": "jira.edit.request.type",
+              "value": {
+                "requestType": {
+                  "type": "NAME",
+                  "value": "Build Deviation"
+                },
+                "sendNotifications": false
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "5fbc9301-c4b2-47a8-9c53-791c072780b0",
+              "conditions": [],
+              "connectionId": null,
+              "id": "bb11bb23-c82a-4564-ad71-04e136563c5b",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "ID",
+                  "value": "12654"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "ID",
+                  "value": "issuetype"
+                },
+                "selectedFieldType": "issuetype"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "5fbc9301-c4b2-47a8-9c53-791c072780b0",
+          "parentId": "ce7223a5-7038-4f15-82e4-aefa39ed7f0d",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "68f90e63-b757-4a28-b1da-7ea8faad8c3c",
+              "parentId": "25d23b3d-4884-41fe-b873-fbd91f8a5371",
+              "schemaVersion": 1,
+              "type": "jira.edit.request.type",
+              "value": {
+                "requestType": {
+                  "type": "NAME",
+                  "value": "Issue"
+                },
+                "sendNotifications": false
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "25d23b3d-4884-41fe-b873-fbd91f8a5371",
+              "conditions": [],
+              "connectionId": null,
+              "id": "f501731e-b0d4-473c-b8a0-474dda14810a",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "ID",
+                  "value": "13364"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "ID",
+                  "value": "issuetype"
+                },
+                "selectedFieldType": "issuetype"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "25d23b3d-4884-41fe-b873-fbd91f8a5371",
+          "parentId": "ce7223a5-7038-4f15-82e4-aefa39ed7f0d",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "component": "ACTION",
+              "conditionParentId": null,
+              "conditions": [],
+              "connectionId": null,
+              "id": "0b00425f-7aa2-4838-936a-96b527380447",
+              "parentId": "20fafb6a-b5f7-467c-99be-e61409cc6366",
+              "schemaVersion": 1,
+              "type": "jira.edit.request.type",
+              "value": {
+                "requestType": {
+                  "type": "NAME",
+                  "value": "Cost Savings Initiative"
+                },
+                "sendNotifications": false
+              }
+            }
+          ],
+          "component": "CONDITION_BLOCK",
+          "conditionParentId": null,
+          "conditions": [
+            {
+              "children": [],
+              "component": "CONDITION",
+              "conditionParentId": "20fafb6a-b5f7-467c-99be-e61409cc6366",
+              "conditions": [],
+              "connectionId": null,
+              "id": "7c01cd17-1036-417f-98c7-180397975cb1",
+              "parentId": null,
+              "schemaVersion": 3,
+              "type": "jira.issue.condition",
+              "value": {
+                "compareValue": {
+                  "modifier": null,
+                  "multiValue": false,
+                  "source": null,
+                  "type": "ID",
+                  "value": "13496"
+                },
+                "comparison": "EQUALS",
+                "selectedField": {
+                  "type": "ID",
+                  "value": "issuetype"
+                },
+                "selectedFieldType": "issuetype"
+              }
+            }
+          ],
+          "connectionId": null,
+          "id": "20fafb6a-b5f7-467c-99be-e61409cc6366",
+          "parentId": "ce7223a5-7038-4f15-82e4-aefa39ed7f0d",
+          "schemaVersion": 1,
+          "type": "jira.condition.if.block",
+          "value": {
+            "conditionMatchType": "ALL"
+          }
+        }
+      ],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "ce7223a5-7038-4f15-82e4-aefa39ed7f0d",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.condition.container.block",
+      "value": null
+    }
+  ],
+  "created": 1763564262565,
+  "description": "This automation auto-populate request type for tickets created via action automation.",
+  "id": 30858439,
+  "idUuid": "019a9c9f-14a6-7b88-bdb1-f72cd7e345a3",
+  "labels": [],
+  "name": "SOLVE: Edit the Request Type of Tickets created via Action Automation",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "c6310efb-751d-4749-86f2-29904e401fe6",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1782742799212,
+  "writeAccessType": "SPECIFIED_USERS"
+}

@@ -1,0 +1,86 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:781cc25a-4a0b-412f-bfd6-aef6e49e87f6",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "630344745",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": null,
+        "operations": [
+          {
+            "field": {
+              "type": "ID",
+              "value": "description"
+            },
+            "fieldType": "description",
+            "type": "SET",
+            "value": "Drive Unit Usage Details:\n1. Required MRD\n    1. See\n2. Inverter, Special Notes / Instrumentation\n    1. See \n3. Drive Unit, Special Notes / Instrumentation\n    1. VX pedigree \n    2. requires \n4. Customer \n    1. GSDB Code: \n    2. Contact:\n5. Drive Unit Usage\n    1. PDU \n6. Vehicle Usage \n    1. Beta \n    2. A\n    3. Serial #: \n    4. Owner: \n\nDrive Unit Traceability:\n1. WORQ Order #/Link: \n2. Stator Assembly Serial Number: \n3. Rotor Assembly Serial Number: \n4. Inverter Assembly Serial Number: \n5. Drive Unit Serial Number: \n\nDrive Unit Data and Photos:\nAll in-process photos and data must be stored here: \nConfirmation of archive:\n\nDrive Unit Delivery + Shipment Details:\nCompletion Date: \nShipment Date (if applicable): \nDelivery Date: \n\nTDM Shipment Instructions:\n* Label parts clearly with correct Beta part number (That matches BOM and CAD)\n* Include packing slip in the box with part numbers and quantities, clearly label packing slip with P833 program and place a second copy of the packing slip in a packing sleeve on the exterior of the crate: \n* Obtain Shipping Label from\n* Ship ATTN to: "
+          }
+        ],
+        "sendNotifications": false
+      }
+    }
+  ],
+  "created": 1731541514054,
+  "description": "",
+  "id": 22966438,
+  "idUuid": "019327ea-b746-73d7-961d-b62e59fe7782",
+  "labels": [],
+  "name": "Update description",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10125"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10125"
+    ]
+  },
+  "state": "DISABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "630344744",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.jql.scheduled",
+    "value": {
+      "executionMode": "jql",
+      "jql": "project = PT2 and issuetype = \"Build Request\" and summary ~ \"Build PDU-*\" AND issuetype = \"Build Request\" AND createdDate > startOfYear()",
+      "onlyUpdatedIssues": true,
+      "schedule": {
+        "cronExpression": "",
+        "method": "BASIC",
+        "rRule": "BEGIN:VEVENT\nDTSTART;TZID=America/Los_Angeles:20241113T154256\nRRULE:FREQ=WEEKLY;BYHOUR=9;BYMINUTE=0;BYSECOND=0;BYDAY=WE;INTERVAL=1\nEND:VEVENT\n",
+        "rate": 0,
+        "rateInterval": 86400
+      }
+    }
+  },
+  "updated": 1731541727863,
+  "writeAccessType": "UNRESTRICTED"
+}

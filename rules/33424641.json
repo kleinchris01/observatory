@@ -1,0 +1,161 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077"
+  },
+  "authorAccountId": "712020:88c0452b-4bfc-4e8e-a4cb-5b71d0791586",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": true,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "d04b6453-d9b9-423e-a570-027816578f2f",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "Cost Saved per Initiative: {{issue.customfield_21557}}"
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "46c04e0d-b519-449b-bef0-129dfc7f31ac",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "Estimated Annual Usage (EAU): {{issue.customfield_21558}}"
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "41b312b1-4993-4c65-ba80-c84659b51e5d",
+      "parentId": null,
+      "schemaVersion": 12,
+      "type": "jira.issue.edit",
+      "value": {
+        "advancedFields": "{\n  \"fields\": {\n    \"customfield_21559\": \"{{#=}}{{issue.customfield_21557|0}} * {{issue.customfield_21558|0}}{{/}}\"\n  }\n}\n",
+        "operations": [],
+        "sendNotifications": false
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "3a2ab4e9-babc-47aa-a1ad-c379e00930f7",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "jira.issue.refresh.issue",
+      "value": {
+        "delayMs": null
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "cca43a1d-77b5-4c21-9aa6-2ca373c0271c",
+      "parentId": null,
+      "schemaVersion": 1,
+      "type": "codebarrel.action.log",
+      "value": "Total Cost: {{issue.customfield_21559}}"
+    }
+  ],
+  "created": 1779976890502,
+  "description": "This automation calculates the product of the Cost Saved per Initiative and Estimated Annual Usage (EAU) values.\n\nResult will be stored to the Total Savings (Hidden) field.",
+  "id": 33424641,
+  "idUuid": "019e6ee3-e886-7e61-a021-885bb1bad8b5",
+  "labels": [],
+  "name": "SOLVE: CSI - Auto Calculation for Total Savings",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [
+      {
+        "children": [],
+        "component": "CONDITION",
+        "conditionParentId": "410aae81-62bb-4e9a-a794-a997ae6ed3aa",
+        "conditions": [],
+        "connectionId": null,
+        "id": "fb757c81-7af8-44cd-a84f-33c2da1caf95",
+        "parentId": null,
+        "schemaVersion": 3,
+        "type": "jira.issue.condition",
+        "value": {
+          "compareValue": {
+            "modifier": null,
+            "multiValue": false,
+            "source": null,
+            "type": "ID",
+            "value": "13496"
+          },
+          "comparison": "EQUALS",
+          "selectedField": {
+            "type": "ID",
+            "value": "issuetype"
+          },
+          "selectedFieldType": "issuetype"
+        }
+      }
+    ],
+    "connectionId": null,
+    "id": "410aae81-62bb-4e9a-a794-a997ae6ed3aa",
+    "parentId": null,
+    "schemaVersion": 2,
+    "type": "jira.issue.field.changed",
+    "value": {
+      "actions": [
+        "create",
+        "edit"
+      ],
+      "changeType": "ANY_CHANGE",
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/13141"
+      ],
+      "fields": [
+        {
+          "type": "fieldName",
+          "value": "Cost Saved per Initiative"
+        },
+        {
+          "type": "fieldName",
+          "value": "Estimated Annual Usage (EAU)"
+        }
+      ]
+    }
+  },
+  "updated": 1782742575669,
+  "writeAccessType": "UNRESTRICTED"
+}

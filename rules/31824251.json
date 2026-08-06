@@ -1,0 +1,132 @@
+{
+  "actor": {
+    "type": "ACCOUNT_ID",
+    "value": "712020:9b52b270-bb29-4f87-880d-7c4412cc01b8"
+  },
+  "authorAccountId": "712020:9b52b270-bb29-4f87-880d-7c4412cc01b8",
+  "billingType": "NORMAL",
+  "canOtherRuleTrigger": false,
+  "collaborators": [],
+  "components": [
+    {
+      "children": [],
+      "component": "CONDITION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "080cdd9a-35e7-4a0d-9450-58eb45271ff6",
+      "parentId": null,
+      "schemaVersion": 3,
+      "type": "jira.issue.condition",
+      "value": {
+        "compareValue": {
+          "modifier": null,
+          "multiValue": false,
+          "source": null,
+          "type": "ID",
+          "value": "1"
+        },
+        "comparison": "EQUALS",
+        "selectedField": {
+          "type": "ID",
+          "value": "priority"
+        },
+        "selectedFieldType": "priority"
+      }
+    },
+    {
+      "children": [],
+      "component": "ACTION",
+      "conditionParentId": null,
+      "conditions": [],
+      "connectionId": null,
+      "id": "07485851-b333-468d-b139-82597a46de3f",
+      "parentId": null,
+      "schemaVersion": 5,
+      "type": "action.send-templated-email",
+      "value": {
+        "cc": [
+          {
+            "type": "FREE",
+            "value": "jyakel@ford.com"
+          },
+          {
+            "type": "FREE",
+            "value": "mknoche@ford.com"
+          },
+          {
+            "type": "FREE",
+            "value": "sjammou1@ford.com"
+          },
+          {
+            "type": "FREE",
+            "value": "ebeaver1@ford.com"
+          },
+          {
+            "type": "FREE",
+            "value": "bwentla2@ford.com"
+          }
+        ],
+        "convertLineBreaks": true,
+        "legacyConfig": true,
+        "sendGroupedEmails": true,
+        "templateContextData": {
+          "body": "A new \"Priority P0\" issue has been created in the EEAI project.\n\nIssue Details:\n- **Issue Key & Summary:** {{issue.key}} — {{issue.summary}}  \n- **Created by:** {{issue.reporter.displayName}}  \n- **Issue Type:** {{issue.issueType.name}}  \n- **Priority:** {{issue.priority.name}}  \n- **Severity:** {{issue.Severity}}  \n- **Assignee:** {{issue.assignee.displayName}}  \nYou can view the issue here: {{issue.toUrl}}\n\nPlease review and take necessary action.\n\nBest regards,\nJira Automation",
+          "bodyType": "HTML",
+          "fromEmailAddress": "automation@ford-advev.atlassian.net",
+          "fromName": "Jira automation",
+          "subject": "P0 Priority JIRA Issue has been created : {{issue.key}} — {{issue.summary}}  "
+        },
+        "to": [
+          {
+            "type": "COPY",
+            "value": "reporter"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1770142431615,
+  "description": "This rule notifies relevant stakeholders via email whenever a P0 priority issue is created in the EEAI project.",
+  "id": 31824251,
+  "idUuid": "019c24b5-f97f-7c3b-a897-f7d9f48b27ec",
+  "labels": [],
+  "name": "EEAI: Email Notification  on P0 Issue Creation",
+  "notifyOnError": "FIRSTERROR",
+  "projects": [],
+  "ruleHome": {
+    "ruleBillingHome": {
+      "locationARI": "ari:cloud:jira-servicedesk::site/95d04bf4-e1b7-4b22-806f-8bc95698a196"
+    },
+    "ruleLifecycleHome": {
+      "locationARI": "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10520"
+    }
+  },
+  "ruleScope": {
+    "resources": [
+      "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10520"
+    ]
+  },
+  "state": "ENABLED",
+  "tags": [],
+  "trigger": {
+    "children": [],
+    "component": "TRIGGER",
+    "conditionParentId": null,
+    "conditions": [],
+    "connectionId": null,
+    "id": "9c877a18-1776-49bd-b7cd-052ac38ae0a6",
+    "parentId": null,
+    "schemaVersion": 1,
+    "type": "jira.issue.event.trigger:created",
+    "value": {
+      "eventFilters": [
+        "ari:cloud:jira:95d04bf4-e1b7-4b22-806f-8bc95698a196:project/10520"
+      ],
+      "eventKey": "jira:issue_created",
+      "issueEvent": "issue_created"
+    }
+  },
+  "updated": 1782144313728,
+  "writeAccessType": "UNRESTRICTED"
+}
