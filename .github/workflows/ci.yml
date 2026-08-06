@@ -22,6 +22,11 @@ jobs:
   lint:
     name: Forge Lint
     runs-on: ubuntu-latest
+    # `secrets` cannot be referenced from a step-level `if`, so the presence check is
+    # hoisted to a job-level env var. Empty for any run using the Dependabot secret
+    # store, which is a separate store from Actions secrets.
+    env:
+      HAS_FORGE_CREDENTIALS: ${{ secrets.FORGE_API_TOKEN != '' && secrets.FORGE_EMAIL != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -35,18 +40,33 @@ jobs:
           npm run build:admin
       - name: Install Forge CLI
         run: npm install -g @forge/cli@latest
-      # `forge lint` exits 1 for three different outcomes: errors, warnings, and APPROVALS.
-      # An approval is not a defect -- it is Forge reporting that the change will require
-      # admin re-consent on upgrade, which is information, not a fault. Treating all three
-      # as failure meant any deliberate scope change was unmergeable.
+      # Two separate problems are handled here, and both fixes are needed. Dropping either
+      # one re-breaks the case the other was written for.
       #
-      # So: fail on errors or warnings, surface an approval loudly and continue.
+      # WHEN IT RUNS: `forge lint` requires an authenticated CLI even though it only
+      # validates the manifest statically. Dependabot pull requests use the Dependabot
+      # secret store rather than Actions secrets, so these resolve to empty there and the
+      # CLI exits with "Not logged in" -- which failed the job, failed CI Gate, and left
+      # every Dependabot PR red regardless of content, including ones touching nothing but
+      # .github/workflows.
       #
-      # The approval line is worth reading rather than suppressing. It is the closest thing
-      # this repo currently has to the manifest drift detection tracked by CONNECT-3887 --
-      # an unintended scope escalation shows up here first, and printing it into the job
-      # summary is most of what that story asks for.
+      # Skipping rather than granting Dependabot access to the credentials is deliberate.
+      # A dependency-bump branch is the one place where third-party code arrives in CI;
+      # deploy credentials do not belong in that blast radius. The steps above -- npm ci
+      # against the proposed lockfile, plus both Vite builds -- are the part that actually
+      # validates a dependency change, and they need no credentials at all.
+      #
+      # WHAT COUNTS AS FAILURE: `forge lint` exits 1 for three different outcomes -- errors,
+      # warnings, and APPROVALS. An approval is not a defect; it is Forge reporting that the
+      # change will require admin re-consent on upgrade, which is information. Treating all
+      # three as failure made any deliberate scope change unmergeable.
+      #
+      # So: fail on errors or warnings, surface an approval loudly and continue. The
+      # approval line is worth reading rather than suppressing -- it is the closest thing
+      # this repo has to the manifest drift detection tracked by CONNECT-3887, since an
+      # unintended scope escalation shows up here first.
       - name: Forge manifest lint
+        if: env.HAS_FORGE_CREDENTIALS == 'true'
         run: |
           set +e
           output=$(forge lint 2>&1)
@@ -83,6 +103,13 @@ jobs:
           # ordering proved flaky across separate CI steps/processes.
           FORGE_DISABLE_ANALYTICS: "true"
 
+      # Makes the skip visible in the job summary. Without it, a run where the manifest
+      # was never linted looks identical to one where it was linted and passed.
+      - name: Note skipped manifest lint
+        if: env.HAS_FORGE_CREDENTIALS != 'true'
+        run: |
+          echo "::notice title=Forge manifest lint skipped::No Forge credentials in this context (expected for Dependabot pull requests). npm ci and both Vite builds still ran. The manifest is linted on the merge to master."
+
   test:
     name: Unit Tests
     runs-on: ubuntu-latest
@@ -116,7 +143,12 @@ jobs:
       - run: npm ci --frozen-lockfile
       - name: Dependency audit
         run: npm audit --audit-level=high --omit=dev
-        continue-on-error: true # tracked separately; pre-existing transitive vulns in @forge/bridge, not a gate condition yet
+        # Still non-blocking, but no longer for want of triage. As of 31 Jul 2026 the
+        # remaining high advisories are the linkify-it chain under @forge/bridge, for
+        # which no fixed vendor release exists -- see SECURITY_CHECKLIST.md section 7 for
+        # the per-package rationale and re-check trigger. Making this a gate today would
+        # block every PR on something nobody can fix.
+        continue-on-error: true
       - name: Secret scan
         uses: gitleaks/gitleaks-action@v2
         env:
@@ -137,10 +169,20 @@ jobs:
         run: npm run build:macro
       - name: Build admin frontend
         run: npm run build:admin
+      # Checks for index.html, not just the directory. A trial Vite 8 upgrade on
+      # 31 Jul 2026 produced static/dist-admin/ containing assets but NO index.html --
+      # the renameAdminHtml plugin's generateBundle hook does not fire under rolldown,
+      # so the rename silently no-ops and the build still reports success. A directory
+      # existence check passes happily on an artifact that would take the admin page
+      # down entirely.
       - name: Verify build outputs
         run: |
-          test -d static/dist && echo "Macro dist OK — $(du -sh static/dist | cut -f1)"
-          test -d static/dist-admin && echo "Admin dist OK — $(du -sh static/dist-admin | cut -f1)"
+          for bundle in dist dist-admin; do
+            entry="static/$bundle/index.html"
+            test -f "$entry" || { echo "::error::$entry missing — the bundle has no HTML entry point"; exit 1; }
+            grep -q '<script' "$entry" || { echo "::error::$entry references no script"; exit 1; }
+            echo "$bundle OK — $(du -sh "static/$bundle" | cut -f1)"
+          done
 
   ci-gate:
     name: CI Gate

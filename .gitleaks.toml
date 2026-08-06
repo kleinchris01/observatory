@@ -1,0 +1,40 @@
+# Gitleaks configuration.
+#
+# Every default detector stays on everywhere except one narrow exemption, explained below.
+#
+# WHY rules/ IS EXEMPT
+#
+# The committed automation snapshot is machine-generated configuration data, and gitleaks'
+# heuristics match a great deal of it that is not secret:
+#
+#   rules/_manifest.json   "clientKey" — a site identifier, identical across every rule
+#   rules/<id>.json        "key"       — output-projection variable ids inside orchestration
+#                                        fragments, pairing a smart value to a name
+#   rules/<id>.json        "jql"       — query text such as
+#                                        object.property[recurrence-config].token = '<uuid>'
+#
+# None are credentials. Left unhandled they fail every snapshot refresh, and a check that
+# always fails stops being read — which is how a real finding gets missed.
+#
+# WHAT REPLACES IT
+#
+# src/lib/rule-snapshot.redaction.test.js scans the committed snapshot on every CI run for
+# the credential shapes this data is actually known to carry: inbound webhook tokens, Slack
+# and Teams webhook URLs, form-encoded client_secret / password / api_key values, literal
+# bearer tokens, and private key blocks. It reports by file and shape rather than by value,
+# so a failure never prints the secret into a CI log.
+#
+# That is a stronger control here than a generic scanner, because it knows the difference
+# between a redaction placeholder, a smart-value reference, and a live secret. The exemption
+# is a swap of one check for a better-targeted one, not a removal.
+#
+# Everything outside rules/ — including the source and tests — is scanned normally.
+
+title = "Observatory"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Generated rule snapshot; covered by rule-snapshot.redaction.test.js instead"
+paths = ['''^rules/''']

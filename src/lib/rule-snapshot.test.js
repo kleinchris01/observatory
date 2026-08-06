@@ -76,16 +76,16 @@ describe("redactionPlaceholder", () => {
 
 describe("redactSecrets", () => {
   it("redacts an inbound webhook token", () => {
-    const out = redactSecrets({ trigger: { value: { webhookToken: "9ec3b588bb979a87b4f6202e8610aa31b4c150aa" } } });
+    const out = redactSecrets({ trigger: { value: { webhookToken: "example-inbound-token-not-real" } } });
     expect(out.trigger.value.webhookToken).toMatch(PLACEHOLDER);
   });
 
   it("redacts the secret path of a Slack webhook URL but keeps the host", () => {
-    const url = "https://hooks.slack.com/services/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";
+    const url = "https://hooks.slack.com/services/FAKE/FAKE/not-a-real-token";
     const out = redactSecrets({ webhookUrl: url });
     expect(out.webhookUrl).toContain("https://hooks.slack.com/");
-    expect(out.webhookUrl).not.toContain("T5V73NVC1");
-    expect(out.webhookUrl).not.toContain("1CFF64vEWtIOGMYVQ1FPH49Z");
+    expect(out.webhookUrl).not.toContain("FAKE");
+    expect(out.webhookUrl).not.toContain("not-a-real-token");
   });
 
   it("redacts a Teams webhook URL", () => {
@@ -95,10 +95,10 @@ describe("redactSecrets", () => {
   });
 
   it("removes client_secret from a form-encoded body but keeps grant_type and client_id", () => {
-    const body = "grant_type=client_credentials&client_id=2699247d-c7a7-464e&client_secret=Ab-cD~efGhIjKlMn-opQrStUv~wXyZ01&scope=x";
+    const body = "grant_type=client_credentials&client_id=00000000-0000-0000&client_secret=Ab-cD~efGhIjKlMn-opQrStUv~wXyZ01&scope=x";
     const out = redactSecrets({ customBody: body });
     expect(out.customBody).toContain("grant_type=client_credentials");
-    expect(out.customBody).toContain("client_id=2699247d-c7a7-464e");
+    expect(out.customBody).toContain("client_id=00000000-0000-0000");
     expect(out.customBody).toContain("scope=x");
     expect(out.customBody).not.toContain("Ab-cD~efGhIjKlMn-opQrStUv~wXyZ01");
   });
@@ -146,7 +146,7 @@ describe("redactSecrets", () => {
   // WEBHOOK_TOKEN tag whose key is the generic "tagValue". Redacting only the first left
   // all five of this site's tokens in the snapshot.
   it("redacts a token carried as a WEBHOOK_TOKEN tag value", () => {
-    const out = redactSecrets({ tags: [{ tagType: "WEBHOOK_TOKEN", tagValue: "9ec3b588bb979a87b4f6202e8610aa31b4c150aa" }] });
+    const out = redactSecrets({ tags: [{ tagType: "WEBHOOK_TOKEN", tagValue: "example-inbound-token-not-real" }] });
     expect(out.tags[0].tagValue).toMatch(PLACEHOLDER);
     expect(out.tags[0].tagType).toBe("WEBHOOK_TOKEN");
   });
@@ -157,7 +157,7 @@ describe("redactSecrets", () => {
   });
 
   it("redacts both copies of the same token to the same placeholder", () => {
-    const token = "9ec3b588bb979a87b4f6202e8610aa31b4c150aa";
+    const token = "example-inbound-token-not-real";
     const out = redactSecrets({
       trigger: { value: { webhookToken: token } },
       tags: [{ tagType: "WEBHOOK_TOKEN", tagValue: token }],
@@ -254,8 +254,8 @@ describe("serializeRule", () => {
   });
 
   it("never emits a raw secret", () => {
-    const rule = ruleWith({ trigger: { value: { webhookToken: "9ec3b588bb979a87b4f6202e8610aa31" } } });
-    expect(serializeRule(rule)).not.toContain("9ec3b588bb979a87b4f6202e8610aa31");
+    const rule = ruleWith({ trigger: { value: { webhookToken: "example-inbound-token-not-real" } } });
+    expect(serializeRule(rule)).not.toContain("example-inbound-token-not-real");
   });
 });
 
