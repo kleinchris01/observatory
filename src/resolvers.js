@@ -915,6 +915,73 @@ async function getAutomationIndex({ payload, context }) {
 }
 
 
+// Which automation rules touch one field.
+//
+// This is the join the whole automation pillar exists for. The Field Browser's other
+// sections describe how a field is configured and how many issues carry a value; none of
+// them can tell you that deleting it will break a rule. Answering that per field is what
+// turns "735 fields are referenced" into something a person can act on.
+//
+// Resolved server-side rather than by shipping the field index to the browser: the index is
+// 131 KB, the Field Browser shows ten fields a page, and only the expanded one needs an
+// answer.
+async function getAutomationFieldUsage({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const installationKey = getInstallationKey(context);
+    const fieldName = String(payload?.fieldName ?? "").trim();
+    const fieldId = String(payload?.fieldId ?? "").trim();
+    if (!fieldName && !fieldId) throw new Error("fieldName or fieldId is required");
+
+    const [index, directory] = await Promise.all([
+      readAutomationPart(installationKey, "fields"),
+      readAutomationPart(installationKey, "directory"),
+    ]);
+
+    // Distinct from "no rule touches this field". Saying "not referenced" with no analysis
+    // behind it is exactly the false reassurance this pillar was built to stop.
+    if (!index) return { available: false, reason: "no-analysis" };
+
+    // Extraction records a name or an id depending on how the rule addressed the field, so
+    // both are matched. Names are compared case-insensitively because rules are written by
+    // hand and casing drifts.
+    const wantedName = fieldName.toLowerCase();
+    const entry = (index.entries ?? []).find((e) => {
+      const label = String(e.label ?? "");
+      return (wantedName && label.toLowerCase() === wantedName) || (fieldId && label === fieldId);
+    });
+
+    if (!entry) return { available: true, referenced: false };
+
+    const byId = new Map(
+      (directory?.rules ?? []).map(([id, name, enabled, triggerType]) => [
+        id,
+        { id, name, enabled: enabled === 1, triggerType: triggerType || null },
+      ])
+    );
+    // A rule missing from the directory still counts. Dropping it would understate the
+    // dependency, which is the one direction this must never err in.
+    const expand = (ids = [], count = 0) => ({
+      count,
+      rules: ids.map((id) => byId.get(id) ?? { id, name: `Rule ${id}`, enabled: null, triggerType: null }),
+    });
+
+    return {
+      available: true,
+      referenced: true,
+      label: entry.label,
+      write: expand(entry.write, entry.writeCount),
+      read: expand(entry.read, entry.readCount),
+      trigger: expand(entry.trigger, entry.triggerCount),
+    };
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("getAutomationFieldUsage failed:", error);
+    throw error;
+  }
+}
+
+
 // Probe the endpoints that might expose Jira Automation rules.
 //
 // Automation is a real blind spot in the findings this app produces: "this status is
@@ -3439,6 +3506,7 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   // Automation rule analysis
   getAutomationInsights,   // Admin read: enumerates rule names, project scope and outbound hosts
   getAutomationIndex,      // Admin read: field / status reference index and the rule directory
+  getAutomationFieldUsage, // Admin read: the automation rules that touch one field
   saveAutomationAnalysis,  // Mutating: replaces the stored automation analysis document
   saveAutomationIndex,     // Mutating: replaces one supporting index document
 

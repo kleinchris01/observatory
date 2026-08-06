@@ -17,6 +17,126 @@ import {
 import { Icon } from "./Icons";
 import { FieldOptionsModal } from "./FieldOptionsModal";
 
+// A detail section that can be folded away.
+//
+// The expanded card runs to five sections and several screens; on a field with 132 active
+// projects the Project Usage list buries everything under it. Only the title toggles --
+// the actions beside it are their own buttons, and nesting a button inside a button is
+// invalid markup that browsers resolve by dropping one of them.
+//
+// State is per section and remembered while the card stays open, so collapsing Project
+// Usage to read Contexts does not undo itself on the next render.
+export function CollapsibleSection({ title, badge, actions, defaultOpen = true, children }) {
+  const [open, setOpen] = React.useState(defaultOpen);
+  const bodyId = React.useMemo(() => `sect-${Math.random().toString(36).slice(2, 9)}`, []);
+
+  return (
+    <section className={`detail-section${open ? "" : " detail-section--collapsed"}`}>
+      <div className="section-heading">
+        <button
+          type="button"
+          className="section-heading__toggle"
+          onClick={(event) => { event.stopPropagation(); setOpen((v) => !v); }}
+          aria-expanded={open}
+          aria-controls={bodyId}
+        >
+          <span className="section-heading__chevron" aria-hidden="true">{open ? "▾" : "▸"}</span>
+          <h4>{title}</h4>
+          {badge != null ? <span className="section-heading__badge">{badge}</span> : null}
+        </button>
+        {actions ? <div className="section-heading__actions">{actions}</div> : null}
+      </div>
+      {open ? <div className="detail-section__body" id={bodyId}>{children}</div> : null}
+    </section>
+  );
+}
+
+const AUTOMATION_DIRECTIONS = [
+  { key: "write", label: "Writes this field", tone: "danger", consequence: "Deleting the field breaks these rules and loses the values they maintain." },
+  { key: "read", label: "Reads this field", tone: "info", consequence: "These rules check the field in a condition and will misbehave without it." },
+  { key: "trigger", label: "Triggers on this field", tone: "warn", consequence: "These rules run when the field changes." },
+];
+
+// What automation does with one field.
+//
+// Loaded when the card is expanded rather than with the page: the Field Browser shows ten
+// fields at a time and this answer is only wanted for the one being read.
+export function AutomationUsageSection({ field, enabled = true }) {
+  const [state, setState] = React.useState({ loading: true, error: "", data: null });
+
+  React.useEffect(() => {
+    if (!enabled) return undefined;
+    let cancelled = false;
+    setState({ loading: true, error: "", data: null });
+    invoke("getAutomationFieldUsage", { fieldId: field.id, fieldName: field.name })
+      .then((data) => { if (!cancelled) setState({ loading: false, error: "", data }); })
+      .catch((err) => { if (!cancelled) setState({ loading: false, error: err?.message || "Failed to load.", data: null }); });
+    return () => { cancelled = true; };
+  }, [enabled, field.id, field.name]);
+
+  const { loading, error, data } = state;
+  const total = data?.referenced
+    ? (data.write?.count ?? 0) + (data.read?.count ?? 0) + (data.trigger?.count ?? 0)
+    : 0;
+
+  return (
+    // Deliberately not collapsed-when-unreferenced: `defaultOpen` seeds useState on the
+    // first render, when the fetch has not returned and `referenced` is still unknown, so
+    // keying it to the data would leave the section permanently shut. Always open, and one
+    // line of text when nothing uses the field.
+    <CollapsibleSection
+      title="Automation Usage"
+      badge={data?.referenced ? `${formatNumber(total)} rule${total === 1 ? "" : "s"}` : null}
+    >
+      {loading ? (
+        <div className="empty-state empty-state--inline">Checking automation rules…</div>
+      ) : error ? (
+        <div className="empty-state empty-state--inline">Could not check automation rules. {error}</div>
+      ) : !data?.available ? (
+        // Never phrased as "no rules use this field". No analysis has been built, so the
+        // honest answer is that nobody has looked.
+        <div className="empty-state empty-state--inline">
+          No automation analysis has been built, so automation usage is unknown for this field.
+          Import a rule export on the Automation tab to find out.
+        </div>
+      ) : !data.referenced ? (
+        <div className="empty-state empty-state--inline">
+          No automation rule reads, writes or triggers on this field.
+        </div>
+      ) : (
+        <div className="automation-usage">
+          {AUTOMATION_DIRECTIONS.map(({ key, label, tone, consequence }) => {
+            const group = data[key];
+            if (!group?.count) return null;
+            return (
+              <div className={`automation-usage__group automation-usage__group--${tone}`} key={key}>
+                <div className="automation-usage__head">
+                  <strong>{label}</strong>
+                  <FindingBadge label={`${formatNumber(group.count)} rule${group.count === 1 ? "" : "s"}`} tone={tone} />
+                </div>
+                <p className="automation-usage__consequence">{consequence}</p>
+                <ul className="automation-usage__rules">
+                  {group.rules.map((rule) => (
+                    <li key={`${key}-${rule.id}`} className={rule.enabled === false ? "automation-usage__rule automation-usage__rule--disabled" : "automation-usage__rule"}>
+                      <span className="automation-usage__name">{rule.name}</span>
+                      {rule.enabled === false ? <span className="automation-usage__state">disabled</span> : null}
+                    </li>
+                  ))}
+                </ul>
+                {group.count > group.rules.length ? (
+                  <div className="automation-usage__truncation">
+                    Showing {group.rules.length} of {formatNumber(group.count)}.
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </CollapsibleSection>
+  );
+}
+
 export function MetricChip({ label, value, tone = "neutral" }) {
   return (
     <div className={`metric-chip metric-chip--${tone}`}>
@@ -287,10 +407,10 @@ export function FieldCard({
             <div className="empty-state empty-state--inline">Loading field contexts and project usage...</div>
           ) : details ? (
             <>
-              {showGovernance && <section className="detail-section">
-                <div className="section-heading">
-                  <h4>Governance Findings</h4>
-                  <div className="section-heading__actions">
+              {showGovernance && <CollapsibleSection
+                title="Governance Findings"
+                actions={
+                  <>
                     <FindingsStrip findings={fieldFindings} />
                     <button
                       className="secondary-button secondary-button--small"
@@ -313,8 +433,9 @@ export function FieldCard({
                     >
                       Ask Rovo
                     </button>
-                  </div>
-                </div>
+                  </>
+                }
+              >
                 {fieldFindings?.reasons?.length ? (
                   <div className="findings-list">
                     {fieldFindings.reasons.map((reason, index) => (
@@ -335,12 +456,14 @@ export function FieldCard({
                     No immediate governance issues were flagged for this field by the current heuristics.
                   </div>
                 )}
-              </section>}
+              </CollapsibleSection>}
 
-              <section className="detail-section">
-                <div className="section-heading">
-                  <h4>Field-Wide Query</h4>
-                  <div className="section-heading__actions">
+              {showGovernance ? <AutomationUsageSection field={field} enabled={expanded} /> : null}
+
+              <CollapsibleSection
+                title="Field-Wide Query"
+                actions={
+                  <>
                     <span>Total populated issues: {usageAvailable ? details.totalIssueCount : "Unavailable"}</span>
                     <button
                       className="secondary-button secondary-button--small"
@@ -353,8 +476,9 @@ export function FieldCard({
                     >
                       Ask Rovo
                     </button>
-                  </div>
-                </div>
+                  </>
+                }
+              >
                 <div className="field-query-grid">
                   <a
                     className="smart-link-card"
@@ -373,13 +497,13 @@ export function FieldCard({
                     {usageSource?.usageStatusDetail || "Jira did not return per-project usage for this field in the app context."}
                   </div>
                 ) : null}
-              </section>
+              </CollapsibleSection>
 
-              <section className="detail-section">
-                <div className="section-heading">
-                  <h4>Contexts</h4>
-                  <span>Refreshed {formatTimestamp(details.refreshedAt)}</span>
-                </div>
+              <CollapsibleSection
+                title="Contexts"
+                badge={details.contexts.length || null}
+                actions={<span>Refreshed {formatTimestamp(details.refreshedAt)}</span>}
+              >
                 <div className="context-grid">
                   {details.contexts.length ? (
                     details.contexts.map((context) => (
@@ -429,13 +553,10 @@ export function FieldCard({
                     />
                   ) : null}
                 </div>
-              </section>
+              </CollapsibleSection>
 
               {fieldIsSelectType ? (
-                <section className="detail-section">
-                  <div className="section-heading">
-                    <h4>Options</h4>
-                  </div>
+                <CollapsibleSection title="Options" badge={fieldOptions?.optionsByContext?.length || null}>
                   {fieldOptionsLoading ? (
                     <div className="empty-state empty-state--inline">Loading options…</div>
                   ) : fieldOptions?.optionsByContext?.length ? (
@@ -445,13 +566,13 @@ export function FieldCard({
                   ) : fieldOptions ? (
                     <div className="empty-state empty-state--inline">No options found for this field.</div>
                   ) : null}
-                </section>
+                </CollapsibleSection>
               ) : null}
 
-              <section className="detail-section">
-                <div className="section-heading">
-                  <h4>Project Usage</h4>
-                  <div className="section-heading__actions">
+              <CollapsibleSection
+                title="Project Usage"
+                actions={
+                  <>
                     <span>
                       {`${details.activeProjectCount} active project${details.activeProjectCount === 1 ? "" : "s"} · Page ${details.projectUsagePage}/${details.projectUsageTotalPages}`}
                     </span>
@@ -466,9 +587,9 @@ export function FieldCard({
                     >
                       Ask Rovo
                     </button>
-                  </div>
-                </div>
-
+                  </>
+                }
+              >
                 {details.projects.length ? (
                   <>
                     <div className="project-usage-list">
@@ -583,7 +704,7 @@ export function FieldCard({
                     No projects with populated values were found on this page of active projects.
                   </div>
                 )}
-              </section>
+              </CollapsibleSection>
             </>
           ) : (
             <div className="empty-state empty-state--inline">No field details are available.</div>
