@@ -42,6 +42,19 @@ modules:
       actions:
         - search-field-catalog
         - inspect-field-governance
+    - key: observatory-automation-expert
+      name: Observatory Automation Expert
+      description: A Jira Automation specialist that explains what the site's rules do, what fields and statuses they depend on, and whether a change is safe to make.
+      prompt: resource:agent-resources;prompts/jira-automation-expert.txt
+      conversationStarters:
+        - Is the Story Points field safe to delete?
+        - Which automation rules store a credential in plaintext?
+        - What does the rule "Auto-Populate Child Fields from Parent Story" touch?
+        - Which rules trigger when an issue moves to Done?
+      actions:
+        - search-automation-rules
+        - inspect-automation-rule
+        - automation-usage
   action:
     - key: search-field-catalog
       name: Search field catalog
@@ -90,6 +103,54 @@ modules:
           type: boolean
           required: false
           description: Whether to include project-level usage rows in the response.
+    - key: search-automation-rules
+      name: Search automation rules
+      function: rovo-search-rules
+      actionVerb: GET
+      description: Search the site's Jira Automation rules by name and return their state, trigger, project scope and any governance findings.
+      inputs:
+        query:
+          title: Search query
+          type: string
+          required: true
+          description: Words from the rule name, such as "approval" or "copy fields to subtasks".
+        state:
+          title: Rule state
+          type: string
+          required: false
+          description: Optional filter. Use enabled, disabled, or any.
+        maxResults:
+          title: Maximum results
+          type: integer
+          required: false
+          description: Optional maximum number of rules to return, from 1 to 20.
+    - key: inspect-automation-rule
+      name: Inspect automation rule
+      function: rovo-inspect-rule
+      actionVerb: GET
+      description: Retrieve one automation rule's state, trigger, project scope, governance findings, and the fields and statuses it reads, writes or triggers on.
+      inputs:
+        ruleIdentifier:
+          title: Rule identifier
+          type: string
+          required: true
+          description: A numeric rule id such as 28499275, or words from the rule name.
+    - key: automation-usage
+      name: Automation usage for a field or status
+      function: rovo-auto-usage
+      actionVerb: GET
+      description: Report which automation rules write, read or trigger on a named Jira field or status, and whether it is safe to delete. Use this for any question about whether changing a field or status will break automation.
+      inputs:
+        name:
+          title: Field or status name
+          type: string
+          required: true
+          description: The exact field or status name, such as "Story Points" or "Waiting for customer".
+        kind:
+          title: Kind
+          type: string
+          required: false
+          description: Either field or status. Defaults to field.
   consumer:
     - key: inventory-snapshot-consumer
       queue: inventory-snapshot-queue
@@ -109,6 +170,12 @@ modules:
       handler: index.rovoSearchFields
     - key: rovo-inspect-field
       handler: index.rovoInspectField
+    - key: rovo-search-rules
+      handler: index.rovoSearchAutomationRules
+    - key: rovo-inspect-rule
+      handler: index.rovoInspectAutomationRule
+    - key: rovo-auto-usage
+      handler: index.rovoAutomationUsage
     - key: snapshot-consumer
       handler: index.consumeSnapshot
       timeoutSeconds: 900

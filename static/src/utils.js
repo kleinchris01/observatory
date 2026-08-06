@@ -106,6 +106,35 @@ export function handleJiraLinkClick(e, href) {
 // always known here -- site-wide rules have none, and multi-project rules have several, so
 // there is no single project to route through. The global view resolves any rule by id,
 // and every caller of this is already behind the Jira admin check.
+// Prompt for the automation agent, seeded from what the card already knows.
+//
+// The counts are included so the agent can confirm or contradict them rather than starting
+// from nothing -- and so a stale analysis shows up as a disagreement the reader can see,
+// instead of two confident answers that quietly differ.
+export function buildAutomationRovoPrompt(field, usage) {
+  const name = field?.name || field?.id || "this field";
+  const lines = [
+    `Is the Jira field "${name}" (${field?.id ?? "unknown id"}) safe to delete or change?`,
+    "",
+    "Use the automation-usage action for this field, then answer:",
+    "1. Which rules would break, and how.",
+    "2. Whether any of them are disabled, and what that means for the decision.",
+    "3. What you cannot see, so I know what is left to check myself.",
+  ];
+
+  if (usage?.available && usage?.referenced) {
+    const counts = ["write", "read", "trigger"]
+      .map((k) => (usage[k]?.count ? `${usage[k].count} ${k}` : null))
+      .filter(Boolean)
+      .join(", ");
+    if (counts) lines.push("", `Observatory currently records: ${counts}.`);
+  } else if (usage?.available) {
+    lines.push("", "Observatory records no automation reference for this field. Confirm that.");
+  }
+
+  return lines.join("\n");
+}
+
 export function buildAutomationRuleUrl(siteOrigin, ruleId) {
   if (!siteOrigin || ruleId === null || ruleId === undefined || ruleId === "") return null;
   return `${siteOrigin}/jira/settings/automation#/rule/${encodeURIComponent(ruleId)}`;

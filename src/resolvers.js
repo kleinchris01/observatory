@@ -982,6 +982,58 @@ async function getAutomationFieldUsage({ payload, context }) {
 }
 
 
+// Automation rule counts for a page of fields, in one call.
+//
+// The Field Browser shows ten fields at a time and the counts sit on the collapsed header,
+// so they are needed for every row before anyone expands anything. Ten separate lookups
+// would each re-read the same 131 KB index; this reads it once and answers for the page.
+//
+// Only counts come back. The rule names belong to getAutomationFieldUsage, which runs when
+// a card is actually expanded.
+const MAX_BATCH_FIELDS = 100;
+
+async function getAutomationFieldCounts({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const installationKey = getInstallationKey(context);
+    const requested = Array.isArray(payload?.fields) ? payload.fields.slice(0, MAX_BATCH_FIELDS) : [];
+    if (requested.length === 0) return { available: true, counts: {} };
+
+    const index = await readAutomationPart(installationKey, "fields");
+    if (!index) return { available: false, reason: "no-analysis", counts: {} };
+
+    // One pass over the index rather than a scan per field: the page asks about ten fields
+    // and the index holds hundreds.
+    const byLabel = new Map();
+    for (const entry of index.entries ?? []) {
+      byLabel.set(String(entry.label ?? "").toLowerCase(), entry);
+    }
+
+    const counts = {};
+    for (const field of requested) {
+      const id = String(field?.id ?? "");
+      const name = String(field?.name ?? "");
+      if (!id && !name) continue;
+      const entry = byLabel.get(name.toLowerCase()) ?? byLabel.get(id.toLowerCase());
+      // Keyed on the field id the caller sent, so the client does not have to re-match.
+      counts[id || name] = entry
+        ? {
+            enabled: entry.enabledRules ?? 0,
+            disabled: entry.disabledRules ?? 0,
+            total: entry.ruleCount ?? 0,
+          }
+        : { enabled: 0, disabled: 0, total: 0 };
+    }
+
+    return { available: true, counts };
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("getAutomationFieldCounts failed:", error);
+    throw error;
+  }
+}
+
+
 // Probe the endpoints that might expose Jira Automation rules.
 //
 // Automation is a real blind spot in the findings this app produces: "this status is
@@ -2543,6 +2595,199 @@ export async function rovoInspectField(payload, context) {
   };
 }
 
+// ── Rovo: automation expert ──────────────────────────────────────────────────
+//
+// The agent answers only from the stored analysis. It has no route to the live rules, so
+// every path here reports the analysis's own staleness and returns an explicit
+// "analysis-unavailable" rather than an empty result -- an agent that says "no rules use
+// that field" when nothing has been analyzed is worse than one that says it does not know,
+// because the user acts on the first and asks again after the second.
+
+async function loadAutomationForAgent(installationKey) {
+  const [analysis, fields, statuses, directory, findings] = await Promise.all([
+    readAutomationAnalysis(installationKey),
+    readAutomationPart(installationKey, "fields"),
+    readAutomationPart(installationKey, "statuses"),
+    readAutomationPart(installationKey, "directory"),
+    readAutomationPart(installationKey, "findings"),
+  ]);
+  return { analysis, fields, statuses, directory, findings };
+}
+
+function ruleDirectoryMap(directory) {
+  return new Map(
+    (directory?.rules ?? []).map(([id, name, enabled, triggerType, projectCount]) => [
+      id,
+      { id, name, enabled: enabled === 1, triggerType: triggerType || null, projectCount },
+    ])
+  );
+}
+
+const RISK_SENTENCES = {
+  "embedded-credential": "stores a credential in plaintext that anyone who can view the rule can read",
+  "no-actions": "has a trigger but no actions",
+  "external-http": "sends data to a host outside Atlassian",
+  disabled: "is disabled",
+};
+
+export async function rovoSearchAutomationRules(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  const installationKey = getInstallationKey(context);
+  const query = String(payload?.query || "").trim();
+  const maxResults = Math.max(1, Math.min(20, Number(payload?.maxResults) || 10));
+  const stateFilter = String(payload?.state || "any").toLowerCase();
+
+  const { analysis, directory, findings } = await loadAutomationForAgent(installationKey);
+  if (!analysis || !directory) {
+    return {
+      status: "analysis-unavailable",
+      message: "No automation analysis has been built for this site yet. An administrator can build one from the Automation tab by importing a rule export.",
+    };
+  }
+
+  if (!query) return { status: "error", message: "A search query is required." };
+
+  const riskByRuleId = new Map();
+  for (const row of findings?.findings ?? []) {
+    riskByRuleId.set(row.id, (row.r ?? []).map((r) => r.c));
+  }
+
+  const term = query.toLowerCase();
+  const matches = [];
+  for (const rule of ruleDirectoryMap(directory).values()) {
+    if (!String(rule.name || "").toLowerCase().includes(term)) continue;
+    if (stateFilter === "enabled" && !rule.enabled) continue;
+    if (stateFilter === "disabled" && rule.enabled) continue;
+    matches.push({
+      ruleId: rule.id,
+      name: rule.name,
+      state: rule.enabled ? "ENABLED" : "DISABLED",
+      trigger: rule.triggerType,
+      projectCount: rule.projectCount,
+      findings: riskByRuleId.get(rule.id) ?? [],
+    });
+  }
+
+  // Enabled first: a disabled rule cannot be the cause of anything happening now, which is
+  // what most questions are actually about.
+  matches.sort((a, b) => (a.state === b.state ? 0 : a.state === "ENABLED" ? -1 : 1));
+
+  return {
+    status: "ok",
+    analysisRefreshedAt: analysis.refreshedAt ?? null,
+    totalRules: directory.total ?? 0,
+    matchCount: matches.length,
+    matches: matches.slice(0, maxResults),
+  };
+}
+
+export async function rovoInspectAutomationRule(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  const installationKey = getInstallationKey(context);
+  const identifier = String(payload?.ruleIdentifier || "").trim();
+  if (!identifier) return { status: "error", message: "A rule id or name is required." };
+
+  const { analysis, directory, findings, fields, statuses } = await loadAutomationForAgent(installationKey);
+  if (!analysis || !directory) {
+    return { status: "analysis-unavailable", message: "No automation analysis has been built for this site yet." };
+  }
+
+  const byId = ruleDirectoryMap(directory);
+  const wanted = identifier.toLowerCase();
+  const rule =
+    byId.get(Number(identifier)) ??
+    [...byId.values()].find((r) => String(r.name || "").toLowerCase() === wanted) ??
+    [...byId.values()].find((r) => String(r.name || "").toLowerCase().includes(wanted));
+
+  if (!rule) return { status: "not-found", message: `No automation rule matched "${identifier}".` };
+
+  // Which fields and statuses this rule touches, derived by scanning the indexes for its id.
+  const touches = (index, kind) => {
+    const out = [];
+    for (const entry of index?.entries ?? []) {
+      for (const direction of ["write", "read", "trigger"]) {
+        if ((entry[direction] ?? []).includes(rule.id)) out.push({ [kind]: entry.label, direction });
+      }
+    }
+    return out;
+  };
+
+  const findingRow = (findings?.findings ?? []).find((f) => f.id === rule.id);
+
+  return {
+    status: "ok",
+    analysisRefreshedAt: analysis.refreshedAt ?? null,
+    rule: {
+      ruleId: rule.id,
+      name: rule.name,
+      state: rule.enabled ? "ENABLED" : "DISABLED",
+      trigger: rule.triggerType,
+      projectCount: rule.projectCount,
+    },
+    fieldsTouched: touches(fields, "field"),
+    statusesTouched: touches(statuses, "status"),
+    findings: (findingRow?.r ?? []).map((r) => ({
+      code: r.c,
+      severity: r.s,
+      summary: RISK_SENTENCES[r.c] ? `This rule ${RISK_SENTENCES[r.c]}.` : r.c,
+      hosts: r.h,
+      disabledForDays: r.d,
+    })),
+    // Stated rather than implied. The indexes cap stored rule ids at 50 per direction, so a
+    // rule touching a very heavily referenced field can be missing from this list.
+    caveat: "Field and status lists are derived from a capped index and may omit references on fields used by more than 50 rules in one direction.",
+  };
+}
+
+export async function rovoAutomationUsage(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  const installationKey = getInstallationKey(context);
+  const name = String(payload?.name || "").trim();
+  const kind = String(payload?.kind || "field").toLowerCase() === "status" ? "status" : "field";
+  if (!name) return { status: "error", message: "A field or status name is required." };
+
+  const { analysis, fields, statuses, directory } = await loadAutomationForAgent(installationKey);
+  if (!analysis) {
+    return { status: "analysis-unavailable", message: "No automation analysis has been built for this site yet." };
+  }
+
+  const index = kind === "status" ? statuses : fields;
+  const entry = (index?.entries ?? []).find((e) => String(e.label ?? "").toLowerCase() === name.toLowerCase());
+
+  if (!entry) {
+    return {
+      status: "not-referenced",
+      analysisRefreshedAt: analysis.refreshedAt ?? null,
+      message: `No automation rule reads, writes or triggers on the ${kind} "${name}".`,
+      safeToDelete: kind === "field",
+    };
+  }
+
+  const byId = ruleDirectoryMap(directory);
+  const expand = (ids = []) => ids.map((id) => {
+    const r = byId.get(id);
+    return { ruleId: id, name: r?.name ?? `Rule ${id}`, state: r ? (r.enabled ? "ENABLED" : "DISABLED") : "UNKNOWN" };
+  });
+
+  return {
+    status: "ok",
+    analysisRefreshedAt: analysis.refreshedAt ?? null,
+    kind,
+    name: entry.label,
+    ruleCount: entry.ruleCount ?? 0,
+    enabledRules: entry.enabledRules ?? 0,
+    disabledRules: entry.disabledRules ?? 0,
+    writtenBy: { count: entry.writeCount, rules: expand(entry.write) },
+    readBy: { count: entry.readCount, rules: expand(entry.read) },
+    triggers: { count: entry.triggerCount, rules: expand(entry.trigger) },
+    // The single most important thing this action exists to say.
+    safeToDelete: entry.writeCount === 0 && entry.readCount === 0 && entry.triggerCount === 0,
+    guidance: entry.writeCount > 0
+      ? `Deleting this ${kind} would break ${entry.writeCount} rule(s) that write to it.`
+      : "No rule writes this, but rules that read it will misbehave if it is removed.",
+  };
+}
+
 const EMPTY_DASHBOARD = {
   fieldUsage: {
     totalFields: 0,
@@ -3507,6 +3752,7 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   getAutomationInsights,   // Admin read: enumerates rule names, project scope and outbound hosts
   getAutomationIndex,      // Admin read: field / status reference index and the rule directory
   getAutomationFieldUsage, // Admin read: the automation rules that touch one field
+  getAutomationFieldCounts, // Admin read: enabled/disabled rule counts for a page of fields
   saveAutomationAnalysis,  // Mutating: replaces the stored automation analysis document
   saveAutomationIndex,     // Mutating: replaces one supporting index document
 
