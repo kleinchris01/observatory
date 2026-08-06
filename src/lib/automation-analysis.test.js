@@ -5,9 +5,13 @@ import {
   REF_KIND,
   analyzeRuleRisks,
   analyzeRules,
+  buildFindingsDocument,
   buildReferenceIndex,
   buildRuleDirectory,
+  compactFinding,
+  expandFinding,
   hydrateRuleDirectory,
+  summarizeAutomationHealth,
   countComponents,
   extractFieldReferences,
   extractOutboundHosts,
@@ -401,6 +405,111 @@ describe("buildReferenceIndex", () => {
   });
 });
 
+describe("compact findings", () => {
+  const summary = {
+    id: 7, name: "Send to approval", enabled: false, triggerType: "jira.jql.scheduled",
+    updated: 1700000000000, projectIds: ["1", "2", "3"], writesFields: ["A", "B"],
+    topSeverity: "high",
+    risks: [
+      { code: "embedded-credential", severity: "high", detail: "Contains a credential stored in plaintext in Jira." },
+      { code: "external-http", severity: "low", detail: "Sends data outside Atlassian to: graph.microsoft.com.", hosts: ["graph.microsoft.com"] },
+      { code: "disabled", severity: "info", detail: "Rule is disabled and was last edited 90 days ago.", ageDays: 90 },
+    ],
+  };
+
+  // The same sentence was being stored 603 times for the disabled rules alone. Dropping
+  // them is most of what let all 675 findings fit under one key.
+  it("drops detail sentences, which the client rebuilds from the code", () => {
+    const packed = JSON.stringify(compactFinding(summary));
+    expect(packed).not.toContain("Contains a credential");
+    expect(packed).not.toContain("Sends data outside");
+  });
+
+  it("keeps the parameters that actually vary between rules", () => {
+    const packed = compactFinding(summary);
+    expect(packed.r[1].h).toEqual(["graph.microsoft.com"]);
+    expect(packed.r[2].d).toBe(90);
+  });
+
+  it("round-trips everything the findings list renders", () => {
+    const expanded = expandFinding(compactFinding(summary));
+    expect(expanded).toMatchObject({
+      id: 7, name: "Send to approval", enabled: false,
+      triggerType: "jira.jql.scheduled", projectCount: 3, topSeverity: "high",
+    });
+    expect(expanded.risks.map((r) => r.code)).toEqual(["embedded-credential", "external-http", "disabled"]);
+  });
+
+  it("is materially smaller than the shape the UI renders", () => {
+    const before = JSON.stringify(summary).length;
+    const after = JSON.stringify(compactFinding(summary)).length;
+    expect(after).toBeLessThan(before * 0.6);
+  });
+});
+
+describe("buildFindingsDocument", () => {
+  const withRisk = (id, severity) => ({
+    id, name: `rule ${id}`, enabled: true, triggerType: null, updated: 1,
+    projectIds: [], writesFields: [], topSeverity: severity,
+    risks: [{ code: "x", severity }],
+  });
+
+  it("keeps every rule that carries a finding, with no cap", () => {
+    const many = Array.from({ length: 675 }, (_, i) => withRisk(i, "info"));
+    const doc = buildFindingsDocument(many);
+    expect(doc.total).toBe(675);
+    expect(doc.findings).toHaveLength(675);
+  });
+
+  it("excludes rules with no findings", () => {
+    const mixed = [withRisk(1, "high"), { ...withRisk(2, null), risks: [] }];
+    expect(buildFindingsDocument(mixed).findings.map((f) => f.id)).toEqual([1]);
+  });
+
+  it("orders most severe first, so paging meets the worst of it before the disabled rules", () => {
+    const doc = buildFindingsDocument([withRisk(1, "info"), withRisk(2, "high"), withRisk(3, "low")]);
+    expect(doc.findings.map((f) => f.id)).toEqual([2, 3, 1]);
+  });
+
+  it("handles an estate with no findings", () => {
+    expect(buildFindingsDocument([])).toMatchObject({ total: 0, findings: [] });
+  });
+});
+
+describe("summarizeAutomationHealth", () => {
+  const mk = (id, { enabled = true, codes = [] } = {}) => ({
+    id, name: `r${id}`, enabled, triggerType: null, updated: 1, projectIds: [], writesFields: [],
+    topSeverity: codes[0] ?? null, risks: codes.map((code) => ({ code, severity: "high" })),
+  });
+
+  it("counts the inputs the health score scores as rates", () => {
+    const summaries = [
+      mk(1, { codes: ["embedded-credential"] }),
+      mk(2, { enabled: false }),
+      mk(3, { codes: ["external-http"] }),
+      mk(4),
+    ];
+    expect(summarizeAutomationHealth(summaries, [])).toMatchObject({
+      available: true, ruleCount: 4, disabledCount: 1, credentialRuleCount: 1, externalHttpCount: 1,
+    });
+  });
+
+  // Counts rules, not edges. One rule looping on six fields is one problem to fix, and
+  // counting edges would make it look like six.
+  it("counts distinct self-triggering rules rather than cascade edges", () => {
+    const cascades = [
+      { sourceId: 1, targetId: 1, field: "A", selfTriggering: true },
+      { sourceId: 1, targetId: 1, field: "B", selfTriggering: true },
+      { sourceId: 2, targetId: 3, field: "C", selfTriggering: false },
+    ];
+    expect(summarizeAutomationHealth([mk(1), mk(2), mk(3)], cascades).selfTriggeringCount).toBe(1);
+  });
+
+  it("reports unavailable for an empty estate rather than a perfect score", () => {
+    expect(summarizeAutomationHealth([], [])).toMatchObject({ available: false, ruleCount: 0 });
+  });
+});
+
 describe("buildRuleDirectory", () => {
   const summaries = [
     { id: 1, name: "Alpha", enabled: true, triggerType: "jira.issue.created", projectIds: ["10015", "10016"] },
@@ -437,7 +546,7 @@ describe("analyzeRules", () => {
 
   it("returns every document the tab needs from one pass", () => {
     const out = analyzeRules(rules, { source: "export.json" });
-    expect(Object.keys(out).sort()).toEqual(["analysis", "directory", "fields", "statuses"]);
+    expect(Object.keys(out).sort()).toEqual(["analysis", "directory", "fields", "findings", "statuses"]);
     expect(out.analysis).toMatchObject({ schemaVersion: 1, source: "export.json" });
   });
 
@@ -482,9 +591,9 @@ describe("analyzeRules", () => {
   it("builds a directory covering every rule, not just those with findings", () => {
     const { directory, analysis } = analyzeRules(rules);
     expect(directory.total).toBe(2);
-    // Neither of these rules has a finding, so the findings list is empty while the
-    // directory still names both -- which is what makes the drill-down readable.
-    expect(analysis.findings).toHaveLength(0);
+    // Neither of these rules has a finding, so the preview is empty while the directory
+    // still names both -- which is what makes the drill-down readable.
+    expect(analysis.findingsPreview).toHaveLength(0);
   });
 
   it("handles an empty rule set without throwing", () => {

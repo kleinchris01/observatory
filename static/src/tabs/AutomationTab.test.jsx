@@ -7,9 +7,11 @@ import {
   AutomationTab,
   DIRECTIONS,
   analyzeExportFile,
+  filterFindings,
   findingDetailLine,
   groupCascades,
   persistAnalysis,
+  riskDetail,
   sortEntries,
   triggerLabel,
 } from "./AutomationTab";
@@ -155,6 +157,57 @@ describe("sortEntries", () => {
   });
 });
 
+describe("riskDetail", () => {
+  // The sentences were stored 675 times, most of them identical. Rebuilding them from the
+  // code is what let the whole findings list fit under one key.
+  it("rebuilds the sentence for each risk code", () => {
+    expect(riskDetail({ code: "embedded-credential" })).toMatch(/credential stored in plaintext/i);
+    expect(riskDetail({ code: "no-actions" })).toMatch(/no actions/i);
+  });
+
+  it("uses the stored parameters where they vary", () => {
+    expect(riskDetail({ code: "external-http", hosts: ["graph.microsoft.com", "login.microsoftonline.com"] }))
+      .toContain("graph.microsoft.com, login.microsoftonline.com");
+    expect(riskDetail({ code: "disabled", ageDays: 90 })).toContain("90 days ago");
+  });
+
+  it("degrades rather than showing a blank when a parameter is missing", () => {
+    expect(riskDetail({ code: "disabled" })).toBe("Rule is disabled.");
+    expect(riskDetail({ code: "external-http" })).toMatch(/outside Atlassian\.$/);
+  });
+
+  it("falls back to the code for an unrecognized risk", () => {
+    expect(riskDetail({ code: "brand-new-risk" })).toBe("brand-new-risk");
+  });
+});
+
+describe("filterFindings", () => {
+  const rows = [
+    { id: 1, name: "Alpha", enabled: true, triggerType: "t1", topSeverity: "high", writesFields: ["Story Points"], risks: [{ code: "embedded-credential" }] },
+    { id: 2, name: "Beta", enabled: false, triggerType: "t2", topSeverity: "info", writesFields: [], risks: [{ code: "disabled" }] },
+  ];
+
+  it("returns everything when no filter is set", () => {
+    expect(filterFindings(rows)).toHaveLength(2);
+  });
+
+  it("filters by severity, risk code, state and trigger", () => {
+    expect(filterFindings(rows, { severity: "high" }).map((r) => r.id)).toEqual([1]);
+    expect(filterFindings(rows, { risk: "disabled" }).map((r) => r.id)).toEqual([2]);
+    expect(filterFindings(rows, { state: "disabled" }).map((r) => r.id)).toEqual([2]);
+    expect(filterFindings(rows, { trigger: "t2" }).map((r) => r.id)).toEqual([2]);
+  });
+
+  it("searches rule names and written field names together", () => {
+    expect(filterFindings(rows, { search: "alpha" }).map((r) => r.id)).toEqual([1]);
+    expect(filterFindings(rows, { search: "story points" }).map((r) => r.id)).toEqual([1]);
+  });
+
+  it("applies every active filter, not just the last one", () => {
+    expect(filterFindings(rows, { severity: "high", state: "disabled" })).toEqual([]);
+  });
+});
+
 describe("groupCascades", () => {
   // One row per edge produced 25 consecutive lines naming the same rule; grouping is the
   // whole reason the section is readable.
@@ -200,7 +253,7 @@ describe("groupCascades", () => {
 describe("analyzeExportFile", () => {
   it("derives every document from a real export shape", async () => {
     const docs = await analyzeExportFile(exportFile({ cloud: true, rules: [RULE] }));
-    expect(Object.keys(docs).sort()).toEqual(["analysis", "directory", "fields", "statuses"]);
+    expect(Object.keys(docs).sort()).toEqual(["analysis", "directory", "fields", "findings", "statuses"]);
     expect(docs.analysis.estate).toMatchObject({ ruleCount: 1, enabledCount: 1 });
     expect(docs.fields.entries.map((e) => e.label).sort()).toEqual(["Actual SEOBD", "Post sourcing cost review"]);
   });
@@ -224,10 +277,13 @@ describe("persistAnalysis", () => {
   // writing it last makes it the commit point for the whole import.
   it("writes the analysis last, after every index", async () => {
     const save = vi.fn().mockResolvedValue({});
-    await persistAnalysis({ analysis: { a: 1 }, fields: { f: 1 }, statuses: { s: 1 }, directory: { d: 1 } }, { save });
+    await persistAnalysis(
+      { analysis: { a: 1 }, fields: { f: 1 }, statuses: { s: 1 }, directory: { d: 1 }, findings: { fi: 1 } },
+      { save }
+    );
 
     const order = save.mock.calls.map((c) => (c[0] === "saveAutomationIndex" ? c[1].part : c[0]));
-    expect(order).toEqual(["fields", "statuses", "directory", "saveAutomationAnalysis"]);
+    expect(order).toEqual(["fields", "statuses", "directory", "findings", "saveAutomationAnalysis"]);
   });
 
   it("stops before the commit point if an index write fails", async () => {
@@ -235,7 +291,9 @@ describe("persistAnalysis", () => {
       .mockResolvedValueOnce({})
       .mockRejectedValueOnce(new Error("kvs full"));
 
-    await expect(persistAnalysis({ analysis: {}, fields: {}, statuses: {}, directory: {} }, { save })).rejects.toThrow("kvs full");
+    await expect(
+      persistAnalysis({ analysis: {}, fields: {}, statuses: {}, directory: {}, findings: {} }, { save })
+    ).rejects.toThrow("kvs full");
     expect(save).not.toHaveBeenCalledWith("saveAutomationAnalysis", expect.anything());
   });
 });
@@ -490,33 +548,155 @@ describe("AutomationTab", () => {
   });
 
   describe("findings", () => {
-    async function openFindings(data = analysis()) {
+    // 120 rows so pagination is exercised at the real page size of 50.
+    const MANY = Array.from({ length: 120 }, (_, i) => ({
+      id: i + 1,
+      n: `Rule ${i + 1}`,
+      e: i % 3 === 0 ? 0 : 1,
+      t: i % 2 === 0 ? "jira.jql.scheduled" : "jira.issue.field.changed",
+      u: 1,
+      p: 1,
+      w: i === 0 ? ["Story Points"] : [],
+      s: i < 10 ? "high" : "info",
+      r: i < 10 ? [{ c: "embedded-credential", s: "high" }] : [{ c: "disabled", s: "info", d: 200 }],
+    }));
+
+    async function openFindings({ findings = MANY, data = analysis({ findingsTotal: findings.length }) } = {}) {
       const user = userEvent.setup();
-      routeInvoke({ getAutomationInsights: data });
+      routeInvoke({
+        getAutomationInsights: data,
+        "getAutomationIndex:findings": { available: true, part: "findings", total: findings.length, findings },
+        "getAutomationIndex:directory": DIRECTORY,
+      });
       const view = render(<AutomationTab />);
       await screen.findByText("1,477");
       await user.click(within(view.container.querySelector(".sub-nav")).getByText("Findings"));
+      await screen.findByText("Rule 1");
       return { user, ...view };
     }
 
-    it("renders a readable risk label rather than a code", async () => {
+    it("does not fetch findings until the section is opened", async () => {
+      routeInvoke({ getAutomationInsights: analysis() });
+      render(<AutomationTab />);
+      await screen.findByText("1,477");
+      expect(invoke).not.toHaveBeenCalledWith("getAutomationIndex", { part: "findings" });
+    });
+
+    it("loads every finding, not a capped subset", async () => {
       await openFindings();
-      expect(await screen.findByText("Credential stored in plaintext")).toBeInTheDocument();
-      expect(screen.queryByText("embedded-credential")).not.toBeInTheDocument();
+      expect(screen.getByText("120 rules")).toBeInTheDocument();
+    });
+
+    it("pages rather than rendering 120 rows at once", async () => {
+      const { container } = await openFindings();
+      expect(container.querySelectorAll(".ui-finding")).toHaveLength(50);
+      expect(screen.getByText("1–50 of 120")).toBeInTheDocument();
+    });
+
+    it("moves between pages", async () => {
+      const { user } = await openFindings();
+      await user.click(screen.getByRole("button", { name: /next/i }));
+
+      expect(screen.getByText("51–100 of 120")).toBeInTheDocument();
+      expect(screen.getByText("Rule 51")).toBeInTheDocument();
+      expect(screen.queryByText("Rule 1")).not.toBeInTheDocument();
+    });
+
+    it("disables Previous on the first page and Next on the last", async () => {
+      const { user } = await openFindings();
+      expect(screen.getByRole("button", { name: /previous/i })).toBeDisabled();
+
+      await user.click(screen.getByRole("button", { name: /next/i }));
+      await user.click(screen.getByRole("button", { name: /next/i }));
+
+      expect(screen.getByText("101–120 of 120")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /next/i })).toBeDisabled();
+    });
+
+    // Staying on page 3 of a list that just became one page long shows an empty screen.
+    it("returns to the first page when a filter narrows the list", async () => {
+      const { user } = await openFindings();
+      await user.click(screen.getByRole("button", { name: /next/i }));
+      expect(screen.getByText("51–100 of 120")).toBeInTheDocument();
+
+      await user.selectOptions(screen.getByLabelText(/filter by severity/i), "high");
+
+      expect(screen.getByText("Rule 1")).toBeInTheDocument();
+      expect(screen.getByText("10 of 120")).toBeInTheDocument();
     });
 
     it("filters by severity", async () => {
       const { user } = await openFindings();
       await user.selectOptions(screen.getByLabelText(/filter by severity/i), "high");
-
-      expect(screen.getByText("Alexandria - Send to Approval")).toBeInTheDocument();
-      expect(screen.queryByText("Old cleanup rule")).not.toBeInTheDocument();
+      expect(screen.getByText("10 of 120")).toBeInTheDocument();
     });
 
-    it("distinguishes a filter with no matches from an estate with no findings", async () => {
+    it("filters by finding type, offering only the types present", async () => {
+      const { user } = await openFindings();
+      const select = screen.getByLabelText(/filter by finding/i);
+      expect(within(select).getByText("Credential stored in plaintext")).toBeInTheDocument();
+      expect(within(select).queryByText("Trigger with no actions")).not.toBeInTheDocument();
+
+      await user.selectOptions(select, "embedded-credential");
+      expect(screen.getByText("10 of 120")).toBeInTheDocument();
+    });
+
+    it("filters by rule state", async () => {
+      const { user } = await openFindings();
+      await user.selectOptions(screen.getByLabelText(/filter by rule state/i), "disabled");
+      expect(screen.getByText("40 of 120")).toBeInTheDocument();
+    });
+
+    it("filters by trigger type", async () => {
+      const { user } = await openFindings();
+      await user.selectOptions(screen.getByLabelText(/filter by trigger/i), "jira.jql.scheduled");
+      expect(screen.getByText("60 of 120")).toBeInTheDocument();
+    });
+
+    // "Which rules write Story Points and have a finding" is a question people arrive with,
+    // and the rule name rarely contains the field name.
+    it("searches the fields a rule writes, not just its name", async () => {
+      const { user } = await openFindings();
+      await user.type(screen.getByLabelText(/search rule names/i), "story points");
+
+      expect(screen.getByText("1 of 120")).toBeInTheDocument();
+      expect(screen.getByText("Rule 1")).toBeInTheDocument();
+    });
+
+    it("combines filters rather than replacing them", async () => {
+      const { user } = await openFindings();
+      await user.selectOptions(screen.getByLabelText(/filter by severity/i), "info");
+      await user.selectOptions(screen.getByLabelText(/filter by rule state/i), "disabled");
+
+      // 40 rows are disabled; 4 of those are also high-severity, leaving 36.
+      expect(screen.getByText("36 of 120")).toBeInTheDocument();
+    });
+
+    it("renders a readable risk label rather than a code", async () => {
+      await openFindings();
+      expect(screen.getAllByText("Credential stored in plaintext").length).toBeGreaterThan(0);
+      expect(screen.queryByText("embedded-credential")).not.toBeInTheDocument();
+    });
+
+    it("says so when filters match nothing", async () => {
       const { user } = await openFindings();
       await user.type(screen.getByLabelText(/search rule names/i), "zzzznomatch");
-      expect(screen.getByText(/no rules match this filter/i)).toBeInTheDocument();
+      expect(screen.getByText(/no rules match these filters/i)).toBeInTheDocument();
+    });
+
+    it("recovers from a failed findings load", async () => {
+      const user = userEvent.setup();
+      routeInvoke({
+        getAutomationInsights: analysis(),
+        "getAutomationIndex:findings": new Error("findings gone"),
+        "getAutomationIndex:directory": DIRECTORY,
+      });
+      const { container } = render(<AutomationTab />);
+      await screen.findByText("1,477");
+      await user.click(within(container.querySelector(".sub-nav")).getByText("Findings"));
+
+      expect(await screen.findByText(/could not load findings/i)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument();
     });
   });
 
@@ -550,7 +730,7 @@ describe("AutomationTab", () => {
       expect(sent).not.toContain("operations");
     });
 
-    it("writes all four documents", async () => {
+    it("writes every supporting index before the analysis", async () => {
       const user = userEvent.setup();
       invoke
         .mockResolvedValueOnce({ available: false, reason: "no-analysis" })
@@ -562,7 +742,7 @@ describe("AutomationTab", () => {
 
       await waitFor(() => expect(invoke).toHaveBeenCalledWith("saveAutomationAnalysis", expect.any(Object)));
       const parts = invoke.mock.calls.filter((c) => c[0] === "saveAutomationIndex").map((c) => c[1].part);
-      expect(parts).toEqual(["fields", "statuses", "directory"]);
+      expect(parts).toEqual(["fields", "statuses", "directory", "findings"]);
     });
 
     it("shows a parse error against the control and keeps it usable", async () => {

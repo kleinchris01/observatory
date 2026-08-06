@@ -25,6 +25,17 @@ const TOLERANCE = {
   unreachableStatuses: 0.20,
   flaggedSchemes: 0.40,
   irregularProjects: 0.25,
+  // Far tighter than the rest, and deliberately so. The others measure untidiness, where a
+  // few percent is normal on any real site. A rule storing a credential in plaintext is not
+  // untidiness -- one is a problem and 2% of the estate is a bad day.
+  credentialRules: 0.02,
+  // A rule that writes a field it also triggers on loops on its own. Some sites run a few
+  // knowingly, guarded by conditions; past a tenth of the estate it is not deliberate.
+  selfTriggeringRules: 0.10,
+  // Disabled rules are clutter rather than danger, so this is the most forgiving bound
+  // here. It still bottoms out, because an estate that is half switched off has lost the
+  // ability to tell "deliberately retired" from "forgotten".
+  disabledRules: 0.50,
 };
 
 // rate 0 -> 100, rate >= tolerance -> 0, linear between. Deliberately linear: a curve
@@ -38,7 +49,7 @@ function unavailable(key, label, reason) {
   return { key, label, available: false, score: null, reason };
 }
 
-export function computeSiteHealth({ fieldUsage, workflow, projects } = {}) {
+export function computeSiteHealth({ fieldUsage, workflow, projects, automation } = {}) {
   const dimensions = [];
 
   // ── Field naming ──────────────────────────────────────────────────────────
@@ -114,8 +125,13 @@ export function computeSiteHealth({ fieldUsage, workflow, projects } = {}) {
       detail: workflow.hasIssueCounts
         ? `${workflow.orphanCount} statuses no scheme reaches, ${workflow.safeToRemoveCount} of them never used.`
         : `${workflow.orphanCount} statuses no scheme reaches. Run a scan to confirm which are unused.`,
+      // The caveat used to read "automation rules are not visible to this app". They are
+      // now, so the advice names the check instead of warning about a blind spot -- but
+      // only when an analysis exists. Without one the blind spot is still real.
       action: workflow.safeToRemoveCount > 0
-        ? `${workflow.safeToRemoveCount} statuses are unreachable and have never held an issue. Automation rules are not visible to this app, so confirm before deleting.`
+        ? automation?.available
+          ? `${workflow.safeToRemoveCount} statuses are unreachable and have never held an issue. Check the Automation tab's status list before deleting — a rule that transitions into one of these keeps it in use.`
+          : `${workflow.safeToRemoveCount} statuses are unreachable and have never held an issue. No automation analysis has been built, so a rule could still transition into one of these — confirm before deleting.`
         : null,
     });
   } else {
@@ -176,6 +192,73 @@ export function computeSiteHealth({ fieldUsage, workflow, projects } = {}) {
     });
   } else {
     dimensions.push(unavailable("project-consistency", "Project consistency", "No project usage data yet."));
+  }
+
+  // ── Automation security ───────────────────────────────────────────────────
+  // Weighted above every other dimension. The rest of this score measures configuration
+  // that is untidy; this one measures a credential readable by anyone who can open the
+  // rule, which is a different kind of problem and should not be averaged away by six
+  // dimensions of naming hygiene.
+  const automationRules = Number(automation?.ruleCount) || 0;
+  if (automation?.available && automationRules > 0) {
+    const withCredentials = Number(automation.credentialRuleCount) || 0;
+    const rate = withCredentials / automationRules;
+    dimensions.push({
+      key: "automation-security",
+      label: "Automation security",
+      available: true,
+      weight: 2,
+      score: scoreFromRate(rate, TOLERANCE.credentialRules),
+      detail: withCredentials === 0
+        ? `No credentials stored in the ${automationRules} automation rules.`
+        : `${withCredentials} of ${automationRules} rules store a credential in plaintext.`,
+      action: withCredentials > 0
+        ? "Anyone who can view these rules can read the secret. Rotate them and move to a smart-value reference or an Automation connection."
+        : null,
+    });
+  } else {
+    dimensions.push(unavailable("automation-security", "Automation security", "No automation analysis yet."));
+  }
+
+  // ── Automation stability ──────────────────────────────────────────────────
+  if (automation?.available && automationRules > 0) {
+    const selfTriggering = Number(automation.selfTriggeringCount) || 0;
+    const rate = selfTriggering / automationRules;
+    dimensions.push({
+      key: "automation-stability",
+      label: "Automation stability",
+      available: true,
+      weight: 1.5,
+      score: scoreFromRate(rate, TOLERANCE.selfTriggeringRules),
+      detail: selfTriggering === 0
+        ? "No rule writes a field it also triggers on."
+        : `${selfTriggering} rules write a field they themselves trigger on.`,
+      action: selfTriggering > 0
+        ? "These loop without a second rule involved. Check the conditions guarding them before the next execution-limit surprise."
+        : null,
+    });
+  } else {
+    dimensions.push(unavailable("automation-stability", "Automation stability", "No automation analysis yet."));
+  }
+
+  // ── Automation hygiene ────────────────────────────────────────────────────
+  if (automation?.available && automationRules > 0) {
+    const disabled = Number(automation.disabledCount) || 0;
+    const inert = Number(automation.noActionCount) || 0;
+    const rate = (disabled + inert) / automationRules;
+    dimensions.push({
+      key: "automation-hygiene",
+      label: "Automation hygiene",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(rate, TOLERANCE.disabledRules),
+      detail: `${disabled} of ${automationRules} rules are disabled${inert > 0 ? `, and ${inert} have a trigger but no actions` : ""}.`,
+      action: rate > 0.25
+        ? "A large disabled estate hides which rules were retired on purpose and which were forgotten. Decide per rule: revive or delete."
+        : null,
+    });
+  } else {
+    dimensions.push(unavailable("automation-hygiene", "Automation hygiene", "No automation analysis yet."));
   }
 
   // ── Roll-up ───────────────────────────────────────────────────────────────

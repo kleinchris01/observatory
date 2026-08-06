@@ -161,8 +161,8 @@ vi.mock("./lib/store/automation.js", () => ({
   writeAutomationAnalysis: mocks.writeAutomationAnalysis,
   readAutomationPart: mocks.readAutomationPart,
   writeAutomationPart: mocks.writeAutomationPart,
-  AUTOMATION_PARTS: { analysis: "a:", fields: "f:", statuses: "s:", directory: "d:" },
-  MAX_STORED_FINDINGS: 200,
+  AUTOMATION_PARTS: { analysis: "a:", fields: "f:", statuses: "s:", directory: "d:", findings: "fi:" },
+  MAX_PREVIEW_FINDINGS: 20,
   MAX_STORED_CASCADES: 150,
 }));
 
@@ -382,6 +382,10 @@ beforeEach(() => {
   mocks.loadSnapshotFieldIssueSums.mockResolvedValue(new Map());
   mocks.sumSnapshotFieldIssueCount.mockResolvedValue(0);
   mocks.getInstallationKey.mockReturnValue("test-install");
+  // Default: no automation analysis. getAdminOverview treats it as an optional input, so
+  // every existing case exercises the path where the automation dimensions report
+  // unavailable rather than being scored on absent data.
+  mocks.readAutomationAnalysis.mockResolvedValue(null);
   mocks.makeJobToken.mockReturnValue("job-token-1");
   mocks.mapWithConcurrency.mockImplementation(async (items, _c, fn) => Promise.all(items.map(fn)));
   mocks.loadFieldContexts.mockResolvedValue([]);
@@ -2933,8 +2937,8 @@ describe("getAutomationInsights", () => {
     refreshedAt: 1754400000000,
     source: "export-file",
     estate: { ruleCount: 1477, enabledCount: 874, disabledCount: 603 },
-    findings: [{ id: 1, name: "Send to approval", topSeverity: "high", risks: [{ code: "embedded-credential", severity: "high" }] }],
-    findingsTotal: 468,
+    findingsPreview: [{ id: 1, n: "Send to approval", s: "high", r: [{ c: "embedded-credential", s: "high" }] }],
+    findingsTotal: 675,
     cascades: [{ sourceId: 1, targetId: 2, field: "Actual SEOBD", selfTriggering: false }],
     cascadesTotal: 1457,
     selfTriggeringTotal: 123,
@@ -2956,7 +2960,7 @@ describe("getAutomationInsights", () => {
 
     expect(result.available).toBe(true);
     expect(result.estate).toMatchObject({ ruleCount: 1477, enabledCount: 874 });
-    expect(result.findings).toHaveLength(1);
+    expect(result.findingsPreview).toHaveLength(1);
     expect(result.refreshedAt).toBe(1754400000000);
   });
 
@@ -2967,7 +2971,7 @@ describe("getAutomationInsights", () => {
 
     const result = await getAutomationInsights({ payload: {}, context: ctxWithAccount() });
 
-    expect(result.findingsTotal).toBe(468);
+    expect(result.findingsTotal).toBe(675);
     expect(result.cascadesTotal).toBe(1457);
     expect(result.selfTriggeringTotal).toBe(123);
   });
@@ -2994,12 +2998,23 @@ describe("getAutomationInsights", () => {
       refreshedAt: null,
       source: "unknown",
       estate: null,
-      findings: [],
+      findingsPreview: [],
       findingsTotal: 0,
       cascades: [],
       cascadesTotal: 0,
       selfTriggeringTotal: 0,
     });
+  });
+
+  // The preview exists for the overview only. Sending 675 rows with the first paint would
+  // slow every visit to pay for a section most of them never open.
+  test("sends only a preview, leaving the full list to its own fetch", async () => {
+    mocks.readAutomationAnalysis.mockResolvedValue(doc);
+
+    const result = await getAutomationInsights({ payload: {}, context: ctxWithAccount() });
+
+    expect(result.findingsPreview.length).toBeLessThan(result.findingsTotal);
+    expect(result).not.toHaveProperty("findings");
   });
 
   test("propagates a storage failure rather than reporting a clean estate", async () => {
@@ -3021,7 +3036,7 @@ describe("saveAutomationAnalysis", () => {
     schemaVersion: 1,
     source: "export-file",
     estate: { ruleCount: 1477, enabledCount: 874, disabledCount: 603 },
-    findings: [{ id: 1, name: "r", topSeverity: "high", risks: [] }],
+    findingsPreview: [{ id: 1, n: "r", s: "high", r: [] }],
     findingsTotal: 675,
     cascades: [{ sourceId: 1, targetId: 2, selfTriggering: false }],
     cascadesTotal: 1457,
@@ -3058,14 +3073,14 @@ describe("saveAutomationAnalysis", () => {
   test("re-applies the size caps rather than trusting the client", async () => {
     const oversized = {
       ...valid,
-      findings: Array.from({ length: 500 }, (_, i) => ({ id: i, risks: [] })),
+      findingsPreview: Array.from({ length: 500 }, (_, i) => ({ id: i, r: [] })),
       cascades: Array.from({ length: 400 }, (_, i) => ({ sourceId: i, targetId: i })),
     };
 
     await saveAutomationAnalysis({ payload: { analysis: oversized }, context: ctxWithAccount() });
 
     const [, stored] = mocks.writeAutomationAnalysis.mock.calls[0];
-    expect(stored.findings).toHaveLength(200);
+    expect(stored.findingsPreview).toHaveLength(20);
     expect(stored.cascades).toHaveLength(150);
   });
 

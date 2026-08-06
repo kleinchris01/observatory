@@ -4,7 +4,7 @@ import { formatRelativeTime, formatNumber } from "../utils";
 import { BarList, Chip, EmptyState, FindingRow, Panel, StatRow, StatTile } from "../components/ui";
 import { SubNavLayout } from "../components/admin/primitives";
 import { Icon } from "../components/Icons";
-import { analyzeRules, hydrateRuleDirectory } from "../../../src/lib/automation-analysis";
+import { analyzeRules, expandFinding, hydrateRuleDirectory } from "../../../src/lib/automation-analysis";
 
 // Governance view over the site's Jira Automation rules.
 //
@@ -93,7 +93,30 @@ export async function persistAnalysis(documents, { save = invoke } = {}) {
   await save("saveAutomationIndex", { part: "fields", document: documents.fields });
   await save("saveAutomationIndex", { part: "statuses", document: documents.statuses });
   await save("saveAutomationIndex", { part: "directory", document: documents.directory });
+  await save("saveAutomationIndex", { part: "findings", document: documents.findings });
   await save("saveAutomationAnalysis", { analysis: documents.analysis });
+}
+
+// Detail sentences are rebuilt here rather than stored. The same "Rule is disabled and was
+// last edited N days ago." was being kept 603 times, which is most of what pushed the
+// findings past what a single KVS value holds.
+export function riskDetail(risk) {
+  switch (risk.code) {
+    case "embedded-credential":
+      return "Contains a credential stored in plaintext in Jira. Anyone who can view the rule can read it.";
+    case "no-actions":
+      return "Has a trigger but no actions, so it consumes execution budget without doing anything.";
+    case "external-http":
+      return risk.hosts?.length
+        ? `Sends data outside Atlassian to: ${risk.hosts.join(", ")}.`
+        : "Sends data outside Atlassian.";
+    case "disabled":
+      return risk.ageDays === null || risk.ageDays === undefined
+        ? "Rule is disabled."
+        : `Rule is disabled and was last edited ${risk.ageDays} days ago.`;
+    default:
+      return risk.code;
+  }
 }
 
 // ── Reference explorer ──────────────────────────────────────────────────────
@@ -369,18 +392,73 @@ function CascadeSection({ data }) {
 
 // ── Findings ────────────────────────────────────────────────────────────────
 
-function FindingsSection({ data }) {
-  const [severityFilter, setSeverityFilter] = React.useState("all");
-  const [search, setSearch] = React.useState("");
+const PAGE_SIZE = 50;
 
-  const findings = React.useMemo(() => {
-    const term = search.trim().toLowerCase();
-    return (data.findings ?? []).filter((row) => {
-      if (severityFilter !== "all" && row.topSeverity !== severityFilter) return false;
-      if (term && !String(row.name).toLowerCase().includes(term)) return false;
-      return true;
-    });
-  }, [data, severityFilter, search]);
+// Filters the UI can offer without another round trip, because the whole findings list is
+// already in memory. Each is a facet over the same rows rather than a separate query.
+export function filterFindings(findings, { search = "", severity = "all", risk = "all", state = "all", trigger = "all" } = {}) {
+  const term = search.trim().toLowerCase();
+  return findings.filter((row) => {
+    if (severity !== "all" && row.topSeverity !== severity) return false;
+    if (risk !== "all" && !row.risks.some((r) => r.code === risk)) return false;
+    if (state === "enabled" && !row.enabled) return false;
+    if (state === "disabled" && row.enabled) return false;
+    if (trigger !== "all" && row.triggerType !== trigger) return false;
+    if (term) {
+      // Field names are searched too: "which rules write Story Points and have a finding"
+      // is a question people arrive with, and rule names rarely contain the field.
+      const haystack = `${row.name} ${(row.writesFields ?? []).join(" ")}`.toLowerCase();
+      if (!haystack.includes(term)) return false;
+    }
+    return true;
+  });
+}
+
+function FindingsSection({ data, findings, loading, error, onRetry }) {
+  const [filters, setFilters] = React.useState({ search: "", severity: "all", risk: "all", state: "all", trigger: "all" });
+  const [page, setPage] = React.useState(0);
+
+  const setFilter = (key, value) => {
+    setFilters((f) => ({ ...f, [key]: value }));
+    // Staying on page 8 of a list that just became two pages long shows an empty screen.
+    setPage(0);
+  };
+
+  const rows = React.useMemo(() => filterFindings(findings ?? [], filters), [findings, filters]);
+
+  // Offered only where they exist, so the dropdowns never list a filter that matches nothing.
+  const triggerOptions = React.useMemo(() => {
+    const seen = new Map();
+    for (const row of findings ?? []) if (row.triggerType) seen.set(row.triggerType, triggerLabel(row.triggerType));
+    return [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [findings]);
+
+  const riskOptions = React.useMemo(() => {
+    const seen = new Set();
+    for (const row of findings ?? []) for (const r of row.risks) seen.add(r.code);
+    return [...seen];
+  }, [findings]);
+
+  if (loading) return <div className="tab-loading">Loading findings…</div>;
+  if (error) {
+    return (
+      <EmptyState action={<button type="button" className="ui-button" onClick={onRetry}>Retry</button>}>
+        <strong>Could not load findings.</strong>
+        <div>{error}</div>
+      </EmptyState>
+    );
+  }
+  if (!findings?.length) {
+    return (
+      <EmptyState inline>
+        {data.findingsTotal === 0 ? "No findings." : "Findings have not been indexed. Re-import the export to build this list."}
+      </EmptyState>
+    );
+  }
+
+  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const current = Math.min(page, pageCount - 1);
+  const visible = rows.slice(current * PAGE_SIZE, current * PAGE_SIZE + PAGE_SIZE);
 
   return (
     <>
@@ -388,33 +466,43 @@ function FindingsSection({ data }) {
         <input
           type="search"
           className="ui-input"
-          placeholder="Search rule names…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search rule or field names…"
+          value={filters.search}
+          onChange={(e) => setFilter("search", e.target.value)}
           aria-label="Search rule names"
         />
-        <select
-          className="ui-input"
-          value={severityFilter}
-          onChange={(e) => setSeverityFilter(e.target.value)}
-          aria-label="Filter by severity"
-        >
+        <select className="ui-input" value={filters.severity} onChange={(e) => setFilter("severity", e.target.value)} aria-label="Filter by severity">
           <option value="all">All severities</option>
           <option value="high">High</option>
           <option value="medium">Medium</option>
           <option value="low">Low</option>
           <option value="info">Info</option>
         </select>
-        <span className="ref-toolbar__count">{formatNumber(findings.length)} shown</span>
+        <select className="ui-input" value={filters.risk} onChange={(e) => setFilter("risk", e.target.value)} aria-label="Filter by finding">
+          <option value="all">All findings</option>
+          {riskOptions.map((code) => <option key={code} value={code}>{RISK_LABELS[code] ?? code}</option>)}
+        </select>
+        <select className="ui-input" value={filters.state} onChange={(e) => setFilter("state", e.target.value)} aria-label="Filter by rule state">
+          <option value="all">Enabled and disabled</option>
+          <option value="enabled">Enabled only</option>
+          <option value="disabled">Disabled only</option>
+        </select>
+        <select className="ui-input" value={filters.trigger} onChange={(e) => setFilter("trigger", e.target.value)} aria-label="Filter by trigger">
+          <option value="all">All triggers</option>
+          {triggerOptions.map(([type, label]) => <option key={type} value={type}>{label}</option>)}
+        </select>
+        <span className="ref-toolbar__count">
+          {rows.length === findings.length
+            ? `${formatNumber(findings.length)} rules`
+            : `${formatNumber(rows.length)} of ${formatNumber(findings.length)}`}
+        </span>
       </div>
 
-      {findings.length === 0 ? (
-        <EmptyState inline>
-          {data.findingsTotal === 0 ? "No findings." : "No rules match this filter."}
-        </EmptyState>
+      {rows.length === 0 ? (
+        <EmptyState inline>No rules match these filters.</EmptyState>
       ) : (
         <>
-          {findings.map((rule) => (
+          {visible.map((rule) => (
             <FindingRow
               key={rule.id}
               tone={SEVERITY_TONE[rule.topSeverity] ?? "info"}
@@ -424,7 +512,7 @@ function FindingsSection({ data }) {
                   <span>{findingDetailLine(rule)}</span>
                   <div className="automation-finding__risks">
                     {rule.risks.map((risk) => (
-                      <Chip key={risk.code} tone={SEVERITY_TONE[risk.severity] ?? "neutral"} title={risk.detail}>
+                      <Chip key={risk.code} tone={SEVERITY_TONE[risk.severity] ?? "neutral"} title={riskDetail(risk)}>
                         {RISK_LABELS[risk.code] ?? risk.code}
                       </Chip>
                     ))}
@@ -433,14 +521,38 @@ function FindingsSection({ data }) {
               }
             />
           ))}
-          {data.findingsTotal > data.findings.length ? (
-            <div className="ui-truncation">
-              Showing {formatNumber(data.findings.length)} of {formatNumber(data.findingsTotal)} rules with findings.
-            </div>
-          ) : null}
+
+          <Pager page={current} pageCount={pageCount} total={rows.length} onChange={setPage} />
         </>
       )}
     </>
+  );
+}
+
+export function Pager({ page, pageCount, total, onChange }) {
+  if (pageCount <= 1) {
+    return <div className="ui-truncation">All {formatNumber(total)} shown.</div>;
+  }
+  const from = page * PAGE_SIZE + 1;
+  const to = Math.min(total, (page + 1) * PAGE_SIZE);
+
+  return (
+    <nav className="pager" aria-label="Findings pages">
+      <button type="button" className="ui-button ui-button--quiet" onClick={() => onChange(page - 1)} disabled={page === 0}>
+        ← Previous
+      </button>
+      <span className="pager__status">
+        {formatNumber(from)}–{formatNumber(to)} of {formatNumber(total)}
+      </span>
+      <button
+        type="button"
+        className="ui-button ui-button--quiet"
+        onClick={() => onChange(page + 1)}
+        disabled={page >= pageCount - 1}
+      >
+        Next →
+      </button>
+    </nav>
   );
 }
 
@@ -497,7 +609,7 @@ export function AutomationTab() {
   }, [directory]);
 
   React.useEffect(() => {
-    const part = section === "fields" ? "fields" : section === "statuses" ? "statuses" : null;
+    const part = ["fields", "statuses", "findings"].includes(section) ? section : null;
     if (!part || !data?.available) return;
     // A previous error counts as settled. Without this the effect re-runs the moment the
     // failure is recorded -- nothing is cached and nothing is loading -- and retries in a
@@ -505,6 +617,14 @@ export function AutomationTab() {
     if (indexes[part] || indexState[part]?.loading || indexState[part]?.error) return;
     loadIndex(part);
   }, [section, data, indexes, indexState, loadIndex]);
+
+  // Findings are stored compact -- single-letter keys, no detail sentences -- so 675 rows
+  // fit in one value. Expanded once when the document arrives, not on every keystroke in
+  // the filter box.
+  const findingRows = React.useMemo(
+    () => (indexes.findings ? indexes.findings.findings.map(expandFinding) : null),
+    [indexes.findings]
+  );
 
   async function handleImport(event) {
     const file = event.target.files?.[0];
@@ -687,8 +807,18 @@ export function AutomationTab() {
             <CascadeSection data={data} />
           </Panel>
         ) : (
-          <Panel title="Findings" icon="alertTriangle" description="Rules carrying something worth acting on.">
-            <FindingsSection data={data} />
+          <Panel
+            title="Findings"
+            icon="alertTriangle"
+            description="Every rule carrying something worth acting on. Filter by severity, finding type, state or trigger; search matches rule names and the fields a rule writes."
+          >
+            <FindingsSection
+              data={data}
+              findings={findingRows}
+              loading={indexState.findings?.loading}
+              error={indexState.findings?.error}
+              onRetry={() => loadIndex("findings")}
+            />
           </Panel>
         )}
       </SubNavLayout>

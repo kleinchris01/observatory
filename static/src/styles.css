@@ -1,4 +1,4 @@
-﻿:root {
+:root {
   color-scheme: dark;
   --bg: #f3efe7;
   --bg-accent: radial-gradient(circle at top left, rgba(214, 151, 73, 0.28), transparent 28rem),
@@ -6682,6 +6682,13 @@ code {
 .cascade__arrow { color: var(--muted); }
 .cascade__fields { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
 .cascade__via { font-size: 0.74rem; color: var(--muted); }
+
+.pager {
+  display: flex; align-items: center; justify-content: center; gap: 1rem;
+  padding-top: 0.9rem; margin-top: 0.4rem;
+  border-top: 1px solid var(--stroke);
+}
+.pager__status { font-size: 0.79rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 
 @media (max-width: 860px) {
   .ref-head { display: none; }

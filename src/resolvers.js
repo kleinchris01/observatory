@@ -109,7 +109,7 @@ import {
   readAutomationPart,
   writeAutomationPart,
   AUTOMATION_PARTS,
-  MAX_STORED_FINDINGS,
+  MAX_PREVIEW_FINDINGS,
   MAX_STORED_CASCADES,
 } from "./lib/store/automation.js";
 import {
@@ -151,23 +151,23 @@ import {
 // ---------------------------------------------------------------------------
 // What user-derived data is persisted by this app:
 //
-//   progressLog entries  — Human-readable status messages written during
+//   progressLog entries  â€” Human-readable status messages written during
 //     snapshot, issue-scan, and project-usage-job runs. These contain only
-//     counts, timestamps, and field/project names — no issue content and no
+//     counts, timestamps, and field/project names â€” no issue content and no
 //     Jira user IDs or account IDs.
 //
-//   scan statistics  — issue_scan_meta rows store counts (processedIssues,
+//   scan statistics  â€” issue_scan_meta rows store counts (processedIssues,
 //     totalIssues, pagesScanned) and timing only. No issue content is
 //     persisted; the scanner reads issues at runtime and discards them after
 //     aggregation.
 //
-//   fieldOptionsCache  — The replaceFieldOptionsCache / loadFieldOptionsCache
+//   fieldOptionsCache  â€” The replaceFieldOptionsCache / loadFieldOptionsCache
 //     functions store field option *labels* as returned by the Jira Fields
 //     API. These labels may contain user-entered values (e.g. option names
 //     typed by a Jira admin). They are stored as-is to support the
 //     searchFieldOptions resolver.
 //
-//   field_summaries / snapshot_fields  — Store field metadata (name, type,
+//   field_summaries / snapshot_fields  â€” Store field metadata (name, type,
 //     project/issue counts) from the Jira custom fields catalogue. No issue
 //     body content or user-identifiable data beyond field configuration is
 //     stored.
@@ -287,7 +287,7 @@ async function checkMacroAccess({ context }) {
 
     if (!resp.ok) {
       console.error("checkMacroAccess: group lookup failed", resp.status);
-      return { allowed: true }; // fail open — don't block on API error
+      return { allowed: true }; // fail open â€” don't block on API error
     }
 
     const userGroups = await resp.json();
@@ -356,7 +356,7 @@ async function getFieldInventory({ payload, context }) {
     // not one this request just transitioned into "queued" via requeueStaleSnapshotBuild
     // above, otherwise a successful requeue is undone on the very next line every time.
     if (filters.forceRefresh && meta_initial?.state === "queued" && meta?.state === "queued") {
-      // Queue job never started — reset so forceRefresh can re-enqueue
+      // Queue job never started â€” reset so forceRefresh can re-enqueue
       await writeSnapshotMeta(installationKey, {
         state: "idle",
         lastError: "Queue job did not start; reset by manual refresh.",
@@ -406,7 +406,7 @@ async function getFieldInventory({ payload, context }) {
         }
       : null;
 
-    // No snapshot data at all yet — return empty while the first build runs
+    // No snapshot data at all yet â€” return empty while the first build runs
     if (!meta?.version) {
       return {
         refreshedAt: null,
@@ -423,7 +423,7 @@ async function getFieldInventory({ payload, context }) {
       };
     }
 
-    // Load from last good version — works for "ready", "building" (shows stale), and "failed"
+    // Load from last good version â€” works for "ready", "building" (shows stale), and "failed"
     const [snapshotFields, fieldSummaries, issueSumsMap] = await Promise.all([
       loadSnapshotFields(installationKey, meta.version),
       listFieldSummaries(installationKey, 5000).catch(fallbackOn("inventory.summaries_load_failed", () => [], { installationKey })),
@@ -592,7 +592,7 @@ async function getWorkflowInventory({ payload, context }) {
     const pageOfSchemes = searched.slice(startIndex, startIndex + pageSize);
 
     // Never surface a scheme's project count as-computed from projects the
-    // viewer can't browse — recompute from only the browsable subset, same
+    // viewer can't browse â€” recompute from only the browsable subset, same
     // enforcement point as getFieldInventory / getProjectUsageReport (PR #19).
     const enrichedPage = await mapWithConcurrency(pageOfSchemes, 8, async (scheme) => {
       const projects = await loadWorkflowSchemeProjects(installationKey, meta.version, scheme.id);
@@ -761,10 +761,10 @@ async function getAutomationInsights({ context }) {
       refreshedAt: analysis.refreshedAt ?? null,
       source: analysis.source ?? "unknown",
       estate: analysis.estate ?? null,
-      findings: analysis.findings ?? [],
-      // The stored lists are truncated. Sending the totals alongside them lets the tab say
-      // "showing 300 of 468" instead of quietly presenting a partial list as complete.
-      findingsTotal: analysis.findingsTotal ?? (analysis.findings?.length ?? 0),
+      // A preview for the overview. The Findings section fetches the full list separately;
+      // sending 675 rows with the first paint would slow every visit to pay for one section.
+      findingsPreview: analysis.findingsPreview ?? [],
+      findingsTotal: analysis.findingsTotal ?? (analysis.findingsPreview?.length ?? 0),
       cascades: analysis.cascades ?? [],
       cascadesTotal: analysis.cascadesTotal ?? (analysis.cascades?.length ?? 0),
       selfTriggeringTotal: analysis.selfTriggeringTotal ?? 0,
@@ -805,7 +805,7 @@ async function saveAutomationAnalysis({ payload, context }) {
       throw new Error("analysis.estate is required");
     }
 
-    const findings = Array.isArray(document.findings) ? document.findings : [];
+    const preview = Array.isArray(document.findingsPreview) ? document.findingsPreview : [];
     const cascades = Array.isArray(document.cascades) ? document.cascades : [];
 
     const stored = {
@@ -816,10 +816,11 @@ async function saveAutomationAnalysis({ payload, context }) {
       refreshedAt: Date.now(),
       source: typeof document.source === "string" ? document.source.slice(0, 64) : "unknown",
       estate: document.estate,
-      findings: findings.slice(0, MAX_STORED_FINDINGS),
+      // A short preview for the overview only; the full list lives under its own part.
+      findingsPreview: preview.slice(0, MAX_PREVIEW_FINDINGS),
       // Totals describe the estate, not the truncated list, so they are taken from the
       // payload rather than recomputed from what survived slicing.
-      findingsTotal: Number(document.findingsTotal) || findings.length,
+      findingsTotal: Number(document.findingsTotal) || preview.length,
       cascades: cascades.slice(0, MAX_STORED_CASCADES),
       cascadesTotal: Number(document.cascadesTotal) || cascades.length,
       selfTriggeringTotal: Number(document.selfTriggeringTotal) || 0,
@@ -900,6 +901,11 @@ async function getAutomationIndex({ payload, context }) {
       total: document.total ?? 0,
       entries: document.entries ?? [],
       rules: document.rules ?? [],
+      // Sent whole rather than paged. All 675 on the reference site are 144 KB in compact
+      // form, which is one fetch the section already pays for; paging server-side would
+      // mean a round trip per page and would make client-side filtering impossible without
+      // re-querying on every keystroke.
+      findings: document.findings ?? [],
     };
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
@@ -957,7 +963,7 @@ async function probeScreenFetchCost({ payload, context }) {
       error: message,
       endpoints,
       hint: isAuthFailure
-        ? "Authorization failure. The table below shows which screen endpoints accept the app's scopes and which reject them — a 404 is a pass, since it means the scope was accepted and only the placeholder id was wrong."
+        ? "Authorization failure. The table below shows which screen endpoints accept the app's scopes and which reject them â€” a 404 is a pass, since it means the scope was accepted and only the placeholder id was wrong."
         : null,
     };
   }
@@ -1041,7 +1047,7 @@ async function getFieldDetails({ payload, context }) {
     const installationKey = getInstallationKey(context);
 
     const meta = await readSnapshotMeta(installationKey);
-    if (!meta?.version) throw new Error("No completed snapshot available — build one first.");
+    if (!meta?.version) throw new Error("No completed snapshot available â€” build one first.");
 
     const offset = (usagePage - 1) * usagePageSize;
     const [snapshotField, projectUsageRows, projectCount, rawFieldSummary, projectUsageIssueSum] = await Promise.all([
@@ -1274,7 +1280,7 @@ async function refreshRecentProjectUsage({ payload, context }) {
   const installationKey = getInstallationKey(context);
   const meta = await readSnapshotMeta(installationKey);
   if (!meta?.version) {
-    throw new Error("No completed snapshot available — build one first.");
+    throw new Error("No completed snapshot available â€” build one first.");
   }
 
   const hours = Math.max(1, Math.min(168, Math.trunc(Number(payload?.hours)) || 24));
@@ -1395,7 +1401,7 @@ async function restartProjectUsageJob({ payload, context }) {
   const installationKey = getInstallationKey(context);
   const meta = await readSnapshotMeta(installationKey);
   if (!meta?.version) {
-    throw new Error("No completed snapshot available — build one first.");
+    throw new Error("No completed snapshot available â€” build one first.");
   }
 
   const snapshotField = await loadSnapshotField(installationKey, meta.version, fieldId);
@@ -1448,7 +1454,7 @@ async function resumeProjectUsageJob({ payload, context }) {
   const installationKey = getInstallationKey(context);
   const meta = await readSnapshotMeta(installationKey);
   if (!meta?.version) {
-    throw new Error("No completed snapshot available — build one first.");
+    throw new Error("No completed snapshot available â€” build one first.");
   }
 
   const [snapshotField, existing] = await Promise.all([
@@ -1695,7 +1701,7 @@ async function getProjectUsageReport({ payload, context }) {
   const installationKey = getInstallationKey(context);
   const meta = await readSnapshotMeta(installationKey);
   if (!meta?.version) {
-    throw new Error("No completed snapshot available — build one first.");
+    throw new Error("No completed snapshot available â€” build one first.");
   }
 
   const pendingFields = [];
@@ -1879,7 +1885,7 @@ async function startProjectUsageReportJob({ payload, context }) {
   const installationKey = getInstallationKey(context);
   const meta = await readSnapshotMeta(installationKey);
   if (!meta?.version) {
-    throw new Error("No completed snapshot available — build one first.");
+    throw new Error("No completed snapshot available â€” build one first.");
   }
 
   const jobId = makeJobToken();
@@ -2261,7 +2267,7 @@ async function resumeIssueScan({ context }) {
     progressLog,
   });
 
-  // Re-queue only workers that haven't finished — do NOT call the coordinator
+  // Re-queue only workers that haven't finished â€” do NOT call the coordinator
   // (the coordinator wipes all accumulated data and starts over)
   const queueErrors = [];
   let anyRequeued = false;
@@ -2286,7 +2292,7 @@ async function resumeIssueScan({ context }) {
     throw new Error(errMsg);
   }
 
-  // Every worker already reported "done", so nothing got re-queued above — no worker
+  // Every worker already reported "done", so nothing got re-queued above â€” no worker
   // invocation will ever run again to trigger finalization, since that's the only place
   // it's attempted. This happens when the last worker finished mid-cancel: its own
   // finalization claim was rejected because state wasn't "building" at that instant, and
@@ -2309,7 +2315,7 @@ async function getIssueScanStatus({ context }) {
   await ensureProjectStoreReady();
   const installationKey = getInstallationKey(context);
   const meta = await readIssueScanMeta(installationKey);
-  // "finalizing" is an internal transition state — surface it as "building" to the UI
+  // "finalizing" is an internal transition state â€” surface it as "building" to the UI
   if (meta?.state === "finalizing") return { meta: { ...meta, state: "building" } };
   return { meta: meta || null };
 }
@@ -2400,7 +2406,7 @@ export async function rovoSearchFields(payload, context) {
     return {
       status: "snapshot-unavailable",
       snapshotStatus: status,
-      message: "No snapshot available yet — building one now.",
+      message: "No snapshot available yet â€” building one now.",
       matches: [],
     };
   }
@@ -2726,13 +2732,20 @@ async function buildWorkflowOverview(installationKey) {
 export async function getAdminOverview({ context }) {
   await ensureProjectStoreReady();
   const installationKey = getInstallationKey(context);
-  const [meta, summaries, config, legacySummaryCount, workflow] = await Promise.all([
+  const [meta, summaries, config, legacySummaryCount, workflow, automationAnalysis] = await Promise.all([
     readSnapshotMeta(installationKey),
     listFieldSummaries(installationKey, 5000).catch(fallbackOn("overview.summaries_load_failed", () => [], { installationKey })),
     readAdminConfig(),
     countOldScopeKeyRows(installationKey).catch(fallbackOn("overview.legacy_row_count_failed", 0, { installationKey })),
     buildWorkflowOverview(installationKey),
+    // Falls back to null rather than failing the overview. The automation dimensions then
+    // report as unavailable, which is the same thing a fresh install shows -- an overview
+    // that 500s because one optional input is missing is worse than one missing a section.
+    readAutomationAnalysis(installationKey).catch(fallbackOn("overview.automation_load_failed", () => null, { installationKey })),
   ]);
+
+  // The rates are computed at analysis time and stored, so the score never needs the rules.
+  const automation = automationAnalysis?.estate?.health ?? { available: false };
 
   const jobCounts = { queued: 0, building: 0, ready: 0, failed: 0, cancelled: 0, unbuilt: 0 };
   for (const s of summaries) {
@@ -2793,7 +2806,13 @@ export async function getAdminOverview({ context }) {
       fieldUsage: dashboard?.fieldUsage,
       workflow,
       projects: dashboard?.projects,
+      automation,
     }),
+    automation: {
+      available: Boolean(automation?.available),
+      refreshedAt: automationAnalysis?.refreshedAt ?? null,
+      ruleCount: automation?.ruleCount ?? 0,
+    },
     dashboard,
     totalSummaries: summaries.length,
     legacySummaryCount,
@@ -2874,7 +2893,7 @@ export async function runDeltaIssueScanJob(installationKey, windowHours = DELTA_
       progressLog: [...progressLog],
     });
 
-    // Map<fieldId, Map<projectId, { count, key, name }>> — same structure as baseline scan
+    // Map<fieldId, Map<projectId, { count, key, name }>> â€” same structure as baseline scan
     const fieldProjectCounts = new Map();
     const affectedProjects = new Map();
     const rqtFieldHits = new Map();
@@ -2958,22 +2977,22 @@ export async function runDeltaIssueScanJob(installationKey, windowHours = DELTA_
     }
 
     if (pagesScanned >= DELTA_ISSUE_SCAN_MAX_PAGES) {
-      logEntry(`Delta cap reached (${DELTA_ISSUE_SCAN_MAX_PAGES} pages) — results may be partial`);
+      logEntry(`Delta cap reached (${DELTA_ISSUE_SCAN_MAX_PAGES} pages) â€” results may be partial`);
     }
 
-    logEntry(`Scanned ${issuesScanned.toLocaleString()} delta issues — ${fieldProjectCounts.size} fields across ${affectedProjects.size} projects`);
+    logEntry(`Scanned ${issuesScanned.toLocaleString()} delta issues â€” ${fieldProjectCounts.size} fields across ${affectedProjects.size} projects`);
 
     if (rqtFieldHits.size > 0) {
       await upsertRqtFieldHits(installationKey, rqtFieldHits).catch((e) => {
         console.error("runDeltaIssueScanJob: RQT flush error", e?.message || e);
       });
-      logEntry(`RQT index updated — ${rqtFieldHits.size} field(s) with RQT values`);
+      logEntry(`RQT index updated â€” ${rqtFieldHits.size} field(s) with RQT values`);
     }
     if (rqtIssueBuffer.length > 0) {
       await upsertRqtIssueKeys(installationKey, rqtIssueBuffer).catch((e) => {
         console.error("runDeltaIssueScanJob: RQT issue key flush error", e?.message || e);
       });
-      logEntry(`RQT issue keys updated — ${rqtIssueBuffer.length} issue(s)`);
+      logEntry(`RQT issue keys updated â€” ${rqtIssueBuffer.length} issue(s)`);
     }
     if (rqtValueBuffer.length > 0) {
       await upsertRqtValueIssueKeys(installationKey, rqtValueBuffer).catch((e) => {
@@ -3007,7 +3026,7 @@ export async function runDeltaIssueScanJob(installationKey, windowHours = DELTA_
       logEntry(`Updated total issue counts for ${projectRows.length} project${projectRows.length !== 1 ? "s" : ""}`);
     }
 
-    // Update field×project usage: for each touched pair, get accurate total count via JQL
+    // Update fieldÃ—project usage: for each touched pair, get accurate total count via JQL
     const snapshotMeta = await readSnapshotMeta(installationKey);
     let fieldProjectPairsUpdated = 0;
 
@@ -3021,10 +3040,10 @@ export async function runDeltaIssueScanJob(installationKey, windowHours = DELTA_
       touchedPairs.sort((a, b) => b.deltaCount - a.deltaCount);
       const cappedPairs = touchedPairs.slice(0, 500);
       if (touchedPairs.length > 500) {
-        logEntry(`Capped field×project count queries at 500 of ${touchedPairs.length} pairs`);
+        logEntry(`Capped fieldÃ—project count queries at 500 of ${touchedPairs.length} pairs`);
       }
 
-      logEntry(`Running ${cappedPairs.length} field×project count queries...`);
+      logEntry(`Running ${cappedPairs.length} fieldÃ—project count queries...`);
 
       const usageRows = await mapWithConcurrency(cappedPairs, 6, async ({ fieldId, projectId, projectKey, projectName }) => {
         try {
@@ -3054,9 +3073,9 @@ export async function runDeltaIssueScanJob(installationKey, windowHours = DELTA_
 
       const validRows = usageRows.filter(Boolean).filter((r) => r.issueCount > 0);
       fieldProjectPairsUpdated = await upsertDeltaFieldProjectUsage(installationKey, snapshotMeta.version, validRows);
-      logEntry(`Updated ${fieldProjectPairsUpdated} field×project usage rows in snapshot`);
+      logEntry(`Updated ${fieldProjectPairsUpdated} fieldÃ—project usage rows in snapshot`);
     } else if (!snapshotMeta?.version) {
-      logEntry("No snapshot found — skipping field usage update (run a snapshot first)");
+      logEntry("No snapshot found â€” skipping field usage update (run a snapshot first)");
     }
 
     await writeIssueScanMeta(deltaScopeKey, {
@@ -3263,7 +3282,7 @@ export const SHARED_RESOLVER_FUNCTIONS = {
   getProjectUsageReport,   // Read-only: returns project usage data for given fields
 };
 
-// ── Admin authorization ──────────────────────────────────────────────────────
+// â”€â”€ Admin authorization â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
 // The jira:adminPage module controls who can SEE the admin page. It does not control
 // who can reach its resolver: an invoke() is an authenticated app endpoint, and module
@@ -3403,13 +3422,13 @@ function withAuditTrail(functions) {
 // Exported through withAdminGuard + withAuditTrail -- see above. Add new entries to the
 // raw object; the wrapping is applied to the whole registry at export.
 const RAW_ADMIN_ONLY_FUNCTIONS = {
-  // Issue scan lifecycle — trigger and cancel full field×issue scans
+  // Issue scan lifecycle â€” trigger and cancel full fieldÃ—issue scans
   startIssueScan,          // Mutating: queues a full issue scan job
   resumeIssueScan,         // Mutating: re-queues incomplete issue scan workers
   cancelIssueScan,         // Mutating: hard-stops the running issue scan
   getIssueScanStatus,      // Admin read: exposes raw scan meta including progressLog
 
-  // Delta issue scan — lightweight incremental scan
+  // Delta issue scan â€” lightweight incremental scan
   startDeltaIssueScan,     // Mutating: queues a delta (incremental) issue scan job
   getDeltaIssueScanStatus, // Admin read: exposes delta scan meta
 
@@ -3431,12 +3450,12 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   refreshRecentProjectUsage, // Mutating: triggers incremental refresh based on recent issue changes
   restoreProjectUsageCache,  // Mutating: queues full restoration of project-usage from summaries
 
-  // Report management — write operations on stored report definitions and async jobs
+  // Report management â€” write operations on stored report definitions and async jobs
   saveReportDefinition,    // Mutating: creates or updates a saved report definition
   deleteReportDefinition,  // Mutating: deletes a saved report definition
   startProjectUsageReportJob, // Mutating: triggers an async project-usage report build job
 
-  // RQT (required-query-token) index — internal governance analytics
+  // RQT (required-query-token) index â€” internal governance analytics
   getRqtIndex,             // Admin read: returns RQT field index and issue sample data
   searchRqtValue,          // Admin read: looks up issues by RQT value token
 
@@ -3463,3 +3482,4 @@ export const ADMIN_ONLY_FUNCTIONS = withAdminGuard(withAuditTrail(RAW_ADMIN_ONLY
 // Unwrapped originals, for tests that need to exercise a resolver's own logic without
 // standing up a permission mock. Never register these on a handler.
 export const __RAW_ADMIN_ONLY_FUNCTIONS = RAW_ADMIN_ONLY_FUNCTIONS;
+
