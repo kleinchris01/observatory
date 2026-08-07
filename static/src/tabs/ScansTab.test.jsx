@@ -1,7 +1,8 @@
 import React from "react";
-import { describe, test, expect, vi } from "vitest";
+import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { ScanDeltaChart, ScanThroughputChart, UniverseScanPanel } from "./ScansTab";
+import { ScanDeltaChart, ScanThroughputChart, UniverseScanPanel, useVisiblePolling } from "./ScansTab";
+import { renderHook, act } from "@testing-library/react";
 
 // ScansTab had no tests. These cover the two charts added to make the Universe Scan panel
 // readable, and they test the arithmetic rather than the markup -- the SVG is presentational,
@@ -125,5 +126,64 @@ describe("UniverseScanPanel run-derived series", () => {
       scanHistory: [run("2026-08-05T01:00:00Z", 328528, "2026-08-05T00:00:00Z")],
     });
     expect(screen.getByText(/duration & throughput/i)).toBeInTheDocument();
+  });
+});
+
+// A wedged scan plus a forgotten browser tab was an overnight of SQL for no work. The
+// job-active guard existed; the visibility guard did not.
+describe("useVisiblePolling", () => {
+  const setVisibility = (state) => {
+    Object.defineProperty(document, "visibilityState", { value: state, configurable: true });
+    document.dispatchEvent(new Event("visibilitychange"));
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+  });
+  afterEach(() => vi.useRealTimers());
+
+  test("does not poll at all when there is no active job", () => {
+    const fn = vi.fn();
+    renderHook(() => useVisiblePolling(false, fn, 1000));
+    act(() => { vi.advanceTimersByTime(5000); });
+    expect(fn).not.toHaveBeenCalled();
+  });
+
+  test("polls on the interval while active and visible", () => {
+    const fn = vi.fn();
+    renderHook(() => useVisiblePolling(true, fn, 1000));
+    fn.mockClear(); // the immediate call on mount
+    act(() => { vi.advanceTimersByTime(3000); });
+    expect(fn).toHaveBeenCalledTimes(3);
+  });
+
+  // The whole point: a job still running, but nobody looking at it.
+  test("stops polling when the tab is hidden, even with a job running", () => {
+    const fn = vi.fn();
+    renderHook(() => useVisiblePolling(true, fn, 1000));
+    act(() => { setVisibility("hidden"); });
+    fn.mockClear();
+    act(() => { vi.advanceTimersByTime(10000); });
+    expect(fn).not.toHaveBeenCalled();
+  });
+
+  // Returning to a tab after an hour should show current state, not stale state plus a wait.
+  test("fetches once immediately on becoming visible again", () => {
+    const fn = vi.fn();
+    renderHook(() => useVisiblePolling(true, fn, 1000));
+    act(() => { setVisibility("hidden"); });
+    fn.mockClear();
+    act(() => { setVisibility("visible"); });
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  test("clears its timer on unmount", () => {
+    const fn = vi.fn();
+    const { unmount } = renderHook(() => useVisiblePolling(true, fn, 1000));
+    unmount();
+    fn.mockClear();
+    act(() => { vi.advanceTimersByTime(5000); });
+    expect(fn).not.toHaveBeenCalled();
   });
 });

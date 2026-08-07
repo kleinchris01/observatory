@@ -300,6 +300,7 @@ import {
   __RAW_ADMIN_ONLY_FUNCTIONS,
   __resetAdminCheckCache,
   AdminPermissionError,
+  isScanStuck,
 } from "./resolvers.js";
 
 const {
@@ -3033,6 +3034,55 @@ describe("getAutomationInsights", () => {
   test("is registered admin-only, not shared with the macro handler", () => {
     expect(Object.keys(ADMIN_ONLY_FUNCTIONS)).toContain("getAutomationInsights");
     expect(Object.keys(SHARED_RESOLVER_FUNCTIONS)).not.toContain("getAutomationInsights");
+  });
+});
+
+// A scan wedged in "building" is worse than one that failed: the state is a lie, and the
+// admin UI polls a "running" job every 15 seconds for as long as a tab is open.
+describe("isScanStuck", () => {
+  const MIN = 60 * 1000;
+  const at = (msAgo) => new Date(Date.now() - msAgo).toISOString();
+
+  test("leaves a scan alone while it is still logging progress", () => {
+    expect(isScanStuck({ state: "building", progressLog: [{ t: at(2 * MIN) }] })).toBe(false);
+  });
+
+  test("flags a building scan that has gone quiet past the ceiling", () => {
+    expect(isScanStuck({ state: "building", progressLog: [{ t: at(45 * MIN) }] })).toBe(true);
+  });
+
+  // A long scan legitimately runs for hours; silence is the signal, not elapsed time.
+  test("measures silence from the newest entry, not the oldest", () => {
+    const meta = { state: "building", progressLog: [{ t: at(300 * MIN) }, { t: at(1 * MIN) }] };
+    expect(isScanStuck(meta)).toBe(false);
+  });
+
+  test("covers finalizing, which is also a state a scan can wedge in", () => {
+    expect(isScanStuck({ state: "finalizing", progressLog: [{ t: at(45 * MIN) }] })).toBe(true);
+  });
+
+  test.each([["ready"], ["failed"], ["cancelled"], ["idle"]])(
+    "never touches a scan already in %s",
+    (state) => {
+      expect(isScanStuck({ state, progressLog: [{ t: at(600 * MIN) }] })).toBe(false);
+    }
+  );
+
+  test("falls back to startedAt when the log is empty", () => {
+    expect(isScanStuck({ state: "building", progressLog: [], startedAt: at(45 * MIN) })).toBe(true);
+    expect(isScanStuck({ state: "building", progressLog: [], startedAt: at(2 * MIN) })).toBe(false);
+  });
+
+  // Failing a scan on a guess would be worse than leaving it: resume discards no work,
+  // but a wrongly-failed scan reads as a defect the admin has to investigate.
+  test("leaves a scan alone when there is no usable timestamp at all", () => {
+    expect(isScanStuck({ state: "building", progressLog: [] })).toBe(false);
+    expect(isScanStuck({ state: "building", progressLog: [{ t: "not-a-date" }] })).toBe(false);
+  });
+
+  test("handles absent meta", () => {
+    expect(isScanStuck(null)).toBe(false);
+    expect(isScanStuck(undefined)).toBe(false);
   });
 });
 

@@ -19,6 +19,42 @@ import { SnapshotLog, JobsPanel } from "../components/admin/JobsPanel";
 // "yes": the point is that it cannot be typed by reflex.
 const CLEAR_CONFIRMATION_WORD = "DELETE";
 
+// Poll only while a job is running AND the tab is actually being looked at.
+//
+// The job-active guard was already here; the visibility guard was not. A universe scan
+// wedged in "building" plus one forgotten browser tab kept two resolvers -- and their SQL
+// reads -- firing every 15 seconds all night. Nobody was reading the screen, so every one
+// of those queries bought nothing.
+//
+// Fires once immediately on becoming visible, so a tab returned to after an hour shows
+// current state rather than waiting out the interval first.
+export function useVisiblePolling(active, fn, intervalMs) {
+  const saved = React.useRef(fn);
+  saved.current = fn;
+
+  React.useEffect(() => {
+    if (!active) return undefined;
+
+    let timer = null;
+    const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
+    const start = () => { if (!timer) timer = setInterval(() => saved.current(), intervalMs); };
+
+    const sync = () => {
+      const hidden = typeof document !== "undefined" && document.visibilityState === "hidden";
+      if (hidden) { stop(); return; }
+      saved.current();
+      start();
+    };
+
+    sync();
+    if (typeof document !== "undefined") document.addEventListener("visibilitychange", sync);
+    return () => {
+      stop();
+      if (typeof document !== "undefined") document.removeEventListener("visibilitychange", sync);
+    };
+  }, [active, intervalMs]);
+}
+
 export function ClearSnapshotControl({ onCleared }) {
   const [open, setOpen] = React.useState(false);
   const [typed, setTyped] = React.useState("");
@@ -901,12 +937,11 @@ export function ScansTab({ siteOrigin, initialSection }) {
 
   React.useEffect(() => { fetchSnapshotStatus(); }, []);
 
-  React.useEffect(() => {
-    const active = snapshotStatus?.state === "building" || snapshotStatus?.state === "queued";
-    if (!active) return;
-    const timer = setInterval(() => { fetchSnapshotStatus({ quiet: true }); }, 8000);
-    return () => clearInterval(timer);
-  }, [snapshotStatus?.state]);
+  useVisiblePolling(
+    snapshotStatus?.state === "building" || snapshotStatus?.state === "queued",
+    () => fetchSnapshotStatus({ quiet: true }),
+    8000
+  );
 
   async function handleBuildSnapshot() {
     setBuildingSnapshot(true);
@@ -931,15 +966,14 @@ export function ScansTab({ siteOrigin, initialSection }) {
 
   React.useEffect(() => { fetchIssueScanStatus(); fetchDeltaStatus(); }, []);
 
-  React.useEffect(() => {
-    const active = issueScanStatus?.state === "building" || issueScanStatus?.state === "queued";
-    if (!active) return;
-    // 15s, not 8s: a full scan runs for over an hour, so 8-second granularity was finer
-    // than anyone reads while costing two resolver invocations -- and their SQL reads --
-    // every 8 seconds for the whole run.
-    const timer = setInterval(() => { fetchIssueScanStatus(); fetchDeltaStatus(); }, 15000);
-    return () => clearInterval(timer);
-  }, [issueScanStatus?.state]);
+  // 15s, not 8s: a full scan runs for over an hour, so 8-second granularity was finer
+  // than anyone reads while costing two resolver invocations -- and their SQL reads --
+  // every 8 seconds for the whole run.
+  useVisiblePolling(
+    issueScanStatus?.state === "building" || issueScanStatus?.state === "queued",
+    () => { fetchIssueScanStatus(); fetchDeltaStatus(); },
+    15000
+  );
 
   async function startScan() {
     setIssueScanLoading(true);
