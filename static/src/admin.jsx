@@ -76,6 +76,7 @@ const bootStatusNode = document.getElementById("boot-status");
 
 export function AdminApp() {
   const [activeTab, setActiveTab] = React.useState("overview");
+  const [reportsInitialSection, setReportsInitialSection] = React.useState("");
   const [theme, setTheme] = React.useState(() => localStorage.getItem("atlasiq-field-theme") || "dark");
   const [overview, setOverview] = React.useState(null);
   const [loadingOverview, setLoadingOverview] = React.useState(true);
@@ -242,7 +243,7 @@ export function AdminApp() {
                 overview={overview}
                 onMigrateNamespace={handleMigrateNamespace}
                 migratingNamespace={migratingNamespace}
-                onOpenRqtIndex={() => { setScansInitialSection("rqt"); setActiveTab("scans"); }}
+                onOpenRqtIndex={() => { setReportsInitialSection("rqt"); setActiveTab("reports"); }}
                 onNavigate={(tab) => setActiveTab(tab)}
               />
             )
@@ -265,7 +266,7 @@ export function AdminApp() {
               <AutomationTab siteOrigin={siteOrigin} />
             </React.Suspense>
           ) : activeTab === "reports" ? (
-            <ReportsTab siteOrigin={siteOrigin} selectedFieldIds={selectedFieldIds} onSetSelectedFieldIds={setSelectedFieldIds} autoGenerate={pendingReportGenerate} onAutoGenerateConsumed={() => setPendingReportGenerate(false)} />
+            <ReportsTab siteOrigin={siteOrigin} selectedFieldIds={selectedFieldIds} onSetSelectedFieldIds={setSelectedFieldIds} autoGenerate={pendingReportGenerate} onAutoGenerateConsumed={() => setPendingReportGenerate(false)} initialSection={reportsInitialSection} />
           ) : activeTab === "scans" ? (
             <ScansTab siteOrigin={siteOrigin} initialSection={scansInitialSection} />
           ) : (
