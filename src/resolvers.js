@@ -108,6 +108,9 @@ import {
   writeAutomationAnalysis,
   readAutomationPart,
   writeAutomationPart,
+  replaceAutomationReferences,
+  replaceAutomationRules,
+  replaceAutomationFindings,
   AUTOMATION_PARTS,
   MAX_PREVIEW_FINDINGS,
   MAX_STORED_CASCADES,
@@ -887,7 +890,37 @@ async function saveAutomationIndex({ payload, context }) {
     }
 
     await writeAutomationPart(installationKey, part, document);
-    return { saved: true, part };
+
+    // Also shred into SQL, where the caps do not apply and the cross-pillar join is a real
+    // indexed query rather than a string match over a loaded document.
+    //
+    // The KVS write stays for now: the tab still reads documents, and keeping both means
+    // this can land without a coordinated UI change. Best-effort by design -- a SQL failure
+    // must not fail the import, because the KVS copy already succeeded and is what the UI
+    // currently renders. It is logged rather than swallowed silently.
+    let rowsWritten = null;
+    try {
+      if (part === "fields" || part === "statuses") {
+        const other = part === "fields" ? "statuses" : "fields";
+        const existing = await readAutomationPart(installationKey, other);
+        rowsWritten = await replaceAutomationReferences(installationKey, {
+          fields: part === "fields" ? document : existing,
+          statuses: part === "statuses" ? document : existing,
+        });
+      } else if (part === "directory") {
+        rowsWritten = await replaceAutomationRules(installationKey, document);
+      } else if (part === "findings") {
+        rowsWritten = await replaceAutomationFindings(installationKey, document);
+      }
+    } catch (sqlError) {
+      logger.warn("automation.sql_index_failed", {
+        installationKey,
+        part,
+        error: String(sqlError?.message || sqlError),
+      });
+    }
+
+    return { saved: true, part, rowsWritten };
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
     console.error("saveAutomationIndex failed:", error);

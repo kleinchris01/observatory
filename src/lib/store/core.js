@@ -217,6 +217,72 @@ export const CREATE_RQT_FIELD_INDEX_TABLE = `
   )
 `;
 
+
+// Automation analysis, relational.
+//
+// This lived in KVS as four documents. That shape forced every cap in
+// automation-analysis.js -- 1,000 indexed entries, 50 rule ids per direction, 150 cascades
+// -- because a KVS value holds ~240 KB and the indexes alone were already past half of it
+// on one estate. None of those limits were product decisions; they were storage artifacts.
+//
+// It also made the most valuable join in the product a string match in memory: answering
+// "does any rule touch this field" meant loading five documents totalling ~440 KB and
+// filtering in JavaScript, whether the question was about one field or all of them.
+//
+// One row per reference, so a field referenced by 542 rules is 542 rows rather than a list
+// truncated at 50. Direction is a column because it carries the consequence: a rule that
+// WRITES a field keeps it alive, one that only READS it breaks when the field disappears.
+export const CREATE_AUTOMATION_REFERENCES_TABLE = `
+  CREATE TABLE IF NOT EXISTS automation_references (
+    scope_key VARCHAR(191) NOT NULL,
+    kind VARCHAR(16) NOT NULL,
+    label VARCHAR(191) NOT NULL,
+    rule_id VARCHAR(64) NOT NULL,
+    direction VARCHAR(16) NOT NULL,
+    PRIMARY KEY (scope_key, kind, label, rule_id, direction)
+  )
+`;
+
+// Lookup by rule, for "what does this rule touch" -- the reverse of the primary key's
+// ordering, which only serves "what touches this label".
+export const CREATE_AUTOMATION_REFERENCES_RULE_INDEX = `
+  CREATE INDEX idx_automation_references_rule
+  ON automation_references (scope_key, rule_id)
+`;
+
+// The rule directory: id -> name, so a drill-down from a field to the rules that write it
+// can show names rather than bare numeric ids.
+export const CREATE_AUTOMATION_RULES_TABLE = `
+  CREATE TABLE IF NOT EXISTS automation_rules (
+    scope_key VARCHAR(191) NOT NULL,
+    rule_id VARCHAR(64) NOT NULL,
+    name TEXT NULL,
+    enabled TINYINT NOT NULL DEFAULT 1,
+    trigger_type VARCHAR(191) NULL,
+    project_count INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (scope_key, rule_id)
+  )
+`;
+
+// Findings per rule. Paginating these was the reason the analysis document grew a preview
+// alongside a full list; in SQL the preview is just a LIMIT.
+export const CREATE_AUTOMATION_FINDINGS_TABLE = `
+  CREATE TABLE IF NOT EXISTS automation_findings (
+    scope_key VARCHAR(191) NOT NULL,
+    rule_id VARCHAR(64) NOT NULL,
+    code VARCHAR(64) NOT NULL,
+    severity VARCHAR(16) NOT NULL,
+    hosts_json TEXT NULL,
+    disabled_days INT NULL,
+    PRIMARY KEY (scope_key, rule_id, code)
+  )
+`;
+
+export const CREATE_AUTOMATION_FINDINGS_SEVERITY_INDEX = `
+  CREATE INDEX idx_automation_findings_severity
+  ON automation_findings (scope_key, severity)
+`;
+
 export const CREATE_RQT_ISSUE_KEYS_TABLE = `
   CREATE TABLE IF NOT EXISTS rqt_issue_keys (
     scope_key VARCHAR(191) NOT NULL,
@@ -447,7 +513,12 @@ const projectStoreMigrations = migrationRunner
   .enqueue("v046_create_audit_log_scope_at_index", CREATE_AUDIT_LOG_SCOPE_AT_INDEX)
   .enqueue("v047_create_snapshot_workflow_statuses_table", CREATE_SNAPSHOT_WORKFLOW_STATUSES_TABLE)
   .enqueue("v048_create_issue_scan_status_totals_table", CREATE_ISSUE_SCAN_STATUS_TOTALS_TABLE)
-  .enqueue("v049_create_status_history_totals_table", CREATE_STATUS_HISTORY_TOTALS_TABLE);
+  .enqueue("v049_create_status_history_totals_table", CREATE_STATUS_HISTORY_TOTALS_TABLE)
+  .enqueue("v050_create_automation_references_table", CREATE_AUTOMATION_REFERENCES_TABLE)
+  .enqueue("v051_create_automation_references_rule_index", CREATE_AUTOMATION_REFERENCES_RULE_INDEX)
+  .enqueue("v052_create_automation_rules_table", CREATE_AUTOMATION_RULES_TABLE)
+  .enqueue("v053_create_automation_findings_table", CREATE_AUTOMATION_FINDINGS_TABLE)
+  .enqueue("v054_create_automation_findings_severity_index", CREATE_AUTOMATION_FINDINGS_SEVERITY_INDEX);
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history
