@@ -2445,11 +2445,57 @@ async function resumeIssueScan({ context }) {
   return { resumed: true, jobToken, meta };
 }
 
+// A scan that stops making progress must eventually say so.
+//
+// Nothing moved a wedged scan out of "building". Workers could fail repeatedly -- the
+// audit log shows runs of "400 Bad Request" -- and the job would sit in "building"
+// indefinitely, which is worse than failing twice over: the state is a lie, and the admin
+// UI polls a "running" job every 15 seconds for as long as a tab is open. One stuck scan
+// and one forgotten browser tab is an overnight of SQL for no work.
+//
+// Progress is judged by the newest progress-log entry rather than startedAt, because a
+// long scan legitimately runs for hours -- an hour of silence is the signal, not an hour
+// of running.
+export const STUCK_SCAN_MS = 30 * 60 * 1000;
+
+export function isScanStuck(meta, now = Date.now()) {
+  if (!meta) return false;
+  if (meta.state !== "building" && meta.state !== "finalizing") return false;
+  const stamps = (meta.progressLog || [])
+    .map((entry) => new Date(entry?.t).getTime())
+    .filter((n) => Number.isFinite(n));
+  const startedAt = new Date(meta.startedAt).getTime();
+  // With no usable timestamp at all there is nothing to measure silence against, so the
+  // scan is left alone rather than failed on a guess.
+  const last = stamps.length ? Math.max(...stamps) : (Number.isFinite(startedAt) ? startedAt : null);
+  if (last === null) return false;
+  return now - last > STUCK_SCAN_MS;
+}
+
 async function getIssueScanStatus({ context }) {
   await ensureProjectStoreReady();
   const installationKey = getInstallationKey(context);
-  const meta = await readIssueScanMeta(installationKey);
-  // "finalizing" is an internal transition state â€” surface it as "building" to the UI
+  let meta = await readIssueScanMeta(installationKey);
+
+  // Fail it here rather than in a scheduled job: this resolver is what an open admin tab
+  // polls, so the read that would otherwise keep a dead scan alive is the one that ends it.
+  if (isScanStuck(meta)) {
+    const minutes = Math.round(STUCK_SCAN_MS / 60000);
+    await writeIssueScanMeta(installationKey, {
+      ...meta,
+      state: "failed",
+      completedAt: new Date().toISOString(),
+      lastError: `No progress for over ${minutes} minutes; marked failed. Resume from checkpoint to continue.`,
+      progressLog: [
+        ...(meta.progressLog || []).slice(-180),
+        { t: new Date().toISOString(), msg: `Scan stalled — no progress for over ${minutes} minutes. Marked failed; resume to retry from the saved checkpoint.` },
+      ],
+    }).catch(ignoreWith("scan.stuck_write_failed", { installationKey }));
+    meta = await readIssueScanMeta(installationKey);
+    return { meta: meta || null };
+  }
+
+  // "finalizing" is an internal transition state — surface it as "building" to the UI
   if (meta?.state === "finalizing") return { meta: { ...meta, state: "building" } };
   return { meta: meta || null };
 }
