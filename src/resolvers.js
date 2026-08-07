@@ -95,7 +95,7 @@ import {
 } from "./lib/project-store.js";
 import { queueWorkflowSnapshotBuild, isWorkflowBuildStale, queueStatusHistoryBuild } from "./lib/workflow-engine.js";
 import { measureScreenFetchCost, probeScreenEndpoints, DEFAULT_SAMPLE_SIZE } from "./lib/screen-probe.js";
-import { computeSiteHealth } from "./lib/health-score.js";
+import { computeSiteHealth, DEFAULT_HEALTH_TOLERANCES } from "./lib/health-score.js";
 import { probeEndpoint, probeStargateEndpoint, getCloudId, getAllJiraProjects } from "./lib/jira-api.js";
 import {
   findDuplicateStatusGroups,
@@ -242,6 +242,17 @@ export async function saveAdminConfigResolver({ payload }) {
       requirePositiveInt(thresholds[key], `governanceThresholds.${key}`);
     }
   }
+  // Health tolerances are rates, not counts: the share of an estate at which a dimension
+  // bottoms out. Validated as a fraction so a value typed as a percentage (15 rather than
+  // 0.15) is rejected here rather than silently zeroing that dimension for everyone.
+  const tolerances = cfg.healthTolerances || {};
+  for (const key of Object.keys(DEFAULT_HEALTH_TOLERANCES)) {
+    const value = tolerances[key];
+    if (value === undefined || value === null) continue;
+    if (typeof value !== "number" || !Number.isFinite(value) || value <= 0 || value > 1) {
+      throw new Error(`healthTolerances.${key} must be a rate greater than 0 and at most 1`);
+    }
+  }
   const current = await readAdminConfig();
   const updated = {
     ...current,
@@ -249,6 +260,10 @@ export async function saveAdminConfigResolver({ payload }) {
     governanceThresholds: {
       ...current.governanceThresholds,
       ...(payload?.governanceThresholds || {}),
+    },
+    healthTolerances: {
+      ...current.healthTolerances,
+      ...(payload?.healthTolerances || {}),
     },
     macroAccess: {
       ...current.macroAccess,
@@ -3119,6 +3134,9 @@ export async function getAdminOverview({ context }) {
       workflow,
       projects: dashboard?.projects,
       automation,
+      // Workflow, project and automation dimensions were scored against hardcoded
+      // constants while every field rule was tunable. Same config surface now feeds both.
+      tolerances: config?.healthTolerances,
     }),
     automation: {
       available: Boolean(automation?.available),

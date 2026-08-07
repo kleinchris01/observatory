@@ -17,7 +17,7 @@
 // Rate at which a dimension bottoms out. Chosen to be forgiving at the low end and steep
 // past the point where a reviewer would call the site untidy -- a 2% duplicate rate is
 // noise on any real Jira, a 10% duplicate rate is a governance problem.
-const TOLERANCE = {
+export const DEFAULT_HEALTH_TOLERANCES = {
   duplicateFieldNames: 0.10,
   fieldFindings: 0.25,
   unusedFields: 0.35,
@@ -49,7 +49,30 @@ function unavailable(key, label, reason) {
   return { key, label, available: false, score: null, reason };
 }
 
-export function computeSiteHealth({ fieldUsage, workflow, projects, automation } = {}) {
+// Tolerances are admin-tunable, like every field threshold already is.
+//
+// Before this they were constants, which meant the score judged a site on ten dimensions
+// and let the admin influence only the field ones. That is the wrong asymmetry: an estate
+// that knowingly runs twenty self-triggering rules under guard conditions was permanently
+// marked down for a decision it had already made deliberately.
+//
+// Unknown keys are ignored and non-finite or non-positive values fall back to the default
+// rather than throwing -- a bad config value should cost you a tuned dimension, not the
+// whole health score.
+export function resolveHealthTolerances(overrides = {}) {
+  const out = { ...DEFAULT_HEALTH_TOLERANCES };
+  for (const key of Object.keys(DEFAULT_HEALTH_TOLERANCES)) {
+    const value = overrides?.[key];
+    // Strict on type, not just on value. A numeric string would coerce cleanly here and
+    // then disagree with the resolver, which rejects it on save -- so a tolerance that
+    // "worked" in scoring could be impossible to persist.
+    if (typeof value === "number" && Number.isFinite(value) && value > 0) out[key] = value;
+  }
+  return out;
+}
+
+export function computeSiteHealth({ fieldUsage, workflow, projects, automation, tolerances } = {}) {
+  const TOLERANCE = resolveHealthTolerances(tolerances);
   const dimensions = [];
 
   // ── Field naming ──────────────────────────────────────────────────────────

@@ -85,12 +85,29 @@ export function AutomationProbePanel() {
 }
 
 export function ConfigTab({ config, onSave, saving }) {
+// Mirrors DEFAULT_HEALTH_TOLERANCES in src/lib/health-score.js. Stored as rates; shown as
+// percentages, because "flag once 15% of statuses are duplicates" is how an admin thinks
+// about an estate and 0.15 is not.
+const DEFAULT_TOLERANCES = {
+  duplicateFieldNames: 0.10,
+  fieldFindings: 0.25,
+  unusedFields: 0.35,
+  duplicateStatuses: 0.15,
+  unreachableStatuses: 0.20,
+  flaggedSchemes: 0.40,
+  irregularProjects: 0.25,
+  credentialRules: 0.02,
+  selfTriggeringRules: 0.10,
+  disabledRules: 0.50,
+};
+
   const [local, setLocal] = React.useState(() => {
     const c = config || DEFAULT_CONFIG;
     return {
       ...DEFAULT_CONFIG,
       ...c,
       governanceThresholds: { ...DEFAULT_THRESHOLDS, ...(c.governanceThresholds || {}) },
+      healthTolerances: { ...DEFAULT_TOLERANCES, ...(c.healthTolerances || {}) },
       macroAccess: { ...DEFAULT_MACRO_ACCESS, ...(c.macroAccess || {}) },
     };
   });
@@ -102,6 +119,7 @@ export function ConfigTab({ config, onSave, saving }) {
         ...DEFAULT_CONFIG,
         ...config,
         governanceThresholds: { ...DEFAULT_THRESHOLDS, ...(config.governanceThresholds || {}) },
+        healthTolerances: { ...DEFAULT_TOLERANCES, ...(config.healthTolerances || {}) },
         macroAccess: { ...DEFAULT_MACRO_ACCESS, ...(config.macroAccess || {}) },
       });
       setDirty(false);
@@ -121,6 +139,17 @@ export function ConfigTab({ config, onSave, saving }) {
     setDirty(true);
   }
 
+  // Takes a percentage from the input and stores a rate. Clamped to 1-100 so the value can
+  // never leave this screen outside the (0, 1] band the resolver enforces on save.
+  function setTolerancePercent(key, percent) {
+    const rate = Math.max(1, Math.min(100, Number(percent) || 0)) / 100;
+    setLocal((prev) => ({
+      ...prev,
+      healthTolerances: { ...prev.healthTolerances, [key]: rate },
+    }));
+    setDirty(true);
+  }
+
   function setMacroAccess(key, value) {
     setLocal((prev) => ({
       ...prev,
@@ -135,6 +164,8 @@ export function ConfigTab({ config, onSave, saving }) {
   }
 
   const t = local.governanceThresholds || DEFAULT_THRESHOLDS;
+  const hv = local.healthTolerances || DEFAULT_TOLERANCES;
+  const pct = (key) => Math.round((hv[key] ?? DEFAULT_TOLERANCES[key]) * 100);
 
   // One pane at a time, chosen from a rail, rather than five sections stacked into a
   // single scroll. The old layout put nine threshold rules between an admin and the Save
@@ -154,6 +185,8 @@ export function ConfigTab({ config, onSave, saving }) {
         set={set}
         setThreshold={setThreshold}
         setMacroAccess={setMacroAccess}
+        pct={pct}
+        setTolerancePercent={setTolerancePercent}
       />
 
       {/* Diagnostics change nothing, so the save bar would be noise there. */}
@@ -186,7 +219,7 @@ const CONFIG_AREAS = [
   { key: "diagnostics", label: "Diagnostics", icon: "activity" },
 ];
 
-function ConfigAreas({ area, local, t, set, setThreshold, setMacroAccess }) {
+function ConfigAreas({ area, local, t, set, setThreshold, setMacroAccess, pct, setTolerancePercent }) {
   if (area === "access") {
     return (
       <>
@@ -221,7 +254,7 @@ function ConfigAreas({ area, local, t, set, setThreshold, setMacroAccess }) {
           description="Every finding in the app comes from one of the rules below. Edit the numbers
                  inline — changes apply on the next inventory load, with no snapshot rebuild."
         />
-        <RulesArea t={t} setThreshold={setThreshold} />
+        <RulesArea t={t} setThreshold={setThreshold} pct={pct} setTolerancePercent={setTolerancePercent} />
       </>
     );
   }
@@ -448,7 +481,7 @@ function ScanningArea({ local, set }) {
 
 // Grouped by what the finding means, not listed flat. Nine rules in one undifferentiated
 // column reads as a wall; the same nine under three headings read as three decisions.
-function RulesArea({ t, setThreshold }) {
+function RulesArea({ t, setThreshold, pct, setTolerancePercent }) {
   return (
     <>
       <ConfigSection title="Risk" icon="alertTriangle">
@@ -583,6 +616,127 @@ function RulesArea({ t, setThreshold }) {
           <strong>Admin Attention</strong> is applied automatically to any field with a high-severity finding, or when the combined priority score of its findings reaches 35 or higher.
         </p>
       </ConfigSection>
+
+      <ConfigSection title="Workflows & statuses" icon="activity">
+        <p className="admin-config-section__desc">
+          These score the status catalogue and the schemes that reach it. Unlike the field rules
+          above they are a share of the estate rather than a raw count &mdash; a site with 400 statuses
+          and 20 duplicates is tidier than one with 60 statuses and 20 duplicates, and scoring counts
+          would rank them the wrong way round.
+        </p>
+        <div className="admin-threshold-rules">
+
+          <div className="admin-threshold-rule">
+            <span className="admin-threshold-rule__badge admin-threshold-rule__badge--cleanup">Workflow</span>
+            <span className="admin-threshold-rule__sentence">
+              <strong>Duplicate statuses: score bottoms out at</strong>{" "}
+              <InlineThresholdInput value={pct("duplicateStatuses")} onChange={(v) => setTolerancePercent("duplicateStatuses", v)} min={1} max={100} />{" "}
+              % of statuses duplicating another. Below that the dimension scales down gradually.
+            </span>
+          </div>
+
+          <div className="admin-threshold-rule">
+            <span className="admin-threshold-rule__badge admin-threshold-rule__badge--cleanup">Workflow</span>
+            <span className="admin-threshold-rule__sentence">
+              <strong>Unreachable statuses: bottoms out at</strong>{" "}
+              <InlineThresholdInput value={pct("unreachableStatuses")} onChange={(v) => setTolerancePercent("unreachableStatuses", v)} min={1} max={100} />{" "}
+              % of statuses that no scheme can reach.
+            </span>
+          </div>
+
+          <div className="admin-threshold-rule">
+            <span className="admin-threshold-rule__badge admin-threshold-rule__badge--standardize">Workflow</span>
+            <span className="admin-threshold-rule__sentence">
+              <strong>Scheme balance: bottoms out at</strong>{" "}
+              <InlineThresholdInput value={pct("flaggedSchemes")} onChange={(v) => setTolerancePercent("flaggedSchemes", v)} min={1} max={100} />{" "}
+              % of schemes carrying a flag &mdash; no Done state, or uncategorised statuses.
+            </span>
+          </div>
+        </div>
+      </ConfigSection>
+
+      <ConfigSection title="Automation" icon="refreshCw">
+        <p className="admin-config-section__desc">
+          Derived from the imported rule analysis. Credentials are deliberately the tightest bound in
+          the product: the others measure untidiness, where a few percent is normal on any real site.
+          A rule storing a secret in plaintext is not untidiness.
+        </p>
+        <div className="admin-threshold-rules">
+
+          <div className="admin-threshold-rule">
+            <span className="admin-threshold-rule__badge admin-threshold-rule__badge--risk">Risk</span>
+            <span className="admin-threshold-rule__sentence">
+              <strong>Credentials in rules: bottoms out at</strong>{" "}
+              <InlineThresholdInput value={pct("credentialRules")} onChange={(v) => setTolerancePercent("credentialRules", v)} min={1} max={25} />{" "}
+              % of rules carrying a plaintext credential. Set this low and leave it low.
+            </span>
+          </div>
+
+          <div className="admin-threshold-rule">
+            <span className="admin-threshold-rule__badge admin-threshold-rule__badge--cleanup">Automation</span>
+            <span className="admin-threshold-rule__sentence">
+              <strong>Self-triggering rules: bottoms out at</strong>{" "}
+              <InlineThresholdInput value={pct("selfTriggeringRules")} onChange={(v) => setTolerancePercent("selfTriggeringRules", v)} min={1} max={100} />{" "}
+              % of rules writing a field they also trigger on. Raise it if yours are deliberately guarded.
+            </span>
+          </div>
+
+          <div className="admin-threshold-rule">
+            <span className="admin-threshold-rule__badge admin-threshold-rule__badge--cleanup">Automation</span>
+            <span className="admin-threshold-rule__sentence">
+              <strong>Disabled rules: bottoms out at</strong>{" "}
+              <InlineThresholdInput value={pct("disabledRules")} onChange={(v) => setTolerancePercent("disabledRules", v)} min={1} max={100} />{" "}
+              % of rules switched off &mdash; clutter rather than danger, so the most forgiving bound here.
+            </span>
+          </div>
+        </div>
+      </ConfigSection>
+
+      <ConfigSection title="Estate-wide field &amp; project rates" icon="folder">
+        <p className="admin-config-section__desc">
+          These sit alongside the per-field rules above rather than replacing them. The rules decide
+          whether one field is flagged; these decide how much the resulting rate costs the score.
+        </p>
+        <div className="admin-threshold-rules">
+
+          <div className="admin-threshold-rule">
+            <span className="admin-threshold-rule__badge admin-threshold-rule__badge--standardize">Project</span>
+            <span className="admin-threshold-rule__sentence">
+              <strong>Irregular projects: bottoms out at</strong>{" "}
+              <InlineThresholdInput value={pct("irregularProjects")} onChange={(v) => setTolerancePercent("irregularProjects", v)} min={1} max={100} />{" "}
+              % of projects diverging from the field shape their scheme-siblings share.
+            </span>
+          </div>
+
+          <div className="admin-threshold-rule">
+            <span className="admin-threshold-rule__badge admin-threshold-rule__badge--cleanup">Cleanup</span>
+            <span className="admin-threshold-rule__sentence">
+              <strong>Flagged fields: bottoms out at</strong>{" "}
+              <InlineThresholdInput value={pct("fieldFindings")} onChange={(v) => setTolerancePercent("fieldFindings", v)} min={1} max={100} />{" "}
+              % of fields carrying at least one finding.
+            </span>
+          </div>
+
+          <div className="admin-threshold-rule">
+            <span className="admin-threshold-rule__badge admin-threshold-rule__badge--cleanup">Cleanup</span>
+            <span className="admin-threshold-rule__sentence">
+              <strong>Unused fields: bottoms out at</strong>{" "}
+              <InlineThresholdInput value={pct("unusedFields")} onChange={(v) => setTolerancePercent("unusedFields", v)} min={1} max={100} />{" "}
+              % of fields with no populated issues anywhere.
+            </span>
+          </div>
+
+          <div className="admin-threshold-rule">
+            <span className="admin-threshold-rule__badge admin-threshold-rule__badge--standardize">Standardize</span>
+            <span className="admin-threshold-rule__sentence">
+              <strong>Duplicate field names: bottoms out at</strong>{" "}
+              <InlineThresholdInput value={pct("duplicateFieldNames")} onChange={(v) => setTolerancePercent("duplicateFieldNames", v)} min={1} max={100} />{" "}
+              % of fields sharing a normalised name with another.
+            </span>
+          </div>
+        </div>
+      </ConfigSection>
+
     </>
   );
 }

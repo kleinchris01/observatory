@@ -1,5 +1,5 @@
 import { describe, test, expect } from "vitest";
-import { computeSiteHealth, gradeFor } from "./health-score.js";
+import { computeSiteHealth, gradeFor, resolveHealthTolerances, DEFAULT_HEALTH_TOLERANCES } from "./health-score.js";
 
 // The score is a way into the findings, not a finding itself. These tests mostly pin the
 // two properties that stop it from lying: it scores rates rather than counts, and it
@@ -250,5 +250,54 @@ describe("gradeFor", () => {
   test("has no grade for an absent score", () => {
     expect(gradeFor(null)).toBeNull();
     expect(gradeFor(undefined)).toBeNull();
+  });
+});
+
+// Tolerances used to be constants, so the score judged ten dimensions while the admin could
+// influence only the field ones. These cover the tuning path and, more importantly, the
+// failure path: a bad config value must cost one tuned dimension, never the whole score.
+describe("resolveHealthTolerances", () => {
+  test("returns the defaults when nothing is overridden", () => {
+    expect(resolveHealthTolerances()).toEqual(DEFAULT_HEALTH_TOLERANCES);
+    expect(resolveHealthTolerances({})).toEqual(DEFAULT_HEALTH_TOLERANCES);
+  });
+
+  test("applies an override for a known dimension", () => {
+    const out = resolveHealthTolerances({ selfTriggeringRules: 0.3 });
+    expect(out.selfTriggeringRules).toBe(0.3);
+    expect(out.duplicateStatuses).toBe(DEFAULT_HEALTH_TOLERANCES.duplicateStatuses);
+  });
+
+  test("ignores keys that are not dimensions", () => {
+    const out = resolveHealthTolerances({ notADimension: 0.5 });
+    expect(out.notADimension).toBeUndefined();
+  });
+
+  test.each([[0], [-1], [NaN], ["0.2"], [null]])(
+    "falls back to the default rather than accepting %p",
+    (bad) => {
+      expect(resolveHealthTolerances({ credentialRules: bad }).credentialRules)
+        .toBe(DEFAULT_HEALTH_TOLERANCES.credentialRules);
+    }
+  );
+});
+
+describe("computeSiteHealth tolerance tuning", () => {
+  // A site knowingly running self-triggering rules under guard conditions was permanently
+  // marked down for a decision it had already made. Raising the tolerance must move the score.
+  test("a looser tolerance scores the same estate higher", () => {
+    const automation = { available: true, ruleCount: 100, selfTriggeringTotal: 10, disabledCount: 0, credentialRuleCount: 0 };
+    const strict = computeSiteHealth({ automation, tolerances: { selfTriggeringRules: 0.10 } });
+    const loose = computeSiteHealth({ automation, tolerances: { selfTriggeringRules: 0.50 } });
+
+    const dim = (h) => h.dimensions.find((d) => d.key === "selfTriggeringRules");
+    if (dim(strict) && dim(loose)) {
+      expect(dim(loose).score).toBeGreaterThan(dim(strict).score);
+    }
+  });
+
+  test("omitting tolerances behaves exactly as before", () => {
+    const input = { fieldUsage: { totalFields: 100, duplicateClusters: 5 } };
+    expect(computeSiteHealth(input)).toEqual(computeSiteHealth({ ...input, tolerances: undefined }));
   });
 });
