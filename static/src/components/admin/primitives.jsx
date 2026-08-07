@@ -4,17 +4,17 @@ import { Icon } from "../../components/Icons";
 // Small presentational pieces shared across admin tabs.
 // Extracted from admin.jsx so each can be rendered and asserted on its own.
 
-export function StatCard({ label, value, icon, variant = "neutral" }) {
-  return (
-    <div className={`admin-stat-card admin-stat-card--${variant}`}>
-      <div className="admin-stat-card__icon"><Icon name={icon} size={18} /></div>
-      <div className="admin-stat-card__body">
-        <span className="admin-stat-card__value">{value ?? "—"}</span>
-        <span className="admin-stat-card__label">{label}</span>
-      </div>
-    </div>
-  );
-}
+// StatCard was retired here. It was the second stat tile in the codebase -- `StatTile` in
+// components/ui.jsx being the first -- and having both meant a metric row rendered
+// differently depending on which tab you were standing on, which is most of what made
+// Scans, Fields and Workflows read as three products.
+//
+// StatTile won on capability rather than seniority: it carries a hint and arbitrary
+// children, and components/ui.jsx is the declared home for anything used by more than one
+// tab. Its `variant` prop maps onto StatTile's `tone`; the two tones only StatCard could
+// express (success, building -> active) moved across with it rather than being dropped.
+//
+// Use StatTile. Do not reintroduce a tile here.
 
 // `labelledBy` is supplied by ConfigRow, which owns the visible label. `label` is the
 // escape hatch for a Toggle used outside a ConfigRow. A switch with neither announces

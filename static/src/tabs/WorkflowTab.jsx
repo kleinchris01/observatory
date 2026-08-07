@@ -2,6 +2,7 @@ import React from "react";
 import { invoke } from "@forge/bridge";
 import { formatTimestamp, formatRelativeTime, formatNumber } from "../utils";
 import { Icon } from "../components/Icons";
+import { StatTile, StatRow, Panel, EmptyState } from "../components/ui";
 
 // Workflow scheme + status inventory.
 //
@@ -59,9 +60,7 @@ function SchemeRow({ scheme, expanded, onToggle, projects, truncated }) {
             // Distinct from "no projects exist": the count above is already filtered to
             // what this viewer can browse, so an empty list here can also mean the
             // scheme's projects are ones they cannot see.
-            <div className="empty-state empty-state--inline">
-              No projects you can browse are using this scheme.
-            </div>
+            <EmptyState inline>No projects you can browse are using this scheme.</EmptyState>
           ) : (
             <>
               <div className="wf-scheme__section-label">Projects using this scheme</div>
@@ -112,16 +111,14 @@ const DUPLICATE_KIND_LABEL = {
 // Ordered by what an admin can act on soonest: duplicates are unambiguous cleanup,
 // orphans need a check before deleting, and scheme balance is a judgement call.
 function WorkflowInsights({ insights, loading }) {
-  if (loading && !insights) return <div className="empty-state">Analysing the workflow inventory…</div>;
+  if (loading && !insights) return <EmptyState>Analysing the workflow inventory…</EmptyState>;
   if (!insights) return null;
 
   if (!insights.available) {
     return (
-      <div className="empty-state">
-        {insights.reason === "error"
+      <EmptyState>{insights.reason === "error"
           ? "Could not analyse the workflow inventory."
-          : "Build the workflow inventory first — these findings are derived from it."}
-      </div>
+          : "Build the workflow inventory first — these findings are derived from it."}</EmptyState>
     );
   }
 
@@ -129,26 +126,28 @@ function WorkflowInsights({ insights, loading }) {
 
   return (
     <div className="wf-insights">
-      <div className="wf-insight-stats">
-        <div className="wf-insight-stat">
-          <span className="wf-insight-stat__value">{formatNumber(summary.duplicateGroupCount)}</span>
-          <span className="wf-insight-stat__label">
-            Duplicate groups
-            {summary.reducibleStatusCount > 0 && ` · ${formatNumber(summary.reducibleStatusCount)} statuses removable`}
-          </span>
-        </div>
-        <div className="wf-insight-stat">
-          <span className="wf-insight-stat__value">{formatNumber(summary.orphanCount)}</span>
-          <span className="wf-insight-stat__label">
-            Unreachable statuses
-            {hasIssueCounts && ` · ${formatNumber(summary.safeToRemoveCount)} never used`}
-          </span>
-        </div>
-        <div className="wf-insight-stat">
-          <span className="wf-insight-stat__value">{formatNumber(summary.flaggedSchemeCount)}</span>
-          <span className="wf-insight-stat__label">Schemes with a flag</span>
-        </div>
-      </div>
+      {/* The label/hint split is the point of moving to StatTile: these used to concatenate
+          "Duplicate groups · 20 statuses removable" into one label, so the count of the thing
+          and the consequence of it were typographically identical. */}
+      <StatRow>
+        <StatTile
+          label="Duplicate groups"
+          value={formatNumber(summary.duplicateGroupCount)}
+          tone={summary.duplicateGroupCount > 0 ? "warning" : "neutral"}
+          hint={summary.reducibleStatusCount > 0 ? `${formatNumber(summary.reducibleStatusCount)} statuses removable` : undefined}
+        />
+        <StatTile
+          label="Unreachable statuses"
+          value={formatNumber(summary.orphanCount)}
+          tone={summary.orphanCount > 0 ? "warning" : "neutral"}
+          hint={hasIssueCounts ? `${formatNumber(summary.safeToRemoveCount)} never used` : undefined}
+        />
+        <StatTile
+          label="Schemes with a flag"
+          value={formatNumber(summary.flaggedSchemeCount)}
+          tone={summary.flaggedSchemeCount > 0 ? "warning" : "neutral"}
+        />
+      </StatRow>
 
       {!hasIssueCounts && (
         <p className="wf-insights__note">
@@ -170,14 +169,9 @@ function WorkflowInsights({ insights, loading }) {
         </p>
       )}
 
-      <section className="wf-insight-section">
-        <h3 className="wf-insight-section__title">Duplicate statuses</h3>
-        <p className="wf-insight-section__desc">
-          Statuses that almost certainly mean the same thing. Consolidating a group removes
-          every status in it but one.
-        </p>
+      <Panel title="Duplicate statuses" description="Statuses that almost certainly mean the same thing. Consolidating a group removes every status in it but one.">
         {duplicateGroups.length === 0 ? (
-          <div className="empty-state empty-state--inline">No duplicate status names found.</div>
+          <EmptyState inline>No duplicate status names found.</EmptyState>
         ) : (
           <div className="wf-dupe-list">
             {duplicateGroups.map((group) => (
@@ -202,15 +196,10 @@ function WorkflowInsights({ insights, loading }) {
             ))}
           </div>
         )}
-      </section>
+      </Panel>
 
       {schemeStatusesAvailable && (
-        <section className="wf-insight-section">
-          <h3 className="wf-insight-section__title">Unreachable statuses</h3>
-          <p className="wf-insight-section__desc">
-            Defined on the site but not reachable from any workflow scheme.
-            {hasIssueCounts && " Those marked never used have no workflow reaching them and no issue history."}
-          </p>
+        <Panel title="Unreachable statuses" description={<>Defined on the site but not reachable from any workflow scheme. {hasIssueCounts && " Those marked never used have no workflow reaching them and no issue history."}</>}>
           {hasIssueCounts && (
             <p className="wf-insights__note">
               <Icon name="info" size={13} />
@@ -222,7 +211,7 @@ function WorkflowInsights({ insights, loading }) {
             </p>
           )}
           {orphans.length === 0 ? (
-            <div className="empty-state empty-state--inline">Every status is reachable from a scheme.</div>
+            <EmptyState inline>Every status is reachable from a scheme.</EmptyState>
           ) : (
             <div className="wf-orphan-grid">
               {orphans.map((orphan) => (
@@ -239,15 +228,11 @@ function WorkflowInsights({ insights, loading }) {
               ))}
             </div>
           )}
-        </section>
+        </Panel>
       )}
 
       {schemeStatusesAvailable && balance.some((entry) => entry.flags.length > 0) && (
-        <section className="wf-insight-section">
-          <h3 className="wf-insight-section__title">Scheme balance</h3>
-          <p className="wf-insight-section__desc">
-            How each scheme&apos;s statuses distribute across Jira&apos;s three categories.
-          </p>
+        <Panel title="Scheme balance" description="How each scheme&apos;s statuses distribute across Jira&apos;s three categories.">
           <div className="wf-balance-list">
             {balance.filter((entry) => entry.flags.length > 0).map((entry) => (
               <div key={entry.schemeId} className="wf-balance">
@@ -272,7 +257,7 @@ function WorkflowInsights({ insights, loading }) {
               </div>
             ))}
           </div>
-        </section>
+        </Panel>
       )}
     </div>
   );
@@ -559,10 +544,8 @@ export function WorkflowTab() {
       )}
 
       {neverBuilt ? (
-        <div className="empty-state">
-          No workflow inventory yet. Build one to see every workflow scheme on the site and
-          the projects each governs.
-        </div>
+        <EmptyState>No workflow inventory yet. Build one to see every workflow scheme on the site and
+          the projects each governs.</EmptyState>
       ) : (
         <>
           <div className="wf-viewbar">
@@ -636,13 +619,11 @@ export function WorkflowTab() {
           {view === "insights" ? (
             <WorkflowInsights insights={insights} loading={insightsLoading} />
           ) : loading ? (
-            <div className="empty-state">Loading…</div>
+            <EmptyState>Loading…</EmptyState>
           ) : view === "schemes" ? (
             <>
               {schemes.length === 0 ? (
-                <div className="empty-state">
-                  {deferredSearch ? `No schemes match “${deferredSearch}”.` : "No workflow schemes found."}
-                </div>
+                <EmptyState>{deferredSearch ? `No schemes match “${deferredSearch}”.` : "No workflow schemes found."}</EmptyState>
               ) : (
                 <div className="wf-scheme-list">
                   {schemes.map((scheme) => (
@@ -803,7 +784,7 @@ export function WorkflowTab() {
               ))}
 
               {visibleStatuses.length === 0 && (
-                <div className="empty-state">No statuses match these filters.</div>
+                <EmptyState>No statuses match these filters.</EmptyState>
               )}
             </>
           )}

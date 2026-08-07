@@ -1,5 +1,6 @@
 import React from "react";
 import { invoke } from "@forge/bridge";
+import { EmptyState } from "../components/ui";
 
 // Per-project field usage view.
 
@@ -62,7 +63,7 @@ export function ProjectUsageTab({ siteOrigin }) {
   return (
     <>
       {loadError && <div className="error-banner">{loadError}</div>}
-      <React.Suspense fallback={<div className="empty-state">Loading…</div>}>
+      <React.Suspense fallback={<EmptyState>Loading…</EmptyState>}>
         <ProjectsTabView
           data={data}
           loading={loading}

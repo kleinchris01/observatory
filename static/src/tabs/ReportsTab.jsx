@@ -2,6 +2,7 @@ import React from "react";
 import { invoke, view } from "@forge/bridge";
 import { buildJiraSearchUrl, downloadCsv, slugifyFilenamePart, groupReportFieldsByType, openFieldExpertRovo, buildReportRovoPrompt } from "../utils";
 import { Icon } from "../components/Icons";
+import { PageHeader } from "../components/ui";
 import { ReportErrorBoundary, ProjectUsageReportView } from "../components/ReportView";
 
 // Field x project report builder and CSV export.
@@ -118,18 +119,24 @@ export function ReportsTab({ siteOrigin, selectedFieldIds, onSetSelectedFieldIds
   return (
     <div className="admin-reports-tab">
       {error && <div className="error-banner" style={{ margin: "0 0 12px 0" }}>{error}<button className="inline-text-button" type="button" onClick={() => setError("")} style={{ marginLeft: 10 }}>Dismiss</button></div>}
-      <div className="admin-reports-toolbar">
-        <span className="admin-reports-toolbar__hint">Select fields in the Field Browser tab to build a report.</span>
-        <button
-          className="primary-button"
-          type="button"
-          onClick={() => generateReport()}
-          disabled={loadingReport || !selectedFieldIds.length}
-        >
-          <Icon name="barChart" size={14} />
-          {loadingReport ? "Generating…" : `Generate report (${selectedFieldIds.length} fields)`}
-        </button>
-      </div>
+      {/* Was a bespoke toolbar with the hint as a bare span. PageHeader gives Reports the
+          same title/description/action shape every other tab opens with, which is most of
+          why this tab used to read as a different product. */}
+      <PageHeader
+        title="Reports"
+        description="Select fields in the Field Browser tab to build a cross-project usage report."
+        actions={
+          <button
+            className="primary-button"
+            type="button"
+            onClick={() => generateReport()}
+            disabled={loadingReport || !selectedFieldIds.length}
+          >
+            <Icon name="barChart" size={14} />
+            {loadingReport ? "Generating…" : `Generate report (${selectedFieldIds.length} fields)`}
+          </button>
+        }
+      />
       <ReportErrorBoundary resetKey={`${activeReportName}-${selectedFieldIds.join(",")}`}>
         <ProjectUsageReportView
           reportData={reportData}

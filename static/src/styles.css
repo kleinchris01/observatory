@@ -2165,12 +2165,15 @@ code {
 }
 
 /* Two-column body */
+/* The floor was a flat 380px, which on a tall display left the audit log short with a
+   screen of dead space under it. Scaling with the viewport lets the log use the room it
+   actually has, while the min() keeps it from overshooting on a laptop. */
 .universe-scan-panel__body {
   display: grid;
   grid-template-columns: 260px 1fr;
   gap: 20px;
   flex: 1;
-  min-height: 380px;
+  min-height: min(620px, 62vh);
 }
 
 .universe-scan-panel__controls {
@@ -2315,11 +2318,22 @@ code {
   color: var(--muted);
 }
 
+/* This element carries both `universe-scan-panel__log` and `scan-log`. The latter caps
+   itself at 160px because it is also used as a compact inline log inside cards; here that
+   cap fought `flex: 1` and pinned the pane to a fixed box, so the audit log scrolled inside
+   ~200px while a full screen of space sat empty beneath it. Releasing the cap is the fix --
+   the pane is a panel of its own here, not an inline strip.
+
+   The bottom padding exists so the final row clears the border instead of being sheared in
+   half by the scroll edge, which is what made it read as broken rather than scrollable. */
 .universe-scan-panel__log {
-  flex: 1;
+  flex: 1 1 auto;
+  max-height: none;
   overflow-y: auto;
   font-family: var(--font-mono);
-  min-height: 220px;
+  min-height: 260px;
+  padding-bottom: 10px;
+  scroll-padding-block-end: 10px;
 }
 
 /* Log entry semantic coloring */
@@ -2382,17 +2396,41 @@ code {
   padding: 20px 0;
 }
 
-/* Multi-run log separators */
+/* A chart that needs a sentence to be read correctly gets one. The delta and throughput
+   charts both encode a comparison rather than a quantity, and without the caption the
+   reader has to infer which direction is bad. */
+.scan-chart-card__caption {
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--muted);
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--stroke);
+  max-width: 62ch;
+}
+
+/* Multi-run log separators.
+   Shares the 90px time column and 10px gutter with .admin-snapshot-log-entry rather than
+   laying itself out as a flex row. When the two disagreed the header's date wrapped inside
+   a column sized for a timestamp, and every run boundary produced a different row height --
+   which is what made a log of identical-shaped lines read as ragged. */
 .scan-log__run-header {
-  display: flex;
-  align-items: center;
+  display: grid;
+  grid-template-columns: 90px 1fr auto;
+  align-items: baseline;
   gap: 10px;
-  padding: 5px 12px 4px;
+  padding: 7px 12px 6px;
   background: var(--panel);
   border-bottom: 1px solid var(--stroke);
   position: sticky;
   top: 0;
   z-index: 1;
+}
+
+/* The date is the widest thing in a header and must not wrap into the timestamp column. */
+.scan-log__run-header > * {
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .scan-log__run-label {
@@ -3260,58 +3298,9 @@ code {
   color: var(--text);
 }
 
-.admin-stat-row {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.admin-stat-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 18px;
-  border-radius: var(--radius-md);
-  background: var(--panel);
-  border: 1px solid var(--stroke);
-  min-width: 130px;
-  flex: 1;
-}
-
-.admin-stat-card--danger { border-color: rgba(222, 53, 11, 0.3); background: rgba(222, 53, 11, 0.05); }
-.admin-stat-card--warn { border-color: rgba(228, 153, 58, 0.3); background: rgba(228, 153, 58, 0.05); }
-.admin-stat-card--success { border-color: rgba(44, 122, 87, 0.3); background: rgba(44, 122, 87, 0.05); }
-.admin-stat-card--building { border-color: rgba(121, 184, 255, 0.3); background: rgba(121, 184, 255, 0.05); }
-
-.admin-stat-card__icon {
-  opacity: 0.6;
-  flex-shrink: 0;
-}
-
-.admin-stat-card--danger .admin-stat-card__icon { color: #de350b; opacity: 1; }
-.admin-stat-card--warn .admin-stat-card__icon { color: var(--warm); opacity: 1; }
-.admin-stat-card--success .admin-stat-card__icon { color: var(--success); opacity: 1; }
-
-.admin-stat-card__body {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.admin-stat-card__value {
-  font-size: 1.5rem;
-  font-weight: 700;
-  font-family: var(--font-display);
-  line-height: 1;
-}
-
-.admin-stat-card__label {
-  font-size: 11px;
-  color: var(--muted);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
+/* .admin-stat-row and .admin-stat-card were removed with the StatCard component they
+   styled. Stat tiles are .ui-stat / .ui-stat-row in components/ui.jsx -- one tile, one
+   place. See CLAUDE.md before adding a second. */
 
 .admin-snapshot-card {
   display: flex;
@@ -6283,6 +6272,14 @@ code {
 .ui-stat--warning .ui-stat__value { color: #d3a24e; }
 .ui-stat--critical { border-color: rgba(201, 96, 90, 0.45); }
 .ui-stat--critical .ui-stat__value { color: #e0796d; }
+/* Absorbed from the retired admin StatCard, which was the only tile that could express a
+   settled-good or in-flight state. Losing them in the merge would have flattened the Scans
+   job counts to five identical neutral tiles, where the whole point is that "ready" and
+   "failed" read differently at a glance. */
+.ui-stat--success { border-color: rgba(44, 122, 87, 0.45); }
+.ui-stat--success .ui-stat__value { color: #4fae7d; }
+.ui-stat--active { border-color: rgba(121, 184, 255, 0.45); }
+.ui-stat--active .ui-stat__value { color: #79b8ff; }
 
 .ui-chip {
   display: inline-flex; align-items: center;
@@ -6290,6 +6287,14 @@ code {
   padding: 0.15rem 0.45rem; border-radius: 3px;
   background: var(--ds-surface-sunken, rgba(255, 255, 255, 0.07));
 }
+.ui-chip--removable {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  border: 1px solid transparent; cursor: pointer; font: inherit;
+}
+.ui-chip--removable:hover { border-color: currentColor; }
+.ui-chip--removable:focus-visible { outline: 2px solid currentColor; outline-offset: 1px; }
+.ui-chip__remove { opacity: 0.6; font-size: 1.05em; line-height: 1; }
+.ui-chip--removable:hover .ui-chip__remove { opacity: 1; }
 .ui-chip--warning { color: #d3a24e; background: rgba(201, 134, 10, 0.14); }
 .ui-chip--critical { color: #e0796d; background: rgba(201, 96, 90, 0.14); }
 
@@ -6829,4 +6834,67 @@ code {
 .automation-usage__rule--disabled .automation-usage__name--link,
 .ref-detail__rule--disabled .rule-link {
   color: inherit;
+}
+
+/* ============================================================================
+   Tab shell — one vertical rhythm for every tab
+   ============================================================================
+   Before this, each tab root set its own spacing or none at all: .admin-overview
+   stacked at 28px, .automation-tab at 16px, .admin-field-browser at 12px, and
+   .admin-scans-tab / .admin-reports-tab / .admin-workflow-tab / .rqt-tab declared
+   nothing, so their children fell back to whatever margins they happened to carry.
+
+   That is what made the tabs feel like different products even after they were all
+   built from the same primitives: identical components, four different rhythms.
+   The components were never the problem once they converged -- the space between
+   them was.
+
+   Declared last in the file so it wins on source order without needing !important
+   or a specificity bump. Individual tabs can still override a single property; what
+   they can no longer do is silently define a fifth spacing scale. */
+
+:root {
+  --tab-gap: 1.25rem;
+  --tab-gap-tight: 0.75rem;
+}
+
+.admin-overview,
+.admin-field-browser,
+.admin-workflow-tab,
+.automation-tab,
+.admin-scans-tab,
+.admin-reports-tab,
+.rqt-tab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tab-gap);
+}
+
+/* Panels, stat rows and empty states are the three things every tab stacks. Giving
+   them a shared top-level rhythm means a tab reads the same whether it opens with a
+   metric row or a panel. */
+.admin-overview > .ui-panel,
+.admin-field-browser > .ui-panel,
+.admin-workflow-tab > .ui-panel,
+.automation-tab > .ui-panel,
+.admin-scans-tab > .ui-panel,
+.admin-reports-tab > .ui-panel,
+.rqt-tab > .ui-panel { margin: 0; }
+
+/* Ultra-wide displays. The shell used to run edge to edge, which is why the Projects
+   view read as ragged at width -- content anchored left while whitespace pooled on the
+   right. Centring the column keeps line lengths readable instead of letting a table
+   stretch to 2500px. */
+@media (min-width: 1900px) {
+  .admin-overview,
+  .admin-field-browser,
+  .admin-workflow-tab,
+  .automation-tab,
+  .admin-scans-tab,
+  .admin-reports-tab,
+  .rqt-tab {
+    max-width: 1800px;
+    margin-inline: auto;
+    width: 100%;
+  }
 }

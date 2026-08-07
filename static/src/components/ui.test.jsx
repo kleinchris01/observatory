@@ -26,6 +26,25 @@ describe("StatTile", () => {
     const { container } = render(<StatTile label="Unreachable" value="7" tone="warning" />);
     expect(container.querySelector(".ui-stat--warning")).not.toBeNull();
   });
+
+  // Inherited from the retired admin StatCard, which owned these two states. If the merge
+  // had dropped them the Scans job row would render five identical neutral tiles, losing
+  // the at-a-glance difference between "ready" and "failed" that the row exists for.
+  test.each([
+    ["success", ".ui-stat--success"],
+    ["active", ".ui-stat--active"],
+    ["critical", ".ui-stat--critical"],
+  ])("supports the %s tone absorbed from StatCard", (tone, selector) => {
+    const { container } = render(<StatTile label="Ready" value={4} tone={tone} />);
+    expect(container.querySelector(selector)).not.toBeNull();
+  });
+
+  // Also inherited: a count of zero is a real reading, not a missing one. A job row that
+  // hid its zeroes would make "no failures" indistinguishable from "never measured".
+  test("renders a zero value rather than treating it as absent", () => {
+    render(<StatTile label="Failed" value={0} />);
+    expect(screen.getByText("0")).toBeInTheDocument();
+  });
 });
 
 describe("Panel", () => {
@@ -51,6 +70,30 @@ describe("Chip", () => {
     const { container } = render(<Chip tone="critical" title="why">3 issues</Chip>);
     expect(screen.getByText("3 issues")).toBeInTheDocument();
     expect(container.querySelector(".ui-chip--critical")).not.toBeNull();
+  });
+
+  // Without onRemove a chip is a label, and labels must not be focusable or announce
+  // themselves as controls.
+  test("stays a plain span when there is nothing to remove", () => {
+    const { container } = render(<Chip>Type: date</Chip>);
+    expect(container.querySelector("button")).toBeNull();
+    expect(container.querySelector("span.ui-chip")).not.toBeNull();
+  });
+
+  test("becomes a button that clears the filter when given onRemove", async () => {
+    const onRemove = vi.fn();
+    const user = userEvent.setup();
+    render(<Chip onRemove={onRemove}>Type: date</Chip>);
+    await user.click(screen.getByRole("button"));
+    expect(onRemove).toHaveBeenCalledTimes(1);
+  });
+
+  // "Type: date" read aloud on a button says nothing about what activating it does. The
+  // Field Browser's own chip had the same gap, which is part of why it was worth absorbing
+  // rather than leaving in place.
+  test("names the action, not just the filter, for screen readers", () => {
+    render(<Chip onRemove={() => {}}>Type: date</Chip>);
+    expect(screen.getByRole("button", { name: /remove filter type: date/i })).toBeInTheDocument();
   });
 });
 

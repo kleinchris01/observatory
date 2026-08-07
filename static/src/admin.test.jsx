@@ -313,8 +313,10 @@ describe("AdminApp Scans tab -> Field Usage Jobs subnav -- summary stat row", ()
     const subNav = document.querySelector(".sub-nav");
     await user.click(within(subNav).getByText("Field Usage Jobs"));
 
-    await waitFor(() => expect(document.querySelector(".admin-stat-row")).toBeTruthy());
-    const statRow = document.querySelector(".admin-stat-row");
+    // .ui-stat-row since the admin StatCard was retired into the shared StatTile; the row
+    // is the same five counts, rendered by the one tile the whole product now uses.
+    await waitFor(() => expect(document.querySelector(".ui-stat-row")).toBeTruthy());
+    const statRow = document.querySelector(".ui-stat-row");
     expect(within(statRow).getByText("Not built")).toBeInTheDocument();
     expect(within(statRow).getByText("3")).toBeInTheDocument(); // Ready
     expect(within(statRow).getByText("2")).toBeInTheDocument(); // Building

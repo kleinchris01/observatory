@@ -6,6 +6,7 @@ import {
 import { toDisplayName, buildValueJql } from "../utils";
 import { formatTimestamp, formatNumber } from "../utils";
 import { useChartPalette } from "../components/Icons";
+import { StatTile, StatRow } from "../components/ui";
 
 // ── RQT Dashboard helper components ─────────────────────────────────────
 
@@ -660,20 +661,26 @@ export function RqtIndexView({ siteOrigin }) {
         </div>
       ) : (
         <>
-          <div className="rqt-stat-row">
-            <div className="rqt-stat">
-              <div className="rqt-stat__value">{formatNumber(data.totalUniqueIssues ?? data.totalIssues)}</div>
-              <div className="rqt-stat__label">Unique issues with RQT values</div>
-            </div>
-            <div className="rqt-stat">
-              <div className="rqt-stat__value">{formatNumber(data.fieldCount)}</div>
-              <div className="rqt-stat__label">Fields containing RQT values</div>
-            </div>
-            <div className="rqt-stat">
-              <div className="rqt-stat__value">{formatNumber(data.uniqueValues?.length ?? 0)}</div>
-              <div className="rqt-stat__label">Unique RQT values detected</div>
-            </div>
-          </div>
+          <StatRow>
+            <StatTile
+              label="Issues"
+              value={formatNumber(data.totalUniqueIssues ?? data.totalIssues)}
+              hint="carry an RQT value"
+              icon="layers"
+            />
+            <StatTile
+              label="Fields"
+              value={formatNumber(data.fieldCount)}
+              hint="contain RQT values"
+              icon="barChart"
+            />
+            <StatTile
+              label="Distinct values"
+              value={formatNumber(data.uniqueValues?.length ?? 0)}
+              hint="unique RQT tokens found"
+              icon="activity"
+            />
+          </StatRow>
 
           <RqtFilterBar
             issuesByProject={data.issuesByProject}
