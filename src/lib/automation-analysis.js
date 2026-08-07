@@ -425,15 +425,17 @@ export function findTriggerCascades(rules = [], options = {}) {
   return cascades;
 }
 
-// KVS caps a single value at roughly 240 KB. The reference site produces 675 rules with
-// findings and 1,457 cascade edges; storing all of them came to 184 KB, which leaves too
-// little headroom for a site half again as large. These bounds hold the document near
-// 130 KB regardless of estate size.
+// Cascades stay in the analysis document and stay capped; findings no longer do.
 //
-// Truncation is always visible: the totals are computed before slicing, so the UI says
-// "showing 200 of 675" rather than presenting a partial list as the whole picture.
-export const MAX_STORED_FINDINGS = 200;
+// Findings moved to their own key in compact form. All 675 on the reference site are
+// 294 KB in the shape the UI renders and 144 KB with the presentation stripped out --
+// severity labels and detail sentences are rebuilt by the client from the risk code, so
+// storing them was paying for the same sentences 603 times.
 export const MAX_STORED_CASCADES = 150;
+
+// Retained because the analysis document still carries a short preview for the overview,
+// and because a caller upgrading from the previous shape should not silently lose the cap.
+export const MAX_PREVIEW_FINDINGS = 20;
 
 // Lives here rather than in the store because both sides need it and neither owns it: the
 // browser builds this document when importing an export file, and the backend builds it
@@ -444,9 +446,7 @@ export const MAX_STORED_CASCADES = 150;
 export function buildAnalysisDocument({ estate, summaries = [], cascades = [], refreshedAt = Date.now(), source = "unknown" }) {
   // Rules with no findings are the majority and carry no information here; the estate
   // counts already say how many there are.
-  const withFindings = summaries
-    .filter((summary) => summary.risks.length > 0)
-    .sort((a, b) => (SEVERITY_ORDER[a.topSeverity] ?? 99) - (SEVERITY_ORDER[b.topSeverity] ?? 99));
+  const withFindings = sortByseverity(summaries.filter((summary) => summary.risks.length > 0));
 
   const selfTriggering = cascades.filter((c) => c.selfTriggering);
   const others = cascades.filter((c) => !c.selfTriggering);
@@ -457,7 +457,10 @@ export function buildAnalysisDocument({ estate, summaries = [], cascades = [], r
     source,
     estate,
     findingsTotal: withFindings.length,
-    findings: withFindings.slice(0, MAX_STORED_FINDINGS).map(compactSummary),
+    // A short preview only. The full list lives under its own key and is fetched when the
+    // Findings section is opened; carrying all 675 here would put the document past what a
+    // KVS value holds and slow every first paint to pay for a section most visits skip.
+    findingsPreview: withFindings.slice(0, MAX_PREVIEW_FINDINGS).map(compactFinding),
     cascadesTotal: cascades.length,
     selfTriggeringTotal: selfTriggering.length,
     // Self-triggering loops are both the most likely to be real and the cheapest to fix,
@@ -466,20 +469,59 @@ export function buildAnalysisDocument({ estate, summaries = [], cascades = [], r
   };
 }
 
-function compactSummary(summary) {
+function sortByseverity(summaries) {
+  return [...summaries].sort(
+    (a, b) => (SEVERITY_ORDER[a.topSeverity] ?? 99) - (SEVERITY_ORDER[b.topSeverity] ?? 99)
+  );
+}
+
+// Single-letter keys, and no detail sentences.
+//
+// Over 675 rows the repeated JSON key names cost more than the values, and the detail
+// strings are presentation: the client already maps a risk code to a label, so it can build
+// the sentence too. Only the parameters that vary between rules are kept -- the host list
+// for an outbound call, the age of a disabled rule.
+export function compactFinding(summary) {
   return {
     id: summary.id,
-    name: summary.name,
-    state: summary.state,
-    enabled: summary.enabled,
-    triggerType: summary.triggerType,
-    updated: summary.updated,
-    actionCount: summary.actionCount,
-    projectIds: (summary.projectIds ?? []).slice(0, 10),
-    projectCount: (summary.projectIds ?? []).length,
-    writesFields: (summary.writesFields ?? []).slice(0, 10),
-    topSeverity: summary.topSeverity,
-    risks: summary.risks,
+    n: summary.name,
+    e: summary.enabled ? 1 : 0,
+    t: summary.triggerType ?? null,
+    u: summary.updated ?? null,
+    p: (summary.projectIds ?? []).length,
+    w: (summary.writesFields ?? []).slice(0, 6),
+    s: summary.topSeverity,
+    r: (summary.risks ?? []).map((risk) => {
+      const out = { c: risk.code, s: risk.severity };
+      if (risk.hosts) out.h = risk.hosts;
+      if (risk.ageDays !== null && risk.ageDays !== undefined) out.d = risk.ageDays;
+      return out;
+    }),
+  };
+}
+
+export function expandFinding(row) {
+  return {
+    id: row.id,
+    name: row.n,
+    enabled: row.e === 1,
+    triggerType: row.t,
+    updated: row.u,
+    projectCount: row.p,
+    writesFields: row.w ?? [],
+    topSeverity: row.s,
+    risks: (row.r ?? []).map((risk) => ({ code: risk.c, severity: risk.s, hosts: risk.h, ageDays: risk.d })),
+  };
+}
+
+// Every rule carrying a finding, in storage form. Sorted most severe first so a reader
+// paging through meets the worst of it before the 603 disabled rules.
+export function buildFindingsDocument(summaries = []) {
+  const withFindings = sortByseverity(summaries.filter((summary) => summary.risks.length > 0));
+  return {
+    schemaVersion: 1,
+    total: withFindings.length,
+    findings: withFindings.map(compactFinding),
   };
 }
 
@@ -557,7 +599,7 @@ export function analyzeRules(rules = [], { source = "unknown", now = Date.now() 
 
   return {
     analysis: buildAnalysisDocument({
-      estate: summarizeEstate(rules, options),
+      estate: summarizeEstate(rules, { ...options, cascades }),
       summaries,
       cascades,
       refreshedAt: now,
@@ -566,12 +608,33 @@ export function analyzeRules(rules = [], { source = "unknown", now = Date.now() 
     fields: buildIndexDocument(fields, "field"),
     statuses: buildIndexDocument(statuses, "status"),
     directory: buildRuleDirectory(summaries),
+    findings: buildFindingsDocument(summaries),
+  };
+}
+
+// The inputs the site health score needs from automation, as rates over the estate rather
+// than raw counts. A site with 5,000 rules and 80 carrying credentials is in better shape
+// than one with 200 rules and 80, and scoring counts would rank them the other way.
+export function summarizeAutomationHealth(summaries = [], cascades = []) {
+  const ruleCount = summaries.length;
+  const hasRisk = (summary, code) => summary.risks.some((r) => r.code === code);
+
+  return {
+    available: ruleCount > 0,
+    ruleCount,
+    disabledCount: summaries.filter((s) => !s.enabled).length,
+    credentialRuleCount: summaries.filter((s) => hasRisk(s, "embedded-credential")).length,
+    externalHttpCount: summaries.filter((s) => hasRisk(s, "external-http")).length,
+    noActionCount: summaries.filter((s) => hasRisk(s, "no-actions")).length,
+    selfTriggeringCount: new Set(cascades.filter((c) => c.selfTriggering).map((c) => c.sourceId)).size,
   };
 }
 
 export function summarizeEstate(rules = [], options = {}) {
   const { fields, statuses, summaries } = buildReferenceIndex(rules, options);
-  const withSummaries = { ...options, summaries };
+  // Reused for both the cascade count and the health rates; deriving them twice walks every
+  // rule again.
+  const cascades = options.cascades ?? findTriggerCascades(rules, { ...options, summaries });
   const byTrigger = new Map();
   const risksByCode = new Map();
 
@@ -592,6 +655,9 @@ export function summarizeEstate(rules = [], options = {}) {
     statusesReferenced: statuses.size,
     triggerBreakdown: [...byTrigger.entries()].map(([type, count]) => ({ type, count })).sort((a, b) => b.count - a.count),
     risks: [...risksByCode.values()].sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]),
-    cascadeCount: findTriggerCascades(rules, withSummaries).length,
+    cascadeCount: cascades.length,
+    // Rates for the site health score. Computed here rather than in the score itself so the
+    // score never needs the rules, only this summary.
+    health: summarizeAutomationHealth(summaries, cascades),
   };
 }

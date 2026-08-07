@@ -15,7 +15,7 @@ vi.mock("../logger.js", () => ({
 const {
   AUTOMATION_PARTS,
   MAX_STORED_CASCADES,
-  MAX_STORED_FINDINGS,
+  MAX_PREVIEW_FINDINGS,
   buildAnalysisDocument,
   clearAutomationAnalysis,
   readAutomationAnalysis,
@@ -46,7 +46,7 @@ describe("buildAnalysisDocument", () => {
       estate,
       summaries: [summary(1, "high"), { ...summary(2, null), risks: [] }],
     });
-    expect(doc.findings.map((f) => f.id)).toEqual([1]);
+    expect(doc.findingsPreview.map((f) => f.id)).toEqual([1]);
     expect(doc.findingsTotal).toBe(1);
   });
 
@@ -55,14 +55,14 @@ describe("buildAnalysisDocument", () => {
       estate,
       summaries: [summary(1, "info"), summary(2, "high"), summary(3, "medium")],
     });
-    expect(doc.findings.map((f) => f.id)).toEqual([2, 3, 1]);
+    expect(doc.findingsPreview.map((f) => f.id)).toEqual([2, 3, 1]);
   });
 
   it("reports the true total alongside the truncated list", () => {
-    const many = Array.from({ length: MAX_STORED_FINDINGS + 40 }, (_, i) => summary(i, "high"));
+    const many = Array.from({ length: MAX_PREVIEW_FINDINGS + 40 }, (_, i) => summary(i, "high"));
     const doc = buildAnalysisDocument({ estate, summaries: many });
-    expect(doc.findings).toHaveLength(MAX_STORED_FINDINGS);
-    expect(doc.findingsTotal).toBe(MAX_STORED_FINDINGS + 40);
+    expect(doc.findingsPreview).toHaveLength(MAX_PREVIEW_FINDINGS);
+    expect(doc.findingsTotal).toBe(MAX_PREVIEW_FINDINGS + 40);
   });
 
   it("keeps self-triggering loops ahead of cross-rule edges when truncating", () => {
@@ -77,11 +77,13 @@ describe("buildAnalysisDocument", () => {
     expect(doc.selfTriggeringTotal).toBe(1);
   });
 
-  it("caps the per-rule project and field lists but records the real project count", () => {
+  // The preview is stored compact: a project count rather than the id list, since the row
+  // only ever renders "25 projects".
+  it("records the project count rather than carrying the id list", () => {
     const wide = { ...summary(1, "high"), projectIds: Array.from({ length: 25 }, (_, i) => String(i)) };
     const doc = buildAnalysisDocument({ estate, summaries: [wide] });
-    expect(doc.findings[0].projectIds).toHaveLength(10);
-    expect(doc.findings[0].projectCount).toBe(25);
+    expect(doc.findingsPreview[0].p).toBe(25);
+    expect(doc.findingsPreview[0].projectIds).toBeUndefined();
   });
 
   it("stamps the schema version and source so a stale document can be detected", () => {
@@ -91,7 +93,7 @@ describe("buildAnalysisDocument", () => {
 
   it("handles an estate with no rules at all", () => {
     const doc = buildAnalysisDocument({ estate: { ruleCount: 0 } });
-    expect(doc).toMatchObject({ findings: [], cascades: [], findingsTotal: 0, cascadesTotal: 0 });
+    expect(doc).toMatchObject({ findingsPreview: [], cascades: [], findingsTotal: 0, cascadesTotal: 0 });
   });
 });
 
@@ -141,6 +143,7 @@ describe("clearAutomationAnalysis", () => {
       "automation:analysis:scope-a",
       "automation:directory:scope-a",
       "automation:fields:scope-a",
+      "automation:findings:scope-a",
       "automation:statuses:scope-a",
     ]);
   });
@@ -157,8 +160,8 @@ describe("automation storage parts", () => {
     expect(mocks.set).toHaveBeenCalledWith("automation:fields:s1", { schemaVersion: 1, entries: [] });
   });
 
-  it("exposes the four parts the pipeline writes", () => {
-    expect(Object.keys(AUTOMATION_PARTS).sort()).toEqual(["analysis", "directory", "fields", "statuses"]);
+  it("exposes every part the pipeline writes", () => {
+    expect(Object.keys(AUTOMATION_PARTS).sort()).toEqual(["analysis", "directory", "fields", "findings", "statuses"]);
   });
 
   it("refuses an unknown part rather than writing to a computed key", async () => {
@@ -186,3 +189,4 @@ describe("automation storage parts", () => {
     await expect(readAutomationPart("s1", "fields")).resolves.toBeNull();
   });
 });
+

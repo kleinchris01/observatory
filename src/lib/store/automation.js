@@ -18,9 +18,10 @@ import { fallbackOn } from "../logger.js";
 // nothing and can therefore be used from the frontend bundle too. Re-exported here so
 // callers that only care about storage have one import.
 export {
-  MAX_STORED_FINDINGS,
+  MAX_PREVIEW_FINDINGS,
   MAX_STORED_CASCADES,
   buildAnalysisDocument,
+  buildFindingsDocument,
 } from "../automation-analysis.js";
 
 // Four documents under four keys rather than one.
@@ -34,6 +35,7 @@ export const AUTOMATION_PARTS = {
   fields: "automation:fields:",
   statuses: "automation:statuses:",
   directory: "automation:directory:",
+  findings: "automation:findings:",
 };
 
 function keyFor(part, scopeKey) {

@@ -34,13 +34,114 @@ const projects = (over = {}) => ({
   ...over,
 });
 
+const automation = (over = {}) => ({
+  available: true,
+  ruleCount: 1000,
+  disabledCount: 0,
+  credentialRuleCount: 0,
+  externalHttpCount: 0,
+  noActionCount: 0,
+  selfTriggeringCount: 0,
+  ...over,
+});
+
 describe("computeSiteHealth — scoring", () => {
   test("a clean site scores at the top", () => {
-    const health = computeSiteHealth({ fieldUsage: fieldUsage(), workflow: workflow(), projects: projects() });
+    const health = computeSiteHealth({
+      fieldUsage: fieldUsage(), workflow: workflow(), projects: projects(), automation: automation(),
+    });
 
     expect(health.score).toBeGreaterThanOrEqual(90);
     expect(health.grade).toBe("A");
     expect(health.dimensionsScored).toBe(health.dimensionsTotal);
+  });
+
+  describe("automation dimensions", () => {
+    const dim = (health, key) => health.dimensions.find((d) => d.key === key);
+
+    test("are unavailable, not zero, when no analysis has been built", () => {
+      const health = computeSiteHealth({ fieldUsage: fieldUsage(), workflow: workflow(), projects: projects() });
+
+      for (const key of ["automation-security", "automation-stability", "automation-hygiene"]) {
+        expect(dim(health, key)).toMatchObject({ available: false, score: null });
+        expect(dim(health, key).reason).toMatch(/no automation analysis/i);
+      }
+    });
+
+    test("an estate with no rules is reported unavailable rather than perfect", () => {
+      const health = computeSiteHealth({ automation: automation({ available: false, ruleCount: 0 }) });
+      expect(dim(health, "automation-security").available).toBe(false);
+    });
+
+    // A credential in a rule is a different kind of problem from an untidy field name, so
+    // its tolerance is far tighter than every other dimension's.
+    test("credential-bearing rules are scored severely", () => {
+      const clean = computeSiteHealth({ automation: automation() });
+      const dirty = computeSiteHealth({ automation: automation({ credentialRuleCount: 30, ruleCount: 1000 }) });
+
+      expect(dim(clean, "automation-security").score).toBe(100);
+      // 3% of the estate is already past the 2% tolerance.
+      expect(dim(dirty, "automation-security").score).toBe(0);
+    });
+
+    test("credential findings outweigh a single tidy dimension in the roll-up", () => {
+      const health = computeSiteHealth({
+        fieldUsage: fieldUsage(), workflow: workflow(), projects: projects(),
+        automation: automation({ credentialRuleCount: 86, ruleCount: 1477 }),
+      });
+      expect(dim(health, "automation-security").weight).toBe(2);
+      expect(health.weakest.key).toBe("automation-security");
+    });
+
+    test("scores automation as rates, so estate size does not decide the score", () => {
+      const big = computeSiteHealth({ automation: automation({ ruleCount: 5000, credentialRuleCount: 50 }) });
+      const small = computeSiteHealth({ automation: automation({ ruleCount: 200, credentialRuleCount: 50 }) });
+      expect(dim(big, "automation-security").score).toBeGreaterThan(dim(small, "automation-security").score);
+    });
+
+    test("self-triggering rules drive the stability dimension", () => {
+      const health = computeSiteHealth({ automation: automation({ ruleCount: 1477, selfTriggeringCount: 123 }) });
+      const stability = dim(health, "automation-stability");
+      expect(stability.score).toBeLessThan(50);
+      expect(stability.detail).toContain("123");
+      expect(stability.action).toMatch(/loop/i);
+    });
+
+    test("disabled rules are hygiene, scored far more forgivingly than credentials", () => {
+      const disabled = computeSiteHealth({ automation: automation({ ruleCount: 1000, disabledCount: 200 }) });
+      const credentials = computeSiteHealth({ automation: automation({ ruleCount: 1000, credentialRuleCount: 200 }) });
+      expect(dim(disabled, "automation-hygiene").score).toBeGreaterThan(dim(credentials, "automation-security").score);
+    });
+
+    test("hygiene counts inert rules alongside disabled ones", () => {
+      const health = computeSiteHealth({ automation: automation({ ruleCount: 100, disabledCount: 10, noActionCount: 5 }) });
+      expect(dim(health, "automation-hygiene").detail).toContain("no actions");
+    });
+
+    test("advises action only once the disabled share is worth a decision", () => {
+      const few = computeSiteHealth({ automation: automation({ ruleCount: 1000, disabledCount: 50 }) });
+      const many = computeSiteHealth({ automation: automation({ ruleCount: 1000, disabledCount: 410 }) });
+      expect(dim(few, "automation-hygiene").action).toBeNull();
+      expect(dim(many, "automation-hygiene").action).toMatch(/revive or delete/i);
+    });
+  });
+
+  // The status-reachability advice used to warn that automation was invisible to this app.
+  // It no longer is, so the wording turns on whether an analysis actually exists.
+  describe("status reachability advice", () => {
+    const orphaned = workflow({ orphanCount: 12, safeToRemoveCount: 5 });
+    const reach = (health) => health.dimensions.find((d) => d.key === "status-reachability").action;
+
+    test("points at the automation tab once an analysis exists", () => {
+      const health = computeSiteHealth({ workflow: orphaned, automation: automation() });
+      expect(reach(health)).toMatch(/Automation tab/);
+      expect(reach(health)).not.toMatch(/not visible to this app/);
+    });
+
+    test("still warns about the blind spot when no analysis has been built", () => {
+      const health = computeSiteHealth({ workflow: orphaned });
+      expect(reach(health)).toMatch(/No automation analysis has been built/);
+    });
   });
 
   // The property that matters most: identical defect COUNTS on sites of different size
