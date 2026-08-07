@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { invoke } from "@forge/bridge";
+import { invoke, router } from "@forge/bridge";
 import {
   MetricChip,
   FindingBadge,
@@ -199,6 +199,49 @@ describe("AutomationUsageSection", () => {
     await user.click(screen.getByRole("button", { name: /automation usage/i }));
 
     expect(screen.queryByText("Populate points")).not.toBeInTheDocument();
+  });
+
+  describe("rule links", () => {
+    const siteOrigin = "https://example.atlassian.net";
+
+    it("links each rule to its page in Jira automation", async () => {
+      invoke.mockResolvedValue(usage());
+      render(<AutomationUsageSection field={field} siteOrigin={siteOrigin} />);
+
+      const link = await screen.findByRole("link", { name: "Populate points" });
+      expect(link).toHaveAttribute("href", "https://example.atlassian.net/jira/settings/automation#/rule/10");
+      expect(link).toHaveAttribute("target", "_blank");
+    });
+
+    // The origin comes from the Forge view context and is occasionally absent. A dead
+    // anchor that does nothing on click is worse than a plain label.
+    it("renders plain text when the site origin is unknown", async () => {
+      invoke.mockResolvedValue(usage());
+      render(<AutomationUsageSection field={field} siteOrigin="" />);
+
+      expect(await screen.findByText("Populate points")).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "Populate points" })).not.toBeInTheDocument();
+    });
+
+    // Forge iframes cannot navigate the parent window, so the anchor is intercepted and
+    // handed to router.open instead.
+    it("opens through the Forge router rather than navigating the iframe", async () => {
+      const user = userEvent.setup();
+      invoke.mockResolvedValue(usage());
+      render(<AutomationUsageSection field={field} siteOrigin={siteOrigin} />);
+
+      await user.click(await screen.findByRole("link", { name: "Populate points" }));
+
+      expect(router.open).toHaveBeenCalledWith("https://example.atlassian.net/jira/settings/automation#/rule/10");
+    });
+
+    it("names a rule the directory could not resolve, and still links it", async () => {
+      invoke.mockResolvedValue(usage({ write: { count: 1, rules: [{ id: 99, name: "", enabled: null }] } }));
+      render(<AutomationUsageSection field={field} siteOrigin={siteOrigin} />);
+
+      const link = await screen.findByRole("link", { name: "Rule 99" });
+      expect(link).toHaveAttribute("href", expect.stringContaining("/rule/99"));
+    });
   });
 
   it("says when the stored rule list is truncated", async () => {

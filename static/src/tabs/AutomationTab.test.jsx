@@ -2,7 +2,7 @@ import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { invoke } from "@forge/bridge";
+import { invoke, router } from "@forge/bridge";
 import {
   AutomationTab,
   DIRECTIONS,
@@ -12,6 +12,7 @@ import {
   groupCascades,
   persistAnalysis,
   riskDetail,
+  RuleLink,
   sortEntries,
   triggerLabel,
 } from "./AutomationTab";
@@ -154,6 +155,37 @@ describe("sortEntries", () => {
     const original = [...entries];
     sortEntries(entries, "label");
     expect(entries).toEqual(original);
+  });
+});
+
+describe("RuleLink", () => {
+  const siteOrigin = "https://example.atlassian.net";
+
+  it("deep links to the rule in Jira automation", () => {
+    render(<RuleLink id={28499275} name="Update cost review" siteOrigin={siteOrigin} />);
+    expect(screen.getByRole("link", { name: "Update cost review" }))
+      .toHaveAttribute("href", "https://example.atlassian.net/jira/settings/automation#/rule/28499275");
+  });
+
+  it("falls back to plain text when the site origin is unknown", () => {
+    render(<RuleLink id={1} name="Nameless" siteOrigin="" />);
+    expect(screen.getByText("Nameless")).toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
+  it("names a rule the directory could not resolve", () => {
+    render(<RuleLink id={77} siteOrigin={siteOrigin} />);
+    expect(screen.getByRole("link", { name: "Rule 77" })).toBeInTheDocument();
+  });
+
+  // Forge iframes cannot navigate the parent window; the click is handed to router.open.
+  it("opens through the Forge router rather than navigating the iframe", async () => {
+    const user = userEvent.setup();
+    render(<RuleLink id={5} name="Any rule" siteOrigin={siteOrigin} />);
+
+    await user.click(screen.getByRole("link", { name: "Any rule" }));
+
+    expect(router.open).toHaveBeenCalledWith("https://example.atlassian.net/jira/settings/automation#/rule/5");
   });
 });
 

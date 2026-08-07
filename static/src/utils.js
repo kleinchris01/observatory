@@ -99,6 +99,18 @@ export function handleJiraLinkClick(e, href) {
   router.open(href);
 }
 
+// Deep link to one automation rule in Jira's global automation admin.
+//
+// The global path is used rather than the project-scoped one
+// (/jira/software/projects/KEY/settings/automate) because a rule's project scope is not
+// always known here -- site-wide rules have none, and multi-project rules have several, so
+// there is no single project to route through. The global view resolves any rule by id,
+// and every caller of this is already behind the Jira admin check.
+export function buildAutomationRuleUrl(siteOrigin, ruleId) {
+  if (!siteOrigin || ruleId === null || ruleId === undefined || ruleId === "") return null;
+  return `${siteOrigin}/jira/settings/automation#/rule/${encodeURIComponent(ruleId)}`;
+}
+
 export function escapeCsvCell(value) {
   const text = String(value ?? "");
   if (/[",\n]/.test(text)) {

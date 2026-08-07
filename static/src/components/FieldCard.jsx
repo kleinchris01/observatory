@@ -1,6 +1,7 @@
 import React from "react";
 import { invoke } from "@forge/bridge";
 import {
+  buildAutomationRuleUrl,
   buildJiraSearchUrl,
   handleJiraLinkClick,
   isSelectType,
@@ -61,7 +62,36 @@ const AUTOMATION_DIRECTIONS = [
 //
 // Loaded when the card is expanded rather than with the page: the Field Browser shows ten
 // fields at a time and this answer is only wanted for the one being read.
-export function AutomationUsageSection({ field, enabled = true }) {
+// One rule in an automation usage list.
+//
+// A link when the site origin is known, plain text when it is not. The origin comes from
+// the Forge view context and is occasionally absent; rendering a dead anchor that silently
+// does nothing on click is worse than rendering the name.
+export function AutomationRuleLink({ rule, siteOrigin }) {
+  const href = buildAutomationRuleUrl(siteOrigin, rule.id);
+  const label = rule.name || `Rule ${rule.id}`;
+
+  if (!href) return <span className="automation-usage__name">{label}</span>;
+
+  return (
+    <a
+      className="automation-usage__name automation-usage__name--link"
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      title={`Open "${label}" in Jira automation`}
+      onClick={(event) => {
+        // Stops the click reaching the card header, which would collapse the whole field.
+        event.stopPropagation();
+        handleJiraLinkClick(event, href);
+      }}
+    >
+      {label}
+    </a>
+  );
+}
+
+export function AutomationUsageSection({ field, enabled = true, siteOrigin }) {
   const [state, setState] = React.useState({ loading: true, error: "", data: null });
 
   React.useEffect(() => {
@@ -118,7 +148,7 @@ export function AutomationUsageSection({ field, enabled = true }) {
                 <ul className="automation-usage__rules">
                   {group.rules.map((rule) => (
                     <li key={`${key}-${rule.id}`} className={rule.enabled === false ? "automation-usage__rule automation-usage__rule--disabled" : "automation-usage__rule"}>
-                      <span className="automation-usage__name">{rule.name}</span>
+                      <AutomationRuleLink rule={rule} siteOrigin={siteOrigin} />
                       {rule.enabled === false ? <span className="automation-usage__state">disabled</span> : null}
                     </li>
                   ))}
@@ -458,7 +488,7 @@ export function FieldCard({
                 )}
               </CollapsibleSection>}
 
-              {showGovernance ? <AutomationUsageSection field={field} enabled={expanded} /> : null}
+              {showGovernance ? <AutomationUsageSection field={field} enabled={expanded} siteOrigin={siteOrigin} /> : null}
 
               <CollapsibleSection
                 title="Field-Wide Query"
