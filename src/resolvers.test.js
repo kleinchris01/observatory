@@ -86,6 +86,8 @@ const mocks = vi.hoisted(() => ({
   readWorkflowSnapshotMeta: vi.fn(),
   readAutomationAnalysis: vi.fn(),
   writeAutomationAnalysis: vi.fn(),
+  readAutomationPart: vi.fn(),
+  writeAutomationPart: vi.fn(),
   loadWorkflowSchemes: vi.fn(),
   loadWorkflowSchemeProjects: vi.fn(),
   loadWorkflowSchemeForProject: vi.fn().mockResolvedValue(null),
@@ -157,6 +159,9 @@ vi.mock("./lib/scan-engine.js", () => ({
 vi.mock("./lib/store/automation.js", () => ({
   readAutomationAnalysis: mocks.readAutomationAnalysis,
   writeAutomationAnalysis: mocks.writeAutomationAnalysis,
+  readAutomationPart: mocks.readAutomationPart,
+  writeAutomationPart: mocks.writeAutomationPart,
+  AUTOMATION_PARTS: { analysis: "a:", fields: "f:", statuses: "s:", directory: "d:" },
   MAX_STORED_FINDINGS: 200,
   MAX_STORED_CASCADES: 150,
 }));
@@ -299,6 +304,8 @@ const {
   startProjectUsageReportJob,
   getAutomationInsights,
   saveAutomationAnalysis,
+  getAutomationIndex,
+  saveAutomationIndex,
 } = __RAW_ADMIN_ONLY_FUNCTIONS;
 
 const {
@@ -3092,6 +3099,89 @@ describe("saveAutomationAnalysis", () => {
   test("is registered admin-only", () => {
     expect(Object.keys(ADMIN_ONLY_FUNCTIONS)).toContain("saveAutomationAnalysis");
     expect(Object.keys(SHARED_RESOLVER_FUNCTIONS)).not.toContain("saveAutomationAnalysis");
+  });
+});
+
+describe("saveAutomationIndex", () => {
+  beforeEach(() => {
+    mocks.writeAutomationPart.mockResolvedValue(undefined);
+  });
+
+  test("stores a field index under its own part", async () => {
+    const doc = { schemaVersion: 1, kind: "field", total: 735, entries: [] };
+    const result = await saveAutomationIndex({ payload: { part: "fields", document: doc }, context: ctxWithAccount() });
+
+    expect(result).toMatchObject({ saved: true, part: "fields" });
+    expect(mocks.writeAutomationPart).toHaveBeenCalledWith(expect.any(String), "fields", doc);
+  });
+
+  // The analysis has its own resolver, with validation and the server-clock stamp. Routing
+  // it through here would bypass both.
+  test("refuses to write the analysis part", async () => {
+    await expect(
+      saveAutomationIndex({ payload: { part: "analysis", document: { schemaVersion: 1 } }, context: ctxWithAccount() })
+    ).rejects.toThrow(/unknown automation index part/);
+    expect(mocks.writeAutomationPart).not.toHaveBeenCalled();
+  });
+
+  test("refuses an unknown part rather than writing to a computed key", async () => {
+    await expect(
+      saveAutomationIndex({ payload: { part: "__proto__", document: { schemaVersion: 1 } }, context: ctxWithAccount() })
+    ).rejects.toThrow(/unknown automation index part/);
+  });
+
+  test("rejects a document with the wrong schema version", async () => {
+    await expect(
+      saveAutomationIndex({ payload: { part: "fields", document: { schemaVersion: 9 } }, context: ctxWithAccount() })
+    ).rejects.toThrow(/schemaVersion/);
+  });
+
+  test("rejects a non-object document", async () => {
+    await expect(
+      saveAutomationIndex({ payload: { part: "fields", document: [] }, context: ctxWithAccount() })
+    ).rejects.toThrow(/must be an object/);
+  });
+});
+
+describe("getAutomationIndex", () => {
+  test("returns the stored entries and total", async () => {
+    mocks.readAutomationPart.mockResolvedValue({ schemaVersion: 1, total: 735, entries: [{ label: "Story Points" }] });
+
+    const result = await getAutomationIndex({ payload: { part: "fields" }, context: ctxWithAccount() });
+
+    expect(result).toMatchObject({ available: true, part: "fields", total: 735 });
+    expect(result.entries).toHaveLength(1);
+  });
+
+  test("returns the rule tuples for the directory part", async () => {
+    mocks.readAutomationPart.mockResolvedValue({ schemaVersion: 1, total: 2, rules: [[1, "A", 1, "t", 0]] });
+
+    const result = await getAutomationIndex({ payload: { part: "directory" }, context: ctxWithAccount() });
+
+    expect(result.rules).toEqual([[1, "A", 1, "t", 0]]);
+  });
+
+  // Distinct from an empty index: the section says "re-import to build this" rather than
+  // "this site references no fields", which would be a claim the data does not support.
+  test("reports unavailable when the index has never been built", async () => {
+    mocks.readAutomationPart.mockResolvedValue(null);
+
+    const result = await getAutomationIndex({ payload: { part: "statuses" }, context: ctxWithAccount() });
+
+    expect(result).toMatchObject({ available: false, reason: "no-index" });
+  });
+
+  test("refuses an unknown part", async () => {
+    await expect(
+      getAutomationIndex({ payload: { part: "secrets" }, context: ctxWithAccount() })
+    ).rejects.toThrow(/unknown automation index part/);
+  });
+
+  test("both index resolvers are admin-only", () => {
+    for (const name of ["getAutomationIndex", "saveAutomationIndex"]) {
+      expect(Object.keys(ADMIN_ONLY_FUNCTIONS)).toContain(name);
+      expect(Object.keys(SHARED_RESOLVER_FUNCTIONS)).not.toContain(name);
+    }
   });
 });
 

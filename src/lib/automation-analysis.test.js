@@ -1,8 +1,13 @@
 import { describe, it, expect } from "vitest";
 import {
+  MAX_INDEXED_ENTRIES,
+  MAX_RULE_IDS_PER_REFERENCE,
   REF_KIND,
   analyzeRuleRisks,
+  analyzeRules,
   buildReferenceIndex,
+  buildRuleDirectory,
+  hydrateRuleDirectory,
   countComponents,
   extractFieldReferences,
   extractOutboundHosts,
@@ -393,6 +398,140 @@ describe("buildReferenceIndex", () => {
     const index = buildReferenceIndex([]);
     expect(index.fields.size).toBe(0);
     expect(index.summaries).toEqual([]);
+  });
+});
+
+describe("buildRuleDirectory", () => {
+  const summaries = [
+    { id: 1, name: "Alpha", enabled: true, triggerType: "jira.issue.created", projectIds: ["10015", "10016"] },
+    { id: 2, name: "Beta", enabled: false, triggerType: null, projectIds: [] },
+  ];
+
+  it("stores rules as tuples, which is smaller than objects over 1,477 rows", () => {
+    const doc = buildRuleDirectory(summaries);
+    expect(doc.rules[0]).toEqual([1, "Alpha", 1, "jira.issue.created", 2]);
+    expect(doc.total).toBe(2);
+  });
+
+  it("round-trips through hydration without losing state", () => {
+    const byId = hydrateRuleDirectory(buildRuleDirectory(summaries));
+    expect(byId.get(1)).toEqual({ id: 1, name: "Alpha", enabled: true, triggerType: "jira.issue.created", projectCount: 2 });
+    expect(byId.get(2)).toMatchObject({ enabled: false, triggerType: null });
+  });
+
+  it("hydrates an absent document to an empty map rather than throwing", () => {
+    expect(hydrateRuleDirectory(undefined).size).toBe(0);
+    expect(hydrateRuleDirectory({}).size).toBe(0);
+  });
+});
+
+describe("analyzeRules", () => {
+  const rules = [
+    rule({ id: 1, components: [editAction("Shared Field")] }),
+    rule({
+      id: 2,
+      trigger: { id: "t2", component: "TRIGGER", type: "jira.issue.field.changed", value: { fields: [{ type: "fieldName", value: "Shared Field" }] }, children: [], conditions: [] },
+      components: [action("jira.issue.transition", { destinationStatus: { type: "NAME", value: "Done" } })],
+    }),
+  ];
+
+  it("returns every document the tab needs from one pass", () => {
+    const out = analyzeRules(rules, { source: "export.json" });
+    expect(Object.keys(out).sort()).toEqual(["analysis", "directory", "fields", "statuses"]);
+    expect(out.analysis).toMatchObject({ schemaVersion: 1, source: "export.json" });
+  });
+
+  it("indexes fields with their direction counts", () => {
+    const { fields } = analyzeRules(rules);
+    const shared = fields.entries.find((e) => e.label === "Shared Field");
+    expect(shared).toMatchObject({ writeCount: 1, triggerCount: 1, readCount: 0 });
+    expect(shared.write).toEqual([1]);
+    expect(shared.trigger).toEqual([2]);
+  });
+
+  it("indexes statuses separately from fields", () => {
+    const { statuses } = analyzeRules(rules);
+    expect(statuses.kind).toBe("status");
+    expect(statuses.entries.find((e) => e.label === "Done")).toMatchObject({ writeCount: 1 });
+  });
+
+  it("sorts index entries by reference count, so a cap keeps what matters", () => {
+    const many = [
+      rule({ id: 1, components: [editAction("Rare")] }),
+      rule({ id: 2, components: [editAction("Common")] }),
+      rule({ id: 3, components: [editAction("Common")] }),
+    ];
+    expect(analyzeRules(many).fields.entries[0].label).toBe("Common");
+  });
+
+  it("caps rule ids per direction but reports the true count", () => {
+    const writers = Array.from({ length: MAX_RULE_IDS_PER_REFERENCE + 15 }, (_, i) =>
+      rule({ id: i + 1, components: [editAction("Popular")] })
+    );
+    const entry = analyzeRules(writers).fields.entries.find((e) => e.label === "Popular");
+    expect(entry.write).toHaveLength(MAX_RULE_IDS_PER_REFERENCE);
+    expect(entry.writeCount).toBe(MAX_RULE_IDS_PER_REFERENCE + 15);
+  });
+
+  it("reports the total entry count alongside a capped entry list", () => {
+    const { fields } = analyzeRules(rules);
+    expect(fields.total).toBe(fields.entries.length);
+    expect(fields.entries.length).toBeLessThanOrEqual(MAX_INDEXED_ENTRIES);
+  });
+
+  it("builds a directory covering every rule, not just those with findings", () => {
+    const { directory, analysis } = analyzeRules(rules);
+    expect(directory.total).toBe(2);
+    // Neither of these rules has a finding, so the findings list is empty while the
+    // directory still names both -- which is what makes the drill-down readable.
+    expect(analysis.findings).toHaveLength(0);
+  });
+
+  it("handles an empty rule set without throwing", () => {
+    const out = analyzeRules([]);
+    expect(out.analysis.estate.ruleCount).toBe(0);
+    expect(out.fields.entries).toEqual([]);
+    expect(out.directory.rules).toEqual([]);
+  });
+
+  // summarizeRule walks the whole component tree, and the pipeline needs the summaries
+  // three times over. Recomputing them made the browser do four passes over 1,477 rules,
+  // so consumers accept precomputed summaries. These assert the mechanism works by feeding
+  // in summaries that could not have been derived from the rules, and checking they are
+  // used rather than silently recomputed.
+  it("buildReferenceIndex uses precomputed summaries instead of re-deriving them", () => {
+    const planted = [{
+      id: 99, name: "planted", state: "ENABLED", enabled: true, triggerType: null,
+      created: null, updated: null, canOtherRuleTrigger: false,
+      actionCount: 0, conditionCount: 0, componentCount: 0, projectIds: [],
+      fieldRefs: [{ id: null, name: "Only In Summary", kind: REF_KIND.WRITE, via: ["x"] }],
+      statusRefs: [], writesFields: ["Only In Summary"], risks: [], topSeverity: null,
+    }];
+
+    const { fields } = buildReferenceIndex(rules, { summaries: planted });
+
+    expect([...fields.keys()]).toEqual(["only in summary"]);
+    expect(fields.get("only in summary").write).toEqual([99]);
+  });
+
+  it("findTriggerCascades uses precomputed summaries instead of re-deriving them", () => {
+    const base = {
+      state: "ENABLED", enabled: true, created: null, updated: null,
+      actionCount: 0, conditionCount: 0, componentCount: 0, projectIds: [],
+      statusRefs: [], risks: [], topSeverity: null,
+    };
+    const planted = [
+      { ...base, id: 501, name: "writer", canOtherRuleTrigger: true, triggerType: null,
+        fieldRefs: [{ id: null, name: "Planted", kind: REF_KIND.WRITE, via: ["x"] }], writesFields: ["Planted"] },
+      { ...base, id: 502, name: "listener", canOtherRuleTrigger: false, triggerType: "jira.issue.field.changed",
+        fieldRefs: [{ id: null, name: "Planted", kind: REF_KIND.TRIGGER, via: ["x"] }], writesFields: [] },
+    ];
+
+    const cascades = findTriggerCascades(rules, { summaries: planted });
+
+    expect(cascades).toEqual([
+      expect.objectContaining({ sourceId: 501, targetId: 502, field: "Planted" }),
+    ]);
   });
 });
 

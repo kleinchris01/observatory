@@ -342,7 +342,7 @@ const SEVERITY_ORDER = { high: 0, medium: 1, low: 2, info: 3 };
 export function buildReferenceIndex(rules = [], options = {}) {
   const fields = new Map();
   const statuses = new Map();
-  const summaries = rules.map((rule) => summarizeRule(rule, options));
+  const summaries = options.summaries ?? rules.map((rule) => summarizeRule(rule, options));
 
   for (const summary of summaries) {
     for (const ref of summary.fieldRefs) {
@@ -380,7 +380,10 @@ export function scopesOverlap(a = [], b = []) {
 // can never see each other's issues. A finding that cannot happen is worse than no
 // finding, because someone has to rule it out by hand.
 export function findTriggerCascades(rules = [], options = {}) {
-  const summaries = rules.map((rule) => summarizeRule(rule, options));
+  // Summarizing a rule walks its whole component tree. The full pipeline needs the same
+  // summaries three times over, so callers that already have them pass them in rather than
+  // paying for the walk again -- this runs in the admin's browser, not on a server.
+  const summaries = options.summaries ?? rules.map((rule) => summarizeRule(rule, options));
 
   const triggersOnField = new Map();
   for (const summary of summaries) {
@@ -480,21 +483,95 @@ function compactSummary(summary) {
   };
 }
 
-// One call that turns raw rules into the document the tab reads. Wrapping the three steps
-// keeps the browser and the backend from drifting into two slightly different pipelines.
+// Per-reference caps for the field and status indexes.
+//
+// The full index over the reference site is 116 KB of fields and 38 KB of statuses. Stored
+// alongside the 130 KB analysis document that would exceed the 240 KB a KVS value holds, so
+// these live under their own keys -- and are still capped, because a site twice this size
+// would otherwise reach the ceiling on its own.
+//
+// 50 rule ids per direction is far past what anyone reads in a drill-down, and the true
+// count travels next to the list so the UI can say "showing 50 of 542".
+export const MAX_RULE_IDS_PER_REFERENCE = 50;
+export const MAX_INDEXED_ENTRIES = 1000;
+
+// Turn the reference index into a storable, sorted table.
+//
+// Sorted by total reference count so that if the entry cap ever bites, what survives is the
+// part anyone would have looked at. A field referenced by 542 rules is the one that blocks a
+// deletion; a field referenced once is noise until someone searches for it specifically.
+function buildIndexDocument(indexMap, kind) {
+  const rows = [...indexMap.values()]
+    .map((entry) => ({
+      label: entry.label,
+      writeCount: entry.write.length,
+      readCount: entry.read.length,
+      triggerCount: entry.trigger.length,
+      total: entry.write.length + entry.read.length + entry.trigger.length,
+      write: entry.write.slice(0, MAX_RULE_IDS_PER_REFERENCE),
+      read: entry.read.slice(0, MAX_RULE_IDS_PER_REFERENCE),
+      trigger: entry.trigger.slice(0, MAX_RULE_IDS_PER_REFERENCE),
+    }))
+    .sort((a, b) => b.total - a.total || String(a.label).localeCompare(String(b.label)));
+
+  return {
+    schemaVersion: 1,
+    kind,
+    total: rows.length,
+    entries: rows.slice(0, MAX_INDEXED_ENTRIES),
+  };
+}
+
+// A compact id -> name lookup for every rule on the site.
+//
+// The findings list carries names, but only for the 200 rules that have findings. Drilling
+// from a field into the rules that write it reaches any of the 1,477, and showing bare
+// numeric ids there would make the drill-down useless.
+export function buildRuleDirectory(summaries = []) {
+  return {
+    schemaVersion: 1,
+    total: summaries.length,
+    // Array of tuples rather than objects: over 1,477 rules the repeated key names cost more
+    // than the data. Rehydrated by the UI on load.
+    rules: summaries.map((s) => [s.id, s.name, s.enabled ? 1 : 0, s.triggerType ?? "", s.projectIds.length]),
+  };
+}
+
+export function hydrateRuleDirectory(document) {
+  const byId = new Map();
+  for (const [id, name, enabled, triggerType, projectCount] of document?.rules ?? []) {
+    byId.set(id, { id, name, enabled: enabled === 1, triggerType: triggerType || null, projectCount });
+  }
+  return byId;
+}
+
+// One call that turns raw rules into every document the tab reads. Wrapping the steps keeps
+// the browser and the backend from drifting into two slightly different pipelines.
 export function analyzeRules(rules = [], { source = "unknown", now = Date.now() } = {}) {
-  const options = { now };
-  return buildAnalysisDocument({
-    estate: summarizeEstate(rules, options),
-    summaries: rules.map((rule) => summarizeRule(rule, options)),
-    cascades: findTriggerCascades(rules, options),
-    refreshedAt: now,
-    source,
-  });
+  // Walked once, reused everywhere below.
+  const summaries = rules.map((rule) => summarizeRule(rule, { now }));
+  const options = { now, summaries };
+
+  const { fields, statuses } = buildReferenceIndex(rules, options);
+  const cascades = findTriggerCascades(rules, options);
+
+  return {
+    analysis: buildAnalysisDocument({
+      estate: summarizeEstate(rules, options),
+      summaries,
+      cascades,
+      refreshedAt: now,
+      source,
+    }),
+    fields: buildIndexDocument(fields, "field"),
+    statuses: buildIndexDocument(statuses, "status"),
+    directory: buildRuleDirectory(summaries),
+  };
 }
 
 export function summarizeEstate(rules = [], options = {}) {
   const { fields, statuses, summaries } = buildReferenceIndex(rules, options);
+  const withSummaries = { ...options, summaries };
   const byTrigger = new Map();
   const risksByCode = new Map();
 
@@ -515,6 +592,6 @@ export function summarizeEstate(rules = [], options = {}) {
     statusesReferenced: statuses.size,
     triggerBreakdown: [...byTrigger.entries()].map(([type, count]) => ({ type, count })).sort((a, b) => b.count - a.count),
     risks: [...risksByCode.values()].sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]),
-    cascadeCount: findTriggerCascades(rules, options).length,
+    cascadeCount: findTriggerCascades(rules, withSummaries).length,
   };
 }
