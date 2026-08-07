@@ -306,6 +306,7 @@ const {
   saveAutomationAnalysis,
   getAutomationIndex,
   saveAutomationIndex,
+  getAutomationFieldUsage,
 } = __RAW_ADMIN_ONLY_FUNCTIONS;
 
 const {
@@ -3197,6 +3198,105 @@ describe("getAutomationIndex", () => {
       expect(Object.keys(ADMIN_ONLY_FUNCTIONS)).toContain(name);
       expect(Object.keys(SHARED_RESOLVER_FUNCTIONS)).not.toContain(name);
     }
+  });
+});
+
+describe("getAutomationFieldUsage", () => {
+  const fieldsIndex = {
+    schemaVersion: 1, total: 2,
+    entries: [
+      { label: "Story Points", writeCount: 2, readCount: 1, triggerCount: 0, write: [10, 11], read: [12], trigger: [] },
+      { label: "customfield_23054", writeCount: 1, readCount: 0, triggerCount: 0, write: [13], read: [], trigger: [] },
+    ],
+  };
+  const directory = {
+    schemaVersion: 1, total: 4,
+    rules: [
+      [10, "Populate points", 1, "jira.issue.field.changed", 1],
+      [11, "Copy to subtasks", 0, "jira.manual.trigger.issue", 1],
+      [12, "Check points set", 1, "jira.jql.scheduled", 0],
+      [13, "Set prototype", 1, null, 0],
+    ],
+  };
+
+  function stubParts({ fields = fieldsIndex, dir = directory } = {}) {
+    mocks.readAutomationPart.mockImplementation((_key, part) =>
+      Promise.resolve(part === "fields" ? fields : part === "directory" ? dir : null)
+    );
+  }
+
+  test("names the rules that touch the field, grouped by direction", async () => {
+    stubParts();
+
+    const result = await getAutomationFieldUsage({ payload: { fieldName: "Story Points", fieldId: "customfield_1" }, context: ctxWithAccount() });
+
+    expect(result).toMatchObject({ available: true, referenced: true, label: "Story Points" });
+    expect(result.write.rules.map((r) => r.name)).toEqual(["Populate points", "Copy to subtasks"]);
+    expect(result.read.rules.map((r) => r.name)).toEqual(["Check points set"]);
+    expect(result.trigger.count).toBe(0);
+  });
+
+  test("carries each rule's enabled state, since a disabled rule is not currently a dependency", async () => {
+    stubParts();
+
+    const result = await getAutomationFieldUsage({ payload: { fieldName: "Story Points" }, context: ctxWithAccount() });
+
+    expect(result.write.rules.find((r) => r.name === "Copy to subtasks").enabled).toBe(false);
+    expect(result.write.rules.find((r) => r.name === "Populate points").enabled).toBe(true);
+  });
+
+  test("matches on field id when the rule addressed the field that way", async () => {
+    stubParts();
+
+    const result = await getAutomationFieldUsage({ payload: { fieldId: "customfield_23054", fieldName: "Requested Prototype" }, context: ctxWithAccount() });
+
+    expect(result.referenced).toBe(true);
+    expect(result.write.rules[0].name).toBe("Set prototype");
+  });
+
+  test("matches names case-insensitively, because rule authors' casing drifts", async () => {
+    stubParts();
+
+    const result = await getAutomationFieldUsage({ payload: { fieldName: "story points" }, context: ctxWithAccount() });
+
+    expect(result.referenced).toBe(true);
+  });
+
+  test("reports a field no rule touches as referenced:false", async () => {
+    stubParts();
+
+    const result = await getAutomationFieldUsage({ payload: { fieldName: "Unused Field" }, context: ctxWithAccount() });
+
+    expect(result).toMatchObject({ available: true, referenced: false });
+  });
+
+  // The distinction the whole pillar exists for. "No analysis" must never render as "no
+  // rules use this field", which is the false reassurance that gets a field deleted.
+  test("reports unavailable, not unreferenced, when no analysis has been built", async () => {
+    mocks.readAutomationPart.mockResolvedValue(null);
+
+    const result = await getAutomationFieldUsage({ payload: { fieldName: "Story Points" }, context: ctxWithAccount() });
+
+    expect(result).toMatchObject({ available: false, reason: "no-analysis" });
+    expect(result.referenced).toBeUndefined();
+  });
+
+  test("keeps a rule the directory does not name rather than dropping the dependency", async () => {
+    stubParts({ dir: { schemaVersion: 1, total: 0, rules: [] } });
+
+    const result = await getAutomationFieldUsage({ payload: { fieldName: "Story Points" }, context: ctxWithAccount() });
+
+    expect(result.write.rules).toHaveLength(2);
+    expect(result.write.rules[0].name).toBe("Rule 10");
+  });
+
+  test("requires a field to look up", async () => {
+    await expect(getAutomationFieldUsage({ payload: {}, context: ctxWithAccount() })).rejects.toThrow(/fieldName or fieldId/);
+  });
+
+  test("is admin-only", () => {
+    expect(Object.keys(ADMIN_ONLY_FUNCTIONS)).toContain("getAutomationFieldUsage");
+    expect(Object.keys(SHARED_RESOLVER_FUNCTIONS)).not.toContain("getAutomationFieldUsage");
   });
 });
 
