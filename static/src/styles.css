@@ -2344,7 +2344,19 @@ code {
 /* Make sub-nav fill the available screen height */
 .sub-nav-layout { height: calc(100vh - 140px); grid-template-rows: minmax(0, 1fr); }
 .sub-nav__panel { display: flex; flex-direction: column; overflow-y: auto; }
-.sub-nav__panel .universe-scan-panel { flex: 1; min-height: 0; }
+
+/* Children keep their natural height and let the panel scroll.
+   Making this a flex column so the Universe Scan panel could fill the height had a side
+   effect: every other child became shrinkable. With three config sections that was
+   invisible; at six they all compressed at once, and since .admin-config-section sets
+   `overflow: hidden` the rules inside were clipped rather than scrolled -- sections
+   appearing to overlap, each showing a fraction of its content.
+   The panel is the scroll container; its children are not. */
+.sub-nav__panel > * { flex-shrink: 0; }
+
+/* Still the exception: this one is meant to absorb the leftover height. Higher
+   specificity than the rule above, so it keeps winning. */
+.sub-nav__panel .universe-scan-panel { flex: 1 1 auto; min-height: 0; }
 
 /* Charts section */
 .universe-scan-panel__charts {
