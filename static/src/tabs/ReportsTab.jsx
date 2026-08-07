@@ -3,11 +3,24 @@ import { invoke, view } from "@forge/bridge";
 import { buildJiraSearchUrl, downloadCsv, slugifyFilenamePart, groupReportFieldsByType, openFieldExpertRovo, buildReportRovoPrompt } from "../utils";
 import { Icon } from "../components/Icons";
 import { PageHeader } from "../components/ui";
+import { SubNavLayout } from "../components/admin/primitives";
 import { ReportErrorBoundary, ProjectUsageReportView } from "../components/ReportView";
 
-// Field x project report builder and CSV export.
+// Reports: the analytical surface.
+//
+// Two kinds live here and they are deliberately different. The field x project report is
+// *generated* -- you choose fields and build a matrix. The RQT index is a *standing*
+// cross-reference the universe scan maintains for you.
+//
+// RQT moved here from Scans. It sat there because the universe scan builds it, which is a
+// build dependency rather than an information-architecture one: Scans runs and monitors
+// jobs, every other tab reads what those jobs produced. A cross-reference over field values
+// is a report, and the Overview dashboard already linked to it as though it were one.
 
-export function ReportsTab({ siteOrigin, selectedFieldIds, onSetSelectedFieldIds, autoGenerate, onAutoGenerateConsumed }) {
+const RqtIndexView = React.lazy(() => import("./RqtTab").then((m) => ({ default: m.RqtIndexView })));
+
+export function ReportsTab({ siteOrigin, selectedFieldIds, onSetSelectedFieldIds, autoGenerate, onAutoGenerateConsumed, initialSection }) {
+  const [activeSection, setActiveSection] = React.useState(initialSection || "usage");
   const [reportData, setReportData] = React.useState(null);
   const [loadingReport, setLoadingReport] = React.useState(false);
   const [savedReports, setSavedReports] = React.useState([]);
@@ -119,6 +132,20 @@ export function ReportsTab({ siteOrigin, selectedFieldIds, onSetSelectedFieldIds
   return (
     <div className="admin-reports-tab">
       {error && <div className="error-banner" style={{ margin: "0 0 12px 0" }}>{error}<button className="inline-text-button" type="button" onClick={() => setError("")} style={{ marginLeft: 10 }}>Dismiss</button></div>}
+      <SubNavLayout
+        items={[
+          { key: "usage", label: "Field usage", icon: "barChart" },
+          { key: "rqt", label: "RQT traceability", icon: "layers" },
+        ]}
+        activeKey={activeSection}
+        onSelect={setActiveSection}
+      >
+      {activeSection === "rqt" ? (
+        <React.Suspense fallback={<div className="empty-state">Loading…</div>}>
+          <RqtIndexView siteOrigin={siteOrigin} />
+        </React.Suspense>
+      ) : (
+        <>
       {/* Was a bespoke toolbar with the hint as a bare span. PageHeader gives Reports the
           same title/description/action shape every other tab opens with, which is most of
           why this tab used to read as a different product. */}
@@ -157,6 +184,9 @@ export function ReportsTab({ siteOrigin, selectedFieldIds, onSetSelectedFieldIds
           rovoEnabled={rovoEnabled}
         />
       </ReportErrorBoundary>
+        </>
+      )}
+      </SubNavLayout>
     </div>
   );
 }

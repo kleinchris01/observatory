@@ -385,16 +385,32 @@ describe("AdminApp Overview tab -- dashboard", () => {
     expect(screen.getByText("6")).toBeInTheDocument();
   });
 
-  it("jumps to the Scans tab's RQT Index subnav when 'Open RQT Index' is clicked", async () => {
+  // The index moved out of Scans and into Reports. Scans runs and monitors jobs; every
+  // other tab reads what those jobs produced, and a cross-reference over field values is
+  // something you read. This dashboard link was always treating it as a report -- it just
+  // used to land in the operator's tab to do it.
+  it("jumps to the Reports tab's RQT subnav when 'Open RQT Index' is clicked", async () => {
     const user = userEvent.setup();
     await renderAdminApp();
 
     const openButton = await screen.findByRole("button", { name: /Open RQT Index/ });
     await user.click(openButton);
 
-    await waitFor(() => expect(document.querySelector(".admin-scans-tab")).toBeTruthy());
+    await waitFor(() => expect(document.querySelector(".admin-reports-tab")).toBeTruthy());
     const subNav = document.querySelector(".sub-nav");
-    expect(within(subNav).getByText("RQT Index").closest("button")).toHaveClass("sub-nav__item--active");
+    expect(within(subNav).getByText("RQT traceability").closest("button")).toHaveClass("sub-nav__item--active");
+  });
+
+  it("no longer offers RQT from the Scans tab", async () => {
+    const user = userEvent.setup();
+    await renderAdminApp();
+
+    const adminNav = document.querySelector(".admin-nav");
+    await user.click(within(adminNav).getByText("Scans"));
+    await waitFor(() => expect(document.querySelector(".admin-scans-tab")).toBeTruthy());
+
+    const subNav = document.querySelector(".sub-nav");
+    expect(within(subNav).queryByText("RQT Index")).toBeNull();
   });
 
   it("shows empty-state messaging for charts when there is no data yet", async () => {

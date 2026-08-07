@@ -3,13 +3,17 @@ import { invoke, view } from "@forge/bridge";
 import { formatTimestamp, formatShortTime, formatRelativeTime } from "../utils";
 import { Icon, useLiveDuration } from "../components/Icons";
 import { SubNavLayout } from "../components/admin/primitives";
-import { StatTile, StatRow } from "../components/ui";
+import { StatTile, StatRow, PageHeader, Panel, EmptyState } from "../components/ui";
 import { SnapshotLog, JobsPanel } from "../components/admin/JobsPanel";
 
-// Snapshot builds, the universe scan, delta scans and the RQT index.
-// Grouped because they share scan state and only ever render together.
+// Snapshot builds, the universe scan and delta scans -- the operator surface for the
+// pipeline.
+//
+// The RQT index used to render here too, purely because the universe scan is what builds
+// it. That is a build dependency, not a reason to browse it from the operator's tab: this
+// tab runs and monitors jobs, every other tab reads what they produced. It now lives under
+// Reports, which is where a cross-reference over field values belongs.
 
-const RqtIndexView = React.lazy(() => import("./RqtTab").then((m) => ({ default: m.RqtIndexView })));
 
 // The word a user must type to confirm destroying every snapshot. Deliberately not
 // "yes": the point is that it cannot be typed by reflex.
@@ -208,32 +212,99 @@ export function SnapshotPanel({ snapshot, onBuildSnapshot, buildingSnapshot, onR
   );
 }
 
-export function DeltaIssueScanPanel({ deltaIssueScan, onStartDelta, issueScanDeltaStarting }) {
+// Quick Scan.
+//
+// This was a title, one sentence and a button on an otherwise empty page, which made a
+// working part of the pipeline read as unfinished. The scan itself was never the problem --
+// what was missing is that a top-up is only meaningful *relative to the full pass it is
+// topping up*. On its own "5,740 issues" answers nothing; next to "your last full scan was
+// 2 days ago" it is the whole story.
+//
+// So this panel states its own result, then states the gap it is covering.
+export function DeltaIssueScanPanel({ deltaIssueScan, issueScan, onStartDelta, issueScanDeltaStarting }) {
   const deltaActive = deltaIssueScan?.state === "building" || deltaIssueScan?.state === "queued";
   const deltaReady = deltaIssueScan?.state === "ready";
   const deltaFailed = deltaIssueScan?.state === "failed";
-  const deltaPercent = deltaIssueScan?.totalIssues > 0 ? Math.min(100, Math.round((Number(deltaIssueScan.processedIssues || 0) / Number(deltaIssueScan.totalIssues)) * 100)) : 0;
+  const deltaPercent = deltaIssueScan?.totalIssues > 0
+    ? Math.min(100, Math.round((Number(deltaIssueScan.processedIssues || 0) / Number(deltaIssueScan.totalIssues)) * 100))
+    : 0;
+
+  // Whole days since the last completed full pass. This is the number the whole panel turns
+  // on: a quick scan is a patch over exactly this window, so its value rises as the number
+  // grows -- and past about a week it stops being a patch and starts being a wallpaper.
+  const fullScanAt = issueScan?.completedAt ? new Date(issueScan.completedAt).getTime() : null;
+  const daysSinceFull = fullScanAt ? Math.floor((Date.now() - fullScanAt) / 86400000) : null;
+  const staleFull = daysSinceFull !== null && daysSinceFull >= 7;
+
   return (
     <div className="delta-scan-panel">
-      <div className="delta-scan-panel__header">
-        <span className="delta-scan-panel__title">Quick Scan (24h)</span>
-        {deltaReady && deltaIssueScan?.completedAt && (
-          <span className="delta-scan-panel__done">Last ran {formatShortTime(deltaIssueScan.completedAt)} · {(deltaIssueScan.processedIssues || 0).toLocaleString()} issues{deltaIssueScan.fieldProjectPairsUpdated > 0 ? ` · ${deltaIssueScan.fieldProjectPairsUpdated.toLocaleString()} pairs updated` : ""}</span>
-        )}
-      </div>
-      <p className="delta-scan-panel__desc">Scans issues created or updated in the last 24h, refreshes field usage counts for all touched field×project pairs. Runs automatically after each full scan and inventory snapshot.</p>
+      <PageHeader
+        title="Quick Scan"
+        description="Re-reads only the issues created or updated in the last 24 hours and refreshes field usage for every field×project pair they touch. It runs automatically after each full scan and inventory snapshot; run it by hand when something changed and you do not want to pay for a full pass."
+        actions={
+          <button className="primary-button" type="button" onClick={onStartDelta} disabled={issueScanDeltaStarting || deltaActive}>
+            <Icon name="activity" size={14} />
+            {issueScanDeltaStarting || deltaActive ? "Running…" : "Run quick scan"}
+          </button>
+        }
+      />
+
+      <StatRow>
+        <StatTile
+          label="Last run"
+          value={deltaIssueScan?.completedAt ? formatRelativeTime(deltaIssueScan.completedAt) : "Never"}
+          hint={deltaIssueScan?.completedAt ? formatShortTime(deltaIssueScan.completedAt) : "no quick scan recorded"}
+          tone={deltaActive ? "active" : deltaReady ? "success" : "neutral"}
+          icon="clock"
+        />
+        <StatTile
+          label="Issues re-read"
+          value={(deltaIssueScan?.processedIssues || 0).toLocaleString()}
+          hint="changed in the last 24h"
+          icon="layers"
+        />
+        <StatTile
+          label="Usage pairs refreshed"
+          value={(deltaIssueScan?.fieldProjectPairsUpdated || 0).toLocaleString()}
+          hint="field × project counts corrected"
+          icon="barChart"
+        />
+        <StatTile
+          label="Full scan age"
+          value={daysSinceFull === null ? "—" : daysSinceFull === 0 ? "Today" : `${daysSinceFull}d`}
+          hint={daysSinceFull === null ? "no full scan recorded" : staleFull ? "quick scans only patch 24h" : "within the top-up window"}
+          tone={daysSinceFull === null ? "neutral" : staleFull ? "warning" : "success"}
+          icon="zap"
+        />
+      </StatRow>
+
       {deltaActive && (
         <div className="delta-scan-panel__progress">
           <div className="issue-scan-panel__bar-track"><div className="issue-scan-panel__bar-fill" style={{ width: `${deltaPercent}%` }} /></div>
-          <div className="issue-scan-panel__status">{deltaIssueScan?.state === "queued" ? "Queued..." : `${deltaPercent}% — ${(deltaIssueScan?.processedIssues || 0).toLocaleString()} of ${(deltaIssueScan?.totalIssues || 0).toLocaleString()} issues`}</div>
+          <div className="issue-scan-panel__status">
+            {deltaIssueScan?.state === "queued"
+              ? "Queued…"
+              : `${deltaPercent}% — ${(deltaIssueScan?.processedIssues || 0).toLocaleString()} of ${(deltaIssueScan?.totalIssues || 0).toLocaleString()} issues`}
+          </div>
         </div>
       )}
+
       {deltaFailed && deltaIssueScan?.lastError && <div className="issue-scan-panel__error">{deltaIssueScan.lastError}</div>}
-      <div className="delta-scan-panel__actions">
-        <button className="secondary-button secondary-button--small" type="button" onClick={onStartDelta} disabled={issueScanDeltaStarting || deltaActive}>
-          {issueScanDeltaStarting || deltaActive ? "Running..." : "Run quick scan"}
-        </button>
-      </div>
+
+      <Panel title="What a quick scan can and cannot fix" icon="info">
+        <ul className="delta-scan-panel__facts">
+          <li><strong>Covers</strong> issues touched in the last 24 hours, and only the field×project pairs those issues appear in.</li>
+          <li><strong>Does not cover</strong> a field that stopped being used — nothing changed on those issues, so nothing is re-read. Only a full pass notices absence.</li>
+          <li><strong>Does not populate</strong> the change timestamps the staleness finding reads. Those come from field usage jobs alone.</li>
+        </ul>
+        {staleFull && (
+          <EmptyState inline>
+            The last full scan was {daysSinceFull} days ago. Quick scans have patched each 24-hour
+            window since, but usage that decayed rather than changed will not have been noticed.
+            Run a Universe Scan to re-establish the baseline.
+          </EmptyState>
+        )}
+      </Panel>
     </div>
   );
 }
@@ -932,7 +1003,6 @@ export function ScansTab({ siteOrigin, initialSection }) {
     { key: "snapshot", label: "Snapshot", icon: "layers" },
     { key: "universe", label: "Universe Scan", icon: "zap" },
     { key: "quick", label: "Quick Scan", icon: "activity" },
-    { key: "rqt", label: "RQT Index", icon: "layers" },
     { key: "jobs", label: "Field Usage Jobs", icon: "barChart" },
   ];
 
@@ -964,14 +1034,10 @@ export function ScansTab({ siteOrigin, initialSection }) {
         {activeSection === "quick" && (
           <DeltaIssueScanPanel
             deltaIssueScan={deltaIssueScanStatus}
+            issueScan={issueScanStatus}
             onStartDelta={startDeltaScan}
             issueScanDeltaStarting={issueScanDeltaStarting}
           />
-        )}
-        {activeSection === "rqt" && (
-          <React.Suspense fallback={<div className="empty-state">Loading…</div>}>
-            <RqtIndexView siteOrigin={siteOrigin} />
-          </React.Suspense>
         )}
         {activeSection === "jobs" && (
           <>
