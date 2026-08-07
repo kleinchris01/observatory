@@ -2,6 +2,7 @@ import React from "react";
 import { invoke, view } from "@forge/bridge";
 import { openFieldExpertRovo, buildFieldRovoPrompt, buildProjectRovoPrompt, buildReportRovoPrompt } from "../utils";
 import { Icon } from "../components/Icons";
+import { Chip, EmptyState } from "../components/ui";
 import { FieldCard } from "../components/FieldCard";
 
 // The custom field inventory: filters, findings and per-field detail.
@@ -526,15 +527,9 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
       {activeFilterChips.length > 0 && (
         <div className="admin-field-browser__active-filters">
           {activeFilterChips.map((chip) => (
-            <button
-              key={chip.id}
-              type="button"
-              className="admin-field-browser__filter-chip"
-              onClick={chip.clear}
-            >
-              <span>{chip.label}</span>
-              <span className="admin-field-browser__filter-chip__remove">×</span>
-            </button>
+            <Chip key={chip.id} onRemove={chip.clear} removeLabel={`Remove filter ${chip.label}`}>
+              {chip.label}
+            </Chip>
           ))}
         </div>
       )}
@@ -595,9 +590,9 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
       <PaginationBar top />
 
       {loading && !fields.length ? (
-        <div className="empty-state">Loading fields…</div>
+        <EmptyState>Loading fields…</EmptyState>
       ) : fields.length === 0 && !loading ? (
-        <div className="empty-state">No fields match the current filter.</div>
+        <EmptyState>No fields match the current filter.</EmptyState>
       ) : (
         <div className="admin-field-list">
           {fields.map((field) => {

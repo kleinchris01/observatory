@@ -3,7 +3,7 @@ import { describe, test, expect, vi } from "vitest";
 import { render, screen, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
-  StatCard, Toggle, ConfigSection, ConfigRow, ThresholdInput,
+  Toggle, ConfigSection, ConfigRow, ThresholdInput,
   InlineThresholdInput, JobStatusBadge, SubNavLayout, ActivitySection,
 } from "./primitives";
 
@@ -12,28 +12,7 @@ import {
 // admin surface's input handling -- a threshold that silently coerces to NaN, or a toggle
 // that reports the wrong new value, corrupts governance config rather than throwing.
 
-describe("StatCard", () => {
-  test("renders its label and value", () => {
-    render(<StatCard label="Ready" value={42} />);
-    expect(screen.getByText("Ready")).toBeInTheDocument();
-    expect(screen.getByText("42")).toBeInTheDocument();
-  });
-
-  test("carries the variant into the class so severity is visible, not just numeric", () => {
-    const { container } = render(<StatCard label="Failed" value={3} variant="danger" />);
-    expect(container.querySelector(".admin-stat-card--danger")).not.toBeNull();
-  });
-
-  test("defaults to the neutral variant", () => {
-    const { container } = render(<StatCard label="Queued" value={0} />);
-    expect(container.querySelector(".admin-stat-card--neutral")).not.toBeNull();
-  });
-
-  test("renders a zero value rather than treating it as absent", () => {
-    render(<StatCard label="Failed" value={0} />);
-    expect(screen.getByText("0")).toBeInTheDocument();
-  });
-});
+// StatCard's tests moved to ui.test.jsx alongside StatTile, which absorbed it.
 
 describe("Toggle", () => {
   test("exposes switch semantics with its checked state", () => {

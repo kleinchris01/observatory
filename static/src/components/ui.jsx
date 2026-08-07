@@ -86,7 +86,26 @@ export function Panel({ title, icon, description, action, children }) {
   );
 }
 
-export function Chip({ children, tone = "neutral", title }) {
+// `onRemove` turns the chip into a control. The Field Browser had its own
+// `admin-field-browser__filter-chip` purely because the shared chip could not be clicked --
+// which is exactly the case CLAUDE.md says to solve by adding the prop rather than growing a
+// second component. The accessible name says what clicking does, because "Type: date" read
+// aloud on a button tells you nothing about the fact that activating it removes the filter.
+export function Chip({ children, tone = "neutral", title, onRemove, removeLabel }) {
+  if (onRemove) {
+    return (
+      <button
+        type="button"
+        className={`ui-chip ui-chip--${tone} ui-chip--removable`}
+        title={title}
+        aria-label={removeLabel || `Remove filter ${typeof children === "string" ? children : ""}`.trim()}
+        onClick={onRemove}
+      >
+        <span>{children}</span>
+        <span className="ui-chip__remove" aria-hidden="true">×</span>
+      </button>
+    );
+  }
   return <span className={`ui-chip ui-chip--${tone}`} title={title}>{children}</span>;
 }
 

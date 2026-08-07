@@ -2,6 +2,7 @@ import React from "react";
 import { view } from "@forge/bridge";
 import { handleJiraLinkClick } from "../utils";
 import { Icon } from "../components/Icons";
+import { Panel, EmptyState } from "../components/ui";
 
 // The admin landing tab. Composition only -- the dashboard itself lives in
 // components/OverviewDashboard.jsx.
@@ -10,7 +11,7 @@ const OverviewDashboard = React.lazy(() => import("../components/OverviewDashboa
 
 export function OverviewTab({ overview, onMigrateNamespace, migratingNamespace, onOpenRqtIndex, onNavigate }) {
   if (!overview) {
-    return <div className="empty-state">Loading overview…</div>;
+    return <EmptyState>Loading overview…</EmptyState>;
   }
 
   const { findingsSummary } = overview;
@@ -36,7 +37,7 @@ export function OverviewTab({ overview, onMigrateNamespace, migratingNamespace, 
         </div>
       )}
 
-      <React.Suspense fallback={<div className="empty-state">Loading dashboard…</div>}>
+      <React.Suspense fallback={<EmptyState>Loading dashboard…</EmptyState>}>
         <OverviewDashboard
           dashboard={overview.dashboard}
           findingsSummary={findingsSummary}
@@ -47,8 +48,7 @@ export function OverviewTab({ overview, onMigrateNamespace, migratingNamespace, 
         />
       </React.Suspense>
 
-      <div className="admin-section">
-        <h2 className="admin-section__title"><Icon name="zap" size={16} /> Atlassian Developer Console</h2>
+      <Panel title="Atlassian Developer Console" icon="zap">
         <div className="admin-dev-links">
           <a
             className="admin-dev-link"
@@ -87,7 +87,7 @@ export function OverviewTab({ overview, onMigrateNamespace, migratingNamespace, 
             <Icon name="info" size={13} /> App logs
           </a>
         </div>
-      </div>
+      </Panel>
     </div>
   );
 }

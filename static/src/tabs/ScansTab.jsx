@@ -2,7 +2,8 @@ import React from "react";
 import { invoke, view } from "@forge/bridge";
 import { formatTimestamp, formatShortTime, formatRelativeTime } from "../utils";
 import { Icon, useLiveDuration } from "../components/Icons";
-import { StatCard, SubNavLayout } from "../components/admin/primitives";
+import { SubNavLayout } from "../components/admin/primitives";
+import { StatTile, StatRow } from "../components/ui";
 import { SnapshotLog, JobsPanel } from "../components/admin/JobsPanel";
 
 // Snapshot builds, the universe scan, delta scans and the RQT index.
@@ -317,6 +318,111 @@ export function ScanHistoryChart({ data }) {
   );
 }
 
+// Net new issues between consecutive runs.
+//
+// The absolute-total bar chart above it is close to useless on a real site: a corpus that
+// moves from 326,871 to 328,528 renders eight bars of identical height, because the thing
+// being charted barely varies. The growth *between* runs is what actually moves, and it is
+// the number that tells an admin whether the estate is accelerating -- so it gets its own
+// chart with a real zero line rather than being hidden inside a near-constant.
+export function ScanDeltaChart({ data }) {
+  if (data.length === 0) {
+    return <div className="scan-chart-card__empty">Needs two completed runs to show growth</div>;
+  }
+  const W = 480, H = 130, P = { t: 12, r: 16, b: 22, l: 52 };
+  const cW = W - P.l - P.r, cH = H - P.t - P.b;
+  const maxAbs = Math.max(...data.map((d) => Math.abs(d.delta)), 1);
+  // Only give up half the height to negatives when negatives actually occur. A re-scan that
+  // finds fewer issues is real (issues get deleted), but it is rare, and reserving space for
+  // it on every site would halve the resolution of the common case.
+  const hasNegative = data.some((d) => d.delta < 0);
+  const zeroY = hasNegative ? cH / 2 : cH;
+  const scale = (v) => (Math.abs(v) / maxAbs) * (hasNegative ? cH / 2 : cH);
+  const step = cW / Math.max(data.length, 1);
+  const barW = Math.max(4, step * 0.7);
+  const fmt = (v) => (Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v));
+  return (
+    <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: "block", overflow: "visible" }} role="img" aria-label="Net new issues per scan run">
+      <g transform={`translate(${P.l},${P.t})`}>
+        <line x1={0} y1={zeroY} x2={cW} y2={zeroY} stroke="var(--stroke)" />
+        <text x={-6} y={zeroY + 4} textAnchor="end" fontSize="9" fill="var(--muted)">0</text>
+        <text x={-6} y={zeroY - scale(maxAbs) + 4} textAnchor="end" fontSize="9" fill="var(--muted)">{fmt(maxAbs)}</text>
+        {data.map((d, i) => {
+          const h = Math.max(2, scale(d.delta));
+          const x = step * i + (step - barW) / 2;
+          const up = d.delta >= 0;
+          return (
+            <g key={i}>
+              <rect
+                x={x}
+                y={up ? zeroY - h : zeroY}
+                width={barW}
+                height={h}
+                rx="2"
+                fill={up ? "rgba(126,200,164,0.75)" : "rgba(224,124,109,0.75)"}
+              />
+              <text x={x + barW / 2} y={cH + 14} textAnchor="middle" fontSize="9" fill="var(--muted)">{d.label}</text>
+            </g>
+          );
+        })}
+      </g>
+    </svg>
+  );
+}
+
+// Duration per run, with throughput overlaid.
+//
+// Two encodings on one chart because the question is a comparison: a run getting slower is
+// only interesting if the rate dropped too. Duration rising while throughput holds means the
+// corpus grew; duration rising while throughput falls means the scan is degrading -- rate
+// limiting, contention, a slow worker. Separate charts would make that read a memory test.
+export function ScanThroughputChart({ data }) {
+  if (data.length === 0) {
+    return <div className="scan-chart-card__empty">No completed runs with timing recorded</div>;
+  }
+  const W = 480, H = 130, P = { t: 12, r: 40, b: 22, l: 52 };
+  const cW = W - P.l - P.r, cH = H - P.t - P.b;
+  const maxMin = Math.max(...data.map((d) => d.minutes), 1);
+  const maxRate = Math.max(...data.map((d) => d.rate), 1);
+  const step = cW / Math.max(data.length, 1);
+  const barW = Math.max(4, step * 0.6);
+  const rateY = (r) => cH - (r / maxRate) * cH;
+  const centre = (i) => step * i + step / 2;
+  const linePath = data
+    .map((d, i) => `${i === 0 ? "M" : "L"} ${centre(i).toFixed(1)} ${rateY(d.rate).toFixed(1)}`)
+    .join(" ");
+  return (
+    <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: "block", overflow: "visible" }} role="img" aria-label="Scan duration and throughput per run">
+      <g transform={`translate(${P.l},${P.t})`}>
+        {[0, 0.5, 1].map((r, i) => (
+          <g key={i}>
+            <line x1={0} y1={cH - r * cH} x2={cW} y2={cH - r * cH} stroke="var(--stroke)" strokeDasharray="3 5" />
+            <text x={-6} y={cH - r * cH + 4} textAnchor="end" fontSize="9" fill="var(--muted)">
+              {`${Math.round(maxMin * r)}m`}
+            </text>
+            <text x={cW + 6} y={cH - r * cH + 4} textAnchor="start" fontSize="9" fill="#79b8ff">
+              {`${Math.round(maxRate * r)}/s`}
+            </text>
+          </g>
+        ))}
+        {data.map((d, i) => {
+          const h = Math.max(2, (d.minutes / maxMin) * cH);
+          return (
+            <g key={i}>
+              <rect x={centre(i) - barW / 2} y={cH - h} width={barW} height={h} rx="2" fill="rgba(126,200,164,0.45)" />
+              <text x={centre(i)} y={cH + 14} textAnchor="middle" fontSize="9" fill="var(--muted)">{d.label}</text>
+            </g>
+          );
+        })}
+        <path d={linePath} fill="none" stroke="#79b8ff" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+        {data.map((d, i) => (
+          <circle key={i} cx={centre(i)} cy={rateY(d.rate)} r={2.5} fill="#79b8ff" />
+        ))}
+      </g>
+    </svg>
+  );
+}
+
 export function UniverseScanPanel({ issueScan, onStart, onResume, onCancel, issueScanLoading, issueScanResuming, issueScanCancelling }) {
   const [logSearch, setLogSearch] = React.useState("");
 
@@ -438,7 +544,44 @@ export function UniverseScanPanel({ issueScan, onStart, onResume, onCancel, issu
     [scanHistoryRuns]
   );
 
-  const showCharts = progressSeries.length >= 2 || historySeries.length >= 1;
+  // Growth between consecutive runs. Runs arrive oldest-first, so each entry pairs with the
+  // one before it; the first run has nothing to compare against and is dropped rather than
+  // charted as its own total, which would read as a huge spike.
+  const deltaSeries = React.useMemo(() => {
+    const out = [];
+    for (let i = 1; i < scanHistoryRuns.length; i += 1) {
+      const prev = scanHistoryRuns[i - 1]?.processedIssues || 0;
+      const curr = scanHistoryRuns[i]?.processedIssues || 0;
+      out.push({
+        delta: curr - prev,
+        label: scanHistoryRuns[i].completedAt
+          ? new Date(scanHistoryRuns[i].completedAt).toLocaleDateString([], { month: "short", day: "numeric" })
+          : "?",
+      });
+    }
+    return out;
+  }, [scanHistoryRuns]);
+
+  // Duration and rate per run. A run missing either timestamp is skipped rather than shown
+  // as zero minutes -- an unmeasured run and an instant run are different claims.
+  const throughputSeries = React.useMemo(() =>
+    scanHistoryRuns
+      .filter((run) => run.startedAt && run.completedAt)
+      .map((run) => {
+        const ms = new Date(run.completedAt).getTime() - new Date(run.startedAt).getTime();
+        const seconds = Math.max(ms / 1000, 1);
+        return {
+          minutes: Math.round(ms / 60000),
+          rate: Math.round((run.processedIssues || 0) / seconds),
+          label: new Date(run.completedAt).toLocaleDateString([], { month: "short", day: "numeric" }),
+        };
+      })
+      .filter((row) => Number.isFinite(row.minutes) && row.minutes >= 0),
+    [scanHistoryRuns]
+  );
+
+  const showCharts =
+    progressSeries.length >= 2 || historySeries.length >= 1 || deltaSeries.length >= 1 || throughputSeries.length >= 1;
 
   const stateClass = scanActive ? "scan-status--active" : scanDone ? "scan-status--done" : scanFailed ? "scan-status--failed" : "scan-status--idle";
   const stateLabel = scanActive ? "Running" : scanDone ? "Complete" : scanFailed ? "Failed" : scanCancelled ? "Cancelled" : "Not started";
@@ -458,49 +601,30 @@ export function UniverseScanPanel({ issueScan, onStart, onResume, onCancel, issu
         </p>
       </div>
 
+      {/* The fifth and last stat dialect, retired. Worker progress and scan rate keep their
+          denominators as hints rather than shrunken inline spans -- "5" reads as the metric
+          and "of 5 workers" as the context, which is the split the tile already encodes. */}
       {hasStats && (
-        <div className="universe-scan-panel__stats">
-          <div className="scan-stat-card">
-            <div className="scan-stat-card__value">{Number(displayIssues).toLocaleString()}</div>
-            <div className="scan-stat-card__label">Issues scanned</div>
-          </div>
+        <StatRow>
+          <StatTile label="Issues scanned" value={Number(displayIssues).toLocaleString()} icon="layers" />
           {totalProjects > 0 && (
-            <div className="scan-stat-card">
-              <div className="scan-stat-card__value">
-                {processedProjects.toLocaleString()}
-                <span style={{ fontSize: "0.7em", opacity: 0.55 }}>/{totalProjects.toLocaleString()}</span>
-              </div>
-              <div className="scan-stat-card__label">Workers complete</div>
-            </div>
+            <StatTile
+              label="Workers complete"
+              value={processedProjects.toLocaleString()}
+              hint={`of ${totalProjects.toLocaleString()}`}
+              tone={processedProjects >= totalProjects ? "success" : "active"}
+              icon="activity"
+            />
           )}
-          {durationLabel && (
-            <div className="scan-stat-card">
-              <div className="scan-stat-card__value">{durationLabel}</div>
-              <div className="scan-stat-card__label">Duration</div>
-            </div>
-          )}
+          {durationLabel && <StatTile label="Duration" value={durationLabel} icon="clock" />}
           {scanRate && (
-            <div className="scan-stat-card">
-              <div className="scan-stat-card__value">
-                {scanRate.toLocaleString()}
-                <span style={{ fontSize: "0.7em", opacity: 0.55 }}>/s</span>
-              </div>
-              <div className="scan-stat-card__label">Avg scan rate</div>
-            </div>
+            <StatTile label="Avg scan rate" value={scanRate.toLocaleString()} hint="issues per second" icon="zap" />
           )}
-          {totalLogCount > 0 && (
-            <div className="scan-stat-card">
-              <div className="scan-stat-card__value">{totalLogCount}</div>
-              <div className="scan-stat-card__label">Log entries</div>
-            </div>
-          )}
+          {totalLogCount > 0 && <StatTile label="Log entries" value={totalLogCount} icon="barChart" />}
           {scanHistoryRuns.length > 0 && (
-            <div className="scan-stat-card">
-              <div className="scan-stat-card__value">{scanHistoryRuns.length}</div>
-              <div className="scan-stat-card__label">Past runs</div>
-            </div>
+            <StatTile label="Past runs" value={scanHistoryRuns.length} icon="checkCircle" />
           )}
-        </div>
+        </StatRow>
       )}
 
       {showCharts && (
@@ -515,6 +639,20 @@ export function UniverseScanPanel({ issueScan, onStart, onResume, onCancel, issu
             <div className="scan-chart-card">
               <div className="scan-chart-card__title">Issues scanned — run history</div>
               <ScanHistoryChart data={historySeries} />
+            </div>
+          )}
+          {deltaSeries.length >= 1 && (
+            <div className="scan-chart-card">
+              <div className="scan-chart-card__title">Net new issues — run over run</div>
+              <ScanDeltaChart data={deltaSeries} />
+              <div className="scan-chart-card__caption">Growth between consecutive scans. The totals above barely move; this is where the change is.</div>
+            </div>
+          )}
+          {throughputSeries.length >= 1 && (
+            <div className="scan-chart-card">
+              <div className="scan-chart-card__title">Duration &amp; throughput</div>
+              <ScanThroughputChart data={throughputSeries} />
+              <div className="scan-chart-card__caption">Bars are minutes per run, the line is issues per second. Duration up with the rate flat means the estate grew; both worsening means the scan is degrading.</div>
             </div>
           )}
         </div>
@@ -837,12 +975,20 @@ export function ScansTab({ siteOrigin, initialSection }) {
         )}
         {activeSection === "jobs" && (
           <>
-            <div className="admin-stat-row" style={{ marginBottom: 16 }}>
-              <StatCard label="Ready" value={jobCounts?.ready ?? 0} icon="checkCircle" variant="success" />
-              <StatCard label="Building" value={jobCounts?.building ?? 0} icon="activity" variant={(jobCounts?.building ?? 0) > 0 ? "building" : "neutral"} />
-              <StatCard label="Queued" value={jobCounts?.queued ?? 0} icon="clock" variant="neutral" />
-              <StatCard label="Failed" value={jobCounts?.failed ?? 0} icon="x" variant={(jobCounts?.failed ?? 0) > 0 ? "danger" : "neutral"} />
-              <StatCard label="Not built" value={jobCounts?.unbuilt ?? 0} icon="layers" variant="neutral" />
+            <div style={{ marginBottom: 16 }}>
+              <StatRow>
+                <StatTile label="Ready" value={jobCounts?.ready ?? 0} icon="checkCircle" tone="success" />
+                <StatTile label="Building" value={jobCounts?.building ?? 0} icon="activity" tone={(jobCounts?.building ?? 0) > 0 ? "active" : "neutral"} />
+                <StatTile label="Queued" value={jobCounts?.queued ?? 0} icon="clock" tone="neutral" />
+                <StatTile label="Failed" value={jobCounts?.failed ?? 0} icon="x" tone={(jobCounts?.failed ?? 0) > 0 ? "critical" : "neutral"} />
+                <StatTile
+                  label="Not built"
+                  value={jobCounts?.unbuilt ?? 0}
+                  icon="layers"
+                  tone="neutral"
+                  hint={(jobCounts?.unbuilt ?? 0) > 0 ? "Staleness detection is blind on these" : undefined}
+                />
+              </StatRow>
             </div>
             <JobsPanel
               jobs={jobs}
