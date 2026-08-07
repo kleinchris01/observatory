@@ -432,6 +432,46 @@ describe("FieldCard", () => {
     expect(screen.getByText("No field details are available.")).toBeInTheDocument();
   });
 
+  describe("automation rule count chips", () => {
+    it("shows enabled and disabled rule counts on the collapsed header", () => {
+      render(<FieldCard {...defaultProps} automationCounts={{ enabled: 46, disabled: 12, total: 58 }} />);
+
+      expect(screen.getByText("Active rules")).toBeInTheDocument();
+      expect(screen.getByText("46")).toBeInTheDocument();
+      expect(screen.getByText("Disabled rules")).toBeInTheDocument();
+      expect(screen.getByText("12")).toBeInTheDocument();
+    });
+
+    // The chip answers "can I delete this field". A live rule writing it means no, so the
+    // tone is applied on any non-zero count and withheld at zero.
+    it("tones the active count only when rules actually run", () => {
+      const { container, rerender } = render(
+        <FieldCard {...defaultProps} automationCounts={{ enabled: 3, disabled: 0, total: 3 }} />
+      );
+      expect(container.querySelector(".metric-chip--danger")).toBeTruthy();
+
+      rerender(<FieldCard {...defaultProps} automationCounts={{ enabled: 0, disabled: 4, total: 4 }} />);
+      expect(container.querySelector(".metric-chip--danger")).toBeNull();
+    });
+
+    // "Never measured" is not "nothing uses it", and only one of those makes a field safe
+    // to delete. An em dash says the first; a zero would assert the second.
+    it("renders an em dash rather than zero when no analysis has been built", () => {
+      const { container } = render(<FieldCard {...defaultProps} automationCounts={undefined} />);
+
+      const chips = [...container.querySelectorAll(".metric-chip")]
+        .filter((c) => /rules/i.test(c.textContent));
+      expect(chips).toHaveLength(2);
+      for (const chip of chips) expect(chip.textContent).toContain("—");
+    });
+
+    it("shows zero when the analysis exists and nothing references the field", () => {
+      render(<FieldCard {...defaultProps} automationCounts={{ enabled: 0, disabled: 0, total: 0 }} />);
+      const zeros = screen.getAllByText("0");
+      expect(zeros.length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
   describe("expanded body sections", () => {
     const details = {
       configuredProjectCount: 3,

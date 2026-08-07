@@ -292,6 +292,9 @@ import {
   runDeltaIssueScanJob,
   rovoSearchFields,
   rovoInspectField,
+  rovoSearchAutomationRules,
+  rovoInspectAutomationRule,
+  rovoAutomationUsage,
   migrateNamespaceKeys,
   CLEAR_SNAPSHOT_CONFIRMATION,
   __RAW_ADMIN_ONLY_FUNCTIONS,
@@ -307,6 +310,7 @@ const {
   getAutomationIndex,
   saveAutomationIndex,
   getAutomationFieldUsage,
+  getAutomationFieldCounts,
 } = __RAW_ADMIN_ONLY_FUNCTIONS;
 
 const {
@@ -3297,6 +3301,222 @@ describe("getAutomationFieldUsage", () => {
   test("is admin-only", () => {
     expect(Object.keys(ADMIN_ONLY_FUNCTIONS)).toContain("getAutomationFieldUsage");
     expect(Object.keys(SHARED_RESOLVER_FUNCTIONS)).not.toContain("getAutomationFieldUsage");
+  });
+});
+
+describe("getAutomationFieldCounts", () => {
+  const index = {
+    schemaVersion: 1, total: 2,
+    entries: [
+      { label: "Story Points", ruleCount: 5, enabledRules: 3, disabledRules: 2, write: [], read: [], trigger: [] },
+      { label: "customfield_23054", ruleCount: 1, enabledRules: 1, disabledRules: 0, write: [], read: [], trigger: [] },
+    ],
+  };
+
+  test("answers for a whole page of fields in one read of the index", async () => {
+    mocks.readAutomationPart.mockResolvedValue(index);
+
+    const result = await getAutomationFieldCounts({
+      payload: { fields: [{ id: "cf_1", name: "Story Points" }, { id: "customfield_23054", name: "Requested Prototype" }] },
+      context: ctxWithAccount(),
+    });
+
+    expect(mocks.readAutomationPart).toHaveBeenCalledTimes(1);
+    expect(result.counts.cf_1).toEqual({ enabled: 3, disabled: 2, total: 5 });
+    expect(result.counts.customfield_23054).toEqual({ enabled: 1, disabled: 0, total: 1 });
+  });
+
+  test("returns zeroes for a field no rule touches", async () => {
+    mocks.readAutomationPart.mockResolvedValue(index);
+
+    const result = await getAutomationFieldCounts({
+      payload: { fields: [{ id: "cf_9", name: "Unused" }] },
+      context: ctxWithAccount(),
+    });
+
+    expect(result.counts.cf_9).toEqual({ enabled: 0, disabled: 0, total: 0 });
+  });
+
+  // The chips render an em dash for this, not 0. "Never measured" is not "nothing uses it".
+  test("reports unavailable when no analysis has been built", async () => {
+    mocks.readAutomationPart.mockResolvedValue(null);
+
+    const result = await getAutomationFieldCounts({
+      payload: { fields: [{ id: "cf_1", name: "Story Points" }] },
+      context: ctxWithAccount(),
+    });
+
+    expect(result).toMatchObject({ available: false, reason: "no-analysis" });
+    expect(result.counts).toEqual({});
+  });
+
+  test("caps the batch so one call cannot ask about the whole estate", async () => {
+    mocks.readAutomationPart.mockResolvedValue(index);
+    const many = Array.from({ length: 250 }, (_, i) => ({ id: `cf_${i}`, name: `F${i}` }));
+
+    const result = await getAutomationFieldCounts({ payload: { fields: many }, context: ctxWithAccount() });
+
+    expect(Object.keys(result.counts)).toHaveLength(100);
+  });
+
+  test("handles an empty request without reading storage", async () => {
+    const result = await getAutomationFieldCounts({ payload: { fields: [] }, context: ctxWithAccount() });
+    expect(result).toEqual({ available: true, counts: {} });
+    expect(mocks.readAutomationPart).not.toHaveBeenCalled();
+  });
+});
+
+describe("Rovo automation agent actions", () => {
+  const directory = {
+    schemaVersion: 1, total: 3,
+    rules: [
+      [10, "Copy fields to subtasks", 1, "jira.issue.field.changed", 2],
+      // Shares the word "approval" with rule 12 so the enabled-first ordering is actually
+      // exercised rather than being the only match.
+      [11, "Old approval cleanup", 0, "jira.jql.scheduled", 0],
+      [12, "Send to approval", 1, "jira.issue.event.trigger:created", 1],
+    ],
+  };
+  const fields = {
+    schemaVersion: 1, total: 1,
+    entries: [{ label: "Story Points", writeCount: 1, readCount: 1, triggerCount: 0, ruleCount: 2, enabledRules: 1, disabledRules: 1, write: [10], read: [11], trigger: [] }],
+  };
+  const statuses = { schemaVersion: 1, total: 0, entries: [] };
+  const findings = {
+    schemaVersion: 1, total: 1,
+    findings: [{ id: 12, n: "Send to approval", s: "high", r: [{ c: "embedded-credential", s: "high" }] }],
+  };
+
+  function stubAll({ analysis = { schemaVersion: 1, refreshedAt: 1754400000000 } } = {}) {
+    mocks.readAutomationAnalysis.mockResolvedValue(analysis);
+    mocks.readAutomationPart.mockImplementation((_k, part) =>
+      Promise.resolve({ fields, statuses, directory, findings }[part] ?? null)
+    );
+  }
+
+  describe("rovoSearchAutomationRules", () => {
+    test("matches rules by name and reports their state and findings", async () => {
+      stubAll();
+      const result = await rovoSearchAutomationRules({ query: "approval" }, {});
+
+      expect(result.status).toBe("ok");
+      expect(result.matches[0]).toMatchObject({ ruleId: 12, name: "Send to approval", state: "ENABLED" });
+      expect(result.matches[0].findings).toContain("embedded-credential");
+    });
+
+    test("lists enabled rules first, since a disabled rule explains nothing happening now", async () => {
+      stubAll();
+      const result = await rovoSearchAutomationRules({ query: "approval" }, {});
+
+      expect(result.matches).toHaveLength(2);
+      expect(result.matches.map((m) => m.state)).toEqual(["ENABLED", "DISABLED"]);
+    });
+
+    test("filters by state when asked", async () => {
+      stubAll();
+      const result = await rovoSearchAutomationRules({ query: "", state: "disabled" }, {});
+      expect(result.status).toBe("error");
+
+      const disabled = await rovoSearchAutomationRules({ query: "cleanup", state: "disabled" }, {});
+      expect(disabled.matches.map((m) => m.ruleId)).toEqual([11]);
+    });
+
+    // The agent must never answer "no rules" from an absent analysis.
+    test("reports analysis-unavailable rather than an empty match list", async () => {
+      mocks.readAutomationAnalysis.mockResolvedValue(null);
+      mocks.readAutomationPart.mockResolvedValue(null);
+
+      const result = await rovoSearchAutomationRules({ query: "anything" }, {});
+
+      expect(result.status).toBe("analysis-unavailable");
+      expect(result.matches).toBeUndefined();
+    });
+
+    test("carries the analysis age so the agent can caveat a stale answer", async () => {
+      stubAll();
+      const result = await rovoSearchAutomationRules({ query: "approval" }, {});
+      expect(result.analysisRefreshedAt).toBe(1754400000000);
+    });
+  });
+
+  describe("rovoInspectAutomationRule", () => {
+    test("resolves a rule by numeric id", async () => {
+      stubAll();
+      const result = await rovoInspectAutomationRule({ ruleIdentifier: "12" }, {});
+      expect(result.rule).toMatchObject({ ruleId: 12, name: "Send to approval", state: "ENABLED" });
+    });
+
+    test("resolves a rule by partial name", async () => {
+      stubAll();
+      const result = await rovoInspectAutomationRule({ ruleIdentifier: "subtasks" }, {});
+      expect(result.rule.ruleId).toBe(10);
+    });
+
+    test("lists the fields the rule touches and in which direction", async () => {
+      stubAll();
+      const result = await rovoInspectAutomationRule({ ruleIdentifier: "10" }, {});
+      expect(result.fieldsTouched).toContainEqual({ field: "Story Points", direction: "write" });
+    });
+
+    test("turns a risk code into a sentence the agent can say out loud", async () => {
+      stubAll();
+      const result = await rovoInspectAutomationRule({ ruleIdentifier: "12" }, {});
+      expect(result.findings[0].summary).toMatch(/anyone who can view the rule can read/i);
+    });
+
+    test("states the index cap as a caveat rather than implying the list is complete", async () => {
+      stubAll();
+      const result = await rovoInspectAutomationRule({ ruleIdentifier: "12" }, {});
+      expect(result.caveat).toMatch(/capped index/i);
+    });
+
+    test("reports not-found for an unknown rule", async () => {
+      stubAll();
+      const result = await rovoInspectAutomationRule({ ruleIdentifier: "nonexistent" }, {});
+      expect(result.status).toBe("not-found");
+    });
+  });
+
+  describe("rovoAutomationUsage", () => {
+    test("answers the deletion question directly", async () => {
+      stubAll();
+      const result = await rovoAutomationUsage({ name: "Story Points" }, {});
+
+      expect(result.status).toBe("ok");
+      expect(result.safeToDelete).toBe(false);
+      expect(result.guidance).toMatch(/would break 1 rule/i);
+      expect(result.writtenBy.rules[0]).toMatchObject({ name: "Copy fields to subtasks", state: "ENABLED" });
+    });
+
+    test("splits enabled from disabled, since only one of them runs today", async () => {
+      stubAll();
+      const result = await rovoAutomationUsage({ name: "Story Points" }, {});
+      expect(result).toMatchObject({ enabledRules: 1, disabledRules: 1, ruleCount: 2 });
+    });
+
+    test("says a field is unreferenced only when an analysis exists", async () => {
+      stubAll();
+      const result = await rovoAutomationUsage({ name: "Never Used" }, {});
+      expect(result).toMatchObject({ status: "not-referenced", safeToDelete: true });
+    });
+
+    test("refuses to answer at all when no analysis has been built", async () => {
+      mocks.readAutomationAnalysis.mockResolvedValue(null);
+      mocks.readAutomationPart.mockResolvedValue(null);
+
+      const result = await rovoAutomationUsage({ name: "Story Points" }, {});
+
+      expect(result.status).toBe("analysis-unavailable");
+      expect(result.safeToDelete).toBeUndefined();
+    });
+
+    test("looks in the status index when asked about a status", async () => {
+      stubAll();
+      const result = await rovoAutomationUsage({ name: "Done", kind: "status" }, {});
+      expect(result.status).toBe("not-referenced");
+      // A status is never "safe to delete" on automation evidence alone.
+      expect(result.safeToDelete).toBe(false);
+    });
   });
 });
 

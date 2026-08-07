@@ -792,6 +792,13 @@ select {
   color: var(--success);
 }
 
+/* Used for the count of ENABLED automation rules on a field. Danger reads oddly for a
+   healthy number, but this chip answers "can I delete this field", and any live rule
+   writing it means no. The tone is applied only when the count is above zero. */
+.metric-chip--danger strong {
+  color: var(--danger);
+}
+
 .findings-strip {
   display: flex;
   gap: 8px;

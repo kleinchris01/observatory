@@ -34,6 +34,15 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
   const [filtersOpen, setFiltersOpen] = React.useState(false);
   const filterPanelRef = React.useRef(null);
 
+  // Automation rule counts for the fields currently on screen.
+  //
+  // Fetched per page in one call rather than per card: the counts sit on the collapsed
+  // header, so every row needs them before anything is expanded, and ten separate lookups
+  // would each re-read the same index. Failure is silent -- the chips are supplementary,
+  // and an automation analysis that has never been built is the normal fresh-install state,
+  // not an error worth interrupting the field list for.
+  const [automationCounts, setAutomationCounts] = React.useState({});
+
   React.useEffect(() => {
     if (!filtersOpen) return;
     function handleClickOutside(e) {
@@ -241,6 +250,20 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
   }
 
   const fields = data?.fields || [];
+
+  // Keyed on the field ids currently rendered, so paging or refiltering refetches and
+  // switching back to a page already seen does not.
+  const pageFieldKey = fields.map((f) => f.id).join(",");
+  React.useEffect(() => {
+    if (!fields.length) return undefined;
+    let cancelled = false;
+    invoke("getAutomationFieldCounts", { fields: fields.map((f) => ({ id: f.id, name: f.name })) })
+      .then((result) => { if (!cancelled) setAutomationCounts(result?.counts || {}); })
+      .catch(() => { if (!cancelled) setAutomationCounts({}); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageFieldKey]);
+
   const totalPages = data?.totalPages || 1;
   const total = data?.total || 0;
   const availableTypes = data?.availableTypes || [];
@@ -606,6 +629,7 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
                 }}
                 siteOrigin={siteOrigin}
                 rovoEnabled={rovoEnabled}
+                automationCounts={automationCounts[field.id]}
               />
             );
           })}

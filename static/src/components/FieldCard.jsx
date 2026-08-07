@@ -1,6 +1,7 @@
 import React from "react";
 import { invoke } from "@forge/bridge";
 import {
+  buildAutomationRovoPrompt,
   buildAutomationRuleUrl,
   buildJiraSearchUrl,
   handleJiraLinkClick,
@@ -91,7 +92,7 @@ export function AutomationRuleLink({ rule, siteOrigin }) {
   );
 }
 
-export function AutomationUsageSection({ field, enabled = true, siteOrigin }) {
+export function AutomationUsageSection({ field, enabled = true, siteOrigin, rovoEnabled = false }) {
   const [state, setState] = React.useState({ loading: true, error: "", data: null });
 
   React.useEffect(() => {
@@ -117,6 +118,19 @@ export function AutomationUsageSection({ field, enabled = true, siteOrigin }) {
     <CollapsibleSection
       title="Automation Usage"
       badge={data?.referenced ? `${formatNumber(total)} rule${total === 1 ? "" : "s"}` : null}
+      actions={
+        <button
+          className="secondary-button secondary-button--small"
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            openFieldExpertRovo(buildAutomationRovoPrompt(field, data)).catch(() => {});
+          }}
+          disabled={!rovoEnabled || loading}
+        >
+          Ask Rovo
+        </button>
+      }
     >
       {loading ? (
         <div className="empty-state empty-state--inline">Checking automation rules…</div>
@@ -374,6 +388,7 @@ export function FieldCard({
   siteOrigin,
   rovoEnabled,
   showGovernance = true,
+  automationCounts,
 }) {
   const displayField = React.useMemo(() => mergeFieldMetrics(field, details), [field, details]);
   const configuredProjectsValue = details ? details.configuredProjectCount : (field.configuredProjectCount ?? field.usageCount ?? 0);
@@ -427,6 +442,18 @@ export function FieldCard({
           <MetricChip label="Configured projects" value={configuredProjectsValue} tone="warm" />
           <MetricChip label="Active projects" value={activeProjectsValue} tone="success" />
           <MetricChip label="Issues with value" value={totalIssuesValue} />
+          {/* Absent counts render as an em dash rather than 0. "No analysis has been built"
+              and "no rule touches this field" are different claims, and only one of them
+              makes a field safe to delete. */}
+          <MetricChip
+            label="Active rules"
+            value={automationCounts ? automationCounts.enabled : "—"}
+            tone={automationCounts?.enabled > 0 ? "danger" : "neutral"}
+          />
+          <MetricChip
+            label="Disabled rules"
+            value={automationCounts ? automationCounts.disabled : "—"}
+          />
         </div>
         <span className="field-card__toggle-icon" aria-hidden="true" />
       </button>
@@ -488,7 +515,7 @@ export function FieldCard({
                 )}
               </CollapsibleSection>}
 
-              {showGovernance ? <AutomationUsageSection field={field} enabled={expanded} siteOrigin={siteOrigin} /> : null}
+              {showGovernance ? <AutomationUsageSection field={field} enabled={expanded} siteOrigin={siteOrigin} rovoEnabled={rovoEnabled} /> : null}
 
               <CollapsibleSection
                 title="Field-Wide Query"

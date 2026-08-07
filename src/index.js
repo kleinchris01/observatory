@@ -40,6 +40,9 @@ import {
   DELTA_ISSUE_SCAN_DEFAULT_WINDOW_HOURS,
   rovoSearchFields,
   rovoInspectField,
+  rovoSearchAutomationRules,
+  rovoInspectAutomationRule,
+  rovoAutomationUsage,
   SHARED_RESOLVER_FUNCTIONS,
   ADMIN_ONLY_FUNCTIONS,
 } from "./resolvers.js";
@@ -332,3 +335,4 @@ export const adminHandler = makeResolver({
 });
 
 export { rovoSearchFields, rovoInspectField };
+export { rovoSearchAutomationRules, rovoInspectAutomationRule, rovoAutomationUsage };

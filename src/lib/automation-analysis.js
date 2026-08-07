@@ -542,18 +542,38 @@ export const MAX_INDEXED_ENTRIES = 1000;
 // Sorted by total reference count so that if the entry cap ever bites, what survives is the
 // part anyone would have looked at. A field referenced by 542 rules is the one that blocks a
 // deletion; a field referenced once is noise until someone searches for it specifically.
-function buildIndexDocument(indexMap, kind) {
+function buildIndexDocument(indexMap, kind, enabledById = new Map()) {
   const rows = [...indexMap.values()]
-    .map((entry) => ({
-      label: entry.label,
-      writeCount: entry.write.length,
-      readCount: entry.read.length,
-      triggerCount: entry.trigger.length,
-      total: entry.write.length + entry.read.length + entry.trigger.length,
-      write: entry.write.slice(0, MAX_RULE_IDS_PER_REFERENCE),
-      read: entry.read.slice(0, MAX_RULE_IDS_PER_REFERENCE),
-      trigger: entry.trigger.slice(0, MAX_RULE_IDS_PER_REFERENCE),
-    }))
+    .map((entry) => {
+      // Counted over DISTINCT rules: a rule that both reads and writes a field is one
+      // dependency, not two, and the headline chips would otherwise double-count it.
+      //
+      // Computed here, from the full id arrays, because the stored arrays are capped at 50
+      // per direction. A field read by 542 rules would otherwise report a split derived
+      // from the 50 that survived truncation.
+      const distinct = new Set([...entry.write, ...entry.read, ...entry.trigger]);
+      let enabledRules = 0;
+      let disabledRules = 0;
+      for (const id of distinct) {
+        const state = enabledById.get(id);
+        if (state === true) enabledRules += 1;
+        else if (state === false) disabledRules += 1;
+      }
+
+      return {
+        label: entry.label,
+        writeCount: entry.write.length,
+        readCount: entry.read.length,
+        triggerCount: entry.trigger.length,
+        total: entry.write.length + entry.read.length + entry.trigger.length,
+        ruleCount: distinct.size,
+        enabledRules,
+        disabledRules,
+        write: entry.write.slice(0, MAX_RULE_IDS_PER_REFERENCE),
+        read: entry.read.slice(0, MAX_RULE_IDS_PER_REFERENCE),
+        trigger: entry.trigger.slice(0, MAX_RULE_IDS_PER_REFERENCE),
+      };
+    })
     .sort((a, b) => b.total - a.total || String(a.label).localeCompare(String(b.label)));
 
   return {
@@ -596,6 +616,7 @@ export function analyzeRules(rules = [], { source = "unknown", now = Date.now() 
 
   const { fields, statuses } = buildReferenceIndex(rules, options);
   const cascades = findTriggerCascades(rules, options);
+  const enabledById = new Map(summaries.map((s) => [s.id, s.enabled]));
 
   return {
     analysis: buildAnalysisDocument({
@@ -605,8 +626,8 @@ export function analyzeRules(rules = [], { source = "unknown", now = Date.now() 
       refreshedAt: now,
       source,
     }),
-    fields: buildIndexDocument(fields, "field"),
-    statuses: buildIndexDocument(statuses, "status"),
+    fields: buildIndexDocument(fields, "field", enabledById),
+    statuses: buildIndexDocument(statuses, "status", enabledById),
     directory: buildRuleDirectory(summaries),
     findings: buildFindingsDocument(summaries),
   };
