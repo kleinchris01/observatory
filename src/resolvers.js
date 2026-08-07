@@ -111,6 +111,7 @@ import {
   replaceAutomationReferences,
   replaceAutomationRules,
   replaceAutomationFindings,
+  loadAutomationReferencesFor,
   AUTOMATION_PARTS,
   MAX_PREVIEW_FINDINGS,
   MAX_STORED_CASCADES,
@@ -981,6 +982,42 @@ async function getAutomationFieldUsage({ payload, context }) {
     const fieldId = String(payload?.fieldId ?? "").trim();
     if (!fieldName && !fieldId) throw new Error("fieldName or fieldId is required");
 
+    // SQL first. This is the read the move to rows was for: one indexed query returning
+    // the references for this field, instead of loading a ~131 KB index plus a ~129 KB
+    // directory and matching a lowercased string in memory -- the same cost whether the
+    // question was about one field or all of them.
+    //
+    // Falls back to the documents when SQL has no rows for the label. An install that
+    // imported before the tables existed still has its KVS copies and no rows, and would
+    // otherwise be told "not referenced" -- the exact false reassurance this pillar exists
+    // to prevent. The fallback goes when a re-import is guaranteed, not before.
+    const sqlHit = await loadAutomationReferencesFor(installationKey, "field", fieldName || fieldId)
+      .catch(fallbackOn("automation.sql_reference_read_failed", () => null, { installationKey }));
+
+    if (sqlHit?.total > 0) {
+      const group = (direction) => {
+        const rows = sqlHit.references.filter((r) => r.direction === direction);
+        return {
+          count: rows.length,
+          rules: rows.map((r) => ({
+            id: r.rule_id,
+            name: r.name ?? `Rule ${r.rule_id}`,
+            enabled: r.enabled === null || r.enabled === undefined ? null : r.enabled === 1,
+            triggerType: null,
+          })),
+        };
+      };
+      return {
+        available: true,
+        referenced: true,
+        source: "sql",
+        label: fieldName || fieldId,
+        write: group("write"),
+        read: group("read"),
+        trigger: group("trigger"),
+      };
+    }
+
     const [index, directory] = await Promise.all([
       readAutomationPart(installationKey, "fields"),
       readAutomationPart(installationKey, "directory"),
@@ -1017,6 +1054,7 @@ async function getAutomationFieldUsage({ payload, context }) {
     return {
       available: true,
       referenced: true,
+      source: "kvs",
       label: entry.label,
       write: expand(entry.write, entry.writeCount),
       read: expand(entry.read, entry.readCount),

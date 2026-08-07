@@ -91,6 +91,7 @@ const mocks = vi.hoisted(() => ({
   replaceAutomationReferences: vi.fn(),
   replaceAutomationRules: vi.fn(),
   replaceAutomationFindings: vi.fn(),
+  loadAutomationReferencesFor: vi.fn(),
   loadWorkflowSchemes: vi.fn(),
   loadWorkflowSchemeProjects: vi.fn(),
   loadWorkflowSchemeForProject: vi.fn().mockResolvedValue(null),
@@ -167,6 +168,7 @@ vi.mock("./lib/store/automation.js", () => ({
   replaceAutomationReferences: mocks.replaceAutomationReferences,
   replaceAutomationRules: mocks.replaceAutomationRules,
   replaceAutomationFindings: mocks.replaceAutomationFindings,
+  loadAutomationReferencesFor: mocks.loadAutomationReferencesFor,
   AUTOMATION_PARTS: { analysis: "a:", fields: "f:", statuses: "s:", directory: "d:", findings: "fi:" },
   MAX_PREVIEW_FINDINGS: 20,
   MAX_STORED_CASCADES: 150,
@@ -3181,6 +3183,7 @@ describe("saveAutomationAnalysis", () => {
 describe("saveAutomationIndex", () => {
   beforeEach(() => {
     mocks.writeAutomationPart.mockResolvedValue(undefined);
+  mocks.loadAutomationReferencesFor.mockResolvedValue({ references: [], total: 0, ruleCount: 0 });
   });
 
   test("stores a field index under its own part", async () => {
@@ -3412,6 +3415,75 @@ describe("getAutomationFieldUsage", () => {
   test("is admin-only", () => {
     expect(Object.keys(ADMIN_ONLY_FUNCTIONS)).toContain("getAutomationFieldUsage");
     expect(Object.keys(SHARED_RESOLVER_FUNCTIONS)).not.toContain("getAutomationFieldUsage");
+  });
+});
+
+// SQL is now the primary read for a single field's automation usage. These cover the
+// boundary between it and the documents, which is where the risk is: an install that
+// imported before the tables existed has KVS copies and no rows, and must not be told
+// "not referenced" -- that is precisely the false reassurance this pillar exists to stop.
+describe("getAutomationFieldUsage storage path", () => {
+  const sqlRows = {
+    total: 3,
+    ruleCount: 2,
+    references: [
+      { direction: "write", rule_id: "1", name: "Set points", enabled: 1 },
+      { direction: "read", rule_id: "2", name: "Check points", enabled: 0 },
+      { direction: "trigger", rule_id: "1", name: "Set points", enabled: 1 },
+    ],
+  };
+
+  test("answers from SQL when rows exist, without reading the documents", async () => {
+    mocks.loadAutomationReferencesFor.mockResolvedValue(sqlRows);
+    const result = await getAutomationFieldUsage({ payload: { fieldName: "Story Points" }, context: ctxWithAccount() });
+
+    expect(result).toMatchObject({ available: true, referenced: true, source: "sql" });
+    expect(result.write.count).toBe(1);
+    expect(result.read.rules[0].name).toBe("Check points");
+    expect(mocks.readAutomationPart).not.toHaveBeenCalled();
+  });
+
+  // A disabled rule is not currently a dependency, and that distinction has to survive
+  // the move from documents to rows.
+  test("carries enabled state through from the join", async () => {
+    mocks.loadAutomationReferencesFor.mockResolvedValue(sqlRows);
+    const result = await getAutomationFieldUsage({ payload: { fieldName: "Story Points" }, context: ctxWithAccount() });
+    expect(result.write.rules[0].enabled).toBe(true);
+    expect(result.read.rules[0].enabled).toBe(false);
+  });
+
+  test("falls back to the documents when SQL has no rows for the label", async () => {
+    mocks.loadAutomationReferencesFor.mockResolvedValue({ references: [], total: 0, ruleCount: 0 });
+    mocks.readAutomationPart.mockImplementation((_k, part) =>
+      part === "fields"
+        ? { schemaVersion: 1, entries: [{ label: "Story Points", write: ["9"], writeCount: 1, read: [], trigger: [] }] }
+        : { schemaVersion: 1, rules: [["9", "Legacy rule", 1, "manual", 0]] }
+    );
+
+    const result = await getAutomationFieldUsage({ payload: { fieldName: "Story Points" }, context: ctxWithAccount() });
+    expect(result).toMatchObject({ referenced: true, source: "kvs" });
+    expect(result.write.rules[0].name).toBe("Legacy rule");
+  });
+
+  // A SQL outage must degrade to the documents, not to a wrong answer.
+  test("falls back to the documents when the SQL read throws", async () => {
+    mocks.loadAutomationReferencesFor.mockRejectedValue(new Error("sql down"));
+    mocks.readAutomationPart.mockImplementation((_k, part) =>
+      part === "fields" ? { schemaVersion: 1, entries: [] } : null
+    );
+
+    const result = await getAutomationFieldUsage({ payload: { fieldName: "Story Points" }, context: ctxWithAccount() });
+    expect(result).toMatchObject({ available: true, referenced: false });
+  });
+
+  // With neither rows nor a document there is no analysis at all, which is a different
+  // claim from "no rule touches this".
+  test("still reports no-analysis rather than not-referenced when nothing exists", async () => {
+    mocks.loadAutomationReferencesFor.mockResolvedValue({ references: [], total: 0, ruleCount: 0 });
+    mocks.readAutomationPart.mockResolvedValue(null);
+
+    const result = await getAutomationFieldUsage({ payload: { fieldName: "Story Points" }, context: ctxWithAccount() });
+    expect(result).toMatchObject({ available: false, reason: "no-analysis" });
   });
 });
 
