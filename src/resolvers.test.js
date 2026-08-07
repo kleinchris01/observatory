@@ -88,6 +88,9 @@ const mocks = vi.hoisted(() => ({
   writeAutomationAnalysis: vi.fn(),
   readAutomationPart: vi.fn(),
   writeAutomationPart: vi.fn(),
+  replaceAutomationReferences: vi.fn(),
+  replaceAutomationRules: vi.fn(),
+  replaceAutomationFindings: vi.fn(),
   loadWorkflowSchemes: vi.fn(),
   loadWorkflowSchemeProjects: vi.fn(),
   loadWorkflowSchemeForProject: vi.fn().mockResolvedValue(null),
@@ -161,6 +164,9 @@ vi.mock("./lib/store/automation.js", () => ({
   writeAutomationAnalysis: mocks.writeAutomationAnalysis,
   readAutomationPart: mocks.readAutomationPart,
   writeAutomationPart: mocks.writeAutomationPart,
+  replaceAutomationReferences: mocks.replaceAutomationReferences,
+  replaceAutomationRules: mocks.replaceAutomationRules,
+  replaceAutomationFindings: mocks.replaceAutomationFindings,
   AUTOMATION_PARTS: { analysis: "a:", fields: "f:", statuses: "s:", directory: "d:", findings: "fi:" },
   MAX_PREVIEW_FINDINGS: 20,
   MAX_STORED_CASCADES: 150,
@@ -3192,6 +3198,61 @@ describe("saveAutomationIndex", () => {
       saveAutomationIndex({ payload: { part: "analysis", document: { schemaVersion: 1 } }, context: ctxWithAccount() })
     ).rejects.toThrow(/unknown automation index part/);
     expect(mocks.writeAutomationPart).not.toHaveBeenCalled();
+  });
+
+  // The SQL shred. Each part routes to a different writer, and none of them may fail the
+  // import: the KVS write has already succeeded and is what the tab still renders.
+  describe("shredding into SQL", () => {
+    beforeEach(() => {
+      mocks.writeAutomationPart.mockResolvedValue(undefined);
+      mocks.replaceAutomationReferences.mockResolvedValue(4);
+      mocks.replaceAutomationRules.mockResolvedValue(2);
+      mocks.replaceAutomationFindings.mockResolvedValue(3);
+      mocks.readAutomationPart.mockResolvedValue(null);
+    });
+
+    // A reference row needs both indexes, because fields and statuses share one table and
+    // the write replaces the whole scope. Saving one part must not erase the other.
+    test.each([["fields"], ["statuses"]])("routes %s through the reference writer with both indexes", async (part) => {
+      const other = { schemaVersion: 1, entries: [{ label: "Other", write: ["7"] }] };
+      mocks.readAutomationPart.mockResolvedValue(other);
+      const doc = { schemaVersion: 1, entries: [{ label: "A", write: ["1"] }] };
+
+      const result = await saveAutomationIndex({ payload: { part, document: doc }, context: ctxWithAccount() });
+
+      expect(mocks.replaceAutomationReferences).toHaveBeenCalledWith(expect.any(String), {
+        fields: part === "fields" ? doc : other,
+        statuses: part === "statuses" ? doc : other,
+      });
+      expect(result.rowsWritten).toBe(4);
+    });
+
+    test("routes the directory through the rule writer", async () => {
+      const doc = { schemaVersion: 1, rules: [["1", "Rule", 1, "manual", 0]] };
+      const result = await saveAutomationIndex({ payload: { part: "directory", document: doc }, context: ctxWithAccount() });
+      expect(mocks.replaceAutomationRules).toHaveBeenCalledWith(expect.any(String), doc);
+      expect(mocks.replaceAutomationReferences).not.toHaveBeenCalled();
+      expect(result.rowsWritten).toBe(2);
+    });
+
+    test("routes findings through the findings writer", async () => {
+      const doc = { schemaVersion: 1, findings: [{ id: 1, r: [{ c: "x", s: "high" }] }] };
+      const result = await saveAutomationIndex({ payload: { part: "findings", document: doc }, context: ctxWithAccount() });
+      expect(mocks.replaceAutomationFindings).toHaveBeenCalledWith(expect.any(String), doc);
+      expect(result.rowsWritten).toBe(3);
+    });
+
+    // The whole point of best-effort: SQL is the secondary copy while the UI still reads
+    // KVS, so losing it must degrade the index, never the import.
+    test("still reports the import saved when the SQL shred throws", async () => {
+      mocks.replaceAutomationRules.mockRejectedValue(new Error("sql down"));
+      const result = await saveAutomationIndex({
+        payload: { part: "directory", document: { schemaVersion: 1, rules: [] } },
+        context: ctxWithAccount(),
+      });
+      expect(result).toMatchObject({ saved: true, part: "directory" });
+      expect(mocks.writeAutomationPart).toHaveBeenCalled();
+    });
   });
 
   test("refuses an unknown part rather than writing to a computed key", async () => {
