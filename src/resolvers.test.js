@@ -85,6 +85,7 @@ const mocks = vi.hoisted(() => ({
   loadIssueRqtValues: vi.fn(),
   readWorkflowSnapshotMeta: vi.fn(),
   readAutomationAnalysis: vi.fn(),
+  writeAutomationAnalysis: vi.fn(),
   loadWorkflowSchemes: vi.fn(),
   loadWorkflowSchemeProjects: vi.fn(),
   loadWorkflowSchemeForProject: vi.fn().mockResolvedValue(null),
@@ -155,6 +156,9 @@ vi.mock("./lib/scan-engine.js", () => ({
 
 vi.mock("./lib/store/automation.js", () => ({
   readAutomationAnalysis: mocks.readAutomationAnalysis,
+  writeAutomationAnalysis: mocks.writeAutomationAnalysis,
+  MAX_STORED_FINDINGS: 200,
+  MAX_STORED_CASCADES: 150,
 }));
 
 vi.mock("./lib/project-store.js", () => ({
@@ -294,6 +298,7 @@ const {
   saveReportDefinition,
   startProjectUsageReportJob,
   getAutomationInsights,
+  saveAutomationAnalysis,
 } = __RAW_ADMIN_ONLY_FUNCTIONS;
 
 const {
@@ -3001,6 +3006,92 @@ describe("getAutomationInsights", () => {
   test("is registered admin-only, not shared with the macro handler", () => {
     expect(Object.keys(ADMIN_ONLY_FUNCTIONS)).toContain("getAutomationInsights");
     expect(Object.keys(SHARED_RESOLVER_FUNCTIONS)).not.toContain("getAutomationInsights");
+  });
+});
+
+describe("saveAutomationAnalysis", () => {
+  const valid = {
+    schemaVersion: 1,
+    source: "export-file",
+    estate: { ruleCount: 1477, enabledCount: 874, disabledCount: 603 },
+    findings: [{ id: 1, name: "r", topSeverity: "high", risks: [] }],
+    findingsTotal: 675,
+    cascades: [{ sourceId: 1, targetId: 2, selfTriggering: false }],
+    cascadesTotal: 1457,
+    selfTriggeringTotal: 123,
+  };
+
+  beforeEach(() => {
+    mocks.writeAutomationAnalysis.mockResolvedValue(undefined);
+  });
+
+  test("stores a valid document under the installation scope", async () => {
+    const result = await saveAutomationAnalysis({ payload: { analysis: valid }, context: ctxWithAccount() });
+
+    expect(result.saved).toBe(true);
+    const [, stored] = mocks.writeAutomationAnalysis.mock.calls[0];
+    expect(stored).toMatchObject({ schemaVersion: 1, estate: valid.estate, findingsTotal: 675, cascadesTotal: 1457 });
+  });
+
+  // A skewed workstation clock would otherwise stamp the analysis hours out, and that
+  // timestamp is what the staleness warning is built on.
+  test("stamps the server clock, not the browser's", async () => {
+    const before = Date.now();
+    await saveAutomationAnalysis({
+      payload: { analysis: { ...valid, refreshedAt: 111 } },
+      context: ctxWithAccount(),
+    });
+
+    const [, stored] = mocks.writeAutomationAnalysis.mock.calls[0];
+    expect(stored.refreshedAt).toBeGreaterThanOrEqual(before);
+  });
+
+  // The client applies these caps too. Re-applying them here means a client regression
+  // cannot write a value too large for KVS to hold.
+  test("re-applies the size caps rather than trusting the client", async () => {
+    const oversized = {
+      ...valid,
+      findings: Array.from({ length: 500 }, (_, i) => ({ id: i, risks: [] })),
+      cascades: Array.from({ length: 400 }, (_, i) => ({ sourceId: i, targetId: i })),
+    };
+
+    await saveAutomationAnalysis({ payload: { analysis: oversized }, context: ctxWithAccount() });
+
+    const [, stored] = mocks.writeAutomationAnalysis.mock.calls[0];
+    expect(stored.findings).toHaveLength(200);
+    expect(stored.cascades).toHaveLength(150);
+  });
+
+  test("keeps the estate totals even when the lists are truncated", async () => {
+    await saveAutomationAnalysis({ payload: { analysis: valid }, context: ctxWithAccount() });
+
+    const [, stored] = mocks.writeAutomationAnalysis.mock.calls[0];
+    expect(stored.findingsTotal).toBe(675);
+    expect(stored.cascadesTotal).toBe(1457);
+  });
+
+  test("rejects a document with no estate", async () => {
+    await expect(
+      saveAutomationAnalysis({ payload: { analysis: { schemaVersion: 1 } }, context: ctxWithAccount() })
+    ).rejects.toThrow(/estate is required/);
+    expect(mocks.writeAutomationAnalysis).not.toHaveBeenCalled();
+  });
+
+  test("rejects an unsupported schema version", async () => {
+    await expect(
+      saveAutomationAnalysis({ payload: { analysis: { ...valid, schemaVersion: 2 } }, context: ctxWithAccount() })
+    ).rejects.toThrow(/schemaVersion/);
+  });
+
+  test("rejects a non-object payload", async () => {
+    await expect(
+      saveAutomationAnalysis({ payload: { analysis: [1, 2, 3] }, context: ctxWithAccount() })
+    ).rejects.toThrow(/must be an object/);
+  });
+
+  test("is registered admin-only", () => {
+    expect(Object.keys(ADMIN_ONLY_FUNCTIONS)).toContain("saveAutomationAnalysis");
+    expect(Object.keys(SHARED_RESOLVER_FUNCTIONS)).not.toContain("saveAutomationAnalysis");
   });
 });
 

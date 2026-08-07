@@ -14,64 +14,19 @@
 import { kvs } from "@forge/kvs";
 import { fallbackOn } from "../logger.js";
 
-const KEY_PREFIX = "automation:analysis:";
+// The document's shape and its size caps live in the analysis module, which imports
+// nothing and can therefore be used from the frontend bundle too. Re-exported here so
+// callers that only care about storage have one import.
+export {
+  MAX_STORED_FINDINGS,
+  MAX_STORED_CASCADES,
+  buildAnalysisDocument,
+} from "../automation-analysis.js";
 
-// KVS caps a single value at roughly 240 KB. These bounds keep the stored document well
-// under that even on a site several times larger than the reference one, and each is a
-// visible truncation rather than a silent drop -- the counts in `estate` are computed
-// before truncation, so the UI can say "showing 200 of 1,457".
-export const MAX_STORED_FINDINGS = 300;
-export const MAX_STORED_CASCADES = 200;
+const KEY_PREFIX = "automation:analysis:";
 
 function keyFor(scopeKey) {
   return `${KEY_PREFIX}${scopeKey}`;
-}
-
-export function buildAnalysisDocument({ estate, summaries = [], cascades = [], refreshedAt = Date.now(), source = "unknown" }) {
-  // Rules with no findings are the majority and carry no information here; the estate
-  // counts already say how many there are.
-  const withFindings = summaries
-    .filter((summary) => summary.risks.length > 0)
-    .sort((a, b) => severityRank(a.topSeverity) - severityRank(b.topSeverity));
-
-  const selfTriggering = cascades.filter((c) => c.selfTriggering);
-  const others = cascades.filter((c) => !c.selfTriggering);
-
-  return {
-    schemaVersion: 1,
-    refreshedAt,
-    source,
-    estate,
-    findingsTotal: withFindings.length,
-    findings: withFindings.slice(0, MAX_STORED_FINDINGS).map(compactSummary),
-    cascadesTotal: cascades.length,
-    selfTriggeringTotal: selfTriggering.length,
-    // Self-triggering loops are both the most likely to be real and the cheapest to fix,
-    // so they survive truncation ahead of cross-rule edges.
-    cascades: [...selfTriggering, ...others].slice(0, MAX_STORED_CASCADES),
-  };
-}
-
-const SEVERITY_RANK = { high: 0, medium: 1, low: 2, info: 3 };
-function severityRank(severity) {
-  return SEVERITY_RANK[severity] ?? 99;
-}
-
-function compactSummary(summary) {
-  return {
-    id: summary.id,
-    name: summary.name,
-    state: summary.state,
-    enabled: summary.enabled,
-    triggerType: summary.triggerType,
-    updated: summary.updated,
-    actionCount: summary.actionCount,
-    projectIds: summary.projectIds.slice(0, 10),
-    projectCount: summary.projectIds.length,
-    writesFields: summary.writesFields.slice(0, 10),
-    topSeverity: summary.topSeverity,
-    risks: summary.risks,
-  };
 }
 
 export async function writeAutomationAnalysis(scopeKey, document) {
