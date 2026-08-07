@@ -7,6 +7,11 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@forge/kvs", () => ({ kvs: mocks }));
+vi.mock("@forge/sql", () => ({ sql: { prepare: vi.fn() } }));
+vi.mock("./core.js", () => ({
+  ensureProjectStoreReady: vi.fn().mockResolvedValue(undefined),
+  withSqlRetry: (op) => op(),
+}));
 vi.mock("../logger.js", () => ({
   fallbackOn: (_event, fallback) => () => fallback(),
   logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() },
@@ -190,3 +195,61 @@ describe("automation storage parts", () => {
   });
 });
 
+
+
+// referenceRowsFrom is where the KVS caps stop applying. The document it reads carried at
+// most 50 rule ids per direction and 1,000 labels; rows have no such ceiling, so these
+// assert the flattening rather than the storage call.
+describe("referenceRowsFrom", () => {
+  const doc = {
+    entries: [
+      { label: "Story Points", write: ["1", "2"], read: ["3"], trigger: [] },
+      { label: "Priority", write: [], read: [], trigger: ["4"] },
+    ],
+  };
+
+  it("emits one row per label, rule and direction", async () => {
+    const { referenceRowsFrom } = await import("./automation.js");
+    expect(referenceRowsFrom(doc, "field")).toEqual([
+      ["field", "Story Points", "1", "write"],
+      ["field", "Story Points", "2", "write"],
+      ["field", "Story Points", "3", "read"],
+      ["field", "Priority", "4", "trigger"],
+    ]);
+  });
+
+  // Direction is the consequence: a rule that WRITES keeps a field alive, one that only
+  // READS it breaks when the field goes. Collapsing them would lose the whole distinction.
+  it("keeps a rule that both reads and writes as two rows", async () => {
+    const { referenceRowsFrom } = await import("./automation.js");
+    const rows = referenceRowsFrom({ entries: [{ label: "F", write: ["9"], read: ["9"] }] }, "field");
+    expect(rows).toHaveLength(2);
+    expect(rows.map((r) => r[3]).sort()).toEqual(["read", "write"]);
+  });
+
+  it("carries the kind so fields and statuses share one table", async () => {
+    const { referenceRowsFrom } = await import("./automation.js");
+    expect(referenceRowsFrom(doc, "status")[0][0]).toBe("status");
+  });
+
+  it("skips entries with no usable label rather than writing a blank key", async () => {
+    const { referenceRowsFrom } = await import("./automation.js");
+    const rows = referenceRowsFrom({ entries: [{ label: "  ", write: ["1"] }, { write: ["2"] }] }, "field");
+    expect(rows).toEqual([]);
+  });
+
+  it("handles an absent or empty document", async () => {
+    const { referenceRowsFrom } = await import("./automation.js");
+    expect(referenceRowsFrom(null, "field")).toEqual([]);
+    expect(referenceRowsFrom({ entries: [] }, "field")).toEqual([]);
+  });
+
+  // The cap this replaces: a field referenced by 542 rules used to store 50 ids and a
+  // separate count. Now it is 542 rows and the count is derivable.
+  it("emits every reference, past the old 50-per-direction cap", async () => {
+    const { referenceRowsFrom } = await import("./automation.js");
+    const many = Array.from({ length: 542 }, (_, i) => String(i));
+    const rows = referenceRowsFrom({ entries: [{ label: "Hot", write: many }] }, "field");
+    expect(rows).toHaveLength(542);
+  });
+});

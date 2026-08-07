@@ -108,6 +108,10 @@ import {
   writeAutomationAnalysis,
   readAutomationPart,
   writeAutomationPart,
+  replaceAutomationReferences,
+  replaceAutomationRules,
+  replaceAutomationFindings,
+  loadAutomationReferencesFor,
   AUTOMATION_PARTS,
   MAX_PREVIEW_FINDINGS,
   MAX_STORED_CASCADES,
@@ -887,7 +891,37 @@ async function saveAutomationIndex({ payload, context }) {
     }
 
     await writeAutomationPart(installationKey, part, document);
-    return { saved: true, part };
+
+    // Also shred into SQL, where the caps do not apply and the cross-pillar join is a real
+    // indexed query rather than a string match over a loaded document.
+    //
+    // The KVS write stays for now: the tab still reads documents, and keeping both means
+    // this can land without a coordinated UI change. Best-effort by design -- a SQL failure
+    // must not fail the import, because the KVS copy already succeeded and is what the UI
+    // currently renders. It is logged rather than swallowed silently.
+    let rowsWritten = null;
+    try {
+      if (part === "fields" || part === "statuses") {
+        const other = part === "fields" ? "statuses" : "fields";
+        const existing = await readAutomationPart(installationKey, other);
+        rowsWritten = await replaceAutomationReferences(installationKey, {
+          fields: part === "fields" ? document : existing,
+          statuses: part === "statuses" ? document : existing,
+        });
+      } else if (part === "directory") {
+        rowsWritten = await replaceAutomationRules(installationKey, document);
+      } else if (part === "findings") {
+        rowsWritten = await replaceAutomationFindings(installationKey, document);
+      }
+    } catch (sqlError) {
+      logger.warn("automation.sql_index_failed", {
+        installationKey,
+        part,
+        error: String(sqlError?.message || sqlError),
+      });
+    }
+
+    return { saved: true, part, rowsWritten };
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
     console.error("saveAutomationIndex failed:", error);
@@ -948,6 +982,42 @@ async function getAutomationFieldUsage({ payload, context }) {
     const fieldId = String(payload?.fieldId ?? "").trim();
     if (!fieldName && !fieldId) throw new Error("fieldName or fieldId is required");
 
+    // SQL first. This is the read the move to rows was for: one indexed query returning
+    // the references for this field, instead of loading a ~131 KB index plus a ~129 KB
+    // directory and matching a lowercased string in memory -- the same cost whether the
+    // question was about one field or all of them.
+    //
+    // Falls back to the documents when SQL has no rows for the label. An install that
+    // imported before the tables existed still has its KVS copies and no rows, and would
+    // otherwise be told "not referenced" -- the exact false reassurance this pillar exists
+    // to prevent. The fallback goes when a re-import is guaranteed, not before.
+    const sqlHit = await loadAutomationReferencesFor(installationKey, "field", fieldName || fieldId)
+      .catch(fallbackOn("automation.sql_reference_read_failed", () => null, { installationKey }));
+
+    if (sqlHit?.total > 0) {
+      const group = (direction) => {
+        const rows = sqlHit.references.filter((r) => r.direction === direction);
+        return {
+          count: rows.length,
+          rules: rows.map((r) => ({
+            id: r.rule_id,
+            name: r.name ?? `Rule ${r.rule_id}`,
+            enabled: r.enabled === null || r.enabled === undefined ? null : r.enabled === 1,
+            triggerType: null,
+          })),
+        };
+      };
+      return {
+        available: true,
+        referenced: true,
+        source: "sql",
+        label: fieldName || fieldId,
+        write: group("write"),
+        read: group("read"),
+        trigger: group("trigger"),
+      };
+    }
+
     const [index, directory] = await Promise.all([
       readAutomationPart(installationKey, "fields"),
       readAutomationPart(installationKey, "directory"),
@@ -984,6 +1054,7 @@ async function getAutomationFieldUsage({ payload, context }) {
     return {
       available: true,
       referenced: true,
+      source: "kvs",
       label: entry.label,
       write: expand(entry.write, entry.writeCount),
       read: expand(entry.read, entry.readCount),

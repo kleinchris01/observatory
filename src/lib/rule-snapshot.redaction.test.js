@@ -95,7 +95,12 @@ function scan(node, findings, file, key = "") {
 
 const snapshotExists = fs.existsSync(RULES_DIR);
 
-describe.skipIf(!snapshotExists)("committed rule snapshot redaction", () => {
+// 30s, not vitest's 5s default. These read and concatenate all ~1,477 committed rule files
+// -- roughly 9 MB of synchronous I/O -- then regex-scan the blob. That legitimately takes
+// 5-7 seconds, so under a loaded full-suite run it was tipping past the default and failing
+// intermittently. A security test that flakes is a security test people learn to ignore,
+// which is worse than not having it.
+describe.skipIf(!snapshotExists)("committed rule snapshot redaction", { timeout: 30000 }, () => {
   const files = snapshotExists
     ? fs.readdirSync(RULES_DIR).filter((f) => f.endsWith(".json"))
     : [];
