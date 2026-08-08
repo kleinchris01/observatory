@@ -37,3 +37,31 @@ export function useVisiblePolling(active, fn, intervalMs) {
     };
   }, [active, intervalMs]);
 }
+
+// Refresh when someone comes back to the page, and at no other time.
+//
+// This replaced a 60-second interval on the admin overview. The interval existed to catch
+// changes made elsewhere -- a snapshot finishing, config edited in another session -- and
+// ran 1,440 times a day to catch an event that happens about once. getAdminOverview is the
+// heaviest read in the product, so that was the worst possible thing to put on a timer.
+//
+// Coming back to the tab is the moment staleness starts to matter, and it is the only
+// moment. Idle cost is zero: no timer exists, so there is nothing to leave running.
+//
+// What this gives up: sitting on the page for ten minutes without touching anything will
+// not surface a change made elsewhere until you look away and back. The overview is not a
+// live-monitoring surface -- Scans polls its own state properly while a build runs -- so
+// that is the right thing to trade away.
+export function useRefreshOnVisible(fn) {
+  const saved = React.useRef(fn);
+  saved.current = fn;
+
+  React.useEffect(() => {
+    if (typeof document === "undefined") return undefined;
+    const onVisible = () => {
+      if (document.visibilityState === "visible") saved.current();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
+}

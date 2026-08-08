@@ -12,7 +12,7 @@ import { FieldBrowserTab } from "./tabs/FieldBrowserTab";
 import { OverviewTab } from "./tabs/OverviewTab";
 import { ProjectUsageTab } from "./tabs/ProjectUsageTab";
 import { ReportsTab } from "./tabs/ReportsTab";
-import { useVisiblePolling } from "./hooks";
+import { useRefreshOnVisible } from "./hooks";
 import { ScansTab } from "./tabs/ScansTab";
 
 // Lazy: both pull in recharts (+122KB gzip measured on the macro bundle) and
@@ -129,14 +129,16 @@ export function AdminApp() {
     });
   }
 
-  // Slow poll to catch external changes (findings/migration banner) -- live snapshot
-  // build progress is now polled independently by ScansTab's own Snapshot panel.
+  // No interval. Refreshed on mount, and again whenever someone returns to the page.
   //
-  // Visibility-gated. This was unconditional, so an admin page left open in a background
-  // tab ran getAdminOverview -- the heaviest read in the product, building the dashboard,
-  // findings, workflow, automation and health score -- once a minute forever. That is
-  // where ~1,600 idle queries an hour were coming from, with nobody at the keyboard.
-  useVisiblePolling(true, () => loadOverview({ quiet: true }), 60000);
+  // This was a 60-second poll, then a visibility-gated 60-second poll, and both were
+  // solving the wrong problem: getAdminOverview is the heaviest read in the product and it
+  // was on a timer to catch an event -- a snapshot finishing -- that happens about once a
+  // day. Returning to the tab is when staleness starts to matter, and gating on that
+  // alone takes idle cost to zero rather than merely reducing it.
+  //
+  // Live build progress is unaffected: ScansTab polls its own state while a job runs.
+  useRefreshOnVisible(() => loadOverview({ quiet: true }));
 
   async function handleMigrateNamespace() {
     setMigratingNamespace(true);
