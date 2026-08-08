@@ -4,7 +4,12 @@ import { formatTimestamp, formatShortTime, formatRelativeTime } from "../utils";
 import { Icon, useLiveDuration } from "../components/Icons";
 import { SubNavLayout } from "../components/admin/primitives";
 import { StatTile, StatRow, PageHeader, Panel, EmptyState } from "../components/ui";
+import { useVisiblePolling } from "../hooks";
 import { SnapshotLog, JobsPanel } from "../components/admin/JobsPanel";
+
+// Re-exported: this started here before three surfaces needed it, and the ScansTab tests
+// still import it from this module.
+export { useVisiblePolling };
 
 // Snapshot builds, the universe scan and delta scans -- the operator surface for the
 // pipeline.
@@ -18,42 +23,6 @@ import { SnapshotLog, JobsPanel } from "../components/admin/JobsPanel";
 // The word a user must type to confirm destroying every snapshot. Deliberately not
 // "yes": the point is that it cannot be typed by reflex.
 const CLEAR_CONFIRMATION_WORD = "DELETE";
-
-// Poll only while a job is running AND the tab is actually being looked at.
-//
-// The job-active guard was already here; the visibility guard was not. A universe scan
-// wedged in "building" plus one forgotten browser tab kept two resolvers -- and their SQL
-// reads -- firing every 15 seconds all night. Nobody was reading the screen, so every one
-// of those queries bought nothing.
-//
-// Fires once immediately on becoming visible, so a tab returned to after an hour shows
-// current state rather than waiting out the interval first.
-export function useVisiblePolling(active, fn, intervalMs) {
-  const saved = React.useRef(fn);
-  saved.current = fn;
-
-  React.useEffect(() => {
-    if (!active) return undefined;
-
-    let timer = null;
-    const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
-    const start = () => { if (!timer) timer = setInterval(() => saved.current(), intervalMs); };
-
-    const sync = () => {
-      const hidden = typeof document !== "undefined" && document.visibilityState === "hidden";
-      if (hidden) { stop(); return; }
-      saved.current();
-      start();
-    };
-
-    sync();
-    if (typeof document !== "undefined") document.addEventListener("visibilitychange", sync);
-    return () => {
-      stop();
-      if (typeof document !== "undefined") document.removeEventListener("visibilitychange", sync);
-    };
-  }, [active, intervalMs]);
-}
 
 export function ClearSnapshotControl({ onCleared }) {
   const [open, setOpen] = React.useState(false);

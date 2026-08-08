@@ -12,6 +12,7 @@ import { FieldBrowserTab } from "./tabs/FieldBrowserTab";
 import { OverviewTab } from "./tabs/OverviewTab";
 import { ProjectUsageTab } from "./tabs/ProjectUsageTab";
 import { ReportsTab } from "./tabs/ReportsTab";
+import { useVisiblePolling } from "./hooks";
 import { ScansTab } from "./tabs/ScansTab";
 
 // Lazy: both pull in recharts (+122KB gzip measured on the macro bundle) and
@@ -130,12 +131,12 @@ export function AdminApp() {
 
   // Slow poll to catch external changes (findings/migration banner) -- live snapshot
   // build progress is now polled independently by ScansTab's own Snapshot panel.
-  React.useEffect(() => {
-    const timer = setInterval(() => {
-      loadOverview({ quiet: true });
-    }, 60000);
-    return () => clearInterval(timer);
-  }, []);
+  //
+  // Visibility-gated. This was unconditional, so an admin page left open in a background
+  // tab ran getAdminOverview -- the heaviest read in the product, building the dashboard,
+  // findings, workflow, automation and health score -- once a minute forever. That is
+  // where ~1,600 idle queries an hour were coming from, with nobody at the keyboard.
+  useVisiblePolling(true, () => loadOverview({ quiet: true }), 60000);
 
   async function handleMigrateNamespace() {
     setMigratingNamespace(true);
