@@ -113,7 +113,7 @@ jobs:
 
     steps:
       - name: Notify Slack
-        uses: slackapi/slack-github-action@v1
+        uses: slackapi/slack-github-action@v4
         if: vars.SLACK_WEBHOOK_URL != ''
         with:
           payload: |
