@@ -64,6 +64,10 @@ import {
   probeStargateEndpoint,
   getCloudId,
   getAllScreens,
+  getAllScreenSchemes,
+  getAllIssueTypeScreenSchemes,
+  getIssueTypeScreenSchemeMappings,
+  getIssueTypeScreenSchemeProjects,
   getScreenTabs,
   getScreenTabFields,
   getWorkflowSchemesForProjects,
@@ -903,6 +907,60 @@ describe("getCloudId", () => {
 // coverage floor on this module, and the tabs/fields pair is the expensive hop the whole
 // screen pipeline's cost turns on -- worth pinning their response handling.
 describe("screen fetchers", () => {
+  // The two scheme layers above the screen. Both paginate, and both answer under scopes
+  // this install has -- unlike the screen list, which needed two more scopes before it
+  // would respond at all.
+  test("getAllScreenSchemes paginates and keeps the raw operation object", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({
+      body: { values: [{ id: 5, screens: { default: 100, edit: 101 } }], isLast: true },
+    }));
+
+    const schemes = await getAllScreenSchemes();
+
+    // screens is returned intact rather than flattened: inheritance is resolved at build
+    // time, and which operation was set explicitly is part of the answer.
+    expect(schemes[0].screens).toEqual({ default: 100, edit: 101 });
+    expect(String(mockRequestJira.mock.calls[0][0])).toContain("/rest/api/3/screenscheme");
+  });
+
+  test("getAllIssueTypeScreenSchemes paginates", async () => {
+    mockRequestJira
+      .mockResolvedValueOnce(jiraResponse({ body: { values: [{ id: 9 }], total: 2 } }))
+      .mockResolvedValueOnce(jiraResponse({ body: { values: [{ id: 10 }], total: 2 } }));
+
+    await expect(getAllIssueTypeScreenSchemes()).resolves.toEqual([{ id: 9 }, { id: 10 }]);
+  });
+
+  test("getIssueTypeScreenSchemeMappings returns the default entry alongside explicit ones", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({
+      body: {
+        values: [
+          { issueTypeScreenSchemeId: 9, issueTypeId: "default", screenSchemeId: 5 },
+          { issueTypeScreenSchemeId: 9, issueTypeId: "10001", screenSchemeId: 6 },
+        ],
+        isLast: true,
+      },
+    }));
+
+    const mappings = await getIssueTypeScreenSchemeMappings();
+
+    // On most sites the catch-all is the ONLY mapping a project has, so dropping it would
+    // resolve the majority of projects to no screens at all.
+    expect(mappings.some((m) => m.issueTypeId === "default")).toBe(true);
+    expect(String(mockRequestJira.mock.calls[0][0])).toContain("/issuetypescreenscheme/mapping");
+  });
+
+  test("getIssueTypeScreenSchemeProjects returns scheme-to-project rows", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({
+      body: { values: [{ issueTypeScreenScheme: { id: 9 }, projectIds: ["10000"] }], isLast: true },
+    }));
+
+    const rows = await getIssueTypeScreenSchemeProjects();
+
+    expect(rows[0].projectIds).toEqual(["10000"]);
+    expect(String(mockRequestJira.mock.calls[0][0])).toContain("/issuetypescreenscheme/project");
+  });
+
   test("getAllScreens paginates the screen catalog", async () => {
     mockRequestJira
       .mockResolvedValueOnce(jiraResponse({ body: { values: [{ id: 1 }, { id: 2 }], total: 3 } }))

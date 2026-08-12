@@ -101,6 +101,9 @@ export const METRIC_NAMES = {
   workflowSnapshotStarted: "workflow-snapshot-started",
   workflowSnapshotCompleted: "workflow-snapshot-completed",
   workflowSnapshotFailed: "workflow-snapshot-failed",
+  screenSnapshotStarted: "screen-snapshot-started",
+  screenSnapshotCompleted: "screen-snapshot-completed",
+  screenSnapshotFailed: "screen-snapshot-failed",
 };
 
 // ----- Module-level rate limiter state -----
@@ -908,6 +911,38 @@ export async function getScreenTabFields(screenId, tabId) {
 // reach orphaned screens, which is a finding in its own right and would be the casualty.
 export async function getScreenSchemes({ maxResults = 100 } = {}) {
   return jiraRequest(route`/rest/api/3/screenscheme?maxResults=${maxResults}`);
+}
+
+// The two upper hops of the chain: screen scheme -> screen, and issue type screen scheme
+// -> screen scheme -> project. Both paginate, both answer under scopes this install
+// demonstrably has (200 on the live probe), and neither is expensive -- schemes are tens
+// of rows where screens are hundreds.
+
+// Each scheme names the screen serving each operation under `screens`. An operation absent
+// from that object inherits `default`, and the DIFFERENCE matters: an admin reading the
+// inventory needs to know which screen was chosen for edit and which merely fell through.
+// So the raw object is returned intact and the inheritance is resolved at build time, not
+// flattened away here.
+export async function getAllScreenSchemes() {
+  return paginate((startAt) => route`/rest/api/3/screenscheme?maxResults=100&startAt=${startAt}`);
+}
+
+export async function getAllIssueTypeScreenSchemes() {
+  return paginate((startAt) => route`/rest/api/3/issuetypescreenscheme?maxResults=100&startAt=${startAt}`);
+}
+
+// Issue type -> screen scheme, per issue type screen scheme.
+//
+// Jira reports the catch-all entry with issueTypeId "default" rather than omitting it, and
+// that row is load-bearing: on most sites it is the only mapping a project has, so treating
+// it as noise would resolve the majority of projects to an empty screen set.
+export async function getIssueTypeScreenSchemeMappings() {
+  return paginate((startAt) => route`/rest/api/3/issuetypescreenscheme/mapping?maxResults=100&startAt=${startAt}`);
+}
+
+// ITSS -> projects. Returns { issueTypeScreenScheme: {id, name}, projectIds: [] } per row.
+export async function getIssueTypeScreenSchemeProjects() {
+  return paginate((startAt) => route`/rest/api/3/issuetypescreenscheme/project?maxResults=100&startAt=${startAt}`);
 }
 
 // GET /rest/api/3/status returns a flat array, not the usual {values, isLast} wrapper.

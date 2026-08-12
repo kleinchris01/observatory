@@ -1,0 +1,288 @@
+import { vi, describe, test, expect, beforeEach } from "vitest";
+
+// Storage for the screen and scheme snapshot.
+//
+// Tested directly against a mocked Forge SQL rather than only through its callers, for the
+// same reason store/workflow.js is: this is where a wrong column alias or an unscoped
+// DELETE hides, and no test that mocks project-store wholesale could ever catch one.
+
+vi.mock("@forge/sql", () => {
+  const runner = { enqueue: () => runner, run: vi.fn().mockResolvedValue(undefined) };
+  return {
+    sql: {
+      prepare: vi.fn().mockReturnValue({
+        bindParams: vi.fn().mockReturnThis(),
+        execute: vi.fn().mockResolvedValue({ rows: [] }),
+      }),
+      executeInTransaction: vi.fn().mockResolvedValue(undefined),
+    },
+    migrationRunner: runner,
+  };
+});
+
+import { sql } from "@forge/sql";
+import {
+  replaceScreenSnapshot,
+  loadScreensPage,
+  loadScreenFields,
+  loadScreensForField,
+  loadScreenSchemes,
+  loadScreenSchemeOperations,
+  loadIssueTypeScreenSchemes,
+  loadItssMappings,
+  loadItssProjects,
+  readScreenSnapshotMeta,
+  writeScreenSnapshotMeta,
+} from "./screen.js";
+
+// Each prepare() gets its own stub so a statement stays paired with the params bound to
+// it. A single shared stub collects every bindParams call in one list, which silently
+// correlates the wrong params to the wrong SQL -- and a storage test that asserts against
+// the wrong row is worse than no storage test.
+let issued = [];
+let nextRows = [];
+
+function harness() {
+  issued = [];
+  sql.prepare.mockImplementation((statement) => {
+    const entry = { statement: String(statement), params: null };
+    issued.push(entry);
+    const stub = {
+      bindParams: (...params) => { entry.params = params; return stub; },
+      execute: () => Promise.resolve({ rows: nextRows }),
+    };
+    return stub;
+  });
+}
+
+function statements() {
+  return issued.map((e) => e.statement);
+}
+
+function boundParamsFor(match) {
+  return issued.find((e) => e.statement.includes(match))?.params ?? null;
+}
+
+function mockRows(rows) {
+  nextRows = rows;
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  nextRows = [];
+  harness();
+});
+
+describe("replaceScreenSnapshot", () => {
+  const payload = {
+    screens: [{ id: 100, name: "Default", tabCount: 1, fieldCount: 2 }],
+    tabs: [{ screenId: 100, tabId: 1, name: "Tab", tabIndex: 0, fieldCount: 2 }],
+    fields: [{ screenId: 100, tabId: 1, fieldId: "summary", fieldName: "Summary", tabIndex: 0, fieldIndex: 0 }],
+    screenSchemes: [{ id: 5, name: "SS", screens: { default: 100 } }],
+    schemeOperations: [{ schemeId: 5, operation: "default", screenId: 100, inherited: false, dangling: false }],
+    issueTypeScreenSchemes: [{ id: 9, name: "ITSS", projectCount: 1 }],
+    itssMappings: [{ itssId: 9, issueTypeId: "default", screenSchemeId: 5, isDefault: true }],
+    itssProjects: [{ itssId: 9, projectId: "10000", projectKey: "OBS", projectName: "Observatory" }],
+  };
+
+  // The one that matters most. An unscoped DELETE in a multi-tenant Forge app destroys
+  // another customer's data.
+  test("every DELETE carries a scope_key predicate", async () => {
+    await replaceScreenSnapshot("scope-1", "v1", payload);
+
+    const deletes = statements().filter((s) => s.trim().startsWith("DELETE"));
+    expect(deletes.length).toBe(8);
+    expect(deletes.every((s) => s.includes("WHERE scope_key = ?"))).toBe(true);
+  });
+
+  test("clears all eight tables before writing", async () => {
+    await replaceScreenSnapshot("scope-1", "v1", payload);
+    const deletes = statements().filter((s) => s.trim().startsWith("DELETE")).join(" ");
+
+    for (const table of [
+      "snapshot_screens",
+      "snapshot_screen_tabs",
+      "snapshot_screen_fields",
+      "snapshot_screen_schemes",
+      "snapshot_screen_scheme_operations",
+      "snapshot_issue_type_screen_schemes",
+      "snapshot_itss_mappings",
+      "snapshot_itss_projects",
+    ]) {
+      expect(deletes).toContain(table);
+    }
+  });
+
+  test("writes the field row with its tab and field positions", async () => {
+    await replaceScreenSnapshot("scope-1", "v1", payload);
+    const params = boundParamsFor("INSERT INTO snapshot_screen_fields");
+
+    expect(params).toEqual(["scope-1", "v1", "100", "1", "summary", "Summary", 0, 0]);
+  });
+
+  test("stores the tri-state on a screen rather than a boolean", async () => {
+    await replaceScreenSnapshot("scope-1", "v1", {
+      screens: [{ id: 100, tabsResolved: "unresolved", unresolvedReason: "401" }],
+    });
+    const params = boundParamsFor("INSERT INTO snapshot_screens");
+
+    expect(params).toContain("unresolved");
+    expect(params).toContain("401");
+  });
+
+  test("defaults a screen with no stated resolution to resolved", async () => {
+    await replaceScreenSnapshot("scope-1", "v1", { screens: [{ id: 100 }] });
+    expect(boundParamsFor("INSERT INTO snapshot_screens")).toContain("resolved");
+  });
+
+  test("persists inherited and dangling as flags, not as absence", async () => {
+    await replaceScreenSnapshot("scope-1", "v1", {
+      schemeOperations: [{ schemeId: 5, operation: "create", screenId: 999, inherited: true, dangling: true }],
+    });
+    const params = boundParamsFor("INSERT INTO snapshot_screen_scheme_operations");
+
+    expect(params.slice(-2)).toEqual([1, 1]);
+    // The dangling screen id is kept. Dropping it would make the scheme look correct.
+    expect(params).toContain("999");
+  });
+
+  test("writes a null screen id for an operation that maps nowhere", async () => {
+    await replaceScreenSnapshot("scope-1", "v1", {
+      schemeOperations: [{ schemeId: 5, operation: "view", screenId: null }],
+    });
+    expect(boundParamsFor("INSERT INTO snapshot_screen_scheme_operations")).toContain(null);
+  });
+
+  test("issues no INSERT for a section with nothing in it", async () => {
+    await replaceScreenSnapshot("scope-1", "v1", {});
+    expect(statements().filter((s) => s.includes("INSERT"))).toHaveLength(0);
+  });
+
+  // Field rows dominate this snapshot and each carries 8 bind params, so they batch
+  // smaller than everything else to stay clear of the bind-parameter ceiling.
+  test("batches fields in smaller chunks than the other tables", async () => {
+    const fields = Array.from({ length: 85 }, (_, i) => ({
+      screenId: 1, tabId: 1, fieldId: `f${i}`, tabIndex: 0, fieldIndex: i,
+    }));
+    await replaceScreenSnapshot("scope-1", "v1", { fields });
+
+    const inserts = statements().filter((s) => s.includes("INSERT INTO snapshot_screen_fields"));
+    expect(inserts.length).toBe(3);
+  });
+});
+
+describe("reads", () => {
+  test("maps a screen row and keeps its unresolved reason", async () => {
+    mockRows([{
+      screen_id: "100", name: "Default", description: "d",
+      tab_count: 2, field_count: 30, tabs_resolved: "unresolved", unresolved_reason: "401",
+    }]);
+
+    const { rows } = await loadScreensPage("scope-1", "v1");
+
+    expect(rows[0]).toMatchObject({
+      screenId: "100", name: "Default", tabCount: 2, fieldCount: 30,
+      tabsResolved: "unresolved", unresolvedReason: "401",
+    });
+  });
+
+  test("falls back to the id when a screen has no name", async () => {
+    mockRows([{ screen_id: "100", name: null }]);
+    const { rows } = await loadScreensPage("scope-1", "v1");
+    expect(rows[0].name).toBe("100");
+  });
+
+  test("search narrows on name or id and stays parameterised", async () => {
+    await loadScreensPage("scope-1", "v1", { search: "Default" });
+    const params = boundParamsFor("FROM snapshot_screens");
+
+    expect(params).toEqual(["scope-1", "v1", "%Default%", "%Default%"]);
+  });
+
+  test("clamps a hostile page size rather than trusting it", async () => {
+    await loadScreensPage("scope-1", "v1", { limit: 99999, offset: -5 });
+    const statement = statements().find((s) => s.includes("ORDER BY field_count"));
+
+    expect(statement).toContain("LIMIT 200");
+    expect(statement).toContain("OFFSET 0");
+  });
+
+  test("orders screen fields by tab then position", async () => {
+    await loadScreenFields("scope-1", "v1", 100);
+    expect(statements().join(" ")).toContain("ORDER BY tab_index ASC, field_index ASC");
+  });
+
+  test("resolves screens for a field through the reverse index", async () => {
+    mockRows([{ screen_id: "100", screen_name: "Default", tab_id: "1", tab_index: 0, field_index: 3 }]);
+
+    const rows = await loadScreensForField("scope-1", "v1", "customfield_1");
+
+    expect(rows[0]).toMatchObject({ screenId: "100", screenName: "Default", fieldIndex: 3 });
+  });
+
+  test("parses the raw operation object back off a scheme", async () => {
+    mockRows([{ scheme_id: "5", name: "SS", screens_json: '{"default":100}' }]);
+    const rows = await loadScreenSchemes("scope-1", "v1");
+    expect(rows[0].screens).toEqual({ default: 100 });
+  });
+
+  test("survives an unparseable screens blob without throwing", async () => {
+    mockRows([{ scheme_id: "5", screens_json: "{not json" }]);
+    const rows = await loadScreenSchemes("scope-1", "v1");
+    expect(rows[0].screens).toBeNull();
+  });
+
+  test("maps operation flags back to booleans", async () => {
+    mockRows([{ scheme_id: "5", operation: "create", screen_id: "9", inherited: 1, dangling: 0 }]);
+    const rows = await loadScreenSchemeOperations("scope-1", "v1");
+    expect(rows[0]).toMatchObject({ inherited: true, dangling: false });
+  });
+
+  test("maps the ITSS layers", async () => {
+    mockRows([{ itss_id: "9", name: "ITSS", project_count: 4 }]);
+    expect((await loadIssueTypeScreenSchemes("scope-1", "v1"))[0]).toMatchObject({ itssId: "9", projectCount: 4 });
+
+    mockRows([{ itss_id: "9", issue_type_id: "default", screen_scheme_id: "5", is_default: 1 }]);
+    expect((await loadItssMappings("scope-1", "v1"))[0]).toMatchObject({ isDefault: true });
+
+    mockRows([{ itss_id: "9", project_id: "10000", project_key: "OBS", project_name: "Observatory" }]);
+    expect((await loadItssProjects("scope-1", "v1"))[0]).toMatchObject({ projectKey: "OBS" });
+  });
+});
+
+describe("meta", () => {
+  test("returns null when no build has ever run", async () => {
+    mockRows([]);
+    expect(await readScreenSnapshotMeta("scope-1")).toBeNull();
+  });
+
+  test("maps a meta row including the unresolved count", async () => {
+    mockRows([{
+      state: "ready", version: "v1", total_screens: 760, total_schemes: 12,
+      unresolved_screens: 30, refreshed_at: "2026-08-11T00:00:00.000Z", last_error: null,
+    }]);
+
+    expect(await readScreenSnapshotMeta("scope-1")).toMatchObject({
+      state: "ready", version: "v1", totalScreens: 760, unresolvedScreens: 30,
+    });
+  });
+
+  // Merge-patch, so a caller can set two fields without restating the rest -- and without
+  // silently zeroing the counts somebody else wrote.
+  test("patches over the current row rather than replacing it", async () => {
+    mockRows([{ state: "ready", version: "v1", total_screens: 760, unresolved_screens: 30 }]);
+
+    await writeScreenSnapshotMeta("scope-1", { state: "building" });
+    const params = boundParamsFor("INSERT INTO screen_snapshot_meta");
+
+    expect(params).toContain("building");
+    expect(params).toContain("v1");
+    expect(params).toContain(760);
+  });
+
+  test("defaults to idle when there is nothing to merge over", async () => {
+    mockRows([]);
+    await writeScreenSnapshotMeta("scope-1", {});
+    expect(boundParamsFor("INSERT INTO screen_snapshot_meta")).toContain("idle");
+  });
+});

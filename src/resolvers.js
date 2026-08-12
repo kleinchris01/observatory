@@ -92,9 +92,16 @@ import {
   loadWorkflowSchemeStatuses,
   loadStatusIssueCounts,
   loadStatusHistoryCounts,
+  readScreenSnapshotMeta,
+  loadScreensPage,
+  loadScreensForField,
+  loadScreenSchemes,
+  loadScreenSchemeOperations,
+  loadIssueTypeScreenSchemes,
 } from "./lib/project-store.js";
 import { queueWorkflowSnapshotBuild, isWorkflowBuildStale, queueStatusHistoryBuild } from "./lib/workflow-engine.js";
 import { measureScreenFetchCost, probeScreenEndpoints, DEFAULT_SAMPLE_SIZE } from "./lib/screen-probe.js";
+import { queueScreenSnapshotBuild, isScreenBuildStale } from "./lib/screen-engine.js";
 import { computeSiteHealth, DEFAULT_HEALTH_TOLERANCES } from "./lib/health-score.js";
 import { probeEndpoint, probeStargateEndpoint, getCloudId, getAllJiraProjects } from "./lib/jira-api.js";
 import {
@@ -761,6 +768,117 @@ async function getWorkflowInsights({ context }) {
 // the rules are neither held here nor cheap to fetch; the build path writes the document
 // this reads. No document means the analysis has never been built, which is the normal
 // state on a fresh install and renders as an empty state rather than an error.
+// ── Screen and scheme inventory ──────────────────────────────────────────────
+
+// Read path for the Screens surface. Mirrors getWorkflowInventory: one call returns the
+// meta, a page of screens, and the two scheme layers, so the tab renders from a single
+// round trip rather than four.
+async function getScreenInventory({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  const meta = await readScreenSnapshotMeta(installationKey);
+  const staleBuild = isScreenBuildStale(meta);
+
+  // No snapshot has ever completed. Report that plainly rather than returning empty rows
+  // that read as "this site has no screens" -- the two are opposite claims.
+  if (!meta?.version) {
+    return {
+      state: meta?.state || "idle",
+      staleBuild,
+      version: null,
+      screens: { total: 0, rows: [] },
+      screenSchemes: [],
+      schemeOperations: [],
+      issueTypeScreenSchemes: [],
+      lastError: meta?.lastError || null,
+      neverBuilt: true,
+    };
+  }
+
+  const page = Math.max(1, Number(payload?.page) || 1);
+  const pageSize = Math.max(1, Math.min(100, Number(payload?.pageSize) || 25));
+  const search = optionalString(payload?.search, "search") || "";
+
+  const [screens, screenSchemes, schemeOperations, issueTypeScreenSchemes] = await Promise.all([
+    loadScreensPage(installationKey, meta.version, {
+      limit: pageSize,
+      offset: (page - 1) * pageSize,
+      search,
+    }),
+    loadScreenSchemes(installationKey, meta.version),
+    loadScreenSchemeOperations(installationKey, meta.version),
+    loadIssueTypeScreenSchemes(installationKey, meta.version),
+  ]);
+
+  return {
+    state: meta.state,
+    staleBuild,
+    version: meta.version,
+    refreshedAt: meta.refreshedAt,
+    completedAt: meta.completedAt,
+    totalScreens: meta.totalScreens,
+    totalSchemes: meta.totalSchemes,
+    // Surfaced at the top level, not buried in the rows. A pass that could not read part
+    // of the catalog caps every finding built on it, and the reader needs that before the
+    // numbers rather than after.
+    unresolvedScreens: meta.unresolvedScreens,
+    lastError: meta.lastError || null,
+    page,
+    pageSize,
+    screens,
+    screenSchemes,
+    schemeOperations,
+    issueTypeScreenSchemes,
+    neverBuilt: false,
+  };
+}
+
+// Which screens carry one field, for the field detail panel.
+async function getFieldScreenReachability({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+  const fieldId = requireNonEmptyString(payload?.fieldId, "fieldId");
+
+  const meta = await readScreenSnapshotMeta(installationKey);
+  if (!meta?.version) {
+    // Tri-state again: "no screen snapshot" is not "this field is on no screen", and the
+    // second is the premise of a delete recommendation.
+    return { available: false, reason: "No screen inventory has been built yet.", screens: [] };
+  }
+
+  return {
+    available: true,
+    version: meta.version,
+    refreshedAt: meta.refreshedAt,
+    unresolvedScreens: meta.unresolvedScreens,
+    screens: await loadScreensForField(installationKey, meta.version, fieldId),
+  };
+}
+
+async function buildScreenInventory({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  const meta = await readScreenSnapshotMeta(installationKey);
+  // Suppress only a build that is both building AND not stale. A wedged row would
+  // otherwise block every future rebuild with no way out of the UI.
+  if (meta?.state === "building" && !isScreenBuildStale(meta)) {
+    return { queued: false, reason: "already-building", meta };
+  }
+
+  const adminConfig = await readAdminConfig();
+  if (adminConfig.readOnlyMode) {
+    return { queued: false, error: "Read-only mode is enabled. Disable it before building the screen inventory." };
+  }
+
+  await queueScreenSnapshotBuild(installationKey);
+  return { queued: true };
+}
+
 async function getAutomationInsights({ context }) {
   incrMetric(METRIC_NAMES.resolver);
   try {
@@ -3825,6 +3943,7 @@ const AUDITED_ADMIN_ACTIONS = new Set([
   "deleteReportDefinition",
   "saveAdminConfig",
   "migrateNamespaceKeys",
+  "buildScreenInventory",
 ]);
 
 function withAuditTrail(functions) {
@@ -3909,6 +4028,11 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   searchRqtValue,          // Admin read: looks up issues by RQT value token
 
   // Audit trail
+  // Screen and scheme inventory
+  getScreenInventory,      // Admin read: screens, tabs, schemes and their mappings
+  getFieldScreenReachability, // Admin read: which screens carry one field
+  buildScreenInventory,    // Mutating: queues a full screen and scheme snapshot build
+
   getAuditLog,             // Admin read: returns recent privileged-action records
 
   // Admin page surface. These were previously registered directly onto adminHandler in
