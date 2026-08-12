@@ -941,8 +941,38 @@ export async function getIssueTypeScreenSchemeMappings() {
 }
 
 // ITSS -> projects. Returns { issueTypeScreenScheme: {id, name}, projectIds: [] } per row.
-export async function getIssueTypeScreenSchemeProjects() {
-  return paginate((startAt) => route`/rest/api/3/issuetypescreenscheme/project?maxResults=100&startAt=${startAt}`);
+// Batch size for the repeated projectId parameter. Kept well under any URL length limit --
+// 50 numeric ids is a few hundred characters, where a 142-project site in one call is fine
+// and a 1,000-project one would not be.
+export const ITSS_PROJECT_QUERY_BATCH = 50;
+
+// ITSS -> projects. Returns { issueTypeScreenScheme: {id, name}, projectIds: [] } per row.
+//
+// projectId is REQUIRED and repeatable: this endpoint answers "which scheme governs these
+// projects", not "list every association". Called bare it returns
+// 400 "At least one projectId has to be provided" -- which is exactly what the first live
+// build did, and the reason this takes an argument rather than none.
+//
+// The path is assembled as a plain string rather than through route's tagged form because
+// the repeated parameter cannot be expressed as a single interpolation. Ids are encoded
+// here since that bypasses route's own escaping.
+export async function getIssueTypeScreenSchemeProjects(projectIds = []) {
+  const ids = [...new Set((projectIds || []).map((id) => String(id).trim()).filter(Boolean))];
+  if (!ids.length) return [];
+
+  const rows = [];
+  for (let i = 0; i < ids.length; i += ITSS_PROJECT_QUERY_BATCH) {
+    const query = ids
+      .slice(i, i + ITSS_PROJECT_QUERY_BATCH)
+      .map((id) => `projectId=${encodeURIComponent(id)}`)
+      .join("&");
+
+    const page = await paginate((startAt) =>
+      route([`/rest/api/3/issuetypescreenscheme/project?maxResults=100&startAt=${Number(startAt) || 0}&${query}`])
+    );
+    rows.push(...page);
+  }
+  return rows;
 }
 
 // GET /rest/api/3/status returns a flat array, not the usual {values, isLast} wrapper.
