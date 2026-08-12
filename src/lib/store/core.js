@@ -422,6 +422,164 @@ export const CREATE_WORKFLOW_SNAPSHOT_META_TABLE = `
   )
 `;
 
+// ── Screen and scheme snapshot ───────────────────────────────────────────────
+//
+// The full presentation chain, versioned like the field and workflow snapshots:
+//   project -> issue type screen scheme -> screen scheme -> screen -> tab -> field
+//
+// Sized from a live measurement rather than a guess (CONNECT-4137): 760 screens at a mean
+// of 28.8 fields each is ~22,000 field rows, which is the largest of these by an order of
+// magnitude and still small. Tabs measured at exactly 1 per screen on the reference site,
+// but the tab table is kept separate rather than folded into the field row -- tab POSITION
+// is the signal behind the "buried field" finding, and a site with multi-tab screens would
+// otherwise have nowhere to record it.
+
+export const CREATE_SNAPSHOT_SCREENS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_screens (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    screen_id VARCHAR(64) NOT NULL,
+    name VARCHAR(255) NULL,
+    description TEXT NULL,
+    tab_count INTEGER NOT NULL DEFAULT 0,
+    field_count INTEGER NOT NULL DEFAULT 0,
+    -- Tri-state, not a boolean. A screen whose tabs could not be read is NOT a screen with
+    -- no fields, and every downstream finding depends on telling those apart.
+    tabs_resolved VARCHAR(16) NOT NULL DEFAULT 'resolved',
+    unresolved_reason TEXT NULL,
+    PRIMARY KEY (scope_key, version, screen_id)
+  )
+`;
+
+export const CREATE_SNAPSHOT_SCREEN_TABS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_screen_tabs (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    screen_id VARCHAR(64) NOT NULL,
+    tab_id VARCHAR(64) NOT NULL,
+    name VARCHAR(255) NULL,
+    tab_index INTEGER NOT NULL DEFAULT 0,
+    field_count INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (scope_key, version, screen_id, tab_id)
+  )
+`;
+
+// One row per field per tab. field_index preserves order within the tab, which together
+// with tab_index is what "buried past the first tab" is computed from -- discard either and
+// the finding cannot be recovered from the snapshot.
+export const CREATE_SNAPSHOT_SCREEN_FIELDS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_screen_fields (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    screen_id VARCHAR(64) NOT NULL,
+    tab_id VARCHAR(64) NOT NULL,
+    field_id VARCHAR(128) NOT NULL,
+    field_name VARCHAR(255) NULL,
+    tab_index INTEGER NOT NULL DEFAULT 0,
+    field_index INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (scope_key, version, screen_id, tab_id, field_id)
+  )
+`;
+
+// Answers "which screens is this field on" without scanning the field table by screen.
+export const CREATE_SNAPSHOT_SCREEN_FIELDS_BY_FIELD_INDEX = `
+  CREATE INDEX IF NOT EXISTS idx_snapshot_screen_fields_field
+    ON snapshot_screen_fields (scope_key, version, field_id)
+`;
+
+// screens_json holds the raw operation -> screen object. Inheritance is resolved into
+// snapshot_screen_scheme_operations rather than being flattened here, so the inventory can
+// still say which operation was set explicitly and which fell through to default.
+export const CREATE_SNAPSHOT_SCREEN_SCHEMES_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_screen_schemes (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    scheme_id VARCHAR(64) NOT NULL,
+    name VARCHAR(255) NULL,
+    description TEXT NULL,
+    screens_json TEXT NULL,
+    PRIMARY KEY (scope_key, version, scheme_id)
+  )
+`;
+
+export const CREATE_SNAPSHOT_SCREEN_SCHEME_OPERATIONS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_screen_scheme_operations (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    scheme_id VARCHAR(64) NOT NULL,
+    operation VARCHAR(32) NOT NULL,
+    screen_id VARCHAR(64) NULL,
+    inherited TINYINT NOT NULL DEFAULT 0,
+    -- A scheme referencing a screen absent from the catalog keeps the dangling reference
+    -- rather than dropping the row: a broken mapping is a finding, and silently omitting
+    -- it would make the scheme look correctly configured.
+    dangling TINYINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (scope_key, version, scheme_id, operation)
+  )
+`;
+
+export const CREATE_SNAPSHOT_ITSS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_issue_type_screen_schemes (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    itss_id VARCHAR(64) NOT NULL,
+    name VARCHAR(255) NULL,
+    description TEXT NULL,
+    project_count INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (scope_key, version, itss_id)
+  )
+`;
+
+// issue_type_id is the literal "default" for the catch-all entry, which is kept as its own
+// row rather than folded into the explicit list. On most sites it is the ONLY mapping a
+// project has, so treating it as absent would resolve the majority of projects to nothing.
+export const CREATE_SNAPSHOT_ITSS_MAPPINGS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_itss_mappings (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    itss_id VARCHAR(64) NOT NULL,
+    issue_type_id VARCHAR(64) NOT NULL,
+    screen_scheme_id VARCHAR(64) NULL,
+    is_default TINYINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (scope_key, version, itss_id, issue_type_id)
+  )
+`;
+
+export const CREATE_SNAPSHOT_ITSS_PROJECTS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_itss_projects (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    itss_id VARCHAR(64) NOT NULL,
+    project_id VARCHAR(64) NOT NULL,
+    project_key VARCHAR(64) NULL,
+    project_name VARCHAR(255) NULL,
+    PRIMARY KEY (scope_key, version, itss_id, project_id)
+  )
+`;
+
+export const CREATE_SNAPSHOT_ITSS_PROJECTS_BY_PROJECT_INDEX = `
+  CREATE INDEX IF NOT EXISTS idx_snapshot_itss_projects_by_project
+    ON snapshot_itss_projects (scope_key, version, project_id)
+`;
+
+// Versioned separately from fields and workflows: the three pillars refresh on their own
+// cadences, and a shared meta row would make any one rebuild look like all three.
+export const CREATE_SCREEN_SNAPSHOT_META_TABLE = `
+  CREATE TABLE IF NOT EXISTS screen_snapshot_meta (
+    scope_key VARCHAR(191) NOT NULL,
+    state VARCHAR(32) NOT NULL DEFAULT 'idle',
+    version VARCHAR(64) NULL,
+    started_at VARCHAR(64) NULL,
+    completed_at VARCHAR(64) NULL,
+    refreshed_at VARCHAR(64) NULL,
+    total_screens INTEGER NOT NULL DEFAULT 0,
+    total_schemes INTEGER NOT NULL DEFAULT 0,
+    unresolved_screens INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT NULL,
+    PRIMARY KEY (scope_key)
+  )
+`;
+
 // Append-only record of privileged actions: who did what, when, and whether it was
 // allowed. Deliberately not versioned by snapshot and deliberately NOT wiped by
 // clearAllSnapshotData -- an audit trail that a privileged action can erase is not an
@@ -518,7 +676,18 @@ const projectStoreMigrations = migrationRunner
   .enqueue("v051_create_automation_references_rule_index", CREATE_AUTOMATION_REFERENCES_RULE_INDEX)
   .enqueue("v052_create_automation_rules_table", CREATE_AUTOMATION_RULES_TABLE)
   .enqueue("v053_create_automation_findings_table", CREATE_AUTOMATION_FINDINGS_TABLE)
-  .enqueue("v054_create_automation_findings_severity_index", CREATE_AUTOMATION_FINDINGS_SEVERITY_INDEX);
+  .enqueue("v054_create_automation_findings_severity_index", CREATE_AUTOMATION_FINDINGS_SEVERITY_INDEX)
+  .enqueue("v055_create_snapshot_screens_table", CREATE_SNAPSHOT_SCREENS_TABLE)
+  .enqueue("v056_create_snapshot_screen_tabs_table", CREATE_SNAPSHOT_SCREEN_TABS_TABLE)
+  .enqueue("v057_create_snapshot_screen_fields_table", CREATE_SNAPSHOT_SCREEN_FIELDS_TABLE)
+  .enqueue("v058_create_snapshot_screen_fields_by_field_index", CREATE_SNAPSHOT_SCREEN_FIELDS_BY_FIELD_INDEX)
+  .enqueue("v059_create_snapshot_screen_schemes_table", CREATE_SNAPSHOT_SCREEN_SCHEMES_TABLE)
+  .enqueue("v060_create_snapshot_screen_scheme_operations_table", CREATE_SNAPSHOT_SCREEN_SCHEME_OPERATIONS_TABLE)
+  .enqueue("v061_create_snapshot_itss_table", CREATE_SNAPSHOT_ITSS_TABLE)
+  .enqueue("v062_create_snapshot_itss_mappings_table", CREATE_SNAPSHOT_ITSS_MAPPINGS_TABLE)
+  .enqueue("v063_create_snapshot_itss_projects_table", CREATE_SNAPSHOT_ITSS_PROJECTS_TABLE)
+  .enqueue("v064_create_snapshot_itss_projects_by_project_index", CREATE_SNAPSHOT_ITSS_PROJECTS_BY_PROJECT_INDEX)
+  .enqueue("v065_create_screen_snapshot_meta_table", CREATE_SCREEN_SNAPSHOT_META_TABLE);
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history

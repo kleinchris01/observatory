@@ -25,6 +25,10 @@ vi.mock("./lib/workflow-engine.js", () => ({
   buildStatusHistorySnapshot: vi.fn().mockResolvedValue({ measured: 40, failed: 0 }),
 }));
 
+vi.mock("./lib/screen-engine.js", () => ({
+  buildScreenSnapshot: vi.fn().mockResolvedValue({ screens: 760, fields: 21888, unresolvedScreens: 1 }),
+}));
+
 vi.mock("./lib/scan-engine.js", () => ({
   runIssueScanCoordinator: vi.fn().mockResolvedValue(undefined),
   runIssueScanWorkerV2: vi.fn().mockResolvedValue(undefined),
@@ -116,6 +120,7 @@ import {
 } from "./lib/scan-engine.js";
 import { processProjectUsageReportJob } from "./lib/report-engine.js";
 import { buildWorkflowSnapshot, buildStatusHistorySnapshot } from "./lib/workflow-engine.js";
+import { buildScreenSnapshot } from "./lib/screen-engine.js";
 import { readAdminConfig, runDeltaIssueScanJob, ADMIN_ONLY_FUNCTIONS, SHARED_RESOLVER_FUNCTIONS } from "./resolvers.js";
 
 const CONTEXT = { installContext: "ari:cloud:jira::site/UUID" };
@@ -360,6 +365,32 @@ describe("consumeSnapshot job routing", () => {
   test("a failing workflow build does not rethrow, so Forge will not retry it forever", async () => {
     buildWorkflowSnapshot.mockRejectedValueOnce(new Error("jira down"));
     await expect(consumeSnapshot(event({ jobType: "build-workflow-snapshot" }))).resolves.toBeUndefined();
+  });
+
+  // Sized by measurement rather than assumption: a full screen pass projects to ~4.9
+  // minutes, which fits the 900s consumer and does not fit a 25s resolver.
+  test("routes build-screen-snapshot to the screen engine", async () => {
+    await consumeSnapshot(event({ jobType: "build-screen-snapshot" }));
+    expect(buildScreenSnapshot).toHaveBeenCalledWith("scope-1");
+  });
+
+  test("a failing screen build does not rethrow, so Forge will not retry it forever", async () => {
+    buildScreenSnapshot.mockRejectedValueOnce(new Error("jira down"));
+    await expect(consumeSnapshot(event({ jobType: "build-screen-snapshot" }))).resolves.toBeUndefined();
+  });
+
+  // The completion log reads counts off the engine's return value. A build that resolves
+  // without one must still log a line rather than printing "undefined screens" -- the log
+  // is where a partial pass gets noticed, so it has to survive the shape it is given.
+  test("logs zeroes rather than undefined when the build returns no counts", async () => {
+    buildScreenSnapshot.mockResolvedValueOnce(undefined);
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await consumeSnapshot(event({ jobType: "build-screen-snapshot" }));
+
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("0 screens"));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("0 unresolved"));
+    log.mockRestore();
   });
 
   // Measuring "ever been in" is its own queued job so it never competes with the

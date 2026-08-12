@@ -100,6 +100,16 @@ const mocks = vi.hoisted(() => ({
   loadStatusIssueCounts: vi.fn(),
   loadStatusHistoryCounts: vi.fn(),
 
+  // screen store + screen-engine.js
+  readScreenSnapshotMeta: vi.fn(),
+  loadScreensPage: vi.fn(),
+  loadScreensForField: vi.fn(),
+  loadScreenSchemes: vi.fn(),
+  loadScreenSchemeOperations: vi.fn(),
+  loadIssueTypeScreenSchemes: vi.fn(),
+  queueScreenSnapshotBuild: vi.fn(),
+  isScreenBuildStale: vi.fn(() => false),
+
   // workflow-engine.js
   buildWorkflowSnapshot: vi.fn(),
   queueWorkflowSnapshotBuild: vi.fn(),
@@ -224,6 +234,12 @@ vi.mock("./lib/project-store.js", () => ({
   loadRqtFieldIssueIndex: mocks.loadRqtFieldIssueIndex,
   loadIssueRqtValues: mocks.loadIssueRqtValues,
   readWorkflowSnapshotMeta: mocks.readWorkflowSnapshotMeta,
+  readScreenSnapshotMeta: mocks.readScreenSnapshotMeta,
+  loadScreensPage: mocks.loadScreensPage,
+  loadScreensForField: mocks.loadScreensForField,
+  loadScreenSchemes: mocks.loadScreenSchemes,
+  loadScreenSchemeOperations: mocks.loadScreenSchemeOperations,
+  loadIssueTypeScreenSchemes: mocks.loadIssueTypeScreenSchemes,
   loadWorkflowSchemes: mocks.loadWorkflowSchemes,
   loadWorkflowSchemeProjects: mocks.loadWorkflowSchemeProjects,
   loadWorkflowSchemeForProject: mocks.loadWorkflowSchemeForProject,
@@ -231,6 +247,11 @@ vi.mock("./lib/project-store.js", () => ({
   loadWorkflowSchemeStatuses: mocks.loadWorkflowSchemeStatuses,
   loadStatusIssueCounts: mocks.loadStatusIssueCounts,
   loadStatusHistoryCounts: mocks.loadStatusHistoryCounts,
+}));
+
+vi.mock("./lib/screen-engine.js", () => ({
+  queueScreenSnapshotBuild: mocks.queueScreenSnapshotBuild,
+  isScreenBuildStale: mocks.isScreenBuildStale,
 }));
 
 vi.mock("./lib/workflow-engine.js", () => ({
@@ -320,6 +341,9 @@ const {
   saveAutomationIndex,
   getAutomationFieldUsage,
   getAutomationFieldCounts,
+  getScreenInventory,
+  getFieldScreenReachability,
+  buildScreenInventory,
 } = __RAW_ADMIN_ONLY_FUNCTIONS;
 
 const {
@@ -411,6 +435,14 @@ beforeEach(() => {
   mocks.readIssueScanWorker.mockResolvedValue(null);
   mocks.getBrowsableProjectIds.mockImplementation(async (_accountId, projectIds) => new Set((projectIds || []).map(String)));
   mocks.readWorkflowSnapshotMeta.mockResolvedValue(null);
+  mocks.readScreenSnapshotMeta.mockResolvedValue(null);
+  mocks.loadScreensPage.mockResolvedValue({ total: 0, rows: [] });
+  mocks.loadScreensForField.mockResolvedValue([]);
+  mocks.loadScreenSchemes.mockResolvedValue([]);
+  mocks.loadScreenSchemeOperations.mockResolvedValue([]);
+  mocks.loadIssueTypeScreenSchemes.mockResolvedValue([]);
+  mocks.queueScreenSnapshotBuild.mockResolvedValue(undefined);
+  mocks.isScreenBuildStale.mockReturnValue(false);
   mocks.loadWorkflowSchemes.mockResolvedValue([]);
   mocks.loadWorkflowSchemeProjects.mockResolvedValue([]);
   mocks.loadStatusesCatalog.mockResolvedValue([]);
@@ -3899,5 +3931,133 @@ describe("probeAutomationApi — gateway transport", () => {
     // differently, which is exactly the confusion that cost a round of probing.
     expect(result.results.some((r) => r.via === "stargate")).toBe(true);
     expect(result.results.some((r) => r.via === "site")).toBe(true);
+  });
+});
+
+
+// ── Screen and scheme inventory ──────────────────────────────────────────────
+
+describe("getScreenInventory", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x" } };
+
+  // "No inventory has been built" and "this site has no screens" are opposite claims and
+  // look identical as an empty array. The flag is what keeps them apart.
+  test("reports never-built rather than returning empty rows", async () => {
+    mocks.readScreenSnapshotMeta.mockResolvedValue(null);
+
+    const result = await getScreenInventory({ payload: {}, ...ctx });
+
+    expect(result.neverBuilt).toBe(true);
+    expect(result.screens).toEqual({ total: 0, rows: [] });
+    expect(mocks.loadScreensPage).not.toHaveBeenCalled();
+  });
+
+  test("returns every layer of the chain from one call", async () => {
+    mocks.readScreenSnapshotMeta.mockResolvedValue({
+      state: "ready", version: "v1", totalScreens: 760, totalSchemes: 12, unresolvedScreens: 30,
+    });
+    mocks.loadScreensPage.mockResolvedValue({ total: 760, rows: [{ screenId: "100" }] });
+    mocks.loadScreenSchemes.mockResolvedValue([{ schemeId: "5" }]);
+    mocks.loadIssueTypeScreenSchemes.mockResolvedValue([{ itssId: "9" }]);
+
+    const result = await getScreenInventory({ payload: {}, ...ctx });
+
+    expect(result.neverBuilt).toBe(false);
+    expect(result.screens.total).toBe(760);
+    expect(result.screenSchemes).toHaveLength(1);
+    expect(result.issueTypeScreenSchemes).toHaveLength(1);
+  });
+
+  // Surfaced at the top level, not buried per row: a pass that could not read part of the
+  // catalog caps every finding built on it, and the reader needs that before the numbers.
+  test("surfaces the unresolved screen count alongside the totals", async () => {
+    mocks.readScreenSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1", unresolvedScreens: 30 });
+
+    const result = await getScreenInventory({ payload: {}, ...ctx });
+    expect(result.unresolvedScreens).toBe(30);
+  });
+
+  test("clamps a hostile page size and passes the offset through", async () => {
+    mocks.readScreenSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
+
+    await getScreenInventory({ payload: { page: 3, pageSize: 5000 }, ...ctx });
+
+    expect(mocks.loadScreensPage).toHaveBeenCalledWith("test-install", "v1",
+      expect.objectContaining({ limit: 100, offset: 200 }));
+  });
+
+  test("reports a stale build so the UI can offer a rebuild", async () => {
+    mocks.readScreenSnapshotMeta.mockResolvedValue({ state: "building", version: "v1" });
+    mocks.isScreenBuildStale.mockReturnValue(true);
+
+    const result = await getScreenInventory({ payload: {}, ...ctx });
+    expect(result.staleBuild).toBe(true);
+  });
+});
+
+describe("getFieldScreenReachability", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x" } };
+
+  // The distinction a delete recommendation rests on: no snapshot is not "this field is
+  // on no screen".
+  test("says it does not know rather than returning an empty screen list", async () => {
+    mocks.readScreenSnapshotMeta.mockResolvedValue(null);
+
+    const result = await getFieldScreenReachability({ payload: { fieldId: "customfield_1" }, ...ctx });
+
+    expect(result.available).toBe(false);
+    expect(result.reason).toMatch(/no screen inventory/i);
+  });
+
+  test("returns the screens carrying the field once a snapshot exists", async () => {
+    mocks.readScreenSnapshotMeta.mockResolvedValue({ version: "v1", unresolvedScreens: 2 });
+    mocks.loadScreensForField.mockResolvedValue([{ screenId: "100", screenName: "Default" }]);
+
+    const result = await getFieldScreenReachability({ payload: { fieldId: "customfield_1" }, ...ctx });
+
+    expect(result.available).toBe(true);
+    expect(result.screens).toHaveLength(1);
+    // Carried through so a caller can weigh the answer, not just read it.
+    expect(result.unresolvedScreens).toBe(2);
+  });
+
+  test("rejects a missing field id", async () => {
+    await expect(getFieldScreenReachability({ payload: {}, ...ctx })).rejects.toThrow(/fieldId/);
+  });
+});
+
+describe("buildScreenInventory", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x" } };
+
+  test("queues a build when nothing is running", async () => {
+    mocks.readScreenSnapshotMeta.mockResolvedValue({ state: "idle" });
+    mocks.readAdminConfig?.mockResolvedValue?.({ readOnlyMode: false });
+
+    const result = await buildScreenInventory(ctx);
+
+    expect(result.queued).toBe(true);
+    expect(mocks.queueScreenSnapshotBuild).toHaveBeenCalledWith("test-install");
+  });
+
+  test("refuses while a live build is running", async () => {
+    mocks.readScreenSnapshotMeta.mockResolvedValue({ state: "building" });
+    mocks.isScreenBuildStale.mockReturnValue(false);
+
+    const result = await buildScreenInventory(ctx);
+
+    expect(result).toMatchObject({ queued: false, reason: "already-building" });
+    expect(mocks.queueScreenSnapshotBuild).not.toHaveBeenCalled();
+  });
+
+  // A wedged row would otherwise block every future rebuild with no way out of the UI --
+  // the same trap the workflow build had to be rescued from.
+  test("rebuilds over a wedged build rather than being blocked by it", async () => {
+    mocks.readScreenSnapshotMeta.mockResolvedValue({ state: "building" });
+    mocks.isScreenBuildStale.mockReturnValue(true);
+
+    const result = await buildScreenInventory(ctx);
+
+    expect(result.queued).toBe(true);
+    expect(mocks.queueScreenSnapshotBuild).toHaveBeenCalled();
   });
 });

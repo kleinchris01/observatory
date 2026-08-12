@@ -20,6 +20,7 @@ import {
 } from "./lib/snapshot-engine.js";
 import { processProjectUsageReportJob } from "./lib/report-engine.js";
 import { buildWorkflowSnapshot, buildStatusHistorySnapshot } from "./lib/workflow-engine.js";
+import { buildScreenSnapshot } from "./lib/screen-engine.js";
 import {
   ensureProjectStoreReady,
   readSnapshotMeta,
@@ -261,6 +262,17 @@ export async function consumeSnapshot(event) {
       const result = await buildWorkflowSnapshot(installationKey);
       console.log(
         `build-workflow-snapshot: ${result?.schemeCount ?? 0} schemes, ${result?.statusCount ?? 0} statuses, ${result?.projectCount ?? 0} projects`
+      );
+      return;
+    }
+
+    if (jobType === "build-screen-snapshot") {
+      const result = await buildScreenSnapshot(installationKey);
+      // Unresolved screens are logged alongside the totals, not only when non-zero. A pass
+      // that could not read part of the catalog is a different artifact from one that read
+      // all of it, and the log is where that gets noticed first.
+      console.log(
+        `build-screen-snapshot: ${result?.screens ?? 0} screens, ${result?.fields ?? 0} field placements, ${result?.unresolvedScreens ?? 0} unresolved`
       );
       return;
     }
