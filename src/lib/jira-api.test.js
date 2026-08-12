@@ -60,6 +60,7 @@ import {
   getAllJiraProjects,
   getAllStatuses,
   probeEndpoint,
+  probeEndpointAsUser,
   probeStargateEndpoint,
   getCloudId,
   getAllScreens,
@@ -792,6 +793,62 @@ describe("probeEndpoint", () => {
     const result = await probeEndpoint("/rest/api/3/automation/rule");
 
     expect(result.sample).toHaveLength(300);
+  });
+});
+
+// The identity question the screen probe exists to settle. Atlassian documents that Jira
+// permissions also control access and are not overridden by scopes, so the same path can
+// answer differently depending on whose token carries it -- and a probe that only ever asks
+// as the app can never discover that.
+
+describe("probeEndpointAsUser", () => {
+  test("routes through asUser, not asApp", async () => {
+    mockRequestJiraAsUser.mockResolvedValueOnce(jiraResponse({ status: 200, ok: true, text: "{}" }));
+
+    const result = await probeEndpointAsUser("/rest/api/3/screens?maxResults=1");
+
+    expect(mockRequestJiraAsUser).toHaveBeenCalled();
+    // The whole point: an asApp call here would answer the question that was already asked.
+    expect(mockRequestJira).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ status: 200, ok: true });
+  });
+
+  test("reports a rejection rather than throwing", async () => {
+    mockRequestJiraAsUser.mockResolvedValueOnce(jiraResponse({ status: 401, ok: false, text: "scope does not match" }));
+
+    const result = await probeEndpointAsUser("/rest/api/3/screens/1/tabs/1/fields");
+
+    expect(result).toMatchObject({ status: 401, ok: false });
+    expect(result.sample).toContain("scope does not match");
+  });
+
+  test("returns a null status instead of throwing when the request itself fails", async () => {
+    mockRequestJiraAsUser.mockRejectedValueOnce(new Error("no user context"));
+
+    const result = await probeEndpointAsUser("/rest/api/3/screens");
+
+    expect(result.status).toBeNull();
+    expect(result.ok).toBe(false);
+    expect(result.sample).toContain("no user context");
+  });
+
+  test("truncates the response body like its asApp twin", async () => {
+    mockRequestJiraAsUser.mockResolvedValueOnce(jiraResponse({ status: 200, ok: true, text: "y".repeat(5000) }));
+
+    const result = await probeEndpointAsUser("/rest/api/3/screens");
+
+    expect(result.sample).toHaveLength(300);
+  });
+
+  test("honours an explicit method", async () => {
+    mockRequestJiraAsUser.mockResolvedValueOnce(jiraResponse({ status: 200, ok: true, text: "{}" }));
+
+    await probeEndpointAsUser("/rest/api/3/screens", { method: "HEAD" });
+
+    expect(mockRequestJiraAsUser).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ method: "HEAD" })
+    );
   });
 });
 

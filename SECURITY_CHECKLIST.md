@@ -206,7 +206,7 @@ user input is concatenated into SQL.
 
 ## 6. Permission scopes
 
-The app requests 20 OAuth scopes, all read-only against Jira. See `README.md` for the
+The app requests 23 OAuth scopes, all read-only against Jira. See `README.md` for the
 full table and per-scope justification.
 
 **`manage:jira-configuration` deserves specific attention on any install review.** It is
@@ -236,6 +236,32 @@ see. The Workflows tab now ships, so the consent screen and the product agree.
 >
 > Revisit if the initiative stalls. Carrying five unused read scopes indefinitely is worse
 > than deferring the fetch work.
+
+> **Amended 11 Aug 2026 — three more scopes, and the reason the first five were not enough.**
+>
+> `read:avatar:jira`, `read:project-category:jira`, `read:screenable-field:jira`.
+>
+> A live probe found `GET /rest/api/3/screens` and the tab-fields endpoint returning 401
+> "scope does not match" on an install that already carried all five screen scopes and had
+> accepted their consent screen. Two rounds of diagnosis blamed the install, then the
+> platform. Both were wrong, and the note above was part of why: it recorded that the five
+> names were *correct*, which was true and is not the same as *sufficient*.
+>
+> **Granular scopes are conjunctive.** An endpoint requires every scope in its documented
+> list. `GET /rest/api/3/screens` lists four — `read:project:jira`, `read:screen:jira`,
+> `read:avatar:jira`, `read:project-category:jira` — and the app declared two. Neither
+> missing scope has "screen" in its name, which is precisely why they were not guessed.
+>
+> Separately, the tab-fields endpoint is authorized by `read:screenable-field:jira`, not by
+> the `read:screen-field:jira` that was declared. Both scopes exist; only one applies.
+>
+> **`forge lint` cannot catch either mistake.** It validates that a scope exists, never that
+> it is the right one for the endpoints the app calls. Any future scope addition must be
+> read off each endpoint's own documentation, in full, and confirmed by probe against a real
+> install — not by lint, and not by inference from the scope's name.
+>
+> Consent cost: this is a major version bump. Every install must be upgraded and an
+> administrator must accept the three new permissions before the app updates.
 
 ---
 

@@ -8,7 +8,10 @@ vi.mock("./jira-api.js", () => ({
   getAllScreens: vi.fn(),
   getScreenTabs: vi.fn(),
   getScreenTabFields: vi.fn(),
+  getScreenSchemes: vi.fn(),
   getScanTelemetry: vi.fn(() => ({ rl429Count: 0, rlRetryCount: 0 })),
+  probeEndpoint: vi.fn(),
+  probeEndpointAsUser: vi.fn(),
   mapWithConcurrency: async (items, _c, fn) => {
     const out = [];
     for (const item of items) out.push(await fn(item));
@@ -26,10 +29,20 @@ import {
   sampleScreens,
   projectFullPassCost,
   measureScreenFetchCost,
+  firstScreenIdFromSchemes,
+  probeScreenEndpoints,
   CONSUMER_BUDGET_MS,
   SAFE_BUDGET_FRACTION,
 } from "./screen-probe.js";
-import { getAllScreens, getScreenTabs, getScreenTabFields, getScanTelemetry } from "./jira-api.js";
+import {
+  getAllScreens,
+  getScreenTabs,
+  getScreenTabFields,
+  getScreenSchemes,
+  getScanTelemetry,
+  probeEndpoint,
+  probeEndpointAsUser,
+} from "./jira-api.js";
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -205,5 +218,153 @@ describe("measureScreenFetchCost", () => {
 
     expect(result.failureCount).toBe(30);
     expect(result.failures).toHaveLength(10);
+  });
+});
+
+describe("firstScreenIdFromSchemes", () => {
+  test("pulls a screen id out of a scheme payload", () => {
+    const payload = { values: [{ id: 1, screens: { default: 10000, edit: 10001 } }] };
+    expect(firstScreenIdFromSchemes(payload)).toBe("10000");
+  });
+
+  // The operation walk order is fixed so the same payload always yields the same id. A probe
+  // that picks a different screen each run cannot be compared against its own last result.
+  test("walks operations in a fixed order", () => {
+    const payload = { values: [{ screens: { view: 4, edit: 3, create: 2, default: 1 } }] };
+    expect(firstScreenIdFromSchemes(payload)).toBe("1");
+    const noDefault = { values: [{ screens: { view: 4, edit: 3, create: 2 } }] };
+    expect(firstScreenIdFromSchemes(noDefault)).toBe("2");
+  });
+
+  test("skips a scheme carrying no screens and tries the next", () => {
+    const payload = { values: [{ id: 1 }, { id: 2, screens: {} }, { id: 3, screens: { edit: 77 } }] };
+    expect(firstScreenIdFromSchemes(payload)).toBe("77");
+  });
+
+  test("returns null rather than a fabricated id when there is nothing to find", () => {
+    expect(firstScreenIdFromSchemes({ values: [] })).toBeNull();
+    expect(firstScreenIdFromSchemes(null)).toBeNull();
+    expect(firstScreenIdFromSchemes({ values: [{ screens: { default: null } }] })).toBeNull();
+  });
+});
+
+describe("probeScreenEndpoints", () => {
+  const ok = (status) => ({ status, ok: status >= 200 && status < 300, sample: "" });
+
+  beforeEach(() => {
+    probeEndpoint.mockResolvedValue(ok(200));
+    probeEndpointAsUser.mockResolvedValue(ok(200));
+    getScreenSchemes.mockResolvedValue({ values: [{ screens: { default: 10500 } }] });
+    getScreenTabs.mockResolvedValue([{ id: 900 }]);
+  });
+
+  test("re-probes the two id-bearing endpoints with ids that actually exist", async () => {
+    const rows = await probeScreenEndpoints();
+    const real = rows.filter((r) => r.usedRealIds);
+
+    // Two as the app, then the two rejected endpoints again as the calling user.
+    expect(real).toHaveLength(4);
+    expect(real[0].path).toBe("/rest/api/3/screens/10500/tabs");
+    expect(real[1].path).toBe("/rest/api/3/screens/10500/tabs/900/fields");
+    expect(real[2].asUser).toBe(true);
+    expect(real[3].path).toContain("[asUser]");
+    // The placeholder-id rows are kept: losing them would lose the comparison that makes
+    // the real-id rows meaningful.
+    expect(rows.filter((r) => !r.usedRealIds)).toHaveLength(5);
+  });
+
+  // The whole reason the second pass exists. A 401 from a fabricated id is ambiguous; a 401
+  // from an id that exists is the scope, and read:screen-field:jira is the pillar.
+  test("a rejection against a real id is unambiguous", async () => {
+    probeEndpoint.mockImplementation(async (path) =>
+      path.endsWith("/fields") ? ok(401) : ok(200)
+    );
+
+    const rows = await probeScreenEndpoints();
+    const fields = rows.find((r) => r.usedRealIds && !r.asUser && r.path.endsWith("/fields"));
+
+    expect(fields.status).toBe(401);
+    expect(fields.scopeAccepted).toBe(false);
+  });
+
+  test("reports unresolved as null, never as rejected, when schemes cannot be read", async () => {
+    getScreenSchemes.mockRejectedValueOnce(new Error("401 nope"));
+
+    const rows = await probeScreenEndpoints();
+    const unresolved = rows.filter((r) => r.usedRealIds);
+
+    expect(unresolved).toHaveLength(1);
+    // Not false. The endpoint was never reached, so calling it rejected would assert a
+    // result nobody measured -- the distinction this whole app is built on.
+    expect(unresolved[0].scopeAccepted).toBeNull();
+    expect(unresolved[0].sample).toMatch(/could not read screen schemes/i);
+  });
+
+  test("says why the field probe was skipped when the screen has no tabs", async () => {
+    getScreenTabs.mockResolvedValueOnce([]);
+
+    const rows = await probeScreenEndpoints();
+    const fields = rows.find((r) => r.label === "tab fields (real ids)");
+
+    expect(fields.scopeAccepted).toBeNull();
+    expect(fields.sample).toMatch(/no tabs/i);
+  });
+
+  test("never throws when scheme discovery blows up", async () => {
+    getScreenSchemes.mockRejectedValueOnce(new Error("boom"));
+    await expect(probeScreenEndpoints()).resolves.toBeInstanceOf(Array);
+  });
+
+  // Queued separately rather than alongside the case above: a schemes rejection returns
+  // early, so a tabs rejection queued with it is never consumed and fires in the next test.
+  test("never throws when the tabs call blows up", async () => {
+    getScreenTabs.mockRejectedValueOnce(new Error("boom"));
+    await expect(probeScreenEndpoints()).resolves.toBeInstanceOf(Array);
+  });
+});
+
+// The last variable. Everything else describes the app's identity; these two rows describe
+// the calling admin's, and they are the difference between "the pillar needs a different
+// call pattern" and "the platform is closed to it".
+describe("probeScreenEndpoints — identity", () => {
+  const ok = (status) => ({ status, ok: status >= 200 && status < 300, sample: "" });
+
+  beforeEach(() => {
+    getScreenSchemes.mockResolvedValue({ values: [{ screens: { default: 10500 } }] });
+    getScreenTabs.mockResolvedValue([{ id: 900 }]);
+  });
+
+  test("re-tests the rejected endpoints under the calling user's permissions", async () => {
+    probeEndpoint.mockResolvedValue(ok(401));
+    probeEndpointAsUser.mockResolvedValue(ok(200));
+
+    const rows = await probeScreenEndpoints();
+    const asUser = rows.filter((r) => r.asUser);
+
+    expect(asUser).toHaveLength(2);
+    expect(asUser.every((r) => r.scopeAccepted)).toBe(true);
+    // Both identities are reported. Replacing the app rows with the user rows would hide
+    // the disagreement, which is the entire finding.
+    expect(rows.some((r) => !r.asUser && r.status === 401)).toBe(true);
+  });
+
+  test("a failure under both identities is reported as such, not merged", async () => {
+    probeEndpoint.mockResolvedValue(ok(401));
+    probeEndpointAsUser.mockResolvedValue(ok(401));
+
+    const rows = await probeScreenEndpoints();
+    const fields = rows.filter((r) => r.usedRealIds && r.path.includes("/fields"));
+
+    expect(fields).toHaveLength(2);
+    expect(fields.every((r) => r.scopeAccepted === false)).toBe(true);
+  });
+
+  test("labels the identity so the two rows are never confused", async () => {
+    probeEndpoint.mockResolvedValue(ok(200));
+    probeEndpointAsUser.mockResolvedValue(ok(200));
+
+    const rows = await probeScreenEndpoints();
+    expect(rows.find((r) => r.label === "screens (as user)")).toBeTruthy();
+    expect(rows.filter((r) => r.asUser).every((r) => /as user/i.test(r.label))).toBe(true);
   });
 });

@@ -221,6 +221,28 @@ permissions:
     - read:screen-field:jira
     - read:screen-scheme:jira
     - read:issue-type-screen-scheme:jira
+    # Granular scopes are CONJUNCTIVE. An endpoint needs every scope in its list, not any
+    # one of them, and GET /rest/api/3/screens lists four: read:project:jira,
+    # read:screen:jira, read:avatar:jira, read:project-category:jira. Two of the four were
+    # declared, so the endpoint rejected the token. That is what "scope does not match"
+    # meant -- not a closed platform, which is where two rounds of diagnosis were heading.
+    #
+    # Neither of these has anything to do with screens by name, which is exactly why they
+    # were missed: the scope set for an endpoint is not guessable from what the endpoint
+    # sounds like. Read it off the endpoint's own documentation, every time.
+    - read:avatar:jira
+    - read:project-category:jira
+    # read:screenABLE-field:jira, not read:screen-field:jira. Both are real scopes -- forge
+    # lint accepts either -- but only this one authorizes the tab-fields endpoint. That is
+    # the whole reason a probe using a real screen id AND a real tab id still returned 401.
+    #
+    # `forge lint` validates that a scope EXISTS, never that it is the right one for the
+    # endpoints the app calls. CONNECT-4131 closed on "every scope name is confirmed present
+    # in Atlassian's registry", which was true and insufficient, and cost this pillar weeks.
+    #
+    # read:screen-field:jira is deliberately kept above for now: the probe reports both, so
+    # the next run says which one answers before the dead one is dropped.
+    - read:screenable-field:jira
     - manage:jira-configuration
     - read:jira-user
     - read:chat:rovo
