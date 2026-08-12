@@ -137,6 +137,7 @@ export function ScreensTab() {
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
+  const [notice, setNotice] = React.useState("");
   const [building, setBuilding] = React.useState(false);
   const [page, setPage] = React.useState(1);
   const [search, setSearch] = React.useState("");
@@ -166,19 +167,31 @@ export function ScreensTab() {
 
   React.useEffect(() => { load(); }, [load]);
 
-  const isBuilding = data?.state === "building" && !data?.staleBuild;
+  // "queued" counts as in flight, not just "building". The row is marked building at queue
+  // time, but a consumer that has not picked the job up yet can leave either value on the
+  // meta -- and treating only one of them as running is how a live build reads as idle.
+  const isBuilding = ["building", "queued"].includes(data?.state) && !data?.staleBuild;
   useVisiblePolling(isBuilding, load, BUILD_POLL_MS);
 
   async function startBuild() {
     setBuilding(true);
     setError("");
+    setNotice("");
     try {
       const result = await invoke("buildScreenInventory", {});
       // Reload first, then report a refusal. load() clears the error banner on success, so
       // setting it before the reload would wipe the very message that explains why nothing
       // happened -- leaving a button that silently does nothing.
       await load();
-      if (result?.error) setError(result.error);
+      if (result?.error) {
+        setError(result.error);
+      } else if (result?.queued === false && result?.reason === "already-building") {
+        // Not an error, but it must not be silence either: pressing a button and getting no
+        // response at all is indistinguishable from a broken button.
+        setNotice("A build is already running. This page refreshes itself while it does.");
+      } else {
+        setNotice("Build queued. This page refreshes itself while it runs.");
+      }
     } catch (err) {
       setError(err?.message || "Could not start the build.");
     } finally {
@@ -200,6 +213,10 @@ export function ScreensTab() {
     return <div className="empty-state">Loading screen inventory…</div>;
   }
 
+  // Nothing has COMPLETED yet -- which is not the same as nothing happening. The first
+  // build can run for minutes before it produces a version, and rendering the same "no
+  // inventory yet" state throughout makes a working button look broken: you press it,
+  // nothing on the page changes, and there is no way to tell the job was accepted.
   if (data?.neverBuilt) {
     return (
       <div className="admin-screens">
@@ -209,11 +226,36 @@ export function ScreensTab() {
           actions={buildAction}
         />
         {error && <div className="danger-zone__error" role="alert">{error}</div>}
-        <EmptyState action={buildAction}>
-          No screen inventory has been built yet. Building one walks every screen, its tabs
-          and its fields, plus both scheme layers above them — on a site of ~760 screens that
-          is a few minutes of background work.
-        </EmptyState>
+        {notice && !error && <p className="admin-config-row__hint" role="status">{notice}</p>}
+
+        {data?.lastError && !isBuilding && (
+          <div className="danger-zone__error" role="alert">Last build failed: {data.lastError}</div>
+        )}
+
+        {data?.staleBuild && (
+          <p className="admin-config-row__hint">
+            A build was started but is no longer running. Rebuild to recover it.
+          </p>
+        )}
+
+        {isBuilding ? (
+          <Panel title="Building the first inventory" icon="refreshCw">
+            <p>
+              Walking every screen, its tabs and its fields, plus both scheme layers above
+              them. On a site of ~760 screens that is roughly five minutes. This page
+              refreshes itself — you can leave it.
+            </p>
+            {data?.startedAt && (
+              <p className="admin-config-row__hint">Started {formatRelativeTime(data.startedAt)}.</p>
+            )}
+          </Panel>
+        ) : (
+          <EmptyState action={buildAction}>
+            No screen inventory has been built yet. Building one walks every screen, its tabs
+            and its fields, plus both scheme layers above them — on a site of ~760 screens that
+            is a few minutes of background work.
+          </EmptyState>
+        )}
       </div>
     );
   }
@@ -235,6 +277,7 @@ export function ScreensTab() {
       />
 
       {error && <div className="danger-zone__error" role="alert">{error}</div>}
+      {notice && !error && <p className="admin-config-row__hint" role="status">{notice}</p>}
 
       {isBuilding && (
         <p className="admin-config-row__hint">Building the inventory… this page refreshes itself.</p>

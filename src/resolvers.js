@@ -787,6 +787,9 @@ async function getScreenInventory({ payload, context }) {
     return {
       state: meta?.state || "idle",
       staleBuild,
+      // Carried even with no version: the first build runs for minutes before it produces
+      // one, and the UI needs something to show for that time other than "nothing here".
+      startedAt: meta?.startedAt || null,
       version: null,
       screens: { total: 0, rows: [] },
       screenSchemes: [],
@@ -815,6 +818,7 @@ async function getScreenInventory({ payload, context }) {
   return {
     state: meta.state,
     staleBuild,
+    startedAt: meta.startedAt || null,
     version: meta.version,
     refreshedAt: meta.refreshedAt,
     completedAt: meta.completedAt,

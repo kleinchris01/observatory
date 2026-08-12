@@ -222,3 +222,73 @@ describe("ScreensTab", () => {
     expect(screen.getByRole("button", { name: /Rebuild/i })).toBeEnabled();
   });
 });
+
+// The bug this guards: getScreenInventory reports neverBuilt whenever no build has
+// COMPLETED, which stays true for the several minutes the first build runs. Branching on
+// it before checking state rendered the same "nothing here yet" screen throughout, so a
+// working button looked broken -- press it, nothing changes, no way to tell it was accepted.
+describe("ScreensTab — first build feedback", () => {
+  test("shows progress while the first build runs, not the empty state", async () => {
+    invoke.mockResolvedValue({
+      neverBuilt: true,
+      state: "building",
+      staleBuild: false,
+      startedAt: new Date().toISOString(),
+      screens: { total: 0, rows: [] },
+    });
+
+    render(<ScreensTab />);
+
+    expect(await screen.findByText(/building the first inventory/i)).toBeInTheDocument();
+    expect(screen.queryByText(/no screen inventory has been built/i)).not.toBeInTheDocument();
+  });
+
+  test("treats a queued build as in flight too", async () => {
+    invoke.mockResolvedValue({
+      neverBuilt: true, state: "queued", staleBuild: false, screens: { total: 0, rows: [] },
+    });
+
+    render(<ScreensTab />);
+    expect(await screen.findByText(/building the first inventory/i)).toBeInTheDocument();
+  });
+
+  test("confirms the build was queued rather than saying nothing", async () => {
+    invoke.mockImplementation((name) =>
+      name === "buildScreenInventory"
+        ? Promise.resolve({ queued: true })
+        : Promise.resolve({ neverBuilt: true, state: "idle", screens: { total: 0, rows: [] } })
+    );
+
+    render(<ScreensTab />);
+    await screen.findByText(/no screen inventory has been built/i);
+    await userEvent.click(screen.getAllByRole("button", { name: /build inventory/i })[0]);
+
+    expect(await screen.findByRole("status")).toHaveTextContent(/build queued/i);
+  });
+
+  // Pressing a button and getting no response at all is indistinguishable from a broken
+  // button, so a refusal has to say something even though it is not an error.
+  test("says so when a build is already running instead of going quiet", async () => {
+    invoke.mockImplementation((name) =>
+      name === "buildScreenInventory"
+        ? Promise.resolve({ queued: false, reason: "already-building" })
+        : Promise.resolve({ neverBuilt: true, state: "idle", screens: { total: 0, rows: [] } })
+    );
+
+    render(<ScreensTab />);
+    await screen.findByText(/no screen inventory has been built/i);
+    await userEvent.click(screen.getAllByRole("button", { name: /build inventory/i })[0]);
+
+    expect(await screen.findByRole("status")).toHaveTextContent(/already running/i);
+  });
+
+  test("still surfaces a failed first build", async () => {
+    invoke.mockResolvedValue({
+      neverBuilt: true, state: "failed", staleBuild: false,
+      lastError: "401 nope", screens: { total: 0, rows: [] },
+    });
+
+    render(<ScreensTab />);
+    expect(await screen.findByText(/last build failed/i)).toBeInTheDocument();
+  });
+});
