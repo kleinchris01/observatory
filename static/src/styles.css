@@ -6933,3 +6933,47 @@ code {
 }
 .delta-scan-panel__facts strong { opacity: 1; font-weight: 650; }
 .delta-scan-panel { display: flex; flex-direction: column; gap: var(--tab-gap); }
+
+/* ── Screens tab ─────────────────────────────────────────────────────────────
+   Rows rather than cards: a screen has two facts worth seeing at a glance (what
+   it is called, how much it carries) and a card grid would spend a lot of space
+   saying that 760 times. */
+.admin-screens { display: flex; flex-direction: column; gap: 16px; }
+
+.screen-list { display: flex; flex-direction: column; }
+.screen-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 10px 12px; border-bottom: 1px solid var(--stroke);
+}
+.screen-row:last-child { border-bottom: none; }
+.screen-row:nth-child(odd) { background: var(--surface-alt, transparent); }
+.screen-row__identity { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.screen-row__name { font-weight: 600; font-size: 0.85rem; }
+.screen-row__desc {
+  font-size: 0.75rem; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 52ch;
+}
+.screen-row__meta { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+
+.screen-scheme-list { display: flex; flex-direction: column; gap: 4px; }
+.screen-scheme { padding: 12px; border-bottom: 1px solid var(--stroke); }
+.screen-scheme:last-child { border-bottom: none; }
+.screen-scheme__identity { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
+.screen-scheme__name { font-weight: 600; font-size: 0.85rem; }
+.screen-scheme__desc { font-size: 0.75rem; color: var(--muted); }
+.screen-scheme__uniform {
+  margin: 0; font-size: 0.78rem; color: var(--muted);
+  display: flex; align-items: center; gap: 8px;
+}
+.screen-scheme__ops { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.screen-scheme__op { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; }
+.screen-scheme__op-name {
+  text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.68rem; color: var(--muted);
+  min-width: 3.5rem;
+}
+.screen-scheme__op-screen { font-family: var(--font-mono); font-size: 0.75rem; }
+
+@media (max-width: 700px) {
+  .screen-row { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .screen-row__desc { max-width: 100%; white-space: normal; }
+}

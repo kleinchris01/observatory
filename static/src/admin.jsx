@@ -30,6 +30,9 @@ const WorkflowTab = React.lazy(() =>
 const AutomationTab = React.lazy(() =>
   import("./tabs/AutomationTab").then((m) => ({ default: m.AutomationTab }))
 );
+const ScreensTab = React.lazy(() =>
+  import("./tabs/ScreensTab").then((m) => ({ default: m.ScreensTab }))
+);
 const OverviewDashboard = React.lazy(() =>
   import("./components/OverviewDashboard").then((m) => ({ default: m.OverviewDashboard }))
 );
@@ -173,6 +176,7 @@ export function AdminApp() {
     { key: "fields", label: "Field Browser", icon: "layers" },
     { key: "projects", label: "Project Usage", icon: "folder" },
     { key: "workflows", label: "Workflows", icon: "activity" },
+    { key: "screens", label: "Screens", icon: "copy" },
     { key: "automation", label: "Automation", icon: "refreshCw" },
     { key: "reports", label: "Reports", icon: "barChart" },
     { key: "scans", label: "Scans", icon: "zap" },
@@ -263,6 +267,10 @@ export function AdminApp() {
           ) : activeTab === "workflows" ? (
             <React.Suspense fallback={<div className="empty-state">Loading…</div>}>
               <WorkflowTab />
+            </React.Suspense>
+          ) : activeTab === "screens" ? (
+            <React.Suspense fallback={<div className="empty-state">Loading…</div>}>
+              <ScreensTab />
             </React.Suspense>
           ) : activeTab === "automation" ? (
             <React.Suspense fallback={<div className="empty-state">Loading…</div>}>
