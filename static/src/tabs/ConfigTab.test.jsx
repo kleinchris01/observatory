@@ -3,7 +3,7 @@ import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { invoke } from "@forge/bridge";
-import { AutomationProbePanel, ConfigTab } from "./ConfigTab";
+import { AutomationProbePanel, ConfigTab, ScreenCostProbePanel } from "./ConfigTab";
 import { DEFAULT_THRESHOLDS, DEFAULT_MACRO_ACCESS } from "../admin-defaults";
 
 // ConfigTab had no test file, which is how a panel calling an unimported `invoke` reached
@@ -212,5 +212,79 @@ describe("ConfigTab — copy describes the rule it controls", () => {
     expect(rule.textContent).toMatch(/or more projects/i);
     // And still edits the threshold it names.
     expect(rule.querySelector("input")).toHaveValue(DEFAULT_THRESHOLDS.broadScopeMinProjects);
+  });
+});
+
+describe("ScreenCostProbePanel endpoint table", () => {
+  const authFailure = (endpoints) => ({
+    ok: false,
+    error: 'Jira request failed (401): {"code":401,"message":"Unauthorized; scope does not match"}',
+    hint: "Authorization failure. The table below shows which screen endpoints accept the app's scopes.",
+    endpoints,
+  });
+
+  async function runProbe(endpoints) {
+    invoke.mockResolvedValue(authFailure(endpoints));
+    render(<ScreenCostProbePanel />);
+    await userEvent.click(screen.getByRole("button", { name: /Measure screen fetch cost/i }));
+    await waitFor(() => expect(screen.getByRole("table")).toBeInTheDocument());
+  }
+
+  test("renders a row per probed endpoint, keeping the breakdown on failure", async () => {
+    await runProbe([
+      { label: "screens", scope: "read:screen:jira", path: "/rest/api/3/screens", status: 401, scopeAccepted: false },
+      { label: "screen schemes", scope: "read:screen-scheme:jira", path: "/rest/api/3/screenscheme", status: 200, scopeAccepted: true },
+    ]);
+
+    expect(screen.getByText("screens")).toBeInTheDocument();
+    expect(screen.getByText("screen schemes")).toBeInTheDocument();
+    expect(screen.getByText("401")).toBeInTheDocument();
+  });
+
+  // The bug this guards: `scopeAccepted ? "yes" : "no"` renders an unmeasured row as a
+  // rejection, which is the one reading a diagnostic must never invent.
+  test("an unresolved row reads as unknown, not as rejected", async () => {
+    await runProbe([
+      { label: "screens", scope: "read:screen:jira", path: "/rest/api/3/screens", status: 401, scopeAccepted: false },
+      {
+        label: "tab fields (real ids)",
+        scope: "—",
+        path: "(tab fields (real ids))",
+        status: null,
+        scopeAccepted: null,
+        sample: "Screen 10500 reported no tabs, so the field probe has no real tab id.",
+      },
+    ]);
+
+    const unresolved = screen.getByText("tab fields (real ids)").closest("tr");
+    const cells = [...unresolved.querySelectorAll("td")].map((c) => c.textContent);
+    expect(cells).not.toContain("no");
+    expect(cells.filter((c) => c === "—").length).toBeGreaterThanOrEqual(2);
+  });
+
+  test("says why a row could not be measured", async () => {
+    await runProbe([
+      {
+        label: "real-id re-probe",
+        scope: "—",
+        path: "(real-id re-probe)",
+        status: null,
+        scopeAccepted: null,
+        sample: "Could not read screen schemes: 401 nope",
+      },
+    ]);
+
+    // A dash with no explanation reads as a bug in the probe rather than a fact about
+    // the site.
+    expect(screen.getByText(/Could not read screen schemes/i)).toBeInTheDocument();
+  });
+
+  test("distinguishes real-id rows from placeholder-id rows in the copy", async () => {
+    await runProbe([
+      { label: "screens", scope: "read:screen:jira", path: "/rest/api/3/screens", status: 401, scopeAccepted: false },
+    ]);
+
+    expect(screen.getByText(/real id/i)).toBeInTheDocument();
+    expect(screen.getByText(/404 is a pass/i)).toBeInTheDocument();
   });
 });

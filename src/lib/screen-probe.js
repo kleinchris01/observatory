@@ -18,6 +18,7 @@ import {
   getAllScreens,
   getScreenTabs,
   getScreenTabFields,
+  getScreenSchemes,
   getScanTelemetry,
   mapWithConcurrency,
   probeEndpoint,
@@ -61,7 +62,118 @@ export async function probeScreenEndpoints() {
     });
   }
 
-  return results;
+  return [...results, ...(await reprobeWithRealIds())];
+}
+
+// Pull a real screen id out of a screen scheme payload.
+//
+// Pure and exported so the shape handling is testable without Jira. Screen schemes name the
+// screens they map to under `screens: { default, create, edit, view }`, and any one of those
+// is a genuine id -- which is all the re-probe needs.
+//
+// Operation keys are walked in a fixed order so the same payload always yields the same id.
+// A probe that picks a different screen on each run cannot be compared against its own
+// previous result, which is most of what a diagnostic is for.
+export function firstScreenIdFromSchemes(payload) {
+  const schemes = Array.isArray(payload?.values) ? payload.values : [];
+  for (const scheme of schemes) {
+    for (const operation of ["default", "create", "edit", "view"]) {
+      const id = scheme?.screens?.[operation];
+      if (id != null && String(id).trim() !== "") return String(id);
+    }
+  }
+  return null;
+}
+
+// Second pass: re-probe the two id-bearing endpoints with ids that actually exist.
+//
+// The five probes above use screen id 1, which on most sites does not. Jira returns 401 for
+// a resource it will not confirm the existence of, so a 401 on the tab or field probe is
+// ambiguous -- it could be a rejected scope, or it could be the fake id -- and the first
+// live run produced exactly that ambiguity: tabs came back 400 while fields came back 401,
+// from the same fabricated id.
+//
+// Resolving it decides the pillar rather than a detail. read:screen-field:jira is what
+// answers "which fields are on this form", which is the whole cross-signal thesis; if that
+// scope is genuinely rejected the initiative does not degrade, it ends. A probe that leaves
+// that question open has not finished.
+//
+// Never throws. A diagnostic that can fail the page it runs on is worse than no diagnostic,
+// and every failure here is reported as an explicit row rather than an absent one --
+// "we could not look" and "we looked and it was rejected" are different answers.
+async function reprobeWithRealIds() {
+  let screenId = null;
+  let tabId = null;
+  let reason = null;
+
+  try {
+    screenId = firstScreenIdFromSchemes(await getScreenSchemes({ maxResults: 100 }));
+    if (!screenId) reason = "Screen schemes returned no screen ids to re-probe with.";
+  } catch (error) {
+    reason = `Could not read screen schemes: ${String(error?.message || error)}`;
+  }
+
+  if (!screenId) {
+    logger.warn("screen-probe.reprobe_skipped", { reason });
+    return [unresolvedRow("real-id re-probe", reason)];
+  }
+
+  const rows = [await probeWithLabel(
+    `screen tabs (real id ${screenId})`,
+    "read:screen-tab:jira",
+    `/rest/api/3/screens/${screenId}/tabs`
+  )];
+
+  // A real tab id needs the tabs call to have worked. Where it did, this is the only probe
+  // in the set with nothing fabricated in it, and therefore the only unambiguous read on
+  // read:screen-field:jira.
+  try {
+    const tabs = await getScreenTabs(screenId);
+    tabId = tabs?.[0]?.id != null ? String(tabs[0].id) : null;
+    if (!tabId) reason = `Screen ${screenId} reported no tabs, so the field probe has no real tab id.`;
+  } catch (error) {
+    reason = `Could not list tabs on screen ${screenId}: ${String(error?.message || error)}`;
+  }
+
+  rows.push(tabId
+    ? await probeWithLabel(
+        `tab fields (real ids ${screenId}/${tabId})`,
+        "read:screen-field:jira",
+        `/rest/api/3/screens/${screenId}/tabs/${tabId}/fields`
+      )
+    : unresolvedRow("tab fields (real ids)", reason));
+
+  return rows;
+}
+
+async function probeWithLabel(label, scope, path) {
+  const probe = await probeEndpoint(path);
+  return {
+    label,
+    scope,
+    path,
+    status: probe.status,
+    ok: probe.ok,
+    scopeAccepted: probe.status !== 401 && probe.status !== 403,
+    usedRealIds: true,
+    sample: probe.sample,
+  };
+}
+
+// scopeAccepted is null, not false. The endpoint was never reached, so reporting it as
+// rejected would assert a result nobody measured -- the same distinction the rest of this
+// app draws between a measured zero and an absent one.
+function unresolvedRow(label, reason) {
+  return {
+    label,
+    scope: "—",
+    path: `(${label})`,
+    status: null,
+    ok: false,
+    scopeAccepted: null,
+    usedRealIds: true,
+    sample: reason || "Not attempted.",
+  };
 }
 
 // Enough screens to see a tail without the probe itself becoming the cost it is measuring.

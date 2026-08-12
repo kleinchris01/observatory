@@ -322,7 +322,10 @@ export function ScreenCostProbePanel() {
         <div className="probe-results">
           <p className="probe-results__summary">
             Which endpoints accept the app's scopes. A <b>404 is a pass</b> — it means the
-            scope was accepted and only the placeholder id was wrong.
+            scope was accepted and only the placeholder id was wrong. Rows naming a{" "}
+            <b>real id</b> were re-probed against ids that exist, so a rejection there is the
+            scope and nothing else; the rows above them use a placeholder id and a 401 on
+            those is ambiguous.
           </p>
           <table className="probe-results__table">
             <thead>
@@ -334,11 +337,24 @@ export function ScreenCostProbePanel() {
                   <td>{row.label}</td>
                   <td className="probe-results__path">{row.scope}</td>
                   <td>{row.status === null ? "—" : row.status}</td>
-                  <td>{row.scopeAccepted ? "yes" : "no"}</td>
+                  {/* null is not false: the endpoint was never reached, so reporting it as
+                      rejected would assert a result nobody measured. */}
+                  <td>{row.scopeAccepted === null ? "—" : row.scopeAccepted ? "yes" : "no"}</td>
                 </tr>
               ))}
             </tbody>
           </table>
+          {result.endpoints.some((row) => row.scopeAccepted === null) && (
+            <ul className="probe-results__notes">
+              {result.endpoints
+                .filter((row) => row.scopeAccepted === null)
+                .map((row) => (
+                  <li key={`note-${row.path}`}>
+                    <b>{row.label}:</b> {row.sample}
+                  </li>
+                ))}
+            </ul>
+          )}
         </div>
       )}
 

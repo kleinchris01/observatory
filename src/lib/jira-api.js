@@ -894,6 +894,22 @@ export async function getScreenTabFields(screenId, tabId) {
   return Array.isArray(data) ? data : [];
 }
 
+// Screen schemes, which carry screen ids in their payload.
+//
+// Added for the screen probe rather than for the pipeline, and the reason is worth keeping:
+// /rest/api/3/screens returns 401 "scope does not match" on this install while
+// /rest/api/3/screenscheme returns 200. So the endpoint that enumerates screens is the one
+// that cannot supply a screen id, and this is the one that can -- each scheme names the
+// screens it maps to under `screens: { default, create, edit, view }`.
+//
+// That also makes it a candidate route for the real inventory if the screen list stays
+// closed: walking issue type screen scheme -> screen scheme -> screen reaches every screen a
+// project can actually use, which is the population the pillar cares about. It would not
+// reach orphaned screens, which is a finding in its own right and would be the casualty.
+export async function getScreenSchemes({ maxResults = 100 } = {}) {
+  return jiraRequest(route`/rest/api/3/screenscheme?maxResults=${maxResults}`);
+}
+
 // GET /rest/api/3/status returns a flat array, not the usual {values, isLast} wrapper.
 export async function getAllStatuses() {
   const data = await jiraRequest(route`/rest/api/3/status`);
