@@ -11,6 +11,7 @@ vi.mock("./jira-api.js", () => ({
   getScreenSchemes: vi.fn(),
   getScanTelemetry: vi.fn(() => ({ rl429Count: 0, rlRetryCount: 0 })),
   probeEndpoint: vi.fn(),
+  probeEndpointAsUser: vi.fn(),
   mapWithConcurrency: async (items, _c, fn) => {
     const out = [];
     for (const item of items) out.push(await fn(item));
@@ -40,6 +41,7 @@ import {
   getScreenSchemes,
   getScanTelemetry,
   probeEndpoint,
+  probeEndpointAsUser,
 } from "./jira-api.js";
 
 beforeEach(() => vi.clearAllMocks());
@@ -251,6 +253,7 @@ describe("probeScreenEndpoints", () => {
 
   beforeEach(() => {
     probeEndpoint.mockResolvedValue(ok(200));
+    probeEndpointAsUser.mockResolvedValue(ok(200));
     getScreenSchemes.mockResolvedValue({ values: [{ screens: { default: 10500 } }] });
     getScreenTabs.mockResolvedValue([{ id: 900 }]);
   });
@@ -259,9 +262,12 @@ describe("probeScreenEndpoints", () => {
     const rows = await probeScreenEndpoints();
     const real = rows.filter((r) => r.usedRealIds);
 
-    expect(real).toHaveLength(2);
+    // Two as the app, then the two rejected endpoints again as the calling user.
+    expect(real).toHaveLength(4);
     expect(real[0].path).toBe("/rest/api/3/screens/10500/tabs");
     expect(real[1].path).toBe("/rest/api/3/screens/10500/tabs/900/fields");
+    expect(real[2].asUser).toBe(true);
+    expect(real[3].path).toContain("[asUser]");
     // The placeholder-id rows are kept: losing them would lose the comparison that makes
     // the real-id rows meaningful.
     expect(rows.filter((r) => !r.usedRealIds)).toHaveLength(5);
@@ -275,7 +281,7 @@ describe("probeScreenEndpoints", () => {
     );
 
     const rows = await probeScreenEndpoints();
-    const fields = rows.find((r) => r.usedRealIds && r.path.endsWith("/fields"));
+    const fields = rows.find((r) => r.usedRealIds && !r.asUser && r.path.endsWith("/fields"));
 
     expect(fields.status).toBe(401);
     expect(fields.scopeAccepted).toBe(false);
@@ -298,15 +304,67 @@ describe("probeScreenEndpoints", () => {
     getScreenTabs.mockResolvedValueOnce([]);
 
     const rows = await probeScreenEndpoints();
-    const fields = rows.find((r) => r.usedRealIds && r.label.startsWith("tab fields"));
+    const fields = rows.find((r) => r.label === "tab fields (real ids)");
 
     expect(fields.scopeAccepted).toBeNull();
     expect(fields.sample).toMatch(/no tabs/i);
   });
 
-  test("never throws, whatever the site does to it", async () => {
+  test("never throws when scheme discovery blows up", async () => {
     getScreenSchemes.mockRejectedValueOnce(new Error("boom"));
+    await expect(probeScreenEndpoints()).resolves.toBeInstanceOf(Array);
+  });
+
+  // Queued separately rather than alongside the case above: a schemes rejection returns
+  // early, so a tabs rejection queued with it is never consumed and fires in the next test.
+  test("never throws when the tabs call blows up", async () => {
     getScreenTabs.mockRejectedValueOnce(new Error("boom"));
     await expect(probeScreenEndpoints()).resolves.toBeInstanceOf(Array);
+  });
+});
+
+// The last variable. Everything else describes the app's identity; these two rows describe
+// the calling admin's, and they are the difference between "the pillar needs a different
+// call pattern" and "the platform is closed to it".
+describe("probeScreenEndpoints — identity", () => {
+  const ok = (status) => ({ status, ok: status >= 200 && status < 300, sample: "" });
+
+  beforeEach(() => {
+    getScreenSchemes.mockResolvedValue({ values: [{ screens: { default: 10500 } }] });
+    getScreenTabs.mockResolvedValue([{ id: 900 }]);
+  });
+
+  test("re-tests the rejected endpoints under the calling user's permissions", async () => {
+    probeEndpoint.mockResolvedValue(ok(401));
+    probeEndpointAsUser.mockResolvedValue(ok(200));
+
+    const rows = await probeScreenEndpoints();
+    const asUser = rows.filter((r) => r.asUser);
+
+    expect(asUser).toHaveLength(2);
+    expect(asUser.every((r) => r.scopeAccepted)).toBe(true);
+    // Both identities are reported. Replacing the app rows with the user rows would hide
+    // the disagreement, which is the entire finding.
+    expect(rows.some((r) => !r.asUser && r.status === 401)).toBe(true);
+  });
+
+  test("a failure under both identities is reported as such, not merged", async () => {
+    probeEndpoint.mockResolvedValue(ok(401));
+    probeEndpointAsUser.mockResolvedValue(ok(401));
+
+    const rows = await probeScreenEndpoints();
+    const fields = rows.filter((r) => r.usedRealIds && r.path.includes("/fields"));
+
+    expect(fields).toHaveLength(2);
+    expect(fields.every((r) => r.scopeAccepted === false)).toBe(true);
+  });
+
+  test("labels the identity so the two rows are never confused", async () => {
+    probeEndpoint.mockResolvedValue(ok(200));
+    probeEndpointAsUser.mockResolvedValue(ok(200));
+
+    const rows = await probeScreenEndpoints();
+    expect(rows.find((r) => r.label === "screens (as user)")).toBeTruthy();
+    expect(rows.filter((r) => r.asUser).every((r) => /as user/i.test(r.label))).toBe(true);
   });
 });

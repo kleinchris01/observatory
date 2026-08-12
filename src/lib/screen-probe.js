@@ -22,6 +22,7 @@ import {
   getScanTelemetry,
   mapWithConcurrency,
   probeEndpoint,
+  probeEndpointAsUser,
 } from "./jira-api.js";
 
 // Which endpoint answers, and which does not.
@@ -135,27 +136,57 @@ async function reprobeWithRealIds() {
     reason = `Could not list tabs on screen ${screenId}: ${String(error?.message || error)}`;
   }
 
-  rows.push(tabId
+  const fieldsPath = tabId ? `/rest/api/3/screens/${screenId}/tabs/${tabId}/fields` : null;
+
+  rows.push(fieldsPath
     ? await probeWithLabel(
         `tab fields (real ids ${screenId}/${tabId})`,
         "read:screen-field:jira",
-        `/rest/api/3/screens/${screenId}/tabs/${tabId}/fields`
+        fieldsPath
       )
     : unresolvedRow("tab fields (real ids)", reason));
+
+  // Third pass: the same two rejected endpoints, as the CALLING USER rather than the app.
+  //
+  // Everything above describes the app's identity. Atlassian documents that Jira permissions
+  // also control access and are not overridden by scopes, and these endpoints are gated on
+  // Administer Jira -- a permission the caller demonstrably holds, since only an admin can
+  // reach the resolver that runs this, and one the app may not.
+  //
+  // Worth the two extra calls because it is the last variable. If asUser answers, the pillar
+  // lives with a different call pattern; if it does not, the closure is established across
+  // both identities and can be reported to Atlassian as a gap rather than argued about
+  // internally for a third time.
+  rows.push(await probeWithLabel(
+    "screens (as user)",
+    "read:screen:jira",
+    "/rest/api/3/screens?maxResults=1",
+    { asUser: true }
+  ));
+
+  rows.push(fieldsPath
+    ? await probeWithLabel(
+        `tab fields (as user, real ids ${screenId}/${tabId})`,
+        "read:screen-field:jira",
+        fieldsPath,
+        { asUser: true }
+      )
+    : unresolvedRow("tab fields (as user, real ids)", reason));
 
   return rows;
 }
 
-async function probeWithLabel(label, scope, path) {
-  const probe = await probeEndpoint(path);
+async function probeWithLabel(label, scope, path, { asUser = false } = {}) {
+  const probe = asUser ? await probeEndpointAsUser(path) : await probeEndpoint(path);
   return {
     label,
     scope,
-    path,
+    path: asUser ? `${path} [asUser]` : path,
     status: probe.status,
     ok: probe.ok,
     scopeAccepted: probe.status !== 401 && probe.status !== 403,
     usedRealIds: true,
+    asUser,
     sample: probe.sample,
   };
 }

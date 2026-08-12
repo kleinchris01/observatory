@@ -1262,6 +1262,43 @@ export async function probeEndpoint(path, { method = "GET" } = {}) {
 }
 
 
+// asUser() twin of probeEndpoint, for the one question probeEndpoint cannot answer.
+//
+// Every screen probe so far describes the APP's identity. Atlassian's own documentation is
+// explicit that Jira permissions also control access to data and are not overridden by
+// scopes, and the screen endpoints are Administer-Jira-gated -- so a call carrying the
+// calling admin's permissions is a materially different request from the same call carrying
+// the app's. Only an admin can reach the resolver that runs this, so the caller always holds
+// the permission being tested.
+//
+// Same never-throws contract as probeEndpoint: a diagnostic that can fail the page it runs
+// on is worse than no diagnostic.
+export async function probeEndpointAsUser(path, { method = "GET" } = {}) {
+  const started = Date.now();
+  try {
+    const response = await api.asUser().requestJira(route([path]), {
+      method,
+      headers: { Accept: "application/json" },
+    });
+    const text = await response.text();
+    return {
+      path,
+      status: response.status,
+      ok: response.ok,
+      ms: Date.now() - started,
+      sample: text.slice(0, 300),
+    };
+  } catch (error) {
+    return {
+      path,
+      status: null,
+      ok: false,
+      ms: Date.now() - started,
+      sample: String(error?.message || error).slice(0, 300),
+    };
+  }
+}
+
 // The cloud id, pulled out of the installation ARI.
 //
 // Forge's installContext looks like `ari:cloud:jira::site/<uuid>`, and that uuid IS the
