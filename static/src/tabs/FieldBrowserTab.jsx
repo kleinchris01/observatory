@@ -44,6 +44,13 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
   // not an error worth interrupting the field list for.
   const [automationCounts, setAutomationCounts] = React.useState({});
 
+  // Screen counts for the same page, fetched the same way and for the same reason.
+  //
+  // Held as the whole response rather than just the map: the card has to be able to tell
+  // "this field is on no screen" from "no screen inventory exists", and only the envelope
+  // carries that. A bare {} would collapse both into an em dash with no explanation.
+  const [screenCounts, setScreenCounts] = React.useState({ available: false, counts: {} });
+
   React.useEffect(() => {
     if (!filtersOpen) return;
     function handleClickOutside(e) {
@@ -261,6 +268,18 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
     invoke("getAutomationFieldCounts", { fields: fields.map((f) => ({ id: f.id, name: f.name })) })
       .then((result) => { if (!cancelled) setAutomationCounts(result?.counts || {}); })
       .catch(() => { if (!cancelled) setAutomationCounts({}); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageFieldKey]);
+
+  React.useEffect(() => {
+    if (!fields.length) return undefined;
+    let cancelled = false;
+    invoke("getFieldScreenCounts", { fieldIds: fields.map((f) => f.id) })
+      .then((result) => { if (!cancelled) setScreenCounts(result || { available: false, counts: {} }); })
+      // Silent, like the automation counts above: an unbuilt screen inventory is the normal
+      // fresh-install state, and the chip already renders that as unknown rather than zero.
+      .catch(() => { if (!cancelled) setScreenCounts({ available: false, counts: {} }); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageFieldKey]);
@@ -625,6 +644,8 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
                 siteOrigin={siteOrigin}
                 rovoEnabled={rovoEnabled}
                 automationCounts={automationCounts[field.id]}
+                screenCount={screenCounts.available ? (screenCounts.counts[field.id] ?? 0) : null}
+                screenSnapshot={screenCounts}
               />
             );
           })}

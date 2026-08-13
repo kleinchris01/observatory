@@ -235,6 +235,24 @@ describe("buildScreenSnapshot", () => {
     expect(payload.itssMappings.find((m) => m.issueTypeId === "10001").isDefault).toBe(false);
   });
 
+  // The first live build died here: the ITSS-to-project endpoint requires at least one
+  // projectId, so it cannot join the parallel batch -- it has to wait for the project list.
+  test("passes the project ids into the ITSS association lookup", async () => {
+    happyPath();
+    await buildScreenSnapshot("scope-1");
+
+    expect(getIssueTypeScreenSchemeProjects).toHaveBeenCalledWith(["10000"]);
+  });
+
+  test("still asks for associations when the site reports no projects", async () => {
+    happyPath();
+    getAllJiraProjects.mockResolvedValue([]);
+    await buildScreenSnapshot("scope-1");
+
+    // With no ids the fetcher short-circuits rather than issuing a guaranteed 400.
+    expect(getIssueTypeScreenSchemeProjects).toHaveBeenCalledWith([]);
+  });
+
   test("resolves project ids to keys and names", async () => {
     happyPath();
     await buildScreenSnapshot("scope-1");

@@ -1,5 +1,5 @@
 import { describe, test, expect } from "vitest";
-import { computeSiteHealth, gradeFor, resolveHealthTolerances, DEFAULT_HEALTH_TOLERANCES } from "./health-score.js";
+import { computeSiteHealth, gradeFor, resolveHealthTolerances, DEFAULT_HEALTH_TOLERANCES, HEALTH_PILLARS } from "./health-score.js";
 
 // The score is a way into the findings, not a finding itself. These tests mostly pin the
 // two properties that stop it from lying: it scores rates rather than counts, and it
@@ -45,10 +45,24 @@ const automation = (over = {}) => ({
   ...over,
 });
 
+const screens = (over = {}) => ({
+  available: true,
+  totalScreens: 760,
+  emptyScreens: 0,
+  unresolvedScreens: 0,
+  unreachedScreens: 0,
+  totalOperations: 240,
+  danglingOperations: 0,
+  totalSchemes: 60,
+  unusedSchemes: 0,
+  ...over,
+});
+
 describe("computeSiteHealth — scoring", () => {
   test("a clean site scores at the top", () => {
     const health = computeSiteHealth({
-      fieldUsage: fieldUsage(), workflow: workflow(), projects: projects(), automation: automation(),
+      fieldUsage: fieldUsage(), workflow: workflow(), projects: projects(),
+      automation: automation(), screens: screens(),
     });
 
     expect(health.score).toBeGreaterThanOrEqual(90);
@@ -193,6 +207,123 @@ describe("computeSiteHealth — scoring", () => {
 
     expect(health.weakest.key).toBe("status-naming");
     expect(health.weakest.action).toMatch(/consolidate/i);
+  });
+});
+
+describe("screen dimensions", () => {
+  const dim = (health, key) => health.dimensions.find((d) => d.key === key);
+
+  test("scores dangling scheme operations as broken rather than untidy", () => {
+    const clean = computeSiteHealth({ screens: screens() });
+    const broken = computeSiteHealth({ screens: screens({ danglingOperations: 24 }) });
+
+    expect(dim(clean, "screen-integrity").score).toBe(100);
+    // 24/240 = 10%, exactly the tolerance, so this bottoms out.
+    expect(dim(broken, "screen-integrity").score).toBe(0);
+    expect(dim(broken, "screen-integrity").detail).toMatch(/no longer exists/i);
+  });
+
+  // The distinction the whole screens pillar rests on: a screen we could not read is not a
+  // screen with nothing on it, and only the second is a finding.
+  test("excludes unreadable screens from the hygiene rate instead of counting them empty", () => {
+    const health = computeSiteHealth({
+      screens: screens({ totalScreens: 100, unresolvedScreens: 50, emptyScreens: 0, unreachedScreens: 0 }),
+    });
+
+    const hygiene = dim(health, "screen-hygiene");
+    expect(hygiene.available).toBe(true);
+    expect(hygiene.score).toBe(100);
+    // 50 readable, not 100 total: the denominator excludes what the build could not see.
+    expect(hygiene.detail).toMatch(/All 50 readable screens/);
+
+    // And when there is something to report, the same denominator is the one quoted.
+    const dirty = computeSiteHealth({
+      screens: screens({ totalScreens: 100, unresolvedScreens: 50, emptyScreens: 5, unreachedScreens: 0 }),
+    });
+    expect(dim(dirty, "screen-hygiene").detail).toMatch(/of 50 readable/);
+  });
+
+  // A screen can be both empty and routed to by nothing. Summing would charge one screen
+  // twice for two symptoms of the same neglect, and can exceed the catalog size.
+  test("does not double-charge a screen that is both empty and unreached", () => {
+    const health = computeSiteHealth({
+      screens: screens({ totalScreens: 100, totalOperations: 100, emptyScreens: 30, unreachedScreens: 30 }),
+    });
+
+    // Union is 30/100 = the tolerance exactly, so 0. Summing would give 60/100 -- also 0
+    // here, so the rate is asserted through a case where the two differ.
+    const half = computeSiteHealth({
+      screens: screens({ totalScreens: 100, totalOperations: 100, emptyScreens: 15, unreachedScreens: 15 }),
+    });
+    expect(dim(health, "screen-hygiene").score).toBe(0);
+    // 15/100 against a 0.30 tolerance is half way, not bottomed out as a sum of 30 would be.
+    expect(dim(half, "screen-hygiene").score).toBe(50);
+  });
+
+  test("marks both screen dimensions unavailable when no inventory exists", () => {
+    const health = computeSiteHealth({ fieldUsage: fieldUsage() });
+
+    for (const key of ["screen-integrity", "screen-hygiene"]) {
+      expect(dim(health, key).available).toBe(false);
+      expect(dim(health, key).reason).toMatch(/no screen inventory/i);
+    }
+  });
+});
+
+describe("automation exposure", () => {
+  test("scores outbound hosts separately from stored credentials", () => {
+    const health = computeSiteHealth({
+      automation: automation({ ruleCount: 100, externalHttpCount: 15, credentialRuleCount: 0 }),
+    });
+
+    const exposure = health.dimensions.find((d) => d.key === "automation-exposure");
+    const security = health.dimensions.find((d) => d.key === "automation-security");
+    // 15% is the exposure tolerance exactly, so exposure bottoms out while security -- which
+    // measures a different thing entirely -- stays clean.
+    expect(exposure.score).toBe(0);
+    expect(security.score).toBe(100);
+    expect(exposure.detail).toMatch(/non-Atlassian host/i);
+  });
+});
+
+describe("pillar roll-ups", () => {
+  test("every dimension belongs to a pillar", () => {
+    const health = computeSiteHealth({
+      fieldUsage: fieldUsage(), workflow: workflow(), projects: projects(),
+      automation: automation(), screens: screens(),
+    });
+
+    const known = new Set(HEALTH_PILLARS.map((p) => p.key));
+    for (const d of health.dimensions) expect(known.has(d.pillar), `${d.key} has pillar ${d.pillar}`).toBe(true);
+    // Every pillar accounts for its dimensions exactly once, so the grouped view cannot
+    // silently drop one the flat list still scores.
+    expect(health.pillars.reduce((n, p) => n + p.total, 0)).toBe(health.dimensions.length);
+  });
+
+  // The roll-up is weighted like the headline. Asserted because a second, unweighted mean
+  // in the UI is exactly the kind of drift the pillar scores exist to prevent.
+  test("weights a pillar the same way the headline score is weighted", () => {
+    const health = computeSiteHealth({
+      automation: automation({ ruleCount: 100, credentialRuleCount: 2, selfTriggeringCount: 0, externalHttpCount: 0, disabledCount: 0 }),
+    });
+
+    const pillar = health.pillars.find((p) => p.key === "automation");
+    const dims = pillar.dimensions.filter((d) => d.available);
+    const weight = dims.reduce((s, d) => s + d.weight, 0);
+    const expected = Math.round(dims.reduce((s, d) => s + d.score * d.weight, 0) / weight);
+
+    expect(pillar.score).toBe(expected);
+    // Security is weighted 2 and scored 0 here, so an unweighted mean would come out higher.
+    expect(pillar.score).toBeLessThan(Math.round(dims.reduce((s, d) => s + d.score, 0) / dims.length));
+  });
+
+  test("an unmeasured pillar reports null rather than zero, with one reason", () => {
+    const health = computeSiteHealth({ fieldUsage: fieldUsage() });
+    const pillar = health.pillars.find((p) => p.key === "screens");
+
+    expect(pillar.available).toBe(false);
+    expect(pillar.score).toBeNull();
+    expect(pillar.reason).toMatch(/no screen inventory/i);
   });
 });
 

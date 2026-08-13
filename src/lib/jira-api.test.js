@@ -950,15 +950,44 @@ describe("screen fetchers", () => {
     expect(String(mockRequestJira.mock.calls[0][0])).toContain("/issuetypescreenscheme/mapping");
   });
 
-  test("getIssueTypeScreenSchemeProjects returns scheme-to-project rows", async () => {
+  // The first live build died here with 400 "At least one projectId has to be provided".
+  // This endpoint answers "which scheme governs THESE projects", not "list everything".
+  test("getIssueTypeScreenSchemeProjects sends the required projectId parameters", async () => {
     mockRequestJira.mockResolvedValueOnce(jiraResponse({
       body: { values: [{ issueTypeScreenScheme: { id: 9 }, projectIds: ["10000"] }], isLast: true },
     }));
 
-    const rows = await getIssueTypeScreenSchemeProjects();
+    const rows = await getIssueTypeScreenSchemeProjects(["10000", "10001"]);
 
     expect(rows[0].projectIds).toEqual(["10000"]);
-    expect(String(mockRequestJira.mock.calls[0][0])).toContain("/issuetypescreenscheme/project");
+    const path = String(mockRequestJira.mock.calls[0][0]);
+    expect(path).toContain("projectId=10000");
+    expect(path).toContain("projectId=10001");
+  });
+
+  // Calling it bare is the bug, so not calling Jira at all is the correct response to an
+  // empty list -- a request with no projectId is a guaranteed 400.
+  test("getIssueTypeScreenSchemeProjects makes no request when given no projects", async () => {
+    await expect(getIssueTypeScreenSchemeProjects([])).resolves.toEqual([]);
+    expect(mockRequestJira).not.toHaveBeenCalled();
+  });
+
+  test("getIssueTypeScreenSchemeProjects batches large project lists", async () => {
+    mockRequestJira.mockResolvedValue(jiraResponse({ body: { values: [], isLast: true } }));
+
+    await getIssueTypeScreenSchemeProjects(Array.from({ length: 120 }, (_, i) => 10000 + i));
+
+    // 120 ids at 50 per request.
+    expect(mockRequestJira).toHaveBeenCalledTimes(3);
+  });
+
+  test("getIssueTypeScreenSchemeProjects de-duplicates ids before asking", async () => {
+    mockRequestJira.mockResolvedValue(jiraResponse({ body: { values: [], isLast: true } }));
+
+    await getIssueTypeScreenSchemeProjects(["10000", "10000", 10000]);
+
+    const path = String(mockRequestJira.mock.calls[0][0]);
+    expect(path.match(/projectId=10000/g)).toHaveLength(1);
   });
 
   test("getAllScreens paginates the screen catalog", async () => {

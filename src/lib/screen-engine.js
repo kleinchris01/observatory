@@ -197,15 +197,23 @@ export async function buildScreenSnapshot(installationKey) {
     // The scheme layers are tens of rows and independent of each other, so they go in
     // parallel. The screen walk is the expensive part and runs after, against a catalog
     // whose size is already known.
-    const [screens, screenSchemes, itssList, itssMappings, itssProjectRows, projects] =
-      await Promise.all([
-        getAllScreens(),
-        getAllScreenSchemes(),
-        getAllIssueTypeScreenSchemes(),
-        getIssueTypeScreenSchemeMappings(),
-        getIssueTypeScreenSchemeProjects(),
-        getAllJiraProjects(),
-      ]);
+    const [screens, screenSchemes, itssList, itssMappings, projects] = await Promise.all([
+      getAllScreens(),
+      getAllScreenSchemes(),
+      getAllIssueTypeScreenSchemes(),
+      getIssueTypeScreenSchemeMappings(),
+      getAllJiraProjects(),
+    ]);
+
+    // Sequenced after the others rather than joining the parallel batch: this endpoint
+    // requires at least one projectId, so it cannot be issued until the project list is in
+    // hand. Left in the batch it returns 400 and takes the whole build with it.
+    //
+    // Deliberately fatal rather than best-effort. Without these rows every issue type
+    // screen scheme reports zero projects, which does not read as "unknown" -- it reads as
+    // "nothing uses this", which is a finding. Failing loudly beats publishing a snapshot
+    // that quietly recommends retiring every scheme on the site.
+    const itssProjectRows = await getIssueTypeScreenSchemeProjects(projects.map((p) => p.id));
 
     const { screenRows, tabs, fields } = await collectScreenContents(screens);
 

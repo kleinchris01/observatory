@@ -18,7 +18,16 @@ import { StatTile, StatRow, Panel, EmptyState, BarList, FindingRow, LinkButton }
 // omitted rather than rendered as zero, because "0 duplicate statuses" and "we have never
 // looked for duplicate statuses" are completely different statements.
 
-function buildFindings({ findingsSummary, dashboard, workflow, onNavigate }) {
+// Severity bands, in the order they are shown. The list used to be a flat severity sort,
+// which reads fine at six rows and stops reading at sixteen -- everything below the fold
+// looked equally optional. The bands say what the tone already meant, in words.
+const FINDING_BANDS = [
+  { tone: "critical", label: "Act now", description: "Broken or exposed configuration. Someone is relying on these being right." },
+  { tone: "warning", label: "Worth reviewing", description: "Working today, but the cost or the risk is growing." },
+  { tone: "info", label: "Cleanup when convenient", description: "Safe to leave. Safe to remove, once confirmed." },
+];
+
+function buildFindings({ findingsSummary, dashboard, workflow, screens, automation, onNavigate }) {
   const findings = [];
 
   if (findingsSummary?.adminAttention > 0) {
@@ -109,42 +118,234 @@ function buildFindings({ findingsSummary, dashboard, workflow, onNavigate }) {
     });
   }
 
+  // Was computed by summarizeFindings and then dropped on the floor here, so the one
+  // category that describes site-wide inconsistency never appeared on the site-wide page.
+  if (findingsSummary?.standardize > 0) {
+    findings.push({
+      key: "standardize",
+      tone: "info",
+      count: findingsSummary.standardize,
+      title: "Fields that could be standardised",
+      detail: "Close enough to another field that one definition would serve both.",
+      onOpen: () => onNavigate("fields"),
+      openLabel: "Field Browser",
+    });
+  }
+
+  // ── Automation ──────────────────────────────────────────────────────────
+  //
+  // Every one of these was already computed by the automation analysis and scored in site
+  // health, and none of them reached this list -- the page whose entire job is to say what
+  // needs attention was silent about the pillar carrying the credential findings.
+
+  if (automation?.available && automation.credentialRuleCount > 0) {
+    findings.push({
+      key: "automation-credentials",
+      tone: "critical",
+      count: automation.credentialRuleCount,
+      title: "Automation rules storing a credential in plaintext",
+      detail: "Anyone who can view the rule can read the secret. Rotate them, then move to a smart-value reference or an Automation connection.",
+      onOpen: () => onNavigate("automation"),
+      openLabel: "Automation",
+    });
+  }
+
+  if (automation?.available && automation.selfTriggeringCount > 0) {
+    findings.push({
+      key: "automation-self-triggering",
+      tone: "warning",
+      count: automation.selfTriggeringCount,
+      title: "Rules that write a field they trigger on",
+      detail: "These loop without a second rule involved. Check the conditions guarding them before the next execution-limit surprise.",
+      onOpen: () => onNavigate("automation"),
+      openLabel: "Automation",
+    });
+  }
+
+  if (automation?.available && automation.externalHttpCount > 0) {
+    findings.push({
+      key: "automation-external",
+      tone: "warning",
+      count: automation.externalHttpCount,
+      title: "Rules sending data outside Atlassian",
+      detail: "Each moves Jira data out of the tenancy. Confirm every destination is still one you own.",
+      onOpen: () => onNavigate("automation"),
+      openLabel: "Automation",
+    });
+  }
+
+  if (automation?.available && automation.noActionCount > 0) {
+    findings.push({
+      key: "automation-inert",
+      tone: "info",
+      count: automation.noActionCount,
+      title: "Rules with a trigger but no actions",
+      detail: "They consume execution budget on every trigger and do nothing with it.",
+      onOpen: () => onNavigate("automation"),
+      openLabel: "Automation",
+    });
+  }
+
+  if (automation?.available && automation.disabledCount > 0) {
+    findings.push({
+      key: "automation-disabled",
+      tone: "info",
+      count: automation.disabledCount,
+      title: "Disabled automation rules",
+      detail: "A large disabled estate hides which rules were retired on purpose and which were forgotten. Decide per rule: revive or delete.",
+      onOpen: () => onNavigate("automation"),
+      openLabel: "Automation",
+    });
+  }
+
+  // ── Screens ─────────────────────────────────────────────────────────────
+
+  if (screens?.available && screens.danglingOperations > 0) {
+    findings.push({
+      key: "screen-dangling",
+      tone: "critical",
+      count: screens.danglingOperations,
+      title: "Scheme operations pointing at a missing screen",
+      detail: "Jira falls back silently when one of these resolves, so the form a user sees is not the one the scheme names.",
+      onOpen: () => onNavigate("screens"),
+      openLabel: "Screens",
+    });
+  }
+
+  // A measurement gap, not a site defect -- and it caps every screen finding below it, so
+  // it is stated before them rather than after.
+  if (screens?.available && screens.unresolvedScreens > 0) {
+    findings.push({
+      key: "screen-unresolved",
+      tone: "warning",
+      count: screens.unresolvedScreens,
+      title: "Screens whose contents could not be read",
+      detail: "Not counted as empty — the build could not see them at all, so the screen findings below exclude these.",
+      onOpen: () => onNavigate("screens"),
+      openLabel: "Screens",
+    });
+  }
+
+  if (screens?.available && screens.unreachedScreens > 0) {
+    findings.push({
+      key: "screen-unreached",
+      tone: "info",
+      count: screens.unreachedScreens,
+      title: "Screens no scheme routes to",
+      detail: "Nothing maps to them, so no user can reach them through a project.",
+      onOpen: () => onNavigate("screens"),
+      openLabel: "Screens",
+    });
+  }
+
+  if (screens?.available && screens.emptyScreens > 0) {
+    findings.push({
+      key: "screen-empty",
+      tone: "info",
+      count: screens.emptyScreens,
+      title: "Screens carrying no fields",
+      detail: "Read successfully and found to have nothing on them.",
+      onOpen: () => onNavigate("screens"),
+      openLabel: "Screens",
+    });
+  }
+
+  if (screens?.available && screens.unusedSchemes > 0) {
+    findings.push({
+      key: "screen-unused-schemes",
+      tone: "info",
+      count: screens.unusedSchemes,
+      title: "Screen schemes no issue type maps to",
+      detail: "They cannot route anything to a project until an issue type screen scheme references them.",
+      onOpen: () => onNavigate("screens"),
+      openLabel: "Screens",
+    });
+  }
+
+  // ── Projects ────────────────────────────────────────────────────────────
+
+  if (dashboard?.projects?.staleProjects?.length > 0) {
+    findings.push({
+      key: "stale-projects",
+      tone: "info",
+      count: dashboard.projects.staleProjects.length,
+      title: "Projects with no activity in over six months",
+      detail: "Still carrying field configuration. The cheapest place to retire fields, if the project is genuinely done.",
+      onOpen: () => onNavigate("projects"),
+      openLabel: "Project Usage",
+    });
+  }
+
   return findings;
 }
 
-function FindingsPanel({ findings, workflow, onNavigate }) {
+function FindingsPanel({ findings, workflow, screens, automation, onNavigate }) {
+  // Which pillars have never been built. Named individually, because "nothing flagged" while
+  // three of five pillars have never been looked at is not a clean bill of health -- it is a
+  // clean bill of the two things we checked.
+  const unbuilt = [
+    !workflow?.available && { label: "workflow inventory", tab: "workflows" },
+    !screens?.available && { label: "screen inventory", tab: "screens" },
+    !automation?.available && { label: "automation analysis", tab: "automation" },
+  ].filter(Boolean);
+
   if (!findings.length) {
     return (
       <Panel title="What needs attention" icon="checkCircle">
         <EmptyState
-          action={!workflow?.available ? <LinkButton onClick={() => onNavigate("workflows")}>Build workflow inventory</LinkButton> : null}
+          action={unbuilt.length ? <LinkButton onClick={() => onNavigate(unbuilt[0].tab)}>Build {unbuilt[0].label}</LinkButton> : null}
         >
-          {workflow?.available
-            ? "Nothing flagged. Field governance, project shape and workflow health all look clean."
-            : "Nothing flagged in the field data. Build the workflow inventory to check status and scheme health too."}
+          {unbuilt.length === 0
+            ? "Nothing flagged. Fields, workflows, screens, automation and project shape all look clean."
+            : `Nothing flagged in what has been measured. No ${unbuilt.map((u) => u.label).join(", no ")} has been built, so those are unchecked rather than clean.`}
         </EmptyState>
       </Panel>
     );
   }
 
+  const bands = FINDING_BANDS
+    .map((band) => ({ ...band, items: findings.filter((f) => f.tone === band.tone) }))
+    .filter((band) => band.items.length > 0);
+
   return (
     <Panel
       title="What needs attention"
       icon="alertTriangle"
-      description="Ordered by severity. Each opens the tab that resolves it."
+      description="Grouped by how soon it matters. Each opens the tab that resolves it."
     >
-      <div className="ui-finding-list">
-        {findings.map((finding) => (
-          <FindingRow
-            key={finding.key}
-            tone={finding.tone}
-            count={formatNumber(finding.count)}
-            title={finding.title}
-            detail={finding.detail}
-            action={<LinkButton onClick={finding.onOpen}>{finding.openLabel}</LinkButton>}
-          />
+      <div className="ui-bands">
+        {bands.map((band) => (
+          <section key={band.tone} className="ui-band">
+            <header className={`ui-band__head ui-band__head--${band.tone}`}>
+              <h4 className="ui-band__title">{band.label}</h4>
+              <span className="ui-band__count">{band.items.length}</span>
+              <p className="ui-band__desc">{band.description}</p>
+            </header>
+            <div className="ui-finding-list">
+              {band.items.map((finding) => (
+                <FindingRow
+                  key={finding.key}
+                  tone={finding.tone}
+                  count={formatNumber(finding.count)}
+                  title={finding.title}
+                  detail={finding.detail}
+                  action={<LinkButton onClick={finding.onOpen}>{finding.openLabel}</LinkButton>}
+                />
+              ))}
+            </div>
+          </section>
         ))}
       </div>
+
+      {unbuilt.length > 0 && (
+        <p className="ui-note">
+          <Icon name="info" size={13} />
+          <span>
+            No {unbuilt.map((u) => u.label).join(", no ")} has been built, so nothing above
+            reflects {unbuilt.length === 1 ? "it" : "them"}.
+          </span>
+        </p>
+      )}
     </Panel>
   );
 }
@@ -195,17 +396,48 @@ function HealthPanel({ health, onNavigate }) {
         )}
       </div>
 
-      <div className="ui-health__dims">
-        {scored.map((dim) => (
-          <div key={dim.key} className="ui-health__dim">
-            <span className="ui-health__dimlabel">{dim.label}</span>
-            <span className="ui-health__dimtrack">
-              <span className="ui-health__dimbar" style={{ width: `${dim.score}%` }} />
-            </span>
-            <span className="ui-health__dimval">{dim.score}</span>
-            <span className="ui-health__dimdetail">{dim.detail}</span>
-          </div>
-        ))}
+      {/* Grouped by pillar rather than listed flat. Thirteen equal-weight bars in one column
+          is a table of contents with no headings -- the reader cannot tell which area of the
+          site a row belongs to without reading every label. Falls back to a single unnamed
+          group if the score predates pillars, so an older cached payload still renders. */}
+      <div className="ui-health__pillars">
+        {(health.pillars?.length ? health.pillars : [{ key: "all", label: null, dimensions: scored, available: true, score: null }])
+          .map((pillar) => (
+            <section key={pillar.key} className="ui-health__pillar">
+              {pillar.label && (
+                <header className="ui-health__pillarhead">
+                  <h4 className="ui-health__pillartitle">{pillar.label}</h4>
+                  {pillar.available ? (
+                    <span className={`ui-health__pillarscore ui-health__score--${(pillar.grade || "e").toLowerCase()}`}>
+                      {pillar.score}
+                    </span>
+                  ) : (
+                    <span className="ui-health__pillarscore ui-health__pillarscore--none">not measured</span>
+                  )}
+                </header>
+              )}
+
+              {pillar.available ? (
+                <div className="ui-health__dims">
+                  {pillar.dimensions.filter((d) => d.available).map((dim) => (
+                    <div key={dim.key} className="ui-health__dim">
+                      <span className="ui-health__dimlabel">{dim.label}</span>
+                      <span className="ui-health__dimtrack">
+                        <span className="ui-health__dimbar" style={{ width: `${dim.score}%` }} />
+                      </span>
+                      <span className="ui-health__dimval">{dim.score}</span>
+                      <span className="ui-health__dimdetail">{dim.detail}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                // One line for the whole pillar instead of one dark bar per dimension. The
+                // reason is identical across them, and repeating it three times reads as
+                // three problems rather than one unbuilt snapshot.
+                <p className="ui-health__pillarempty">{pillar.reason || "Not measured yet."}</p>
+              )}
+            </section>
+          ))}
       </div>
 
       {partial && (
@@ -496,16 +728,16 @@ function RqtPanel({ onOpenRqtIndex }) {
   );
 }
 
-export function OverviewDashboard({ dashboard, findingsSummary, workflow, health, onOpenRqtIndex, onNavigate }) {
+export function OverviewDashboard({ dashboard, findingsSummary, workflow, screens, automation, health, onOpenRqtIndex, onNavigate }) {
   // onNavigate is optional so this stays renderable in isolation; without it the deep
   // links become inert rather than throwing.
   const navigate = onNavigate || (() => {});
-  const findings = buildFindings({ findingsSummary, dashboard, workflow, onNavigate: navigate });
+  const findings = buildFindings({ findingsSummary, dashboard, workflow, screens, automation, onNavigate: navigate });
 
   return (
     <div className="ui-dashboard">
       <HealthPanel health={health} onNavigate={navigate} />
-      <FindingsPanel findings={findings} workflow={workflow} onNavigate={navigate} />
+      <FindingsPanel findings={findings} workflow={workflow} screens={screens} automation={automation} onNavigate={navigate} />
       <WorkflowPanel workflow={workflow} onNavigate={navigate} />
       <ProjectsPanel projects={dashboard?.projects} onNavigate={navigate} />
       <FieldsPanel fieldUsage={dashboard?.fieldUsage} onNavigate={navigate} />

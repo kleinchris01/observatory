@@ -145,7 +145,7 @@ export async function replaceScreenSnapshot(scopeKey, version, {
   }
 
   for (const batch of chunkArray(itssMappings, DEFAULT_BATCH_SIZE)) {
-    const valuesSql = batch.map(() => "(?, ?, ?, ?, ?)").join(", ");
+    const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((m) => [
       scopeKey, version, String(m.itssId), String(m.issueTypeId),
       m.screenSchemeId == null ? null : String(m.screenSchemeId),
@@ -161,7 +161,7 @@ export async function replaceScreenSnapshot(scopeKey, version, {
   }
 
   for (const batch of chunkArray(itssProjects, DEFAULT_BATCH_SIZE)) {
-    const valuesSql = batch.map(() => "(?, ?, ?, ?, ?)").join(", ");
+    const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((p) => [
       scopeKey, version, String(p.itssId), String(p.projectId),
       p.projectKey || null, p.projectName || null,
@@ -270,6 +270,41 @@ export async function loadScreensForField(scopeKey, version, fieldId) {
   }));
 }
 
+// Screen counts for a page of fields, in one pass rather than one query per card.
+//
+// The Field Browser renders 25-50 cards at a time and each wants "how many screens carry
+// this field". Asking per card is 50 round trips against a table with 22,000 rows on the
+// reference site; grouping the whole page into one IN-list is one, served by
+// idx_snapshot_screen_fields_field.
+//
+// Returns a plain object keyed by field id, and omits fields on no screen rather than
+// writing 0 -- the caller distinguishes "on no screen" from "not asked about" by presence,
+// and a 0 written here would be indistinguishable from a field the page did not include.
+export async function loadScreenCountsForFields(scopeKey, version, fieldIds = []) {
+  await ensureProjectStoreReady();
+  const ids = [...new Set((fieldIds || []).map((id) => String(id)).filter(Boolean))];
+  if (!ids.length) return {};
+
+  const counts = {};
+  // Chunked for the same bind-parameter ceiling the write path batches against; each id is
+  // one param, plus the two for scope and version.
+  for (const batch of chunkArray(ids, 100)) {
+    const placeholders = batch.map(() => "?").join(", ");
+    const result = await withSqlRetry(() =>
+      sql.prepare(`
+        SELECT field_id, COUNT(DISTINCT screen_id) AS screen_count
+        FROM snapshot_screen_fields
+        WHERE scope_key = ? AND version = ? AND field_id IN (${placeholders})
+        GROUP BY field_id
+      `).bindParams(scopeKey, version, ...batch).execute()
+    );
+    for (const row of result.rows || []) {
+      counts[row.field_id] = toNumber(row.screen_count);
+    }
+  }
+  return counts;
+}
+
 export async function loadScreenSchemes(scopeKey, version) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
@@ -356,6 +391,82 @@ export async function loadItssProjects(scopeKey, version) {
     projectKey: row.project_key || "",
     projectName: row.project_name || "",
   }));
+}
+
+// Rates for the site health score and the overview findings, computed as aggregates rather
+// than by loading the catalog. The field table alone is ~22,000 rows on the reference site;
+// pulling it into a Lambda to count four things would cost more than the build did.
+//
+// Every count is scoped and versioned like the reads above. Screens whose contents could not
+// be read are counted separately and never folded into "empty" -- a screen we failed to
+// measure and a screen with no fields on it are opposite claims, and only one is a finding.
+export async function loadScreenGovernanceSummary(scopeKey, version) {
+  await ensureProjectStoreReady();
+
+  const screenTotals = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT
+        COUNT(*) AS total,
+        SUM(CASE WHEN tabs_resolved = 'resolved' AND field_count = 0 THEN 1 ELSE 0 END) AS empty_screens,
+        SUM(CASE WHEN tabs_resolved <> 'resolved' THEN 1 ELSE 0 END) AS unresolved_screens
+      FROM snapshot_screens
+      WHERE scope_key = ? AND version = ?
+    `).bindParams(scopeKey, version).execute()
+  );
+
+  // NOT EXISTS rather than (total - COUNT(DISTINCT screen_id)): a scheme operation can point
+  // at a screen id the catalog does not contain, so the distinct count includes ids that are
+  // not screens and the subtraction would under-report unreached screens.
+  const unreached = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT COUNT(*) AS unreached
+      FROM snapshot_screens s
+      WHERE s.scope_key = ? AND s.version = ?
+        AND NOT EXISTS (
+          SELECT 1 FROM snapshot_screen_scheme_operations o
+          WHERE o.scope_key = s.scope_key AND o.version = s.version AND o.screen_id = s.screen_id
+        )
+    `).bindParams(scopeKey, version).execute()
+  );
+
+  const operations = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT
+        COUNT(*) AS total,
+        SUM(CASE WHEN dangling = 1 THEN 1 ELSE 0 END) AS dangling
+      FROM snapshot_screen_scheme_operations
+      WHERE scope_key = ? AND version = ?
+    `).bindParams(scopeKey, version).execute()
+  );
+
+  // A screen scheme no issue-type screen scheme maps to cannot route anything to a project.
+  const schemes = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT
+        COUNT(*) AS total,
+        SUM(CASE WHEN NOT EXISTS (
+          SELECT 1 FROM snapshot_itss_mappings m
+          WHERE m.scope_key = s.scope_key AND m.version = s.version AND m.screen_scheme_id = s.scheme_id
+        ) THEN 1 ELSE 0 END) AS unused
+      FROM snapshot_screen_schemes s
+      WHERE s.scope_key = ? AND s.version = ?
+    `).bindParams(scopeKey, version).execute()
+  );
+
+  const screenRow = screenTotals.rows?.[0] || {};
+  const operationRow = operations.rows?.[0] || {};
+  const schemeRow = schemes.rows?.[0] || {};
+
+  return {
+    totalScreens: toNumber(screenRow.total),
+    emptyScreens: toNumber(screenRow.empty_screens),
+    unresolvedScreens: toNumber(screenRow.unresolved_screens),
+    unreachedScreens: toNumber(unreached.rows?.[0]?.unreached),
+    totalOperations: toNumber(operationRow.total),
+    danglingOperations: toNumber(operationRow.dangling),
+    totalSchemes: toNumber(schemeRow.total),
+    unusedSchemes: toNumber(schemeRow.unused),
+  };
 }
 
 // ── Meta ─────────────────────────────────────────────────────────────────────

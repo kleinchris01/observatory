@@ -63,6 +63,31 @@ const workflow = (overrides = {}) => ({
 
 const findingsSummary = { adminAttention: 4, risky: 2, cleanup: 9, standardize: 1 };
 
+const screens = (overrides = {}) => ({
+  available: true,
+  state: "ready",
+  totalScreens: 760,
+  emptyScreens: 12,
+  unresolvedScreens: 3,
+  unreachedScreens: 40,
+  totalOperations: 240,
+  danglingOperations: 5,
+  totalSchemes: 60,
+  unusedSchemes: 7,
+  ...overrides,
+});
+
+const automation = (overrides = {}) => ({
+  available: true,
+  ruleCount: 1479,
+  disabledCount: 604,
+  credentialRuleCount: 3,
+  externalHttpCount: 22,
+  noActionCount: 8,
+  selfTriggeringCount: 88,
+  ...overrides,
+});
+
 beforeEach(() => vi.clearAllMocks());
 
 describe("OverviewDashboard — findings", () => {
@@ -127,7 +152,157 @@ describe("OverviewDashboard — findings", () => {
     />);
 
     expect(screen.queryByText("Groups of duplicate statuses")).not.toBeInTheDocument();
-    expect(screen.getByText(/Build the workflow inventory to check status and scheme health/i)).toBeInTheDocument();
+    // Names every unbuilt pillar, not just the workflow one. "Nothing flagged" while three
+    // of five pillars have never been looked at is a claim about coverage, not cleanliness.
+    expect(screen.getByText(/unchecked rather than clean/i)).toBeInTheDocument();
+    // getAllByText: the workflow panel below carries its own "no workflow inventory" empty
+    // state, so this phrase legitimately appears more than once on the page.
+    expect(screen.getAllByText(/no workflow inventory/i).length).toBeGreaterThan(0);
+  });
+});
+
+// The gap this closes: site health scored automation and screens while the findings list --
+// the part of the page an admin actually acts on -- was assembled from fields, projects and
+// workflows only. A credential sitting in plaintext moved the score and named nothing.
+describe("OverviewDashboard — automation and screen findings", () => {
+  const renderAll = (over = {}) => render(<OverviewDashboard
+    dashboard={dashboard()}
+    findingsSummary={findingsSummary}
+    workflow={workflow()}
+    screens={screens()}
+    automation={automation()}
+    onNavigate={vi.fn()}
+    {...over}
+  />);
+
+  test("surfaces every automation risk the analysis found", () => {
+    renderAll();
+
+    expect(screen.getByText("Automation rules storing a credential in plaintext")).toBeInTheDocument();
+    expect(screen.getByText("Rules that write a field they trigger on")).toBeInTheDocument();
+    expect(screen.getByText("Rules sending data outside Atlassian")).toBeInTheDocument();
+    expect(screen.getByText("Rules with a trigger but no actions")).toBeInTheDocument();
+    expect(screen.getByText("Disabled automation rules")).toBeInTheDocument();
+  });
+
+  test("surfaces every screen finding the inventory found", () => {
+    renderAll();
+
+    expect(screen.getByText("Scheme operations pointing at a missing screen")).toBeInTheDocument();
+    expect(screen.getByText("Screens whose contents could not be read")).toBeInTheDocument();
+    expect(screen.getByText("Screens no scheme routes to")).toBeInTheDocument();
+    expect(screen.getByText("Screens carrying no fields")).toBeInTheDocument();
+    expect(screen.getByText("Screen schemes no issue type maps to")).toBeInTheDocument();
+  });
+
+  test("routes an automation finding to the Automation tab", async () => {
+    const onNavigate = vi.fn();
+    renderAll({ onNavigate });
+
+    await userEvent.click(screen.getAllByRole("button", { name: /^Automation$/ })[0]);
+    expect(onNavigate).toHaveBeenCalledWith("automation");
+  });
+
+  test("routes a screen finding to the Screens tab", async () => {
+    const onNavigate = vi.fn();
+    renderAll({ onNavigate });
+
+    await userEvent.click(screen.getAllByRole("button", { name: /^Screens$/ })[0]);
+    expect(onNavigate).toHaveBeenCalledWith("screens");
+  });
+
+  // The same rule the workflow findings already follow, now enforced for the two pillars
+  // that had no findings at all: no source, no finding.
+  test("omits both pillars entirely when neither has been built", () => {
+    renderAll({ screens: { available: false }, automation: { available: false } });
+
+    expect(screen.queryByText("Automation rules storing a credential in plaintext")).not.toBeInTheDocument();
+    expect(screen.queryByText("Screens carrying no fields")).not.toBeInTheDocument();
+    // And it says so, rather than letting a short list read as a clean site.
+    expect(screen.getByText(/no screen inventory/i)).toBeInTheDocument();
+  });
+
+  test("shows a credential finding as critical and a disabled-rule finding as cleanup", () => {
+    renderAll();
+
+    const credential = screen.getByText("Automation rules storing a credential in plaintext").closest(".ui-finding");
+    const disabled = screen.getByText("Disabled automation rules").closest(".ui-finding");
+
+    expect(credential.className).toMatch(/ui-finding--critical/);
+    expect(disabled.className).toMatch(/ui-finding--info/);
+  });
+
+  test("groups findings into severity bands rather than one flat list", () => {
+    renderAll();
+
+    expect(screen.getByText("Act now")).toBeInTheDocument();
+    expect(screen.getByText("Worth reviewing")).toBeInTheDocument();
+    expect(screen.getByText("Cleanup when convenient")).toBeInTheDocument();
+  });
+
+  test("finally reports the standardise count, which was computed and then dropped", () => {
+    renderAll();
+    expect(screen.getByText("Fields that could be standardised")).toBeInTheDocument();
+  });
+});
+
+describe("OverviewDashboard — health pillars", () => {
+  const health = {
+    score: 58,
+    grade: "E",
+    dimensions: [],
+    weakest: { label: "Field governance", score: 17, action: "Start with the high-severity findings." },
+    pillars: [
+      {
+        key: "fields", label: "Fields", score: 48, grade: "E", available: true, scored: 2, total: 2,
+        dimensions: [
+          { key: "field-naming", label: "Field naming", available: true, score: 79, detail: "34 groups share a name." },
+          { key: "field-governance", label: "Field governance", available: true, score: 17, detail: "69 high severity." },
+        ],
+      },
+      {
+        key: "screens", label: "Screens", score: null, grade: null, available: false, scored: 0, total: 2,
+        reason: "No screen inventory yet.",
+        dimensions: [
+          { key: "screen-integrity", label: "Screen scheme integrity", available: false, score: null, reason: "No screen inventory yet." },
+          { key: "screen-hygiene", label: "Screen hygiene", available: false, score: null, reason: "No screen inventory yet." },
+        ],
+      },
+    ],
+  };
+
+  test("groups the dimension bars under their pillar with a roll-up score", () => {
+    render(<OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} health={health} onNavigate={vi.fn()} />);
+
+    expect(screen.getByText("Fields")).toBeInTheDocument();
+    expect(screen.getByText("48")).toBeInTheDocument();
+    expect(screen.getByText("Field naming")).toBeInTheDocument();
+    // Twice, deliberately: once as the weakest-dimension callout above the bars, once as its
+    // own bar inside the Fields pillar.
+    expect(screen.getAllByText("Field governance")).toHaveLength(2);
+  });
+
+  // One line for the pillar, not one dark bar per dimension. Three bars all reading "no
+  // screen inventory yet" looks like three problems instead of one unbuilt snapshot.
+  test("collapses an unmeasured pillar to a single reason", () => {
+    render(<OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} health={health} onNavigate={vi.fn()} />);
+
+    expect(screen.getByText("not measured")).toBeInTheDocument();
+    expect(screen.getByText("No screen inventory yet.")).toBeInTheDocument();
+    expect(screen.queryByText("Screen hygiene")).not.toBeInTheDocument();
+  });
+
+  // A cached payload from before pillars existed still has to render its bars.
+  test("falls back to a flat list when the score carries no pillars", () => {
+    render(<OverviewDashboard
+      dashboard={dashboard()}
+      findingsSummary={findingsSummary}
+      workflow={workflow()}
+      health={{ ...health, pillars: undefined, dimensions: [{ key: "field-naming", label: "Field naming", available: true, score: 79, detail: "d" }] }}
+      onNavigate={vi.fn()}
+    />);
+
+    expect(screen.getByText("Field naming")).toBeInTheDocument();
   });
 });
 
@@ -178,7 +353,9 @@ describe("OverviewDashboard — projects panel", () => {
 
   test("surfaces stale projects with when they were last touched", () => {
     render(<OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} onNavigate={vi.fn()} />);
-    expect(screen.getByText(/No activity in over six months/i)).toBeInTheDocument();
+    // Exact match, not a substring: stale projects are now also a finding row titled
+    // "Projects with no activity in over six months", and a loose regex matches both.
+    expect(screen.getByText("No activity in over six months")).toBeInTheDocument();
     expect(screen.getByText("ECHO")).toBeInTheDocument();
   });
 
