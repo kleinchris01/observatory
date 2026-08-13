@@ -369,6 +369,35 @@ export const CREATE_SNAPSHOT_WORKFLOW_STATUSES_TABLE = `
   )
 `;
 
+// The site health score, once per day, with every dimension it was made of.
+//
+// The point of the score was never the number -- it was whether cleaning something up moved
+// it. That question needs a series, and a series cannot be back-filled: a day without a row
+// is a hole in the record forever. So this records early and cheaply rather than waiting for
+// a chart to justify it.
+//
+// Keyed on the DAY rather than a timestamp, upserted. An admin who fixes something and
+// rebuilds three times in an afternoon wants the afternoon's best state on the chart, not
+// three points of noise -- and a year of daily rows is 365, which is a rounding error.
+//
+// dimensions_json holds {key: score} for every scored dimension. Stored as a blob rather
+// than a column per dimension because the dimension list grows (ten to thirteen in one
+// change), and a schema migration per new metric would guarantee the history stops the day
+// somebody adds one.
+export const CREATE_HEALTH_HISTORY_TABLE = `
+  CREATE TABLE IF NOT EXISTS health_history (
+    scope_key VARCHAR(191) NOT NULL,
+    measured_on VARCHAR(10) NOT NULL,
+    measured_at VARCHAR(64) NOT NULL,
+    score INTEGER NULL,
+    grade VARCHAR(2) NULL,
+    dimensions_scored INTEGER NOT NULL DEFAULT 0,
+    dimensions_total INTEGER NOT NULL DEFAULT 0,
+    dimensions_json TEXT NULL,
+    PRIMARY KEY (scope_key, measured_on)
+  )
+`;
+
 // Issue counts per status per project, accumulated by the universe scan.
 //
 // Unversioned, like the other issue_scan_* tables: it reflects the last completed scan
@@ -687,7 +716,8 @@ const projectStoreMigrations = migrationRunner
   .enqueue("v062_create_snapshot_itss_mappings_table", CREATE_SNAPSHOT_ITSS_MAPPINGS_TABLE)
   .enqueue("v063_create_snapshot_itss_projects_table", CREATE_SNAPSHOT_ITSS_PROJECTS_TABLE)
   .enqueue("v064_create_snapshot_itss_projects_by_project_index", CREATE_SNAPSHOT_ITSS_PROJECTS_BY_PROJECT_INDEX)
-  .enqueue("v065_create_screen_snapshot_meta_table", CREATE_SCREEN_SNAPSHOT_META_TABLE);
+  .enqueue("v065_create_screen_snapshot_meta_table", CREATE_SCREEN_SNAPSHOT_META_TABLE)
+  .enqueue("v066_create_health_history_table", CREATE_HEALTH_HISTORY_TABLE);
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history

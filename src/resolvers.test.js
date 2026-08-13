@@ -109,6 +109,8 @@ const mocks = vi.hoisted(() => ({
   loadIssueTypeScreenSchemes: vi.fn(),
   loadScreenGovernanceSummary: vi.fn(),
   loadScreenCountsForFields: vi.fn(),
+  recordHealthSnapshot: vi.fn(),
+  loadHealthHistory: vi.fn(),
   queueScreenSnapshotBuild: vi.fn(),
   isScreenBuildStale: vi.fn(() => false),
 
@@ -244,6 +246,8 @@ vi.mock("./lib/project-store.js", () => ({
   loadIssueTypeScreenSchemes: mocks.loadIssueTypeScreenSchemes,
   loadScreenGovernanceSummary: mocks.loadScreenGovernanceSummary,
   loadScreenCountsForFields: mocks.loadScreenCountsForFields,
+  recordHealthSnapshot: mocks.recordHealthSnapshot,
+  loadHealthHistory: mocks.loadHealthHistory,
   // Real values, not mocks: the resolver whitelists the sort token against these, so a
   // vi.fn() here would make every sort fall back to the default and hide a regression.
   DEFAULT_SCREEN_SORT: "fields-desc",
@@ -352,6 +356,7 @@ const {
   getScreenInventory,
   getFieldScreenReachability,
   getFieldScreenCounts,
+  getHealthHistory,
   buildScreenInventory,
 } = __RAW_ADMIN_ONLY_FUNCTIONS;
 
@@ -452,6 +457,8 @@ beforeEach(() => {
   mocks.loadIssueTypeScreenSchemes.mockResolvedValue([]);
   mocks.loadScreenGovernanceSummary.mockResolvedValue({});
   mocks.loadScreenCountsForFields.mockResolvedValue({});
+  mocks.recordHealthSnapshot.mockResolvedValue({ recorded: true });
+  mocks.loadHealthHistory.mockResolvedValue([]);
   mocks.queueScreenSnapshotBuild.mockResolvedValue(undefined);
   mocks.isScreenBuildStale.mockReturnValue(false);
   mocks.loadWorkflowSchemes.mockResolvedValue([]);
@@ -4109,6 +4116,93 @@ describe("getFieldScreenReachability", () => {
 
   test("rejects a missing field id", async () => {
     await expect(getFieldScreenReachability({ payload: {}, ...ctx })).rejects.toThrow(/fieldId/);
+  });
+});
+
+
+// ---------------------------------------------------------------------------
+// getHealthHistory
+// ---------------------------------------------------------------------------
+//
+// The score always raised a question it could not answer: did cleaning that up help? These
+// pin the two rules that keep the answer honest -- a single point is not a trend, and a
+// dimension that only started being measured partway through has not "improved".
+describe("getHealthHistory", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x" } };
+
+  const day = (d, score, dimensions) => ({
+    day: d, measuredAt: `${d}T00:00:00.000Z`, score, grade: "C",
+    dimensionsScored: Object.keys(dimensions).length, dimensionsTotal: 13, dimensions,
+  });
+
+  test("says it has nothing rather than drawing a flat line at zero", async () => {
+    mocks.loadHealthHistory.mockResolvedValue([]);
+
+    const result = await getHealthHistory({ payload: {}, ...ctx });
+
+    expect(result.available).toBe(false);
+    expect(result.series).toEqual([]);
+  });
+
+  test("reports the movement across the window", async () => {
+    mocks.loadHealthHistory.mockResolvedValue([
+      day("2026-08-01", 51, { "field-governance": 17 }),
+      day("2026-08-13", 63, { "field-governance": 40 }),
+    ]);
+
+    const result = await getHealthHistory({ payload: {}, ...ctx });
+
+    expect(result.delta).toBe(12);
+    expect(result.hasTrend).toBe(true);
+    expect(result.dimensions.find((d) => d.key === "field-governance").delta).toBe(23);
+  });
+
+  // One measurement is a point, not a trend. Reporting a delta against itself would show
+  // every fresh install as having improved by nothing, which reads as a measured result.
+  test("refuses to call a single measurement a trend", async () => {
+    mocks.loadHealthHistory.mockResolvedValue([day("2026-08-13", 58, { "field-naming": 79 })]);
+
+    const result = await getHealthHistory({ payload: {}, ...ctx });
+
+    expect(result.available).toBe(true);
+    expect(result.hasTrend).toBe(false);
+    expect(result.delta).toBeNull();
+  });
+
+  // A dimension that appeared partway through the window did not improve from zero -- that
+  // would credit nobody's work as a 40-point gain.
+  test("reports a newly measured dimension as new, not as an improvement", async () => {
+    mocks.loadHealthHistory.mockResolvedValue([
+      day("2026-08-01", 51, { "field-naming": 79 }),
+      day("2026-08-13", 63, { "field-naming": 79, "screen-hygiene": 40 }),
+    ]);
+
+    const result = await getHealthHistory({ payload: {}, ...ctx });
+    const added = result.dimensions.find((d) => d.key === "screen-hygiene");
+
+    expect(added.first).toBeNull();
+    expect(added.delta).toBeNull();
+    expect(added.score).toBe(40);
+  });
+
+  // Ordered worst-movement first: the dimensions that went backwards are the ones an admin
+  // needs to see, and they are exactly the ones a score-ordered list would bury.
+  test("orders dimensions by movement, regressions first", async () => {
+    mocks.loadHealthHistory.mockResolvedValue([
+      day("2026-08-01", 51, { a: 50, b: 50 }),
+      day("2026-08-13", 51, { a: 80, b: 20 }),
+    ]);
+
+    const result = await getHealthHistory({ payload: {}, ...ctx });
+
+    expect(result.dimensions.map((d) => d.key)).toEqual(["b", "a"]);
+  });
+
+  test("clamps a hostile window rather than trusting it", async () => {
+    mocks.loadHealthHistory.mockResolvedValue([]);
+    await getHealthHistory({ payload: { days: 99999 }, ...ctx });
+
+    expect(mocks.loadHealthHistory).toHaveBeenCalledWith("test-install", { days: 365 });
   });
 });
 

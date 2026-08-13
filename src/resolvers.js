@@ -102,6 +102,8 @@ import {
   loadScreenCountsForFields,
   DEFAULT_SCREEN_SORT,
   SCREEN_SORT_KEYS,
+  recordHealthSnapshot,
+  loadHealthHistory,
 } from "./lib/project-store.js";
 import { queueWorkflowSnapshotBuild, isWorkflowBuildStale, queueStatusHistoryBuild } from "./lib/workflow-engine.js";
 import { measureScreenFetchCost, probeScreenEndpoints, DEFAULT_SAMPLE_SIZE } from "./lib/screen-probe.js";
@@ -3413,6 +3415,26 @@ export async function getAdminOverview({ context }) {
     }
   }
 
+  const health = computeSiteHealth({
+    fieldUsage: dashboard?.fieldUsage,
+    workflow,
+    projects: dashboard?.projects,
+    automation,
+    screens,
+    // Workflow, project and automation dimensions were scored against hardcoded constants
+    // while every field rule was tunable. Same config surface now feeds both.
+    tolerances: config?.healthTolerances,
+  });
+
+  // Recorded here because this is the only place the score is computed, and the series
+  // cannot be back-filled -- a day with no row is a hole in the record forever. Upserted per
+  // day, so opening the overview twice costs one row, and opening it after a cleanup
+  // replaces the morning's worse number with the afternoon's better one.
+  //
+  // recordHealthSnapshot swallows its own errors: an overview that failed because a history
+  // row could not be written would be strictly worse than one with a gap in a chart.
+  await recordHealthSnapshot(installationKey, health);
+
   return {
     config,
     snapshot: {
@@ -3432,16 +3454,7 @@ export async function getAdminOverview({ context }) {
     findingsSummary,
     workflow,
     screens,
-    health: computeSiteHealth({
-      fieldUsage: dashboard?.fieldUsage,
-      workflow,
-      projects: dashboard?.projects,
-      automation,
-      screens,
-      // Workflow, project and automation dimensions were scored against hardcoded
-      // constants while every field rule was tunable. Same config surface now feeds both.
-      tolerances: config?.healthTolerances,
-    }),
+    health,
     // The whole health summary, not just the three headline fields it used to carry. The
     // overview's findings list needs the same counts the score does -- while this was
     // trimmed to {available, refreshedAt, ruleCount}, every automation problem the analysis
@@ -3455,6 +3468,60 @@ export async function getAdminOverview({ context }) {
     dashboard,
     totalSummaries: summaries.length,
     legacySummaryCount,
+  };
+}
+
+// The health series, plus the deltas that make it readable.
+//
+// Deltas are computed here rather than in the browser so "improved by 12" means the same
+// thing on every surface -- and so a dimension that appeared partway through the window is
+// reported as new rather than as an improvement from zero, which would be a lie about work
+// nobody did.
+async function getHealthHistory({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+  const days = Math.max(7, Math.min(365, Number(payload?.days) || 90));
+
+  const series = await loadHealthHistory(installationKey, { days });
+  if (series.length === 0) {
+    // Tri-state, as everywhere else: no history is not a flat line at zero.
+    return { available: false, reason: "No health has been recorded yet.", series: [], dimensions: [], days };
+  }
+
+  const first = series[0];
+  const latest = series[series.length - 1];
+
+  // Per-dimension movement across the window. Keyed on what the LATEST measurement scored,
+  // because a dimension that has since stopped being measured cannot be reported on.
+  const dimensions = Object.entries(latest.dimensions).map(([key, score]) => {
+    const firstScore = first.dimensions?.[key];
+    const known = typeof firstScore === "number";
+    return {
+      key,
+      score,
+      first: known ? firstScore : null,
+      // null, never 0, when the dimension did not exist at the start of the window --
+      // "new measurement" and "no change" are different facts.
+      delta: known ? score - firstScore : null,
+      points: series.map((entry) => ({
+        day: entry.day,
+        score: typeof entry.dimensions?.[key] === "number" ? entry.dimensions[key] : null,
+      })),
+    };
+  }).sort((a, b) => (a.delta ?? 0) - (b.delta ?? 0));
+
+  return {
+    available: true,
+    days,
+    series,
+    latest,
+    first,
+    // A single measurement is a point, not a trend, and the UI has to be able to say so
+    // rather than drawing a line through one dot.
+    hasTrend: series.length > 1,
+    delta: series.length > 1 ? latest.score - first.score : null,
+    dimensions,
   };
 }
 
@@ -4108,6 +4175,7 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   getFieldScreenReachability, // Admin read: which screens carry one field
   buildScreenInventory,    // Mutating: queues a full screen and scheme snapshot build
 
+  getHealthHistory,        // Admin read: the site health series and per-dimension deltas
   getAuditLog,             // Admin read: returns recent privileged-action records
 
   // Admin page surface. These were previously registered directly onto adminHandler in
