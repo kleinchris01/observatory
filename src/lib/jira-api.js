@@ -1011,8 +1011,42 @@ export function normalizeWorkflowSearchResponse(data) {
       const resolved = direct != null ? String(direct) : (reference ? idByReference.get(String(reference)) : null);
       if (resolved) statusIds.push(resolved);
     }
-    return { name, statusIds };
+    return { name, statusIds, transitions: extractTransitionScreens(workflow) };
   }).filter((workflow) => workflow.name);
+}
+
+// Transitions that open a screen, and which screen that is.
+//
+// This is the second way a screen reaches a user, and until now the only one Observatory
+// looked at was the scheme chain. A screen attached to a transition is in daily use without
+// appearing in any screen scheme -- which made "no scheme routes to this screen" read as
+// "nobody can reach this screen", and that is the premise for deleting it.
+//
+// Shape-agnostic for the same reason the status extraction is: the two endpoint generations
+// disagree about where the screen lives on a transition.
+//
+//   Deprecated GET /rest/api/3/workflow/search   ->  transitions[].screen.id
+//   Current    POST /rest/api/3/workflows/search ->  transitions[].transitionScreen.id,
+//                                                    sometimes .screen.id
+//
+// A transition with no screen is normal and common -- most transitions just move the issue --
+// so those are dropped rather than recorded with a null screen.
+export function extractTransitionScreens(workflow) {
+  const out = [];
+  for (const transition of workflow?.transitions || []) {
+    const screen = transition?.transitionScreen ?? transition?.screen ?? null;
+    const screenId = screen?.id ?? screen?.screenId ?? (typeof screen === "string" || typeof screen === "number" ? screen : null);
+    if (screenId == null || screenId === "") continue;
+    out.push({
+      id: transition?.id != null ? String(transition.id) : null,
+      name: transition?.name || null,
+      // "from -> to" is what makes a transition recognisable in Jira's own UI; the name
+      // alone is frequently just "Done" on a dozen different transitions.
+      toStatus: transition?.to?.statusReference ?? transition?.to?.id ?? transition?.to ?? null,
+      screenId: String(screenId),
+    });
+  }
+  return out;
 }
 
 // Every workflow on the site with the statuses it can reach.
@@ -1023,7 +1057,10 @@ export function normalizeWorkflowSearchResponse(data) {
 // failed on staging -- silently, leaving every status looking orphaned.
 export async function getAllWorkflowsWithStatuses() {
   try {
-    const data = await jiraRequest(route`/rest/api/3/workflows/search?expand=statuses`, {
+    // expand=transitions alongside statuses. Asked for in the same call rather than a second
+    // pass: the workflow list is the expensive part, and a site with 83 schemes has more
+    // workflows than it has anything else worth paging twice.
+    const data = await jiraRequest(route`/rest/api/3/workflows/search?expand=statuses,transitions`, {
       method: "POST",
       body: JSON.stringify({}),
     });
@@ -1037,7 +1074,7 @@ export async function getAllWorkflowsWithStatuses() {
   }
 
   const legacy = await paginate(
-    (startAt) => route`/rest/api/3/workflow/search?expand=statuses&startAt=${startAt}&maxResults=${DEFAULT_PAGE_SIZE}`
+    (startAt) => route`/rest/api/3/workflow/search?expand=statuses,transitions&startAt=${startAt}&maxResults=${DEFAULT_PAGE_SIZE}`
   );
   return normalizeWorkflowSearchResponse({ values: legacy });
 }

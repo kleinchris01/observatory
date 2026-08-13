@@ -226,13 +226,30 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
     });
   }
 
+  // Only offered once transitions are known. A screen attached to a workflow transition is
+  // opened every time someone moves an issue, while belonging to no screen scheme -- so
+  // without the workflow inventory this finding would invite deleting screens in daily use.
   if (screens?.available && screens.unreachedScreens > 0) {
     findings.push({
       key: "screen-unreached",
       tone: "info",
       count: screens.unreachedScreens,
-      title: "Screens no scheme routes to",
-      detail: "Nothing maps to them, so no user can reach them through a project.",
+      title: "Screens nothing reaches",
+      detail: "No scheme maps to them and no workflow transition opens them, so no user encounters them.",
+      onOpen: () => onNavigate("screens"),
+      openLabel: "Screens",
+    });
+  }
+
+  // The correction, stated as its own row. These are screens the scheme chain alone calls
+  // unreachable and a transition is actually using.
+  if (screens?.available && screens.transitionOnlyScreens > 0) {
+    findings.push({
+      key: "screen-transition-only",
+      tone: "info",
+      count: screens.transitionOnlyScreens,
+      title: "Screens used only by a workflow transition",
+      detail: "No screen scheme references them, so they look orphaned in the scheme view — but a transition opens them. Do not delete these.",
       onOpen: () => onNavigate("screens"),
       openLabel: "Screens",
     });

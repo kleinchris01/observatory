@@ -70,6 +70,8 @@ const screens = (overrides = {}) => ({
   emptyScreens: 12,
   unresolvedScreens: 3,
   unreachedScreens: 40,
+  transitionOnlyScreens: 6,
+  transitionsKnown: true,
   totalOperations: 240,
   danglingOperations: 5,
   totalSchemes: 60,
@@ -190,7 +192,7 @@ describe("OverviewDashboard — automation and screen findings", () => {
 
     expect(screen.getByText("Scheme operations pointing at a missing screen")).toBeInTheDocument();
     expect(screen.getByText("Screens whose contents could not be read")).toBeInTheDocument();
-    expect(screen.getByText("Screens no scheme routes to")).toBeInTheDocument();
+    expect(screen.getByText("Screens nothing reaches")).toBeInTheDocument();
     expect(screen.getByText("Screens carrying no fields")).toBeInTheDocument();
     expect(screen.getByText("Screen schemes no issue type maps to")).toBeInTheDocument();
   });
@@ -230,6 +232,24 @@ describe("OverviewDashboard — automation and screen findings", () => {
 
     expect(credential.className).toMatch(/ui-finding--critical/);
     expect(disabled.className).toMatch(/ui-finding--info/);
+  });
+
+
+  // The correction to a finding that shipped wrong: a screen a workflow transition opens is
+  // in daily use while belonging to no screen scheme, and the scheme-only view called those
+  // unreachable -- inviting the deletion of screens people use every time they move an issue.
+  test("names screens a transition keeps alive, so they are not cleaned up", () => {
+    renderAll();
+
+    const row = screen.getByText("Screens used only by a workflow transition").closest(".ui-finding");
+    expect(row).toHaveTextContent(/Do not delete these/i);
+  });
+
+  test("withdraws the unreachable claim entirely when transitions are unknown", () => {
+    renderAll({ screens: screens({ unreachedScreens: null, transitionOnlyScreens: null, transitionsKnown: false }) });
+
+    expect(screen.queryByText("Screens nothing reaches")).not.toBeInTheDocument();
+    expect(screen.queryByText("Screens used only by a workflow transition")).not.toBeInTheDocument();
   });
 
   test("groups findings into severity bands rather than one flat list", () => {
