@@ -98,7 +98,9 @@ describe("WorkflowTab", () => {
     await user.click(screen.getByRole("button", { name: /statuses/i }));
     await screen.findByText("Open");
 
-    await user.click(screen.getByRole("button", { name: /^Done/ }));
+    // Category moved from a chip row to a select. A chip row grows with the site and is
+    // the one control that cannot fit on a narrow screen.
+    await user.selectOptions(screen.getByRole("combobox", { name: /Category/i }), "Done");
 
     expect(screen.getByText("Closed")).toBeInTheDocument();
     expect(screen.queryByText("Open")).not.toBeInTheDocument();
@@ -286,7 +288,7 @@ describe("WorkflowTab — status catalog", () => {
     await openStatuses();
     await waitFor(() => expect(gridHas("Backlog")).toBe(true));
 
-    await userEvent.selectOptions(screen.getByLabelText(/Filter statuses by usage/i), "empty");
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: /Usage/i }), "empty");
 
     // The signal: nothing sits here now, but 4,000 issues passed through.
     expect(gridHas("Parking Lot")).toBe(true);
@@ -298,7 +300,7 @@ describe("WorkflowTab — status catalog", () => {
     await openStatuses();
     await waitFor(() => expect(gridHas("Backlog")).toBe(true));
 
-    await userEvent.selectOptions(screen.getByLabelText(/Filter statuses by usage/i), "never");
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: /Usage/i }), "never");
 
     expect(gridHas("Ghost Status")).toBe(true);
     expect(gridHas("Parking Lot")).toBe(false);
@@ -325,7 +327,7 @@ describe("WorkflowTab — status catalog", () => {
     // Scoped to the grid: the key above it also shows an em dash by way of explanation.
     expect(gridText("—").length).toBeGreaterThan(0);
 
-    await userEvent.selectOptions(screen.getByLabelText(/Filter statuses by usage/i), "never");
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: /Usage/i }), "never");
     expect(gridHas("Unmeasured")).toBe(false);
   });
 
@@ -459,5 +461,40 @@ describe("WorkflowTab — automation caveat", () => {
     // app cannot support without seeing automation rules.
     expect(document.body.textContent).not.toMatch(/safe to remove/i);
     expect(document.body.textContent).not.toMatch(/safe to delete/i);
+  });
+});
+
+// This tab was the outlier: a hand-rolled header at its own size, freshness inline beside
+// the title, and horizontal pill sub-navigation where five other tabs use a sidebar. Moving
+// between it and any other tab read as changing product.
+describe("WorkflowTab — shared shell", () => {
+  test("uses the shared page header, with freshness in the header's meta slot", async () => {
+    const { container } = render(<WorkflowTab />);
+    await screen.findByText("ADVEV Standard");
+
+    expect(container.querySelector(".ui-pagehead__title")).toHaveTextContent(/Workflow & status inventory/);
+    expect(container.querySelector(".ui-pagehead__meta")).toHaveTextContent(/Built/);
+    // The old header markup is gone, not merely hidden behind it.
+    expect(container.querySelector(".wf-header")).toBeNull();
+  });
+
+  test("navigates its views from the shared sidebar rather than horizontal pills", async () => {
+    const { container } = render(<WorkflowTab />);
+    await screen.findByText("ADVEV Standard");
+
+    expect(container.querySelector(".sub-nav")).not.toBeNull();
+    expect(container.querySelector(".wf-viewtab")).toBeNull();
+  });
+
+  test("drives both views from the shared toolbar", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<WorkflowTab />);
+    await screen.findByText("ADVEV Standard");
+
+    expect(container.querySelector(".ui-controls")).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: /statuses/i }));
+    await screen.findByText("Open");
+    expect(container.querySelector(".ui-controls")).not.toBeNull();
+    expect(container.querySelector(".wf-statusbar")).toBeNull();
   });
 });
