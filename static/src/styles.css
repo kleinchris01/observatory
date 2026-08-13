@@ -1220,6 +1220,19 @@ select {
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--stroke);
 }
+/* Screen usage on a field card. Denser than a project usage card: this is a list of
+   locations, and each row is a name plus two small numbers. */
+.screen-usage-list { display: flex; flex-direction: column; gap: 8px; }
+.screen-usage-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  flex-wrap: wrap; padding: 10px 14px; border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04); border: 1px solid var(--stroke);
+}
+.screen-usage-row__name { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.screen-usage-row__id { font-size: 0.72rem; opacity: 0.5; font-variant-numeric: tabular-nums; }
+.screen-usage-row__meta { display: flex; gap: 8px; flex-shrink: 0; }
+.screen-usage-note { margin: 10px 0 0; font-size: 0.76rem; opacity: 0.6; line-height: 1.4; }
+
 .context-card--clickable {
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
@@ -3624,6 +3637,7 @@ code {
 }
 
 .ui-pagehead__actions { display: flex; gap: 8px; flex: none; }
+
 
 /* Sticks to the bottom of the viewport so the primary action stays reachable from
    anywhere in a long form, rather than only after scrolling past all of it. */
@@ -6464,6 +6478,40 @@ code {
 .ui-health__dimbar { display: block; height: 100%; border-radius: 3px; background: #4d8fd6; min-width: 2px; }
 .ui-health__dimval { grid-area: value; font-size: 0.78rem; text-align: right; font-variant-numeric: tabular-nums; opacity: 0.75; }
 .ui-health__dimdetail { grid-area: detail; font-size: 0.74rem; opacity: 0.55; line-height: 1.4; }
+
+/* Pillar grouping. The rule separating groups does the work a heading weight cannot at this
+   density -- with five groups of two or three bars, the eye needs a boundary, not a bolder
+   label. */
+.ui-health__pillars { display: flex; flex-direction: column; gap: 14px; margin-top: 4px; }
+.ui-health__pillar { display: flex; flex-direction: column; gap: 9px; }
+.ui-health__pillar + .ui-health__pillar { border-top: 1px solid rgba(255,255,255,0.06); padding-top: 14px; }
+.ui-health__pillarhead { display: flex; align-items: baseline; gap: 8px; }
+.ui-health__pillartitle {
+  margin: 0; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em;
+  text-transform: uppercase; opacity: 0.6;
+}
+.ui-health__pillarscore { font-size: 0.82rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ui-health__pillarscore--none { font-size: 0.72rem; font-weight: 500; opacity: 0.4; font-variant-numeric: normal; }
+.ui-health__pillarempty { margin: 0; font-size: 0.74rem; opacity: 0.45; line-height: 1.4; }
+
+/* â”€â”€ Severity bands in the findings list â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+.ui-bands { display: flex; flex-direction: column; gap: 16px; }
+.ui-band { display: flex; flex-direction: column; gap: 8px; }
+.ui-band__head {
+  display: grid; grid-template-columns: auto auto 1fr; align-items: baseline; gap: 4px 8px;
+  grid-template-areas: "title count ." "desc desc desc";
+  border-left: 3px solid transparent; padding-left: 9px;
+}
+.ui-band__head--critical { border-left-color: #c9605a; }
+.ui-band__head--warning { border-left-color: #c9860a; }
+.ui-band__head--info { border-left-color: #4d8fd6; }
+.ui-band__title { grid-area: title; margin: 0; font-size: 0.8rem; font-weight: 700; }
+.ui-band__count {
+  grid-area: count; font-size: 0.68rem; font-weight: 600; opacity: 0.55;
+  font-variant-numeric: tabular-nums; background: rgba(255,255,255,0.07);
+  border-radius: 9px; padding: 1px 7px;
+}
+.ui-band__desc { grid-area: desc; margin: 0; font-size: 0.73rem; opacity: 0.5; line-height: 1.4; }
 
 /* â”€â”€ Endpoint probe results â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .probe-results { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }

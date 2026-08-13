@@ -36,6 +36,18 @@ export const DEFAULT_HEALTH_TOLERANCES = {
   // here. It still bottoms out, because an estate that is half switched off has lost the
   // ability to tell "deliberately retired" from "forgotten".
   disabledRules: 0.50,
+  // Rules posting to a non-Atlassian host. Not a defect on its own -- plenty of estates
+  // integrate deliberately -- so this is looser than the credential bound. It is scored at
+  // all because every one of these is data leaving the tenancy, and an admin who cannot say
+  // how many there are cannot say what left.
+  externalHttpRules: 0.15,
+  // A scheme operation pointing at a screen the catalog does not contain. Tight, like the
+  // credential bound: this is a broken mapping rather than an untidy one, and Jira falls
+  // back silently when it resolves.
+  danglingScreenRefs: 0.10,
+  // Screens carrying no fields, or that no scheme routes to. Clutter, so it is forgiving --
+  // but past a third of the catalog nobody can tell which screens are live.
+  unusedScreens: 0.30,
 };
 
 // rate 0 -> 100, rate >= tolerance -> 0, linear between. Deliberately linear: a curve
@@ -45,9 +57,21 @@ function scoreFromRate(rate, tolerance) {
   return Math.max(0, Math.round(100 * (1 - Math.min(1, rate / tolerance))));
 }
 
-function unavailable(key, label, reason) {
-  return { key, label, available: false, score: null, reason };
+// Every dimension carries the pillar it belongs to, so the overview can group thirteen bars
+// into five readable blocks instead of one flat list. Grouping lives here rather than in the
+// UI because the pillar is a property of what is being measured, and a second copy of the
+// mapping in JSX would drift the first time a dimension is added.
+function unavailable(key, label, pillar, reason) {
+  return { key, label, pillar, available: false, score: null, reason };
 }
+
+export const HEALTH_PILLARS = [
+  { key: "fields", label: "Fields" },
+  { key: "workflows", label: "Workflows and statuses" },
+  { key: "screens", label: "Screens" },
+  { key: "automation", label: "Automation" },
+  { key: "projects", label: "Projects" },
+];
 
 // Tolerances are admin-tunable, like every field threshold already is.
 //
@@ -71,7 +95,7 @@ export function resolveHealthTolerances(overrides = {}) {
   return out;
 }
 
-export function computeSiteHealth({ fieldUsage, workflow, projects, automation, tolerances } = {}) {
+export function computeSiteHealth({ fieldUsage, workflow, projects, automation, screens, tolerances } = {}) {
   const TOLERANCE = resolveHealthTolerances(tolerances);
   const dimensions = [];
 
@@ -84,6 +108,7 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
     dimensions.push({
       key: "field-naming",
       label: "Field naming",
+      pillar: "fields",
       available: true,
       weight: 1,
       score: scoreFromRate(rate, TOLERANCE.duplicateFieldNames),
@@ -93,7 +118,7 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       action: clusters > 0 ? "Consolidate duplicate field names in the Field Browser." : null,
     });
   } else {
-    dimensions.push(unavailable("field-naming", "Field naming", "No field snapshot yet."));
+    dimensions.push(unavailable("field-naming", "Field naming", "fields", "No field snapshot yet."));
   }
 
   // ── Field governance ──────────────────────────────────────────────────────
@@ -105,6 +130,7 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
     dimensions.push({
       key: "field-governance",
       label: "Field governance",
+      pillar: "fields",
       available: true,
       weight: 1.5,
       score: scoreFromRate(rate, TOLERANCE.fieldFindings),
@@ -112,7 +138,7 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       action: (severity.high || 0) > 0 ? "Start with the high-severity findings — they affect how fields behave in Jira." : null,
     });
   } else {
-    dimensions.push(unavailable("field-governance", "Field governance", "No field snapshot yet."));
+    dimensions.push(unavailable("field-governance", "Field governance", "fields", "No field snapshot yet."));
   }
 
   // ── Status naming ─────────────────────────────────────────────────────────
@@ -122,6 +148,7 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
     dimensions.push({
       key: "status-naming",
       label: "Status naming",
+      pillar: "workflows",
       available: true,
       weight: 1,
       score: scoreFromRate(rate, TOLERANCE.duplicateStatuses),
@@ -131,7 +158,7 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       action: removable > 0 ? "Consolidate duplicate statuses in the Workflows tab." : null,
     });
   } else {
-    dimensions.push(unavailable("status-naming", "Status naming", "No workflow inventory yet."));
+    dimensions.push(unavailable("status-naming", "Status naming", "workflows", "No workflow inventory yet."));
   }
 
   // ── Status reachability ───────────────────────────────────────────────────
@@ -142,6 +169,7 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
     dimensions.push({
       key: "status-reachability",
       label: "Status reachability",
+      pillar: "workflows",
       available: true,
       weight: 1,
       score: scoreFromRate(rate, TOLERANCE.unreachableStatuses),
@@ -158,8 +186,7 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
         : null,
     });
   } else {
-    dimensions.push(unavailable("status-reachability", "Status reachability",
-      workflow?.available ? "Jira did not return workflow status data." : "No workflow inventory yet."));
+    dimensions.push(unavailable("status-reachability", "Status reachability", "workflows", workflow?.available ? "Jira did not return workflow status data." : "No workflow inventory yet."));
   }
 
   // ── Workflow structure ────────────────────────────────────────────────────
@@ -168,6 +195,7 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
     dimensions.push({
       key: "workflow-structure",
       label: "Workflow structure",
+      pillar: "workflows",
       available: true,
       weight: 1,
       score: scoreFromRate(rate, TOLERANCE.flaggedSchemes),
@@ -176,7 +204,7 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
         ? "Missing Done statuses and In Progress-heavy schemes are the ones worth looking at first." : null,
     });
   } else {
-    dimensions.push(unavailable("workflow-structure", "Workflow structure", "No workflow inventory yet."));
+    dimensions.push(unavailable("workflow-structure", "Workflow structure", "workflows", "No workflow inventory yet."));
   }
 
   // ── Process standardisation ───────────────────────────────────────────────
@@ -187,6 +215,7 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
     dimensions.push({
       key: "standardisation",
       label: "Process standardisation",
+      pillar: "workflows",
       available: true,
       weight: 1,
       score: Math.round(Math.min(100, sharedRatio * 200)),
@@ -196,7 +225,7 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
         : null,
     });
   } else {
-    dimensions.push(unavailable("standardisation", "Process standardisation", "No workflow inventory yet."));
+    dimensions.push(unavailable("standardisation", "Process standardisation", "workflows", "No workflow inventory yet."));
   }
 
   // ── Project consistency ───────────────────────────────────────────────────
@@ -207,6 +236,7 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
     dimensions.push({
       key: "project-consistency",
       label: "Project consistency",
+      pillar: "projects",
       available: true,
       weight: 1,
       score: scoreFromRate(rate, TOLERANCE.irregularProjects),
@@ -214,7 +244,7 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       action: irregular > 0 ? "These are the projects where field cleanup has the least risk." : null,
     });
   } else {
-    dimensions.push(unavailable("project-consistency", "Project consistency", "No project usage data yet."));
+    dimensions.push(unavailable("project-consistency", "Project consistency", "projects", "No project usage data yet."));
   }
 
   // ── Automation security ───────────────────────────────────────────────────
@@ -229,6 +259,7 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
     dimensions.push({
       key: "automation-security",
       label: "Automation security",
+      pillar: "automation",
       available: true,
       weight: 2,
       score: scoreFromRate(rate, TOLERANCE.credentialRules),
@@ -240,7 +271,7 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
         : null,
     });
   } else {
-    dimensions.push(unavailable("automation-security", "Automation security", "No automation analysis yet."));
+    dimensions.push(unavailable("automation-security", "Automation security", "automation", "No automation analysis yet."));
   }
 
   // ── Automation stability ──────────────────────────────────────────────────
@@ -250,6 +281,7 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
     dimensions.push({
       key: "automation-stability",
       label: "Automation stability",
+      pillar: "automation",
       available: true,
       weight: 1.5,
       score: scoreFromRate(rate, TOLERANCE.selfTriggeringRules),
@@ -261,7 +293,7 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
         : null,
     });
   } else {
-    dimensions.push(unavailable("automation-stability", "Automation stability", "No automation analysis yet."));
+    dimensions.push(unavailable("automation-stability", "Automation stability", "automation", "No automation analysis yet."));
   }
 
   // ── Automation hygiene ────────────────────────────────────────────────────
@@ -272,6 +304,7 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
     dimensions.push({
       key: "automation-hygiene",
       label: "Automation hygiene",
+      pillar: "automation",
       available: true,
       weight: 1,
       score: scoreFromRate(rate, TOLERANCE.disabledRules),
@@ -281,7 +314,93 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
         : null,
     });
   } else {
-    dimensions.push(unavailable("automation-hygiene", "Automation hygiene", "No automation analysis yet."));
+    dimensions.push(unavailable("automation-hygiene", "Automation hygiene", "automation", "No automation analysis yet."));
+  }
+
+  // ── Automation exposure ───────────────────────────────────────────────────
+  // Separate from automation security rather than folded into it. A plaintext credential is
+  // a defect in every estate; an outbound webhook is a deliberate integration in most. They
+  // are averaged together only in the pillar, so a site with twenty legitimate integrations
+  // does not read as twenty security problems.
+  if (automation?.available && automationRules > 0) {
+    const external = Number(automation.externalHttpCount) || 0;
+    const rate = external / automationRules;
+    dimensions.push({
+      key: "automation-exposure",
+      label: "Automation exposure",
+      pillar: "automation",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(rate, TOLERANCE.externalHttpRules),
+      detail: external === 0
+        ? "No rule sends data outside Atlassian."
+        : `${external} of ${automationRules} rules send data to a non-Atlassian host.`,
+      action: external > 0
+        ? "Each of these moves Jira data out of the tenancy. Confirm every destination is still one you own."
+        : null,
+    });
+  } else {
+    dimensions.push(unavailable("automation-exposure", "Automation exposure", "automation", "No automation analysis yet."));
+  }
+
+  // ── Screen scheme integrity ───────────────────────────────────────────────
+  // Weighted like automation stability: a scheme pointing at a screen that no longer exists
+  // does not error, it silently falls back, so nobody finds it by using Jira.
+  const screenOperations = Number(screens?.totalOperations) || 0;
+  if (screens?.available && screenOperations > 0) {
+    const dangling = Number(screens.danglingOperations) || 0;
+    const rate = dangling / screenOperations;
+    dimensions.push({
+      key: "screen-integrity",
+      label: "Screen scheme integrity",
+      pillar: "screens",
+      available: true,
+      weight: 1.5,
+      score: scoreFromRate(rate, TOLERANCE.danglingScreenRefs),
+      detail: dangling === 0
+        ? `All ${screenOperations} scheme operations resolve to a screen that exists.`
+        : `${dangling} of ${screenOperations} scheme operations point at a screen that no longer exists.`,
+      action: dangling > 0
+        ? "Jira falls back silently when one of these resolves, so the form a user sees is not the one the scheme names. Repoint them in the Screens tab."
+        : null,
+    });
+  } else {
+    dimensions.push(unavailable("screen-integrity", "Screen scheme integrity", "screens",
+      screens?.available ? "No screen schemes found." : "No screen inventory yet."));
+  }
+
+  // ── Screen hygiene ────────────────────────────────────────────────────────
+  // Unresolved screens are excluded from the rate rather than counted as clean or dirty.
+  // A screen whose contents could not be read is unmeasured, and scoring it either way
+  // would state something the pass did not establish.
+  const totalScreens = Number(screens?.totalScreens) || 0;
+  const unresolvedScreens = Number(screens?.unresolvedScreens) || 0;
+  const measuredScreens = totalScreens - unresolvedScreens;
+  if (screens?.available && measuredScreens > 0) {
+    const empty = Number(screens.emptyScreens) || 0;
+    const unreached = Number(screens.unreachedScreens) || 0;
+    // A screen can be both empty and unreached; counting the union avoids double-charging
+    // one screen for two symptoms of the same neglect. Without per-screen flags here the
+    // safe union is the larger of the two, never the sum.
+    const idle = Math.max(empty, unreached);
+    const rate = idle / measuredScreens;
+    dimensions.push({
+      key: "screen-hygiene",
+      label: "Screen hygiene",
+      pillar: "screens",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(rate, TOLERANCE.unusedScreens),
+      detail: idle === 0
+        ? `All ${measuredScreens} readable screens carry fields and are routed to by a scheme.`
+        : `${empty} screens carry no fields and ${unreached} are routed to by no scheme, of ${measuredScreens} readable.`,
+      action: idle > 0
+        ? "These are the screens where cleanup carries the least risk — nothing routes to them, or there is nothing on them."
+        : null,
+    });
+  } else {
+    dimensions.push(unavailable("screen-hygiene", "Screen hygiene", "screens",
+      screens?.available ? "No screen contents could be read." : "No screen inventory yet."));
   }
 
   // ── Roll-up ───────────────────────────────────────────────────────────────
@@ -291,6 +410,34 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
     ? Math.round(scored.reduce((sum, d) => sum + d.score * d.weight, 0) / totalWeight)
     : null;
 
+  // Per-pillar roll-ups, weighted the same way as the headline. Computed here so the
+  // overview renders groups without re-deriving the weighting -- a second implementation in
+  // JSX would eventually disagree with this one about what the site scored.
+  //
+  // A pillar with nothing scored keeps score: null rather than 0, for the same reason a
+  // dimension does: it has not been measured, which is not the same as measuring badly.
+  const pillars = HEALTH_PILLARS.map(({ key, label }) => {
+    const own = dimensions.filter((d) => d.pillar === key);
+    const ownScored = own.filter((d) => d.available);
+    const ownWeight = ownScored.reduce((sum, d) => sum + d.weight, 0);
+    const pillarScore = ownWeight > 0
+      ? Math.round(ownScored.reduce((sum, d) => sum + d.score * d.weight, 0) / ownWeight)
+      : null;
+    return {
+      key,
+      label,
+      score: pillarScore,
+      grade: gradeFor(pillarScore),
+      available: ownScored.length > 0,
+      dimensions: own,
+      scored: ownScored.length,
+      total: own.length,
+      // The reason the whole pillar is dark, when it is. Every dimension in an unbuilt
+      // pillar reports the same one, so showing it once beats repeating it per bar.
+      reason: ownScored.length === 0 ? own[0]?.reason ?? null : null,
+    };
+  }).filter((p) => p.total > 0);
+
   return {
     score,
     grade: gradeFor(score),
@@ -299,6 +446,7 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
     dimensionsScored: scored.length,
     dimensionsTotal: dimensions.length,
     dimensions,
+    pillars,
     weakest: scored.length ? scored.slice().sort((a, b) => a.score - b.score)[0] : null,
   };
 }

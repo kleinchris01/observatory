@@ -11,6 +11,7 @@ import {
   CopyableFieldId,
   CollapsibleSection,
   AutomationUsageSection,
+  ScreenUsageSection,
 } from "./FieldCard";
 
 // ---------------------------------------------------------------------------
@@ -82,6 +83,77 @@ describe("CollapsibleSection", () => {
 // ---------------------------------------------------------------------------
 // AutomationUsageSection
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// ScreenUsageSection
+// ---------------------------------------------------------------------------
+//
+// The screens pipeline has existed since #57 and the Field Browser never once asked it a
+// question, so the single strongest delete signal this app can produce -- "no form anywhere
+// on this site can fill this field" -- was sitting unread in the database.
+describe("ScreenUsageSection", () => {
+  const result = (over = {}) => ({
+    available: true,
+    unresolvedScreens: 0,
+    screens: [
+      { screenId: "100", screenName: "Default Screen", tabId: "1", tabIndex: 0, fieldIndex: 2 },
+      { screenId: "220", screenName: "Bug Screen", tabId: "7", tabIndex: 3, fieldIndex: 11 },
+    ],
+    ...over,
+  });
+
+  it("lists each screen with the tab and position the field sits at", () => {
+    render(<ScreenUsageSection result={result()} loading={false} />);
+
+    expect(screen.getByText("Default Screen")).toBeInTheDocument();
+    expect(screen.getByText("Bug Screen")).toBeInTheDocument();
+    expect(screen.getByText("2 screens")).toBeInTheDocument();
+  });
+
+  // Membership alone hides the finding. A field on the fourth tab is present and invisible,
+  // and only the position says so.
+  it("reports position one-indexed, so the first tab reads as 1 rather than 0", () => {
+    render(<ScreenUsageSection result={result()} loading={false} />);
+
+    const tabs = screen.getAllByText("Tab").map((el) => el.parentElement.textContent);
+    expect(tabs).toContain("Tab1");
+    expect(tabs).toContain("Tab4");
+  });
+
+  // The distinction the whole section turns on.
+  it("never says a field is on no screen when no inventory has been built", () => {
+    render(<ScreenUsageSection result={{ available: false, reason: "No screen inventory has been built yet.", screens: [] }} loading={false} />);
+
+    expect(screen.getByText(/No screen inventory has been built yet/i)).toBeInTheDocument();
+    expect(screen.queryByText(/no user can fill it/i)).not.toBeInTheDocument();
+  });
+
+  it("states the consequence when the inventory exists and the field is on nothing", () => {
+    render(<ScreenUsageSection result={result({ screens: [] })} loading={false} />);
+    expect(screen.getByText(/no user can fill it through a form/i)).toBeInTheDocument();
+  });
+
+  // A build that could not read part of the catalog cannot support "on no screen" as a
+  // conclusion, and the copy has to stop short of it.
+  it("withdraws the conclusion when part of the catalog could not be read", () => {
+    render(<ScreenUsageSection result={result({ screens: [], unresolvedScreens: 30 })} loading={false} />);
+
+    expect(screen.getByText(/not conclusive/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Automation and integrations can still write/i)).not.toBeInTheDocument();
+  });
+
+  it("caveats a populated list when the catalog was read incompletely", () => {
+    render(<ScreenUsageSection result={result({ unresolvedScreens: 30 })} loading={false} />);
+    expect(screen.getByText(/this list may be incomplete/i)).toBeInTheDocument();
+  });
+
+  it("shows a loading state rather than an empty conclusion while fetching", () => {
+    render(<ScreenUsageSection result={null} loading />);
+
+    expect(screen.getByText(/Loading screen usage/i)).toBeInTheDocument();
+    expect(screen.queryByText(/no user can fill it/i)).not.toBeInTheDocument();
+  });
+});
+
 describe("AutomationUsageSection", () => {
   const field = { id: "customfield_10001", name: "Story Points" };
 

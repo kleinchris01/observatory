@@ -98,6 +98,8 @@ import {
   loadScreenSchemes,
   loadScreenSchemeOperations,
   loadIssueTypeScreenSchemes,
+  loadScreenGovernanceSummary,
+  loadScreenCountsForFields,
 } from "./lib/project-store.js";
 import { queueWorkflowSnapshotBuild, isWorkflowBuildStale, queueStatusHistoryBuild } from "./lib/workflow-engine.js";
 import { measureScreenFetchCost, probeScreenEndpoints, DEFAULT_SAMPLE_SIZE } from "./lib/screen-probe.js";
@@ -836,6 +838,33 @@ async function getScreenInventory({ payload, context }) {
     schemeOperations,
     issueTypeScreenSchemes,
     neverBuilt: false,
+  };
+}
+
+// Screen counts for a page of fields, for the chip on each Field Browser card.
+//
+// Mirrors getAutomationFieldCounts, including its posture on a missing snapshot: reports
+// available: false rather than a map of zeroes, because "no screen inventory" and "this
+// field is on no screen" are opposite claims and the second is a premise for deleting it.
+async function getFieldScreenCounts({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  const meta = await readScreenSnapshotMeta(installationKey);
+  if (!meta?.version) {
+    return { available: false, reason: "No screen inventory has been built yet.", counts: {} };
+  }
+
+  const fieldIds = Array.isArray(payload?.fieldIds) ? payload.fieldIds.slice(0, 500) : [];
+  return {
+    available: true,
+    version: meta.version,
+    refreshedAt: meta.refreshedAt,
+    // Carried with the counts so a card can caveat its own number: a build that could not
+    // read 30 screens cannot claim a field is on none of them.
+    unresolvedScreens: meta.unresolvedScreens,
+    counts: await loadScreenCountsForFields(installationKey, meta.version, fieldIds),
   };
 }
 
@@ -3295,15 +3324,40 @@ async function buildWorkflowOverview(installationKey) {
   }
 }
 
+// Screen health for the Overview, as aggregate counts rather than a second inventory.
+//
+// Mirrors buildWorkflowOverview, including its failure posture: a screens pillar that cannot
+// be built reports unavailable and the score excludes it, rather than 500ing an overview
+// that has nine other pillars to show.
+async function buildScreenOverview(installationKey) {
+  try {
+    const meta = await readScreenSnapshotMeta(installationKey);
+    if (!meta?.version) {
+      return { available: false, state: meta?.state || "idle", lastError: meta?.lastError || null };
+    }
+    return {
+      available: true,
+      state: meta.state,
+      refreshedAt: meta.refreshedAt || null,
+      lastError: meta.lastError || null,
+      ...(await loadScreenGovernanceSummary(installationKey, meta.version)),
+    };
+  } catch (error) {
+    console.warn("buildScreenOverview failed:", error?.message || error);
+    return { available: false, state: "error" };
+  }
+}
+
 export async function getAdminOverview({ context }) {
   await ensureProjectStoreReady();
   const installationKey = getInstallationKey(context);
-  const [meta, summaries, config, legacySummaryCount, workflow, automationAnalysis] = await Promise.all([
+  const [meta, summaries, config, legacySummaryCount, workflow, screens, automationAnalysis] = await Promise.all([
     readSnapshotMeta(installationKey),
     listFieldSummaries(installationKey, 5000).catch(fallbackOn("overview.summaries_load_failed", () => [], { installationKey })),
     readAdminConfig(),
     countOldScopeKeyRows(installationKey).catch(fallbackOn("overview.legacy_row_count_failed", 0, { installationKey })),
     buildWorkflowOverview(installationKey),
+    buildScreenOverview(installationKey),
     // Falls back to null rather than failing the overview. The automation dimensions then
     // report as unavailable, which is the same thing a fresh install shows -- an overview
     // that 500s because one optional input is missing is worse than one missing a section.
@@ -3368,16 +3422,23 @@ export async function getAdminOverview({ context }) {
     jobCounts,
     findingsSummary,
     workflow,
+    screens,
     health: computeSiteHealth({
       fieldUsage: dashboard?.fieldUsage,
       workflow,
       projects: dashboard?.projects,
       automation,
+      screens,
       // Workflow, project and automation dimensions were scored against hardcoded
       // constants while every field rule was tunable. Same config surface now feeds both.
       tolerances: config?.healthTolerances,
     }),
+    // The whole health summary, not just the three headline fields it used to carry. The
+    // overview's findings list needs the same counts the score does -- while this was
+    // trimmed to {available, refreshedAt, ruleCount}, every automation problem the analysis
+    // had already found was invisible on the landing page that exists to surface problems.
     automation: {
+      ...automation,
       available: Boolean(automation?.available),
       refreshedAt: automationAnalysis?.refreshedAt ?? null,
       ruleCount: automation?.ruleCount ?? 0,
@@ -4034,6 +4095,7 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   // Audit trail
   // Screen and scheme inventory
   getScreenInventory,      // Admin read: screens, tabs, schemes and their mappings
+  getFieldScreenCounts,    // Admin read: screen counts for a page of fields
   getFieldScreenReachability, // Admin read: which screens carry one field
   buildScreenInventory,    // Mutating: queues a full screen and scheme snapshot build
 

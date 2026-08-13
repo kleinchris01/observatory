@@ -31,6 +31,8 @@ import {
   loadIssueTypeScreenSchemes,
   loadItssMappings,
   loadItssProjects,
+  loadScreenGovernanceSummary,
+  loadScreenCountsForFields,
   readScreenSnapshotMeta,
   writeScreenSnapshotMeta,
 } from "./screen.js";
@@ -158,6 +160,54 @@ describe("replaceScreenSnapshot", () => {
     expect(statements().filter((s) => s.includes("INSERT"))).toHaveLength(0);
   });
 
+  // Both ITSS inserts shipped with a five-placeholder tuple against six columns, so every
+  // screen build died on the last two writes with an opaque "Unknown SQL execution error"
+  // after several minutes of work. Nothing caught it: the tests asserted the params bound
+  // to a statement but never that the statement had somewhere to put them, and the mocked
+  // driver accepts any arity. Counted here rather than spot-checked per table, so the
+  // arity of a table added later is covered the day it is added.
+  test("every INSERT has one placeholder per column and per bound param", async () => {
+    await replaceScreenSnapshot("scope-1", "v1", {
+      // Two rows per table: a single row makes a tuple-vs-column mismatch look identical
+      // to a batching bug, and hides any error in how tuples are repeated.
+      screens: [{ id: 100 }, { id: 101 }],
+      tabs: [{ screenId: 100, tabId: 1 }, { screenId: 101, tabId: 2 }],
+      fields: [
+        { screenId: 100, tabId: 1, fieldId: "summary" },
+        { screenId: 101, tabId: 2, fieldId: "duedate" },
+      ],
+      screenSchemes: [{ id: 5 }, { id: 6 }],
+      schemeOperations: [
+        { schemeId: 5, operation: "default" },
+        { schemeId: 6, operation: "create" },
+      ],
+      issueTypeScreenSchemes: [{ id: 9 }, { id: 10 }],
+      itssMappings: [
+        { itssId: 9, issueTypeId: "default" },
+        { itssId: 10, issueTypeId: "10001" },
+      ],
+      itssProjects: [
+        { itssId: 9, projectId: "10000" },
+        { itssId: 10, projectId: "10001" },
+      ],
+    });
+
+    const inserts = issued.filter((e) => e.statement.includes("INSERT INTO"));
+    expect(inserts.length).toBe(8);
+
+    for (const { statement, params } of inserts) {
+      const [columnPart, valuesPart] = statement.split(/\bVALUES\b/);
+      const table = statement.match(/INSERT INTO (\w+)/)[1];
+      const columns = columnPart.match(/\(([^)]*)\)/)[1].split(",").length;
+      const placeholders = (valuesPart.match(/\?/g) || []).length;
+
+      expect(placeholders, `${table}: ${placeholders} placeholders for ${params.length} bound params`)
+        .toBe(params.length);
+      expect(placeholders % columns, `${table}: ${placeholders} placeholders is not a multiple of ${columns} columns`)
+        .toBe(0);
+    }
+  });
+
   // Field rows dominate this snapshot and each carries 8 bind params, so they batch
   // smaller than everything else to stay clear of the bind-parameter ceiling.
   test("batches fields in smaller chunks than the other tables", async () => {
@@ -247,6 +297,90 @@ describe("reads", () => {
 
     mockRows([{ itss_id: "9", project_id: "10000", project_key: "OBS", project_name: "Observatory" }]);
     expect((await loadItssProjects("scope-1", "v1"))[0]).toMatchObject({ projectKey: "OBS" });
+  });
+});
+
+describe("loadScreenCountsForFields", () => {
+  test("asks once for the whole page rather than once per field", async () => {
+    mockRows([{ field_id: "customfield_1", screen_count: 6 }]);
+
+    const counts = await loadScreenCountsForFields("scope-1", "v1", ["customfield_1", "customfield_2"]);
+
+    const selects = statements().filter((s) => s.includes("snapshot_screen_fields"));
+    expect(selects).toHaveLength(1);
+    expect(selects[0]).toContain("field_id IN (?, ?)");
+    expect(counts).toEqual({ customfield_1: 6 });
+  });
+
+  // Presence is the signal. Writing 0 for a field with no rows would be indistinguishable
+  // from a field the caller never asked about, and the card renders those differently.
+  test("omits fields on no screen instead of writing a zero", async () => {
+    mockRows([]);
+    expect(await loadScreenCountsForFields("scope-1", "v1", ["customfield_1"])).toEqual({});
+  });
+
+  test("dedupes ids and skips SQL entirely for an empty list", async () => {
+    await loadScreenCountsForFields("scope-1", "v1", ["a", "a", "b"]);
+    expect(boundParamsFor("snapshot_screen_fields")).toEqual(["scope-1", "v1", "a", "b"]);
+
+    issued = [];
+    expect(await loadScreenCountsForFields("scope-1", "v1", [])).toEqual({});
+    expect(statements()).toHaveLength(0);
+  });
+
+  test("chunks a page larger than the bind ceiling into several statements", async () => {
+    const ids = Array.from({ length: 250 }, (_, i) => `customfield_${i}`);
+    await loadScreenCountsForFields("scope-1", "v1", ids);
+
+    expect(statements().filter((s) => s.includes("snapshot_screen_fields"))).toHaveLength(3);
+  });
+});
+
+describe("loadScreenGovernanceSummary", () => {
+  test("scopes and versions every aggregate it runs", async () => {
+    await loadScreenGovernanceSummary("scope-1", "v1");
+
+    const aggregates = issued.filter((e) => e.statement.includes("COUNT(*)"));
+    expect(aggregates.length).toBe(4);
+    for (const entry of aggregates) {
+      expect(entry.statement).toContain("scope_key = ?");
+      expect(entry.statement).toContain("version = ?");
+      expect(entry.params).toEqual(["scope-1", "v1"]);
+    }
+  });
+
+  // Counted with NOT EXISTS rather than (total - COUNT(DISTINCT screen_id)). A scheme
+  // operation can name a screen id the catalog does not contain, so the distinct count
+  // includes non-screens and the subtraction under-reports unreached screens.
+  test("derives unreached screens from an anti-join, not a subtraction", async () => {
+    await loadScreenGovernanceSummary("scope-1", "v1");
+
+    const statement = statements().find((s) => s.includes("unreached"));
+    expect(statement).toContain("NOT EXISTS");
+    expect(statement).toContain("snapshot_screen_scheme_operations");
+    expect(statement).not.toContain("COUNT(DISTINCT");
+  });
+
+  test("never counts an unreadable screen as empty", async () => {
+    await loadScreenGovernanceSummary("scope-1", "v1");
+
+    const statement = statements().find((s) => s.includes("empty_screens"));
+    // The empty branch requires tabs_resolved = 'resolved'; a screen the build could not
+    // read has to fall into unresolved_screens instead.
+    expect(statement).toMatch(/tabs_resolved = 'resolved' AND field_count = 0/);
+    expect(statement).toContain("tabs_resolved <> 'resolved'");
+  });
+
+  test("maps every aggregate to a number, including when a table is empty", async () => {
+    // SUM() over no rows returns NULL in SQL, not 0 -- and NULL reaching the health score
+    // as a rate makes the dimension unavailable rather than clean.
+    mockRows([{ total: 0, empty_screens: null, unresolved_screens: null, dangling: null, unused: null, unreached: null }]);
+
+    const summary = await loadScreenGovernanceSummary("scope-1", "v1");
+
+    for (const [key, value] of Object.entries(summary)) {
+      expect(Number.isFinite(value), `${key} is ${value}`).toBe(true);
+    }
   });
 });
 

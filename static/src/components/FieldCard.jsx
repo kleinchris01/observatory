@@ -181,6 +181,62 @@ export function AutomationUsageSection({ field, enabled = true, siteOrigin, rovo
   );
 }
 
+// Which screens carry this field, and where on them.
+//
+// Position is kept, not just membership. A field sitting on the fourth tab of a screen is
+// present but effectively invisible to the people filling the form, and "on 6 screens" hides
+// that entirely -- so each row states the tab it lives on and its place in the order.
+export function ScreenUsageSection({ result, loading }) {
+  const rows = result?.screens || [];
+
+  return (
+    <CollapsibleSection
+      title="Screen Usage"
+      badge={result?.available ? `${formatNumber(rows.length)} screen${rows.length === 1 ? "" : "s"}` : null}
+    >
+      {loading ? (
+        <div className="empty-state empty-state--inline">Loading screen usage…</div>
+      ) : !result?.available ? (
+        // The tri-state again. Never "this field is on no screen" when the truth is that
+        // nobody has looked -- that sentence is the premise for deleting the field.
+        <div className="empty-state empty-state--inline">
+          {result?.reason || "No screen inventory has been built yet."} Build it from the Screens tab to see which forms carry this field.
+        </div>
+      ) : rows.length === 0 ? (
+        <div className="empty-state empty-state--inline">
+          No screen carries this field, so no user can fill it through a form.
+          {result.unresolvedScreens > 0
+            ? ` ${formatNumber(result.unresolvedScreens)} screen${result.unresolvedScreens === 1 ? "" : "s"} could not be read in the last build, so this is not conclusive.`
+            : " Automation and integrations can still write to it."}
+        </div>
+      ) : (
+        <>
+          <div className="screen-usage-list">
+            {rows.map((row) => (
+              <div className="screen-usage-row" key={`${row.screenId}:${row.tabId}`}>
+                <div className="screen-usage-row__name">
+                  <strong>{row.screenName}</strong>
+                  <span className="screen-usage-row__id">{row.screenId}</span>
+                </div>
+                <div className="screen-usage-row__meta">
+                  <MetricChip label="Tab" value={row.tabIndex + 1} tone={row.tabIndex > 0 ? "warm" : "neutral"} />
+                  <MetricChip label="Position" value={row.fieldIndex + 1} />
+                </div>
+              </div>
+            ))}
+          </div>
+          {result.unresolvedScreens > 0 && (
+            <p className="screen-usage-note">
+              {formatNumber(result.unresolvedScreens)} screen{result.unresolvedScreens === 1 ? "" : "s"} could not be read
+              in the last build, so this list may be incomplete.
+            </p>
+          )}
+        </>
+      )}
+    </CollapsibleSection>
+  );
+}
+
 export function MetricChip({ label, value, tone = "neutral" }) {
   return (
     <div className={`metric-chip metric-chip--${tone}`}>
@@ -389,6 +445,8 @@ export function FieldCard({
   rovoEnabled,
   showGovernance = true,
   automationCounts,
+  screenCount,
+  screenSnapshot,
 }) {
   const displayField = React.useMemo(() => mergeFieldMetrics(field, details), [field, details]);
   const configuredProjectsValue = details ? details.configuredProjectCount : (field.configuredProjectCount ?? field.usageCount ?? 0);
@@ -396,6 +454,24 @@ export function FieldCard({
   const [fieldOptions, setFieldOptions] = React.useState(null);
   const [fieldOptionsLoading, setFieldOptionsLoading] = React.useState(false);
   const [contextOptionsOpen, setContextOptionsOpen] = React.useState(false);
+
+  // Which screens carry this field, loaded on expand rather than with the page.
+  //
+  // The header chip needs only a count and gets it from the page-wide batch; this is the
+  // list behind it, and it is one query per open card. Fetching it for fifty collapsed
+  // cards would read the field table fifty times to render nothing.
+  const [screens, setScreens] = React.useState(null);
+  const [screensLoading, setScreensLoading] = React.useState(false);
+  React.useEffect(() => {
+    if (!expanded || screens) return undefined;
+    let cancelled = false;
+    setScreensLoading(true);
+    invoke("getFieldScreenReachability", { fieldId: field.id })
+      .then((result) => { if (!cancelled) { setScreens(result); setScreensLoading(false); } })
+      .catch(() => { if (!cancelled) { setScreens({ available: false, reason: "Screen usage could not be loaded.", screens: [] }); setScreensLoading(false); } });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expanded, field.id]);
   React.useEffect(() => {
     if (!expanded || !fieldIsSelectType || fieldOptions) return;
     let cancelled = false;
@@ -453,6 +529,14 @@ export function FieldCard({
           <MetricChip
             label="Disabled rules"
             value={automationCounts ? automationCounts.disabled : "—"}
+          />
+          {/* Same em-dash rule as the rule chips. A field on zero screens cannot be filled
+              by a user through any form, which is the strongest delete signal this app has --
+              so it must never be confused with a screen inventory that was never built. */}
+          <MetricChip
+            label="Screens"
+            value={screenCount === null || screenCount === undefined ? "—" : screenCount}
+            tone={screenCount === 0 ? "warm" : "neutral"}
           />
         </div>
         <span className="field-card__toggle-icon" aria-hidden="true" />
@@ -625,6 +709,8 @@ export function FieldCard({
                   ) : null}
                 </CollapsibleSection>
               ) : null}
+
+              <ScreenUsageSection result={screens} loading={screensLoading} />
 
               <CollapsibleSection
                 title="Project Usage"

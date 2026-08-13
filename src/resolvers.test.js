@@ -107,6 +107,8 @@ const mocks = vi.hoisted(() => ({
   loadScreenSchemes: vi.fn(),
   loadScreenSchemeOperations: vi.fn(),
   loadIssueTypeScreenSchemes: vi.fn(),
+  loadScreenGovernanceSummary: vi.fn(),
+  loadScreenCountsForFields: vi.fn(),
   queueScreenSnapshotBuild: vi.fn(),
   isScreenBuildStale: vi.fn(() => false),
 
@@ -240,6 +242,8 @@ vi.mock("./lib/project-store.js", () => ({
   loadScreenSchemes: mocks.loadScreenSchemes,
   loadScreenSchemeOperations: mocks.loadScreenSchemeOperations,
   loadIssueTypeScreenSchemes: mocks.loadIssueTypeScreenSchemes,
+  loadScreenGovernanceSummary: mocks.loadScreenGovernanceSummary,
+  loadScreenCountsForFields: mocks.loadScreenCountsForFields,
   loadWorkflowSchemes: mocks.loadWorkflowSchemes,
   loadWorkflowSchemeProjects: mocks.loadWorkflowSchemeProjects,
   loadWorkflowSchemeForProject: mocks.loadWorkflowSchemeForProject,
@@ -343,6 +347,7 @@ const {
   getAutomationFieldCounts,
   getScreenInventory,
   getFieldScreenReachability,
+  getFieldScreenCounts,
   buildScreenInventory,
 } = __RAW_ADMIN_ONLY_FUNCTIONS;
 
@@ -441,6 +446,8 @@ beforeEach(() => {
   mocks.loadScreenSchemes.mockResolvedValue([]);
   mocks.loadScreenSchemeOperations.mockResolvedValue([]);
   mocks.loadIssueTypeScreenSchemes.mockResolvedValue([]);
+  mocks.loadScreenGovernanceSummary.mockResolvedValue({});
+  mocks.loadScreenCountsForFields.mockResolvedValue({});
   mocks.queueScreenSnapshotBuild.mockResolvedValue(undefined);
   mocks.isScreenBuildStale.mockReturnValue(false);
   mocks.loadWorkflowSchemes.mockResolvedValue([]);
@@ -1368,6 +1375,81 @@ describe("getAdminOverview", () => {
     }));
   });
 
+
+  // ── Screens and automation reach the Overview ─────────────────────────────
+  //
+  // Both pillars were analysed and then withheld from the page that exists to surface
+  // them: screens were never loaded at all, and automation was trimmed to three fields
+  // before it left the resolver, so the findings list could not see a single one of the
+  // counts the health score was being computed from.
+
+  test("carries the screen governance summary into the payload and the score", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "idle" });
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+    mocks.readScreenSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1", refreshedAt: "2026-08-13T00:00:00Z" });
+    mocks.loadScreenGovernanceSummary.mockResolvedValue({
+      totalScreens: 760, emptyScreens: 12, unresolvedScreens: 3, unreachedScreens: 40,
+      totalOperations: 240, danglingOperations: 24, totalSchemes: 60, unusedSchemes: 7,
+    });
+
+    const result = await getAdminOverview({ context: {} });
+
+    expect(result.screens.available).toBe(true);
+    expect(result.screens.danglingOperations).toBe(24);
+    const integrity = result.health.dimensions.find((d) => d.key === "screen-integrity");
+    expect(integrity.available).toBe(true);
+    expect(integrity.score).toBe(0); // 24/240 is the tolerance exactly
+  });
+
+  test("reports screens unavailable rather than failing the overview when no build exists", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "idle" });
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+    mocks.readScreenSnapshotMeta.mockResolvedValue(null);
+
+    const result = await getAdminOverview({ context: {} });
+
+    expect(result.screens.available).toBe(false);
+    expect(mocks.loadScreenGovernanceSummary).not.toHaveBeenCalled();
+    expect(result.health.dimensions.find((d) => d.key === "screen-hygiene").available).toBe(false);
+  });
+
+  // Same posture as buildWorkflowOverview: one optional pillar failing must not 500 an
+  // overview that has four others to show.
+  test("survives a screen summary that throws", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "idle" });
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+    mocks.readScreenSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
+    mocks.loadScreenGovernanceSummary.mockRejectedValueOnce(new Error("Unknown SQL execution error"));
+
+    const result = await getAdminOverview({ context: {} });
+
+    expect(result.screens).toEqual({ available: false, state: "error" });
+    expect(result.health).toBeDefined();
+  });
+
+  test("passes the whole automation health summary through, not just the rule count", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "idle" });
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+    mocks.readAutomationAnalysis.mockResolvedValue({
+      refreshedAt: 123,
+      estate: {
+        health: {
+          available: true, ruleCount: 1479, disabledCount: 604, credentialRuleCount: 3,
+          externalHttpCount: 22, noActionCount: 8, selfTriggeringCount: 88,
+        },
+      },
+    });
+
+    const result = await getAdminOverview({ context: {} });
+
+    // Every count the findings list needs, not the {available, refreshedAt, ruleCount}
+    // triple this used to be flattened to.
+    expect(result.automation).toEqual(expect.objectContaining({
+      available: true, ruleCount: 1479, credentialRuleCount: 3,
+      selfTriggeringCount: 88, externalHttpCount: 22, noActionCount: 8, disabledCount: 604,
+      refreshedAt: 123,
+    }));
+  });
 
   // The dashboard-building branch had never executed: every existing case either omitted
   // the snapshot version or asserted only on findingsSummary. These cover the project
@@ -4023,6 +4105,50 @@ describe("getFieldScreenReachability", () => {
 
   test("rejects a missing field id", async () => {
     await expect(getFieldScreenReachability({ payload: {}, ...ctx })).rejects.toThrow(/fieldId/);
+  });
+});
+
+describe("getFieldScreenCounts", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x" } };
+
+  // Same tri-state as the reachability read, for the same reason: the Field Browser chip
+  // renders an em dash for "unknown" and a warm 0 for "on no screen", and a map of zeroes
+  // from an unbuilt snapshot would light up every card as safe to delete.
+  test("reports unavailable rather than a map of zeroes when nothing is built", async () => {
+    mocks.readScreenSnapshotMeta.mockResolvedValue(null);
+
+    const result = await getFieldScreenCounts({ payload: { fieldIds: ["customfield_1"] }, ...ctx });
+
+    expect(result.available).toBe(false);
+    expect(result.counts).toEqual({});
+    expect(mocks.loadScreenCountsForFields).not.toHaveBeenCalled();
+  });
+
+  test("returns counts for the requested page with the unresolved caveat attached", async () => {
+    mocks.readScreenSnapshotMeta.mockResolvedValue({ version: "v1", refreshedAt: "t", unresolvedScreens: 3 });
+    mocks.loadScreenCountsForFields.mockResolvedValue({ customfield_1: 6 });
+
+    const result = await getFieldScreenCounts({ payload: { fieldIds: ["customfield_1", "customfield_2"] }, ...ctx });
+
+    expect(result).toEqual(expect.objectContaining({ available: true, counts: { customfield_1: 6 }, unresolvedScreens: 3 }));
+  });
+
+  test("caps the id list rather than passing an unbounded page to SQL", async () => {
+    mocks.readScreenSnapshotMeta.mockResolvedValue({ version: "v1" });
+    mocks.loadScreenCountsForFields.mockResolvedValue({});
+
+    await getFieldScreenCounts({ payload: { fieldIds: Array.from({ length: 900 }, (_, i) => `f${i}`) }, ...ctx });
+
+    expect(mocks.loadScreenCountsForFields.mock.calls[0][2]).toHaveLength(500);
+  });
+
+  test("treats a missing or malformed id list as an empty one", async () => {
+    mocks.readScreenSnapshotMeta.mockResolvedValue({ version: "v1" });
+    mocks.loadScreenCountsForFields.mockResolvedValue({});
+
+    await getFieldScreenCounts({ payload: { fieldIds: "not-an-array" }, ...ctx });
+
+    expect(mocks.loadScreenCountsForFields).toHaveBeenCalledWith("test-install", "v1", []);
   });
 });
 
