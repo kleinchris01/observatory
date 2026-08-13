@@ -18,6 +18,8 @@ import {
   Clock,
   Sliders,
   Copy,
+  MagnifyingGlass,
+  ArrowsDownUp,
 } from "@phosphor-icons/react";
 
 export function useLiveDuration(startedAt) {
@@ -49,6 +51,10 @@ export const ICON_COMPONENTS = {
   alertCircle: WarningCircle,
   info: Info,
   scissors: Scissors,
+  // Added for the shared SortFilterBar. An unmapped name renders as nothing at all,
+  // so a search box would have shipped with an invisible affordance.
+  search: MagnifyingGlass,
+  sort: ArrowsDownUp,
   checkCircle: CheckCircle,
   check: Check,
   x: X,

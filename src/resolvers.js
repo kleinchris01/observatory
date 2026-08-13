@@ -100,6 +100,8 @@ import {
   loadIssueTypeScreenSchemes,
   loadScreenGovernanceSummary,
   loadScreenCountsForFields,
+  DEFAULT_SCREEN_SORT,
+  SCREEN_SORT_KEYS,
 } from "./lib/project-store.js";
 import { queueWorkflowSnapshotBuild, isWorkflowBuildStale, queueStatusHistoryBuild } from "./lib/workflow-engine.js";
 import { measureScreenFetchCost, probeScreenEndpoints, DEFAULT_SAMPLE_SIZE } from "./lib/screen-probe.js";
@@ -811,6 +813,10 @@ async function getScreenInventory({ payload, context }) {
       limit: pageSize,
       offset: (page - 1) * pageSize,
       search,
+      // Passed straight through; the store whitelists it. Sorting has to happen in SQL
+      // because the tab shows 25 of ~760 screens -- sorting the page in the browser would
+      // reorder an arbitrary slice and present it as the top of the catalog.
+      sort: optionalString(payload?.sort, "sort") || DEFAULT_SCREEN_SORT,
     }),
     loadScreenSchemes(installationKey, meta.version),
     loadScreenSchemeOperations(installationKey, meta.version),
@@ -833,6 +839,9 @@ async function getScreenInventory({ payload, context }) {
     lastError: meta.lastError || null,
     page,
     pageSize,
+    // Echoed back so the toolbar reflects what the rows were actually ordered by,
+    // including when an unrecognised token fell back to the default.
+    sort: SCREEN_SORT_KEYS.includes(String(payload?.sort || "")) ? String(payload.sort) : DEFAULT_SCREEN_SORT,
     screens,
     screenSchemes,
     schemeOperations,

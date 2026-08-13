@@ -244,6 +244,10 @@ vi.mock("./lib/project-store.js", () => ({
   loadIssueTypeScreenSchemes: mocks.loadIssueTypeScreenSchemes,
   loadScreenGovernanceSummary: mocks.loadScreenGovernanceSummary,
   loadScreenCountsForFields: mocks.loadScreenCountsForFields,
+  // Real values, not mocks: the resolver whitelists the sort token against these, so a
+  // vi.fn() here would make every sort fall back to the default and hide a regression.
+  DEFAULT_SCREEN_SORT: "fields-desc",
+  SCREEN_SORT_KEYS: ["fields-desc", "fields-asc", "name-asc", "name-desc", "tabs-desc", "id-asc", "unresolved-first"],
   loadWorkflowSchemes: mocks.loadWorkflowSchemes,
   loadWorkflowSchemeProjects: mocks.loadWorkflowSchemeProjects,
   loadWorkflowSchemeForProject: mocks.loadWorkflowSchemeForProject,

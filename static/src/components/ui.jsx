@@ -35,14 +35,22 @@ export function StatTile({ label, value, hint, tone = "neutral", icon, children 
 // The title block every tab opens with. Each tab had been writing its own -- `wf-header`,
 // `cfg__head`, a bare h2 -- at four different sizes and three different colours for the
 // same job.
-export function PageHeader({ title, description, actions }) {
+// `meta` is for the freshness line -- "Built 18m ago", "Analyzed from export.json". It is a
+// slot on the header rather than each tab's own invention because the three tabs that had
+// one had put it in three different places: Screens spent a whole stat tile on it, Workflows
+// ran it inline beside the title, and Automation gave it a banner strip above the page. Same
+// sentence, three levels of prominence, so a reader could not learn where to look for it.
+export function PageHeader({ title, description, meta, actions }) {
   return (
     <header className="ui-pagehead">
       <div className="ui-pagehead__titles">
         <h2 className="ui-pagehead__title">{title}</h2>
         {description && <p className="ui-pagehead__desc">{description}</p>}
       </div>
-      {actions && <div className="ui-pagehead__actions">{actions}</div>}
+      <div className="ui-pagehead__side">
+        {meta && <span className="ui-pagehead__meta">{meta}</span>}
+        {actions && <div className="ui-pagehead__actions">{actions}</div>}
+      </div>
     </header>
   );
 }
@@ -156,6 +164,117 @@ export function FindingRow({ tone = "info", title, detail, count, action }) {
         {detail && <span className="ui-finding__detail">{detail}</span>}
       </div>
       {action}
+    </div>
+  );
+}
+
+// The search / sort / filter toolbar every list tab gets.
+//
+// Before this, six tabs had each grown their own: the Field Browser had a filter panel with
+// removable chips, RQT had a search box and three selects, Workflows had a sort dropdown
+// with different labels for the same orderings, and Screens had a bare input. Same three
+// jobs, five layouts, and no two tabs agreeing on whether "Name" sorted A-Z or Z-A.
+//
+// Deliberately controlled rather than stateful: the two server-paged tabs have to push
+// these values into a resolver call, and a component holding its own state would force them
+// to mirror it. `filters` is a list rather than a map so the order on screen is the caller's
+// to decide, which matters when one tab has five of them.
+export function SortFilterBar({
+  search,
+  onSearchChange,
+  searchPlaceholder = "Search",
+  searchLabel = "Search",
+  sort,
+  onSortChange,
+  sortOptions = [],
+  filters = [],
+  resultCount,
+  totalCount,
+  onClear,
+  children,
+}) {
+  // A filter is "active" when it is set to anything other than its first option, which is
+  // the all/any case by convention. Derived rather than passed so a caller cannot forget to
+  // update the chip row after changing a select.
+  const active = filters.filter((f) => f.value != null && f.value !== "" && f.value !== (f.allValue ?? "all"));
+  const searching = Boolean(String(search ?? "").trim());
+  const canClear = active.length > 0 || searching;
+
+  return (
+    <div className="ui-controls">
+      <div className="ui-controls__row">
+        <label className="ui-controls__search">
+          <span className="ui-controls__srlabel">{searchLabel}</span>
+          <Icon name="search" size={13} />
+          <input
+            type="search"
+            value={search ?? ""}
+            placeholder={searchPlaceholder}
+            onChange={(event) => onSearchChange?.(event.target.value)}
+          />
+        </label>
+
+        {sortOptions.length > 0 && (
+          <label className="ui-controls__field">
+            <span>Sort</span>
+            <select value={sort ?? ""} onChange={(event) => onSortChange?.(event.target.value)}>
+              {sortOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </label>
+        )}
+
+        {filters.map((filter) => (
+          <label className="ui-controls__field" key={filter.key}>
+            <span>{filter.label}</span>
+            <select value={filter.value ?? (filter.allValue ?? "all")} onChange={(event) => filter.onChange?.(event.target.value)}>
+              {filter.options.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}{option.count === undefined ? "" : ` (${option.count})`}
+                </option>
+              ))}
+            </select>
+          </label>
+        ))}
+
+        {children}
+      </div>
+
+      {(canClear || resultCount !== undefined) && (
+        <div className="ui-controls__row ui-controls__row--status">
+          {/* Stated as "x of y" whenever the two differ. A bare count next to a filtered
+              table is the single easiest way to make someone believe rows are missing. */}
+          {resultCount !== undefined && (
+            <span className="ui-controls__count">
+              {totalCount !== undefined && totalCount !== resultCount
+                ? `${resultCount} of ${totalCount}`
+                : `${resultCount}`}
+              {canClear ? " matching" : ""}
+            </span>
+          )}
+
+          {active.map((filter) => (
+            <Chip
+              key={filter.key}
+              onRemove={() => filter.onChange?.(filter.allValue ?? "all")}
+              removeLabel={`Clear ${filter.label} filter`}
+            >
+              {filter.label}: {filter.options.find((o) => String(o.value) === String(filter.value))?.label ?? filter.value}
+            </Chip>
+          ))}
+
+          {searching && (
+            <Chip onRemove={() => onSearchChange?.("")} removeLabel="Clear search">
+              Search: {search}
+            </Chip>
+          )}
+
+          {canClear && onClear && (
+            <button type="button" className="ui-controls__clear" onClick={onClear}>Clear all</button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

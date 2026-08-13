@@ -1,8 +1,8 @@
 import React from "react";
 import { invoke } from "@forge/bridge";
-import { formatNumber, formatRelativeTime, formatTimestamp } from "../utils";
+import { formatNumber, formatRelativeTime } from "../utils";
 import { Icon } from "../components/Icons";
-import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader } from "../components/ui";
+import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, SortFilterBar } from "../components/ui";
 import { SubNavLayout } from "../components/admin/primitives";
 import { useVisiblePolling } from "../hooks";
 
@@ -33,6 +33,20 @@ function daysSince(iso) {
 // Operations in the order Jira documents them, which is also the order they matter in:
 // default is the fallback everything else inherits from.
 const OPERATIONS = ["default", "create", "edit", "view"];
+
+// Sort tokens, matching the whitelist in store/screen.js exactly. Labels say what the
+// ordering is FOR where the raw column name would not: "Most fields first" is the reason
+// this is the default, and "field_count DESC" is not something to make a reader translate.
+const DEFAULT_SCREEN_SORT = "fields-desc";
+const SCREEN_SORT_OPTIONS = [
+  { value: "fields-desc", label: "Most fields first" },
+  { value: "fields-asc", label: "Fewest fields first" },
+  { value: "name-asc", label: "Name A–Z" },
+  { value: "name-desc", label: "Name Z–A" },
+  { value: "tabs-desc", label: "Most tabs first" },
+  { value: "id-asc", label: "Screen id" },
+  { value: "unresolved-first", label: "Unreadable first" },
+];
 
 export function ScreenRow({ screen }) {
   const unresolved = screen.tabsResolved !== "resolved";
@@ -141,6 +155,7 @@ export function ScreensTab() {
   const [building, setBuilding] = React.useState(false);
   const [page, setPage] = React.useState(1);
   const [search, setSearch] = React.useState("");
+  const [sort, setSort] = React.useState(DEFAULT_SCREEN_SORT);
   const [debouncedSearch, setDebouncedSearch] = React.useState("");
 
   React.useEffect(() => {
@@ -153,7 +168,7 @@ export function ScreensTab() {
 
   const load = React.useCallback(async () => {
     try {
-      const result = await invoke("getScreenInventory", { page, pageSize: PAGE_SIZE, search: debouncedSearch });
+      const result = await invoke("getScreenInventory", { page, pageSize: PAGE_SIZE, search: debouncedSearch, sort });
       setData(result);
       setError("");
     } catch (err) {
@@ -163,7 +178,7 @@ export function ScreensTab() {
     } finally {
       setLoading(false);
     }
-  }, [page, debouncedSearch]);
+  }, [page, debouncedSearch, sort]);
 
   React.useEffect(() => { load(); }, [load]);
 
@@ -273,6 +288,9 @@ export function ScreensTab() {
       <PageHeader
         title="Screens"
         description="Which fields each form actually contains, and which schemes route projects to it. Read-only — changes stay in Jira's admin UI."
+        // Freshness moved off the stat row and into the header, where every other tab now
+        // carries it. It was spending a full tile competing with the counts it qualifies.
+        meta={data?.refreshedAt ? `Built ${formatRelativeTime(data.refreshedAt)}` : "Never built"}
         actions={buildAction}
       />
 
@@ -325,13 +343,6 @@ export function ScreensTab() {
           tone={(data?.unresolvedScreens ?? 0) > 0 ? "warning" : "success"}
           icon="alertTriangle"
         />
-        <StatTile
-          label="Built"
-          value={data?.refreshedAt ? formatRelativeTime(data.refreshedAt) : "—"}
-          hint={data?.refreshedAt ? formatTimestamp(data.refreshedAt) : "Never"}
-          tone={isStale ? "warning" : "neutral"}
-          icon="clock"
-        />
       </StatRow>
 
       {isStale && (
@@ -351,15 +362,22 @@ export function ScreensTab() {
           <Panel
             title="Screens"
             icon="copy"
-            description="Sorted by field count — the longest forms first, because those are the ones people fill in."
+            description="Every form defined on this site. Sorting and search run across the whole catalog, not just the page you are looking at."
           >
-            <input
-              type="search"
-              className="rqt-search-input"
-              placeholder="Search screens by name or id…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              aria-label="Search screens"
+            {/* Sort is sent to the resolver, not applied here. The page holds 25 of ~760
+                screens, so sorting in the browser would reorder an arbitrary slice and
+                present it as the top of the catalog. */}
+            <SortFilterBar
+              search={search}
+              onSearchChange={setSearch}
+              searchLabel="Search screens"
+              searchPlaceholder="Search screens by name or id…"
+              sort={sort}
+              onSortChange={(value) => { setSort(value); setPage(1); }}
+              sortOptions={SCREEN_SORT_OPTIONS}
+              resultCount={data?.screens?.total ?? 0}
+              totalCount={data?.totalScreens ?? 0}
+              onClear={() => { setSearch(""); setSort(DEFAULT_SCREEN_SORT); setPage(1); }}
             />
 
             {!data?.screens?.rows?.length ? (

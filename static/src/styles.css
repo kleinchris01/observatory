@@ -3638,6 +3638,53 @@ code {
 
 .ui-pagehead__actions { display: flex; gap: 8px; flex: none; }
 
+/* Freshness sits beside the primary action, right-aligned and quiet. Quiet is the point:
+   it is context for the numbers below, not a thing to act on, and the tab that gave it a
+   full stat tile made it compete with the counts it was qualifying. */
+.ui-pagehead__side { display: flex; align-items: center; gap: 12px; flex: none; flex-wrap: wrap; }
+.ui-pagehead__meta { font-size: 12px; color: var(--muted); white-space: nowrap; }
+
+/* Shared search / sort / filter toolbar */
+.ui-controls { display: flex; flex-direction: column; gap: 10px; }
+.ui-controls__row { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+.ui-controls__row--status { align-items: center; gap: 8px; }
+
+.ui-controls__search {
+  position: relative; display: flex; align-items: center; gap: 8px;
+  flex: 1 1 260px; min-width: 200px;
+  padding: 0 12px; height: 34px; border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04); border: 1px solid var(--stroke);
+}
+.ui-controls__search:focus-within { border-color: var(--accent, #4d8fd6); }
+.ui-controls__search input {
+  flex: 1; min-width: 0; background: none; border: none; outline: none;
+  color: inherit; font-size: 13px; font-family: inherit;
+}
+/* Visually hidden but present: the input has a placeholder, and a placeholder is not an
+   accessible name. */
+.ui-controls__srlabel {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+}
+
+.ui-controls__field { display: flex; flex-direction: column; gap: 4px; flex: none; }
+.ui-controls__field > span {
+  font-size: 10.5px; font-weight: 600; letter-spacing: 0.05em;
+  text-transform: uppercase; color: var(--muted);
+}
+.ui-controls__field select {
+  height: 34px; min-width: 130px; padding: 0 10px; border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04); border: 1px solid var(--stroke);
+  color: inherit; font-size: 13px; font-family: inherit;
+}
+
+.ui-controls__count { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ui-controls__clear {
+  background: none; border: none; padding: 0; cursor: pointer;
+  font-size: 12px; font-family: inherit; color: var(--accent, #4d8fd6);
+  text-decoration: underline; text-underline-offset: 2px;
+}
+
 
 /* Sticks to the bottom of the viewport so the primary action stays reachable from
    anywhere in a long form, rather than only after scrolling past all of it. */

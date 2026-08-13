@@ -178,11 +178,35 @@ export async function replaceScreenSnapshot(scopeKey, version, {
 
 // ── Reads ────────────────────────────────────────────────────────────────────
 
-export async function loadScreensPage(scopeKey, version, { limit = 50, offset = 0, search = "" } = {}) {
+// Sort tokens the Screens tab may ask for, mapped to ORDER BY fragments.
+//
+// A whitelist, not an interpolation. The token arrives from the browser, and the one thing
+// that must never happen is a caller-supplied string reaching ORDER BY -- the LIMIT clause
+// two lines below is interpolated for a Forge SQL reason, so this file already sits close
+// enough to that mistake.
+//
+// Every ordering ends in a unique tiebreak on screen_id. Without one, rows with equal field
+// counts can be returned in a different order per page, so paging a 760-screen catalog
+// silently shows some screens twice and skips others.
+const SCREEN_SORTS = {
+  "fields-desc": "field_count DESC, name ASC, screen_id ASC",
+  "fields-asc": "field_count ASC, name ASC, screen_id ASC",
+  "name-asc": "name ASC, screen_id ASC",
+  "name-desc": "name DESC, screen_id ASC",
+  "tabs-desc": "tab_count DESC, field_count DESC, screen_id ASC",
+  "id-asc": "CAST(screen_id AS UNSIGNED) ASC, screen_id ASC",
+  // Unreadable screens first: they are the ones capping every other number on the tab.
+  "unresolved-first": "CASE WHEN tabs_resolved <> 'resolved' THEN 0 ELSE 1 END ASC, field_count DESC, screen_id ASC",
+};
+export const DEFAULT_SCREEN_SORT = "fields-desc";
+export const SCREEN_SORT_KEYS = Object.keys(SCREEN_SORTS);
+
+export async function loadScreensPage(scopeKey, version, { limit = 50, offset = 0, search = "", sort = DEFAULT_SCREEN_SORT } = {}) {
   await ensureProjectStoreReady();
 
   const safeLimit = Math.max(1, Math.min(200, Math.trunc(Number(limit)) || 50));
   const safeOffset = Math.max(0, Math.trunc(Number(offset)) || 0);
+  const orderBy = SCREEN_SORTS[String(sort || "").trim()] || SCREEN_SORTS[DEFAULT_SCREEN_SORT];
 
   const where = ["scope_key = ?", "version = ?"];
   const params = [scopeKey, version];
@@ -202,7 +226,7 @@ export async function loadScreensPage(scopeKey, version, { limit = 50, offset = 
       SELECT screen_id, name, description, tab_count, field_count, tabs_resolved, unresolved_reason
       FROM snapshot_screens
       WHERE ${where.join(" AND ")}
-      ORDER BY field_count DESC, name ASC
+      ORDER BY ${orderBy}
       LIMIT ${safeLimit} OFFSET ${safeOffset}
     `).bindParams(...params).execute()
   );

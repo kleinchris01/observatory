@@ -1,5 +1,9 @@
 import { describe, it, test, expect, vi, beforeEach, afterEach } from "vitest";
 import {
+  applyTableControls,
+  compareValues,
+  parseSortToken,
+  matchesSearch,
   copyToClipboard,
   formatTimestamp,
   formatNumber,
@@ -639,5 +643,150 @@ describe("copyToClipboard", () => {
     document.execCommand = vi.fn(() => { throw new Error("not supported"); });
 
     await expect(copyToClipboard("customfield_1")).resolves.toBe(false);
+  });
+});
+
+// ── Client-side table controls ──────────────────────────────────────────────
+//
+// The in-memory half of the shared SortFilterBar. Tested here rather than through a tab
+// because the orderings are the part that has to be right, and asserting them through
+// rendered rows tests the table more than the comparator.
+
+describe("parseSortToken", () => {
+  test("splits a token into its key and direction", () => {
+    expect(parseSortToken("field-count-desc")).toEqual({ key: "field-count", dir: "desc" });
+    expect(parseSortToken("name-asc")).toEqual({ key: "name", dir: "asc" });
+  });
+
+  // A bare key is a valid token; treating the whole thing as a direction would silently
+  // sort by nothing.
+  test("defaults an unsuffixed token to ascending", () => {
+    expect(parseSortToken("name")).toEqual({ key: "name", dir: "asc" });
+    expect(parseSortToken("total-issues")).toEqual({ key: "total-issues", dir: "asc" });
+  });
+
+  test("falls back when there is no token at all", () => {
+    expect(parseSortToken("", { key: null, dir: "asc" })).toEqual({ key: null, dir: "asc" });
+    expect(parseSortToken(undefined, { key: "x", dir: "desc" })).toEqual({ key: "x", dir: "desc" });
+  });
+});
+
+describe("compareValues", () => {
+  test("compares numbers numerically, not as strings", () => {
+    // The string comparison this replaces put 100 before 9.
+    expect(compareValues(9, 100, "asc")).toBeLessThan(0);
+    expect(compareValues("9", "100", "asc")).toBeLessThan(0);
+  });
+
+  test("compares text case-insensitively", () => {
+    expect(compareValues("apple", "Banana", "asc")).toBeLessThan(0);
+  });
+
+  // The rule that matters when a column is partly unmeasured: flipping the sort reorders
+  // the rows that have values. It must not promote the blanks to the top.
+  test("keeps missing values last in both directions", () => {
+    expect(compareValues(null, 5, "asc")).toBeGreaterThan(0);
+    expect(compareValues(null, 5, "desc")).toBeGreaterThan(0);
+    expect(compareValues(5, null, "desc")).toBeLessThan(0);
+    expect(compareValues("", 5, "asc")).toBeGreaterThan(0);
+  });
+
+  test("treats two missing values as equal", () => {
+    expect(compareValues(null, undefined, "asc")).toBe(0);
+  });
+});
+
+describe("matchesSearch", () => {
+  const row = { name: "Story Points", id: "customfield_10001", meta: { owner: "Platform" } };
+
+  test("matches case-insensitively across every named key", () => {
+    expect(matchesSearch(row, "story", ["name", "id"])).toBe(true);
+    expect(matchesSearch(row, "CUSTOMFIELD_10001", ["name", "id"])).toBe(true);
+  });
+
+  test("reads dotted paths so nested values are searchable", () => {
+    expect(matchesSearch(row, "platform", ["meta.owner"])).toBe(true);
+  });
+
+  test("does not match a key the row is missing, and does not throw", () => {
+    expect(matchesSearch(row, "anything", ["absent.deeply.nested"])).toBe(false);
+    expect(() => matchesSearch(null, "x", ["name"])).not.toThrow();
+  });
+
+  test("an empty term matches everything", () => {
+    expect(matchesSearch(row, "   ", ["name"])).toBe(true);
+  });
+});
+
+describe("applyTableControls", () => {
+  const rows = [
+    { id: "a", name: "Beta", type: "date", issues: 50 },
+    { id: "b", name: "alpha", type: "string", issues: 9 },
+    { id: "c", name: "Gamma", type: "date", issues: null },
+  ];
+
+  test("searches, filters and sorts together", () => {
+    const out = applyTableControls(rows, {
+      search: "a",
+      searchKeys: ["name"],
+      filters: [{ key: "type", value: "date" }],
+      sort: "name-asc",
+      sortKeys: { name: "name" },
+    });
+
+    expect(out.map((r) => r.id)).toEqual(["a", "c"]);
+  });
+
+  test("ignores a filter left on its all-value", () => {
+    const out = applyTableControls(rows, { filters: [{ key: "type", value: "all" }] });
+    expect(out).toHaveLength(3);
+  });
+
+  test("supports a predicate for filters that are not equality", () => {
+    const out = applyTableControls(rows, {
+      filters: [{ key: "issues", value: "busy", predicate: (row) => (row.issues ?? 0) > 10 }],
+    });
+    expect(out.map((r) => r.id)).toEqual(["a"]);
+  });
+
+  test("accepts an accessor function for a computed sort key", () => {
+    // "Beta" 4, "alpha" 5, "Gamma" 5 -- so the accessor is asserted against a value only it
+    // can produce, and on the row whose length is unique.
+    const out = applyTableControls(rows, {
+      sort: "namelen-asc",
+      sortKeys: { namelen: (row) => row.name.length },
+    });
+    expect(out[0].id).toBe("a");
+    expect(out.map((r) => r.name.length)).toEqual([4, 5, 5]);
+  });
+
+  // Sorting in place would mutate React state held by the caller, which shows up as a list
+  // that refuses to re-render rather than as an obvious bug.
+  test("never mutates or returns the caller's array", () => {
+    const original = [...rows];
+    const out = applyTableControls(rows, { sort: "name-asc", sortKeys: { name: "name" } });
+
+    expect(rows).toEqual(original);
+    expect(out).not.toBe(rows);
+  });
+
+  test("returns a copy even when nothing narrows or reorders it", () => {
+    const out = applyTableControls(rows, {});
+    expect(out).toEqual(rows);
+    expect(out).not.toBe(rows);
+  });
+
+  test("survives being handed nothing", () => {
+    expect(applyTableControls()).toEqual([]);
+    expect(applyTableControls(null, { sort: "name-asc" })).toEqual([]);
+  });
+
+  // Unmeasured rows stay at the bottom whichever way the column is sorted.
+  test("keeps rows with no value last when sorting a partly measured column", () => {
+    const asc = applyTableControls(rows, { sort: "issues-asc", sortKeys: { issues: "issues" } });
+    const desc = applyTableControls(rows, { sort: "issues-desc", sortKeys: { issues: "issues" } });
+
+    expect(asc[asc.length - 1].id).toBe("c");
+    expect(desc[desc.length - 1].id).toBe("c");
   });
 });
