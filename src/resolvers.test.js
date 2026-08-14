@@ -109,6 +109,7 @@ const mocks = vi.hoisted(() => ({
   loadIssueTypeScreenSchemes: vi.fn(),
   loadScreenGovernanceSummary: vi.fn(),
   loadScreenCountsForFields: vi.fn(),
+  loadScreenDistributions: vi.fn(),
   recordHealthSnapshot: vi.fn(),
   loadHealthHistory: vi.fn(),
   queueScreenSnapshotBuild: vi.fn(),
@@ -246,6 +247,7 @@ vi.mock("./lib/project-store.js", () => ({
   loadIssueTypeScreenSchemes: mocks.loadIssueTypeScreenSchemes,
   loadScreenGovernanceSummary: mocks.loadScreenGovernanceSummary,
   loadScreenCountsForFields: mocks.loadScreenCountsForFields,
+  loadScreenDistributions: mocks.loadScreenDistributions,
   recordHealthSnapshot: mocks.recordHealthSnapshot,
   loadHealthHistory: mocks.loadHealthHistory,
   // Real values, not mocks: the resolver whitelists the sort token against these, so a
@@ -457,6 +459,7 @@ beforeEach(() => {
   mocks.loadIssueTypeScreenSchemes.mockResolvedValue([]);
   mocks.loadScreenGovernanceSummary.mockResolvedValue({});
   mocks.loadScreenCountsForFields.mockResolvedValue({});
+  mocks.loadScreenDistributions.mockResolvedValue({ sizeBuckets: [], largestScreens: [], mostSharedFields: [], operationMix: [] });
   mocks.recordHealthSnapshot.mockResolvedValue({ recorded: true });
   mocks.loadHealthHistory.mockResolvedValue([]);
   mocks.queueScreenSnapshotBuild.mockResolvedValue(undefined);

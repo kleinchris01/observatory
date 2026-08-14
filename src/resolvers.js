@@ -100,6 +100,7 @@ import {
   loadIssueTypeScreenSchemes,
   loadScreenGovernanceSummary,
   loadScreenCountsForFields,
+  loadScreenDistributions,
   DEFAULT_SCREEN_SORT,
   SCREEN_SORT_KEYS,
   recordHealthSnapshot,
@@ -824,7 +825,7 @@ async function getScreenInventory({ payload, context }) {
   // rebuild independently, so this is resolved per request rather than assumed to match.
   const workflowMeta = await readWorkflowSnapshotMeta(installationKey).catch(() => null);
 
-  const [screens, screenSchemes, schemeOperations, issueTypeScreenSchemes, transitionScreens] = await Promise.all([
+  const [screens, screenSchemes, schemeOperations, issueTypeScreenSchemes, distributions, governance, transitionScreens] = await Promise.all([
     loadScreensPage(installationKey, meta.version, {
       limit: pageSize,
       offset: (page - 1) * pageSize,
@@ -837,6 +838,8 @@ async function getScreenInventory({ payload, context }) {
     loadScreenSchemes(installationKey, meta.version),
     loadScreenSchemeOperations(installationKey, meta.version),
     loadIssueTypeScreenSchemes(installationKey, meta.version),
+    loadScreenDistributions(installationKey, meta.version),
+    loadScreenGovernanceSummary(installationKey, meta.version, { workflowVersion: workflowMeta?.version || null }),
     workflowMeta?.version
       ? loadTransitionScreens(installationKey, workflowMeta.version)
       : Promise.resolve([]),
@@ -868,6 +871,9 @@ async function getScreenInventory({ payload, context }) {
     // The second route to a screen. Sent whole rather than per screen: the list is bounded
     // by transitions-that-open-a-screen, which is far smaller than the screen catalog, and
     // the tab groups it by screen client-side to avoid a query per expanded row.
+    // Aggregates for the tab's own overview, so it stops being a list with no summary.
+    distributions,
+    governance,
     transitionScreens,
     // Tri-state, not an empty list. "No workflow inventory" and "no transition opens a
     // screen" are opposite claims, and the tab must not render the first as the second.
@@ -3284,6 +3290,59 @@ async function getHealthHistory({ payload, context }) {
   };
 }
 
+// One pillar of the health score, for the tab that pillar is about.
+//
+// The score already groups its dimensions into exactly the tabs this app has, so the
+// governance stats each tab wants are computed the moment the Overview is. Serving one
+// pillar rather than the whole score keeps a tab from shipping four pillars of data it will
+// not render -- and keeps the Workflows tab from having to know how Screens is scored.
+async function getPillarHealth({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+  const key = requireNonEmptyString(payload?.pillar, "pillar");
+
+  const [config, workflow, screens, automationAnalysis, meta] = await Promise.all([
+    readAdminConfig(),
+    buildWorkflowOverview(installationKey),
+    buildScreenOverview(installationKey),
+    readAutomationAnalysis(installationKey).catch(() => null),
+    readSnapshotMeta(installationKey),
+  ]);
+
+  let fieldUsage = null;
+  let projects = null;
+  if (meta?.version) {
+    try {
+      const [fields, rawProjects] = await Promise.all([
+        loadSnapshotFields(installationKey, meta.version),
+        listSnapshotProjects(installationKey, meta.version),
+      ]);
+      const withCounts = await attachUniqueIssueCounts(installationKey, rawProjects);
+      const dup = buildDuplicateNameCountMap(fields);
+      const hydrated = fields.map((f) =>
+        hydrateFieldForGovernance(f, null, dup.get(normalizeFieldName(f.name)) ?? 1, config.governanceThresholds)
+      );
+      fieldUsage = buildFieldUsageInsights(hydrated);
+      projects = buildProjectInsights(withCounts);
+    } catch (error) {
+      logger.warn("pillar-health.field_inputs_failed", { installationKey, error: String(error?.message || error) });
+    }
+  }
+
+  const health = computeSiteHealth({
+    fieldUsage,
+    workflow,
+    projects,
+    automation: automationAnalysis?.estate?.health ?? { available: false },
+    screens,
+    tolerances: config?.healthTolerances,
+  });
+
+  const pillar = (health.pillars || []).find((p) => p.key === key) || null;
+  return { pillar, score: health.score, grade: health.grade };
+}
+
 export async function migrateNamespaceKeys({ context }) {
   await ensureProjectStoreReady();
   const installationKey = getInstallationKey(context);
@@ -3935,6 +3994,7 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   buildScreenInventory,    // Mutating: queues a full screen and scheme snapshot build
 
   getHealthHistory,        // Admin read: the site health series and per-dimension deltas
+  getPillarHealth,         // Admin read: one pillar of the score, for the tab it is about
   getAuditLog,             // Admin read: returns recent privileged-action records
 
   // Admin page surface. These were previously registered directly onto adminHandler in

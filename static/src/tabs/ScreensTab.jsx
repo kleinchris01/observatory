@@ -2,7 +2,7 @@ import React from "react";
 import { invoke } from "@forge/bridge";
 import { formatNumber, formatRelativeTime } from "../utils";
 import { Icon } from "../components/Icons";
-import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, SortFilterBar } from "../components/ui";
+import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, SortFilterBar, PanelGrid, GridSpan, PillarHealthPanel, BarList } from "../components/ui";
 import { SubNavLayout } from "../components/admin/primitives";
 import { useVisiblePolling } from "../hooks";
 
@@ -195,6 +195,18 @@ export function ScreensTab() {
 
   React.useEffect(() => { load(); }, [load]);
 
+  // The screens pillar of the site health score. Already computed the moment anything scores
+  // the site, and previously only ever rendered on the Overview tab -- the governance number
+  // and the inventory it grades belong on the same page.
+  const [pillar, setPillar] = React.useState(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    invoke("getPillarHealth", { pillar: "screens" })
+      .then((result) => { if (!cancelled) setPillar(result?.pillar || null); })
+      .catch(() => { if (!cancelled) setPillar(null); });
+    return () => { cancelled = true; };
+  }, [data?.refreshedAt]);
+
   // Transitions grouped by the screen they open. Done here rather than server-side so an
   // expanded screen row costs nothing extra -- the whole list is already on the page.
   const transitionsByScreen = React.useMemo(() => {
@@ -300,12 +312,14 @@ export function ScreensTab() {
   }
 
   const items = [
+    { key: "overview", label: "Overview", icon: "barChart" },
     { key: "screens", label: "Screens", icon: "copy", badge: formatNumber(data?.totalScreens ?? 0) },
     { key: "schemes", label: "Screen schemes", icon: "layers", badge: formatNumber(data?.screenSchemes?.length ?? 0) },
     { key: "transitions", label: "Transitions", icon: "activity", badge: formatNumber(data?.transitionScreens?.length ?? 0) },
     { key: "assignments", label: "Assignments", icon: "folder", badge: formatNumber(data?.issueTypeScreenSchemes?.length ?? 0) },
   ];
 
+  const g = data?.governance || null;
   const totalPages = Math.max(1, Math.ceil((data?.screens?.total ?? 0) / PAGE_SIZE));
 
   return (
@@ -383,6 +397,93 @@ export function ScreensTab() {
       )}
 
       <SubNavLayout items={items} activeKey={view} onSelect={setView}>
+        {view === "overview" && (
+          <PanelGrid>
+            <GridSpan wide>
+              <StatRow>
+                <StatTile label="Screens" value={formatNumber(data?.totalScreens ?? 0)} hint="Forms defined on this site" icon="copy" />
+                <StatTile label="Screen schemes" value={formatNumber(data?.screenSchemes?.length ?? 0)} hint="Map operations to screens" icon="layers" />
+                <StatTile label="Assignments" value={formatNumber(data?.issueTypeScreenSchemes?.length ?? 0)} hint="Issue type screen schemes" icon="folder" />
+                <StatTile
+                  label="Empty screens"
+                  value={formatNumber(g?.emptyScreens ?? 0)}
+                  hint="Read successfully, nothing on them"
+                  tone={(g?.emptyScreens ?? 0) > 0 ? "warning" : "success"}
+                  icon="scissors"
+                />
+                {/* null, never 0. Without the workflow inventory we cannot tell an unused
+                    screen from one a transition opens, and a 0 here would invite deletion. */}
+                <StatTile
+                  label="Nothing reaches"
+                  value={g?.unreachedScreens == null ? "—" : formatNumber(g.unreachedScreens)}
+                  hint={g?.unreachedScreens == null ? "needs the workflow inventory" : "no scheme and no transition"}
+                  tone={(g?.unreachedScreens ?? 0) > 0 ? "warning" : "neutral"}
+                  icon="alertTriangle"
+                />
+                <StatTile
+                  label="Broken mappings"
+                  value={formatNumber(g?.danglingOperations ?? 0)}
+                  hint="Scheme points at a missing screen"
+                  tone={(g?.danglingOperations ?? 0) > 0 ? "critical" : "success"}
+                  icon="alertCircle"
+                />
+              </StatRow>
+            </GridSpan>
+
+            <GridSpan>
+              <PillarHealthPanel pillar={pillar} />
+            </GridSpan>
+
+            <GridSpan>
+              <Panel title="Form size" icon="barChart" description="How big the site's forms actually are. A 60-field form is one nobody fills in completely.">
+                <BarList items={data?.distributions?.sizeBuckets} labelKey="bucket" valueKey="screens" formatValue={formatNumber} emptyMessage="No screens measured yet" />
+              </Panel>
+            </GridSpan>
+
+            <GridSpan>
+              <Panel title="Largest screens" icon="copy" description="The longest forms first — the ones people meet most of.">
+                <BarList items={data?.distributions?.largestScreens} labelKey="name" valueKey="fieldCount" formatValue={formatNumber} tone="warn" emptyMessage="No screens measured yet" />
+              </Panel>
+            </GridSpan>
+
+            <GridSpan>
+              <Panel title="Most reused fields" icon="layers" description="Where a field change is felt. A field on 200 forms is not a local edit.">
+                <BarList items={data?.distributions?.mostSharedFields} labelKey="name" valueKey="screens" formatValue={formatNumber} emptyMessage="No field data yet" />
+              </Panel>
+            </GridSpan>
+
+            <GridSpan>
+              <Panel title="Scheme operations" icon="activity" description="Which operations schemes actually map. Most estates set default and inherit the rest.">
+                <BarList items={data?.distributions?.operationMix} labelKey="operation" valueKey="mappings" formatValue={formatNumber} emptyMessage="No schemes yet" />
+              </Panel>
+            </GridSpan>
+
+            <GridSpan>
+              <Panel title="Coverage" icon="info" description="What this snapshot could and could not measure.">
+                <StatRow>
+                  <StatTile
+                    label="Contents unknown"
+                    value={formatNumber(data?.unresolvedScreens ?? 0)}
+                    hint={(data?.unresolvedScreens ?? 0) > 0 ? "Excluded from every figure above" : "Every screen was read"}
+                    tone={(data?.unresolvedScreens ?? 0) > 0 ? "warning" : "success"}
+                  />
+                  <StatTile
+                    label="Transition-only"
+                    value={g?.transitionOnlyScreens == null ? "—" : formatNumber(g.transitionOnlyScreens)}
+                    hint="No scheme, but a transition opens them"
+                  />
+                  <StatTile
+                    label="Orphan schemes"
+                    value={formatNumber(g?.unusedSchemes ?? 0)}
+                    hint="No issue type maps to them"
+                    tone={(g?.unusedSchemes ?? 0) > 0 ? "warning" : "neutral"}
+                  />
+                </StatRow>
+              </Panel>
+            </GridSpan>
+          </PanelGrid>
+        )}
+
         {view === "screens" && (
           <Panel
             title="Screens"

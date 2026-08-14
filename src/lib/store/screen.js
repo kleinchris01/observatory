@@ -535,6 +535,80 @@ export async function loadScreenGovernanceSummary(scopeKey, version, { workflowV
   };
 }
 
+// Chart data for the Screens overview, as aggregates.
+//
+// Every one of these is a GROUP BY rather than a page of rows pulled into the Lambda and
+// counted there. The field table alone is ~22,000 rows on the reference site; the overview
+// is a glance, and a glance should not cost more than the tab it summarises.
+export async function loadScreenDistributions(scopeKey, version, { topN = 10 } = {}) {
+  await ensureProjectStoreReady();
+  const capped = Math.max(1, Math.min(50, Math.trunc(Number(topN)) || 10));
+
+  // Size distribution. Buckets rather than a raw histogram: "how many screens are enormous"
+  // is the question, and 760 distinct field counts is not an answer anyone can read.
+  const sizes = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT
+        CASE
+          WHEN field_count = 0 THEN 'Empty'
+          WHEN field_count BETWEEN 1 AND 5 THEN '1-5 fields'
+          WHEN field_count BETWEEN 6 AND 15 THEN '6-15 fields'
+          WHEN field_count BETWEEN 16 AND 30 THEN '16-30 fields'
+          WHEN field_count BETWEEN 31 AND 60 THEN '31-60 fields'
+          ELSE '60+ fields'
+        END AS bucket,
+        COUNT(*) AS screens
+      FROM snapshot_screens
+      WHERE scope_key = ? AND version = ? AND tabs_resolved = 'resolved'
+      GROUP BY bucket
+    `).bindParams(scopeKey, version).execute()
+  );
+
+  const largest = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT name, screen_id, field_count
+      FROM snapshot_screens
+      WHERE scope_key = ? AND version = ? AND tabs_resolved = 'resolved'
+      ORDER BY field_count DESC, screen_id ASC
+      LIMIT ${capped}
+    `).bindParams(scopeKey, version).execute()
+  );
+
+  // Which fields appear on the most forms. The reverse of the catalog, and the one that
+  // says where a field change is felt: a field on 200 screens is not a local edit.
+  const shared = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT field_name, field_id, COUNT(DISTINCT screen_id) AS screens
+      FROM snapshot_screen_fields
+      WHERE scope_key = ? AND version = ?
+      GROUP BY field_id, field_name
+      ORDER BY screens DESC, field_id ASC
+      LIMIT ${capped}
+    `).bindParams(scopeKey, version).execute()
+  );
+
+  const operations = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT operation, COUNT(*) AS mappings
+      FROM snapshot_screen_scheme_operations
+      WHERE scope_key = ? AND version = ?
+      GROUP BY operation
+      ORDER BY mappings DESC
+    `).bindParams(scopeKey, version).execute()
+  );
+
+  return {
+    sizeBuckets: (sizes.rows || []).map((r) => ({ bucket: r.bucket, screens: toNumber(r.screens) })),
+    largestScreens: (largest.rows || []).map((r) => ({
+      name: r.name || r.screen_id, screenId: r.screen_id, fieldCount: toNumber(r.field_count),
+    })),
+    mostSharedFields: (shared.rows || []).map((r) => ({
+      name: r.field_name || r.field_id, fieldId: r.field_id, screens: toNumber(r.screens),
+    })),
+    operationMix: (operations.rows || []).map((r) => ({ operation: r.operation, mappings: toNumber(r.mappings) })),
+  };
+}
+
 // ── Meta ─────────────────────────────────────────────────────────────────────
 
 export async function readScreenSnapshotMeta(scopeKey) {

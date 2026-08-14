@@ -1227,6 +1227,23 @@ select {
 .screen-usage-row__meta { display: flex; gap: 8px; flex-shrink: 0; }
 .screen-usage-note { margin: 10px 0 0; font-size: 0.76rem; opacity: 0.6; line-height: 1.4; }
 
+/* Overview panels laid out across the width rather than stacked in one column.
+   auto-fit + minmax rather than a media query: the row packs as many panels as fit at
+   their minimum readable width and collapses to one column on its own. */
+.ui-panelgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
+  gap: 14px;
+  align-items: start;
+}
+/* For the panel that genuinely wants the row -- a twenty-bar distribution reads badly at
+   half width. */
+.ui-panelgrid__span { grid-column: 1 / -1; }
+.ui-panelgrid__cell { min-width: 0; }
+.ui-panelgrid .ui-panel { height: 100%; }
+
+.ui-pillar__hero { display: flex; align-items: baseline; gap: 6px; margin-bottom: 10px; }
+
 /* The field-wide query, promoted out of a collapsible section. One link and a count do not
    need a header, a chevron and a collapsed state to hide behind. */
 .field-query-bar {

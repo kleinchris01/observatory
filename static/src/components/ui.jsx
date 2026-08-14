@@ -279,6 +279,76 @@ export function SortFilterBar({
   );
 }
 
+// Panels side by side instead of stacked in one column.
+//
+// Every overview in this app was a single column of full-width panels, which on a wide
+// screen means a 1,900px "Trigger mix" bar chart above two thirds of empty page. Panels
+// carry their own natural width now and the grid fits as many per row as that allows,
+// falling back to one column on narrow viewports without a media query.
+//
+// `wide` is for the panel that genuinely wants the full row -- a distribution with twenty
+// bars reads badly at half width.
+export function PanelGrid({ children }) {
+  return <div className="ui-panelgrid">{children}</div>;
+}
+
+export function GridSpan({ children, wide = false }) {
+  return <div className={wide ? "ui-panelgrid__span" : "ui-panelgrid__cell"}>{children}</div>;
+}
+
+// One pillar of the site health score, on the tab that pillar is about.
+//
+// The score already groups its dimensions into exactly the tabs this app has -- fields,
+// workflows, screens, automation, projects -- so the governance stats each tab needs are
+// already computed and were only ever shown on the Overview. Showing a pillar next to the
+// inventory it scores is what makes it actionable: the number and the thing it measures on
+// the same page.
+export function PillarHealthPanel({ pillar, onOpenTrends }) {
+  if (!pillar) {
+    return (
+      <Panel title="Governance" icon="activity">
+        <EmptyState inline>Health has not been scored yet.</EmptyState>
+      </Panel>
+    );
+  }
+
+  const scored = (pillar.dimensions || []).filter((d) => d.available);
+
+  return (
+    <Panel
+      title="Governance"
+      icon="activity"
+      description={pillar.available ? `Scored across ${scored.length} of ${pillar.total} dimensions.` : undefined}
+      action={onOpenTrends ? <LinkButton onClick={onOpenTrends}>Trends</LinkButton> : null}
+    >
+      {!pillar.available ? (
+        // The pillar's own reason, not a generic empty state: "no screen inventory yet" and
+        // "scored badly" are different facts and only one of them is a finding.
+        <EmptyState inline>{pillar.reason || "Not measured yet."}</EmptyState>
+      ) : (
+        <>
+          <div className="ui-pillar__hero">
+            <span className={`ui-health__score ui-health__score--${(pillar.grade || "e").toLowerCase()}`}>{pillar.score}</span>
+            <span className="ui-health__of">/ 100</span>
+          </div>
+          <div className="ui-health__dims">
+            {scored.map((dim) => (
+              <div key={dim.key} className="ui-health__dim">
+                <span className="ui-health__dimlabel">{dim.label}</span>
+                <span className="ui-health__dimtrack">
+                  <span className="ui-health__dimbar" style={{ width: `${dim.score}%` }} />
+                </span>
+                <span className="ui-health__dimval">{dim.score}</span>
+                <span className="ui-health__dimdetail">{dim.detail}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </Panel>
+  );
+}
+
 // Text arrow rather than an Icon: the icon set has no chevron, and a missing name renders
 // as nothing at all, which would silently strip the affordance.
 export function LinkButton({ children, onClick }) {
