@@ -368,6 +368,7 @@ const {
   getFieldScreenCounts,
   getHealthHistory,
   getProjectOverview,
+  getPillarHealth,
   buildScreenInventory,
 } = __RAW_ADMIN_ONLY_FUNCTIONS;
 
@@ -4230,6 +4231,66 @@ describe("getHealthHistory", () => {
 // The view the Projects tab existed to give and could not. Both cross-pillar joins existed
 // as data -- rule scope was computed on every import and discarded, screens were reachable
 // through the ITSS chain -- and neither had a query.
+
+// ---------------------------------------------------------------------------
+// getPillarHealth
+// ---------------------------------------------------------------------------
+//
+// One pillar of the score, for the tab that pillar is about. Serving one rather than the
+// whole score keeps the Workflows tab from having to know how Screens is graded.
+describe("getPillarHealth", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x" } };
+
+  test("returns only the requested pillar, with the site score alongside it", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue(null);
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "w1" });
+    mocks.loadWorkflowSchemes.mockResolvedValue([{ schemeId: "s1", name: "S", projectCount: 2 }]);
+    mocks.loadStatusesCatalog.mockResolvedValue([{ statusId: "1", name: "Open" }]);
+
+    const result = await getPillarHealth({ payload: { pillar: "workflows" }, ...ctx });
+
+    expect(result.pillar.key).toBe("workflows");
+    expect(result.pillar.dimensions.every((d) => d.pillar === "workflows")).toBe(true);
+  });
+
+  test("returns a null pillar for a name the score does not have", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue(null);
+
+    const result = await getPillarHealth({ payload: { pillar: "not-a-pillar" }, ...ctx });
+
+    expect(result.pillar).toBeNull();
+  });
+
+  // The field inputs are the expensive half and the most likely to fail. A pillar the caller
+  // did not ask about failing must not take the whole response down.
+  test("still answers when the field inputs cannot be built", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: "f1" });
+    mocks.loadSnapshotFields.mockRejectedValueOnce(new Error("Unknown SQL execution error"));
+
+    const result = await getPillarHealth({ payload: { pillar: "screens" }, ...ctx });
+
+    expect(result.pillar).not.toBeNull();
+    expect(result.pillar.key).toBe("screens");
+  });
+
+  test("builds the field pillar from the snapshot when one exists", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: "f1" });
+    mocks.loadSnapshotFields.mockResolvedValue([snapshotField()]);
+    mocks.listSnapshotProjects.mockResolvedValue([
+      { projectId: "1", projectKey: "A", projectName: "Alpha", fieldCount: 4, totalIssueCount: 10 },
+    ]);
+
+    const result = await getPillarHealth({ payload: { pillar: "fields" }, ...ctx });
+
+    expect(result.pillar.key).toBe("fields");
+    expect(result.pillar.available).toBe(true);
+  });
+
+  test("rejects a missing pillar name", async () => {
+    await expect(getPillarHealth({ payload: {}, ...ctx })).rejects.toThrow(/pillar/);
+  });
+});
+
 describe("getProjectOverview", () => {
   const ctx = { context: { installContext: "ari:cloud:jira::site/x", accountId: "acc-1" } };
 
