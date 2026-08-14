@@ -396,6 +396,7 @@ export const CREATE_SNAPSHOT_WORKFLOW_STATUSES_TABLE = `
   )
 `;
 
+<<<<<<< HEAD
 // The site health score, once per day, with every dimension it was made of.
 //
 // The point of the score was never the number -- it was whether cleaning something up moved
@@ -451,6 +452,8 @@ export const CREATE_FULL_SCAN_META_TABLE = `
   )
 `;
 
+=======
+>>>>>>> master
 // Which transitions open which screen.
 //
 // The second way a screen reaches a user, and the one that was missing. A screen attached
@@ -804,6 +807,7 @@ const projectStoreMigrations = migrationRunner
   .enqueue("v064_create_snapshot_itss_projects_by_project_index", CREATE_SNAPSHOT_ITSS_PROJECTS_BY_PROJECT_INDEX)
   .enqueue("v065_create_screen_snapshot_meta_table", CREATE_SCREEN_SNAPSHOT_META_TABLE)
   .enqueue("v066_create_transition_screens_table", CREATE_SNAPSHOT_TRANSITION_SCREENS_TABLE)
+<<<<<<< HEAD
   .enqueue("v067_create_transition_screens_by_screen_index", CREATE_SNAPSHOT_TRANSITION_SCREENS_BY_SCREEN_INDEX)
   // v066 and v067 keep the transition tables' names: they already ran on development under
   // them, and the runner keys on the name. Rebinding v066 to a different table would make
@@ -817,6 +821,9 @@ const projectStoreMigrations = migrationRunner
   // two are indistinguishable, and the tab reported the first as the second.
   .enqueue("v072_alter_workflow_meta_add_transition_screens",
     "ALTER TABLE workflow_snapshot_meta ADD COLUMN IF NOT EXISTS transition_screens INTEGER NULL");
+=======
+  .enqueue("v067_create_transition_screens_by_screen_index", CREATE_SNAPSHOT_TRANSITION_SCREENS_BY_SCREEN_INDEX);
+>>>>>>> master
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history
