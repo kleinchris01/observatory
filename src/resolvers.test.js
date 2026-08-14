@@ -186,6 +186,7 @@ vi.mock("./lib/store/automation.js", () => ({
   replaceAutomationRules: mocks.replaceAutomationRules,
   replaceAutomationFindings: mocks.replaceAutomationFindings,
   loadAutomationReferencesFor: mocks.loadAutomationReferencesFor,
+  loadRulesForProject: mocks.loadRulesForProject,
   AUTOMATION_PARTS: { analysis: "a:", fields: "f:", statuses: "s:", directory: "d:", findings: "fi:" },
   MAX_PREVIEW_FINDINGS: 20,
   MAX_STORED_CASCADES: 150,
@@ -251,7 +252,6 @@ vi.mock("./lib/project-store.js", () => ({
   loadScreenCountsForFields: mocks.loadScreenCountsForFields,
   loadScreenDistributions: mocks.loadScreenDistributions,
   loadScreensForProject: mocks.loadScreensForProject,
-  loadRulesForProject: mocks.loadRulesForProject,
   recordHealthSnapshot: mocks.recordHealthSnapshot,
   loadHealthHistory: mocks.loadHealthHistory,
   // Real values, not mocks: the resolver whitelists the sort token against these, so a
