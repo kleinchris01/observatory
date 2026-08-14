@@ -120,7 +120,7 @@ const DUPLICATE_KIND_LABEL = {
 //
 // Ordered by what an admin can act on soonest: duplicates are unambiguous cleanup,
 // orphans need a check before deleting, and scheme balance is a judgement call.
-function WorkflowInsights({ insights, loading }) {
+export function WorkflowInsights({ insights, loading }) {
   if (loading && !insights) return <EmptyState>Analysing the workflow inventory…</EmptyState>;
   if (!insights) return null;
 
@@ -210,13 +210,17 @@ function WorkflowInsights({ insights, loading }) {
 
       {schemeStatusesAvailable && (
         <Panel title="Unreachable statuses" description={<>Defined on the site but not reachable from any workflow scheme. {hasIssueCounts && " Those marked never used have no workflow reaching them and no issue history."}</>}>
-          {hasIssueCounts && (
+          {/* The blanket caveat only survives while we genuinely cannot check. Once an
+              automation analysis exists, every status here carries its own answer, and a
+              warning that applies to all of them would tell a reader nothing about any of
+              them -- while sitting next to evidence that contradicts it. */}
+          {hasIssueCounts && !insights?.automationChecked && (
             <p className="wf-insights__note">
               <Icon name="info" size={13} />
               <span>
-                Automation rules are not included. Jira does not expose them to Forge apps, so
-                a rule could still reference a status shown here. Check the rule list before
-                deleting anything.
+                Automation rules are not included: no rule export has been imported, so a rule
+                could still reference a status shown here. Import one on the Automation tab to
+                have these checked individually.
               </span>
             </p>
           )}
@@ -225,7 +229,10 @@ function WorkflowInsights({ insights, loading }) {
           ) : (
             <div className="wf-orphan-grid">
               {orphans.map((orphan) => (
-                <div key={orphan.statusId} className={`wf-orphan ${orphan.safeToRemove ? "wf-orphan--safe" : ""}`}>
+                <div
+                  key={orphan.statusId}
+                  className={`wf-orphan ${orphan.safeToRemove && !orphan.automationRuleCount ? "wf-orphan--safe" : ""}`}
+                >
                   <span className="wf-orphan__name">{orphan.name}</span>
                   {orphan.issueCount === null ? (
                     <span className="wf-orphan__count wf-orphan__count--unknown">usage unknown</span>
@@ -233,6 +240,17 @@ function WorkflowInsights({ insights, loading }) {
                     <span className="wf-orphan__count wf-orphan__count--safe">never used</span>
                   ) : (
                     <span className="wf-orphan__count">{formatNumber(orphan.issueCount)} issues</span>
+                  )}
+                  {/* The per-status answer. A status no workflow reaches and no issue ever
+                      entered still is not safe to delete if a rule transitions into it --
+                      which is precisely what the old blanket warning could not tell you. */}
+                  {orphan.automationRuleCount > 0 && (
+                    <span
+                      className="wf-orphan__count wf-orphan__count--rules"
+                      title="An automation rule references this status. Deleting it will break that rule."
+                    >
+                      {formatNumber(orphan.automationRuleCount)} {orphan.automationRuleCount === 1 ? "rule" : "rules"}
+                    </span>
                   )}
                 </div>
               ))}

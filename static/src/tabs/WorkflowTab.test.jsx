@@ -1,9 +1,9 @@
 import React from "react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { invoke } from "@forge/bridge";
-import { WorkflowTab } from "./WorkflowTab";
+import { WorkflowTab, WorkflowInsights } from "./WorkflowTab";
 
 // This UI is the reason three permission scopes are on the install consent screen.
 // Until it existed, read:workflow:jira, read:workflow-scheme:jira and read:status:jira
@@ -496,5 +496,68 @@ describe("WorkflowTab — shared shell", () => {
     await screen.findByText("Open");
     expect(container.querySelector(".ui-controls")).not.toBeNull();
     expect(container.querySelector(".wf-statusbar")).toBeNull();
+  });
+});
+
+// The Workflows tab carried a blanket caveat from before the automation pillar existed:
+// "Automation rules are not included. Jira does not expose them to Forge apps." That stopped
+// being true when rule exports started being shredded into automation_references. A warning
+// that applies to every status tells a reader nothing about any status.
+describe("WorkflowTab — unreachable statuses vs automation", () => {
+  const withOrphans = (orphans, automationChecked) => ({
+    available: true,
+    schemeStatusesAvailable: true,
+    hasIssueCounts: true,
+    automationChecked,
+    orphans,
+    duplicateGroups: [],
+    balance: [],
+    summary: { duplicateGroupCount: 0, orphanCount: orphans.length, flaggedSchemeCount: 0 },
+    statusTotals: { catalogCount: 10, withIssues: 5 },
+    snapshotStatus: { state: "ready", refreshedAt: "2026-08-13T00:00:00Z" },
+  });
+
+  test("names the rules holding a status that otherwise looks safe to delete", () => {
+    render(<WorkflowInsights insights={withOrphans([
+      { statusId: "1", name: "Parking Lot", issueCount: 0, safeToRemove: true, automationRuleCount: 3 },
+    ], true)} loading={false} />);
+
+    // "never used" and "3 rules" sit on the same row deliberately: the second is the reason
+    // the first is not permission to delete it.
+    expect(screen.getByText("never used")).toBeInTheDocument();
+    expect(screen.getByText("3 rules")).toBeInTheDocument();
+  });
+
+  test("stops calling a status safe once a rule references it", () => {
+    const { container } = render(<WorkflowInsights insights={withOrphans([
+      { statusId: "1", name: "Parking Lot", issueCount: 0, safeToRemove: true, automationRuleCount: 2 },
+    ], true)} loading={false} />);
+
+    expect(container.querySelector(".wf-orphan--safe")).toBeNull();
+  });
+
+  test("keeps the safe marker for a status nothing references", () => {
+    const { container } = render(<WorkflowInsights insights={withOrphans([
+      { statusId: "1", name: "Ghost", issueCount: 0, safeToRemove: true, automationRuleCount: 0 },
+    ], true)} loading={false} />);
+
+    expect(container.querySelector(".wf-orphan--safe")).not.toBeNull();
+  });
+
+  // The caveat is still the honest answer when nothing has been imported to check against.
+  test("keeps the blanket warning only while it cannot check", () => {
+    render(<WorkflowInsights insights={withOrphans([
+      { statusId: "1", name: "Ghost", issueCount: 0, safeToRemove: true, automationRuleCount: null },
+    ], false)} loading={false} />);
+
+    expect(screen.getByText(/no rule export has been imported/i)).toBeInTheDocument();
+  });
+
+  test("drops the blanket warning once every status carries its own answer", () => {
+    render(<WorkflowInsights insights={withOrphans([
+      { statusId: "1", name: "Ghost", issueCount: 0, safeToRemove: true, automationRuleCount: 0 },
+    ], true)} loading={false} />);
+
+    expect(screen.queryByText(/Automation rules are not included/i)).not.toBeInTheDocument();
   });
 });

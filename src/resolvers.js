@@ -136,6 +136,7 @@ import {
   replaceAutomationReferences,
   replaceAutomationRules,
   loadRulesForProject,
+  loadStatusAutomationReferences,
   loadGlobalRulesAffectingProject,
   replaceAutomationFindings,
   loadAutomationReferencesFor,
@@ -741,6 +742,29 @@ async function getWorkflowInsights({ context }) {
       ? computeSchemeCategoryBalance(schemes, schemeStatuses, statuses)
       : [];
 
+    // Which of these statuses an automation rule actually references.
+    //
+    // The tab has carried a blanket caveat since before the automation pillar existed:
+    // "Automation rules are not included. Jira does not expose them to Forge apps." That
+    // was true then; it stopped being true when rule exports started being shredded into
+    // automation_references, where every status a rule reads, writes or transitions to is a
+    // row. A warning that applies to every status tells a reader nothing about any status.
+    //
+    // Best-effort: no automation analysis means the caveat is still the honest answer, so
+    // failure here degrades to the old warning rather than to a false all-clear.
+    const orphanPage = orphans.slice(0, 200);
+    let automationByStatus = null;
+    try {
+      automationByStatus = await loadStatusAutomationReferences(
+        installationKey,
+        orphanPage.map((o) => o.name).filter(Boolean)
+      );
+    } catch (error) {
+      logger.warn("workflow-insights.status_automation_lookup_failed", {
+        installationKey, error: String(error?.message || error),
+      });
+    }
+
     return {
       available: true,
       schemeStatusesAvailable,
@@ -758,7 +782,19 @@ async function getWorkflowInsights({ context }) {
           everCount: hasHistoryCounts ? (history.counts.get(String(s.statusId ?? s.id)) ?? null) : null,
         })),
       })),
-      orphans: orphans.slice(0, 200),
+      orphans: orphanPage.map((orphan) => {
+        const refs = automationByStatus?.[String(orphan.name || "").toLowerCase()] || null;
+        return {
+          ...orphan,
+          // null when no automation analysis exists -- the caveat still applies to this
+          // status. A number means we checked it specifically.
+          automationRuleCount: automationByStatus ? (refs?.ruleCount ?? 0) : null,
+          automationEnabledRuleCount: automationByStatus ? (refs?.enabledRuleCount ?? 0) : null,
+        };
+      }),
+      // Whether the per-status answer is available at all, so the tab can drop the blanket
+      // warning rather than showing it alongside evidence that contradicts it.
+      automationChecked: Boolean(automationByStatus),
       balance: balance.slice(0, 100),
       statusTotals: {
         catalogCount: statuses.length,

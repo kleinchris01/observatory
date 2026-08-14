@@ -112,6 +112,7 @@ const mocks = vi.hoisted(() => ({
   loadScreenDistributions: vi.fn(),
   loadScreensForProject: vi.fn(),
   loadRulesForProject: vi.fn(),
+  loadStatusAutomationReferences: vi.fn(),
   loadGlobalRulesAffectingProject: vi.fn(),
   recordHealthSnapshot: vi.fn(),
   loadHealthHistory: vi.fn(),
@@ -188,6 +189,7 @@ vi.mock("./lib/store/automation.js", () => ({
   replaceAutomationFindings: mocks.replaceAutomationFindings,
   loadAutomationReferencesFor: mocks.loadAutomationReferencesFor,
   loadRulesForProject: mocks.loadRulesForProject,
+  loadStatusAutomationReferences: mocks.loadStatusAutomationReferences,
   loadGlobalRulesAffectingProject: mocks.loadGlobalRulesAffectingProject,
   AUTOMATION_PARTS: { analysis: "a:", fields: "f:", statuses: "s:", directory: "d:", findings: "fi:" },
   MAX_PREVIEW_FINDINGS: 20,
@@ -469,6 +471,7 @@ beforeEach(() => {
   mocks.loadScreenDistributions.mockResolvedValue({ sizeBuckets: [], largestScreens: [], mostSharedFields: [], operationMix: [] });
   mocks.loadScreensForProject.mockResolvedValue([]);
   mocks.loadRulesForProject.mockResolvedValue([]);
+  mocks.loadStatusAutomationReferences.mockResolvedValue({});
   mocks.loadGlobalRulesAffectingProject.mockResolvedValue([]);
   mocks.recordHealthSnapshot.mockResolvedValue({ recorded: true });
   mocks.loadHealthHistory.mockResolvedValue([]);

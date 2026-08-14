@@ -1259,6 +1259,10 @@ select {
   font-size: 0.78rem; opacity: 0.75;
 }
 
+/* A status an automation rule references is not safe to delete, whatever its issue count
+   says. Warm, not neutral: this contradicts the "never used" beside it. */
+.wf-orphan__count--rules { color: var(--warm); font-weight: 600; }
+
 /* Cross-pillar panels on a project. */
 .project-pillar__headline { margin: 0 0 4px; font-size: 1.05rem; font-weight: 600; }
 .project-pillar__sub { margin: 0; font-size: 0.78rem; opacity: 0.6; line-height: 1.45; }
