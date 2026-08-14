@@ -125,3 +125,63 @@ export async function pruneHealthHistory(scopeKey, olderThanDays = 400) {
   );
   return { deleted: toNumber(result?.affectedRows ?? result?.rowsAffected, 0), cutoff };
 }
+
+// ── Full scan orchestration state ───────────────────────────────────────────
+//
+// Kept beside the health history rather than in its own module because the two are the same
+// story: the scan is what refreshes every input, and the health row is what it produces at
+// the end. Nothing else reads either.
+
+export async function readFullScanMeta(scopeKey) {
+  await ensureProjectStoreReady();
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT state, job_token, current_stage, stages_json, started_at, completed_at, last_error
+      FROM full_scan_meta WHERE scope_key = ?
+    `).bindParams(scopeKey).execute()
+  );
+  const row = result.rows?.[0];
+  if (!row) return null;
+  return {
+    state: row.state || "idle",
+    jobToken: row.job_token || null,
+    currentStage: row.current_stage || null,
+    stages: safeParseJson(row.stages_json, []) || [],
+    startedAt: row.started_at || null,
+    completedAt: row.completed_at || null,
+    lastError: row.last_error || null,
+  };
+}
+
+// Merge-patch, like the other snapshot metas: a caller advancing one stage should not have
+// to restate the started-at timestamp it does not own.
+export async function writeFullScanMeta(scopeKey, patch = {}) {
+  await ensureProjectStoreReady();
+  const current = (await readFullScanMeta(scopeKey)) || {};
+  const next = { ...current, ...patch };
+
+  await withSqlRetry(() =>
+    sql.prepare(`
+      INSERT INTO full_scan_meta
+        (scope_key, state, job_token, current_stage, stages_json, started_at, completed_at, last_error)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE
+        state = VALUES(state),
+        job_token = VALUES(job_token),
+        current_stage = VALUES(current_stage),
+        stages_json = VALUES(stages_json),
+        started_at = VALUES(started_at),
+        completed_at = VALUES(completed_at),
+        last_error = VALUES(last_error)
+    `).bindParams(
+      scopeKey,
+      next.state || "idle",
+      next.jobToken || null,
+      next.currentStage || null,
+      JSON.stringify(next.stages || []),
+      next.startedAt || null,
+      next.completedAt || null,
+      next.lastError || null
+    ).execute()
+  );
+}

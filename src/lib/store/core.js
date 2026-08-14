@@ -398,6 +398,32 @@ export const CREATE_HEALTH_HISTORY_TABLE = `
   )
 `;
 
+// One row per scope tracking a full scan through its stages.
+//
+// The pipelines it drives already existed and were already queue jobs; what was missing was
+// anything on top of them. An admin had to know that a "Universe Scan" scans issues but not
+// screens, that the workflow inventory is a different button on a different tab, and that
+// running them out of order leaves the tabs disagreeing with each other. Five things to
+// sequence by hand is a checklist, not a scan.
+//
+// stages_json holds [{key, state, startedAt, completedAt, error}] rather than a column per
+// stage, for the same reason health history stores dimensions as a blob: the stage list will
+// grow, and a migration per stage would guarantee a half-written schema the first time one
+// is added.
+export const CREATE_FULL_SCAN_META_TABLE = `
+  CREATE TABLE IF NOT EXISTS full_scan_meta (
+    scope_key VARCHAR(191) NOT NULL,
+    state VARCHAR(32) NOT NULL DEFAULT 'idle',
+    job_token VARCHAR(96) NULL,
+    current_stage VARCHAR(32) NULL,
+    stages_json LONGTEXT NULL,
+    started_at VARCHAR(64) NULL,
+    completed_at VARCHAR(64) NULL,
+    last_error TEXT NULL,
+    PRIMARY KEY (scope_key)
+  )
+`;
+
 // Issue counts per status per project, accumulated by the universe scan.
 //
 // Unversioned, like the other issue_scan_* tables: it reflects the last completed scan
@@ -717,7 +743,8 @@ const projectStoreMigrations = migrationRunner
   .enqueue("v063_create_snapshot_itss_projects_table", CREATE_SNAPSHOT_ITSS_PROJECTS_TABLE)
   .enqueue("v064_create_snapshot_itss_projects_by_project_index", CREATE_SNAPSHOT_ITSS_PROJECTS_BY_PROJECT_INDEX)
   .enqueue("v065_create_screen_snapshot_meta_table", CREATE_SCREEN_SNAPSHOT_META_TABLE)
-  .enqueue("v066_create_health_history_table", CREATE_HEALTH_HISTORY_TABLE);
+  .enqueue("v066_create_health_history_table", CREATE_HEALTH_HISTORY_TABLE)
+  .enqueue("v067_create_full_scan_meta_table", CREATE_FULL_SCAN_META_TABLE);
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history
