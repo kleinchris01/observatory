@@ -277,6 +277,76 @@ describe("queueStatusHistoryBuild", () => {
 // and `forge install --upgrade` reports the site already current -- so the workflow map is
 // routinely empty through no fault of the caller. Without a second route, every status on
 // the site looks unreachable and orphan detection reports nonsense.
+
+// Transitions that open a screen.
+//
+// The screen catalog can only see the scheme chain, so a screen attached to a transition
+// looked unreachable to it -- and "nothing reaches this screen" is the sentence an admin
+// deletes on. Captured here, in the same pass that already fetches the workflow list.
+describe("transition screens", () => {
+  const projects = [{ id: "1", key: "A", name: "Alpha" }];
+  const oneScheme = [{ projectId: "1", scheme: { id: "s1", name: "Scheme", defaultWorkflow: "WF" } }];
+
+  it("flattens transition screens out of the workflow list", async () => {
+    getAllJiraProjects.mockResolvedValue(projects);
+    getWorkflowSchemesForProjects.mockResolvedValue(oneScheme);
+    getAllWorkflowsWithStatuses.mockResolvedValue([{
+      name: "WF",
+      statusIds: ["7"],
+      transitions: [
+        { id: "11", name: "Start", toStatus: "3", screenId: "220" },
+        { id: "12", name: "Resolve", toStatus: "5", screenId: "300" },
+      ],
+    }]);
+
+    await buildWorkflowSnapshot("install-1");
+
+    const [, , written] = replaceWorkflowSnapshot.mock.calls[0];
+    expect(written.transitionScreens).toEqual([
+      { workflowName: "WF", transitionId: "11", transitionName: "Start", toStatus: "3", screenId: "220" },
+      { workflowName: "WF", transitionId: "12", transitionName: "Resolve", toStatus: "5", screenId: "300" },
+    ]);
+  });
+
+  // Empty is a real answer -- it means no transition on this site opens a screen -- and it
+  // is stored as such rather than skipped.
+  it("writes an empty list when no transition opens a screen", async () => {
+    getAllJiraProjects.mockResolvedValue(projects);
+    getWorkflowSchemesForProjects.mockResolvedValue(oneScheme);
+    getAllWorkflowsWithStatuses.mockResolvedValue([{ name: "WF", statusIds: ["7"], transitions: [] }]);
+
+    await buildWorkflowSnapshot("install-1");
+
+    const [, , written] = replaceWorkflowSnapshot.mock.calls[0];
+    expect(written.transitionScreens).toEqual([]);
+  });
+
+  // The row is keyed on the transition id, so one without an id would be unwritable.
+  it("falls back to the transition name when it carries no id", async () => {
+    getAllJiraProjects.mockResolvedValue(projects);
+    getWorkflowSchemesForProjects.mockResolvedValue(oneScheme);
+    getAllWorkflowsWithStatuses.mockResolvedValue([{
+      name: "WF", statusIds: [],
+      transitions: [{ id: null, name: "Edit", screenId: "220" }],
+    }]);
+
+    await buildWorkflowSnapshot("install-1");
+
+    const [, , written] = replaceWorkflowSnapshot.mock.calls[0];
+    expect(written.transitionScreens[0].transitionId).toBe("Edit");
+  });
+
+  it("survives a workflow list that predates the transitions expansion", async () => {
+    getAllJiraProjects.mockResolvedValue(projects);
+    getWorkflowSchemesForProjects.mockResolvedValue(oneScheme);
+    getAllWorkflowsWithStatuses.mockResolvedValue([{ name: "WF", statusIds: ["7"] }]);
+
+    await expect(buildWorkflowSnapshot("install-1")).resolves.toBeDefined();
+    const [, , written] = replaceWorkflowSnapshot.mock.calls[0];
+    expect(written.transitionScreens).toEqual([]);
+  });
+});
+
 describe("scheme statuses via projects", () => {
   const projects = [{ id: "10", key: "ALPHA", name: "Alpha" }, { id: "11", key: "BRAVO", name: "Bravo" }];
   const twoProjectScheme = [

@@ -208,11 +208,38 @@ export async function buildWorkflowSnapshot(installationKey) {
       statusCategory: status.statusCategory?.name || status.statusCategory?.key || null,
     }));
 
+    // Transitions that open a screen, flattened out of the same workflow list the statuses
+    // came from. Recorded per workflow name, matching schemeStatusRows, because that is the
+    // only identifier the scheme association gives us to join on.
+    //
+    // Empty is a legitimate answer here and is stored as such: it means no transition on
+    // this site opens a screen. It is NOT the same as the workflow expansion having failed,
+    // which leaves `workflows` empty and is already logged above -- the screen catalog
+    // distinguishes the two by whether a workflow snapshot exists at all.
+    const transitionScreenRows = [];
+    for (const workflow of workflows) {
+      if (!workflow?.name) continue;
+      for (const transition of workflow.transitions || []) {
+        // A transition with no id cannot be keyed, and the primary key needs one. Falling
+        // back to the name keeps a real usage rather than dropping it on the floor.
+        const transitionId = transition.id || transition.name;
+        if (!transitionId || !transition.screenId) continue;
+        transitionScreenRows.push({
+          workflowName: workflow.name,
+          transitionId,
+          transitionName: transition.name,
+          toStatus: transition.toStatus,
+          screenId: transition.screenId,
+        });
+      }
+    }
+
     await replaceWorkflowSnapshot(installationKey, version, {
       schemes: schemeRows,
       schemeProjects: schemeProjectRows,
       statuses: statusRows,
       schemeStatuses: schemeStatusRows,
+      transitionScreens: transitionScreenRows,
     });
 
     const completedAt = new Date().toISOString();

@@ -35,6 +35,7 @@ import {
   resetJiraRateLimiterState,
   extractWorkflowScheme,
   normalizeWorkflowSearchResponse,
+  extractTransitionScreens,
   getAllWorkflowsWithStatuses,
   getEverInStatusCounts,
   getProjectStatuses,
@@ -656,7 +657,7 @@ describe("normalizeWorkflowSearchResponse", () => {
   test("reads the deprecated shape, where statuses carry ids directly", () => {
     expect(normalizeWorkflowSearchResponse({
       values: [{ id: { name: "Bug WF" }, statuses: [{ id: "3" }, { id: "5" }] }],
-    })).toEqual([{ name: "Bug WF", statusIds: ["3", "5"] }]);
+    })).toEqual([{ name: "Bug WF", statusIds: ["3", "5"], transitions: [] }]);
   });
 
   test("resolves statusReference UUIDs through the current shape's lookup table", () => {
@@ -669,7 +670,7 @@ describe("normalizeWorkflowSearchResponse", () => {
     });
 
     // Real status ids, never the references themselves.
-    expect(result).toEqual([{ name: "Bug WF", statusIds: ["3", "5"] }]);
+    expect(result).toEqual([{ name: "Bug WF", statusIds: ["3", "5"], transitions: [] }]);
   });
 
   test("drops references it cannot resolve rather than emitting a UUID as a status id", () => {
@@ -678,7 +679,7 @@ describe("normalizeWorkflowSearchResponse", () => {
       statuses: [{ statusReference: "uuid-a", id: "3" }],
     });
 
-    expect(result).toEqual([{ name: "Bug WF", statusIds: ["3"] }]);
+    expect(result).toEqual([{ name: "Bug WF", statusIds: ["3"], transitions: [] }]);
   });
 
   test("skips workflows with no resolvable name", () => {
@@ -693,7 +694,69 @@ describe("normalizeWorkflowSearchResponse", () => {
 
   test("tolerates a workflow with no statuses at all", () => {
     expect(normalizeWorkflowSearchResponse({ workflows: [{ name: "Empty WF" }] }))
-      .toEqual([{ name: "Empty WF", statusIds: [] }]);
+      .toEqual([{ name: "Empty WF", statusIds: [], transitions: [] }]);
+  });
+});
+
+
+// Transitions that open a screen.
+//
+// This is the second route a screen has to a user, and Observatory only ever walked the
+// first. A screen attached to a transition belongs to no screen scheme, so the scheme view
+// called it unreachable -- which is the premise for deleting a screen people use daily.
+describe("extractTransitionScreens", () => {
+  test("reads the deprecated shape, where the screen sits on transition.screen", () => {
+    expect(extractTransitionScreens({
+      transitions: [{ id: "11", name: "Start Progress", screen: { id: "220" } }],
+    })).toEqual([{ id: "11", name: "Start Progress", toStatus: null, screenId: "220" }]);
+  });
+
+  test("reads the current shape, where it sits on transitionScreen", () => {
+    expect(extractTransitionScreens({
+      transitions: [{ id: "21", name: "Resolve", transitionScreen: { id: "300" }, to: { statusReference: "uuid-a" } }],
+    })).toEqual([{ id: "21", name: "Resolve", toStatus: "uuid-a", screenId: "300" }]);
+  });
+
+  // Most transitions just move the issue. Recording those with a null screen would make
+  // every workflow look like it opens screens it does not.
+  test("drops transitions that open no screen", () => {
+    expect(extractTransitionScreens({
+      transitions: [
+        { id: "1", name: "Close", screen: null },
+        { id: "2", name: "Reopen" },
+        { id: "3", name: "Edit", screen: { id: "220" } },
+      ],
+    })).toEqual([{ id: "3", name: "Edit", toStatus: null, screenId: "220" }]);
+  });
+
+  test("coerces screen ids to strings so they join against the screen catalog", () => {
+    const [row] = extractTransitionScreens({ transitions: [{ id: 7, name: "X", screen: { id: 220 } }] });
+    expect(row.screenId).toBe("220");
+    expect(row.id).toBe("7");
+  });
+
+  test("returns an empty list for a workflow with no transitions at all", () => {
+    expect(extractTransitionScreens({ name: "WF" })).toEqual([]);
+    expect(extractTransitionScreens(null)).toEqual([]);
+  });
+});
+
+describe("normalizeWorkflowSearchResponse - transitions", () => {
+  test("carries transition screens alongside the statuses, in one pass", () => {
+    const result = normalizeWorkflowSearchResponse({
+      workflows: [{
+        name: "Bug WF",
+        statuses: [{ statusReference: "uuid-a" }],
+        transitions: [{ id: "11", name: "Start", transitionScreen: { id: "220" } }],
+      }],
+      statuses: [{ statusReference: "uuid-a", id: "3" }],
+    });
+
+    expect(result).toEqual([{
+      name: "Bug WF",
+      statusIds: ["3"],
+      transitions: [{ id: "11", name: "Start", toStatus: null, screenId: "220" }],
+    }]);
   });
 });
 
@@ -710,7 +773,7 @@ describe("getAllWorkflowsWithStatuses", () => {
       },
     }));
 
-    await expect(getAllWorkflowsWithStatuses()).resolves.toEqual([{ name: "Bug WF", statusIds: ["3"] }]);
+    await expect(getAllWorkflowsWithStatuses()).resolves.toEqual([{ name: "Bug WF", statusIds: ["3"], transitions: [] }]);
     expect(mockRequestJira).toHaveBeenCalledTimes(1);
     expect(mockRequestJira.mock.calls[0][0]).toContain("/workflows/search");
     expect(mockRequestJira.mock.calls[0][1].method).toBe("POST");
@@ -725,7 +788,7 @@ describe("getAllWorkflowsWithStatuses", () => {
 
     const result = await getAllWorkflowsWithStatuses();
 
-    expect(result).toEqual([{ name: "Legacy WF", statusIds: ["7"] }]);
+    expect(result).toEqual([{ name: "Legacy WF", statusIds: ["7"], transitions: [] }]);
     expect(mockRequestJira.mock.calls.at(-1)[0]).toContain("/workflow/search");
   });
 
@@ -738,7 +801,7 @@ describe("getAllWorkflowsWithStatuses", () => {
 
     // A 200 that parses to zero workflows means the shape changed, not that the site has
     // none -- so it must still try the other endpoint rather than report an empty site.
-    await expect(getAllWorkflowsWithStatuses()).resolves.toEqual([{ name: "Legacy WF", statusIds: ["7"] }]);
+    await expect(getAllWorkflowsWithStatuses()).resolves.toEqual([{ name: "Legacy WF", statusIds: ["7"], transitions: [] }]);
   });
 
   test("propagates the error when both endpoints fail", async () => {

@@ -100,6 +100,7 @@ import {
   loadIssueTypeScreenSchemes,
   loadScreenGovernanceSummary,
   loadScreenCountsForFields,
+  loadTransitionScreens,
 } from "./lib/project-store.js";
 import { queueWorkflowSnapshotBuild, isWorkflowBuildStale, queueStatusHistoryBuild } from "./lib/workflow-engine.js";
 import { measureScreenFetchCost, probeScreenEndpoints, DEFAULT_SAMPLE_SIZE } from "./lib/screen-probe.js";
@@ -806,7 +807,11 @@ async function getScreenInventory({ payload, context }) {
   const pageSize = Math.max(1, Math.min(100, Number(payload?.pageSize) || 25));
   const search = optionalString(payload?.search, "search") || "";
 
-  const [screens, screenSchemes, schemeOperations, issueTypeScreenSchemes] = await Promise.all([
+  // The workflow snapshot's version, for the transition layer. Screens and workflows
+  // rebuild independently, so this is resolved per request rather than assumed to match.
+  const workflowMeta = await readWorkflowSnapshotMeta(installationKey).catch(() => null);
+
+  const [screens, screenSchemes, schemeOperations, issueTypeScreenSchemes, transitionScreens] = await Promise.all([
     loadScreensPage(installationKey, meta.version, {
       limit: pageSize,
       offset: (page - 1) * pageSize,
@@ -815,6 +820,9 @@ async function getScreenInventory({ payload, context }) {
     loadScreenSchemes(installationKey, meta.version),
     loadScreenSchemeOperations(installationKey, meta.version),
     loadIssueTypeScreenSchemes(installationKey, meta.version),
+    workflowMeta?.version
+      ? loadTransitionScreens(installationKey, workflowMeta.version)
+      : Promise.resolve([]),
   ]);
 
   return {
@@ -837,6 +845,13 @@ async function getScreenInventory({ payload, context }) {
     screenSchemes,
     schemeOperations,
     issueTypeScreenSchemes,
+    // The second route to a screen. Sent whole rather than per screen: the list is bounded
+    // by transitions-that-open-a-screen, which is far smaller than the screen catalog, and
+    // the tab groups it by screen client-side to avoid a query per expanded row.
+    transitionScreens,
+    // Tri-state, not an empty list. "No workflow inventory" and "no transition opens a
+    // screen" are opposite claims, and the tab must not render the first as the second.
+    transitionsAvailable: Boolean(workflowMeta?.version),
     neverBuilt: false,
   };
 }
@@ -3331,7 +3346,13 @@ async function buildWorkflowOverview(installationKey) {
 // that has nine other pillars to show.
 async function buildScreenOverview(installationKey) {
   try {
-    const meta = await readScreenSnapshotMeta(installationKey);
+    // Both versions, because "is this screen reachable" spans two pillars: the scheme chain
+    // lives in the screen snapshot and the transitions that open a screen live in the
+    // workflow one. Without the second, reachability is unknowable rather than clean.
+    const [meta, workflowMeta] = await Promise.all([
+      readScreenSnapshotMeta(installationKey),
+      readWorkflowSnapshotMeta(installationKey).catch(() => null),
+    ]);
     if (!meta?.version) {
       return { available: false, state: meta?.state || "idle", lastError: meta?.lastError || null };
     }
@@ -3340,7 +3361,9 @@ async function buildScreenOverview(installationKey) {
       state: meta.state,
       refreshedAt: meta.refreshedAt || null,
       lastError: meta.lastError || null,
-      ...(await loadScreenGovernanceSummary(installationKey, meta.version)),
+      ...(await loadScreenGovernanceSummary(installationKey, meta.version, {
+        workflowVersion: workflowMeta?.version || null,
+      })),
     };
   } catch (error) {
     console.warn("buildScreenOverview failed:", error?.message || error);
