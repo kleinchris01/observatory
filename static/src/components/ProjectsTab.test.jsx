@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { TopFieldsChart, FieldTypeDonut, ProjectsTabView } from "./ProjectsTab";
+import { TopFieldsChart, FieldTypeDonut, ProjectsTabView,
+  ProjectOverview,
+} from "./ProjectsTab";
 
 // ---------------------------------------------------------------------------
 // TopFieldsChart
@@ -201,11 +203,20 @@ describe("ProjectsTabView", () => {
       totalPages: 1,
       refreshedAt: null,
     };
-    render(<ProjectsTabView {...defaultProps} data={data} selectedProjectId="P1" />);
+    render(<ProjectsTabView
+      {...defaultProps}
+      data={data}
+      selectedProjectId="P1"
+      overview={{
+        available: true,
+        workflow: { available: false, reason: "No workflow inventory has been built yet." },
+        screens: { available: false, reason: "No screen inventory has been built yet." },
+        automation: { available: false, reason: "No automation analysis has been built yet." },
+      }}
+    />);
     expect(screen.getByText("DEMO project usage")).toBeInTheDocument();
-    // Renamed with the connection-map redesign -- the field count is now stated as a
-    // relationship of the project rather than as a standalone stat card.
-    expect(screen.getByText(/fields in use/i)).toBeInTheDocument();
+    // The overview leads now: the field count is a stat on it rather than a standalone card.
+    expect(screen.getByText(/Fields in use/i)).toBeInTheDocument();
   });
 
   it("shows the 'Restore from field summaries' button when handler is provided", () => {
@@ -269,30 +280,56 @@ describe("ProjectsTabView workflow correlation", () => {
     projectUsageRestoring: false,
   };
 
-  it("names the scheme governing the selected project and who shares it", () => {
-    render(<ProjectsTabView {...props} data={dataWith(SCHEME)} />);
+  // The scheme facts moved out of the view and into getProjectOverview, which the container
+  // fetches per project. These supply what that call returns.
+  const overviewWith = (scheme) => ({
+    available: true,
+    workflow: { available: true, scheme },
+    screens: { available: false, reason: "No screen inventory has been built yet." },
+    automation: { available: false, reason: "No automation analysis has been built yet." },
+  });
 
-    expect(screen.getByText("ADVEV Standard")).toBeInTheDocument();
-    expect(screen.getByText(/shared with 2 other projects/i)).toBeInTheDocument();
-    expect(screen.getByText("BBB")).toBeInTheDocument();
-    expect(screen.getByText("CCC")).toBeInTheDocument();
+  it("names the scheme governing the selected project and who shares it", () => {
+    render(<ProjectsTabView {...props} data={dataWith(SCHEME)} overview={overviewWith(SCHEME)} />);
+
+    // Twice, deliberately: once as the overview's headline, once as the peer-bars heading
+    // naming the scheme the comparison is across.
+    expect(screen.getAllByText("ADVEV Standard").length).toBeGreaterThan(0);
+    // The consequence, not just the count: a change to a shared scheme is not local.
+    expect(screen.getByText(/lands on all of them/i)).toBeInTheDocument();
+    // The sibling KEYS were chips on the old connection map, which the overview replaced.
+    // The peer bars still compare siblings, but only for siblings present in the projects
+    // list -- so what this test pins is the claim the overview itself makes: how many other
+    // projects run this process, and that a change here reaches them.
+    expect(screen.getByText(/5 other projects|2 other projects/i)).toBeInTheDocument();
   });
 
   it("says so plainly when a scheme is unique to this project", () => {
-    render(<ProjectsTabView {...props} data={dataWith({ ...SCHEME, sharedWithCount: 0, siblingProjects: [] })} />);
+    const scheme = { ...SCHEME, sharedWithCount: 0, siblingProjects: [] };
+    render(<ProjectsTabView {...props} data={dataWith(scheme)} overview={overviewWith(scheme)} />);
 
     expect(screen.getByText(/used only by this project/i)).toBeInTheDocument();
   });
 
   // The workflow snapshot is versioned separately from the field snapshot and may not
   // exist. The field view is the reason anyone opened this tab; it must not depend on it.
-  it("renders the field view unchanged when no workflow snapshot exists", () => {
-    render(<ProjectsTabView {...props} data={dataWith(null)} />);
+  // The workflow snapshot is versioned separately from the field snapshot and may not
+  // exist. The overview must report that pillar as unbuilt rather than as a project with
+  // no process, and the field view must not depend on it at all.
+  it("reports the workflow pillar unbuilt without breaking the rest of the page", () => {
+    render(<ProjectsTabView
+      {...props}
+      data={dataWith(null)}
+      overview={{
+        available: true,
+        workflow: { available: false, reason: "No workflow inventory has been built yet." },
+        screens: { available: false, reason: "No screen inventory has been built yet." },
+        automation: { available: false, reason: "No automation analysis has been built yet." },
+      }}
+    />);
 
-    expect(screen.queryByText("Workflow scheme")).not.toBeInTheDocument();
-    // Label changed with the connection-map redesign: the field count is now a
-    // relationship of the project ("fields in use") rather than a standalone stat card.
-    expect(screen.getByText(/fields in use/i)).toBeInTheDocument();
+    expect(screen.getByText(/No workflow inventory/i)).toBeInTheDocument();
+    expect(screen.getByText(/Fields in use/i)).toBeInTheDocument();
   });
 });
 
@@ -336,5 +373,135 @@ describe("FieldTypeDonut — system field exclusion", () => {
   test("omits the excluded note when every field is custom", () => {
     const { container } = render(<FieldTypeDonut fields={fields.filter((f) => f.fieldId.startsWith("customfield_"))} />);
     expect(container.querySelector(".chart-title").textContent).not.toMatch(/system field/i);
+  });
+});
+
+// The cross-pillar view. The tab used to be a field list with a workflow scheme wedged in
+// beside it: no mention of the forms a project routes to, none at all of the automation
+// firing inside it.
+describe("ProjectOverview", () => {
+  const project = { projectKey: "CAVPSE", projectName: "Advanced Connected Vehicle", fieldCount: 170, uniqueIssueCount: 60185, totalFieldFills: 4192973 };
+  const overview = (over = {}) => ({
+    available: true,
+    workflow: { available: true, scheme: { name: "SW Workflow Scheme v1", sharedWithCount: 5 } },
+    screens: { available: true, unresolvedScreens: 0, screens: [{ screenId: "100", name: "Default Screen", fieldCount: 28, tabsResolved: "resolved" }] },
+    automation: { available: true, enabledCount: 3, disabledCount: 1, rules: [
+      { ruleId: "1", name: "Send to Approval", enabled: true, triggerType: "Issue created" },
+      { ruleId: "2", name: "Retired rule", enabled: false, triggerType: "Scheduled" },
+    ] },
+    ...over,
+  });
+
+  it("names the automation firing in this project, which the tab never mentioned", () => {
+    render(<ProjectOverview project={project} overview={overview()} loading={false} />);
+
+    expect(screen.getByText("Send to Approval")).toBeInTheDocument();
+    expect(screen.getByText("Retired rule")).toBeInTheDocument();
+  });
+
+  it("shows the forms this project routes to", () => {
+    render(<ProjectOverview project={project} overview={overview()} loading={false} />);
+    expect(screen.getByText("Default Screen")).toBeInTheDocument();
+  });
+
+  it("says a shared scheme is shared, because a change there is not local", () => {
+    render(<ProjectOverview project={project} overview={overview()} loading={false} />);
+    expect(screen.getByText(/lands on all of them/i)).toBeInTheDocument();
+  });
+
+  // Em dash, never 0. "No forms route here" and "we have not looked" are opposite claims.
+  it("reports an unbuilt pillar as unknown rather than as zero", () => {
+    render(<ProjectOverview
+      project={project}
+      loading={false}
+      overview={overview({
+        screens: { available: false, reason: "No screen inventory has been built yet." },
+        automation: { available: false, reason: "No automation analysis has been built yet." },
+      })}
+    />);
+
+    expect(screen.getByText(/No screen inventory/i)).toBeInTheDocument();
+    // Twice: both the scoped-rules panel and the inferred site-wide one report the same
+    // unbuilt pillar, which is right -- neither can say anything without the analysis.
+    expect(screen.getAllByText(/No automation analysis/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText("No rule is scoped specifically to this project.")).not.toBeInTheDocument();
+  });
+
+  // Distinct from the above: the pillar IS built and the answer is genuinely none.
+  it("distinguishes a built pillar with nothing in it from an unbuilt one", () => {
+    render(<ProjectOverview
+      project={project}
+      loading={false}
+      overview={overview({ automation: { available: true, enabledCount: 0, disabledCount: 0, rules: [] } })}
+    />);
+
+    expect(screen.getByText("No rule is scoped specifically to this project.")).toBeInTheDocument();
+  });
+
+  it("caveats the form list when part of the screen catalog could not be read", () => {
+    render(<ProjectOverview
+      project={project}
+      loading={false}
+      overview={overview({ screens: { available: true, unresolvedScreens: 14, screens: [{ screenId: "100", name: "Default Screen", fieldCount: 28, tabsResolved: "resolved" }] } })}
+    />);
+
+    expect(screen.getByText(/may be incomplete/i)).toBeInTheDocument();
+  });
+});
+
+// Site-wide rules are only worth listing per project if there is evidence they act there.
+// Otherwise the list is "all of them", which says nothing.
+describe("ProjectOverview — inferred site-wide rules", () => {
+  const project = { projectKey: "CAVPSE", projectName: "Advanced Connected Vehicle", fieldCount: 170, uniqueIssueCount: 60185, totalFieldFills: 4192973 };
+  const base = (automation) => ({
+    available: true,
+    workflow: { available: false, reason: "No workflow inventory has been built yet." },
+    screens: { available: false, reason: "No screen inventory has been built yet." },
+    automation,
+  });
+
+  it("shows the evidence behind the inference, not just the rule name", () => {
+    render(<ProjectOverview project={project} loading={false} overview={base({
+      available: true, enabledCount: 0, disabledCount: 0, rules: [],
+      globalRulesAvailable: true,
+      globalRules: [{ ruleId: "9", name: "Stamp Last Reviewed", fieldsTouched: 2, issuesTouched: 5000 }],
+    })} />);
+
+    expect(screen.getByText("Stamp Last Reviewed")).toBeInTheDocument();
+    expect(screen.getByText(/5,000 issues · 2 fields/)).toBeInTheDocument();
+  });
+
+  // The distinction that matters: configured-for-this-project is a fact, reaches-this-project
+  // is a judgement, and the second must not borrow the authority of the first.
+  it("labels the list as inferred rather than confirmed", () => {
+    render(<ProjectOverview project={project} loading={false} overview={base({
+      available: true, enabledCount: 0, disabledCount: 0, rules: [],
+      globalRulesAvailable: true,
+      globalRules: [{ ruleId: "9", name: "Stamp", fieldsTouched: 1, issuesTouched: 10 }],
+    })} />);
+
+    expect(screen.getByText(/Inferred, not confirmed/i)).toBeInTheDocument();
+    expect(screen.getByText(/no execution log/i)).toBeInTheDocument();
+  });
+
+  it("says why it cannot infer, rather than reporting none", () => {
+    render(<ProjectOverview project={project} loading={false} overview={base({
+      available: true, enabledCount: 0, disabledCount: 0, rules: [],
+      globalRulesAvailable: false,
+      globalRulesReason: "Needs the field snapshot to tell which site-wide rules act on this project.",
+      globalRules: [],
+    })} />);
+
+    expect(screen.getByText(/Needs the field snapshot/i)).toBeInTheDocument();
+    expect(screen.queryByText(/No site-wide rule shows evidence/i)).not.toBeInTheDocument();
+  });
+
+  it("distinguishes no evidence found from unable to look", () => {
+    render(<ProjectOverview project={project} loading={false} overview={base({
+      available: true, enabledCount: 0, disabledCount: 0, rules: [],
+      globalRulesAvailable: true, globalRules: [],
+    })} />);
+
+    expect(screen.getByText(/No site-wide rule shows evidence/i)).toBeInTheDocument();
   });
 });

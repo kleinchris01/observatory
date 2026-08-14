@@ -14,7 +14,8 @@ import {
 } from "../utils";
 import { Icon, useChartPalette } from "./Icons";
 import { SkeletonProjectItem, FindingsStrip, MetricChip } from "./FieldCard";
-import { Panel, StatRow, StatTile, BarList } from "./ui";
+import { SubNavLayout } from "./admin/primitives";
+import { Panel, StatRow, StatTile, BarList, PanelGrid, GridSpan, EmptyState, Chip, PageHeader } from "./ui";
 
 function ChartTooltip({ active, payload }) {
   if (!active || !payload?.length) return null;
@@ -138,103 +139,6 @@ export function FieldTypeDonut({ fields }) {
 // genuinely specific to this view and stay local; the three relationship tiles are
 // StatTile, because "labelled value with a qualifier" is the most-rebuilt widget in this
 // app and already has a home.
-function ProjectConnectionMap({ project, scheme, fields }) {
-  const palette = useChartPalette();
-
-  // System fields excluded for the same reason the donut excluded them: they appear on
-  // every issue in every project, so counting them describes Jira rather than this project.
-  const typeMix = React.useMemo(() => {
-    const counts = {};
-    for (const f of fields.filter((f) => isCustomField(f.fieldId))) {
-      counts[f.fieldType] = (counts[f.fieldType] || 0) + 1;
-    }
-    return Object.entries(counts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 7)
-      .map(([name, value]) => ({ name, value }));
-  }, [fields]);
-
-  const unique = project.uniqueIssueCount;
-  const fills = project.totalIssueCount;
-  const perIssue = unique > 0 ? (fills / unique) : null;
-
-  return (
-    <Panel
-      title={`${project.projectKey} · ${project.projectName}`}
-      icon="folder"
-      description="How this project connects: the process it runs, the volume it carries, and the shape of the form people fill in."
-    >
-      <StatRow>
-        <StatTile
-          label="Process"
-          icon="activity"
-          value={scheme ? scheme.name : "Not inventoried"}
-          hint={
-            scheme
-              ? (scheme.sharedWithCount > 0
-                  ? `shared with ${scheme.sharedWithCount} other ${scheme.sharedWithCount === 1 ? "project" : "projects"}`
-                  : "used only by this project")
-              : "Build the workflow inventory to connect this"
-          }
-        >
-          {/* Kept alongside the peer bars below: the bars need each sibling to resolve in
-              the projects list to show a field count, the chips only need the key. */}
-          {scheme?.siblingProjects?.length > 0 && (
-            <div className="project-cxn__peers">
-              {scheme.siblingProjects.map((sibling) => (
-                <span key={sibling.projectId} className="project-cxn__peer" title={sibling.projectName}>
-                  {sibling.projectKey}
-                </span>
-              ))}
-            </div>
-          )}
-        </StatTile>
-
-        <StatTile
-          label="Volume"
-          icon="barChart"
-          value={formatNumber(unique != null ? unique : fills)}
-          hint={
-            unique != null
-              ? `distinct issues · ${formatNumber(fills)} field values`
-              : "field values — run a universe scan for issue counts"
-          }
-        />
-
-        <StatTile
-          label="Form shape"
-          icon="layers"
-          value={formatNumber(project.fieldCount)}
-          hint={
-            perIssue != null
-              ? `fields in use · ${perIssue.toFixed(1)} per issue`
-              : "fields in use"
-          }
-        >
-          {typeMix.length > 0 && (
-            <div
-              className="project-cxn__mix"
-              role="img"
-              aria-label={typeMix.map((t) => `${t.value} ${t.name}`).join(", ")}
-            >
-              {typeMix.map((seg, i) => (
-                <span
-                  key={seg.name}
-                  className="project-cxn__mixseg"
-                  style={{ flexGrow: seg.value, background: palette[i % palette.length] }}
-                  data-tip={`${seg.name}: ${seg.value}`}
-                />
-              ))}
-            </div>
-          )}
-        </StatTile>
-      </StatRow>
-    </Panel>
-  );
-}
-
-// The comparison the workflow band used to describe and never show. Sibling field counts
-// join off the projects list already in the payload, so it costs no extra request.
 function SchemePeerBars({ scheme, project, allProjects }) {
   if (!scheme || !scheme.siblingProjects?.length) return null;
 
@@ -278,6 +182,197 @@ function SchemePeerBars({ scheme, project, allProjects }) {
 // wanted elsewhere. If neither is picked up, delete both with their tests rather than
 // leaving them to read as live code.
 
+
+// Everything that touches one project, across every pillar.
+//
+// The tab used to be a field list with a workflow scheme wedged in beside it: no mention of
+// which forms a project routes to, and none at all of the automation firing inside it. Both
+// joins existed as data and neither had a query. This is the answer to "what am I actually
+// looking at" for a project on a site nobody has audited.
+export function ProjectOverview({ project, overview, loading, fields = [] }) {
+  if (loading) return <EmptyState inline>Loading everything that touches this project…</EmptyState>;
+  if (!overview?.available) {
+    return <EmptyState inline>{overview?.reason || "This project could not be loaded."}</EmptyState>;
+  }
+
+  const { workflow, screens, automation } = overview;
+  const readableScreens = (screens?.screens || []).filter((s) => s.tabsResolved === "resolved");
+
+  // totalIssueCount is FIELD VALUES on this project; uniqueIssueCount is distinct issues.
+  // The names do not say so, which is how the previous version divided by a key that does
+  // not exist on this object and rendered NaN.
+  const fills = Number(project?.totalIssueCount);
+  const issues = Number(project?.uniqueIssueCount);
+  const hasIssueCounts = Number.isFinite(issues) && issues > 0;
+  const perIssue = hasIssueCounts && Number.isFinite(fills) ? (fills / issues).toFixed(1) : null;
+
+  return (
+    <PanelGrid>
+      <GridSpan wide>
+        <StatRow>
+          <StatTile
+            label={hasIssueCounts ? "Issues" : "Field values"}
+            value={formatNumber(hasIssueCounts ? issues : fills)}
+            icon="barChart"
+            // Never labels field values as issues. On a site with no universe scan the only
+            // figure available is fills, and calling it "issues" overstates it by roughly
+            // the median field count.
+            hint={hasIssueCounts ? "distinct issues in this project" : "field values — run a universe scan for issue counts"}
+          />
+          <StatTile label="Fields in use" value={formatNumber(project?.fieldCount ?? 0)} icon="layers" hint="with detected usage here" />
+          <StatTile
+            label="Workflow scheme"
+            value={workflow?.available ? (workflow.scheme ? "1" : "0") : "—"}
+            icon="activity"
+            hint={workflow?.available ? (workflow.scheme?.name || "none resolved") : "workflow inventory not built"}
+          />
+          {/* Em dash, never 0, for a pillar nobody has built. "No forms route here" and "we
+              have not looked" are opposite claims and only one is a finding. */}
+          <StatTile
+            label="Screens"
+            value={screens?.available ? formatNumber(readableScreens.length) : "—"}
+            icon="copy"
+            hint={screens?.available ? "forms this project routes to" : "screen inventory not built"}
+          />
+          <StatTile
+            label="Active rules"
+            value={automation?.available ? formatNumber(automation.enabledCount) : "—"}
+            icon="refreshCw"
+            tone={automation?.enabledCount > 0 ? "warning" : "neutral"}
+            hint={automation?.available ? `${formatNumber(automation.disabledCount)} disabled` : "automation analysis not built"}
+          />
+          <StatTile
+            label="Fields per issue"
+            value={perIssue ?? "—"}
+            icon="scissors"
+            hint={perIssue ? "how much of the form gets filled" : "needs a universe scan"}
+          />
+        </StatRow>
+      </GridSpan>
+
+      <GridSpan>
+        <Panel title="Process" icon="activity" description="The workflow scheme this project runs, and who else runs it.">
+          {!workflow?.available ? (
+            <EmptyState inline>{workflow?.reason}</EmptyState>
+          ) : !workflow.scheme ? (
+            <EmptyState inline>No workflow scheme resolved for this project.</EmptyState>
+          ) : (
+            <>
+              <p className="project-pillar__headline">{workflow.scheme.name}</p>
+              <p className="project-pillar__sub">
+                {workflow.scheme.sharedWithCount > 0
+                  ? `Shared with ${formatNumber(workflow.scheme.sharedWithCount)} other ${workflow.scheme.sharedWithCount === 1 ? "project" : "projects"} — a change here lands on all of them.`
+                  : "Used only by this project, so a change here is local."}
+              </p>
+            </>
+          )}
+        </Panel>
+      </GridSpan>
+
+      <GridSpan>
+        <Panel title="Forms" icon="copy" description="Screens this project routes to, through its issue type screen scheme.">
+          {!screens?.available ? (
+            <EmptyState inline>{screens?.reason}</EmptyState>
+          ) : !readableScreens.length ? (
+            <EmptyState inline>No screen scheme routes this project to a form.</EmptyState>
+          ) : (
+            <>
+              <BarList
+                items={readableScreens.slice(0, 8)}
+                labelKey="name"
+                valueKey="fieldCount"
+                formatValue={formatNumber}
+                emptyMessage="No forms resolved"
+              />
+              {screens.unresolvedScreens > 0 && (
+                <p className="project-pillar__sub">
+                  {formatNumber(screens.unresolvedScreens)} screens on this site could not be read, so this list may be incomplete.
+                </p>
+              )}
+            </>
+          )}
+        </Panel>
+      </GridSpan>
+
+      <GridSpan>
+        <Panel title="Automation" icon="refreshCw" description="Rules scoped to this project. Site-wide rules are not listed — they apply here the way they apply everywhere.">
+          {!automation?.available ? (
+            <EmptyState inline>{automation?.reason}</EmptyState>
+          ) : !automation.rules.length ? (
+            <EmptyState inline>No rule is scoped specifically to this project.</EmptyState>
+          ) : (
+            <>
+              <ul className="project-rules project-rules--scroll">
+                {automation.rules.map((rule) => (
+                  <li key={rule.ruleId} className={rule.enabled ? "project-rules__item" : "project-rules__item project-rules__item--off"}>
+                    <span className="project-rules__name">{rule.name}</span>
+                    <span className="project-rules__trigger">{rule.triggerType || "—"}</span>
+                    {!rule.enabled && <Chip tone="neutral">disabled</Chip>}
+                  </li>
+                ))}
+              </ul>
+              {/* Every rule is listed, inside a bounded scroller. Truncating to twelve made
+                  the panel disagree with the count in the tile above it; letting it run
+                  unbounded made it several times taller than its neighbours and left the
+                  grid full of holes. */}
+              <p className="project-pillar__sub">
+                {formatNumber(automation.rules.length)} {automation.rules.length === 1 ? "rule" : "rules"} scoped here.
+              </p>
+            </>
+          )}
+        </Panel>
+      </GridSpan>
+
+      <GridSpan>
+        {/* Separate panel, not merged into the one above. "Configured for this project" is a
+            fact; "we infer this reaches it" is a judgement, and running them together would
+            present the second with the authority of the first. */}
+        <Panel
+          title="Site-wide rules reaching this project"
+          icon="refreshCw"
+          description="Enabled rules with no project scope that write a field this project uses, where those values changed in the last 90 days."
+        >
+          {!automation?.available ? (
+            <EmptyState inline>{automation?.reason}</EmptyState>
+          ) : !automation.globalRulesAvailable ? (
+            <EmptyState inline>{automation.globalRulesReason}</EmptyState>
+          ) : !automation.globalRules.length ? (
+            <EmptyState inline>No site-wide rule shows evidence of writing to this project recently.</EmptyState>
+          ) : (
+            <>
+              <ul className="project-rules">
+                {automation.globalRules.slice(0, 10).map((rule) => (
+                  <li key={rule.ruleId} className="project-rules__item">
+                    <span className="project-rules__name">{rule.name}</span>
+                    {/* The evidence, so the inference can be judged rather than trusted. */}
+                    <span className="project-rules__trigger">
+                      {formatNumber(rule.issuesTouched)} issues · {formatNumber(rule.fieldsTouched)} {rule.fieldsTouched === 1 ? "field" : "fields"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="project-pillar__sub">
+                Inferred, not confirmed. Jira exposes no execution log to an app, so this is
+                evidence that something wrote these fields here — not proof it was these rules.
+                Fields are matched by name, so a rule writing a name this site uses twice
+                matches both.
+              </p>
+            </>
+          )}
+        </Panel>
+      </GridSpan>
+
+      <GridSpan>
+        {/* Was "Form shape": a stacked colour bar with no legend and no explanation of what
+            it stacked. It was field TYPE mix, which the label never said. */}
+        <Panel title="Field types in use" icon="layers" description="What the form is made of. A project that is mostly text fields reports differently from one that is mostly select lists.">
+          <FieldTypeDonut fields={fields} />
+        </Panel>
+      </GridSpan>
+    </PanelGrid>
+  );
+}
+
 export function ProjectsTabView({
   data,
   loading,
@@ -295,7 +390,12 @@ export function ProjectsTabView({
   onChangePage,
   onRestoreProjectUsageCache,
   projectUsageRestoring,
+  overview,
+  overviewLoading,
 }) {
+  // Overview first: on a project you have never looked at, what runs it matters before
+  // which 170 fields it carries.
+  const [view, setView] = React.useState("overview");
   const projects = data?.projects || [];
   const selectedProject = data?.selectedProject || null;
   const fields = data?.fields || [];
@@ -429,18 +529,34 @@ export function ProjectsTabView({
                 * The donut became the inline type strip -- same information, a tenth of
                   the space, and adjacent to the field count it qualifies.
               */}
-              <ProjectConnectionMap
-                project={selectedProject}
-                scheme={data?.workflowScheme}
-                fields={fields}
-              />
-
-              <SchemePeerBars
-                scheme={data?.workflowScheme}
-                project={selectedProject}
-                allProjects={projects}
-              />
-
+              {/* Overview and Fields, as sub-navigation, matching every other tab. The old
+                  page was one column: connection map, peer bars, filters, then a field list
+                  that ran for screens -- so the cross-pillar context scrolled away the
+                  moment you started reading fields. */}
+              <SubNavLayout
+                items={[
+                  { key: "overview", label: "Overview", icon: "barChart" },
+                  { key: "fields", label: "Fields", icon: "layers", badge: formatNumber(totalFields) },
+                ]}
+                activeKey={view}
+                onSelect={setView}
+              >
+              {view === "overview" ? (
+                <>
+                  <ProjectOverview
+                    project={selectedProject}
+                    overview={overview}
+                    loading={overviewLoading}
+                    fields={fields}
+                  />
+                  <SchemePeerBars
+                    scheme={data?.workflowScheme}
+                    project={selectedProject}
+                    allProjects={projects}
+                  />
+                </>
+              ) : (
+                <>
               <section className="report-filters">
                 <label className="toolbar__field">
                   <span>Field search</span>
@@ -551,6 +667,9 @@ export function ProjectsTabView({
                   </button>
                 </div>
               </section>
+                </>
+              )}
+              </SubNavLayout>
             </>
           ) : (
             <div className="empty-state">No cached projects are available yet. Build project usage for at least one field first.</div>

@@ -596,6 +596,16 @@ export function buildRuleDirectory(summaries = []) {
     // Array of tuples rather than objects: over 1,477 rules the repeated key names cost more
     // than the data. Rehydrated by the UI on load.
     rules: summaries.map((s) => [s.id, s.name, s.enabled ? 1 : 0, s.triggerType ?? "", s.projectIds.length]),
+    // The project ids themselves, which used to be computed on every import and then thrown
+    // away -- only their count survived, as the fifth tuple position. That discard is the
+    // whole reason the Projects tab could not say a word about automation.
+    //
+    // Rules scoped to the whole site are omitted rather than listed against every project:
+    // site-wide is a different fact from "scoped to all 200 of them", and materialising it
+    // per project would both lie about that and dwarf the document.
+    projects: summaries
+      .filter((s) => (s.projectIds ?? []).length > 0)
+      .map((s) => [s.id, ...s.projectIds]),
   };
 }
 

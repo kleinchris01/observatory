@@ -264,6 +264,33 @@ export const CREATE_AUTOMATION_RULES_TABLE = `
   )
 `;
 
+// Which projects each rule is scoped to.
+//
+// summary.projectIds has been computed on every import since cascades needed it -- scope
+// overlap is what stops a rule in one project being reported as triggering a rule in
+// another -- and then only its LENGTH was kept, as automation_rules.project_count. The ids
+// were discarded, which is the entire reason the Projects tab could not say a word about
+// automation: the join existed in memory for the duration of one import and was never
+// written down.
+//
+// A rule scoped to the whole site has no rows here rather than a row per project. Site-wide
+// is a different fact from "scoped to all 200 of them", and materialising 200 rows per
+// global rule would both lie about that and dwarf the table.
+export const CREATE_AUTOMATION_RULE_PROJECTS_TABLE = `
+  CREATE TABLE IF NOT EXISTS automation_rule_projects (
+    scope_key VARCHAR(191) NOT NULL,
+    rule_id VARCHAR(64) NOT NULL,
+    project_id VARCHAR(64) NOT NULL,
+    PRIMARY KEY (scope_key, rule_id, project_id)
+  )
+`;
+
+// The direction the Projects tab reads in: given a project, which rules touch it.
+export const CREATE_AUTOMATION_RULE_PROJECTS_BY_PROJECT_INDEX = `
+  CREATE INDEX IF NOT EXISTS idx_automation_rule_projects_project
+    ON automation_rule_projects (scope_key, project_id)
+`;
+
 // Findings per rule. Paginating these was the reason the analysis document grew a preview
 // alongside a full list; in SQL the preview is just a LIMIT.
 export const CREATE_AUTOMATION_FINDINGS_TABLE = `
@@ -366,6 +393,61 @@ export const CREATE_SNAPSHOT_WORKFLOW_STATUSES_TABLE = `
     scheme_id VARCHAR(191) NOT NULL,
     status_id VARCHAR(191) NOT NULL,
     PRIMARY KEY (scope_key, version, scheme_id, status_id)
+  )
+`;
+
+// The site health score, once per day, with every dimension it was made of.
+//
+// The point of the score was never the number -- it was whether cleaning something up moved
+// it. That question needs a series, and a series cannot be back-filled: a day without a row
+// is a hole in the record forever. So this records early and cheaply rather than waiting for
+// a chart to justify it.
+//
+// Keyed on the DAY rather than a timestamp, upserted. An admin who fixes something and
+// rebuilds three times in an afternoon wants the afternoon's best state on the chart, not
+// three points of noise -- and a year of daily rows is 365, which is a rounding error.
+//
+// dimensions_json holds {key: score} for every scored dimension. Stored as a blob rather
+// than a column per dimension because the dimension list grows (ten to thirteen in one
+// change), and a schema migration per new metric would guarantee the history stops the day
+// somebody adds one.
+export const CREATE_HEALTH_HISTORY_TABLE = `
+  CREATE TABLE IF NOT EXISTS health_history (
+    scope_key VARCHAR(191) NOT NULL,
+    measured_on VARCHAR(10) NOT NULL,
+    measured_at VARCHAR(64) NOT NULL,
+    score INTEGER NULL,
+    grade VARCHAR(2) NULL,
+    dimensions_scored INTEGER NOT NULL DEFAULT 0,
+    dimensions_total INTEGER NOT NULL DEFAULT 0,
+    dimensions_json TEXT NULL,
+    PRIMARY KEY (scope_key, measured_on)
+  )
+`;
+
+// One row per scope tracking a full scan through its stages.
+//
+// The pipelines it drives already existed and were already queue jobs; what was missing was
+// anything on top of them. An admin had to know that a "Universe Scan" scans issues but not
+// screens, that the workflow inventory is a different button on a different tab, and that
+// running them out of order leaves the tabs disagreeing with each other. Five things to
+// sequence by hand is a checklist, not a scan.
+//
+// stages_json holds [{key, state, startedAt, completedAt, error}] rather than a column per
+// stage, for the same reason health history stores dimensions as a blob: the stage list will
+// grow, and a migration per stage would guarantee a half-written schema the first time one
+// is added.
+export const CREATE_FULL_SCAN_META_TABLE = `
+  CREATE TABLE IF NOT EXISTS full_scan_meta (
+    scope_key VARCHAR(191) NOT NULL,
+    state VARCHAR(32) NOT NULL DEFAULT 'idle',
+    job_token VARCHAR(96) NULL,
+    current_stage VARCHAR(32) NULL,
+    stages_json LONGTEXT NULL,
+    started_at VARCHAR(64) NULL,
+    completed_at VARCHAR(64) NULL,
+    last_error TEXT NULL,
+    PRIMARY KEY (scope_key)
   )
 `;
 
@@ -722,7 +804,19 @@ const projectStoreMigrations = migrationRunner
   .enqueue("v064_create_snapshot_itss_projects_by_project_index", CREATE_SNAPSHOT_ITSS_PROJECTS_BY_PROJECT_INDEX)
   .enqueue("v065_create_screen_snapshot_meta_table", CREATE_SCREEN_SNAPSHOT_META_TABLE)
   .enqueue("v066_create_transition_screens_table", CREATE_SNAPSHOT_TRANSITION_SCREENS_TABLE)
-  .enqueue("v067_create_transition_screens_by_screen_index", CREATE_SNAPSHOT_TRANSITION_SCREENS_BY_SCREEN_INDEX);
+  .enqueue("v067_create_transition_screens_by_screen_index", CREATE_SNAPSHOT_TRANSITION_SCREENS_BY_SCREEN_INDEX)
+  // v066 and v067 keep the transition tables' names: they already ran on development under
+  // them, and the runner keys on the name. Rebinding v066 to a different table would make
+  // it look applied and silently skip creating this one.
+  .enqueue("v068_create_health_history_table", CREATE_HEALTH_HISTORY_TABLE)
+  .enqueue("v069_create_full_scan_meta_table", CREATE_FULL_SCAN_META_TABLE)
+  .enqueue("v070_create_automation_rule_projects_table", CREATE_AUTOMATION_RULE_PROJECTS_TABLE)
+  .enqueue("v071_create_automation_rule_projects_by_project_index", CREATE_AUTOMATION_RULE_PROJECTS_BY_PROJECT_INDEX)
+  // NULL, not 0: a snapshot built before transition capture existed never looked, and
+  // that is a different fact from having looked and found none. Without this column the
+  // two are indistinguishable, and the tab reported the first as the second.
+  .enqueue("v072_alter_workflow_meta_add_transition_screens",
+    "ALTER TABLE workflow_snapshot_meta ADD COLUMN IF NOT EXISTS transition_screens INTEGER NULL");
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history

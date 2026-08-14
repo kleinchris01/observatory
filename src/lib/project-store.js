@@ -11,6 +11,7 @@
 export * from "./store/core.js";
 export * from "./store/audit.js";
 export * from "./store/reports.js";
+export * from "./store/health.js";
 export * from "./store/rqt.js";
 export * from "./store/scan.js";
 export * from "./store/screen.js";

@@ -13,7 +13,6 @@ import { isSelectFieldType } from "./analysis.js";
 // ----- Constants -----
 
 export const DEFAULT_PAGE_SIZE = 100;
-export const INVENTORY_PAGE_SIZE = 10;
 export const PROJECT_USAGE_PAGE_SIZE = 12;
 export const PROJECTS_VIEW_PAGE_SIZE = 24;
 export const PROJECT_USAGE_ISSUE_SCAN_PAGE_SIZE = 100;
@@ -27,7 +26,6 @@ export const BASE_JIRA_REQUEST_INTERVAL_MS = 180;
 export const MAX_JIRA_REQUEST_INTERVAL_MS = 1500;
 export const BASE_JIRA_CONCURRENCY = 4;
 export const JIRA_REQUEST_HARD_TIMEOUT_MS = 12000; // safety net — ensures jiraInflight always decrements
-export const SNAPSHOT_QUEUE_KEY = "inventory-snapshot-queue";
 export const SNAPSHOT_CONCURRENCY = 4;
 export const SNAPSHOT_STALE_AFTER_MS = 6 * 60 * 60 * 1000;
 export const SNAPSHOT_PROGRESS_FLUSH_INTERVAL_MS = 15000;

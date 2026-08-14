@@ -14,7 +14,7 @@
 import { kvs } from "@forge/kvs";
 import { sql } from "@forge/sql";
 import { fallbackOn } from "../logger.js";
-import { ensureProjectStoreReady, withSqlRetry } from "./core.js";
+import { ensureProjectStoreReady, toNumber, withSqlRetry } from "./core.js";
 
 // The document's shape and its size caps live in the analysis module, which imports
 // nothing and can therefore be used from the frontend bundle too. Re-exported here so
@@ -166,13 +166,128 @@ export async function replaceAutomationRules(scopeKey, directory) {
     triggerType || null,
     Number(projectCount) || 0,
   ]);
-  return replaceRows(
+  const written = await replaceRows(
     scopeKey,
     "automation_rules",
     ["scope_key", "rule_id", "name", "enabled", "trigger_type", "project_count"],
     rows,
     REF_BATCH
   );
+
+  // The scope rows, from the same document. Written here rather than as their own import
+  // part so a directory save can never leave the two disagreeing about which rules exist.
+  const projectRows = [];
+  for (const [ruleId, ...projectIds] of directory?.projects ?? []) {
+    for (const projectId of projectIds) projectRows.push([scopeKey, String(ruleId), String(projectId)]);
+  }
+  const projectsWritten = await replaceRows(
+    scopeKey,
+    "automation_rule_projects",
+    ["scope_key", "rule_id", "project_id"],
+    projectRows,
+    REF_BATCH
+  );
+
+  return written + projectsWritten;
+}
+
+// Site-wide rules with evidence that they actually act on one project.
+//
+// A rule scoped to the whole site applies to every project by definition, which makes
+// "site-wide rules affecting this project" a useless list if it just means all of them.
+// What makes it useful is evidence, and there is a real chain for it:
+//
+//   the rule WRITES a field  ->  that field has populated issues in THIS project
+//                            ->  and those values changed recently
+//
+// Enabled rules only. A disabled rule cannot be updating anything, and listing one here
+// under the heading "actively updating this project" would be plainly false.
+//
+// Two honest limits, both surfaced to the caller rather than buried:
+//
+//   1. automation_references stores the field NAME, not its id, so the join to the field
+//      catalog is by name. This site has 34 groups of fields sharing a name, so a rule
+//      writing "Owner" matches every field called "Owner". Over-matching, not under.
+//   2. Recency comes from when the field's values last changed in this project, which is
+//      evidence that SOMETHING wrote them -- not proof it was this rule. Jira exposes no
+//      execution log to an app, so proof is not available at any price.
+//
+// It is inference. It is labelled as inference where it renders.
+export async function loadGlobalRulesAffectingProject(scopeKey, version, projectId, { activeSinceDays = 90, limit = 25 } = {}) {
+  await ensureProjectStoreReady();
+  const capped = Math.max(1, Math.min(100, Math.trunc(Number(limit)) || 25));
+  const since = new Date(Date.now() - Math.max(1, activeSinceDays) * 24 * 60 * 60 * 1000).toISOString();
+
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT
+        r.rule_id, r.name, r.trigger_type,
+        COUNT(DISTINCT pu.field_id) AS fields_touched,
+        SUM(pu.issue_count) AS issues_touched,
+        MAX(pu.latest_field_change_at) AS last_change
+      FROM automation_references ref
+      JOIN automation_rules r
+        ON r.scope_key = ref.scope_key AND r.rule_id = ref.rule_id
+      JOIN snapshot_fields sf
+        ON sf.scope_key = ref.scope_key AND sf.version = ? AND LOWER(sf.name) = LOWER(ref.label)
+      JOIN snapshot_project_usage pu
+        ON pu.scope_key = sf.scope_key AND pu.version = sf.version
+       AND pu.field_id = sf.field_id AND pu.project_id = ?
+      WHERE ref.scope_key = ?
+        AND ref.kind = 'field'
+        AND ref.direction = 'write'
+        AND r.enabled = 1
+        AND pu.issue_count > 0
+        AND pu.latest_field_change_at IS NOT NULL
+        AND pu.latest_field_change_at >= ?
+        AND NOT EXISTS (
+          SELECT 1 FROM automation_rule_projects arp
+          WHERE arp.scope_key = ref.scope_key AND arp.rule_id = ref.rule_id
+        )
+      GROUP BY r.rule_id, r.name, r.trigger_type
+      ORDER BY issues_touched DESC, r.rule_id ASC
+      LIMIT ${capped}
+    `).bindParams(version, String(projectId), scopeKey, since).execute()
+  );
+
+  return (result.rows || []).map((row) => ({
+    ruleId: row.rule_id,
+    name: row.name || row.rule_id,
+    triggerType: row.trigger_type || null,
+    // The evidence itself, so a reader can judge the inference rather than trust it.
+    fieldsTouched: toNumber(row.fields_touched),
+    issuesTouched: toNumber(row.issues_touched),
+    lastChangeAt: row.last_change || null,
+  }));
+}
+
+// Which rules touch one project, and how.
+//
+// The join the Projects tab needed and could not make. Site-wide rules are deliberately not
+// returned: they apply to this project the way they apply to every project, and folding them
+// in would make every project look like it carries the whole estate.
+export async function loadRulesForProject(scopeKey, projectId, { limit = 100 } = {}) {
+  await ensureProjectStoreReady();
+  const capped = Math.max(1, Math.min(500, Math.trunc(Number(limit)) || 100));
+
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT r.rule_id, r.name, r.enabled, r.trigger_type
+      FROM automation_rule_projects p
+      JOIN automation_rules r
+        ON r.scope_key = p.scope_key AND r.rule_id = p.rule_id
+      WHERE p.scope_key = ? AND p.project_id = ?
+      ORDER BY r.enabled DESC, r.name ASC
+      LIMIT ${capped}
+    `).bindParams(scopeKey, String(projectId)).execute()
+  );
+
+  return (result.rows || []).map((row) => ({
+    ruleId: row.rule_id,
+    name: row.name || row.rule_id,
+    enabled: toNumber(row.enabled) === 1,
+    triggerType: row.trigger_type || null,
+  }));
 }
 
 export async function replaceAutomationFindings(scopeKey, findingsDocument) {
@@ -204,6 +319,52 @@ export async function replaceAutomationFindings(scopeKey, findingsDocument) {
 // Returns every reference, with the rule's name and state alongside. `total` is a count,
 // not the length of a truncated array, so a caller can page without ever being told a
 // smaller number than the truth.
+// Which of these statuses an automation rule actually references.
+//
+// The Workflows tab has carried a blanket caveat since before the automation pillar
+// existed: "Automation rules are not included. Jira does not expose them to Forge apps, so
+// a rule could still reference a status shown here." That was true then. It has not been
+// true since rule exports started being imported and shredded into automation_references,
+// where every status a rule reads, writes or transitions to is a row.
+//
+// A warning that applies to every row tells a reader nothing about any row. This answers it
+// per status, so "never used" can mean what it says -- and the statuses a rule DOES touch
+// stop hiding inside a caveat nobody can act on.
+//
+// Batched: the unreachable list runs to 67 statuses on the reference site, and asking per
+// status is 67 round trips to render one panel.
+export async function loadStatusAutomationReferences(scopeKey, labels = []) {
+  await ensureProjectStoreReady();
+  const names = [...new Set((labels || []).map((l) => String(l || "").trim()).filter(Boolean))];
+  if (!names.length) return {};
+
+  const out = {};
+  // Chunked against the bind-parameter ceiling, like every other IN-list in this codebase.
+  for (let i = 0; i < names.length; i += 100) {
+    const batch = names.slice(i, i + 100);
+    const placeholders = batch.map(() => "LOWER(?)").join(", ");
+    const result = await withSqlRetry(() =>
+      sql.prepare(`
+        SELECT LOWER(r.label) AS label,
+               COUNT(DISTINCT r.rule_id) AS rule_count,
+               COUNT(DISTINCT CASE WHEN a.enabled = 1 THEN r.rule_id END) AS enabled_count
+        FROM automation_references r
+        LEFT JOIN automation_rules a
+          ON a.scope_key = r.scope_key AND a.rule_id = r.rule_id
+        WHERE r.scope_key = ? AND r.kind = 'status' AND LOWER(r.label) IN (${placeholders})
+        GROUP BY LOWER(r.label)
+      `).bindParams(scopeKey, ...batch).execute()
+    );
+    for (const row of result.rows || []) {
+      out[String(row.label)] = {
+        ruleCount: toNumber(row.rule_count),
+        enabledRuleCount: toNumber(row.enabled_count),
+      };
+    }
+  }
+  return out;
+}
+
 export async function loadAutomationReferencesFor(scopeKey, kind, label, limit = 200) {
   await ensureProjectStoreReady();
   // Forge's SQL dialect will not bind LIMIT as a parameter, so it is interpolated -- which

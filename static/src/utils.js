@@ -62,17 +62,6 @@ export function formatRelativeTime(value) {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
-export function formatRelativeOrAbsoluteTime(value) {
-  if (!value) return "No recent update";
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(value));
-  } catch {
-    return String(value);
-  }
-}
 
 export function formatContextList(values, fallback) {
   return values?.length ? values.join(", ") : fallback;
@@ -472,4 +461,116 @@ export function buildReportRovoPrompt({ reportName, fields, projects, pendingFie
 // not -- and on a small project they can outnumber the real custom fields.
 export function isCustomField(fieldId) {
   return String(fieldId || "").startsWith("customfield_");
+}
+
+
+// ── Client-side table controls ──────────────────────────────────────────────
+//
+// The in-memory half of the shared SortFilterBar. Tabs that load a whole document (RQT,
+// Automation, Workflows, Project Usage) run their rows through this; the two server-paged
+// tabs push the same values into a resolver instead, because sorting a page of 25 out of
+// 1,612 rows sorts the wrong thing.
+//
+// Kept here rather than inside the component so the two halves cannot disagree about what
+// "name-asc" means, and so the ordering is testable without rendering anything.
+
+// Dotted paths so a caller can search or sort on a nested value ("meta.owner") without
+// flattening its rows first.
+function readPath(row, path) {
+  if (row == null) return undefined;
+  if (!String(path).includes(".")) return row[path];
+  return String(path).split(".").reduce((value, key) => (value == null ? undefined : value[key]), row);
+}
+
+// Case-insensitive and undefined-safe: a row missing the key must not match every search,
+// and must not throw.
+//
+// Deliberately not accent-folding. Doing it properly needs a combining-mark range in the
+// source, which is invisible in review and does not survive every editor intact -- and Jira
+// field and status names on the sites this runs against are overwhelmingly ASCII. If that
+// stops being true, normalize("NFKD") plus a ̀-ͯ strip is the change.
+function haystack(value) {
+  if (value == null) return "";
+  return String(value).toLowerCase();
+}
+
+export function matchesSearch(row, term, searchKeys = []) {
+  const needle = haystack(term).trim();
+  if (!needle) return true;
+  return searchKeys.some((key) => haystack(readPath(row, key)).includes(needle));
+}
+
+// Numbers before strings, nulls last regardless of direction.
+//
+// Nulls-last in BOTH directions is the deliberate part: flipping a sort should reorder the
+// rows that have a value, not promote the ones that are missing it to the top. A table
+// sorted "most issues first" that shows unmeasured rows first is worse than unsorted.
+export function compareValues(a, b, dir = "asc") {
+  const missingA = a == null || a === "";
+  const missingB = b == null || b === "";
+  if (missingA && missingB) return 0;
+  if (missingA) return 1;
+  if (missingB) return -1;
+
+  const numA = typeof a === "number" ? a : Number(a);
+  const numB = typeof b === "number" ? b : Number(b);
+  const bothNumeric = Number.isFinite(numA) && Number.isFinite(numB);
+
+  const result = bothNumeric
+    ? numA - numB
+    : String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: "base" });
+
+  return dir === "desc" ? -result : result;
+}
+
+// `sort` is a "<key>-<dir>" token, matching the values the SortFilterBar's options use and
+// the tokens the resolvers accept, so one string travels from the select to either engine.
+export function parseSortToken(token, fallback = { key: null, dir: "asc" }) {
+  const raw = String(token ?? "").trim();
+  if (!raw) return fallback;
+  const index = raw.lastIndexOf("-");
+  if (index <= 0) return { key: raw, dir: "asc" };
+  const dir = raw.slice(index + 1);
+  if (dir !== "asc" && dir !== "desc") return { key: raw, dir: "asc" };
+  return { key: raw.slice(0, index), dir };
+}
+
+// Returns a NEW array; never sorts in place. Sorting the caller's array mutates React state
+// held elsewhere, which is the kind of bug that only shows up as a list that will not
+// re-render.
+export function applyTableControls(rows = [], {
+  search = "",
+  searchKeys = [],
+  sort = "",
+  sortKeys = {},
+  filters = [],
+  allValue = "all",
+} = {}) {
+  let out = Array.isArray(rows) ? rows : [];
+
+  if (String(search ?? "").trim() && searchKeys.length) {
+    out = out.filter((row) => matchesSearch(row, search, searchKeys));
+  }
+
+  for (const filter of filters) {
+    const value = filter?.value;
+    if (value == null || value === "" || value === (filter.allValue ?? allValue)) continue;
+    out = filter.predicate
+      ? out.filter((row) => filter.predicate(row, value))
+      : out.filter((row) => String(readPath(row, filter.key)) === String(value));
+  }
+
+  const { key, dir } = parseSortToken(sort);
+  if (key) {
+    // A sortKeys entry may be an accessor function or a path string; anything else falls
+    // back to the key itself, so a sort token with no mapping still orders by that field
+    // rather than silently doing nothing.
+    const accessor = sortKeys[key];
+    const read = typeof accessor === "function" ? accessor : (row) => readPath(row, accessor || key);
+    out = [...out].sort((a, b) => compareValues(read(a), read(b), dir));
+  } else if (out === rows) {
+    out = [...out];
+  }
+
+  return out;
 }

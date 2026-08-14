@@ -100,12 +100,27 @@ import {
   loadIssueTypeScreenSchemes,
   loadScreenGovernanceSummary,
   loadScreenCountsForFields,
+  loadScreenDistributions,
+  loadScreensForProject,
+  DEFAULT_SCREEN_SORT,
+  SCREEN_SORT_KEYS,
+  recordHealthSnapshot,
+  loadHealthHistory,
   loadTransitionScreens,
 } from "./lib/project-store.js";
 import { queueWorkflowSnapshotBuild, isWorkflowBuildStale, queueStatusHistoryBuild } from "./lib/workflow-engine.js";
 import { measureScreenFetchCost, probeScreenEndpoints, DEFAULT_SAMPLE_SIZE } from "./lib/screen-probe.js";
 import { queueScreenSnapshotBuild, isScreenBuildStale } from "./lib/screen-engine.js";
 import { computeSiteHealth, DEFAULT_HEALTH_TOLERANCES } from "./lib/health-score.js";
+// Moved out of this file so a scan can record a measurement without importing the
+// resolver layer. Same implementation, both callers.
+import {
+  buildFieldUsageInsights,
+  buildProjectInsights,
+  buildWorkflowOverview,
+  buildScreenOverview,
+  attachUniqueIssueCounts,
+} from "./lib/site-health.js";
 import { probeEndpoint, probeStargateEndpoint, getCloudId, getAllJiraProjects } from "./lib/jira-api.js";
 import {
   findDuplicateStatusGroups,
@@ -120,6 +135,9 @@ import {
   writeAutomationPart,
   replaceAutomationReferences,
   replaceAutomationRules,
+  loadRulesForProject,
+  loadStatusAutomationReferences,
+  loadGlobalRulesAffectingProject,
   replaceAutomationFindings,
   loadAutomationReferencesFor,
   AUTOMATION_PARTS,
@@ -724,6 +742,29 @@ async function getWorkflowInsights({ context }) {
       ? computeSchemeCategoryBalance(schemes, schemeStatuses, statuses)
       : [];
 
+    // Which of these statuses an automation rule actually references.
+    //
+    // The tab has carried a blanket caveat since before the automation pillar existed:
+    // "Automation rules are not included. Jira does not expose them to Forge apps." That
+    // was true then; it stopped being true when rule exports started being shredded into
+    // automation_references, where every status a rule reads, writes or transitions to is a
+    // row. A warning that applies to every status tells a reader nothing about any status.
+    //
+    // Best-effort: no automation analysis means the caveat is still the honest answer, so
+    // failure here degrades to the old warning rather than to a false all-clear.
+    const orphanPage = orphans.slice(0, 200);
+    let automationByStatus = null;
+    try {
+      automationByStatus = await loadStatusAutomationReferences(
+        installationKey,
+        orphanPage.map((o) => o.name).filter(Boolean)
+      );
+    } catch (error) {
+      logger.warn("workflow-insights.status_automation_lookup_failed", {
+        installationKey, error: String(error?.message || error),
+      });
+    }
+
     return {
       available: true,
       schemeStatusesAvailable,
@@ -741,7 +782,19 @@ async function getWorkflowInsights({ context }) {
           everCount: hasHistoryCounts ? (history.counts.get(String(s.statusId ?? s.id)) ?? null) : null,
         })),
       })),
-      orphans: orphans.slice(0, 200),
+      orphans: orphanPage.map((orphan) => {
+        const refs = automationByStatus?.[String(orphan.name || "").toLowerCase()] || null;
+        return {
+          ...orphan,
+          // null when no automation analysis exists -- the caveat still applies to this
+          // status. A number means we checked it specifically.
+          automationRuleCount: automationByStatus ? (refs?.ruleCount ?? 0) : null,
+          automationEnabledRuleCount: automationByStatus ? (refs?.enabledRuleCount ?? 0) : null,
+        };
+      }),
+      // Whether the per-status answer is available at all, so the tab can drop the blanket
+      // warning rather than showing it alongside evidence that contradicts it.
+      automationChecked: Boolean(automationByStatus),
       balance: balance.slice(0, 100),
       statusTotals: {
         catalogCount: statuses.length,
@@ -811,15 +864,21 @@ async function getScreenInventory({ payload, context }) {
   // rebuild independently, so this is resolved per request rather than assumed to match.
   const workflowMeta = await readWorkflowSnapshotMeta(installationKey).catch(() => null);
 
-  const [screens, screenSchemes, schemeOperations, issueTypeScreenSchemes, transitionScreens] = await Promise.all([
+  const [screens, screenSchemes, schemeOperations, issueTypeScreenSchemes, distributions, governance, transitionScreens] = await Promise.all([
     loadScreensPage(installationKey, meta.version, {
       limit: pageSize,
       offset: (page - 1) * pageSize,
       search,
+      // Passed straight through; the store whitelists it. Sorting has to happen in SQL
+      // because the tab shows 25 of ~760 screens -- sorting the page in the browser would
+      // reorder an arbitrary slice and present it as the top of the catalog.
+      sort: optionalString(payload?.sort, "sort") || DEFAULT_SCREEN_SORT,
     }),
     loadScreenSchemes(installationKey, meta.version),
     loadScreenSchemeOperations(installationKey, meta.version),
     loadIssueTypeScreenSchemes(installationKey, meta.version),
+    loadScreenDistributions(installationKey, meta.version),
+    loadScreenGovernanceSummary(installationKey, meta.version, { workflowVersion: workflowMeta?.version || null }),
     workflowMeta?.version
       ? loadTransitionScreens(installationKey, workflowMeta.version)
       : Promise.resolve([]),
@@ -841,6 +900,9 @@ async function getScreenInventory({ payload, context }) {
     lastError: meta.lastError || null,
     page,
     pageSize,
+    // Echoed back so the toolbar reflects what the rows were actually ordered by,
+    // including when an unrecognised token fell back to the default.
+    sort: SCREEN_SORT_KEYS.includes(String(payload?.sort || "")) ? String(payload.sort) : DEFAULT_SCREEN_SORT,
     screens,
     screenSchemes,
     schemeOperations,
@@ -848,10 +910,18 @@ async function getScreenInventory({ payload, context }) {
     // The second route to a screen. Sent whole rather than per screen: the list is bounded
     // by transitions-that-open-a-screen, which is far smaller than the screen catalog, and
     // the tab groups it by screen client-side to avoid a query per expanded row.
+    // Aggregates for the tab's own overview, so it stops being a list with no summary.
+    distributions,
+    governance,
     transitionScreens,
-    // Tri-state, not an empty list. "No workflow inventory" and "no transition opens a
-    // screen" are opposite claims, and the tab must not render the first as the second.
-    transitionsAvailable: Boolean(workflowMeta?.version),
+    // Three states, not two. A workflow snapshot EXISTING is not the same as that snapshot
+    // having looked for transition screens: every inventory built before the capture shipped
+    // has none recorded, and reporting that as "no transition opens a screen" states a fact
+    // the build never established. transitionScreens is null on those, a number on the rest.
+    transitionsAvailable: workflowMeta?.transitionScreens != null,
+    transitionsReason: workflowMeta?.version && workflowMeta.transitionScreens == null
+      ? "This workflow inventory was built before transition capture existed. Rebuild it from the Workflows tab to see which screens transitions open."
+      : null,
     neverBuilt: false,
   };
 }
@@ -3098,279 +3168,6 @@ const EMPTY_DASHBOARD = {
   projects: { totalProjects: 0, topByIssueVolume: [], topByFieldCount: [] },
 };
 
-// Top finding-type/field-type breakdowns are capped -- Overview is a glance-level
-// summary, not the full Field Browser, and shipping ~1500 hydrated fields' worth of
-// distinct titles/types to the client would dwarf the rest of the payload for no benefit.
-const DASHBOARD_TOP_N = 8;
-
-function buildFieldUsageInsights(hydratedFields) {
-  const findingsBySeverity = { high: 0, medium: 0, low: 0 };
-  const findingsByTitle = new Map();
-  const fieldTypeCounts = new Map();
-  const origin = { builtin: 0, appProvided: 0, custom: 0 };
-  const nameGroups = new Map();
-
-  for (const f of hydratedFields) {
-    for (const reason of f.findings?.reasons || []) {
-      if (reason.severity in findingsBySeverity) findingsBySeverity[reason.severity]++;
-      findingsByTitle.set(reason.title, (findingsByTitle.get(reason.title) || 0) + 1);
-    }
-
-    const typeLabel = f.type || "Unknown";
-    fieldTypeCounts.set(typeLabel, (fieldTypeCounts.get(typeLabel) || 0) + 1);
-
-    if (!f.isSystemField) {
-      if (f.isJiraBuiltin) origin.builtin++;
-      else if (isLikelyAppProvidedField(f)) origin.appProvided++;
-      else origin.custom++;
-    }
-
-    nameGroups.set(normalizeFieldName(f.name), (nameGroups.get(normalizeFieldName(f.name)) || 0) + 1);
-  }
-
-  const findingsByType = [...findingsByTitle.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, DASHBOARD_TOP_N)
-    .map(([title, count]) => ({ title, count }));
-
-  const fieldTypeBreakdown = [...fieldTypeCounts.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, DASHBOARD_TOP_N)
-    .map(([type, count]) => ({ type, count }));
-
-  const duplicateClusters = [...nameGroups.values()].filter((n) => n > 1).length;
-
-  return {
-    totalFields: hydratedFields.length,
-    findingsBySeverity,
-    findingsByType,
-    fieldTypeBreakdown,
-    origin,
-    duplicateClusters,
-  };
-}
-
-// Attach the distinct-issue count per project, where the Universal Scan has measured one.
-//
-// listSnapshotProjects returns SUM(issue_count) over snapshot_project_usage, which holds
-// one row per field x project. That sum is FIELD FILLS, not issues: an issue carrying 90
-// populated fields contributes 90. On a site whose median project has 90 fields that
-// inflates by roughly two orders of magnitude, which is how a few hundred thousand issues
-// render as twenty million.
-//
-// issue_scan_project_totals.unique_issue_count is the real figure -- distinct issues seen
-// per project during the scan. It is only populated by a Universal Scan, so uniqueIssueCount
-// stays null on sites that have only run per-field summary builds. Callers must treat null
-// as "not measured" and say so, rather than falling back to the fills figure under an
-// issue-shaped label.
-async function attachUniqueIssueCounts(installationKey, projects) {
-  const totals = await loadIssueScanProjectTotals(installationKey)
-    .catch(fallbackOn("overview.project_totals_load_failed", () => [], { installationKey }));
-
-  if (!totals.length) return projects.map((p) => ({ ...p, uniqueIssueCount: null }));
-
-  const byProjectId = new Map(totals.map((t) => [String(t.projectId), t.uniqueIssueCount]));
-  return projects.map((project) => {
-    const measured = byProjectId.get(String(project.projectId));
-    return {
-      ...project,
-      uniqueIssueCount: Number.isFinite(measured) ? measured : null,
-    };
-  });
-}
-
-function percentile(sortedValues, fraction) {
-  if (!sortedValues.length) return 0;
-  const index = Math.min(sortedValues.length - 1, Math.floor(sortedValues.length * fraction));
-  return sortedValues[index];
-}
-
-function buildProjectInsights(projects) {
-  // True when the Universal Scan has measured distinct issues for at least one project.
-  // Partial coverage still counts: a project the scan has not reached keeps a null and is
-  // rendered as unmeasured rather than as zero.
-  const hasUniqueCounts = projects.some((p) => p.uniqueIssueCount != null);
-
-  // The figure every downstream number should be built on. Falls back to fills only when
-  // nothing has been measured, and `hasUniqueCounts` tells the caller which it is looking at.
-  const volumeOf = (p) => (hasUniqueCounts ? (p.uniqueIssueCount ?? 0) : p.totalIssueCount);
-
-  const topByIssueVolume = [...projects]
-    .sort((a, b) => volumeOf(b) - volumeOf(a))
-    .slice(0, DASHBOARD_TOP_N)
-    .map((p) => ({
-      projectKey: p.projectKey,
-      projectName: p.projectName,
-      totalIssueCount: p.totalIssueCount,
-      uniqueIssueCount: p.uniqueIssueCount ?? null,
-      volume: volumeOf(p),
-    }));
-
-  const topByFieldCount = [...projects]
-    .sort((a, b) => b.fieldCount - a.fieldCount)
-    .slice(0, DASHBOARD_TOP_N)
-    .map((p) => ({ projectKey: p.projectKey, projectName: p.projectName, fieldCount: p.fieldCount }));
-
-  // Distribution, not just leaders. A "top 8 by field count" list is unreadable without
-  // knowing what normal looks like: 40 fields is unremarkable on a site whose median is 38
-  // and a serious outlier on one whose median is 6.
-  const fieldCounts = projects.map((p) => p.fieldCount).sort((a, b) => a - b);
-  const medianFieldCount = percentile(fieldCounts, 0.5);
-  const p90FieldCount = percentile(fieldCounts, 0.9);
-  // Sum of field fills across the site. Kept and reported, but never labelled as issues.
-  const totalFieldFills = projects.reduce((sum, p) => sum + p.totalIssueCount, 0);
-  const totalUniqueIssues = hasUniqueCounts
-    ? projects.reduce((sum, p) => sum + (p.uniqueIssueCount ?? 0), 0)
-    : null;
-
-  // Configured well past the site norm while carrying little actual work. These are where
-  // field governance conversations start, because the cost is real and the usage is not.
-  // Guarded against a degenerate median: on a site where the median project has one field,
-  // "twice the median" is noise, so require an absolute floor as well.
-  //
-  // The volume side must use volumeOf, not the fills sum. Against fills the absolute floor
-  // of 50 could never bind -- an average project's fills run to six figures -- so the test
-  // silently collapsed to the relative term alone.
-  const totalVolume = projects.reduce((sum, p) => sum + volumeOf(p), 0);
-  const overConfiguredFloor = Math.max(10, medianFieldCount * 2);
-  const lightVolumeCeiling = Math.max(50, totalVolume / Math.max(1, projects.length) / 4);
-  const overConfigured = projects
-    .filter((p) => p.fieldCount >= overConfiguredFloor && volumeOf(p) < lightVolumeCeiling)
-    .sort((a, b) => b.fieldCount - a.fieldCount)
-    .slice(0, DASHBOARD_TOP_N)
-    .map((p) => ({
-      projectKey: p.projectKey,
-      projectName: p.projectName,
-      fieldCount: p.fieldCount,
-      totalIssueCount: p.totalIssueCount,
-      uniqueIssueCount: p.uniqueIssueCount ?? null,
-      volume: volumeOf(p),
-    }));
-
-  // Fields configured, no issues recorded at all -- either abandoned or never started.
-  const unusedProjects = projects
-    .filter((p) => p.fieldCount > 0 && p.totalIssueCount === 0)
-    .sort((a, b) => b.fieldCount - a.fieldCount)
-    .slice(0, DASHBOARD_TOP_N)
-    .map((p) => ({ projectKey: p.projectKey, projectName: p.projectName, fieldCount: p.fieldCount }));
-
-  // Staleness is a per-project signal the field view never surfaces: a project can carry
-  // 60 fields and 40,000 issues and still have had nothing touched in a year.
-  const now = Date.now();
-  const STALE_MS = 180 * 24 * 60 * 60 * 1000;
-  const staleProjects = projects
-    .filter((p) => {
-      const at = Date.parse(p.latestIssueUpdatedAt || "");
-      return p.totalIssueCount > 0 && Number.isFinite(at) && now - at > STALE_MS;
-    })
-    .sort((a, b) => Date.parse(a.latestIssueUpdatedAt) - Date.parse(b.latestIssueUpdatedAt))
-    .slice(0, DASHBOARD_TOP_N)
-    .map((p) => ({
-      projectKey: p.projectKey,
-      projectName: p.projectName,
-      fieldCount: p.fieldCount,
-      latestIssueUpdatedAt: p.latestIssueUpdatedAt,
-    }));
-
-  return {
-    totalProjects: projects.length,
-    // Both figures, named for what they are. `hasUniqueCounts` tells the UI which one it
-    // may present as issues -- there is deliberately no single `totalIssues` key, because
-    // that name is what let field fills be rendered as an issue count in the first place.
-    totalFieldFills,
-    totalUniqueIssues,
-    hasUniqueCounts,
-    medianFieldCount,
-    p90FieldCount,
-    topByIssueVolume,
-    topByFieldCount,
-    overConfigured,
-    unusedProjects,
-    staleProjects,
-  };
-}
-
-// Workflow health for the Overview, as a summary rather than a second inventory.
-//
-// Entirely best-effort and entirely optional: the workflow snapshot is versioned
-// separately from the field snapshot and may never have been built. Overview is the
-// landing page, so nothing here may throw and nothing may block -- a missing workflow
-// snapshot renders as a prompt to build one, not as an error.
-async function buildWorkflowOverview(installationKey) {
-  try {
-    const meta = await readWorkflowSnapshotMeta(installationKey);
-    if (!meta?.version) return { available: false, state: meta?.state || "idle" };
-
-    const [schemes, statuses, schemeStatuses] = await Promise.all([
-      loadWorkflowSchemes(installationKey, meta.version),
-      loadStatusesCatalog(installationKey, meta.version),
-      loadWorkflowSchemeStatuses(installationKey, meta.version),
-    ]);
-    const issueCounts = await loadStatusIssueCounts(installationKey).catch(fallbackOn("resolver.status_counts_load_failed", () => new Map(), { installationKey }));
-    const hasIssueCounts = issueCounts.size > 0;
-    const schemeStatusesAvailable = schemeStatuses.length > 0;
-
-    const duplicateGroups = findDuplicateStatusGroups(statuses);
-    const orphans = schemeStatusesAvailable
-      ? findOrphanedStatuses(statuses, schemeStatuses, hasIssueCounts ? issueCounts : null)
-      : [];
-    const balance = schemeStatusesAvailable
-      ? computeSchemeCategoryBalance(schemes, schemeStatuses, statuses)
-      : [];
-
-    // Schemes governing more than one project are where standardization has any leverage:
-    // a scheme used once is a bespoke process by definition.
-    const sharedSchemes = schemes.filter((s) => (s.projectCount ?? 0) > 1).length;
-
-    return {
-      available: true,
-      state: meta.state || "idle",
-      refreshedAt: meta.refreshedAt || null,
-      schemeCount: schemes.length,
-      statusCount: statuses.length,
-      sharedSchemes,
-      schemeStatusesAvailable,
-      hasIssueCounts,
-      ...summarizeWorkflowInsights({ duplicateGroups, orphans, balance }),
-    };
-  } catch (error) {
-    console.warn("buildWorkflowOverview failed:", error?.message || error);
-    return { available: false, state: "error" };
-  }
-}
-
-// Screen health for the Overview, as aggregate counts rather than a second inventory.
-//
-// Mirrors buildWorkflowOverview, including its failure posture: a screens pillar that cannot
-// be built reports unavailable and the score excludes it, rather than 500ing an overview
-// that has nine other pillars to show.
-async function buildScreenOverview(installationKey) {
-  try {
-    // Both versions, because "is this screen reachable" spans two pillars: the scheme chain
-    // lives in the screen snapshot and the transitions that open a screen live in the
-    // workflow one. Without the second, reachability is unknowable rather than clean.
-    const [meta, workflowMeta] = await Promise.all([
-      readScreenSnapshotMeta(installationKey),
-      readWorkflowSnapshotMeta(installationKey).catch(() => null),
-    ]);
-    if (!meta?.version) {
-      return { available: false, state: meta?.state || "idle", lastError: meta?.lastError || null };
-    }
-    return {
-      available: true,
-      state: meta.state,
-      refreshedAt: meta.refreshedAt || null,
-      lastError: meta.lastError || null,
-      ...(await loadScreenGovernanceSummary(installationKey, meta.version, {
-        workflowVersion: workflowMeta?.version || null,
-      })),
-    };
-  } catch (error) {
-    console.warn("buildScreenOverview failed:", error?.message || error);
-    return { available: false, state: "error" };
-  }
-}
-
 export async function getAdminOverview({ context }) {
   await ensureProjectStoreReady();
   const installationKey = getInstallationKey(context);
@@ -3427,6 +3224,26 @@ export async function getAdminOverview({ context }) {
     }
   }
 
+  const health = computeSiteHealth({
+    fieldUsage: dashboard?.fieldUsage,
+    workflow,
+    projects: dashboard?.projects,
+    automation,
+    screens,
+    // Workflow, project and automation dimensions were scored against hardcoded constants
+    // while every field rule was tunable. Same config surface now feeds both.
+    tolerances: config?.healthTolerances,
+  });
+
+  // Recorded here because this is the only place the score is computed, and the series
+  // cannot be back-filled -- a day with no row is a hole in the record forever. Upserted per
+  // day, so opening the overview twice costs one row, and opening it after a cleanup
+  // replaces the morning's worse number with the afternoon's better one.
+  //
+  // recordHealthSnapshot swallows its own errors: an overview that failed because a history
+  // row could not be written would be strictly worse than one with a gap in a chart.
+  await recordHealthSnapshot(installationKey, health);
+
   return {
     config,
     snapshot: {
@@ -3446,16 +3263,7 @@ export async function getAdminOverview({ context }) {
     findingsSummary,
     workflow,
     screens,
-    health: computeSiteHealth({
-      fieldUsage: dashboard?.fieldUsage,
-      workflow,
-      projects: dashboard?.projects,
-      automation,
-      screens,
-      // Workflow, project and automation dimensions were scored against hardcoded
-      // constants while every field rule was tunable. Same config surface now feeds both.
-      tolerances: config?.healthTolerances,
-    }),
+    health,
     // The whole health summary, not just the three headline fields it used to carry. The
     // overview's findings list needs the same counts the score does -- while this was
     // trimmed to {available, refreshedAt, ruleCount}, every automation problem the analysis
@@ -3469,6 +3277,194 @@ export async function getAdminOverview({ context }) {
     dashboard,
     totalSummaries: summaries.length,
     legacySummaryCount,
+  };
+}
+
+// The health series, plus the deltas that make it readable.
+//
+// Deltas are computed here rather than in the browser so "improved by 12" means the same
+// thing on every surface -- and so a dimension that appeared partway through the window is
+// reported as new rather than as an improvement from zero, which would be a lie about work
+// nobody did.
+async function getHealthHistory({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+  const days = Math.max(7, Math.min(365, Number(payload?.days) || 90));
+
+  const series = await loadHealthHistory(installationKey, { days });
+  if (series.length === 0) {
+    // Tri-state, as everywhere else: no history is not a flat line at zero.
+    return { available: false, reason: "No health has been recorded yet.", series: [], dimensions: [], days };
+  }
+
+  const first = series[0];
+  const latest = series[series.length - 1];
+
+  // Per-dimension movement across the window. Keyed on what the LATEST measurement scored,
+  // because a dimension that has since stopped being measured cannot be reported on.
+  const dimensions = Object.entries(latest.dimensions).map(([key, score]) => {
+    const firstScore = first.dimensions?.[key];
+    const known = typeof firstScore === "number";
+    return {
+      key,
+      score,
+      first: known ? firstScore : null,
+      // null, never 0, when the dimension did not exist at the start of the window --
+      // "new measurement" and "no change" are different facts.
+      delta: known ? score - firstScore : null,
+      points: series.map((entry) => ({
+        day: entry.day,
+        score: typeof entry.dimensions?.[key] === "number" ? entry.dimensions[key] : null,
+      })),
+    };
+  }).sort((a, b) => (a.delta ?? 0) - (b.delta ?? 0));
+
+  return {
+    available: true,
+    days,
+    series,
+    latest,
+    first,
+    // A single measurement is a point, not a trend, and the UI has to be able to say so
+    // rather than drawing a line through one dot.
+    hasTrend: series.length > 1,
+    delta: series.length > 1 ? latest.score - first.score : null,
+    dimensions,
+  };
+}
+
+// One pillar of the health score, for the tab that pillar is about.
+//
+// The score already groups its dimensions into exactly the tabs this app has, so the
+// governance stats each tab wants are computed the moment the Overview is. Serving one
+// pillar rather than the whole score keeps a tab from shipping four pillars of data it will
+// not render -- and keeps the Workflows tab from having to know how Screens is scored.
+async function getPillarHealth({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+  const key = requireNonEmptyString(payload?.pillar, "pillar");
+
+  const [config, workflow, screens, automationAnalysis, meta] = await Promise.all([
+    readAdminConfig(),
+    buildWorkflowOverview(installationKey),
+    buildScreenOverview(installationKey),
+    readAutomationAnalysis(installationKey).catch(() => null),
+    readSnapshotMeta(installationKey),
+  ]);
+
+  let fieldUsage = null;
+  let projects = null;
+  if (meta?.version) {
+    try {
+      const [fields, rawProjects] = await Promise.all([
+        loadSnapshotFields(installationKey, meta.version),
+        listSnapshotProjects(installationKey, meta.version),
+      ]);
+      const withCounts = await attachUniqueIssueCounts(installationKey, rawProjects);
+      const dup = buildDuplicateNameCountMap(fields);
+      const hydrated = fields.map((f) =>
+        hydrateFieldForGovernance(f, null, dup.get(normalizeFieldName(f.name)) ?? 1, config.governanceThresholds)
+      );
+      fieldUsage = buildFieldUsageInsights(hydrated);
+      projects = buildProjectInsights(withCounts);
+    } catch (error) {
+      logger.warn("pillar-health.field_inputs_failed", { installationKey, error: String(error?.message || error) });
+    }
+  }
+
+  const health = computeSiteHealth({
+    fieldUsage,
+    workflow,
+    projects,
+    automation: automationAnalysis?.estate?.health ?? { available: false },
+    screens,
+    tolerances: config?.healthTolerances,
+  });
+
+  const pillar = (health.pillars || []).find((p) => p.key === key) || null;
+  return { pillar, score: health.score, grade: health.grade };
+}
+
+// Everything that touches one project, across every pillar.
+//
+// This is the view the Projects tab existed to give and could not: it had the field list and
+// a workflow scheme wedged in beside it, and no way to say which forms a project routes to
+// or which automation rules fire in it. Both joins existed as data and neither had a query.
+//
+// Each pillar is independent and independently unavailable. A project whose screen inventory
+// has never been built reports screens as unknown and still shows its workflow, fields and
+// rules -- the alternative is one unbuilt pillar blanking the whole page.
+async function getProjectOverview({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+  const projectId = requireNonEmptyString(payload?.projectId, "projectId");
+
+  // Permission first, and before any pillar is read. Every other project read in this file
+  // filters by browsable project, and a cross-pillar view must not become the one place a
+  // caller can learn about a project they cannot see.
+  const browsable = await getBrowsableProjectIds(context?.accountId, [projectId]);
+  if (!browsable.has(String(projectId))) {
+    return { available: false, reason: "You do not have Browse Projects on this project." };
+  }
+
+  const [fieldMeta, workflowMeta, screenMeta] = await Promise.all([
+    readSnapshotMeta(installationKey),
+    readWorkflowSnapshotMeta(installationKey).catch(() => null),
+    readScreenSnapshotMeta(installationKey).catch(() => null),
+  ]);
+
+  const [scheme, screens, rules, globalRules] = await Promise.all([
+    workflowMeta?.version
+      ? loadWorkflowSchemeForProject(installationKey, workflowMeta.version, projectId).catch(() => null)
+      : Promise.resolve(null),
+    screenMeta?.version
+      ? loadScreensForProject(installationKey, screenMeta.version, projectId).catch(() => null)
+      : Promise.resolve(null),
+    loadRulesForProject(installationKey, projectId).catch(() => null),
+    // Needs the field snapshot: the evidence is field usage in this project, so without it
+    // there is nothing to infer from and the list is withheld rather than guessed at.
+    fieldMeta?.version
+      ? loadGlobalRulesAffectingProject(installationKey, fieldMeta.version, projectId).catch(() => null)
+      : Promise.resolve(null),
+  ]);
+
+  return {
+    available: true,
+    projectId,
+    // Tri-state per pillar, never an empty list standing in for an unbuilt one. "No rule
+    // touches this project" and "no automation analysis exists" are opposite claims, and
+    // only one of them means the project is simple.
+    workflow: workflowMeta?.version
+      ? { available: true, scheme }
+      : { available: false, reason: "No workflow inventory has been built yet." },
+    screens: screenMeta?.version && screens
+      ? {
+        available: true,
+        screens,
+        // Reported so the tab never presents a partial catalog as the whole one.
+        unresolvedScreens: screenMeta.unresolvedScreens || 0,
+      }
+      : { available: false, reason: "No screen inventory has been built yet." },
+    automation: rules
+      ? {
+        available: true,
+        rules,
+        enabledCount: rules.filter((r) => r.enabled).length,
+        disabledCount: rules.filter((r) => !r.enabled).length,
+        // Site-wide rules with evidence they act here, kept separate from the scoped ones.
+        // Merging them would erase the distinction between "this rule is configured for
+        // this project" and "we infer this rule reaches it", and only the first is a fact.
+        globalRules: globalRules || [],
+        globalRulesAvailable: Boolean(globalRules),
+        globalRulesReason: globalRules
+          ? null
+          : "Needs the field snapshot to tell which site-wide rules act on this project.",
+      }
+      : { available: false, reason: "No automation analysis has been built yet." },
+    fields: { available: Boolean(fieldMeta?.version) },
   };
 }
 
@@ -4122,6 +4118,9 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   getFieldScreenReachability, // Admin read: which screens carry one field
   buildScreenInventory,    // Mutating: queues a full screen and scheme snapshot build
 
+  getHealthHistory,        // Admin read: the site health series and per-dimension deltas
+  getPillarHealth,         // Admin read: one pillar of the score, for the tab it is about
+  getProjectOverview,      // Admin read: every pillar that touches one project
   getAuditLog,             // Admin read: returns recent privileged-action records
 
   // Admin page surface. These were previously registered directly onto adminHandler in

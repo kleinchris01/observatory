@@ -2,7 +2,7 @@ import React from "react";
 import { describe, test, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { StatTile, StatRow, Panel, Chip, EmptyState, BarList, FindingRow, LinkButton } from "./ui";
+import { StatTile, StatRow, Panel, Chip, EmptyState, BarList, FindingRow, LinkButton, PageHeader, SortFilterBar } from "./ui";
 
 // These are the shared vocabulary that replaced four separate stat-card idioms. They are
 // small, but they now render on every tab, so a regression here is a regression
@@ -176,5 +176,100 @@ describe("StatRow", () => {
   test("groups its children", () => {
     const { container } = render(<StatRow><StatTile label="A" value="1" /></StatRow>);
     expect(container.querySelector(".ui-stat-row")).not.toBeNull();
+  });
+});
+
+// ── PageHeader ──────────────────────────────────────────────────────────────
+
+describe("PageHeader", () => {
+  test("renders freshness beside the action rather than as a stat", () => {
+    const { container } = render(
+      <PageHeader title="Screens" description="What each form contains." meta="Built 18m ago" actions={<button>Rebuild</button>} />
+    );
+
+    expect(screen.getByText("Built 18m ago")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Rebuild" })).toBeInTheDocument();
+    // Both live in the same side region, so every tab puts freshness in one place.
+    expect(container.querySelector(".ui-pagehead__side .ui-pagehead__meta")).not.toBeNull();
+  });
+
+  test("omits the meta slot entirely when a tab has no freshness to report", () => {
+    const { container } = render(<PageHeader title="Fields" />);
+    expect(container.querySelector(".ui-pagehead__meta")).toBeNull();
+  });
+});
+
+// ── SortFilterBar ───────────────────────────────────────────────────────────
+//
+// Six tabs had grown their own version of this. The rules it enforces are the ones that
+// differed between them: a filtered count always states what it is out of, every active
+// filter is visible as something you can remove, and "all" is not an active filter.
+
+describe("SortFilterBar", () => {
+  const filters = (over = {}) => ([{
+    key: "type",
+    label: "Type",
+    value: "all",
+    onChange: vi.fn(),
+    options: [{ value: "all", label: "All types" }, { value: "date", label: "Date", count: 12 }],
+    ...over,
+  }]);
+
+  test("reports a filtered count against the total, so rows never look lost", () => {
+    render(<SortFilterBar search="bug" onSearchChange={vi.fn()} resultCount={40} totalCount={760} />);
+    expect(screen.getByText(/40 of 760/)).toBeInTheDocument();
+  });
+
+  test("shows a bare count when nothing is narrowing the list", () => {
+    render(<SortFilterBar search="" onSearchChange={vi.fn()} resultCount={760} totalCount={760} />);
+    expect(screen.getByText("760")).toBeInTheDocument();
+    expect(screen.queryByText(/of 760/)).not.toBeInTheDocument();
+  });
+
+  test("treats the all-value as no filter rather than as an active one", () => {
+    const { container } = render(<SortFilterBar search="" onSearchChange={vi.fn()} filters={filters()} />);
+    expect(container.querySelector(".ui-chip--removable")).toBeNull();
+  });
+
+  test("surfaces an active filter as a chip that clears it", async () => {
+    const onChange = vi.fn();
+    render(<SortFilterBar search="" onSearchChange={vi.fn()} filters={filters({ value: "date", onChange })} />);
+
+    const chip = screen.getByRole("button", { name: /Clear Type filter/i });
+    expect(chip).toHaveTextContent("Type: Date");
+    await userEvent.click(chip);
+    expect(onChange).toHaveBeenCalledWith("all");
+  });
+
+  test("surfaces the search term as its own clearable chip", async () => {
+    const onSearchChange = vi.fn();
+    render(<SortFilterBar search="payment" onSearchChange={onSearchChange} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /Clear search/i }));
+    expect(onSearchChange).toHaveBeenCalledWith("");
+  });
+
+  test("gives the search box an accessible name, not just a placeholder", () => {
+    render(<SortFilterBar search="" onSearchChange={vi.fn()} searchLabel="Search screens" searchPlaceholder="Search screens by name or id" />);
+    expect(screen.getByRole("searchbox", { name: /Search screens/i })).toBeInTheDocument();
+  });
+
+  test("emits the sort token the resolvers and the client helper both understand", async () => {
+    const onSortChange = vi.fn();
+    render(
+      <SortFilterBar
+        search="" onSearchChange={vi.fn()}
+        sort="name-asc" onSortChange={onSortChange}
+        sortOptions={[{ value: "name-asc", label: "Name A-Z" }, { value: "fields-desc", label: "Most fields" }]}
+      />
+    );
+
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: /Sort/i }), "fields-desc");
+    expect(onSortChange).toHaveBeenCalledWith("fields-desc");
+  });
+
+  test("renders option counts when a caller supplies them", () => {
+    render(<SortFilterBar search="" onSearchChange={vi.fn()} filters={filters()} />);
+    expect(screen.getByRole("option", { name: "Date (12)" })).toBeInTheDocument();
   });
 });

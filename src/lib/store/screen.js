@@ -178,11 +178,35 @@ export async function replaceScreenSnapshot(scopeKey, version, {
 
 // ── Reads ────────────────────────────────────────────────────────────────────
 
-export async function loadScreensPage(scopeKey, version, { limit = 50, offset = 0, search = "" } = {}) {
+// Sort tokens the Screens tab may ask for, mapped to ORDER BY fragments.
+//
+// A whitelist, not an interpolation. The token arrives from the browser, and the one thing
+// that must never happen is a caller-supplied string reaching ORDER BY -- the LIMIT clause
+// two lines below is interpolated for a Forge SQL reason, so this file already sits close
+// enough to that mistake.
+//
+// Every ordering ends in a unique tiebreak on screen_id. Without one, rows with equal field
+// counts can be returned in a different order per page, so paging a 760-screen catalog
+// silently shows some screens twice and skips others.
+const SCREEN_SORTS = {
+  "fields-desc": "field_count DESC, name ASC, screen_id ASC",
+  "fields-asc": "field_count ASC, name ASC, screen_id ASC",
+  "name-asc": "name ASC, screen_id ASC",
+  "name-desc": "name DESC, screen_id ASC",
+  "tabs-desc": "tab_count DESC, field_count DESC, screen_id ASC",
+  "id-asc": "CAST(screen_id AS UNSIGNED) ASC, screen_id ASC",
+  // Unreadable screens first: they are the ones capping every other number on the tab.
+  "unresolved-first": "CASE WHEN tabs_resolved <> 'resolved' THEN 0 ELSE 1 END ASC, field_count DESC, screen_id ASC",
+};
+export const DEFAULT_SCREEN_SORT = "fields-desc";
+export const SCREEN_SORT_KEYS = Object.keys(SCREEN_SORTS);
+
+export async function loadScreensPage(scopeKey, version, { limit = 50, offset = 0, search = "", sort = DEFAULT_SCREEN_SORT } = {}) {
   await ensureProjectStoreReady();
 
   const safeLimit = Math.max(1, Math.min(200, Math.trunc(Number(limit)) || 50));
   const safeOffset = Math.max(0, Math.trunc(Number(offset)) || 0);
+  const orderBy = SCREEN_SORTS[String(sort || "").trim()] || SCREEN_SORTS[DEFAULT_SCREEN_SORT];
 
   const where = ["scope_key = ?", "version = ?"];
   const params = [scopeKey, version];
@@ -202,7 +226,7 @@ export async function loadScreensPage(scopeKey, version, { limit = 50, offset = 
       SELECT screen_id, name, description, tab_count, field_count, tabs_resolved, unresolved_reason
       FROM snapshot_screens
       WHERE ${where.join(" AND ")}
-      ORDER BY field_count DESC, name ASC
+      ORDER BY ${orderBy}
       LIMIT ${safeLimit} OFFSET ${safeOffset}
     `).bindParams(...params).execute()
   );
@@ -509,6 +533,116 @@ export async function loadScreenGovernanceSummary(scopeKey, version, { workflowV
     totalSchemes: toNumber(schemeRow.total),
     unusedSchemes: toNumber(schemeRow.unused),
   };
+}
+
+// Chart data for the Screens overview, as aggregates.
+//
+// Every one of these is a GROUP BY rather than a page of rows pulled into the Lambda and
+// counted there. The field table alone is ~22,000 rows on the reference site; the overview
+// is a glance, and a glance should not cost more than the tab it summarises.
+export async function loadScreenDistributions(scopeKey, version, { topN = 10 } = {}) {
+  await ensureProjectStoreReady();
+  const capped = Math.max(1, Math.min(50, Math.trunc(Number(topN)) || 10));
+
+  // Size distribution. Buckets rather than a raw histogram: "how many screens are enormous"
+  // is the question, and 760 distinct field counts is not an answer anyone can read.
+  const sizes = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT
+        CASE
+          WHEN field_count = 0 THEN 'Empty'
+          WHEN field_count BETWEEN 1 AND 5 THEN '1-5 fields'
+          WHEN field_count BETWEEN 6 AND 15 THEN '6-15 fields'
+          WHEN field_count BETWEEN 16 AND 30 THEN '16-30 fields'
+          WHEN field_count BETWEEN 31 AND 60 THEN '31-60 fields'
+          ELSE '60+ fields'
+        END AS bucket,
+        COUNT(*) AS screens
+      FROM snapshot_screens
+      WHERE scope_key = ? AND version = ? AND tabs_resolved = 'resolved'
+      GROUP BY bucket
+    `).bindParams(scopeKey, version).execute()
+  );
+
+  const largest = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT name, screen_id, field_count
+      FROM snapshot_screens
+      WHERE scope_key = ? AND version = ? AND tabs_resolved = 'resolved'
+      ORDER BY field_count DESC, screen_id ASC
+      LIMIT ${capped}
+    `).bindParams(scopeKey, version).execute()
+  );
+
+  // Which fields appear on the most forms. The reverse of the catalog, and the one that
+  // says where a field change is felt: a field on 200 screens is not a local edit.
+  const shared = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT field_name, field_id, COUNT(DISTINCT screen_id) AS screens
+      FROM snapshot_screen_fields
+      WHERE scope_key = ? AND version = ?
+      GROUP BY field_id, field_name
+      ORDER BY screens DESC, field_id ASC
+      LIMIT ${capped}
+    `).bindParams(scopeKey, version).execute()
+  );
+
+  const operations = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT operation, COUNT(*) AS mappings
+      FROM snapshot_screen_scheme_operations
+      WHERE scope_key = ? AND version = ?
+      GROUP BY operation
+      ORDER BY mappings DESC
+    `).bindParams(scopeKey, version).execute()
+  );
+
+  return {
+    sizeBuckets: (sizes.rows || []).map((r) => ({ bucket: r.bucket, screens: toNumber(r.screens) })),
+    largestScreens: (largest.rows || []).map((r) => ({
+      name: r.name || r.screen_id, screenId: r.screen_id, fieldCount: toNumber(r.field_count),
+    })),
+    mostSharedFields: (shared.rows || []).map((r) => ({
+      name: r.field_name || r.field_id, fieldId: r.field_id, screens: toNumber(r.screens),
+    })),
+    operationMix: (operations.rows || []).map((r) => ({ operation: r.operation, mappings: toNumber(r.mappings) })),
+  };
+}
+
+// Which screens a project actually routes to, by walking the whole chain in one query.
+//
+// project -> issue type screen scheme -> screen scheme -> operation -> screen. Five tables,
+// and every hop is the reason the scopes list in manifest.yml is as long as it is. Done in
+// SQL because doing it in the Lambda means loading every mapping on the site to answer a
+// question about one project.
+//
+// DISTINCT on the screen: a project reaching one screen through three issue types is one
+// form its users see, not three.
+export async function loadScreensForProject(scopeKey, version, projectId) {
+  await ensureProjectStoreReady();
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT DISTINCT s.screen_id, s.name, s.field_count, s.tab_count, s.tabs_resolved
+      FROM snapshot_itss_projects p
+      JOIN snapshot_itss_mappings m
+        ON m.scope_key = p.scope_key AND m.version = p.version AND m.itss_id = p.itss_id
+      JOIN snapshot_screen_scheme_operations o
+        ON o.scope_key = m.scope_key AND o.version = m.version AND o.scheme_id = m.screen_scheme_id
+      JOIN snapshot_screens s
+        ON s.scope_key = o.scope_key AND s.version = o.version AND s.screen_id = o.screen_id
+      WHERE p.scope_key = ? AND p.version = ? AND p.project_id = ?
+      ORDER BY s.field_count DESC, s.screen_id ASC
+    `).bindParams(scopeKey, version, String(projectId)).execute()
+  );
+
+  return (result.rows || []).map((row) => ({
+    screenId: row.screen_id,
+    name: row.name || row.screen_id,
+    fieldCount: toNumber(row.field_count),
+    tabCount: toNumber(row.tab_count),
+    // Carried so a caller never reports "0 fields" for a screen the build could not read.
+    tabsResolved: row.tabs_resolved || "resolved",
+  }));
 }
 
 // ── Meta ─────────────────────────────────────────────────────────────────────

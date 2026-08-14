@@ -1,9 +1,9 @@
 import React from "react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { invoke } from "@forge/bridge";
-import { WorkflowTab } from "./WorkflowTab";
+import { WorkflowTab, WorkflowInsights } from "./WorkflowTab";
 
 // This UI is the reason three permission scopes are on the install consent screen.
 // Until it existed, read:workflow:jira, read:workflow-scheme:jira and read:status:jira
@@ -98,7 +98,9 @@ describe("WorkflowTab", () => {
     await user.click(screen.getByRole("button", { name: /statuses/i }));
     await screen.findByText("Open");
 
-    await user.click(screen.getByRole("button", { name: /^Done/ }));
+    // Category moved from a chip row to a select. A chip row grows with the site and is
+    // the one control that cannot fit on a narrow screen.
+    await user.selectOptions(screen.getByRole("combobox", { name: /Category/i }), "Done");
 
     expect(screen.getByText("Closed")).toBeInTheDocument();
     expect(screen.queryByText("Open")).not.toBeInTheDocument();
@@ -286,7 +288,7 @@ describe("WorkflowTab — status catalog", () => {
     await openStatuses();
     await waitFor(() => expect(gridHas("Backlog")).toBe(true));
 
-    await userEvent.selectOptions(screen.getByLabelText(/Filter statuses by usage/i), "empty");
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: /Usage/i }), "empty");
 
     // The signal: nothing sits here now, but 4,000 issues passed through.
     expect(gridHas("Parking Lot")).toBe(true);
@@ -298,7 +300,7 @@ describe("WorkflowTab — status catalog", () => {
     await openStatuses();
     await waitFor(() => expect(gridHas("Backlog")).toBe(true));
 
-    await userEvent.selectOptions(screen.getByLabelText(/Filter statuses by usage/i), "never");
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: /Usage/i }), "never");
 
     expect(gridHas("Ghost Status")).toBe(true);
     expect(gridHas("Parking Lot")).toBe(false);
@@ -325,7 +327,7 @@ describe("WorkflowTab — status catalog", () => {
     // Scoped to the grid: the key above it also shows an em dash by way of explanation.
     expect(gridText("—").length).toBeGreaterThan(0);
 
-    await userEvent.selectOptions(screen.getByLabelText(/Filter statuses by usage/i), "never");
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: /Usage/i }), "never");
     expect(gridHas("Unmeasured")).toBe(false);
   });
 
@@ -459,5 +461,103 @@ describe("WorkflowTab — automation caveat", () => {
     // app cannot support without seeing automation rules.
     expect(document.body.textContent).not.toMatch(/safe to remove/i);
     expect(document.body.textContent).not.toMatch(/safe to delete/i);
+  });
+});
+
+// This tab was the outlier: a hand-rolled header at its own size, freshness inline beside
+// the title, and horizontal pill sub-navigation where five other tabs use a sidebar. Moving
+// between it and any other tab read as changing product.
+describe("WorkflowTab — shared shell", () => {
+  test("uses the shared page header, with freshness in the header's meta slot", async () => {
+    const { container } = render(<WorkflowTab />);
+    await screen.findByText("ADVEV Standard");
+
+    expect(container.querySelector(".ui-pagehead__title")).toHaveTextContent(/Workflow & status inventory/);
+    expect(container.querySelector(".ui-pagehead__meta")).toHaveTextContent(/Built/);
+    // The old header markup is gone, not merely hidden behind it.
+    expect(container.querySelector(".wf-header")).toBeNull();
+  });
+
+  test("navigates its views from the shared sidebar rather than horizontal pills", async () => {
+    const { container } = render(<WorkflowTab />);
+    await screen.findByText("ADVEV Standard");
+
+    expect(container.querySelector(".sub-nav")).not.toBeNull();
+    expect(container.querySelector(".wf-viewtab")).toBeNull();
+  });
+
+  test("drives both views from the shared toolbar", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<WorkflowTab />);
+    await screen.findByText("ADVEV Standard");
+
+    expect(container.querySelector(".ui-controls")).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: /statuses/i }));
+    await screen.findByText("Open");
+    expect(container.querySelector(".ui-controls")).not.toBeNull();
+    expect(container.querySelector(".wf-statusbar")).toBeNull();
+  });
+});
+
+// The Workflows tab carried a blanket caveat from before the automation pillar existed:
+// "Automation rules are not included. Jira does not expose them to Forge apps." That stopped
+// being true when rule exports started being shredded into automation_references. A warning
+// that applies to every status tells a reader nothing about any status.
+describe("WorkflowTab — unreachable statuses vs automation", () => {
+  const withOrphans = (orphans, automationChecked) => ({
+    available: true,
+    schemeStatusesAvailable: true,
+    hasIssueCounts: true,
+    automationChecked,
+    orphans,
+    duplicateGroups: [],
+    balance: [],
+    summary: { duplicateGroupCount: 0, orphanCount: orphans.length, flaggedSchemeCount: 0 },
+    statusTotals: { catalogCount: 10, withIssues: 5 },
+    snapshotStatus: { state: "ready", refreshedAt: "2026-08-13T00:00:00Z" },
+  });
+
+  test("names the rules holding a status that otherwise looks safe to delete", () => {
+    render(<WorkflowInsights insights={withOrphans([
+      { statusId: "1", name: "Parking Lot", issueCount: 0, safeToRemove: true, automationRuleCount: 3 },
+    ], true)} loading={false} />);
+
+    // "never used" and "3 rules" sit on the same row deliberately: the second is the reason
+    // the first is not permission to delete it.
+    expect(screen.getByText("never used")).toBeInTheDocument();
+    expect(screen.getByText("3 rules")).toBeInTheDocument();
+  });
+
+  test("stops calling a status safe once a rule references it", () => {
+    const { container } = render(<WorkflowInsights insights={withOrphans([
+      { statusId: "1", name: "Parking Lot", issueCount: 0, safeToRemove: true, automationRuleCount: 2 },
+    ], true)} loading={false} />);
+
+    expect(container.querySelector(".wf-orphan--safe")).toBeNull();
+  });
+
+  test("keeps the safe marker for a status nothing references", () => {
+    const { container } = render(<WorkflowInsights insights={withOrphans([
+      { statusId: "1", name: "Ghost", issueCount: 0, safeToRemove: true, automationRuleCount: 0 },
+    ], true)} loading={false} />);
+
+    expect(container.querySelector(".wf-orphan--safe")).not.toBeNull();
+  });
+
+  // The caveat is still the honest answer when nothing has been imported to check against.
+  test("keeps the blanket warning only while it cannot check", () => {
+    render(<WorkflowInsights insights={withOrphans([
+      { statusId: "1", name: "Ghost", issueCount: 0, safeToRemove: true, automationRuleCount: null },
+    ], false)} loading={false} />);
+
+    expect(screen.getByText(/no rule export has been imported/i)).toBeInTheDocument();
+  });
+
+  test("drops the blanket warning once every status carries its own answer", () => {
+    render(<WorkflowInsights insights={withOrphans([
+      { statusId: "1", name: "Ghost", issueCount: 0, safeToRemove: true, automationRuleCount: 0 },
+    ], true)} loading={false} />);
+
+    expect(screen.queryByText(/Automation rules are not included/i)).not.toBeInTheDocument();
   });
 });

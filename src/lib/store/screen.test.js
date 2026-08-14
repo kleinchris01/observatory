@@ -33,6 +33,7 @@ import {
   loadItssProjects,
   loadScreenGovernanceSummary,
   loadScreenCountsForFields,
+  SCREEN_SORT_KEYS,
   readScreenSnapshotMeta,
   writeScreenSnapshotMeta,
 } from "./screen.js";
@@ -255,6 +256,35 @@ describe("reads", () => {
 
     expect(statement).toContain("LIMIT 200");
     expect(statement).toContain("OFFSET 0");
+  });
+
+  // Sorting has to happen in SQL. The tab shows 25 of ~760 screens, so sorting the page in
+  // the browser reorders an arbitrary slice and presents it as the top of the catalog.
+  test("orders by the requested sort, from a whitelist", async () => {
+    await loadScreensPage("scope-1", "v1", { sort: "name-desc" });
+    expect(statements().find((s) => s.includes("ORDER BY"))).toContain("ORDER BY name DESC");
+  });
+
+  // The token comes from the browser and must never reach ORDER BY as text -- this file
+  // already interpolates LIMIT for a Forge SQL reason, so it sits close to that mistake.
+  test("falls back to the default rather than interpolating an unknown token", async () => {
+    await loadScreensPage("scope-1", "v1", { sort: "name; DROP TABLE snapshot_screens" });
+    const statement = statements().find((s) => s.includes("ORDER BY"));
+
+    expect(statement).toContain("ORDER BY field_count DESC");
+    expect(statement).not.toContain("DROP TABLE");
+  });
+
+  // Without a unique tiebreak, rows with equal field counts can come back in a different
+  // order per page, so paging shows some screens twice and skips others.
+  test("every sort ends in a unique tiebreak so paging cannot repeat or skip a row", async () => {
+    for (const sort of SCREEN_SORT_KEYS) {
+      issued = [];
+      await loadScreensPage("scope-1", "v1", { sort });
+      const statement = statements().find((s) => s.includes("ORDER BY"));
+      const orderBy = statement.split("ORDER BY")[1].split("LIMIT")[0];
+      expect(orderBy, `${sort} has no screen_id tiebreak`).toMatch(/screen_id (ASC|DESC)/);
+    }
   });
 
   test("orders screen fields by tab then position", async () => {

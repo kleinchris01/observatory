@@ -292,3 +292,58 @@ describe("ScreensTab — first build feedback", () => {
     expect(await screen.findByText(/last build failed/i)).toBeInTheDocument();
   });
 });
+
+// The Screens tab is the reference for the shared toolbar: it is server-paged, so its sort
+// has to reach SQL. Sorting the 25 rows already in the browser would reorder an arbitrary
+// slice of 760 and present it as the top of the catalog.
+describe("ScreensTab — sorting and search", () => {
+  test("sends the chosen sort to the resolver instead of sorting the page", async () => {
+    invoke.mockResolvedValue(inventory());
+    render(<ScreensTab />);
+    await screen.findByText("Default Screen");
+
+    invoke.mockClear();
+    invoke.mockResolvedValue(inventory());
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: /Sort/i }), "name-asc");
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith("getScreenInventory", expect.objectContaining({ sort: "name-asc" }));
+    });
+  });
+
+  // Changing the ordering of a paged list while staying on page 4 shows the middle of the
+  // new order with no way to tell that is what happened.
+  test("returns to the first page when the ordering changes", async () => {
+    invoke.mockResolvedValue(inventory({ screens: { total: 200, rows: inventory().screens.rows } }));
+    render(<ScreensTab />);
+    await screen.findByText("Default Screen");
+
+    await userEvent.click(screen.getByRole("button", { name: /Next/i }));
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("getScreenInventory", expect.objectContaining({ page: 2 })));
+
+    invoke.mockClear();
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: /Sort/i }), "name-asc");
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith("getScreenInventory", expect.objectContaining({ page: 1, sort: "name-asc" }));
+    });
+  });
+
+  test("states the filtered count against the catalog total", async () => {
+    invoke.mockResolvedValue(inventory({ totalScreens: 760, screens: { total: 12, rows: inventory().screens.rows } }));
+    render(<ScreensTab />);
+
+    expect(await screen.findByText(/12 of 760/)).toBeInTheDocument();
+  });
+
+  // Freshness moved off the stat row into the page header, so it stops competing with the
+  // counts it qualifies and sits where every other tab now puts it.
+  test("reports build freshness in the header rather than as a stat tile", async () => {
+    invoke.mockResolvedValue(inventory());
+    const { container } = render(<ScreensTab />);
+    await screen.findByText("Default Screen");
+
+    expect(container.querySelector(".ui-pagehead__meta")).toHaveTextContent(/Built/);
+    expect(screen.queryByText("Built")).not.toBeInTheDocument();
+  });
+});

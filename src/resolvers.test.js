@@ -109,6 +109,13 @@ const mocks = vi.hoisted(() => ({
   loadIssueTypeScreenSchemes: vi.fn(),
   loadScreenGovernanceSummary: vi.fn(),
   loadScreenCountsForFields: vi.fn(),
+  loadScreenDistributions: vi.fn(),
+  loadScreensForProject: vi.fn(),
+  loadRulesForProject: vi.fn(),
+  loadStatusAutomationReferences: vi.fn(),
+  loadGlobalRulesAffectingProject: vi.fn(),
+  recordHealthSnapshot: vi.fn(),
+  loadHealthHistory: vi.fn(),
   queueScreenSnapshotBuild: vi.fn(),
   isScreenBuildStale: vi.fn(() => false),
 
@@ -181,6 +188,9 @@ vi.mock("./lib/store/automation.js", () => ({
   replaceAutomationRules: mocks.replaceAutomationRules,
   replaceAutomationFindings: mocks.replaceAutomationFindings,
   loadAutomationReferencesFor: mocks.loadAutomationReferencesFor,
+  loadRulesForProject: mocks.loadRulesForProject,
+  loadStatusAutomationReferences: mocks.loadStatusAutomationReferences,
+  loadGlobalRulesAffectingProject: mocks.loadGlobalRulesAffectingProject,
   AUTOMATION_PARTS: { analysis: "a:", fields: "f:", statuses: "s:", directory: "d:", findings: "fi:" },
   MAX_PREVIEW_FINDINGS: 20,
   MAX_STORED_CASCADES: 150,
@@ -244,6 +254,14 @@ vi.mock("./lib/project-store.js", () => ({
   loadIssueTypeScreenSchemes: mocks.loadIssueTypeScreenSchemes,
   loadScreenGovernanceSummary: mocks.loadScreenGovernanceSummary,
   loadScreenCountsForFields: mocks.loadScreenCountsForFields,
+  loadScreenDistributions: mocks.loadScreenDistributions,
+  loadScreensForProject: mocks.loadScreensForProject,
+  recordHealthSnapshot: mocks.recordHealthSnapshot,
+  loadHealthHistory: mocks.loadHealthHistory,
+  // Real values, not mocks: the resolver whitelists the sort token against these, so a
+  // vi.fn() here would make every sort fall back to the default and hide a regression.
+  DEFAULT_SCREEN_SORT: "fields-desc",
+  SCREEN_SORT_KEYS: ["fields-desc", "fields-asc", "name-asc", "name-desc", "tabs-desc", "id-asc", "unresolved-first"],
   loadWorkflowSchemes: mocks.loadWorkflowSchemes,
   loadWorkflowSchemeProjects: mocks.loadWorkflowSchemeProjects,
   loadWorkflowSchemeForProject: mocks.loadWorkflowSchemeForProject,
@@ -348,6 +366,9 @@ const {
   getScreenInventory,
   getFieldScreenReachability,
   getFieldScreenCounts,
+  getHealthHistory,
+  getProjectOverview,
+  getPillarHealth,
   buildScreenInventory,
 } = __RAW_ADMIN_ONLY_FUNCTIONS;
 
@@ -448,6 +469,13 @@ beforeEach(() => {
   mocks.loadIssueTypeScreenSchemes.mockResolvedValue([]);
   mocks.loadScreenGovernanceSummary.mockResolvedValue({});
   mocks.loadScreenCountsForFields.mockResolvedValue({});
+  mocks.loadScreenDistributions.mockResolvedValue({ sizeBuckets: [], largestScreens: [], mostSharedFields: [], operationMix: [] });
+  mocks.loadScreensForProject.mockResolvedValue([]);
+  mocks.loadRulesForProject.mockResolvedValue([]);
+  mocks.loadStatusAutomationReferences.mockResolvedValue({});
+  mocks.loadGlobalRulesAffectingProject.mockResolvedValue([]);
+  mocks.recordHealthSnapshot.mockResolvedValue({ recorded: true });
+  mocks.loadHealthHistory.mockResolvedValue([]);
   mocks.queueScreenSnapshotBuild.mockResolvedValue(undefined);
   mocks.isScreenBuildStale.mockReturnValue(false);
   mocks.loadWorkflowSchemes.mockResolvedValue([]);
@@ -4105,6 +4133,250 @@ describe("getFieldScreenReachability", () => {
 
   test("rejects a missing field id", async () => {
     await expect(getFieldScreenReachability({ payload: {}, ...ctx })).rejects.toThrow(/fieldId/);
+  });
+});
+
+
+// ---------------------------------------------------------------------------
+// getHealthHistory
+// ---------------------------------------------------------------------------
+//
+// The score always raised a question it could not answer: did cleaning that up help? These
+// pin the two rules that keep the answer honest -- a single point is not a trend, and a
+// dimension that only started being measured partway through has not "improved".
+describe("getHealthHistory", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x" } };
+
+  const day = (d, score, dimensions) => ({
+    day: d, measuredAt: `${d}T00:00:00.000Z`, score, grade: "C",
+    dimensionsScored: Object.keys(dimensions).length, dimensionsTotal: 13, dimensions,
+  });
+
+  test("says it has nothing rather than drawing a flat line at zero", async () => {
+    mocks.loadHealthHistory.mockResolvedValue([]);
+
+    const result = await getHealthHistory({ payload: {}, ...ctx });
+
+    expect(result.available).toBe(false);
+    expect(result.series).toEqual([]);
+  });
+
+  test("reports the movement across the window", async () => {
+    mocks.loadHealthHistory.mockResolvedValue([
+      day("2026-08-01", 51, { "field-governance": 17 }),
+      day("2026-08-13", 63, { "field-governance": 40 }),
+    ]);
+
+    const result = await getHealthHistory({ payload: {}, ...ctx });
+
+    expect(result.delta).toBe(12);
+    expect(result.hasTrend).toBe(true);
+    expect(result.dimensions.find((d) => d.key === "field-governance").delta).toBe(23);
+  });
+
+  // One measurement is a point, not a trend. Reporting a delta against itself would show
+  // every fresh install as having improved by nothing, which reads as a measured result.
+  test("refuses to call a single measurement a trend", async () => {
+    mocks.loadHealthHistory.mockResolvedValue([day("2026-08-13", 58, { "field-naming": 79 })]);
+
+    const result = await getHealthHistory({ payload: {}, ...ctx });
+
+    expect(result.available).toBe(true);
+    expect(result.hasTrend).toBe(false);
+    expect(result.delta).toBeNull();
+  });
+
+  // A dimension that appeared partway through the window did not improve from zero -- that
+  // would credit nobody's work as a 40-point gain.
+  test("reports a newly measured dimension as new, not as an improvement", async () => {
+    mocks.loadHealthHistory.mockResolvedValue([
+      day("2026-08-01", 51, { "field-naming": 79 }),
+      day("2026-08-13", 63, { "field-naming": 79, "screen-hygiene": 40 }),
+    ]);
+
+    const result = await getHealthHistory({ payload: {}, ...ctx });
+    const added = result.dimensions.find((d) => d.key === "screen-hygiene");
+
+    expect(added.first).toBeNull();
+    expect(added.delta).toBeNull();
+    expect(added.score).toBe(40);
+  });
+
+  // Ordered worst-movement first: the dimensions that went backwards are the ones an admin
+  // needs to see, and they are exactly the ones a score-ordered list would bury.
+  test("orders dimensions by movement, regressions first", async () => {
+    mocks.loadHealthHistory.mockResolvedValue([
+      day("2026-08-01", 51, { a: 50, b: 50 }),
+      day("2026-08-13", 51, { a: 80, b: 20 }),
+    ]);
+
+    const result = await getHealthHistory({ payload: {}, ...ctx });
+
+    expect(result.dimensions.map((d) => d.key)).toEqual(["b", "a"]);
+  });
+
+  test("clamps a hostile window rather than trusting it", async () => {
+    mocks.loadHealthHistory.mockResolvedValue([]);
+    await getHealthHistory({ payload: { days: 99999 }, ...ctx });
+
+    expect(mocks.loadHealthHistory).toHaveBeenCalledWith("test-install", { days: 365 });
+  });
+});
+
+
+// ---------------------------------------------------------------------------
+// getProjectOverview
+// ---------------------------------------------------------------------------
+//
+// The view the Projects tab existed to give and could not. Both cross-pillar joins existed
+// as data -- rule scope was computed on every import and discarded, screens were reachable
+// through the ITSS chain -- and neither had a query.
+
+// ---------------------------------------------------------------------------
+// getPillarHealth
+// ---------------------------------------------------------------------------
+//
+// One pillar of the score, for the tab that pillar is about. Serving one rather than the
+// whole score keeps the Workflows tab from having to know how Screens is graded.
+describe("getPillarHealth", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x" } };
+
+  test("returns only the requested pillar, with the site score alongside it", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue(null);
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "w1" });
+    mocks.loadWorkflowSchemes.mockResolvedValue([{ schemeId: "s1", name: "S", projectCount: 2 }]);
+    mocks.loadStatusesCatalog.mockResolvedValue([{ statusId: "1", name: "Open" }]);
+
+    const result = await getPillarHealth({ payload: { pillar: "workflows" }, ...ctx });
+
+    expect(result.pillar.key).toBe("workflows");
+    expect(result.pillar.dimensions.every((d) => d.pillar === "workflows")).toBe(true);
+  });
+
+  test("returns a null pillar for a name the score does not have", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue(null);
+
+    const result = await getPillarHealth({ payload: { pillar: "not-a-pillar" }, ...ctx });
+
+    expect(result.pillar).toBeNull();
+  });
+
+  // The field inputs are the expensive half and the most likely to fail. A pillar the caller
+  // did not ask about failing must not take the whole response down.
+  test("still answers when the field inputs cannot be built", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: "f1" });
+    mocks.loadSnapshotFields.mockRejectedValueOnce(new Error("Unknown SQL execution error"));
+
+    const result = await getPillarHealth({ payload: { pillar: "screens" }, ...ctx });
+
+    expect(result.pillar).not.toBeNull();
+    expect(result.pillar.key).toBe("screens");
+  });
+
+  test("builds the field pillar from the snapshot when one exists", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: "f1" });
+    mocks.loadSnapshotFields.mockResolvedValue([snapshotField()]);
+    mocks.listSnapshotProjects.mockResolvedValue([
+      { projectId: "1", projectKey: "A", projectName: "Alpha", fieldCount: 4, totalIssueCount: 10 },
+    ]);
+
+    const result = await getPillarHealth({ payload: { pillar: "fields" }, ...ctx });
+
+    expect(result.pillar.key).toBe("fields");
+    expect(result.pillar.available).toBe(true);
+  });
+
+  test("rejects a missing pillar name", async () => {
+    await expect(getPillarHealth({ payload: {}, ...ctx })).rejects.toThrow(/pillar/);
+  });
+});
+
+describe("getProjectOverview", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x", accountId: "acc-1" } };
+
+  // Before any pillar is read. Every other project read here filters by browsable project,
+  // and a cross-pillar view must not become the one place a caller learns about a project
+  // they cannot see.
+  test("refuses a project the caller cannot browse, without reading any pillar", async () => {
+    mocks.getBrowsableProjectIds.mockResolvedValue(new Set());
+
+    const result = await getProjectOverview({ payload: { projectId: "10000" }, ...ctx });
+
+    expect(result.available).toBe(false);
+    expect(mocks.loadScreensForProject).not.toHaveBeenCalled();
+    expect(mocks.loadRulesForProject).not.toHaveBeenCalled();
+  });
+
+  test("joins workflow, screens and automation for one project", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: "f1" });
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "w1" });
+    mocks.readScreenSnapshotMeta.mockResolvedValue({ version: "s1", unresolvedScreens: 2 });
+    mocks.loadWorkflowSchemeForProject.mockResolvedValue({ id: "sch1", name: "SW Workflow Scheme v1" });
+    mocks.loadScreensForProject.mockResolvedValue([{ screenId: "100", name: "Default", fieldCount: 28 }]);
+    mocks.loadRulesForProject.mockResolvedValue([
+      { ruleId: "1", name: "Send to Approval", enabled: true },
+      { ruleId: "2", name: "Retired", enabled: false },
+    ]);
+
+    const result = await getProjectOverview({ payload: { projectId: "10000" }, ...ctx });
+
+    expect(result.workflow.scheme.name).toBe("SW Workflow Scheme v1");
+    expect(result.screens.screens).toHaveLength(1);
+    expect(result.automation).toMatchObject({ enabledCount: 1, disabledCount: 1 });
+    // Carried so the tab never presents a partial catalog as the whole one.
+    expect(result.screens.unresolvedScreens).toBe(2);
+  });
+
+  // One unbuilt pillar must not blank the page, and must not be reported as empty either.
+  test("reports each pillar unavailable independently rather than as empty", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: "f1" });
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue(null);
+    mocks.readScreenSnapshotMeta.mockResolvedValue(null);
+    mocks.loadRulesForProject.mockResolvedValue([{ ruleId: "1", name: "R", enabled: true }]);
+
+    const result = await getProjectOverview({ payload: { projectId: "10000" }, ...ctx });
+
+    expect(result.workflow).toMatchObject({ available: false });
+    expect(result.screens).toMatchObject({ available: false });
+    expect(result.workflow.reason).toMatch(/workflow inventory/i);
+    // The pillar that IS built still renders.
+    expect(result.automation.available).toBe(true);
+  });
+
+
+  // Site-wide rules are only worth listing per project if there is evidence they act there
+  // -- otherwise the list is "all of them" and says nothing.
+  test("keeps inferred site-wide rules separate from the ones actually scoped here", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: "f1" });
+    mocks.loadRulesForProject.mockResolvedValue([{ ruleId: "1", name: "Scoped", enabled: true }]);
+    mocks.loadGlobalRulesAffectingProject.mockResolvedValue([
+      { ruleId: "9", name: "Site-wide writer", fieldsTouched: 2, issuesTouched: 5000, lastChangeAt: "2026-08-01T00:00:00Z" },
+    ]);
+
+    const result = await getProjectOverview({ payload: { projectId: "10000" }, ...ctx });
+
+    // Merging them would erase the difference between "configured for this project" and
+    // "we infer it reaches this project", and only the first is a fact.
+    expect(result.automation.rules.map((r) => r.ruleId)).toEqual(["1"]);
+    expect(result.automation.globalRules.map((r) => r.ruleId)).toEqual(["9"]);
+    expect(result.automation.globalRulesAvailable).toBe(true);
+  });
+
+  // The evidence is field usage in this project, so with no field snapshot there is nothing
+  // to infer from. Withheld rather than guessed at.
+  test("withholds the inferred list when there is no field snapshot to infer from", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue(null);
+    mocks.loadRulesForProject.mockResolvedValue([]);
+
+    const result = await getProjectOverview({ payload: { projectId: "10000" }, ...ctx });
+
+    expect(mocks.loadGlobalRulesAffectingProject).not.toHaveBeenCalled();
+    expect(result.automation.globalRulesAvailable).toBe(false);
+    expect(result.automation.globalRulesReason).toMatch(/field snapshot/i);
+  });
+
+  test("rejects a missing project id", async () => {
+    await expect(getProjectOverview({ payload: {}, ...ctx })).rejects.toThrow(/projectId/);
   });
 });
 

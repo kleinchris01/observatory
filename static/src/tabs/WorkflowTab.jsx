@@ -2,7 +2,8 @@ import React from "react";
 import { invoke } from "@forge/bridge";
 import { formatTimestamp, formatRelativeTime, formatNumber } from "../utils";
 import { Icon } from "../components/Icons";
-import { StatTile, StatRow, Panel, EmptyState } from "../components/ui";
+import { StatTile, StatRow, Panel, EmptyState, PageHeader, SortFilterBar } from "../components/ui";
+import { SubNavLayout } from "../components/admin/primitives";
 
 // Workflow scheme + status inventory.
 //
@@ -22,6 +23,15 @@ const BUILD_POLL_MS = 3000;
 
 // Jira's three status categories. Mapped to the app's existing semantic tones rather than
 // Jira's own palette so the page stays coherent with the field views next to it.
+// Sort tokens for the status list. Labels say what is being ordered, not which column --
+// "Sort by ever" meant nothing to anyone who had not read the query.
+const STATUS_SORT_OPTIONS = [
+  { value: "name", label: "Name A–Z" },
+  { value: "current", label: "Most issues now" },
+  { value: "ever", label: "Most issues ever" },
+  { value: "departed", label: "Most issues departed" },
+];
+
 const CATEGORY_TONE = {
   "To Do": "todo",
   "In Progress": "progress",
@@ -110,7 +120,7 @@ const DUPLICATE_KIND_LABEL = {
 //
 // Ordered by what an admin can act on soonest: duplicates are unambiguous cleanup,
 // orphans need a check before deleting, and scheme balance is a judgement call.
-function WorkflowInsights({ insights, loading }) {
+export function WorkflowInsights({ insights, loading }) {
   if (loading && !insights) return <EmptyState>Analysing the workflow inventory…</EmptyState>;
   if (!insights) return null;
 
@@ -200,13 +210,17 @@ function WorkflowInsights({ insights, loading }) {
 
       {schemeStatusesAvailable && (
         <Panel title="Unreachable statuses" description={<>Defined on the site but not reachable from any workflow scheme. {hasIssueCounts && " Those marked never used have no workflow reaching them and no issue history."}</>}>
-          {hasIssueCounts && (
+          {/* The blanket caveat only survives while we genuinely cannot check. Once an
+              automation analysis exists, every status here carries its own answer, and a
+              warning that applies to all of them would tell a reader nothing about any of
+              them -- while sitting next to evidence that contradicts it. */}
+          {hasIssueCounts && !insights?.automationChecked && (
             <p className="wf-insights__note">
               <Icon name="info" size={13} />
               <span>
-                Automation rules are not included. Jira does not expose them to Forge apps, so
-                a rule could still reference a status shown here. Check the rule list before
-                deleting anything.
+                Automation rules are not included: no rule export has been imported, so a rule
+                could still reference a status shown here. Import one on the Automation tab to
+                have these checked individually.
               </span>
             </p>
           )}
@@ -215,7 +229,10 @@ function WorkflowInsights({ insights, loading }) {
           ) : (
             <div className="wf-orphan-grid">
               {orphans.map((orphan) => (
-                <div key={orphan.statusId} className={`wf-orphan ${orphan.safeToRemove ? "wf-orphan--safe" : ""}`}>
+                <div
+                  key={orphan.statusId}
+                  className={`wf-orphan ${orphan.safeToRemove && !orphan.automationRuleCount ? "wf-orphan--safe" : ""}`}
+                >
                   <span className="wf-orphan__name">{orphan.name}</span>
                   {orphan.issueCount === null ? (
                     <span className="wf-orphan__count wf-orphan__count--unknown">usage unknown</span>
@@ -223,6 +240,17 @@ function WorkflowInsights({ insights, loading }) {
                     <span className="wf-orphan__count wf-orphan__count--safe">never used</span>
                   ) : (
                     <span className="wf-orphan__count">{formatNumber(orphan.issueCount)} issues</span>
+                  )}
+                  {/* The per-status answer. A status no workflow reaches and no issue ever
+                      entered still is not safe to delete if a rule transitions into it --
+                      which is precisely what the old blanket warning could not tell you. */}
+                  {orphan.automationRuleCount > 0 && (
+                    <span
+                      className="wf-orphan__count wf-orphan__count--rules"
+                      title="An automation rule references this status. Deleting it will break that rule."
+                    >
+                      {formatNumber(orphan.automationRuleCount)} {orphan.automationRuleCount === 1 ? "rule" : "rules"}
+                    </span>
                   )}
                 </div>
               ))}
@@ -507,23 +535,69 @@ export function WorkflowTab() {
     }
   }, [page, deferredSearch]);
 
+  // Sub-nav entries, badged the way every other tab badges them. Insights carries the count
+  // of things needing attention rather than a row count -- it is the only view here whose
+  // number is a finding rather than an inventory size.
+  const navItems = [
+    { key: "schemes", label: "Schemes", icon: "activity", badge: formatNumber(data?.totalCount ?? schemes.length) },
+    { key: "statuses", label: "Statuses", icon: "layers", badge: formatNumber(statuses.length) },
+    {
+      key: "insights",
+      label: "Insights",
+      icon: "alertTriangle",
+      badge: insights?.summary
+        ? formatNumber(
+          insights.summary.duplicateGroupCount
+          + insights.summary.orphanCount
+          + insights.summary.flaggedSchemeCount
+        )
+        : null,
+    },
+  ];
+
+  // Category chips became a select. They were a fourth control idiom on a page that already
+  // had a search box, two selects and a count -- and a chip row that grows with the site is
+  // the one control that cannot fit on a narrow screen.
+  const statusFilters = [
+    {
+      key: "usage",
+      label: "Usage",
+      value: statusUsage,
+      onChange: setStatusUsage,
+      options: [
+        { value: "all", label: "Any usage" },
+        { value: "active", label: "Has issues now" },
+        { value: "empty", label: "Empty now, used before" },
+        { value: "never", label: "Never used" },
+        { value: "unknown", label: "Usage unknown" },
+      ],
+    },
+  ];
+  if (statusesByCategory.size > 1) {
+    statusFilters.push({
+      key: "category",
+      label: "Category",
+      value: statusCategory,
+      onChange: setStatusCategory,
+      options: [
+        { value: "all", label: "All categories" },
+        ...[...statusesByCategory.entries()].map(([category, items]) => ({
+          value: category, label: category, count: items.length,
+        })),
+      ],
+    });
+  }
+
   return (
     <div className="admin-workflow-tab">
-      <div className="wf-header">
-        <div className="wf-header__intro">
-          <h2 className="wf-header__title">Workflow &amp; status inventory</h2>
-          <p className="wf-header__desc">
-            Which workflow schemes exist, which projects each governs, and the full status
-            catalog. Read-only — Observatory reports what is configured; changes stay in
-            Jira&apos;s own admin UI.
-          </p>
-        </div>
-        <div className="wf-header__actions">
-          {snapshot?.refreshedAt && (
-            <span className="wf-header__age">
-              Built {formatRelativeTime(snapshot.refreshedAt)} · {formatTimestamp(snapshot.refreshedAt)}
-            </span>
-          )}
+      {/* Was a hand-rolled wf-header at its own size and colour, with freshness inline
+          beside the title. Same three parts every other tab has -- title, description,
+          freshness, primary action -- so it uses the same component now. */}
+      <PageHeader
+        title="Workflow & status inventory"
+        description="Which workflow schemes exist, which projects each governs, and the full status catalog. Read-only — Observatory reports what is configured; changes stay in Jira's own admin UI."
+        meta={snapshot?.refreshedAt ? `Built ${formatRelativeTime(snapshot.refreshedAt)}` : null}
+        actions={
           <button
             className="primary-button"
             type="button"
@@ -533,8 +607,8 @@ export function WorkflowTab() {
             <Icon name="refreshCw" size={14} />
             {isBuilding ? "Building…" : snapshot?.version ? "Rebuild" : "Build inventory"}
           </button>
-        </div>
-      </div>
+        }
+      />
 
       {error && <div className="danger-zone__error" role="alert">{error}</div>}
       {snapshot?.lastError && (
@@ -548,80 +622,26 @@ export function WorkflowTab() {
           the projects each governs.</EmptyState>
       ) : (
         <>
-          <div className="wf-viewbar">
-            <div className="wf-viewbar__tabs">
-              <button
-                type="button"
-                className={`wf-viewtab ${view === "schemes" ? "wf-viewtab--active" : ""}`}
-                onClick={() => setView("schemes")}
-              >
-                Schemes <span className="wf-viewtab__count">{formatNumber(data?.totalCount ?? schemes.length)}</span>
-              </button>
-              <button
-                type="button"
-                className={`wf-viewtab ${view === "statuses" ? "wf-viewtab--active" : ""}`}
-                onClick={() => setView("statuses")}
-              >
-                Statuses <span className="wf-viewtab__count">{formatNumber(statuses.length)}</span>
-              </button>
-              <button
-                type="button"
-                className={`wf-viewtab ${view === "insights" ? "wf-viewtab--active" : ""}`}
-                onClick={() => setView("insights")}
-              >
-                Insights
-                {insights?.summary && (
-                  <span className="wf-viewtab__count wf-viewtab__count--alert">
-                    {formatNumber(
-                      insights.summary.duplicateGroupCount
-                      + insights.summary.orphanCount
-                      + insights.summary.flaggedSchemeCount
-                    )}
-                  </span>
-                )}
-              </button>
-            </div>
-
-            {view === "schemes" && (
-              <input
-                type="search"
-                className="wf-search"
-                placeholder="Search schemes…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                aria-label="Search workflow schemes"
-              />
-            )}
-
-            {view === "statuses" && statusesByCategory.size > 1 && (
-              <div className="wf-catfilter">
-                <button
-                  type="button"
-                  className={`wf-catchip ${statusCategory === "all" ? "wf-catchip--active" : ""}`}
-                  onClick={() => setStatusCategory("all")}
-                >
-                  All
-                </button>
-                {[...statusesByCategory.entries()].map(([category, items]) => (
-                  <button
-                    key={category}
-                    type="button"
-                    className={`wf-catchip wf-catchip--${CATEGORY_TONE[category] || "other"} ${statusCategory === category ? "wf-catchip--active" : ""}`}
-                    onClick={() => setStatusCategory(category)}
-                  >
-                    {category} <span className="wf-catchip__n">{items.length}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
+          {/* Sidebar sub-nav, matching Screens, Automation, Scans, Reports and Config.
+              This tab was the only one running its sub-navigation as horizontal pills, which
+              is why moving between it and any other tab felt like changing product. */}
+          <SubNavLayout items={navItems} activeKey={view} onSelect={setView}>
           {view === "insights" ? (
             <WorkflowInsights insights={insights} loading={insightsLoading} />
           ) : loading ? (
             <EmptyState>Loading…</EmptyState>
           ) : view === "schemes" ? (
             <>
+              <SortFilterBar
+                search={search}
+                onSearchChange={setSearch}
+                searchLabel="Search workflow schemes"
+                searchPlaceholder="Search schemes…"
+                resultCount={data?.totalCount ?? schemes.length}
+                totalCount={data?.totalCount ?? schemes.length}
+                onClear={() => setSearch("")}
+              />
+
               {schemes.length === 0 ? (
                 <EmptyState>{deferredSearch ? `No schemes match “${deferredSearch}”.` : "No workflow schemes found."}</EmptyState>
               ) : (
@@ -665,41 +685,21 @@ export function WorkflowTab() {
             </>
           ) : (
             <>
-              <div className="wf-statusbar">
-                <input
-                  type="search"
-                  className="wf-search"
-                  placeholder="Filter statuses…"
-                  value={statusSearch}
-                  onChange={(e) => setStatusSearch(e.target.value)}
-                  aria-label="Filter statuses by name"
-                />
-                <select
-                  className="wf-select"
-                  value={statusUsage}
-                  onChange={(e) => setStatusUsage(e.target.value)}
-                  aria-label="Filter statuses by usage"
-                >
-                  <option value="all">Any usage</option>
-                  <option value="active">Has issues now</option>
-                  <option value="empty">Empty now, used before</option>
-                  <option value="never">Never used</option>
-                  <option value="unknown">Usage unknown</option>
-                </select>
-                <select
-                  className="wf-select"
-                  value={statusSort}
-                  onChange={(e) => setStatusSort(e.target.value)}
-                  aria-label="Sort statuses"
-                >
-                  <option value="name">Sort by name</option>
-                  <option value="current">Sort by issues now</option>
-                  <option value="ever">Sort by issues ever</option>
-                  <option value="departed">Sort by issues departed</option>
-                </select>
-                <span className="wf-statusbar__count">
-                  {formatNumber(visibleStatuses.length)} of {formatNumber(statuses.length)}
-                </span>
+              <SortFilterBar
+                search={statusSearch}
+                onSearchChange={setStatusSearch}
+                searchLabel="Filter statuses by name"
+                searchPlaceholder="Filter statuses…"
+                sort={statusSort}
+                onSortChange={setStatusSort}
+                sortOptions={STATUS_SORT_OPTIONS}
+                filters={statusFilters}
+                resultCount={visibleStatuses.length}
+                totalCount={statuses.length}
+                onClear={() => { setStatusSearch(""); setStatusUsage("all"); setStatusCategory("all"); }}
+              >
+                {/* An action, not a filter, so it sits in the toolbar's slot rather than
+                    being mistaken for one of the selects beside it. */}
                 <button
                   type="button"
                   className="secondary-button"
@@ -710,7 +710,7 @@ export function WorkflowTab() {
                   <Icon name="clock" size={13} />
                   {measuring ? "Queued…" : statusCounts.hasHistoryCounts ? "Re-measure history" : "Measure history"}
                 </button>
-              </div>
+              </SortFilterBar>
 
               {!statusCounts.hasCurrentCounts && (
                 <p className="wf-insights__note">
@@ -788,6 +788,7 @@ export function WorkflowTab() {
               )}
             </>
           )}
+          </SubNavLayout>
         </>
       )}
     </div>

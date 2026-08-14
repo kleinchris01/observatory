@@ -242,6 +242,13 @@ export async function buildWorkflowSnapshot(installationKey) {
       transitionScreens: transitionScreenRows,
     });
 
+    // Recorded as a number even when it is zero. Zero means this build walked the
+    // workflows and found no transition opening a screen; NULL means the snapshot
+    // predates transition capture entirely, and only one of those is a finding.
+    logger.info("workflow-snapshot.transition-screens", {
+      installationKey, captured: transitionScreenRows.length, workflows: workflows.length,
+    });
+
     const completedAt = new Date().toISOString();
     await writeWorkflowSnapshotMeta(installationKey, {
       state: "ready",
@@ -249,6 +256,10 @@ export async function buildWorkflowSnapshot(installationKey) {
       completedAt,
       refreshedAt: completedAt,
       totalSchemes: schemeRows.length,
+      // A number, always -- including zero. Its presence is what tells a later read that
+      // this build looked for transition screens at all; NULL means the snapshot predates
+      // the capture and knows nothing either way.
+      transitionScreens: transitionScreenRows.length,
       lastError: null,
     });
 

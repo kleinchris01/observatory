@@ -317,12 +317,26 @@ export function FindingsStrip({ findings }) {
 
 export function ProjectUsageBuildBadge({ field }) {
   const totalIssueCount = Number(field?.totalIssueCount || 0);
-  const state = field?.projectUsageState || "unbuilt";
+  // Absent is unknown, not unbuilt. The old `|| "unbuilt"` turned a missing value into a
+  // definite claim, which is the one thing the rest of this app is careful never to do.
+  const state = field?.projectUsageState || null;
 
   if (totalIssueCount <= 0) {
     return null;
   }
   if (field?.projectUsageBuilt || state === "ready") {
+    return null;
+  }
+  // The contradiction this fixes: a card reading "Usage Not Built" beside "128 active
+  // projects" and "303,233 issues with value". Those counts come from the snapshot, which
+  // has measured the usage; the badge was reporting on the separate per-field summary job.
+  // Two different questions, and only one of them was in the label -- so the badge said the
+  // opposite of the numbers sitting next to it, then vanished on expand when the details
+  // payload supplied a state the collapsed row never had.
+  if (Number(field?.activeProjectCount || 0) > 0) {
+    return null;
+  }
+  if (!state) {
     return null;
   }
   if (state === "queued" || state === "building") {
@@ -449,7 +463,17 @@ export function FieldCard({
   screenSnapshot,
 }) {
   const displayField = React.useMemo(() => mergeFieldMetrics(field, details), [field, details]);
-  const configuredProjectsValue = details ? details.configuredProjectCount : (field.configuredProjectCount ?? field.usageCount ?? 0);
+  // Falls back through the details payload rather than trusting it to carry the key.
+  //
+  // The bug this fixes: expanding a card blanked the count. Collapsed, the value came from
+  // the field row; expanded, the ternary switched to details.configuredProjectCount and
+  // rendered nothing at all when that key was absent -- so opening a card to learn more
+  // about it removed a number that had been on screen a moment earlier.
+  const configuredProjectsValue = details?.configuredProjectCount
+    ?? details?.field?.configuredProjectCount
+    ?? field.configuredProjectCount
+    ?? field.usageCount
+    ?? 0;
   const fieldIsSelectType = isSelectType(field.type);
   const [fieldOptions, setFieldOptions] = React.useState(null);
   const [fieldOptionsLoading, setFieldOptionsLoading] = React.useState(false);
@@ -548,6 +572,40 @@ export function FieldCard({
             <div className="empty-state empty-state--inline">Loading field contexts and project usage...</div>
           ) : details ? (
             <>
+              {/* The field-wide query, at the top rather than inside a section of its own.
+                  It was a whole CollapsibleSection wrapping a single link -- a header, a
+                  chevron and a collapsed state guarding one line. */}
+              <div className="field-query-bar">
+                <a
+                  className="smart-link-card field-query-bar__link"
+                  href={buildJiraSearchUrl(siteOrigin, details.fieldJql || details.field?.fieldJql) || "#"}
+                  target="_blank"
+                  rel="noreferrer"
+                  title="Open this field-wide JQL in Jira issue search"
+                  onClick={(e) => handleJiraLinkClick(e, buildJiraSearchUrl(siteOrigin, details.fieldJql || details.field?.fieldJql))}
+                >
+                  <span className="smart-link-card__title">Open field-wide JQL in Jira</span>
+                  <code>{details.fieldJql || details.field?.fieldJql}</code>
+                </a>
+                <div className="field-query-bar__meta">
+                  <span>Total populated issues: {usageAvailable ? formatNumber(details.totalIssueCount) : "Unavailable"}</span>
+                  <button
+                    className="secondary-button secondary-button--small"
+                    type="button"
+                    onClick={(event) => { event.stopPropagation(); onAskField(); }}
+                    disabled={!rovoEnabled}
+                  >
+                    Ask Rovo
+                  </button>
+                </div>
+              </div>
+
+              {!usageAvailable ? (
+                <div className="empty-state empty-state--inline">
+                  {usageSource?.usageStatusDetail || "Jira did not return per-project usage for this field in the app context."}
+                </div>
+              ) : null}
+
               {showGovernance && <CollapsibleSection
                 title="Governance Findings"
                 actions={
@@ -600,45 +658,6 @@ export function FieldCard({
               </CollapsibleSection>}
 
               {showGovernance ? <AutomationUsageSection field={field} enabled={expanded} siteOrigin={siteOrigin} rovoEnabled={rovoEnabled} /> : null}
-
-              <CollapsibleSection
-                title="Field-Wide Query"
-                actions={
-                  <>
-                    <span>Total populated issues: {usageAvailable ? details.totalIssueCount : "Unavailable"}</span>
-                    <button
-                      className="secondary-button secondary-button--small"
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onAskField();
-                      }}
-                      disabled={!rovoEnabled}
-                    >
-                      Ask Rovo
-                    </button>
-                  </>
-                }
-              >
-                <div className="field-query-grid">
-                  <a
-                    className="smart-link-card"
-                    href={buildJiraSearchUrl(siteOrigin, details.fieldJql || details.field?.fieldJql) || "#"}
-                    target="_blank"
-                    rel="noreferrer"
-                    title="Open this field-wide JQL in Jira issue search"
-                    onClick={(e) => handleJiraLinkClick(e, buildJiraSearchUrl(siteOrigin, details.fieldJql || details.field?.fieldJql))}
-                  >
-                    <span className="smart-link-card__title">Open field-wide JQL in Jira</span>
-                    <code>{details.fieldJql || details.field?.fieldJql}</code>
-                  </a>
-                </div>
-                {!usageAvailable ? (
-                  <div className="empty-state empty-state--inline">
-                    {usageSource?.usageStatusDetail || "Jira did not return per-project usage for this field in the app context."}
-                  </div>
-                ) : null}
-              </CollapsibleSection>
 
               <CollapsibleSection
                 title="Contexts"

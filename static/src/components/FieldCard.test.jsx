@@ -10,6 +10,7 @@ import {
   FieldCard,
   CopyableFieldId,
   CollapsibleSection,
+  ProjectUsageBuildBadge,
   AutomationUsageSection,
   ScreenUsageSection,
 } from "./FieldCard";
@@ -569,7 +570,9 @@ describe("FieldCard", () => {
     it("renders every detail section as a collapsible toggle", async () => {
       render(<FieldCard {...defaultProps} expanded details={details} />);
 
-      for (const title of ["Governance Findings", "Automation Usage", "Field-Wide Query", "Contexts", "Project Usage"]) {
+      // Field-Wide Query is deliberately absent: it is one link and a count, promoted to the
+      // top of the card rather than hidden behind a header, a chevron and a collapsed state.
+      for (const title of ["Governance Findings", "Automation Usage", "Contexts", "Project Usage"]) {
         expect(await screen.findByRole("button", { name: new RegExp(title, "i") })).toHaveAttribute("aria-expanded", "true");
       }
     });
@@ -781,5 +784,94 @@ describe("FieldCard copy affordance", () => {
     );
     expect(screen.getByRole("button", { name: /copy field id customfield_10001/i })).toBeInTheDocument();
     expect(screen.getByText("customfield_10001")).toBeInTheDocument();
+  });
+});
+
+// Two things the card got wrong on screen.
+describe("FieldCard — header metrics and the field-wide query", () => {
+  const details = {
+    field: { id: "customfield_11322", name: "CAE Program", type: "select" },
+    configuredProjectCount: undefined, // the payload that caused the blank
+    activeProjectCount: 129,
+    totalIssueCount: 319776,
+    fieldJql: 'cf[11322] is not EMPTY',
+    contexts: [],
+    projects: [],
+    projectUsagePage: 1,
+    projectUsageTotalPages: 1,
+    projectUsagePageSize: 10,
+    projectUsageTotalProjects: 0,
+  };
+  const field = { id: "customfield_11322", name: "CAE Program", type: "select", configuredProjectCount: 138 };
+
+  // The bug: expanding a card blanked the count. Collapsed it came from the field row;
+  // expanded, the ternary switched to details.configuredProjectCount and rendered nothing,
+  // so opening a card removed a number that had been on screen a moment earlier.
+  it("keeps the configured-project count when the details payload omits it", () => {
+    render(<FieldCard
+      field={field}
+      details={details}
+      expanded
+      onToggle={vi.fn()}
+      onSelectChange={vi.fn()}
+      onProjectUsagePageChange={vi.fn()}
+      onRefreshProjectUsage={vi.fn()}
+      onAskField={vi.fn()}
+      onAskProject={vi.fn()}
+    />);
+
+    const chip = screen.getByText("Configured projects").closest(".metric-chip");
+    expect(chip).toHaveTextContent("138");
+  });
+
+  it("shows the field-wide JQL at the top without a section to open first", () => {
+    const { container } = render(<FieldCard
+      field={field}
+      details={details}
+      expanded
+      onToggle={vi.fn()}
+      onSelectChange={vi.fn()}
+      onProjectUsagePageChange={vi.fn()}
+      onRefreshProjectUsage={vi.fn()}
+      onAskField={vi.fn()}
+      onAskProject={vi.fn()}
+    />);
+
+    expect(container.querySelector(".field-query-bar")).not.toBeNull();
+    expect(screen.getByText("cf[11322] is not EMPTY")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Field-Wide Query/i })).not.toBeInTheDocument();
+  });
+});
+
+// The badge said the opposite of the numbers beside it, then vanished on expand.
+describe("ProjectUsageBuildBadge — never contradict the counts on the same row", () => {
+  it("stays silent when the snapshot has already measured the usage", () => {
+    const { container } = render(<ProjectUsageBuildBadge field={{
+      totalIssueCount: 303233, activeProjectCount: 128, projectUsageState: "unbuilt",
+    }} />);
+    // "Usage Not Built" beside "128 active projects" is a contradiction, not a caveat.
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  // Absent is unknown. Turning it into a definite claim is what made every collapsed row
+  // assert the badge, and expanding one -- which merges in a details payload that carries
+  // the state -- silently withdraw it.
+  it("says nothing when the state is unknown rather than assuming not built", () => {
+    const { container } = render(<ProjectUsageBuildBadge field={{ totalIssueCount: 500 }} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("still reports a genuinely unmeasured field", () => {
+    render(<ProjectUsageBuildBadge field={{
+      totalIssueCount: 500, activeProjectCount: 0, projectUsageState: "unbuilt",
+    }} />);
+    expect(screen.getByText(/Usage Not Built/i)).toBeInTheDocument();
+  });
+
+  it("still reports a build in flight", () => {
+    render(<ProjectUsageBuildBadge field={{
+      totalIssueCount: 500, activeProjectCount: 0, projectUsageState: "building",
+    }} />);
+    expect(screen.getByText(/Usage Building/i)).toBeInTheDocument();
   });
 });

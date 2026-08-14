@@ -55,6 +55,23 @@ export function ProjectUsageTab({ siteOrigin }) {
     return () => { cancelled = true; };
   }, [selectedProjectId, deferredProjectQuery, deferredFieldQuery, fieldType, fieldSort, page]);
 
+
+  // Everything that touches the selected project, across every pillar. Its own call rather
+  // than folded into getProjectsView: that resolver pages a field list and is re-run on
+  // every keystroke of the field search, and none of those re-runs change the pillars.
+  const [overview, setOverview] = React.useState(null);
+  const [overviewLoading, setOverviewLoading] = React.useState(false);
+  React.useEffect(() => {
+    if (!selectedProjectId) return undefined;
+    let cancelled = false;
+    setOverviewLoading(true);
+    invoke("getProjectOverview", { projectId: selectedProjectId })
+      .then((result) => { if (!cancelled) setOverview(result); })
+      .catch(() => { if (!cancelled) setOverview(null); })
+      .finally(() => { if (!cancelled) setOverviewLoading(false); });
+    return () => { cancelled = true; };
+  }, [selectedProjectId]);
+
   function handleSelectProject(projectId) {
     setSelectedProjectId(projectId);
     setPage(1);
@@ -79,6 +96,8 @@ export function ProjectUsageTab({ siteOrigin }) {
           fieldSort={fieldSort}
           onFieldSortChange={(v) => { setFieldSort(v); setPage(1); }}
           onChangePage={setPage}
+          overview={overview}
+          overviewLoading={overviewLoading}
         />
       </React.Suspense>
     </>
