@@ -811,7 +811,12 @@ const projectStoreMigrations = migrationRunner
   .enqueue("v068_create_health_history_table", CREATE_HEALTH_HISTORY_TABLE)
   .enqueue("v069_create_full_scan_meta_table", CREATE_FULL_SCAN_META_TABLE)
   .enqueue("v070_create_automation_rule_projects_table", CREATE_AUTOMATION_RULE_PROJECTS_TABLE)
-  .enqueue("v071_create_automation_rule_projects_by_project_index", CREATE_AUTOMATION_RULE_PROJECTS_BY_PROJECT_INDEX);
+  .enqueue("v071_create_automation_rule_projects_by_project_index", CREATE_AUTOMATION_RULE_PROJECTS_BY_PROJECT_INDEX)
+  // NULL, not 0: a snapshot built before transition capture existed never looked, and
+  // that is a different fact from having looked and found none. Without this column the
+  // two are indistinguishable, and the tab reported the first as the second.
+  .enqueue("v072_alter_workflow_meta_add_transition_screens",
+    "ALTER TABLE workflow_snapshot_meta ADD COLUMN IF NOT EXISTS transition_screens INTEGER NULL");
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history

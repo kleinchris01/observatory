@@ -567,11 +567,12 @@ export function ScreensTab() {
             description="The second way a screen reaches a user. A screen here is in use even if no screen scheme references it — which is why the scheme view alone cannot tell you what is safe to delete."
           >
             {!data?.transitionsAvailable ? (
-              // Tri-state. An empty list here would read as "no transition opens a screen",
-              // which is a claim about the site rather than about what has been measured.
+              // Three states, not two. The reason distinguishes "no workflow inventory at
+              // all" from "an inventory that predates transition capture" -- both are
+              // unknown, but only the second is fixed by rebuilding.
               <EmptyState inline>
-                No workflow inventory has been built, so transition screens are unknown. Build it
-                from the Workflows tab to see which screens transitions open.
+                {data?.transitionsReason
+                  || "No workflow inventory has been built, so transition screens are unknown. Build it from the Workflows tab to see which screens transitions open."}
               </EmptyState>
             ) : !data?.transitionScreens?.length ? (
               <EmptyState inline>

@@ -878,9 +878,14 @@ async function getScreenInventory({ payload, context }) {
     distributions,
     governance,
     transitionScreens,
-    // Tri-state, not an empty list. "No workflow inventory" and "no transition opens a
-    // screen" are opposite claims, and the tab must not render the first as the second.
-    transitionsAvailable: Boolean(workflowMeta?.version),
+    // Three states, not two. A workflow snapshot EXISTING is not the same as that snapshot
+    // having looked for transition screens: every inventory built before the capture shipped
+    // has none recorded, and reporting that as "no transition opens a screen" states a fact
+    // the build never established. transitionScreens is null on those, a number on the rest.
+    transitionsAvailable: workflowMeta?.transitionScreens != null,
+    transitionsReason: workflowMeta?.version && workflowMeta.transitionScreens == null
+      ? "This workflow inventory was built before transition capture existed. Rebuild it from the Workflows tab to see which screens transitions open."
+      : null,
     neverBuilt: false,
   };
 }

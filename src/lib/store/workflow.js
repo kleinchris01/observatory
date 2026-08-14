@@ -399,7 +399,7 @@ export async function readWorkflowSnapshotMeta(scopeKey) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
     sql.prepare(`
-      SELECT state, version, started_at, completed_at, refreshed_at, total_schemes, last_error
+      SELECT state, version, started_at, completed_at, refreshed_at, total_schemes, transition_screens, last_error
       FROM workflow_snapshot_meta
       WHERE scope_key = ?
       LIMIT 1
@@ -414,6 +414,9 @@ export async function readWorkflowSnapshotMeta(scopeKey) {
     completedAt: row.completed_at || null,
     refreshedAt: row.refreshed_at || null,
     totalSchemes: toNumber(row.total_schemes),
+    // null when this snapshot predates transition capture -- deliberately NOT coerced to 0,
+    // because 0 means the build looked and found none.
+    transitionScreens: row.transition_screens == null ? null : toNumber(row.transition_screens),
     lastError: row.last_error || null,
   };
 }
@@ -435,8 +438,8 @@ export async function writeWorkflowSnapshotMeta(scopeKey, patch) {
 
   await withSqlRetry(() =>
     sql.prepare(`
-      INSERT INTO workflow_snapshot_meta (scope_key, state, version, started_at, completed_at, refreshed_at, total_schemes, last_error)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO workflow_snapshot_meta (scope_key, state, version, started_at, completed_at, refreshed_at, total_schemes, transition_screens, last_error)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON DUPLICATE KEY UPDATE
         state = VALUES(state),
         version = VALUES(version),
@@ -444,8 +447,9 @@ export async function writeWorkflowSnapshotMeta(scopeKey, patch) {
         completed_at = VALUES(completed_at),
         refreshed_at = VALUES(refreshed_at),
         total_schemes = VALUES(total_schemes),
+        transition_screens = VALUES(transition_screens),
         last_error = VALUES(last_error)
-    `).bindParams(scopeKey, next.state, next.version, next.startedAt, next.completedAt, next.refreshedAt, next.totalSchemes, next.lastError).execute()
+    `).bindParams(scopeKey, next.state, next.version, next.startedAt, next.completedAt, next.refreshedAt, next.totalSchemes, next.transitionScreens ?? null, next.lastError).execute()
   );
 
   return next;
