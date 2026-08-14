@@ -62,17 +62,6 @@ export function formatRelativeTime(value) {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
-export function formatRelativeOrAbsoluteTime(value) {
-  if (!value) return "No recent update";
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(value));
-  } catch {
-    return String(value);
-  }
-}
 
 export function formatContextList(values, fallback) {
   return values?.length ? values.join(", ") : fallback;

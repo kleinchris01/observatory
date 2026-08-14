@@ -281,64 +281,6 @@ export async function queueFieldUsageDeltaRefreshWithRetry(
   return { ...lastResult, attempts: retryDelaysMs.length };
 }
 
-export async function topOffDeferredFieldSummaryJobs(installationKey, version, jobs = []) {
-  const capacity = summarizeProjectUsageCapacity(jobs);
-  let availableSlots = Math.max(0, 3 - capacity.runningJobCount);
-  if (!availableSlots) {
-    return jobs;
-  }
-
-  const queuedContinuations = jobs
-    .filter((job) => job.fieldId && job.summaryStatus === "queued" && Number(job.processedIssueCount || 0) > 0)
-    .sort((left, right) => {
-      const leftRef = new Date(left.refreshedAt || left.startedAt || 0).getTime();
-      const rightRef = new Date(right.refreshedAt || right.startedAt || 0).getTime();
-      return leftRef - rightRef;
-    });
-
-  if (!queuedContinuations.length) {
-    return jobs;
-  }
-
-  const nextJobs = [...jobs];
-  for (const job of queuedContinuations) {
-    if (!availableSlots) break;
-
-    const queueResult = await tryQueueFieldSummaryBuild(
-      installationKey,
-      version,
-      job.fieldId,
-      job.jobToken || makeJobToken(),
-      Number(job.processedIssueCount || job.nextStartAt || 0),
-      job.nextPageToken || ""
-    );
-
-    if (!queueResult.queued) {
-      break;
-    }
-
-    const fullJob = await loadFieldSummary(installationKey, job.fieldId).catch(fallbackOn("snapshot.summary_load_failed", () => job, { fieldId: job.fieldId }));
-    const updatedJob = {
-      ...fullJob,
-      fieldId: job.fieldId,
-      refreshedAt: new Date().toISOString(),
-      summaryStatus: "building",
-      lastError: null,
-      progressLog: [
-        ...(fullJob?.progressLog || []),
-        { t: new Date().toISOString(), msg: "Resuming queued continuation under current job cap" },
-      ].slice(-100),
-    };
-    await replaceFieldSummary(installationKey, job.fieldId, updatedJob);
-    const index = nextJobs.findIndex((candidate) => candidate.fieldId === job.fieldId);
-    if (index >= 0) {
-      nextJobs[index] = updatedJob;
-    }
-    availableSlots--;
-  }
-
-  return nextJobs;
-}
 
 export async function ensureFieldSummaryJobRunning(installationKey, version, fieldId, summary, snapshotField = null) {
   if (!summary || !version || !fieldId) {

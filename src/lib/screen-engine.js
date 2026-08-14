@@ -312,14 +312,3 @@ export async function buildScreenSnapshot(installationKey) {
 }
 
 // Read path for the UI. Queues a build when none has ever run, and recovers a wedged one.
-export async function getScreenSnapshotState(installationKey) {
-  await ensureProjectStoreReady();
-  const meta = await readScreenSnapshotMeta(installationKey);
-  const stale = isScreenBuildStale(meta);
-  return {
-    meta,
-    // Only suppress a rebuild for a build that is both building AND not stale.
-    canBuild: !(meta?.state === "building" && !stale),
-    staleBuild: stale,
-  };
-}
