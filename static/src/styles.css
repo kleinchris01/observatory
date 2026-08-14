@@ -1227,6 +1227,18 @@ select {
 .screen-usage-row__meta { display: flex; gap: 8px; flex-shrink: 0; }
 .screen-usage-note { margin: 10px 0 0; font-size: 0.76rem; opacity: 0.6; line-height: 1.4; }
 
+/* The field-wide query, promoted out of a collapsible section. One link and a count do not
+   need a header, a chevron and a collapsed state to hide behind. */
+.field-query-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  flex-wrap: wrap; margin-bottom: 14px;
+}
+.field-query-bar__link { flex: 1 1 340px; min-width: 0; }
+.field-query-bar__meta {
+  display: flex; align-items: center; gap: 10px; flex: none;
+  font-size: 0.78rem; opacity: 0.75;
+}
+
 /* Screens opened by a workflow transition. */
 .screen-row__transitions { font-size: 0.74rem; opacity: 0.6; line-height: 1.4; }
 .screen-transition-list { display: flex; flex-direction: column; gap: 10px; }
