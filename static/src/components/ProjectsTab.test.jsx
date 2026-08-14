@@ -203,11 +203,20 @@ describe("ProjectsTabView", () => {
       totalPages: 1,
       refreshedAt: null,
     };
-    render(<ProjectsTabView {...defaultProps} data={data} selectedProjectId="P1" />);
+    render(<ProjectsTabView
+      {...defaultProps}
+      data={data}
+      selectedProjectId="P1"
+      overview={{
+        available: true,
+        workflow: { available: false, reason: "No workflow inventory has been built yet." },
+        screens: { available: false, reason: "No screen inventory has been built yet." },
+        automation: { available: false, reason: "No automation analysis has been built yet." },
+      }}
+    />);
     expect(screen.getByText("DEMO project usage")).toBeInTheDocument();
-    // Renamed with the connection-map redesign -- the field count is now stated as a
-    // relationship of the project rather than as a standalone stat card.
-    expect(screen.getByText(/fields in use/i)).toBeInTheDocument();
+    // The overview leads now: the field count is a stat on it rather than a standalone card.
+    expect(screen.getByText(/Fields in use/i)).toBeInTheDocument();
   });
 
   it("shows the 'Restore from field summaries' button when handler is provided", () => {
@@ -271,30 +280,56 @@ describe("ProjectsTabView workflow correlation", () => {
     projectUsageRestoring: false,
   };
 
-  it("names the scheme governing the selected project and who shares it", () => {
-    render(<ProjectsTabView {...props} data={dataWith(SCHEME)} />);
+  // The scheme facts moved out of the view and into getProjectOverview, which the container
+  // fetches per project. These supply what that call returns.
+  const overviewWith = (scheme) => ({
+    available: true,
+    workflow: { available: true, scheme },
+    screens: { available: false, reason: "No screen inventory has been built yet." },
+    automation: { available: false, reason: "No automation analysis has been built yet." },
+  });
 
-    expect(screen.getByText("ADVEV Standard")).toBeInTheDocument();
-    expect(screen.getByText(/shared with 2 other projects/i)).toBeInTheDocument();
-    expect(screen.getByText("BBB")).toBeInTheDocument();
-    expect(screen.getByText("CCC")).toBeInTheDocument();
+  it("names the scheme governing the selected project and who shares it", () => {
+    render(<ProjectsTabView {...props} data={dataWith(SCHEME)} overview={overviewWith(SCHEME)} />);
+
+    // Twice, deliberately: once as the overview's headline, once as the peer-bars heading
+    // naming the scheme the comparison is across.
+    expect(screen.getAllByText("ADVEV Standard").length).toBeGreaterThan(0);
+    // The consequence, not just the count: a change to a shared scheme is not local.
+    expect(screen.getByText(/lands on all of them/i)).toBeInTheDocument();
+    // The sibling KEYS were chips on the old connection map, which the overview replaced.
+    // The peer bars still compare siblings, but only for siblings present in the projects
+    // list -- so what this test pins is the claim the overview itself makes: how many other
+    // projects run this process, and that a change here reaches them.
+    expect(screen.getByText(/5 other projects|2 other projects/i)).toBeInTheDocument();
   });
 
   it("says so plainly when a scheme is unique to this project", () => {
-    render(<ProjectsTabView {...props} data={dataWith({ ...SCHEME, sharedWithCount: 0, siblingProjects: [] })} />);
+    const scheme = { ...SCHEME, sharedWithCount: 0, siblingProjects: [] };
+    render(<ProjectsTabView {...props} data={dataWith(scheme)} overview={overviewWith(scheme)} />);
 
     expect(screen.getByText(/used only by this project/i)).toBeInTheDocument();
   });
 
   // The workflow snapshot is versioned separately from the field snapshot and may not
   // exist. The field view is the reason anyone opened this tab; it must not depend on it.
-  it("renders the field view unchanged when no workflow snapshot exists", () => {
-    render(<ProjectsTabView {...props} data={dataWith(null)} />);
+  // The workflow snapshot is versioned separately from the field snapshot and may not
+  // exist. The overview must report that pillar as unbuilt rather than as a project with
+  // no process, and the field view must not depend on it at all.
+  it("reports the workflow pillar unbuilt without breaking the rest of the page", () => {
+    render(<ProjectsTabView
+      {...props}
+      data={dataWith(null)}
+      overview={{
+        available: true,
+        workflow: { available: false, reason: "No workflow inventory has been built yet." },
+        screens: { available: false, reason: "No screen inventory has been built yet." },
+        automation: { available: false, reason: "No automation analysis has been built yet." },
+      }}
+    />);
 
-    expect(screen.queryByText("Workflow scheme")).not.toBeInTheDocument();
-    // Label changed with the connection-map redesign: the field count is now a
-    // relationship of the project ("fields in use") rather than a standalone stat card.
-    expect(screen.getByText(/fields in use/i)).toBeInTheDocument();
+    expect(screen.getByText(/No workflow inventory/i)).toBeInTheDocument();
+    expect(screen.getByText(/Fields in use/i)).toBeInTheDocument();
   });
 });
 

@@ -14,6 +14,7 @@ import {
 } from "../utils";
 import { Icon, useChartPalette } from "./Icons";
 import { SkeletonProjectItem, FindingsStrip, MetricChip } from "./FieldCard";
+import { SubNavLayout } from "./admin/primitives";
 import { Panel, StatRow, StatTile, BarList, PanelGrid, GridSpan, EmptyState, Chip, PageHeader } from "./ui";
 
 function ChartTooltip({ active, payload }) {
@@ -138,103 +139,6 @@ export function FieldTypeDonut({ fields }) {
 // genuinely specific to this view and stay local; the three relationship tiles are
 // StatTile, because "labelled value with a qualifier" is the most-rebuilt widget in this
 // app and already has a home.
-function ProjectConnectionMap({ project, scheme, fields }) {
-  const palette = useChartPalette();
-
-  // System fields excluded for the same reason the donut excluded them: they appear on
-  // every issue in every project, so counting them describes Jira rather than this project.
-  const typeMix = React.useMemo(() => {
-    const counts = {};
-    for (const f of fields.filter((f) => isCustomField(f.fieldId))) {
-      counts[f.fieldType] = (counts[f.fieldType] || 0) + 1;
-    }
-    return Object.entries(counts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 7)
-      .map(([name, value]) => ({ name, value }));
-  }, [fields]);
-
-  const unique = project.uniqueIssueCount;
-  const fills = project.totalIssueCount;
-  const perIssue = unique > 0 ? (fills / unique) : null;
-
-  return (
-    <Panel
-      title={`${project.projectKey} · ${project.projectName}`}
-      icon="folder"
-      description="How this project connects: the process it runs, the volume it carries, and the shape of the form people fill in."
-    >
-      <StatRow>
-        <StatTile
-          label="Process"
-          icon="activity"
-          value={scheme ? scheme.name : "Not inventoried"}
-          hint={
-            scheme
-              ? (scheme.sharedWithCount > 0
-                  ? `shared with ${scheme.sharedWithCount} other ${scheme.sharedWithCount === 1 ? "project" : "projects"}`
-                  : "used only by this project")
-              : "Build the workflow inventory to connect this"
-          }
-        >
-          {/* Kept alongside the peer bars below: the bars need each sibling to resolve in
-              the projects list to show a field count, the chips only need the key. */}
-          {scheme?.siblingProjects?.length > 0 && (
-            <div className="project-cxn__peers">
-              {scheme.siblingProjects.map((sibling) => (
-                <span key={sibling.projectId} className="project-cxn__peer" title={sibling.projectName}>
-                  {sibling.projectKey}
-                </span>
-              ))}
-            </div>
-          )}
-        </StatTile>
-
-        <StatTile
-          label="Volume"
-          icon="barChart"
-          value={formatNumber(unique != null ? unique : fills)}
-          hint={
-            unique != null
-              ? `distinct issues · ${formatNumber(fills)} field values`
-              : "field values — run a universe scan for issue counts"
-          }
-        />
-
-        <StatTile
-          label="Form shape"
-          icon="layers"
-          value={formatNumber(project.fieldCount)}
-          hint={
-            perIssue != null
-              ? `fields in use · ${perIssue.toFixed(1)} per issue`
-              : "fields in use"
-          }
-        >
-          {typeMix.length > 0 && (
-            <div
-              className="project-cxn__mix"
-              role="img"
-              aria-label={typeMix.map((t) => `${t.value} ${t.name}`).join(", ")}
-            >
-              {typeMix.map((seg, i) => (
-                <span
-                  key={seg.name}
-                  className="project-cxn__mixseg"
-                  style={{ flexGrow: seg.value, background: palette[i % palette.length] }}
-                  data-tip={`${seg.name}: ${seg.value}`}
-                />
-              ))}
-            </div>
-          )}
-        </StatTile>
-      </StatRow>
-    </Panel>
-  );
-}
-
-// The comparison the workflow band used to describe and never show. Sibling field counts
-// join off the projects list already in the payload, so it costs no extra request.
 function SchemePeerBars({ scheme, project, allProjects }) {
   if (!scheme || !scheme.siblingProjects?.length) return null;
 
@@ -422,7 +326,12 @@ export function ProjectsTabView({
   onChangePage,
   onRestoreProjectUsageCache,
   projectUsageRestoring,
+  overview,
+  overviewLoading,
 }) {
+  // Overview first: on a project you have never looked at, what runs it matters before
+  // which 170 fields it carries.
+  const [view, setView] = React.useState("overview");
   const projects = data?.projects || [];
   const selectedProject = data?.selectedProject || null;
   const fields = data?.fields || [];
@@ -556,18 +465,34 @@ export function ProjectsTabView({
                 * The donut became the inline type strip -- same information, a tenth of
                   the space, and adjacent to the field count it qualifies.
               */}
-              <ProjectConnectionMap
-                project={selectedProject}
-                scheme={data?.workflowScheme}
-                fields={fields}
-              />
-
-              <SchemePeerBars
-                scheme={data?.workflowScheme}
-                project={selectedProject}
-                allProjects={projects}
-              />
-
+              {/* Overview and Fields, as sub-navigation, matching every other tab. The old
+                  page was one column: connection map, peer bars, filters, then a field list
+                  that ran for screens -- so the cross-pillar context scrolled away the
+                  moment you started reading fields. */}
+              <SubNavLayout
+                items={[
+                  { key: "overview", label: "Overview", icon: "barChart" },
+                  { key: "fields", label: "Fields", icon: "layers", badge: formatNumber(totalFields) },
+                ]}
+                activeKey={view}
+                onSelect={setView}
+              >
+              {view === "overview" ? (
+                <>
+                  <ProjectOverview
+                    project={selectedProject}
+                    overview={overview}
+                    loading={overviewLoading}
+                    fields={fields}
+                  />
+                  <SchemePeerBars
+                    scheme={data?.workflowScheme}
+                    project={selectedProject}
+                    allProjects={projects}
+                  />
+                </>
+              ) : (
+                <>
               <section className="report-filters">
                 <label className="toolbar__field">
                   <span>Field search</span>
@@ -678,6 +603,9 @@ export function ProjectsTabView({
                   </button>
                 </div>
               </section>
+                </>
+              )}
+              </SubNavLayout>
             </>
           ) : (
             <div className="empty-state">No cached projects are available yet. Build project usage for at least one field first.</div>
