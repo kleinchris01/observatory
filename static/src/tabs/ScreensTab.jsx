@@ -399,37 +399,6 @@ export function ScreensTab() {
       <SubNavLayout items={items} activeKey={view} onSelect={setView}>
         {view === "overview" && (
           <PanelGrid>
-            <GridSpan wide>
-              <StatRow>
-                <StatTile label="Screens" value={formatNumber(data?.totalScreens ?? 0)} hint="Forms defined on this site" icon="copy" />
-                <StatTile label="Screen schemes" value={formatNumber(data?.screenSchemes?.length ?? 0)} hint="Map operations to screens" icon="layers" />
-                <StatTile label="Assignments" value={formatNumber(data?.issueTypeScreenSchemes?.length ?? 0)} hint="Issue type screen schemes" icon="folder" />
-                <StatTile
-                  label="Empty screens"
-                  value={formatNumber(g?.emptyScreens ?? 0)}
-                  hint="Read successfully, nothing on them"
-                  tone={(g?.emptyScreens ?? 0) > 0 ? "warning" : "success"}
-                  icon="scissors"
-                />
-                {/* null, never 0. Without the workflow inventory we cannot tell an unused
-                    screen from one a transition opens, and a 0 here would invite deletion. */}
-                <StatTile
-                  label="Nothing reaches"
-                  value={g?.unreachedScreens == null ? "—" : formatNumber(g.unreachedScreens)}
-                  hint={g?.unreachedScreens == null ? "needs the workflow inventory" : "no scheme and no transition"}
-                  tone={(g?.unreachedScreens ?? 0) > 0 ? "warning" : "neutral"}
-                  icon="alertTriangle"
-                />
-                <StatTile
-                  label="Broken mappings"
-                  value={formatNumber(g?.danglingOperations ?? 0)}
-                  hint="Scheme points at a missing screen"
-                  tone={(g?.danglingOperations ?? 0) > 0 ? "critical" : "success"}
-                  icon="alertCircle"
-                />
-              </StatRow>
-            </GridSpan>
-
             <GridSpan>
               <PillarHealthPanel pillar={pillar} />
             </GridSpan>

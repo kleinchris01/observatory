@@ -319,6 +319,52 @@ export async function replaceAutomationFindings(scopeKey, findingsDocument) {
 // Returns every reference, with the rule's name and state alongside. `total` is a count,
 // not the length of a truncated array, so a caller can page without ever being told a
 // smaller number than the truth.
+// Which of these statuses an automation rule actually references.
+//
+// The Workflows tab has carried a blanket caveat since before the automation pillar
+// existed: "Automation rules are not included. Jira does not expose them to Forge apps, so
+// a rule could still reference a status shown here." That was true then. It has not been
+// true since rule exports started being imported and shredded into automation_references,
+// where every status a rule reads, writes or transitions to is a row.
+//
+// A warning that applies to every row tells a reader nothing about any row. This answers it
+// per status, so "never used" can mean what it says -- and the statuses a rule DOES touch
+// stop hiding inside a caveat nobody can act on.
+//
+// Batched: the unreachable list runs to 67 statuses on the reference site, and asking per
+// status is 67 round trips to render one panel.
+export async function loadStatusAutomationReferences(scopeKey, labels = []) {
+  await ensureProjectStoreReady();
+  const names = [...new Set((labels || []).map((l) => String(l || "").trim()).filter(Boolean))];
+  if (!names.length) return {};
+
+  const out = {};
+  // Chunked against the bind-parameter ceiling, like every other IN-list in this codebase.
+  for (let i = 0; i < names.length; i += 100) {
+    const batch = names.slice(i, i + 100);
+    const placeholders = batch.map(() => "LOWER(?)").join(", ");
+    const result = await withSqlRetry(() =>
+      sql.prepare(`
+        SELECT LOWER(r.label) AS label,
+               COUNT(DISTINCT r.rule_id) AS rule_count,
+               COUNT(DISTINCT CASE WHEN a.enabled = 1 THEN r.rule_id END) AS enabled_count
+        FROM automation_references r
+        LEFT JOIN automation_rules a
+          ON a.scope_key = r.scope_key AND a.rule_id = r.rule_id
+        WHERE r.scope_key = ? AND r.kind = 'status' AND LOWER(r.label) IN (${placeholders})
+        GROUP BY LOWER(r.label)
+      `).bindParams(scopeKey, ...batch).execute()
+    );
+    for (const row of result.rows || []) {
+      out[String(row.label)] = {
+        ruleCount: toNumber(row.rule_count),
+        enabledRuleCount: toNumber(row.enabled_count),
+      };
+    }
+  }
+  return out;
+}
+
 export async function loadAutomationReferencesFor(scopeKey, kind, label, limit = 200) {
   await ensureProjectStoreReady();
   // Forge's SQL dialect will not bind LIMIT as a parameter, so it is interpolated -- which

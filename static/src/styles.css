@@ -1234,7 +1234,10 @@ select {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
   gap: 14px;
-  align-items: start;
+  /* stretch, not start: with align-items:start a tall panel beside a short one leaves a
+     hole the length of the difference, which is exactly what the overview looked like.
+     Panels now fill their row and their own content scrolls where it needs to. */
+  align-items: stretch;
 }
 /* For the panel that genuinely wants the row -- a twenty-bar distribution reads badly at
    half width. */
@@ -1260,6 +1263,9 @@ select {
 .project-pillar__headline { margin: 0 0 4px; font-size: 1.05rem; font-weight: 600; }
 .project-pillar__sub { margin: 0; font-size: 0.78rem; opacity: 0.6; line-height: 1.45; }
 .project-rules { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+/* Bounded so one project's 100 rules cannot make its panel five times taller than the
+   panels beside it -- which is what left the overview grid full of holes. */
+.project-rules--scroll { max-height: 320px; overflow-y: auto; padding-right: 4px; }
 .project-rules__item {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   padding: 7px 10px; border-radius: 10px;
@@ -1912,9 +1918,23 @@ code {
   max-height: calc(100vh - 24px);
 }
 
+/* The list had no styles at all, so it was a block container full of buttons -- and a
+   button in block flow shrinks to fit its text. That is the ragged right edge: every card
+   was as wide as its own project name and issue count, not as wide as the rail.
+   Scrolls internally because the rail itself is sticky with a viewport-bound max-height. */
+.projects-rail__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  min-height: 0;
+  padding-right: 4px;
+}
+
 .projects-rail__item {
   display: flex;
   flex-direction: column;
+  width: 100%;
   gap: 8px;
   padding: 12px 14px;
   border-radius: 16px;
@@ -1941,8 +1961,21 @@ code {
 .projects-rail__item-bottom {
   display: flex;
   justify-content: space-between;
+  align-items: baseline;
   gap: 10px;
+  min-width: 0;
 }
+
+/* "Battery Manufacturing Engineering LFP" wrapped to two lines and pushed its field count
+   onto a third, so no two cards were the same height either. The name takes the slack and
+   ellipsises; the count keeps its width. */
+.projects-rail__item-bottom > :first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.projects-rail__item-bottom > :last-child { flex: none; white-space: nowrap; }
 
 .projects-rail__item-bottom {
   color: var(--muted);
@@ -5846,9 +5879,17 @@ code {
   .automation-tab,
   .admin-scans-tab,
   .admin-reports-tab,
+  .admin-screens,
   .rqt-tab {
     max-width: 1800px;
-    margin-inline: auto;
+    /* Left-aligned, not centred. `margin-inline: auto` split the leftover width evenly, so
+       on a wide display every capped tab drifted away from the sidebar and opened a gap
+       beside the nav that labels it -- while .admin-screens, which was never added to this
+       list, sat correctly against the sidebar. That inconsistency was the tell: the tab
+       that looked right was the one this rule did not apply to.
+       The cap still keeps line length readable; it just no longer detaches the content
+       from the navigation. */
+    margin-inline: 0;
     width: 100%;
   }
 }

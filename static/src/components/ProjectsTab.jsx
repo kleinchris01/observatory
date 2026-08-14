@@ -198,11 +198,27 @@ export function ProjectOverview({ project, overview, loading, fields = [] }) {
   const { workflow, screens, automation } = overview;
   const readableScreens = (screens?.screens || []).filter((s) => s.tabsResolved === "resolved");
 
+  // totalIssueCount is FIELD VALUES on this project; uniqueIssueCount is distinct issues.
+  // The names do not say so, which is how the previous version divided by a key that does
+  // not exist on this object and rendered NaN.
+  const fills = Number(project?.totalIssueCount);
+  const issues = Number(project?.uniqueIssueCount);
+  const hasIssueCounts = Number.isFinite(issues) && issues > 0;
+  const perIssue = hasIssueCounts && Number.isFinite(fills) ? (fills / issues).toFixed(1) : null;
+
   return (
     <PanelGrid>
       <GridSpan wide>
         <StatRow>
-          <StatTile label="Issues" value={formatNumber(project?.uniqueIssueCount ?? project?.totalIssueCount ?? 0)} icon="barChart" hint="distinct issues in this project" />
+          <StatTile
+            label={hasIssueCounts ? "Issues" : "Field values"}
+            value={formatNumber(hasIssueCounts ? issues : fills)}
+            icon="barChart"
+            // Never labels field values as issues. On a site with no universe scan the only
+            // figure available is fills, and calling it "issues" overstates it by roughly
+            // the median field count.
+            hint={hasIssueCounts ? "distinct issues in this project" : "field values — run a universe scan for issue counts"}
+          />
           <StatTile label="Fields in use" value={formatNumber(project?.fieldCount ?? 0)} icon="layers" hint="with detected usage here" />
           <StatTile
             label="Workflow scheme"
@@ -227,9 +243,9 @@ export function ProjectOverview({ project, overview, loading, fields = [] }) {
           />
           <StatTile
             label="Fields per issue"
-            value={project?.uniqueIssueCount > 0 ? (project.totalFieldFills / project.uniqueIssueCount).toFixed(1) : "—"}
+            value={perIssue ?? "—"}
             icon="scissors"
-            hint="how much of the form gets filled"
+            hint={perIssue ? "how much of the form gets filled" : "needs a universe scan"}
           />
         </StatRow>
       </GridSpan>
@@ -285,15 +301,24 @@ export function ProjectOverview({ project, overview, loading, fields = [] }) {
           ) : !automation.rules.length ? (
             <EmptyState inline>No rule is scoped specifically to this project.</EmptyState>
           ) : (
-            <ul className="project-rules">
-              {automation.rules.slice(0, 12).map((rule) => (
-                <li key={rule.ruleId} className={rule.enabled ? "project-rules__item" : "project-rules__item project-rules__item--off"}>
-                  <span className="project-rules__name">{rule.name}</span>
-                  <span className="project-rules__trigger">{rule.triggerType || "—"}</span>
-                  {!rule.enabled && <Chip tone="neutral">disabled</Chip>}
-                </li>
-              ))}
-            </ul>
+            <>
+              <ul className="project-rules project-rules--scroll">
+                {automation.rules.map((rule) => (
+                  <li key={rule.ruleId} className={rule.enabled ? "project-rules__item" : "project-rules__item project-rules__item--off"}>
+                    <span className="project-rules__name">{rule.name}</span>
+                    <span className="project-rules__trigger">{rule.triggerType || "—"}</span>
+                    {!rule.enabled && <Chip tone="neutral">disabled</Chip>}
+                  </li>
+                ))}
+              </ul>
+              {/* Every rule is listed, inside a bounded scroller. Truncating to twelve made
+                  the panel disagree with the count in the tile above it; letting it run
+                  unbounded made it several times taller than its neighbours and left the
+                  grid full of holes. */}
+              <p className="project-pillar__sub">
+                {formatNumber(automation.rules.length)} {automation.rules.length === 1 ? "rule" : "rules"} scoped here.
+              </p>
+            </>
           )}
         </Panel>
       </GridSpan>
