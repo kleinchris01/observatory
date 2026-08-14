@@ -112,6 +112,7 @@ const mocks = vi.hoisted(() => ({
   loadScreenDistributions: vi.fn(),
   loadScreensForProject: vi.fn(),
   loadRulesForProject: vi.fn(),
+  loadGlobalRulesAffectingProject: vi.fn(),
   recordHealthSnapshot: vi.fn(),
   loadHealthHistory: vi.fn(),
   queueScreenSnapshotBuild: vi.fn(),
@@ -187,6 +188,7 @@ vi.mock("./lib/store/automation.js", () => ({
   replaceAutomationFindings: mocks.replaceAutomationFindings,
   loadAutomationReferencesFor: mocks.loadAutomationReferencesFor,
   loadRulesForProject: mocks.loadRulesForProject,
+  loadGlobalRulesAffectingProject: mocks.loadGlobalRulesAffectingProject,
   AUTOMATION_PARTS: { analysis: "a:", fields: "f:", statuses: "s:", directory: "d:", findings: "fi:" },
   MAX_PREVIEW_FINDINGS: 20,
   MAX_STORED_CASCADES: 150,
@@ -467,6 +469,7 @@ beforeEach(() => {
   mocks.loadScreenDistributions.mockResolvedValue({ sizeBuckets: [], largestScreens: [], mostSharedFields: [], operationMix: [] });
   mocks.loadScreensForProject.mockResolvedValue([]);
   mocks.loadRulesForProject.mockResolvedValue([]);
+  mocks.loadGlobalRulesAffectingProject.mockResolvedValue([]);
   mocks.recordHealthSnapshot.mockResolvedValue({ recorded: true });
   mocks.loadHealthHistory.mockResolvedValue([]);
   mocks.queueScreenSnapshotBuild.mockResolvedValue(undefined);
@@ -4274,6 +4277,38 @@ describe("getProjectOverview", () => {
     expect(result.workflow.reason).toMatch(/workflow inventory/i);
     // The pillar that IS built still renders.
     expect(result.automation.available).toBe(true);
+  });
+
+
+  // Site-wide rules are only worth listing per project if there is evidence they act there
+  // -- otherwise the list is "all of them" and says nothing.
+  test("keeps inferred site-wide rules separate from the ones actually scoped here", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: "f1" });
+    mocks.loadRulesForProject.mockResolvedValue([{ ruleId: "1", name: "Scoped", enabled: true }]);
+    mocks.loadGlobalRulesAffectingProject.mockResolvedValue([
+      { ruleId: "9", name: "Site-wide writer", fieldsTouched: 2, issuesTouched: 5000, lastChangeAt: "2026-08-01T00:00:00Z" },
+    ]);
+
+    const result = await getProjectOverview({ payload: { projectId: "10000" }, ...ctx });
+
+    // Merging them would erase the difference between "configured for this project" and
+    // "we infer it reaches this project", and only the first is a fact.
+    expect(result.automation.rules.map((r) => r.ruleId)).toEqual(["1"]);
+    expect(result.automation.globalRules.map((r) => r.ruleId)).toEqual(["9"]);
+    expect(result.automation.globalRulesAvailable).toBe(true);
+  });
+
+  // The evidence is field usage in this project, so with no field snapshot there is nothing
+  // to infer from. Withheld rather than guessed at.
+  test("withholds the inferred list when there is no field snapshot to infer from", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue(null);
+    mocks.loadRulesForProject.mockResolvedValue([]);
+
+    const result = await getProjectOverview({ payload: { projectId: "10000" }, ...ctx });
+
+    expect(mocks.loadGlobalRulesAffectingProject).not.toHaveBeenCalled();
+    expect(result.automation.globalRulesAvailable).toBe(false);
+    expect(result.automation.globalRulesReason).toMatch(/field snapshot/i);
   });
 
   test("rejects a missing project id", async () => {

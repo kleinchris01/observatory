@@ -136,6 +136,7 @@ import {
   replaceAutomationReferences,
   replaceAutomationRules,
   loadRulesForProject,
+  loadGlobalRulesAffectingProject,
   replaceAutomationFindings,
   loadAutomationReferencesFor,
   AUTOMATION_PARTS,
@@ -3374,7 +3375,7 @@ async function getProjectOverview({ payload, context }) {
     readScreenSnapshotMeta(installationKey).catch(() => null),
   ]);
 
-  const [scheme, screens, rules] = await Promise.all([
+  const [scheme, screens, rules, globalRules] = await Promise.all([
     workflowMeta?.version
       ? loadWorkflowSchemeForProject(installationKey, workflowMeta.version, projectId).catch(() => null)
       : Promise.resolve(null),
@@ -3382,6 +3383,11 @@ async function getProjectOverview({ payload, context }) {
       ? loadScreensForProject(installationKey, screenMeta.version, projectId).catch(() => null)
       : Promise.resolve(null),
     loadRulesForProject(installationKey, projectId).catch(() => null),
+    // Needs the field snapshot: the evidence is field usage in this project, so without it
+    // there is nothing to infer from and the list is withheld rather than guessed at.
+    fieldMeta?.version
+      ? loadGlobalRulesAffectingProject(installationKey, fieldMeta.version, projectId).catch(() => null)
+      : Promise.resolve(null),
   ]);
 
   return {
@@ -3407,6 +3413,14 @@ async function getProjectOverview({ payload, context }) {
         rules,
         enabledCount: rules.filter((r) => r.enabled).length,
         disabledCount: rules.filter((r) => !r.enabled).length,
+        // Site-wide rules with evidence they act here, kept separate from the scoped ones.
+        // Merging them would erase the distinction between "this rule is configured for
+        // this project" and "we infer this rule reaches it", and only the first is a fact.
+        globalRules: globalRules || [],
+        globalRulesAvailable: Boolean(globalRules),
+        globalRulesReason: globalRules
+          ? null
+          : "Needs the field snapshot to tell which site-wide rules act on this project.",
       }
       : { available: false, reason: "No automation analysis has been built yet." },
     fields: { available: Boolean(fieldMeta?.version) },

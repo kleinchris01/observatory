@@ -299,6 +299,45 @@ export function ProjectOverview({ project, overview, loading, fields = [] }) {
       </GridSpan>
 
       <GridSpan>
+        {/* Separate panel, not merged into the one above. "Configured for this project" is a
+            fact; "we infer this reaches it" is a judgement, and running them together would
+            present the second with the authority of the first. */}
+        <Panel
+          title="Site-wide rules reaching this project"
+          icon="refreshCw"
+          description="Enabled rules with no project scope that write a field this project uses, where those values changed in the last 90 days."
+        >
+          {!automation?.available ? (
+            <EmptyState inline>{automation?.reason}</EmptyState>
+          ) : !automation.globalRulesAvailable ? (
+            <EmptyState inline>{automation.globalRulesReason}</EmptyState>
+          ) : !automation.globalRules.length ? (
+            <EmptyState inline>No site-wide rule shows evidence of writing to this project recently.</EmptyState>
+          ) : (
+            <>
+              <ul className="project-rules">
+                {automation.globalRules.slice(0, 10).map((rule) => (
+                  <li key={rule.ruleId} className="project-rules__item">
+                    <span className="project-rules__name">{rule.name}</span>
+                    {/* The evidence, so the inference can be judged rather than trusted. */}
+                    <span className="project-rules__trigger">
+                      {formatNumber(rule.issuesTouched)} issues · {formatNumber(rule.fieldsTouched)} {rule.fieldsTouched === 1 ? "field" : "fields"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="project-pillar__sub">
+                Inferred, not confirmed. Jira exposes no execution log to an app, so this is
+                evidence that something wrote these fields here — not proof it was these rules.
+                Fields are matched by name, so a rule writing a name this site uses twice
+                matches both.
+              </p>
+            </>
+          )}
+        </Panel>
+      </GridSpan>
+
+      <GridSpan>
         {/* Was "Form shape": a stacked colour bar with no legend and no explanation of what
             it stacked. It was field TYPE mix, which the label never said. */}
         <Panel title="Field types in use" icon="layers" description="What the form is made of. A project that is mostly text fields reports differently from one that is mostly select lists.">

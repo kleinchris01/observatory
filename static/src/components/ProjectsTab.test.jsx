@@ -421,7 +421,9 @@ describe("ProjectOverview", () => {
     />);
 
     expect(screen.getByText(/No screen inventory/i)).toBeInTheDocument();
-    expect(screen.getByText(/No automation analysis/i)).toBeInTheDocument();
+    // Twice: both the scoped-rules panel and the inferred site-wide one report the same
+    // unbuilt pillar, which is right -- neither can say anything without the analysis.
+    expect(screen.getAllByText(/No automation analysis/i).length).toBeGreaterThan(0);
     expect(screen.queryByText("No rule is scoped specifically to this project.")).not.toBeInTheDocument();
   });
 
@@ -444,5 +446,62 @@ describe("ProjectOverview", () => {
     />);
 
     expect(screen.getByText(/may be incomplete/i)).toBeInTheDocument();
+  });
+});
+
+// Site-wide rules are only worth listing per project if there is evidence they act there.
+// Otherwise the list is "all of them", which says nothing.
+describe("ProjectOverview — inferred site-wide rules", () => {
+  const project = { projectKey: "CAVPSE", projectName: "Advanced Connected Vehicle", fieldCount: 170, uniqueIssueCount: 60185, totalFieldFills: 4192973 };
+  const base = (automation) => ({
+    available: true,
+    workflow: { available: false, reason: "No workflow inventory has been built yet." },
+    screens: { available: false, reason: "No screen inventory has been built yet." },
+    automation,
+  });
+
+  it("shows the evidence behind the inference, not just the rule name", () => {
+    render(<ProjectOverview project={project} loading={false} overview={base({
+      available: true, enabledCount: 0, disabledCount: 0, rules: [],
+      globalRulesAvailable: true,
+      globalRules: [{ ruleId: "9", name: "Stamp Last Reviewed", fieldsTouched: 2, issuesTouched: 5000 }],
+    })} />);
+
+    expect(screen.getByText("Stamp Last Reviewed")).toBeInTheDocument();
+    expect(screen.getByText(/5,000 issues · 2 fields/)).toBeInTheDocument();
+  });
+
+  // The distinction that matters: configured-for-this-project is a fact, reaches-this-project
+  // is a judgement, and the second must not borrow the authority of the first.
+  it("labels the list as inferred rather than confirmed", () => {
+    render(<ProjectOverview project={project} loading={false} overview={base({
+      available: true, enabledCount: 0, disabledCount: 0, rules: [],
+      globalRulesAvailable: true,
+      globalRules: [{ ruleId: "9", name: "Stamp", fieldsTouched: 1, issuesTouched: 10 }],
+    })} />);
+
+    expect(screen.getByText(/Inferred, not confirmed/i)).toBeInTheDocument();
+    expect(screen.getByText(/no execution log/i)).toBeInTheDocument();
+  });
+
+  it("says why it cannot infer, rather than reporting none", () => {
+    render(<ProjectOverview project={project} loading={false} overview={base({
+      available: true, enabledCount: 0, disabledCount: 0, rules: [],
+      globalRulesAvailable: false,
+      globalRulesReason: "Needs the field snapshot to tell which site-wide rules act on this project.",
+      globalRules: [],
+    })} />);
+
+    expect(screen.getByText(/Needs the field snapshot/i)).toBeInTheDocument();
+    expect(screen.queryByText(/No site-wide rule shows evidence/i)).not.toBeInTheDocument();
+  });
+
+  it("distinguishes no evidence found from unable to look", () => {
+    render(<ProjectOverview project={project} loading={false} overview={base({
+      available: true, enabledCount: 0, disabledCount: 0, rules: [],
+      globalRulesAvailable: true, globalRules: [],
+    })} />);
+
+    expect(screen.getByText(/No site-wide rule shows evidence/i)).toBeInTheDocument();
   });
 });

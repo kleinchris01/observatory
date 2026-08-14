@@ -191,6 +191,76 @@ export async function replaceAutomationRules(scopeKey, directory) {
   return written + projectsWritten;
 }
 
+// Site-wide rules with evidence that they actually act on one project.
+//
+// A rule scoped to the whole site applies to every project by definition, which makes
+// "site-wide rules affecting this project" a useless list if it just means all of them.
+// What makes it useful is evidence, and there is a real chain for it:
+//
+//   the rule WRITES a field  ->  that field has populated issues in THIS project
+//                            ->  and those values changed recently
+//
+// Enabled rules only. A disabled rule cannot be updating anything, and listing one here
+// under the heading "actively updating this project" would be plainly false.
+//
+// Two honest limits, both surfaced to the caller rather than buried:
+//
+//   1. automation_references stores the field NAME, not its id, so the join to the field
+//      catalog is by name. This site has 34 groups of fields sharing a name, so a rule
+//      writing "Owner" matches every field called "Owner". Over-matching, not under.
+//   2. Recency comes from when the field's values last changed in this project, which is
+//      evidence that SOMETHING wrote them -- not proof it was this rule. Jira exposes no
+//      execution log to an app, so proof is not available at any price.
+//
+// It is inference. It is labelled as inference where it renders.
+export async function loadGlobalRulesAffectingProject(scopeKey, version, projectId, { activeSinceDays = 90, limit = 25 } = {}) {
+  await ensureProjectStoreReady();
+  const capped = Math.max(1, Math.min(100, Math.trunc(Number(limit)) || 25));
+  const since = new Date(Date.now() - Math.max(1, activeSinceDays) * 24 * 60 * 60 * 1000).toISOString();
+
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT
+        r.rule_id, r.name, r.trigger_type,
+        COUNT(DISTINCT pu.field_id) AS fields_touched,
+        SUM(pu.issue_count) AS issues_touched,
+        MAX(pu.latest_field_change_at) AS last_change
+      FROM automation_references ref
+      JOIN automation_rules r
+        ON r.scope_key = ref.scope_key AND r.rule_id = ref.rule_id
+      JOIN snapshot_fields sf
+        ON sf.scope_key = ref.scope_key AND sf.version = ? AND LOWER(sf.name) = LOWER(ref.label)
+      JOIN snapshot_project_usage pu
+        ON pu.scope_key = sf.scope_key AND pu.version = sf.version
+       AND pu.field_id = sf.field_id AND pu.project_id = ?
+      WHERE ref.scope_key = ?
+        AND ref.kind = 'field'
+        AND ref.direction = 'write'
+        AND r.enabled = 1
+        AND pu.issue_count > 0
+        AND pu.latest_field_change_at IS NOT NULL
+        AND pu.latest_field_change_at >= ?
+        AND NOT EXISTS (
+          SELECT 1 FROM automation_rule_projects arp
+          WHERE arp.scope_key = ref.scope_key AND arp.rule_id = ref.rule_id
+        )
+      GROUP BY r.rule_id, r.name, r.trigger_type
+      ORDER BY issues_touched DESC, r.rule_id ASC
+      LIMIT ${capped}
+    `).bindParams(version, String(projectId), scopeKey, since).execute()
+  );
+
+  return (result.rows || []).map((row) => ({
+    ruleId: row.rule_id,
+    name: row.name || row.rule_id,
+    triggerType: row.trigger_type || null,
+    // The evidence itself, so a reader can judge the inference rather than trust it.
+    fieldsTouched: toNumber(row.fields_touched),
+    issuesTouched: toNumber(row.issues_touched),
+    lastChangeAt: row.last_change || null,
+  }));
+}
+
 // Which rules touch one project, and how.
 //
 // The join the Projects tab needed and could not make. Site-wide rules are deliberately not
