@@ -14,7 +14,7 @@ import {
 } from "../utils";
 import { Icon, useChartPalette } from "./Icons";
 import { SkeletonProjectItem, FindingsStrip, MetricChip } from "./FieldCard";
-import { Panel, StatRow, StatTile, BarList } from "./ui";
+import { Panel, StatRow, StatTile, BarList, PanelGrid, GridSpan, EmptyState, Chip, PageHeader } from "./ui";
 
 function ChartTooltip({ active, payload }) {
   if (!active || !payload?.length) return null;
@@ -277,6 +277,133 @@ function SchemePeerBars({ scheme, project, allProjects }) {
 // Left exported rather than deleted mid-redesign: the donut is general-purpose and may be
 // wanted elsewhere. If neither is picked up, delete both with their tests rather than
 // leaving them to read as live code.
+
+
+// Everything that touches one project, across every pillar.
+//
+// The tab used to be a field list with a workflow scheme wedged in beside it: no mention of
+// which forms a project routes to, and none at all of the automation firing inside it. Both
+// joins existed as data and neither had a query. This is the answer to "what am I actually
+// looking at" for a project on a site nobody has audited.
+export function ProjectOverview({ project, overview, loading, fields = [] }) {
+  if (loading) return <EmptyState inline>Loading everything that touches this project…</EmptyState>;
+  if (!overview?.available) {
+    return <EmptyState inline>{overview?.reason || "This project could not be loaded."}</EmptyState>;
+  }
+
+  const { workflow, screens, automation } = overview;
+  const readableScreens = (screens?.screens || []).filter((s) => s.tabsResolved === "resolved");
+
+  return (
+    <PanelGrid>
+      <GridSpan wide>
+        <StatRow>
+          <StatTile label="Issues" value={formatNumber(project?.uniqueIssueCount ?? project?.totalIssueCount ?? 0)} icon="barChart" hint="distinct issues in this project" />
+          <StatTile label="Fields in use" value={formatNumber(project?.fieldCount ?? 0)} icon="layers" hint="with detected usage here" />
+          <StatTile
+            label="Workflow scheme"
+            value={workflow?.available ? (workflow.scheme ? "1" : "0") : "—"}
+            icon="activity"
+            hint={workflow?.available ? (workflow.scheme?.name || "none resolved") : "workflow inventory not built"}
+          />
+          {/* Em dash, never 0, for a pillar nobody has built. "No forms route here" and "we
+              have not looked" are opposite claims and only one is a finding. */}
+          <StatTile
+            label="Screens"
+            value={screens?.available ? formatNumber(readableScreens.length) : "—"}
+            icon="copy"
+            hint={screens?.available ? "forms this project routes to" : "screen inventory not built"}
+          />
+          <StatTile
+            label="Active rules"
+            value={automation?.available ? formatNumber(automation.enabledCount) : "—"}
+            icon="refreshCw"
+            tone={automation?.enabledCount > 0 ? "warning" : "neutral"}
+            hint={automation?.available ? `${formatNumber(automation.disabledCount)} disabled` : "automation analysis not built"}
+          />
+          <StatTile
+            label="Fields per issue"
+            value={project?.uniqueIssueCount > 0 ? (project.totalFieldFills / project.uniqueIssueCount).toFixed(1) : "—"}
+            icon="scissors"
+            hint="how much of the form gets filled"
+          />
+        </StatRow>
+      </GridSpan>
+
+      <GridSpan>
+        <Panel title="Process" icon="activity" description="The workflow scheme this project runs, and who else runs it.">
+          {!workflow?.available ? (
+            <EmptyState inline>{workflow?.reason}</EmptyState>
+          ) : !workflow.scheme ? (
+            <EmptyState inline>No workflow scheme resolved for this project.</EmptyState>
+          ) : (
+            <>
+              <p className="project-pillar__headline">{workflow.scheme.name}</p>
+              <p className="project-pillar__sub">
+                {workflow.scheme.sharedWithCount > 0
+                  ? `Shared with ${formatNumber(workflow.scheme.sharedWithCount)} other ${workflow.scheme.sharedWithCount === 1 ? "project" : "projects"} — a change here lands on all of them.`
+                  : "Used only by this project, so a change here is local."}
+              </p>
+            </>
+          )}
+        </Panel>
+      </GridSpan>
+
+      <GridSpan>
+        <Panel title="Forms" icon="copy" description="Screens this project routes to, through its issue type screen scheme.">
+          {!screens?.available ? (
+            <EmptyState inline>{screens?.reason}</EmptyState>
+          ) : !readableScreens.length ? (
+            <EmptyState inline>No screen scheme routes this project to a form.</EmptyState>
+          ) : (
+            <>
+              <BarList
+                items={readableScreens.slice(0, 8)}
+                labelKey="name"
+                valueKey="fieldCount"
+                formatValue={formatNumber}
+                emptyMessage="No forms resolved"
+              />
+              {screens.unresolvedScreens > 0 && (
+                <p className="project-pillar__sub">
+                  {formatNumber(screens.unresolvedScreens)} screens on this site could not be read, so this list may be incomplete.
+                </p>
+              )}
+            </>
+          )}
+        </Panel>
+      </GridSpan>
+
+      <GridSpan>
+        <Panel title="Automation" icon="refreshCw" description="Rules scoped to this project. Site-wide rules are not listed — they apply here the way they apply everywhere.">
+          {!automation?.available ? (
+            <EmptyState inline>{automation?.reason}</EmptyState>
+          ) : !automation.rules.length ? (
+            <EmptyState inline>No rule is scoped specifically to this project.</EmptyState>
+          ) : (
+            <ul className="project-rules">
+              {automation.rules.slice(0, 12).map((rule) => (
+                <li key={rule.ruleId} className={rule.enabled ? "project-rules__item" : "project-rules__item project-rules__item--off"}>
+                  <span className="project-rules__name">{rule.name}</span>
+                  <span className="project-rules__trigger">{rule.triggerType || "—"}</span>
+                  {!rule.enabled && <Chip tone="neutral">disabled</Chip>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
+      </GridSpan>
+
+      <GridSpan>
+        {/* Was "Form shape": a stacked colour bar with no legend and no explanation of what
+            it stacked. It was field TYPE mix, which the label never said. */}
+        <Panel title="Field types in use" icon="layers" description="What the form is made of. A project that is mostly text fields reports differently from one that is mostly select lists.">
+          <FieldTypeDonut fields={fields} />
+        </Panel>
+      </GridSpan>
+    </PanelGrid>
+  );
+}
 
 export function ProjectsTabView({
   data,

@@ -1256,6 +1256,19 @@ select {
   font-size: 0.78rem; opacity: 0.75;
 }
 
+/* Cross-pillar panels on a project. */
+.project-pillar__headline { margin: 0 0 4px; font-size: 1.05rem; font-weight: 600; }
+.project-pillar__sub { margin: 0; font-size: 0.78rem; opacity: 0.6; line-height: 1.45; }
+.project-rules { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.project-rules__item {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 7px 10px; border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04); border: 1px solid var(--stroke);
+}
+.project-rules__item--off { opacity: 0.55; }
+.project-rules__name { font-size: 0.8rem; font-weight: 600; flex: 1; min-width: 0; }
+.project-rules__trigger { font-size: 0.72rem; opacity: 0.6; }
+
 /* Screens opened by a workflow transition. */
 .screen-row__transitions { font-size: 0.74rem; opacity: 0.6; line-height: 1.4; }
 .screen-transition-list { display: flex; flex-direction: column; gap: 10px; }

@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { TopFieldsChart, FieldTypeDonut, ProjectsTabView } from "./ProjectsTab";
+import { TopFieldsChart, FieldTypeDonut, ProjectsTabView,
+  ProjectOverview,
+} from "./ProjectsTab";
 
 // ---------------------------------------------------------------------------
 // TopFieldsChart
@@ -336,5 +338,76 @@ describe("FieldTypeDonut — system field exclusion", () => {
   test("omits the excluded note when every field is custom", () => {
     const { container } = render(<FieldTypeDonut fields={fields.filter((f) => f.fieldId.startsWith("customfield_"))} />);
     expect(container.querySelector(".chart-title").textContent).not.toMatch(/system field/i);
+  });
+});
+
+// The cross-pillar view. The tab used to be a field list with a workflow scheme wedged in
+// beside it: no mention of the forms a project routes to, none at all of the automation
+// firing inside it.
+describe("ProjectOverview", () => {
+  const project = { projectKey: "CAVPSE", projectName: "Advanced Connected Vehicle", fieldCount: 170, uniqueIssueCount: 60185, totalFieldFills: 4192973 };
+  const overview = (over = {}) => ({
+    available: true,
+    workflow: { available: true, scheme: { name: "SW Workflow Scheme v1", sharedWithCount: 5 } },
+    screens: { available: true, unresolvedScreens: 0, screens: [{ screenId: "100", name: "Default Screen", fieldCount: 28, tabsResolved: "resolved" }] },
+    automation: { available: true, enabledCount: 3, disabledCount: 1, rules: [
+      { ruleId: "1", name: "Send to Approval", enabled: true, triggerType: "Issue created" },
+      { ruleId: "2", name: "Retired rule", enabled: false, triggerType: "Scheduled" },
+    ] },
+    ...over,
+  });
+
+  it("names the automation firing in this project, which the tab never mentioned", () => {
+    render(<ProjectOverview project={project} overview={overview()} loading={false} />);
+
+    expect(screen.getByText("Send to Approval")).toBeInTheDocument();
+    expect(screen.getByText("Retired rule")).toBeInTheDocument();
+  });
+
+  it("shows the forms this project routes to", () => {
+    render(<ProjectOverview project={project} overview={overview()} loading={false} />);
+    expect(screen.getByText("Default Screen")).toBeInTheDocument();
+  });
+
+  it("says a shared scheme is shared, because a change there is not local", () => {
+    render(<ProjectOverview project={project} overview={overview()} loading={false} />);
+    expect(screen.getByText(/lands on all of them/i)).toBeInTheDocument();
+  });
+
+  // Em dash, never 0. "No forms route here" and "we have not looked" are opposite claims.
+  it("reports an unbuilt pillar as unknown rather than as zero", () => {
+    render(<ProjectOverview
+      project={project}
+      loading={false}
+      overview={overview({
+        screens: { available: false, reason: "No screen inventory has been built yet." },
+        automation: { available: false, reason: "No automation analysis has been built yet." },
+      })}
+    />);
+
+    expect(screen.getByText(/No screen inventory/i)).toBeInTheDocument();
+    expect(screen.getByText(/No automation analysis/i)).toBeInTheDocument();
+    expect(screen.queryByText("No rule is scoped specifically to this project.")).not.toBeInTheDocument();
+  });
+
+  // Distinct from the above: the pillar IS built and the answer is genuinely none.
+  it("distinguishes a built pillar with nothing in it from an unbuilt one", () => {
+    render(<ProjectOverview
+      project={project}
+      loading={false}
+      overview={overview({ automation: { available: true, enabledCount: 0, disabledCount: 0, rules: [] } })}
+    />);
+
+    expect(screen.getByText("No rule is scoped specifically to this project.")).toBeInTheDocument();
+  });
+
+  it("caveats the form list when part of the screen catalog could not be read", () => {
+    render(<ProjectOverview
+      project={project}
+      loading={false}
+      overview={overview({ screens: { available: true, unresolvedScreens: 14, screens: [{ screenId: "100", name: "Default Screen", fieldCount: 28, tabsResolved: "resolved" }] } })}
+    />);
+
+    expect(screen.getByText(/may be incomplete/i)).toBeInTheDocument();
   });
 });
