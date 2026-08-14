@@ -48,7 +48,7 @@ const SCREEN_SORT_OPTIONS = [
   { value: "unresolved-first", label: "Unreadable first" },
 ];
 
-export function ScreenRow({ screen }) {
+export function ScreenRow({ screen, transitions = [] }) {
   const unresolved = screen.tabsResolved !== "resolved";
 
   return (
@@ -56,11 +56,24 @@ export function ScreenRow({ screen }) {
       <div className="screen-row__identity">
         <span className="screen-row__name">{screen.name}</span>
         {screen.description && <span className="screen-row__desc">{screen.description}</span>}
+        {/* Named individually rather than counted. "Used by 3 transitions" does not tell
+            you whether deleting the screen breaks a workflow you care about; the workflow
+            and transition names do. */}
+        {transitions.length > 0 && (
+          <span className="screen-row__transitions">
+            Opened by {transitions.map((t) => `${t.workflowName} · ${t.transitionName}`).join(", ")}
+          </span>
+        )}
       </div>
       <div className="screen-row__meta">
         {/* A screen we could not read reports no counts at all rather than zeroes. Zero
             fields and unknown fields are opposite claims, and the second is the one that
             must never look like the first. */}
+        {transitions.length > 0 && (
+          <Chip tone="neutral" title="A workflow transition opens this screen, whether or not a scheme references it">
+            {formatNumber(transitions.length)} {transitions.length === 1 ? "transition" : "transitions"}
+          </Chip>
+        )}
         {unresolved ? (
           <Chip tone="warning" title={screen.unresolvedReason || "Contents could not be read"}>
             Contents unknown
@@ -182,6 +195,17 @@ export function ScreensTab() {
 
   React.useEffect(() => { load(); }, [load]);
 
+  // Transitions grouped by the screen they open. Done here rather than server-side so an
+  // expanded screen row costs nothing extra -- the whole list is already on the page.
+  const transitionsByScreen = React.useMemo(() => {
+    const map = new Map();
+    for (const row of data?.transitionScreens || []) {
+      if (!map.has(row.screenId)) map.set(row.screenId, []);
+      map.get(row.screenId).push(row);
+    }
+    return map;
+  }, [data?.transitionScreens]);
+
   // "queued" counts as in flight, not just "building". The row is marked building at queue
   // time, but a consumer that has not picked the job up yet can leave either value on the
   // meta -- and treating only one of them as running is how a live build reads as idle.
@@ -278,6 +302,7 @@ export function ScreensTab() {
   const items = [
     { key: "screens", label: "Screens", icon: "copy", badge: formatNumber(data?.totalScreens ?? 0) },
     { key: "schemes", label: "Screen schemes", icon: "layers", badge: formatNumber(data?.screenSchemes?.length ?? 0) },
+    { key: "transitions", label: "Transitions", icon: "activity", badge: formatNumber(data?.transitionScreens?.length ?? 0) },
     { key: "assignments", label: "Assignments", icon: "folder", badge: formatNumber(data?.issueTypeScreenSchemes?.length ?? 0) },
   ];
 
@@ -387,7 +412,11 @@ export function ScreensTab() {
             ) : (
               <div className="screen-list">
                 {data.screens.rows.map((screen) => (
-                  <ScreenRow key={screen.screenId} screen={screen} />
+                  <ScreenRow
+                    key={screen.screenId}
+                    screen={screen}
+                    transitions={transitionsByScreen.get(screen.screenId) || []}
+                  />
                 ))}
               </div>
             )}
@@ -424,6 +453,49 @@ export function ScreensTab() {
                     scheme={scheme}
                     operations={(data.schemeOperations || []).filter((op) => op.schemeId === scheme.schemeId)}
                   />
+                ))}
+              </div>
+            )}
+          </Panel>
+        )}
+
+        {view === "transitions" && (
+          <Panel
+            title="Screens opened by a workflow transition"
+            icon="activity"
+            description="The second way a screen reaches a user. A screen here is in use even if no screen scheme references it — which is why the scheme view alone cannot tell you what is safe to delete."
+          >
+            {!data?.transitionsAvailable ? (
+              // Tri-state. An empty list here would read as "no transition opens a screen",
+              // which is a claim about the site rather than about what has been measured.
+              <EmptyState inline>
+                No workflow inventory has been built, so transition screens are unknown. Build it
+                from the Workflows tab to see which screens transitions open.
+              </EmptyState>
+            ) : !data?.transitionScreens?.length ? (
+              <EmptyState inline>
+                No workflow transition on this site opens a screen. Every screen reaches users
+                through the scheme chain alone.
+              </EmptyState>
+            ) : (
+              <div className="screen-transition-list">
+                {[...transitionsByScreen.entries()].map(([screenId, rows]) => (
+                  <div className="screen-transition" key={screenId}>
+                    <div className="screen-transition__screen">
+                      <span className="screen-transition__id">{screenId}</span>
+                      <Chip tone="neutral">
+                        {formatNumber(rows.length)} {rows.length === 1 ? "transition" : "transitions"}
+                      </Chip>
+                    </div>
+                    <ul className="screen-transition__rows">
+                      {rows.map((row) => (
+                        <li key={`${row.workflowName}:${row.transitionId}`}>
+                          <span className="screen-transition__workflow">{row.workflowName}</span>
+                          <span className="screen-transition__name">{row.transitionName}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 ))}
               </div>
             )}

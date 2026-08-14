@@ -368,14 +368,17 @@ describe("loadScreenCountsForFields", () => {
 
 describe("loadScreenGovernanceSummary", () => {
   test("scopes and versions every aggregate it runs", async () => {
-    await loadScreenGovernanceSummary("scope-1", "v1");
+    await loadScreenGovernanceSummary("scope-1", "v1", { workflowVersion: "w9" });
 
     const aggregates = issued.filter((e) => e.statement.includes("COUNT(*)"));
-    expect(aggregates.length).toBe(4);
+    expect(aggregates.length).toBe(5);
     for (const entry of aggregates) {
       expect(entry.statement).toContain("scope_key = ?");
       expect(entry.statement).toContain("version = ?");
-      expect(entry.params).toEqual(["scope-1", "v1"]);
+      // The two reachability aggregates span pillars, so they bind the workflow snapshot's
+      // version as a third param. Every one of them is still scoped to this tenant.
+      expect(entry.params.slice(0, 2)).toEqual(["scope-1", "v1"]);
+      expect(entry.params.length).toBeLessThanOrEqual(3);
     }
   });
 
@@ -383,7 +386,7 @@ describe("loadScreenGovernanceSummary", () => {
   // operation can name a screen id the catalog does not contain, so the distinct count
   // includes non-screens and the subtraction under-reports unreached screens.
   test("derives unreached screens from an anti-join, not a subtraction", async () => {
-    await loadScreenGovernanceSummary("scope-1", "v1");
+    await loadScreenGovernanceSummary("scope-1", "v1", { workflowVersion: "w9" });
 
     const statement = statements().find((s) => s.includes("unreached"));
     expect(statement).toContain("NOT EXISTS");
@@ -406,11 +409,58 @@ describe("loadScreenGovernanceSummary", () => {
     // as a rate makes the dimension unavailable rather than clean.
     mockRows([{ total: 0, empty_screens: null, unresolved_screens: null, dangling: null, unused: null, unreached: null }]);
 
-    const summary = await loadScreenGovernanceSummary("scope-1", "v1");
+    const summary = await loadScreenGovernanceSummary("scope-1", "v1", { workflowVersion: "w9" });
 
+    // The reachability figures are deliberately nullable and transitionsKnown is a flag;
+    // everything else must be a real number even when SUM() over no rows returns NULL.
+    const nullable = new Set(["unreachedScreens", "transitionOnlyScreens", "transitionsKnown"]);
     for (const [key, value] of Object.entries(summary)) {
+      if (nullable.has(key)) continue;
       expect(Number.isFinite(value), `${key} is ${value}`).toBe(true);
     }
+  });
+});
+
+
+// A screen a workflow transition opens is in daily use while belonging to no screen scheme.
+// Counting it as unreached is not a rounding error -- it is the premise for deleting a
+// screen people use every time they move an issue.
+describe("loadScreenGovernanceSummary - transition reachability", () => {
+  test("excludes screens a transition opens from the unreached count", async () => {
+    await loadScreenGovernanceSummary("scope-1", "v1", { workflowVersion: "w9" });
+
+    const statement = statements().find((s) => s.includes("AS unreached"));
+    expect(statement).toContain("snapshot_transition_screens");
+    expect(statement).toMatch(/NOT EXISTS[\s\S]*snapshot_screen_scheme_operations/);
+    expect(statement).toMatch(/NOT EXISTS[\s\S]*snapshot_transition_screens/);
+  });
+
+  // The two pillars rebuild on their own cadences, so the transition lookup is pinned to
+  // the workflow snapshot's version, not the screen snapshot's.
+  test("queries transitions at the workflow version, not the screen version", async () => {
+    await loadScreenGovernanceSummary("scope-1", "v1", { workflowVersion: "w9" });
+    const entry = issued.find((e) => e.statement.includes("AS unreached"));
+    expect(entry.params).toEqual(["scope-1", "v1", "w9"]);
+  });
+
+  // The whole point of the fix: without the workflow snapshot we cannot say a screen is
+  // unreachable, and null is how every consumer is told to suppress the claim.
+  test("returns null rather than a number when no workflow snapshot exists", async () => {
+    const summary = await loadScreenGovernanceSummary("scope-1", "v1");
+
+    expect(summary.unreachedScreens).toBeNull();
+    expect(summary.transitionOnlyScreens).toBeNull();
+    expect(summary.transitionsKnown).toBe(false);
+    expect(statements().some((s) => s.includes("AS unreached"))).toBe(false);
+  });
+
+  test("counts screens reached only by a transition as their own figure", async () => {
+    await loadScreenGovernanceSummary("scope-1", "v1", { workflowVersion: "w9" });
+
+    const statement = statements().find((s) => s.includes("AS transition_only"));
+    // No scheme reaches it AND a transition does -- the correction to the old finding.
+    expect(statement).toMatch(/NOT EXISTS[\s\S]*snapshot_screen_scheme_operations/);
+    expect(statement).toMatch(/AND EXISTS[\s\S]*snapshot_transition_screens/);
   });
 });
 

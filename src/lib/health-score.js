@@ -378,7 +378,11 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
   const measuredScreens = totalScreens - unresolvedScreens;
   if (screens?.available && measuredScreens > 0) {
     const empty = Number(screens.emptyScreens) || 0;
-    const unreached = Number(screens.unreachedScreens) || 0;
+    // null means no workflow snapshot exists, so whether a transition opens these screens
+    // is unknown. Scored on emptiness alone in that case rather than counting a screen a
+    // transition may well be using -- the dimension says so in its detail line.
+    const unreached = screens.unreachedScreens == null ? 0 : Number(screens.unreachedScreens);
+    const reachKnown = screens.unreachedScreens != null;
     // A screen can be both empty and unreached; counting the union avoids double-charging
     // one screen for two symptoms of the same neglect. Without per-screen flags here the
     // safe union is the larger of the two, never the sum.
@@ -391,12 +395,16 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1,
       score: scoreFromRate(rate, TOLERANCE.unusedScreens),
-      detail: idle === 0
-        ? `All ${measuredScreens} readable screens carry fields and are routed to by a scheme.`
-        : `${empty} screens carry no fields and ${unreached} are routed to by no scheme, of ${measuredScreens} readable.`,
-      action: idle > 0
-        ? "These are the screens where cleanup carries the least risk — nothing routes to them, or there is nothing on them."
-        : null,
+      detail: !reachKnown
+        ? `${empty} of ${measuredScreens} readable screens carry no fields. No workflow inventory, so whether a transition opens the rest is unknown.`
+        : idle === 0
+          ? `All ${measuredScreens} readable screens carry fields and are reachable by a scheme or a transition.`
+          : `${empty} screens carry no fields and ${unreached} are reached by neither a scheme nor a transition, of ${measuredScreens} readable.`,
+      action: !reachKnown
+        ? "Build the workflow inventory to tell an unused screen from one a transition opens."
+        : idle > 0
+          ? "These are the screens where cleanup carries the least risk — nothing routes to them, or there is nothing on them."
+          : null,
     });
   } else {
     dimensions.push(unavailable("screen-hygiene", "Screen hygiene", "screens",

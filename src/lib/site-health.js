@@ -278,7 +278,13 @@ export async function buildWorkflowOverview(installationKey) {
 // that has nine other pillars to show.
 export async function buildScreenOverview(installationKey) {
   try {
-    const meta = await readScreenSnapshotMeta(installationKey);
+    // Both versions, because "is this screen reachable" spans two pillars: the scheme chain
+    // lives in the screen snapshot and the transitions that open a screen live in the
+    // workflow one. Without the second, reachability is unknowable rather than clean.
+    const [meta, workflowMeta] = await Promise.all([
+      readScreenSnapshotMeta(installationKey),
+      readWorkflowSnapshotMeta(installationKey).catch(() => null),
+    ]);
     if (!meta?.version) {
       return { available: false, state: meta?.state || "idle", lastError: meta?.lastError || null };
     }
@@ -287,7 +293,9 @@ export async function buildScreenOverview(installationKey) {
       state: meta.state,
       refreshedAt: meta.refreshedAt || null,
       lastError: meta.lastError || null,
-      ...(await loadScreenGovernanceSummary(installationKey, meta.version)),
+      ...(await loadScreenGovernanceSummary(installationKey, meta.version, {
+        workflowVersion: workflowMeta?.version || null,
+      })),
     };
   } catch (error) {
     console.warn("buildScreenOverview failed:", error?.message || error);

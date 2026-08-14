@@ -424,6 +424,39 @@ export const CREATE_FULL_SCAN_META_TABLE = `
   )
 `;
 
+// Which transitions open which screen.
+//
+// The second way a screen reaches a user, and the one that was missing. A screen attached
+// to a transition is in daily use without appearing in any screen scheme, so a catalog that
+// only walks the scheme chain reports it as reachable by nobody -- and that sentence is the
+// premise for deleting it.
+//
+// Keyed on the workflow snapshot's version, not the screen snapshot's: the two pillars
+// rebuild on their own cadences, and pinning this to the screen version would make a
+// workflow rebuild look like it had lost every transition.
+//
+// workflow_name rather than a workflow id, matching snapshot_workflow_statuses: the scheme
+// association gives names, and the join everything else in this pillar performs is by name.
+export const CREATE_SNAPSHOT_TRANSITION_SCREENS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_transition_screens (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    workflow_name VARCHAR(255) NOT NULL,
+    transition_id VARCHAR(64) NOT NULL,
+    transition_name VARCHAR(255) NULL,
+    to_status VARCHAR(191) NULL,
+    screen_id VARCHAR(64) NOT NULL,
+    PRIMARY KEY (scope_key, version, workflow_name, transition_id, screen_id)
+  )
+`;
+
+// Answers "is any transition using this screen" without scanning the table per screen,
+// which is the lookup the screen catalog and its unreached count both need.
+export const CREATE_SNAPSHOT_TRANSITION_SCREENS_BY_SCREEN_INDEX = `
+  CREATE INDEX IF NOT EXISTS idx_snapshot_transition_screens_screen
+    ON snapshot_transition_screens (scope_key, version, screen_id)
+`;
+
 // Issue counts per status per project, accumulated by the universe scan.
 //
 // Unversioned, like the other issue_scan_* tables: it reflects the last completed scan
@@ -743,8 +776,13 @@ const projectStoreMigrations = migrationRunner
   .enqueue("v063_create_snapshot_itss_projects_table", CREATE_SNAPSHOT_ITSS_PROJECTS_TABLE)
   .enqueue("v064_create_snapshot_itss_projects_by_project_index", CREATE_SNAPSHOT_ITSS_PROJECTS_BY_PROJECT_INDEX)
   .enqueue("v065_create_screen_snapshot_meta_table", CREATE_SCREEN_SNAPSHOT_META_TABLE)
-  .enqueue("v066_create_health_history_table", CREATE_HEALTH_HISTORY_TABLE)
-  .enqueue("v067_create_full_scan_meta_table", CREATE_FULL_SCAN_META_TABLE);
+  .enqueue("v066_create_transition_screens_table", CREATE_SNAPSHOT_TRANSITION_SCREENS_TABLE)
+  .enqueue("v067_create_transition_screens_by_screen_index", CREATE_SNAPSHOT_TRANSITION_SCREENS_BY_SCREEN_INDEX)
+  // v066 and v067 keep the transition tables' names: they already ran on development under
+  // them, and the runner keys on the name. Rebinding v066 to a different table would make
+  // it look applied and silently skip creating this one.
+  .enqueue("v068_create_health_history_table", CREATE_HEALTH_HISTORY_TABLE)
+  .enqueue("v069_create_full_scan_meta_table", CREATE_FULL_SCAN_META_TABLE);
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history

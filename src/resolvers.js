@@ -104,6 +104,7 @@ import {
   SCREEN_SORT_KEYS,
   recordHealthSnapshot,
   loadHealthHistory,
+  loadTransitionScreens,
 } from "./lib/project-store.js";
 import { queueWorkflowSnapshotBuild, isWorkflowBuildStale, queueStatusHistoryBuild } from "./lib/workflow-engine.js";
 import { measureScreenFetchCost, probeScreenEndpoints, DEFAULT_SAMPLE_SIZE } from "./lib/screen-probe.js";
@@ -819,7 +820,11 @@ async function getScreenInventory({ payload, context }) {
   const pageSize = Math.max(1, Math.min(100, Number(payload?.pageSize) || 25));
   const search = optionalString(payload?.search, "search") || "";
 
-  const [screens, screenSchemes, schemeOperations, issueTypeScreenSchemes] = await Promise.all([
+  // The workflow snapshot's version, for the transition layer. Screens and workflows
+  // rebuild independently, so this is resolved per request rather than assumed to match.
+  const workflowMeta = await readWorkflowSnapshotMeta(installationKey).catch(() => null);
+
+  const [screens, screenSchemes, schemeOperations, issueTypeScreenSchemes, transitionScreens] = await Promise.all([
     loadScreensPage(installationKey, meta.version, {
       limit: pageSize,
       offset: (page - 1) * pageSize,
@@ -832,6 +837,9 @@ async function getScreenInventory({ payload, context }) {
     loadScreenSchemes(installationKey, meta.version),
     loadScreenSchemeOperations(installationKey, meta.version),
     loadIssueTypeScreenSchemes(installationKey, meta.version),
+    workflowMeta?.version
+      ? loadTransitionScreens(installationKey, workflowMeta.version)
+      : Promise.resolve([]),
   ]);
 
   return {
@@ -857,6 +865,13 @@ async function getScreenInventory({ payload, context }) {
     screenSchemes,
     schemeOperations,
     issueTypeScreenSchemes,
+    // The second route to a screen. Sent whole rather than per screen: the list is bounded
+    // by transitions-that-open-a-screen, which is far smaller than the screen catalog, and
+    // the tab groups it by screen client-side to avoid a query per expanded row.
+    transitionScreens,
+    // Tri-state, not an empty list. "No workflow inventory" and "no transition opens a
+    // screen" are opposite claims, and the tab must not render the first as the second.
+    transitionsAvailable: Boolean(workflowMeta?.version),
     neverBuilt: false,
   };
 }

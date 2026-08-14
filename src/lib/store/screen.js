@@ -424,7 +424,14 @@ export async function loadItssProjects(scopeKey, version) {
 // Every count is scoped and versioned like the reads above. Screens whose contents could not
 // be read are counted separately and never folded into "empty" -- a screen we failed to
 // measure and a screen with no fields on it are opposite claims, and only one is a finding.
-export async function loadScreenGovernanceSummary(scopeKey, version) {
+// `workflowVersion` is the WORKFLOW snapshot's version, not this one. The two pillars
+// rebuild on their own cadences, so the caller resolves each version and passes both.
+//
+// Without it, "unreached" cannot be computed at all -- and is returned as null rather than
+// as a number, because a screen opened by a workflow transition is in daily use while
+// belonging to no screen scheme. Counting it as unreached is not a rounding error; it is
+// the premise for deleting a screen people are using every day.
+export async function loadScreenGovernanceSummary(scopeKey, version, { workflowVersion = null } = {}) {
   await ensureProjectStoreReady();
 
   const screenTotals = await withSqlRetry(() =>
@@ -441,17 +448,48 @@ export async function loadScreenGovernanceSummary(scopeKey, version) {
   // NOT EXISTS rather than (total - COUNT(DISTINCT screen_id)): a scheme operation can point
   // at a screen id the catalog does not contain, so the distinct count includes ids that are
   // not screens and the subtraction would under-report unreached screens.
-  const unreached = await withSqlRetry(() =>
-    sql.prepare(`
-      SELECT COUNT(*) AS unreached
-      FROM snapshot_screens s
-      WHERE s.scope_key = ? AND s.version = ?
-        AND NOT EXISTS (
-          SELECT 1 FROM snapshot_screen_scheme_operations o
-          WHERE o.scope_key = s.scope_key AND o.version = s.version AND o.screen_id = s.screen_id
-        )
-    `).bindParams(scopeKey, version).execute()
-  );
+  // Two routes reach a screen, and both have to be excluded before it can be called
+  // unreached: the scheme chain, and a workflow transition that opens it. Queried across
+  // pillars in SQL rather than by importing the workflow store, so this module still has
+  // exactly one import arrow.
+  const unreached = workflowVersion
+    ? await withSqlRetry(() =>
+      sql.prepare(`
+        SELECT COUNT(*) AS unreached
+        FROM snapshot_screens s
+        WHERE s.scope_key = ? AND s.version = ?
+          AND NOT EXISTS (
+            SELECT 1 FROM snapshot_screen_scheme_operations o
+            WHERE o.scope_key = s.scope_key AND o.version = s.version AND o.screen_id = s.screen_id
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM snapshot_transition_screens t
+            WHERE t.scope_key = s.scope_key AND t.version = ? AND t.screen_id = s.screen_id
+          )
+      `).bindParams(scopeKey, version, workflowVersion).execute()
+    )
+    : null;
+
+  // Screens reached ONLY by a transition. Reported in its own right rather than folded
+  // away: these are exactly the screens the scheme-only view called unreachable, and an
+  // admin who was told to clean them up needs to see the correction.
+  const transitionOnly = workflowVersion
+    ? await withSqlRetry(() =>
+      sql.prepare(`
+        SELECT COUNT(*) AS transition_only
+        FROM snapshot_screens s
+        WHERE s.scope_key = ? AND s.version = ?
+          AND NOT EXISTS (
+            SELECT 1 FROM snapshot_screen_scheme_operations o
+            WHERE o.scope_key = s.scope_key AND o.version = s.version AND o.screen_id = s.screen_id
+          )
+          AND EXISTS (
+            SELECT 1 FROM snapshot_transition_screens t
+            WHERE t.scope_key = s.scope_key AND t.version = ? AND t.screen_id = s.screen_id
+          )
+      `).bindParams(scopeKey, version, workflowVersion).execute()
+    )
+    : null;
 
   const operations = await withSqlRetry(() =>
     sql.prepare(`
@@ -485,7 +523,11 @@ export async function loadScreenGovernanceSummary(scopeKey, version) {
     totalScreens: toNumber(screenRow.total),
     emptyScreens: toNumber(screenRow.empty_screens),
     unresolvedScreens: toNumber(screenRow.unresolved_screens),
-    unreachedScreens: toNumber(unreached.rows?.[0]?.unreached),
+    // null, never 0, when no workflow snapshot exists. Every consumer treats null as
+    // "cannot say" and suppresses the finding rather than reporting a clean site.
+    unreachedScreens: unreached ? toNumber(unreached.rows?.[0]?.unreached) : null,
+    transitionOnlyScreens: transitionOnly ? toNumber(transitionOnly.rows?.[0]?.transition_only) : null,
+    transitionsKnown: Boolean(workflowVersion),
     totalOperations: toNumber(operationRow.total),
     danglingOperations: toNumber(operationRow.dangling),
     totalSchemes: toNumber(schemeRow.total),

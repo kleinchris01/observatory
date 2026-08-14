@@ -14,13 +14,14 @@ import {
 // Full replace, mirroring replaceSnapshotFields: delete this scope's rows, then
 // insert the fresh set. Workflow schemes/statuses are small site-wide catalogs
 // (no resume/append path needed, unlike the custom-field snapshot).
-export async function replaceWorkflowSnapshot(scopeKey, version, { schemes = [], schemeProjects = [], statuses = [], schemeStatuses = [] }) {
+export async function replaceWorkflowSnapshot(scopeKey, version, { schemes = [], schemeProjects = [], statuses = [], schemeStatuses = [], transitionScreens = [] }) {
   await ensureProjectStoreReady();
 
   await withSqlRetry(() => sql.prepare("DELETE FROM snapshot_workflow_schemes WHERE scope_key = ?").bindParams(scopeKey).execute());
   await withSqlRetry(() => sql.prepare("DELETE FROM snapshot_workflow_scheme_projects WHERE scope_key = ?").bindParams(scopeKey).execute());
   await withSqlRetry(() => sql.prepare("DELETE FROM snapshot_statuses WHERE scope_key = ?").bindParams(scopeKey).execute());
   await withSqlRetry(() => sql.prepare("DELETE FROM snapshot_workflow_statuses WHERE scope_key = ?").bindParams(scopeKey).execute());
+  await withSqlRetry(() => sql.prepare("DELETE FROM snapshot_transition_screens WHERE scope_key = ?").bindParams(scopeKey).execute());
 
   for (const batch of chunkArray(schemes, 50)) {
     const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
@@ -76,6 +77,82 @@ export async function replaceWorkflowSnapshot(scopeKey, version, { schemes = [],
       `).bindParams(...params).execute()
     );
   }
+
+  for (const batch of chunkArray(transitionScreens, 50)) {
+    const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?, ?)").join(", ");
+    const params = batch.flatMap((row) => [
+      scopeKey, version, String(row.workflowName), String(row.transitionId),
+      row.transitionName || null, row.toStatus == null ? null : String(row.toStatus),
+      String(row.screenId),
+    ]);
+    await withSqlRetry(() =>
+      sql.prepare(`
+        INSERT INTO snapshot_transition_screens
+          (scope_key, version, workflow_name, transition_id, transition_name, to_status, screen_id)
+        VALUES ${valuesSql}
+      `).bindParams(...params).execute()
+    );
+  }
+}
+
+// Every transition that opens a screen, for one workflow snapshot version.
+//
+// Bounded by workflows x transitions-with-screens, which is far smaller than it sounds --
+// most transitions open nothing -- so this loads whole rather than paging.
+export async function loadTransitionScreens(scopeKey, version) {
+  await ensureProjectStoreReady();
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT workflow_name, transition_id, transition_name, to_status, screen_id
+      FROM snapshot_transition_screens
+      WHERE scope_key = ? AND version = ?
+      ORDER BY workflow_name ASC, transition_name ASC
+    `).bindParams(scopeKey, version).execute()
+  );
+  return (result.rows || []).map((row) => ({
+    workflowName: row.workflow_name,
+    transitionId: row.transition_id,
+    transitionName: row.transition_name || row.transition_id,
+    toStatus: row.to_status || null,
+    screenId: row.screen_id,
+  }));
+}
+
+// Which transitions open one screen. The reverse direction, for the screen detail panel --
+// served by idx_snapshot_transition_screens_screen rather than a scan.
+export async function loadTransitionsForScreen(scopeKey, version, screenId) {
+  await ensureProjectStoreReady();
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT workflow_name, transition_id, transition_name, to_status
+      FROM snapshot_transition_screens
+      WHERE scope_key = ? AND version = ? AND screen_id = ?
+      ORDER BY workflow_name ASC, transition_name ASC
+    `).bindParams(scopeKey, version, String(screenId)).execute()
+  );
+  return (result.rows || []).map((row) => ({
+    workflowName: row.workflow_name,
+    transitionId: row.transition_id,
+    transitionName: row.transition_name || row.transition_id,
+    toStatus: row.to_status || null,
+  }));
+}
+
+// The set of screen ids any transition opens, as strings.
+//
+// Deliberately the whole set rather than a per-screen check: the screen catalog needs to
+// subtract these from its unreached count, and asking per screen would be 760 queries to
+// answer one number.
+export async function loadTransitionScreenIds(scopeKey, version) {
+  await ensureProjectStoreReady();
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT DISTINCT screen_id
+      FROM snapshot_transition_screens
+      WHERE scope_key = ? AND version = ?
+    `).bindParams(scopeKey, version).execute()
+  );
+  return new Set((result.rows || []).map((row) => String(row.screen_id)));
 }
 
 // Every scheme -> status pair for one snapshot version. Small enough to load whole: it is

@@ -1227,6 +1227,20 @@ select {
 .screen-usage-row__meta { display: flex; gap: 8px; flex-shrink: 0; }
 .screen-usage-note { margin: 10px 0 0; font-size: 0.76rem; opacity: 0.6; line-height: 1.4; }
 
+/* Screens opened by a workflow transition. */
+.screen-row__transitions { font-size: 0.74rem; opacity: 0.6; line-height: 1.4; }
+.screen-transition-list { display: flex; flex-direction: column; gap: 10px; }
+.screen-transition {
+  padding: 12px 14px; border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04); border: 1px solid var(--stroke);
+}
+.screen-transition__screen { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.screen-transition__id { font-weight: 600; font-size: 0.84rem; font-variant-numeric: tabular-nums; }
+.screen-transition__rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.screen-transition__rows li { display: flex; gap: 8px; flex-wrap: wrap; font-size: 0.76rem; }
+.screen-transition__workflow { opacity: 0.85; }
+.screen-transition__name { opacity: 0.55; }
+
 .context-card--clickable {
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
