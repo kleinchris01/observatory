@@ -101,6 +101,8 @@ import {
   loadScreenGovernanceSummary,
   loadScreenCountsForFields,
   loadScreenDistributions,
+  loadScreensForProject,
+  loadRulesForProject,
   DEFAULT_SCREEN_SORT,
   SCREEN_SORT_KEYS,
   recordHealthSnapshot,
@@ -3343,6 +3345,74 @@ async function getPillarHealth({ payload, context }) {
   return { pillar, score: health.score, grade: health.grade };
 }
 
+// Everything that touches one project, across every pillar.
+//
+// This is the view the Projects tab existed to give and could not: it had the field list and
+// a workflow scheme wedged in beside it, and no way to say which forms a project routes to
+// or which automation rules fire in it. Both joins existed as data and neither had a query.
+//
+// Each pillar is independent and independently unavailable. A project whose screen inventory
+// has never been built reports screens as unknown and still shows its workflow, fields and
+// rules -- the alternative is one unbuilt pillar blanking the whole page.
+async function getProjectOverview({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+  const projectId = requireNonEmptyString(payload?.projectId, "projectId");
+
+  // Permission first, and before any pillar is read. Every other project read in this file
+  // filters by browsable project, and a cross-pillar view must not become the one place a
+  // caller can learn about a project they cannot see.
+  const browsable = await getBrowsableProjectIds(context?.accountId, [projectId]);
+  if (!browsable.has(String(projectId))) {
+    return { available: false, reason: "You do not have Browse Projects on this project." };
+  }
+
+  const [fieldMeta, workflowMeta, screenMeta] = await Promise.all([
+    readSnapshotMeta(installationKey),
+    readWorkflowSnapshotMeta(installationKey).catch(() => null),
+    readScreenSnapshotMeta(installationKey).catch(() => null),
+  ]);
+
+  const [scheme, screens, rules] = await Promise.all([
+    workflowMeta?.version
+      ? loadWorkflowSchemeForProject(installationKey, workflowMeta.version, projectId).catch(() => null)
+      : Promise.resolve(null),
+    screenMeta?.version
+      ? loadScreensForProject(installationKey, screenMeta.version, projectId).catch(() => null)
+      : Promise.resolve(null),
+    loadRulesForProject(installationKey, projectId).catch(() => null),
+  ]);
+
+  return {
+    available: true,
+    projectId,
+    // Tri-state per pillar, never an empty list standing in for an unbuilt one. "No rule
+    // touches this project" and "no automation analysis exists" are opposite claims, and
+    // only one of them means the project is simple.
+    workflow: workflowMeta?.version
+      ? { available: true, scheme }
+      : { available: false, reason: "No workflow inventory has been built yet." },
+    screens: screenMeta?.version && screens
+      ? {
+        available: true,
+        screens,
+        // Reported so the tab never presents a partial catalog as the whole one.
+        unresolvedScreens: screenMeta.unresolvedScreens || 0,
+      }
+      : { available: false, reason: "No screen inventory has been built yet." },
+    automation: rules
+      ? {
+        available: true,
+        rules,
+        enabledCount: rules.filter((r) => r.enabled).length,
+        disabledCount: rules.filter((r) => !r.enabled).length,
+      }
+      : { available: false, reason: "No automation analysis has been built yet." },
+    fields: { available: Boolean(fieldMeta?.version) },
+  };
+}
+
 export async function migrateNamespaceKeys({ context }) {
   await ensureProjectStoreReady();
   const installationKey = getInstallationKey(context);
@@ -3995,6 +4065,7 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
 
   getHealthHistory,        // Admin read: the site health series and per-dimension deltas
   getPillarHealth,         // Admin read: one pillar of the score, for the tab it is about
+  getProjectOverview,      // Admin read: every pillar that touches one project
   getAuditLog,             // Admin read: returns recent privileged-action records
 
   // Admin page surface. These were previously registered directly onto adminHandler in

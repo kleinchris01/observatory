@@ -264,6 +264,33 @@ export const CREATE_AUTOMATION_RULES_TABLE = `
   )
 `;
 
+// Which projects each rule is scoped to.
+//
+// summary.projectIds has been computed on every import since cascades needed it -- scope
+// overlap is what stops a rule in one project being reported as triggering a rule in
+// another -- and then only its LENGTH was kept, as automation_rules.project_count. The ids
+// were discarded, which is the entire reason the Projects tab could not say a word about
+// automation: the join existed in memory for the duration of one import and was never
+// written down.
+//
+// A rule scoped to the whole site has no rows here rather than a row per project. Site-wide
+// is a different fact from "scoped to all 200 of them", and materialising 200 rows per
+// global rule would both lie about that and dwarf the table.
+export const CREATE_AUTOMATION_RULE_PROJECTS_TABLE = `
+  CREATE TABLE IF NOT EXISTS automation_rule_projects (
+    scope_key VARCHAR(191) NOT NULL,
+    rule_id VARCHAR(64) NOT NULL,
+    project_id VARCHAR(64) NOT NULL,
+    PRIMARY KEY (scope_key, rule_id, project_id)
+  )
+`;
+
+// The direction the Projects tab reads in: given a project, which rules touch it.
+export const CREATE_AUTOMATION_RULE_PROJECTS_BY_PROJECT_INDEX = `
+  CREATE INDEX IF NOT EXISTS idx_automation_rule_projects_project
+    ON automation_rule_projects (scope_key, project_id)
+`;
+
 // Findings per rule. Paginating these was the reason the analysis document grew a preview
 // alongside a full list; in SQL the preview is just a LIMIT.
 export const CREATE_AUTOMATION_FINDINGS_TABLE = `
@@ -782,7 +809,9 @@ const projectStoreMigrations = migrationRunner
   // them, and the runner keys on the name. Rebinding v066 to a different table would make
   // it look applied and silently skip creating this one.
   .enqueue("v068_create_health_history_table", CREATE_HEALTH_HISTORY_TABLE)
-  .enqueue("v069_create_full_scan_meta_table", CREATE_FULL_SCAN_META_TABLE);
+  .enqueue("v069_create_full_scan_meta_table", CREATE_FULL_SCAN_META_TABLE)
+  .enqueue("v070_create_automation_rule_projects_table", CREATE_AUTOMATION_RULE_PROJECTS_TABLE)
+  .enqueue("v071_create_automation_rule_projects_by_project_index", CREATE_AUTOMATION_RULE_PROJECTS_BY_PROJECT_INDEX);
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history

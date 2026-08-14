@@ -609,6 +609,42 @@ export async function loadScreenDistributions(scopeKey, version, { topN = 10 } =
   };
 }
 
+// Which screens a project actually routes to, by walking the whole chain in one query.
+//
+// project -> issue type screen scheme -> screen scheme -> operation -> screen. Five tables,
+// and every hop is the reason the scopes list in manifest.yml is as long as it is. Done in
+// SQL because doing it in the Lambda means loading every mapping on the site to answer a
+// question about one project.
+//
+// DISTINCT on the screen: a project reaching one screen through three issue types is one
+// form its users see, not three.
+export async function loadScreensForProject(scopeKey, version, projectId) {
+  await ensureProjectStoreReady();
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT DISTINCT s.screen_id, s.name, s.field_count, s.tab_count, s.tabs_resolved
+      FROM snapshot_itss_projects p
+      JOIN snapshot_itss_mappings m
+        ON m.scope_key = p.scope_key AND m.version = p.version AND m.itss_id = p.itss_id
+      JOIN snapshot_screen_scheme_operations o
+        ON o.scope_key = m.scope_key AND o.version = m.version AND o.scheme_id = m.screen_scheme_id
+      JOIN snapshot_screens s
+        ON s.scope_key = o.scope_key AND s.version = o.version AND s.screen_id = o.screen_id
+      WHERE p.scope_key = ? AND p.version = ? AND p.project_id = ?
+      ORDER BY s.field_count DESC, s.screen_id ASC
+    `).bindParams(scopeKey, version, String(projectId)).execute()
+  );
+
+  return (result.rows || []).map((row) => ({
+    screenId: row.screen_id,
+    name: row.name || row.screen_id,
+    fieldCount: toNumber(row.field_count),
+    tabCount: toNumber(row.tab_count),
+    // Carried so a caller never reports "0 fields" for a screen the build could not read.
+    tabsResolved: row.tabs_resolved || "resolved",
+  }));
+}
+
 // ── Meta ─────────────────────────────────────────────────────────────────────
 
 export async function readScreenSnapshotMeta(scopeKey) {

@@ -14,7 +14,7 @@
 import { kvs } from "@forge/kvs";
 import { sql } from "@forge/sql";
 import { fallbackOn } from "../logger.js";
-import { ensureProjectStoreReady, withSqlRetry } from "./core.js";
+import { ensureProjectStoreReady, toNumber, withSqlRetry } from "./core.js";
 
 // The document's shape and its size caps live in the analysis module, which imports
 // nothing and can therefore be used from the frontend bundle too. Re-exported here so
@@ -166,13 +166,58 @@ export async function replaceAutomationRules(scopeKey, directory) {
     triggerType || null,
     Number(projectCount) || 0,
   ]);
-  return replaceRows(
+  const written = await replaceRows(
     scopeKey,
     "automation_rules",
     ["scope_key", "rule_id", "name", "enabled", "trigger_type", "project_count"],
     rows,
     REF_BATCH
   );
+
+  // The scope rows, from the same document. Written here rather than as their own import
+  // part so a directory save can never leave the two disagreeing about which rules exist.
+  const projectRows = [];
+  for (const [ruleId, ...projectIds] of directory?.projects ?? []) {
+    for (const projectId of projectIds) projectRows.push([scopeKey, String(ruleId), String(projectId)]);
+  }
+  const projectsWritten = await replaceRows(
+    scopeKey,
+    "automation_rule_projects",
+    ["scope_key", "rule_id", "project_id"],
+    projectRows,
+    REF_BATCH
+  );
+
+  return written + projectsWritten;
+}
+
+// Which rules touch one project, and how.
+//
+// The join the Projects tab needed and could not make. Site-wide rules are deliberately not
+// returned: they apply to this project the way they apply to every project, and folding them
+// in would make every project look like it carries the whole estate.
+export async function loadRulesForProject(scopeKey, projectId, { limit = 100 } = {}) {
+  await ensureProjectStoreReady();
+  const capped = Math.max(1, Math.min(500, Math.trunc(Number(limit)) || 100));
+
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT r.rule_id, r.name, r.enabled, r.trigger_type
+      FROM automation_rule_projects p
+      JOIN automation_rules r
+        ON r.scope_key = p.scope_key AND r.rule_id = p.rule_id
+      WHERE p.scope_key = ? AND p.project_id = ?
+      ORDER BY r.enabled DESC, r.name ASC
+      LIMIT ${capped}
+    `).bindParams(scopeKey, String(projectId)).execute()
+  );
+
+  return (result.rows || []).map((row) => ({
+    ruleId: row.rule_id,
+    name: row.name || row.rule_id,
+    enabled: toNumber(row.enabled) === 1,
+    triggerType: row.trigger_type || null,
+  }));
 }
 
 export async function replaceAutomationFindings(scopeKey, findingsDocument) {

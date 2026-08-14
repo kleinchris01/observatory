@@ -110,6 +110,8 @@ const mocks = vi.hoisted(() => ({
   loadScreenGovernanceSummary: vi.fn(),
   loadScreenCountsForFields: vi.fn(),
   loadScreenDistributions: vi.fn(),
+  loadScreensForProject: vi.fn(),
+  loadRulesForProject: vi.fn(),
   recordHealthSnapshot: vi.fn(),
   loadHealthHistory: vi.fn(),
   queueScreenSnapshotBuild: vi.fn(),
@@ -248,6 +250,8 @@ vi.mock("./lib/project-store.js", () => ({
   loadScreenGovernanceSummary: mocks.loadScreenGovernanceSummary,
   loadScreenCountsForFields: mocks.loadScreenCountsForFields,
   loadScreenDistributions: mocks.loadScreenDistributions,
+  loadScreensForProject: mocks.loadScreensForProject,
+  loadRulesForProject: mocks.loadRulesForProject,
   recordHealthSnapshot: mocks.recordHealthSnapshot,
   loadHealthHistory: mocks.loadHealthHistory,
   // Real values, not mocks: the resolver whitelists the sort token against these, so a
@@ -359,6 +363,7 @@ const {
   getFieldScreenReachability,
   getFieldScreenCounts,
   getHealthHistory,
+  getProjectOverview,
   buildScreenInventory,
 } = __RAW_ADMIN_ONLY_FUNCTIONS;
 
@@ -460,6 +465,8 @@ beforeEach(() => {
   mocks.loadScreenGovernanceSummary.mockResolvedValue({});
   mocks.loadScreenCountsForFields.mockResolvedValue({});
   mocks.loadScreenDistributions.mockResolvedValue({ sizeBuckets: [], largestScreens: [], mostSharedFields: [], operationMix: [] });
+  mocks.loadScreensForProject.mockResolvedValue([]);
+  mocks.loadRulesForProject.mockResolvedValue([]);
   mocks.recordHealthSnapshot.mockResolvedValue({ recorded: true });
   mocks.loadHealthHistory.mockResolvedValue([]);
   mocks.queueScreenSnapshotBuild.mockResolvedValue(undefined);
@@ -4206,6 +4213,71 @@ describe("getHealthHistory", () => {
     await getHealthHistory({ payload: { days: 99999 }, ...ctx });
 
     expect(mocks.loadHealthHistory).toHaveBeenCalledWith("test-install", { days: 365 });
+  });
+});
+
+
+// ---------------------------------------------------------------------------
+// getProjectOverview
+// ---------------------------------------------------------------------------
+//
+// The view the Projects tab existed to give and could not. Both cross-pillar joins existed
+// as data -- rule scope was computed on every import and discarded, screens were reachable
+// through the ITSS chain -- and neither had a query.
+describe("getProjectOverview", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x", accountId: "acc-1" } };
+
+  // Before any pillar is read. Every other project read here filters by browsable project,
+  // and a cross-pillar view must not become the one place a caller learns about a project
+  // they cannot see.
+  test("refuses a project the caller cannot browse, without reading any pillar", async () => {
+    mocks.getBrowsableProjectIds.mockResolvedValue(new Set());
+
+    const result = await getProjectOverview({ payload: { projectId: "10000" }, ...ctx });
+
+    expect(result.available).toBe(false);
+    expect(mocks.loadScreensForProject).not.toHaveBeenCalled();
+    expect(mocks.loadRulesForProject).not.toHaveBeenCalled();
+  });
+
+  test("joins workflow, screens and automation for one project", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: "f1" });
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "w1" });
+    mocks.readScreenSnapshotMeta.mockResolvedValue({ version: "s1", unresolvedScreens: 2 });
+    mocks.loadWorkflowSchemeForProject.mockResolvedValue({ id: "sch1", name: "SW Workflow Scheme v1" });
+    mocks.loadScreensForProject.mockResolvedValue([{ screenId: "100", name: "Default", fieldCount: 28 }]);
+    mocks.loadRulesForProject.mockResolvedValue([
+      { ruleId: "1", name: "Send to Approval", enabled: true },
+      { ruleId: "2", name: "Retired", enabled: false },
+    ]);
+
+    const result = await getProjectOverview({ payload: { projectId: "10000" }, ...ctx });
+
+    expect(result.workflow.scheme.name).toBe("SW Workflow Scheme v1");
+    expect(result.screens.screens).toHaveLength(1);
+    expect(result.automation).toMatchObject({ enabledCount: 1, disabledCount: 1 });
+    // Carried so the tab never presents a partial catalog as the whole one.
+    expect(result.screens.unresolvedScreens).toBe(2);
+  });
+
+  // One unbuilt pillar must not blank the page, and must not be reported as empty either.
+  test("reports each pillar unavailable independently rather than as empty", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: "f1" });
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue(null);
+    mocks.readScreenSnapshotMeta.mockResolvedValue(null);
+    mocks.loadRulesForProject.mockResolvedValue([{ ruleId: "1", name: "R", enabled: true }]);
+
+    const result = await getProjectOverview({ payload: { projectId: "10000" }, ...ctx });
+
+    expect(result.workflow).toMatchObject({ available: false });
+    expect(result.screens).toMatchObject({ available: false });
+    expect(result.workflow.reason).toMatch(/workflow inventory/i);
+    // The pillar that IS built still renders.
+    expect(result.automation.available).toBe(true);
+  });
+
+  test("rejects a missing project id", async () => {
+    await expect(getProjectOverview({ payload: {}, ...ctx })).rejects.toThrow(/projectId/);
   });
 });
 
