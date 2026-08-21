@@ -57,6 +57,7 @@ const mocks = vi.hoisted(() => ({
   countSnapshotProjectUsage: vi.fn(),
   loadFieldSummary: vi.fn(),
   replaceFieldSummary: vi.fn().mockResolvedValue(undefined),
+  countFieldSummariesByStatus: vi.fn(async () => ({ counts: { queued: 0, building: 0, ready: 0, failed: 0, cancelled: 0, unbuilt: 0 }, total: 0 })),
   listFieldSummaries: vi.fn().mockResolvedValue([]),
   replaceSnapshotProjectUsageForField: vi.fn(),
   listSavedReports: vi.fn().mockResolvedValue([]),
@@ -235,6 +236,7 @@ vi.mock("./lib/project-store.js", () => ({
   loadFieldSummary: mocks.loadFieldSummary,
   replaceFieldSummary: mocks.replaceFieldSummary,
   listFieldSummaries: mocks.listFieldSummaries,
+  countFieldSummariesByStatus: mocks.countFieldSummariesByStatus,
   replaceSnapshotProjectUsageForField: mocks.replaceSnapshotProjectUsageForField,
   listSavedReports: mocks.listSavedReports,
   saveSavedReport: mocks.saveSavedReport,
@@ -1390,11 +1392,12 @@ describe("getProjectsView", () => {
 // getAdminOverview
 // ---------------------------------------------------------------------------
 describe("getAdminOverview", () => {
-  test("aggregates job-status counts from field summaries", async () => {
+  test("surfaces the job-status counts without loading the summaries", async () => {
     mocks.readSnapshotMeta.mockResolvedValue({ state: "ready", totalFields: 10, processedFields: 10 });
-    mocks.listFieldSummaries.mockResolvedValue([
-      { summaryStatus: "ready" }, { summaryStatus: "ready" }, { summaryStatus: "building" }, { summaryStatus: "failed" },
-    ]);
+    mocks.countFieldSummariesByStatus.mockResolvedValue({
+      counts: { queued: 0, building: 1, ready: 2, failed: 1, cancelled: 0, unbuilt: 0 },
+      total: 4,
+    });
     mocks.kvsGet.mockResolvedValue(null);
     mocks.countOldScopeKeyRows.mockResolvedValue(0);
 
@@ -1402,17 +1405,23 @@ describe("getAdminOverview", () => {
 
     expect(result.jobCounts).toEqual({ queued: 0, building: 1, ready: 2, failed: 1, cancelled: 0, unbuilt: 0 });
     expect(result.totalSummaries).toBe(4);
+    // The point of the change: the landing page used to pull up to 5,000 rows, including two
+    // LONGTEXT columns, to produce those six integers.
+    expect(mocks.listFieldSummaries).not.toHaveBeenCalled();
   });
 
-  test("counts an unrecognized summaryStatus as unbuilt rather than dropping it", async () => {
+  test("still renders when the count query fails", async () => {
+    // A failed aggregate must not blank the overview -- it degrades to zeroes, the same way
+    // a failed summaries load used to degrade to an empty array.
     mocks.readSnapshotMeta.mockResolvedValue({ state: "idle" });
-    mocks.listFieldSummaries.mockResolvedValue([{ summaryStatus: "some-unknown-state" }, {}]);
+    mocks.countFieldSummariesByStatus.mockRejectedValueOnce(new Error("sql down"));
     mocks.kvsGet.mockResolvedValue(null);
     mocks.countOldScopeKeyRows.mockResolvedValue(0);
 
     const result = await getAdminOverview({ context: {} });
 
-    expect(result.jobCounts.unbuilt).toBe(2);
+    expect(result.jobCounts).toEqual({ queued: 0, building: 0, ready: 0, failed: 0, cancelled: 0, unbuilt: 0 });
+    expect(result.totalSummaries).toBe(0);
   });
 
   test("computes findings summary from the latest snapshot when one exists", async () => {
@@ -4287,16 +4296,21 @@ describe("getPillarHealth", () => {
     expect(result.pillar).toBeNull();
   });
 
-  // The field inputs are the expensive half and the most likely to fail. A pillar the caller
-  // did not ask about failing must not take the whole response down.
+  // The field inputs are the expensive half and the most likely to fail. A failure there must
+  // not take the whole response down -- the pillar comes back reporting itself unmeasured.
+  //
+  // Asked for the FIELDS pillar deliberately: the screens pillar no longer loads the field
+  // catalog at all, so pointing this at screens would leave the queued rejection unconsumed
+  // and bleed it into the next test.
   test("still answers when the field inputs cannot be built", async () => {
     mocks.readSnapshotMeta.mockResolvedValue({ version: "f1" });
     mocks.loadSnapshotFields.mockRejectedValueOnce(new Error("Unknown SQL execution error"));
 
-    const result = await getPillarHealth({ payload: { pillar: "screens" }, ...ctx });
+    const result = await getPillarHealth({ payload: { pillar: "fields" }, ...ctx });
 
     expect(result.pillar).not.toBeNull();
-    expect(result.pillar.key).toBe("screens");
+    expect(result.pillar.key).toBe("fields");
+    expect(result.pillar.available).toBe(false);
   });
 
   test("builds the field pillar from the snapshot when one exists", async () => {
@@ -4769,6 +4783,80 @@ describe("getFilterUsage", () => {
 
   test("requires a label", async () => {
     await expect(getFilterUsage({ payload: {}, context: ctxWithAccount() })).rejects.toThrow(/label is required/);
+  });
+});
+
+// getPillarHealth used to compute the ENTIRE site health -- every builder, every load, all
+// ~1,600 fields hydrated -- and then discard five of the six pillars it produced. Opening the
+// Screens tab cost the same twenty-odd SQL round trips as the Overview to render one panel.
+describe("getPillarHealth — only loads what the pillar is scored from", () => {
+  beforeEach(() => {
+    mocks.kvsGet.mockResolvedValue(null);
+    mocks.readSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready" });
+    mocks.loadHealthHistory.mockResolvedValue([{ day: "2026-08-21", score: 61, grade: "D" }]);
+  });
+
+  test("the screens pillar does not touch the field catalog", async () => {
+    const result = await getPillarHealth({ payload: { pillar: "screens" }, context: ctxWithAccount() });
+
+    expect(result.pillar?.key).toBe("screens");
+    // The expensive branch: loading every field in the snapshot and hydrating it.
+    expect(mocks.loadSnapshotFields).not.toHaveBeenCalled();
+    expect(mocks.listSnapshotProjects).not.toHaveBeenCalled();
+    expect(mocks.loadProjectActivity).not.toHaveBeenCalled();
+  });
+
+  test("the filters pillar does not build the workflow or screen inventories", async () => {
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "fv1", state: "ready" });
+    mocks.loadFilters.mockResolvedValue([]);
+
+    const result = await getPillarHealth({ payload: { pillar: "filters" }, context: ctxWithAccount() });
+
+    expect(result.pillar?.key).toBe("filters");
+    expect(mocks.loadWorkflowSchemes).not.toHaveBeenCalled();
+    expect(mocks.loadSnapshotFields).not.toHaveBeenCalled();
+  });
+
+  test("the projects pillar still loads the projects and their activity", async () => {
+    mocks.listSnapshotProjects.mockResolvedValue([]);
+    await getPillarHealth({ payload: { pillar: "projects" }, context: ctxWithAccount() });
+
+    expect(mocks.listSnapshotProjects).toHaveBeenCalled();
+    expect(mocks.loadProjectActivity).toHaveBeenCalled();
+    // ...and not the field catalog, which only the fields pillar needs.
+    expect(mocks.loadSnapshotFields).not.toHaveBeenCalled();
+  });
+
+  test("the fields pillar loads the catalog and nothing else", async () => {
+    mocks.loadSnapshotFields.mockResolvedValue([]);
+    await getPillarHealth({ payload: { pillar: "fields" }, context: ctxWithAccount() });
+
+    expect(mocks.loadSnapshotFields).toHaveBeenCalled();
+    expect(mocks.loadProjectActivity).not.toHaveBeenCalled();
+  });
+
+  // The score returned alongside is the SITE score, and it can no longer come from this
+  // computation -- which is now scored from one pillar's inputs and would be a smaller number
+  // wearing a bigger label.
+  test("reads the site score from the recorded history, not from this computation", async () => {
+    const result = await getPillarHealth({ payload: { pillar: "screens" }, context: ctxWithAccount() });
+    expect(result).toMatchObject({ score: 61, grade: "D" });
+  });
+
+  test("reports no site score rather than an approximate one when nothing was recorded", async () => {
+    mocks.loadHealthHistory.mockResolvedValue([]);
+    const result = await getPillarHealth({ payload: { pillar: "screens" }, context: ctxWithAccount() });
+    expect(result).toMatchObject({ score: null, grade: null });
+  });
+
+  test("an unknown pillar loads nothing and returns nothing", async () => {
+    const result = await getPillarHealth({ payload: { pillar: "nonsense" }, context: ctxWithAccount() });
+    expect(result.pillar).toBeNull();
+    expect(mocks.loadSnapshotFields).not.toHaveBeenCalled();
+  });
+
+  test("still requires a pillar", async () => {
+    await expect(getPillarHealth({ payload: {}, context: ctxWithAccount() })).rejects.toThrow(/pillar/);
   });
 });
 

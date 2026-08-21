@@ -59,6 +59,7 @@ import {
   loadFieldSummary,
   replaceFieldSummary,
   listFieldSummaries,
+  countFieldSummariesByStatus,
   replaceSnapshotProjectUsageForField,
   listSavedReports,
   saveSavedReport,
@@ -3527,9 +3528,13 @@ const EMPTY_DASHBOARD = {
 export async function getAdminOverview({ context }) {
   await ensureProjectStoreReady();
   const installationKey = getInstallationKey(context);
-  const [meta, summaries, config, legacySummaryCount, workflow, screens, filterOverview, automationAnalysis] = await Promise.all([
+  const [meta, summaryCounts, config, legacySummaryCount, workflow, screens, filterOverview, automationAnalysis] = await Promise.all([
     readSnapshotMeta(installationKey),
-    listFieldSummaries(installationKey, 5000).catch(fallbackOn("overview.summaries_load_failed", () => [], { installationKey })),
+    // Counted in SQL rather than loaded. This used to pull up to 5,000 summary rows --
+    // including two LONGTEXT columns -- across the wire, and use them for a count grouped by
+    // status and a total. Same six integers, one row back.
+    countFieldSummariesByStatus(installationKey)
+      .catch(fallbackOn("overview.summary_counts_failed", () => ({ counts: null, total: 0 }), { installationKey })),
     readAdminConfig(),
     countOldScopeKeyRows(installationKey).catch(fallbackOn("overview.legacy_row_count_failed", 0, { installationKey })),
     buildWorkflowOverview(installationKey),
@@ -3548,12 +3553,8 @@ export async function getAdminOverview({ context }) {
   // The rates are computed at analysis time and stored, so the score never needs the rules.
   const automation = automationAnalysis?.estate?.health ?? { available: false };
 
-  const jobCounts = { queued: 0, building: 0, ready: 0, failed: 0, cancelled: 0, unbuilt: 0 };
-  for (const s of summaries) {
-    const state = s.summaryStatus || "unbuilt";
-    if (state in jobCounts) jobCounts[state]++;
-    else jobCounts.unbuilt++;
-  }
+  const jobCounts = summaryCounts.counts
+    ?? { queued: 0, building: 0, ready: 0, failed: 0, cancelled: 0, unbuilt: 0 };
 
   let findingsSummary = { adminAttention: 0, risky: 0, cleanup: 0, standardize: 0 };
   let dashboard = EMPTY_DASHBOARD;
@@ -3671,7 +3672,7 @@ export async function getAdminOverview({ context }) {
       ruleCount: automation?.ruleCount ?? 0,
     },
     dashboard,
-    totalSummaries: summaries.length,
+    totalSummaries: summaryCounts.total,
     legacySummaryCount,
   };
 }
@@ -3736,43 +3737,81 @@ async function getHealthHistory({ payload, context }) {
 // governance stats each tab wants are computed the moment the Overview is. Serving one
 // pillar rather than the whole score keeps a tab from shipping four pillars of data it will
 // not render -- and keeps the Workflows tab from having to know how Screens is scored.
+// Which inputs each pillar's dimensions are actually derived from.
+//
+// The whole reason this map exists: getPillarHealth used to compute the ENTIRE site health --
+// every builder, every load, all ~1,600 fields hydrated -- and then throw away five of the
+// six pillars it produced. Opening the Screens tab cost the same twenty-odd SQL round trips
+// as the Overview to render one small panel, and the Filters tab added a second one.
+//
+// Declared rather than inferred, so adding a dimension to a pillar is a one-line change here
+// and a missing entry is a pillar that renders empty rather than one that silently loads
+// everything again.
+const PILLAR_INPUTS = {
+  fields: ["fieldUsage"],
+  filters: ["filters"],
+  workflows: ["workflow"],
+  screens: ["screens"],
+  automation: ["automation"],
+  projects: ["projects", "adoption"],
+};
+
 async function getPillarHealth({ payload, context }) {
   incrMetric(METRIC_NAMES.resolver);
   await ensureProjectStoreReady();
   const installationKey = getInstallationKey(context);
   const key = requireNonEmptyString(payload?.pillar, "pillar");
 
-  const [config, workflow, screens, automationAnalysis, meta] = await Promise.all([
-    readAdminConfig(),
-    buildWorkflowOverview(installationKey),
-    buildScreenOverview(installationKey),
-    readAutomationAnalysis(installationKey).catch(() => null),
-    readSnapshotMeta(installationKey),
+  const needs = new Set(PILLAR_INPUTS[key] ?? []);
+  const config = await readAdminConfig();
+
+  // Only what this pillar is scored from. Everything else stays null, which computeSiteHealth
+  // already reports as unavailable -- and unavailable dimensions from other pillars are
+  // discarded below anyway, so the returned pillar is byte-identical to what the full
+  // computation produced for it.
+  const [workflow, screens, filterOverview, automationAnalysis] = await Promise.all([
+    needs.has("workflow") ? buildWorkflowOverview(installationKey) : Promise.resolve(null),
+    needs.has("screens") ? buildScreenOverview(installationKey) : Promise.resolve(null),
+    needs.has("filters") ? buildFilterOverview(installationKey) : Promise.resolve(null),
+    needs.has("automation")
+      ? readAutomationAnalysis(installationKey).catch(fallbackOn("pillar-health.automation_load_failed", () => null, { installationKey }))
+      : Promise.resolve(null),
   ]);
 
   let fieldUsage = null;
   let projects = null;
   let adoption = null;
-  if (meta?.version) {
-    try {
-      const [fields, rawProjects] = await Promise.all([
-        loadSnapshotFields(installationKey, meta.version),
-        listSnapshotProjects(installationKey, meta.version),
-      ]);
-      const withCounts = await attachUniqueIssueCounts(installationKey, rawProjects);
-      const dup = buildDuplicateNameCountMap(fields);
-      const hydrated = fields.map((f) =>
-        hydrateFieldForGovernance(f, null, dup.get(normalizeFieldName(f.name)) ?? 1, config.governanceThresholds)
-      );
-      fieldUsage = buildFieldUsageInsights(hydrated);
-      projects = buildProjectInsights(withCounts);
-      // Best-effort, like every optional pillar input: a site scanned before issue dates
-      // were captured has no activity, and the dimension says so rather than scoring zero.
-      const activity = await loadProjectActivity(installationKey)
-        .catch(fallbackOn("pillar-health.project_activity_load_failed", () => new Map(), { installationKey }));
-      adoption = summarizeAdoption(withCounts, activity);
-    } catch (error) {
-      logger.warn("pillar-health.field_inputs_failed", { installationKey, error: String(error?.message || error) });
+
+  // The expensive branch, and now the one most pillars skip entirely: loading every field in
+  // the snapshot and hydrating it for governance. Only the fields and projects pillars need
+  // any of it.
+  if (needs.has("fieldUsage") || needs.has("projects") || needs.has("adoption")) {
+    const meta = await readSnapshotMeta(installationKey);
+    if (meta?.version) {
+      try {
+        if (needs.has("fieldUsage")) {
+          const fields = await loadSnapshotFields(installationKey, meta.version);
+          const dup = buildDuplicateNameCountMap(fields);
+          fieldUsage = buildFieldUsageInsights(fields.map((f) =>
+            hydrateFieldForGovernance(f, null, dup.get(normalizeFieldName(f.name)) ?? 1, config.governanceThresholds)
+          ));
+        }
+
+        if (needs.has("projects") || needs.has("adoption")) {
+          const withCounts = await attachUniqueIssueCounts(
+            installationKey,
+            await listSnapshotProjects(installationKey, meta.version)
+          );
+          projects = buildProjectInsights(withCounts);
+          // Best-effort, like every optional pillar input: a site scanned before issue dates
+          // were captured has no activity, and the dimension says so rather than scoring zero.
+          const activity = await loadProjectActivity(installationKey)
+            .catch(fallbackOn("pillar-health.project_activity_load_failed", () => new Map(), { installationKey }));
+          adoption = summarizeAdoption(withCounts, activity);
+        }
+      } catch (error) {
+        logger.warn("pillar-health.field_inputs_failed", { installationKey, error: String(error?.message || error) });
+      }
     }
   }
 
@@ -3783,11 +3822,23 @@ async function getPillarHealth({ payload, context }) {
     automation: automationAnalysis?.estate?.health ?? { available: false },
     screens,
     adoption,
+    filters: filterOverview?.health ?? null,
     tolerances: config?.healthTolerances,
   });
 
   const pillar = (health.pillars || []).find((p) => p.key === key) || null;
-  return { pillar, score: health.score, grade: health.grade };
+
+  // The site score comes from the recorded history, not from this computation.
+  //
+  // It cannot come from here any more: `health` above is scored from one pillar's inputs, so
+  // its headline is the score of that pillar alone. Returning it as the site score would be
+  // a smaller number wearing a bigger label. The last recorded measurement is the real one,
+  // and null when nothing has been recorded -- which is honest rather than approximate.
+  const recorded = await loadHealthHistory(installationKey, { days: 1 })
+    .catch(fallbackOn("pillar-health.history_load_failed", () => [], { installationKey }));
+  const latest = recorded[recorded.length - 1] ?? null;
+
+  return { pillar, score: latest?.score ?? null, grade: latest?.grade ?? null };
 }
 
 // Everything that touches one project, across every pillar.

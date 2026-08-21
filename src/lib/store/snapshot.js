@@ -1145,6 +1145,43 @@ export async function loadFieldSummary(scopeKey, fieldId) {
   };
 }
 
+// How many field summaries sit in each state, without loading any of them.
+//
+// The Overview called listFieldSummaries(scopeKey, 5000) and used the result for exactly two
+// things: a count grouped by status, and the total. That query selects field_json and
+// progress_log -- both LONGTEXT -- so the landing page was pulling up to five thousand rows
+// of blobs across the wire to produce six integers, on every visit.
+//
+// Same numbers, one row back. The shape is deliberately identical to what the caller built
+// by hand so the substitution is provably behaviour-preserving: an unrecognised status still
+// falls into `unbuilt`, because that is what the loop it replaces did.
+export async function countFieldSummariesByStatus(scopeKey) {
+  await ensureProjectStoreReady();
+
+  const result = await withSqlRetry(() =>
+    sql
+      .prepare(`
+        SELECT summary_status, COUNT(*) AS total
+        FROM field_summaries
+        WHERE scope_key = ?
+        GROUP BY summary_status
+      `)
+      .bindParams(scopeKey)
+      .execute()
+  );
+
+  const counts = { queued: 0, building: 0, ready: 0, failed: 0, cancelled: 0, unbuilt: 0 };
+  let total = 0;
+  for (const row of result.rows || []) {
+    const state = row.summary_status || "unbuilt";
+    const n = toNumber(row.total);
+    total += n;
+    if (state in counts) counts[state] += n;
+    else counts.unbuilt += n;
+  }
+  return { counts, total };
+}
+
 export async function listFieldSummaries(scopeKey, limit = 200) {
   await ensureProjectStoreReady();
 
