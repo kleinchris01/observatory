@@ -32,6 +32,10 @@ export const FULL_SCAN_STAGES = [
     mode: "inline",
   },
   { key: "screens", label: "Screen & scheme inventory", needs: [], mode: "inline" },
+  // Cheapest structural stage by a wide margin: one paginated endpoint with everything
+  // expanded, ~40 calls for 2,000 filters, no per-item walk. It earns its place early
+  // because the field snapshot below is the thing its references protect.
+  { key: "filters", label: "Saved filter inventory", needs: [], mode: "inline" },
   { key: "fields", label: "Field snapshot", needs: [], mode: "inline" },
   { key: "status-history", label: "Status history", needs: ["workflows"], mode: "inline" },
   {

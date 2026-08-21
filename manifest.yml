@@ -245,5 +245,10 @@ permissions:
     - read:screenable-field:jira
     - manage:jira-configuration
     - read:jira-user
+    # Saved filters. The only endpoint that enumerates them site-wide is
+    # /rest/api/3/filter/search -- /rest/api/3/filter returns the caller's favourites, which
+    # is a personal list rather than an inventory. One new scope, and it is the one that
+    # makes a filter's JQL readable, which is what the field and status joins are built on.
+    - read:filter:jira
     - read:chat:rovo
     - storage:app

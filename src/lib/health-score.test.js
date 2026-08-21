@@ -66,6 +66,18 @@ const adoption = (over = {}) => ({
   ...over,
 });
 
+// Filters are scored on one rate rather than four, so the fixture is correspondingly small.
+const filters = (over = {}) => ({
+  available: true,
+  total: 400,
+  defectRate: 0,
+  orphanedCount: 0,
+  sharedWithEveryoneCount: 0,
+  subscribedButUnusedCount: 0,
+  brokenProjectCount: 0,
+  ...over,
+});
+
 const screens = (over = {}) => ({
   available: true,
   totalScreens: 760,
@@ -83,7 +95,7 @@ describe("computeSiteHealth — scoring", () => {
   test("a clean site scores at the top", () => {
     const health = computeSiteHealth({
       fieldUsage: fieldUsage(), workflow: workflow(), projects: projects(),
-      automation: automation(), screens: screens(), adoption: adoption(),
+      automation: automation(), screens: screens(), adoption: adoption(), filters: filters(),
     });
 
     expect(health.score).toBeGreaterThanOrEqual(90);

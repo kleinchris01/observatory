@@ -27,6 +27,7 @@ const RqtIndexView = React.lazy(() =>
 const WorkflowTab = React.lazy(() =>
   import("./tabs/WorkflowTab").then((m) => ({ default: m.WorkflowTab }))
 );
+const FiltersTab = React.lazy(() => import("./tabs/FiltersTab").then((m) => ({ default: m.FiltersTab })));
 const AutomationTab = React.lazy(() =>
   import("./tabs/AutomationTab").then((m) => ({ default: m.AutomationTab }))
 );
@@ -188,6 +189,7 @@ export function AdminApp() {
     { key: "projects", label: "Project Usage", icon: "folder" },
     { key: "workflows", label: "Workflows", icon: "activity" },
     { key: "screens", label: "Screens", icon: "copy" },
+    { key: "filters", label: "Saved Filters", icon: "search" },
     { key: "automation", label: "Automation", icon: "refreshCw" },
     { key: "reports", label: "Reports", icon: "barChart" },
     { key: "scans", label: "Scans", icon: "zap" },
@@ -283,6 +285,10 @@ export function AdminApp() {
           ) : activeTab === "screens" ? (
             <React.Suspense fallback={<div className="empty-state">Loading…</div>}>
               <ScreensTab intent={navIntent} />
+            </React.Suspense>
+          ) : activeTab === "filters" ? (
+            <React.Suspense fallback={<div className="empty-state">Loading…</div>}>
+              <FiltersTab siteOrigin={siteOrigin} intent={navIntent} />
             </React.Suspense>
           ) : activeTab === "automation" ? (
             <React.Suspense fallback={<div className="empty-state">Loading…</div>}>

@@ -22,6 +22,8 @@ import { fallbackOn } from "./logger.js";
 import {
   loadIssueScanProjectTotals,
   loadProjectActivity,
+  loadFilters,
+  readFilterSnapshotMeta,
   loadScreenGovernanceSummary,
   loadStatusIssueCounts,
   loadStatusesCatalog,
@@ -35,6 +37,7 @@ import {
 // rather than built by a snapshot job and never needed to be part of that surface.
 import { loadStatusAutomationReferences } from "./store/automation.js";
 import { summarizeAdoption } from "./project-adoption.js";
+import { summarizeFilters, summarizeFilterHealth } from "./filter-insights.js";
 
 // Top finding-type/field-type breakdowns are capped -- Overview is a glance-level
 // summary, not the full Field Browser, and shipping ~1500 hydrated fields' worth of
@@ -340,6 +343,48 @@ export async function buildWorkflowOverview(installationKey) {
   }
 }
 
+// Saved filter health for the Overview.
+//
+// Mirrors buildWorkflowOverview and buildScreenOverview, including their failure posture: a
+// pillar that cannot be built reports unavailable and the score excludes it, rather than
+// 500ing an overview that has five other pillars to show.
+//
+// `projectKeys` is passed in rather than loaded here, because the caller already has the
+// project list and loading it twice to answer one join would double the cost of the page.
+// Without it the broken-project check is skipped and says so -- "no broken references" and
+// "nobody looked" are different claims.
+export async function buildFilterOverview(installationKey, { projectKeys = null } = {}) {
+  try {
+    const meta = await readFilterSnapshotMeta(installationKey);
+    if (!meta?.version) return { available: false, state: meta?.state || "idle", lastError: meta?.lastError || null };
+
+    const filters = await loadFilters(installationKey, meta.version);
+    const summary = summarizeFilters(filters, { projectKeys });
+
+    return {
+      available: summary.available,
+      state: meta.state || "idle",
+      refreshedAt: meta.refreshedAt || null,
+      lastError: meta.lastError || null,
+      ...summary,
+      // The full per-filter list stays on the tab. The Overview needs the counts and the
+      // worst few, not five hundred rows.
+      filters: undefined,
+      duplicateGroups: undefined,
+      brokenProjects: undefined,
+      worst: summary.filters.slice(0, 8).map((f) => ({
+        id: f.id, name: f.name, ownerName: f.ownerName,
+        subscriptionCount: f.subscriptionCount,
+        code: f.findings[0]?.code ?? null,
+      })),
+      health: summarizeFilterHealth(summary),
+    };
+  } catch (error) {
+    console.warn("buildFilterOverview failed:", error?.message || error);
+    return { available: false, state: "error" };
+  }
+}
+
 // Screen health for the Overview, as aggregate counts rather than a second inventory.
 //
 // Mirrors buildWorkflowOverview, including its failure posture: a screens pillar that cannot
@@ -402,6 +447,7 @@ export async function captureSiteHealth(installationKey, deps) {
       buildScreenOverview(installationKey),
       readAutomationAnalysis(installationKey).catch(() => null),
     ]);
+    let filters = null;
 
     let fieldUsage = null;
     let projects = null;
@@ -426,6 +472,11 @@ export async function captureSiteHealth(installationKey, deps) {
       const activity = await loadProjectActivity(installationKey)
         .catch(fallbackOn("overview.project_activity_load_failed", () => new Map(), { installationKey }));
       adoption = summarizeAdoption(withCounts, activity);
+
+      // The project keys the filter pillar needs for its broken-reference join, taken from
+      // the rows already loaded rather than fetched again.
+      const projectKeys = new Set(withCounts.map((p) => p.projectKey).filter(Boolean));
+      filters = (await buildFilterOverview(installationKey, { projectKeys })).health ?? null;
     }
 
     const health = computeSiteHealth({
@@ -435,6 +486,7 @@ export async function captureSiteHealth(installationKey, deps) {
       automation: automationAnalysis?.estate?.health ?? { available: false },
       screens,
       adoption,
+      filters,
       tolerances: config?.healthTolerances,
     });
 

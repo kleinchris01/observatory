@@ -21,6 +21,7 @@ import {
 import { processProjectUsageReportJob } from "./lib/report-engine.js";
 import { buildWorkflowSnapshot, buildStatusHistorySnapshot } from "./lib/workflow-engine.js";
 import { buildScreenSnapshot } from "./lib/screen-engine.js";
+import { buildFilterSnapshot } from "./lib/filter-engine.js";
 import {
   ensureProjectStoreReady,
   readSnapshotMeta,
@@ -262,6 +263,14 @@ export async function consumeSnapshot(event) {
       const result = await buildWorkflowSnapshot(installationKey);
       console.log(
         `build-workflow-snapshot: ${result?.schemeCount ?? 0} schemes, ${result?.statusCount ?? 0} statuses, ${result?.projectCount ?? 0} projects`
+      );
+      return;
+    }
+
+    if (jobType === "build-filter-snapshot") {
+      const result = await buildFilterSnapshot(installationKey);
+      console.log(
+        `build-filter-snapshot: ${result?.filters ?? 0} filters, ${result?.refs ?? 0} references`
       );
       return;
     }

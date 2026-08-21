@@ -5684,6 +5684,61 @@ button.wf-orphan__count--rules[aria-expanded="true"] { border-color: rgba(125, 1
 .projects-rail__fell { color: #d98f4e; font-weight: 600; }
 .projects-rail__filters { margin-bottom: 6px; }
 
+/* -- Saved filters ----------------------------------------------------------
+   A filter row leads with what it is and who owns it, then the query, then what it depends
+   on. The dependency line is the point of the pillar: it is why a field forty filters search
+   on is not unused, whatever the field tab says on its own. */
+.filter-list { display: flex; flex-direction: column; gap: 10px; }
+.filter-row {
+  display: flex; flex-direction: column; gap: 7px;
+  padding: 11px 13px; border-radius: var(--radius-md);
+  border: 1px solid var(--stroke); background: rgba(255, 255, 255, 0.02);
+  border-left: 2px solid transparent;
+}
+:root[data-theme="light"] .filter-row { background: rgba(0, 0, 0, 0.015); }
+.filter-row--flagged { border-left-color: #c9860a; }
+.filter-row__head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.filter-row__name { font-size: 0.86rem; font-weight: 600; }
+a.filter-row__name { color: var(--cool); text-decoration: none; }
+a.filter-row__name:hover { text-decoration: underline; }
+.filter-row__owner { font-size: 0.74rem; opacity: 0.6; }
+.filter-row__used { margin-left: auto; font-size: 0.72rem; opacity: 0.45; white-space: nowrap; }
+
+/* The query, verbatim. Scrolls inside its own box rather than wrapping to six lines: a JQL
+   string is read left to right and rewrapping it destroys the clause structure. */
+.filter-row__jql {
+  font-family: var(--font-mono); font-size: 0.72rem; line-height: 1.5;
+  padding: 6px 8px; border-radius: 5px; overflow-x: auto; white-space: pre;
+  background: rgba(255, 255, 255, 0.04); opacity: 0.85;
+}
+:root[data-theme="light"] .filter-row__jql { background: rgba(0, 0, 0, 0.04); }
+
+.filter-row__refs { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
+.filter-row__refslabel { font-size: 0.7rem; opacity: 0.45; text-transform: uppercase; letter-spacing: 0.05em; }
+.filter-row__more { font-size: 0.7rem; opacity: 0.45; }
+
+.filter-row__findings { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.filter-row__finding { font-size: 0.74rem; line-height: 1.45; padding-left: 10px; border-left: 2px solid transparent; }
+.filter-row__finding--high { border-left-color: #c9605a; opacity: 0.9; }
+.filter-row__finding--medium { border-left-color: #c9860a; opacity: 0.8; }
+.filter-row__finding--low { border-left-color: rgba(125, 165, 215, 0.5); opacity: 0.65; }
+
+.filter-dupe-list { display: flex; flex-direction: column; gap: 12px; }
+.filter-dupe {
+  display: flex; flex-direction: column; gap: 7px;
+  padding: 11px 13px; border-radius: var(--radius-md); border: 1px solid var(--stroke);
+}
+.filter-dupe__head { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.filter-dupe__head .filter-row__jql { flex: 1; min-width: 12rem; }
+.filter-dupe__members { display: flex; flex-wrap: wrap; gap: 6px; }
+.filter-dupe__member {
+  display: inline-flex; align-items: baseline; gap: 6px;
+  font-size: 0.74rem; padding: 2px 8px; border-radius: 5px;
+  background: rgba(255, 255, 255, 0.05);
+}
+:root[data-theme="light"] .filter-dupe__member { background: rgba(0, 0, 0, 0.04); }
+.filter-dupe__owner { opacity: 0.5; font-size: 0.9em; }
+
 /* â”€â”€ Endpoint probe results â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .probe-results { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
 .probe-results__summary { font-size: 0.82rem; margin: 0; opacity: 0.85; }

@@ -880,6 +880,26 @@ export async function getAllJiraProjects() {
 // it is measured. That is what screen-probe.js exists to find out before the full pipeline
 // is built on an assumption about it.
 
+// Every saved filter on the site, with the governance-relevant expansions.
+//
+// /rest/api/3/filter/search is the only endpoint that enumerates filters; /rest/api/3/filter
+// alone returns just the caller's favourites, which is a personal list rather than a site
+// inventory. Requires read:filter:jira -- the one new scope this pillar adds.
+//
+// `expand` is where the whole pillar lives. Without it the response carries an id and a name
+// and nothing worth governing; with it, each filter brings its JQL, its owner (including
+// whether that account is still active), its share permissions and its subscriptions.
+//
+// approximateLastUsed is requested but treated as optional: it is the newest field here and
+// the one most likely to be absent on a given tenant, and "we could not tell when this was
+// last opened" must never render as "never opened".
+const FILTER_EXPAND = "description,owner,jql,sharePermissions,subscriptions,viewUrl,favouritedCount";
+
+export async function getAllFilters() {
+  return paginate((startAt) =>
+    route`/rest/api/3/filter/search?maxResults=50&startAt=${startAt}&expand=${FILTER_EXPAND}&overrideSharePermissions=false`);
+}
+
 export async function getAllScreens() {
   return paginate((startAt) => route`/rest/api/3/screens?maxResults=100&startAt=${startAt}`);
 }

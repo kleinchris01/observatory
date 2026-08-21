@@ -75,6 +75,12 @@ const EXPECTED = [
   ["Screens carrying no fields", "screens", { view: "screens", filter: "empty" }],
   ["Screen schemes no issue type maps to", "screens", { view: "schemes", schemes: "unused" }],
 
+  ["Saved filters with no live owner", "filters", { view: "filters", finding: "orphaned-owner" }],
+  ["Filters naming a project that does not exist", "filters", { view: "broken" }],
+  ["Email subscriptions on filters nobody opens", "filters", { view: "filters", finding: "subscribed-but-unused" }],
+  ["Filters shared with every logged-in user", "filters", { view: "filters", finding: "shared-with-everyone" }],
+  ["Duplicate saved filters", "filters", { view: "duplicates" }],
+
   ["Projects people have stopped using", "projects", { filter: "fell-off" }],
   ["Projects that never took off", "projects", { filter: "no-work" }],
   ["Projects configured well past the site norm", "projects", { filter: "over-configured" }],
@@ -82,9 +88,16 @@ const EXPECTED = [
   ["Projects with no activity in over six months", "projects", { filter: "stale" }],
 ];
 
+const filters = () => ({
+  available: true, total: 412,
+  orphanedCount: 18, sharedWithEveryoneCount: 34, subscribedButUnusedCount: 7,
+  brokenProjectCount: 3, duplicateGroupCount: 22, reducibleCount: 41,
+});
+
 function renderAll(onNavigate) {
   return render(<OverviewDashboard
     dashboard={dashboard()}
+    filters={filters()}
     findingsSummary={{ adminAttention: 123, risky: 88, cleanup: 364, standardize: 129 }}
     workflow={workflow()}
     screens={screens()}

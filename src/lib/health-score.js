@@ -60,6 +60,11 @@ export const DEFAULT_HEALTH_TOLERANCES = {
   // Screens carrying no fields, or that no scheme routes to. Clutter, so it is forgiving --
   // but past a third of the catalog nobody can tell which screens are live.
   unusedScreens: 0.30,
+  // Filters that are broken, exposed, or emailing from a search nobody opens. Between the
+  // screen bounds and the automation ones: a filter owned by a deleted account takes its
+  // boards and dashboards with it, which is worse than clutter and less immediate than a
+  // credential sitting in plaintext.
+  filterDefects: 0.15,
 };
 
 // rate 0 -> 100, rate >= tolerance -> 0, linear between. Deliberately linear: a curve
@@ -79,6 +84,7 @@ function unavailable(key, label, pillar, reason) {
 
 export const HEALTH_PILLARS = [
   { key: "fields", label: "Fields" },
+  { key: "filters", label: "Filters" },
   { key: "workflows", label: "Workflows and statuses" },
   { key: "screens", label: "Screens" },
   { key: "automation", label: "Automation" },
@@ -107,7 +113,7 @@ export function resolveHealthTolerances(overrides = {}) {
   return out;
 }
 
-export function computeSiteHealth({ fieldUsage, workflow, projects, automation, screens, adoption, tolerances } = {}) {
+export function computeSiteHealth({ fieldUsage, workflow, projects, automation, screens, adoption, filters, tolerances } = {}) {
   const TOLERANCE = resolveHealthTolerances(tolerances);
   const dimensions = [];
 
@@ -151,6 +157,50 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
     });
   } else {
     dimensions.push(unavailable("field-governance", "Field governance", "fields", "No field snapshot yet."));
+  }
+
+  // ── Filter hygiene ────────────────────────────────────────────────────────
+  // Saved filters that are broken, exposed, or emailing people from a search nobody reads.
+  //
+  // One dimension rather than four, deliberately. Every dimension added to this score makes
+  // every existing one quieter: at sixteen dimensions the credential finding -- weighted
+  // double precisely because it is the most serious thing this app can find -- could already
+  // only move the headline by ten points. The breakdown belongs on the Filters tab, where a
+  // reader is already asking about filters; the headline has to stay sensitive to the things
+  // that matter most.
+  //
+  // Duplicates are deliberately excluded from the rate. They are the most numerous filter
+  // finding and the least consequential, and including them at any weight turned this into a
+  // duplicate counter -- see summarizeFilterHealth.
+  if (filters?.available && filters.total > 0) {
+    const rate = Number(filters.defectRate) || 0;
+    const orphaned = Number(filters.orphanedCount) || 0;
+    const exposed = Number(filters.sharedWithEveryoneCount) || 0;
+    const zombie = Number(filters.subscribedButUnusedCount) || 0;
+    const broken = Number(filters.brokenProjectCount) || 0;
+    dimensions.push({
+      key: "filter-hygiene",
+      label: "Filter hygiene",
+      pillar: "filters",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(rate, TOLERANCE.filterDefects),
+      detail: orphaned + exposed + zombie + broken === 0
+        ? `All ${filters.total} saved filters have a live owner and a scope that resolves.`
+        : `${orphaned} of ${filters.total} filters have no live owner, ${exposed} are shared with everyone, ${zombie} email a search nobody opens${broken > 0 ? `, and ${broken} name a project that does not exist` : ""}.`,
+      action: orphaned > 0
+        ? "Jira deletes a filter with its owner, and every board and dashboard built on it breaks at the same moment. Reassign these before the accounts are removed."
+        : broken > 0
+          ? "A filter naming a project that no longer exists errors rather than returning the wrong answer — the cheapest of these to fix and the easiest to prove."
+          : zombie > 0
+            ? "Recurring email from a filter nobody reads is what teaches people to filter Jira to trash."
+            : exposed > 0
+              ? "Shared with every logged-in user. Confirm each one is meant to be a site-wide search."
+              : null,
+    });
+  } else {
+    dimensions.push(unavailable("filter-hygiene", "Filter hygiene", "filters",
+      "No saved filter inventory yet. Build one from the Filters tab or run a full scan."));
   }
 
   // ── Status naming ─────────────────────────────────────────────────────────
