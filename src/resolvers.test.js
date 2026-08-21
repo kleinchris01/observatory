@@ -4727,6 +4727,13 @@ describe("buildFilterInventory", () => {
     const result = await buildFilterInventory({ context: ctxWithAccount() });
 
     expect(result).toMatchObject({ queued: true });
+    // The `body` envelope, asserted rather than assumed. The consumer reads
+    // event?.body?.jobType, so a payload pushed without it arrives bodyless and Forge
+    // rejects the invocation with "Event body must be an object" -- which is exactly what
+    // shipped, because the original test only checked that SOMETHING was pushed.
+    expect(mocks.queuePush).toHaveBeenCalledWith({
+      body: { jobType: "build-filter-snapshot", installationKey: "test-install" },
+    });
     expect(mocks.writeFilterSnapshotMeta).toHaveBeenCalledWith("test-install", expect.objectContaining({ state: "building" }));
   });
 
@@ -4919,6 +4926,38 @@ describe("getFieldFilterCounts", () => {
     mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "v1" });
     const result = await getFieldFilterCounts({ payload: {}, context: ctxWithAccount() });
     expect(result.counts).toEqual({});
+  });
+});
+
+// The bug this exists to stop recurring: two resolvers pushed a bare payload instead of
+// wrapping it in `body`, and Forge rejected the invocation with "Event body must be an
+// object" the first time a user clicked the button. Every test involved passed, because they
+// asserted that a push happened and not what was pushed.
+//
+// Swept rather than spot-checked. A per-resolver assertion only protects the resolvers
+// somebody remembered to write one for, and that is precisely the failure mode here.
+describe("every queued job carries a body envelope", () => {
+  const queuers = [
+    ["buildFilterInventory", () => buildFilterInventory({ context: ctxWithAccount() })],
+    ["buildScreenInventory", () => buildScreenInventory({ context: ctxWithAccount() })],
+  ];
+
+  test.each(queuers)("%s pushes { body: { jobType, installationKey } }", async (_name, run) => {
+    mocks.kvsGet.mockResolvedValue(null);
+    mocks.readFilterSnapshotMeta.mockResolvedValue(null);
+    mocks.readScreenSnapshotMeta.mockResolvedValue(null);
+    mocks.queuePush.mockClear();
+
+    await run();
+
+    for (const call of mocks.queuePush.mock.calls) {
+      const payload = call[0];
+      // The consumer reads event?.body?.jobType. Anything else is a job that cannot run.
+      expect(payload).toHaveProperty("body");
+      expect(typeof payload.body).toBe("object");
+      expect(payload.body).toHaveProperty("jobType");
+      expect(payload).not.toHaveProperty("jobType");
+    }
   });
 });
 

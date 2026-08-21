@@ -119,11 +119,20 @@ export function markStage(stages, key, patch) {
 // Queue the next step of a running scan. One job per stage, so each gets its own invocation
 // budget instead of sharing one.
 export async function queueFullScanStage(installationKey, stageKey, jobToken) {
+  // Wrapped in `body`, like every other push in this codebase. The consumer reads
+  // event?.body?.jobType, so a bare payload arrives bodyless and Forge rejects the
+  // invocation with "Event body must be an object".
+  //
+  // This has always been wrong here and never surfaced, because nothing calls this function:
+  // the full-scan orchestrator is queued by no resolver and consumed by no handler. Fixed
+  // while it is in front of us rather than left as a trap for whoever wires it up.
   await inventorySnapshotQueue.push({
-    jobType: "run-full-scan",
-    installationKey,
-    stage: stageKey,
-    jobToken,
+    body: {
+      jobType: "run-full-scan",
+      installationKey,
+      stage: stageKey,
+      jobToken,
+    },
   });
   logger.info("full-scan.stage_queued", { installationKey, stage: stageKey });
 }
