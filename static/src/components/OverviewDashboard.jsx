@@ -76,7 +76,12 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
       tone: "info",
       count: workflow.safeToRemoveCount,
       title: "Statuses with no evidence of use",
-      detail: "No workflow reaches them and no issue has ever been in one. Automation rules are not visible to this app, so check those before deleting.",
+      // The old wording -- "automation rules are not visible to this app" -- has been false
+      // since rule imports started populating automation_references, and safeToRemoveCount
+      // now excludes any status a rule references.
+      detail: workflow.automationChecked
+        ? "No workflow reaches them, no automation rule references them, and no issue has ever been in one."
+        : "No workflow reaches them and no issue has ever been in one. No rule export has been imported, so check the Automation tab before deleting.",
       onOpen: () => onNavigate("workflows"),
       openLabel: "Workflows",
     });

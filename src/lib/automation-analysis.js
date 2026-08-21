@@ -11,6 +11,8 @@
 // "references we can prove", never as "all references" -- a reference found here is
 // evidence the field is in use, but finding none is not evidence that it is not.
 
+import { detectRuleSecretKinds } from "./secret-detect.js";
+
 // A reference's direction matters more than its existence. A rule that WRITES a field
 // keeps it alive; a rule that merely READS it in a condition does not, but does break if
 // the field disappears.
@@ -229,7 +231,6 @@ export function extractProjectReferences(rule) {
 }
 
 const ACTION_COMPONENT = "ACTION";
-const REDACTED_MARKER = /\[\[REDACTED:[0-9a-f]{8}\]\]/;
 const ATLASSIAN_HOST_RE = /^https?:\/\/([a-z0-9-]+\.)*(atlassian\.(net|com)|atl-paas\.net)(\/|$)/i;
 
 export function countComponents(rule) {
@@ -263,10 +264,21 @@ export function analyzeRuleRisks(rule, { now = Date.now() } = {}) {
   const risks = [];
   const counts = countComponents(rule);
 
-  if (REDACTED_MARKER.test(JSON.stringify(rule ?? {}))) {
+  // Detected from the rule itself, not from the redactor's output.
+  //
+  // This used to test the serialized rule for the `[[REDACTED:...]]` marker, which only
+  // appears in a rule the snapshot script has already rewritten. The browser analyses the
+  // RAW export, so the test could never fire -- and this site's 86 credential-bearing rules
+  // were reported, for as long as the tab has existed, as "no credentials stored".
+  const secretKinds = detectRuleSecretKinds(rule);
+  if (secretKinds.length > 0) {
     risks.push({
       code: "embedded-credential",
       severity: "high",
+      // The kinds, not the paths. A JSON path leads straight to the secret and this finding
+      // travels into KVS, through a resolver log and into the browser; the rule id is
+      // already enough to take someone to the right place in Jira.
+      kinds: secretKinds,
       detail: "Rule contains a credential stored in plaintext in Jira. Anyone who can view the rule can read it.",
     });
   }

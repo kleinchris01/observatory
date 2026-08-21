@@ -229,10 +229,11 @@ export function WorkflowInsights({ insights, loading }) {
           ) : (
             <div className="wf-orphan-grid">
               {orphans.map((orphan) => (
-                <div
-                  key={orphan.statusId}
-                  className={`wf-orphan ${orphan.safeToRemove && !orphan.automationRuleCount ? "wf-orphan--safe" : ""}`}
-                >
+                // safeToRemove now accounts for rule references itself. This used to read
+                // `safeToRemove && !automationRuleCount`, which was the model's own rule
+                // reimplemented in JSX -- and the health score, reading the unqualified
+                // model, disagreed with what this grid showed.
+                <div key={orphan.statusId} className={`wf-orphan ${orphan.safeToRemove ? "wf-orphan--safe" : ""}`}>
                   <span className="wf-orphan__name">{orphan.name}</span>
                   {orphan.issueCount === null ? (
                     <span className="wf-orphan__count wf-orphan__count--unknown">usage unknown</span>

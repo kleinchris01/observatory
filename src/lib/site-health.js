@@ -29,6 +29,10 @@ import {
   readScreenSnapshotMeta,
   readWorkflowSnapshotMeta,
 } from "./project-store.js";
+// Imported from the automation store directly: project-store.js re-exports the other eight
+// store modules but not this one, because the automation pillar is written by an import
+// rather than built by a snapshot job and never needed to be part of that surface.
+import { loadStatusAutomationReferences } from "./store/automation.js";
 
 // Top finding-type/field-type breakdowns are capped -- Overview is a glance-level
 // summary, not the full Field Browser, and shipping ~1500 hydrated fields' worth of
@@ -155,34 +159,63 @@ export function buildProjectInsights(projects) {
     ? projects.reduce((sum, p) => sum + (p.uniqueIssueCount ?? 0), 0)
     : null;
 
-  // Configured well past the site norm while carrying little actual work. These are where
-  // field governance conversations start, because the cost is real and the usage is not.
-  // Guarded against a degenerate median: on a site where the median project has one field,
-  // "twice the median" is noise, so require an absolute floor as well.
+  // Configured well past the site norm. Guarded against a degenerate median: on a site
+  // where the median project has one field, "twice the median" is noise, so require an
+  // absolute floor as well.
   //
-  // The volume side must use volumeOf, not the fills sum. Against fills the absolute floor
-  // of 50 could never bind -- an average project's fills run to six figures -- so the test
-  // silently collapsed to the relative term alone.
+  // This used to require light issue volume too, and was still labelled -- here, in the
+  // health score, and on the Overview -- as "projects configured well past the norm". Those
+  // are different claims, and the AND made the compound one impossible to trip on an active
+  // site: a project with 90 fields and 90 fields' worth of work is over-configured by any
+  // reasonable reading and was counted as neither. The site read 0 over-configured projects
+  // and scored 100 for project consistency while carrying plenty of both.
+  //
+  // So the two claims are now two measures. This one is the shape of the estate; the idle
+  // subset below is the cleanup worklist.
   const totalVolume = projects.reduce((sum, p) => sum + volumeOf(p), 0);
   const overConfiguredFloor = Math.max(10, medianFieldCount * 2);
-  const lightVolumeCeiling = Math.max(50, totalVolume / Math.max(1, projects.length) / 4);
-  const overConfigured = projects
-    .filter((p) => p.fieldCount >= overConfiguredFloor && volumeOf(p) < lightVolumeCeiling)
-    .sort((a, b) => b.fieldCount - a.fieldCount)
-    .slice(0, DASHBOARD_TOP_N)
-    .map((p) => ({
-      projectKey: p.projectKey,
-      projectName: p.projectName,
-      fieldCount: p.fieldCount,
-      totalIssueCount: p.totalIssueCount,
-      uniqueIssueCount: p.uniqueIssueCount ?? null,
-      volume: volumeOf(p),
-    }));
+  const isOverConfigured = (p) => p.fieldCount >= overConfiguredFloor;
 
-  // Fields configured, no issues recorded at all -- either abandoned or never started.
-  const unusedProjects = projects
-    .filter((p) => p.fieldCount > 0 && p.totalIssueCount === 0)
-    .sort((a, b) => b.fieldCount - a.fieldCount)
+  // The volume side must use the measured figure, not the fills sum. Against fills the
+  // absolute floor of 50 could never bind -- an average project's fills run to six figures
+  // -- so the test silently collapsed to the relative term alone.
+  //
+  // measuredVolumeOf, not volumeOf. volumeOf coerces an unmeasured project to 0 so it can
+  // be summed and sorted, which is right for a total and wrong for a predicate: once the
+  // scan has measured ANY project, every project it has not reached yet would read as
+  // carrying no work at all, and a partial scan would report most of the site as abandoned.
+  // null here means "not measured", and a comparison against null is false, which is the
+  // answer we want -- no claim either way.
+  const measuredVolumeOf = (p) => (hasUniqueCounts ? p.uniqueIssueCount ?? null : p.totalIssueCount);
+  const lightVolumeCeiling = Math.max(50, totalVolume / Math.max(1, projects.length) / 4);
+  const isIdle = (p) => measuredVolumeOf(p) !== null && measuredVolumeOf(p) < lightVolumeCeiling;
+
+  const shapeProject = (p) => ({
+    projectKey: p.projectKey,
+    projectName: p.projectName,
+    fieldCount: p.fieldCount,
+    totalIssueCount: p.totalIssueCount,
+    uniqueIssueCount: p.uniqueIssueCount ?? null,
+    volume: volumeOf(p),
+  });
+
+  const overConfiguredAll = projects.filter(isOverConfigured).sort((a, b) => b.fieldCount - a.fieldCount);
+  const overConfigured = overConfiguredAll.slice(0, DASHBOARD_TOP_N).map(shapeProject);
+
+  // Over-configured AND carrying little work. Where field governance conversations start,
+  // because the cost is real and the usage is not.
+  const idleOverConfiguredAll = overConfiguredAll.filter(isIdle);
+  const idleOverConfigured = idleOverConfiguredAll.slice(0, DASHBOARD_TOP_N).map(shapeProject);
+
+  // Fields configured, no work recorded at all -- either abandoned or never started.
+  //
+  // Tested against volumeOf rather than totalIssueCount. That field counts field FILLS, so
+  // "no issues" meant "not one populated field value anywhere", which almost nothing
+  // satisfies; where the scan has measured distinct issues, zero issues is the real test.
+  const unusedProjectsAll = projects
+    .filter((p) => p.fieldCount > 0 && measuredVolumeOf(p) === 0)
+    .sort((a, b) => b.fieldCount - a.fieldCount);
+  const unusedProjects = unusedProjectsAll
     .slice(0, DASHBOARD_TOP_N)
     .map((p) => ({ projectKey: p.projectKey, projectName: p.projectName, fieldCount: p.fieldCount }));
 
@@ -190,12 +223,13 @@ export function buildProjectInsights(projects) {
   // 60 fields and 40,000 issues and still have had nothing touched in a year.
   const now = Date.now();
   const STALE_MS = 180 * 24 * 60 * 60 * 1000;
-  const staleProjects = projects
+  const staleProjectsAll = projects
     .filter((p) => {
       const at = Date.parse(p.latestIssueUpdatedAt || "");
       return p.totalIssueCount > 0 && Number.isFinite(at) && now - at > STALE_MS;
     })
-    .sort((a, b) => Date.parse(a.latestIssueUpdatedAt) - Date.parse(b.latestIssueUpdatedAt))
+    .sort((a, b) => Date.parse(a.latestIssueUpdatedAt) - Date.parse(b.latestIssueUpdatedAt));
+  const staleProjects = staleProjectsAll
     .slice(0, DASHBOARD_TOP_N)
     .map((p) => ({
       projectKey: p.projectKey,
@@ -214,11 +248,27 @@ export function buildProjectInsights(projects) {
     hasUniqueCounts,
     medianFieldCount,
     p90FieldCount,
+    // The threshold the counts below were derived from, so a reader can judge the finding
+    // rather than take the number on trust.
+    overConfiguredFloor,
     topByIssueVolume,
     topByFieldCount,
+    // Display lists, capped at DASHBOARD_TOP_N -- the Overview is a glance, not a census.
     overConfigured,
+    idleOverConfigured,
     unusedProjects,
     staleProjects,
+    // Uncapped totals, and the reason they exist.
+    //
+    // The health score used to derive its rate from the LENGTHS of the lists above. Those
+    // are sliced to eight, so the numerator could never exceed sixteen however irregular
+    // the estate was: on a 200-project site the worst achievable project-consistency rate
+    // was 8%, comfortably inside a 25% tolerance, and the dimension was pinned near 100 by
+    // construction. A rate has to be built from a count of the whole population.
+    overConfiguredCount: overConfiguredAll.length,
+    idleOverConfiguredCount: idleOverConfiguredAll.length,
+    unusedProjectCount: unusedProjectsAll.length,
+    staleProjectCount: staleProjectsAll.length,
   };
 }
 
@@ -243,8 +293,25 @@ export async function buildWorkflowOverview(installationKey) {
     const schemeStatusesAvailable = schemeStatuses.length > 0;
 
     const duplicateGroups = findDuplicateStatusGroups(statuses);
-    const orphans = schemeStatusesAvailable
+
+    // Which of the unreachable statuses a rule actually references.
+    //
+    // Loaded here rather than left to the caller because the health score reads this
+    // summary, and without it the score cannot tell a dead status from one an automation
+    // rule transitions into. Best-effort: no automation analysis, or a failed lookup,
+    // leaves this null and the affected dimensions say so rather than assuming zero.
+    const provisionalOrphans = schemeStatusesAvailable
       ? findOrphanedStatuses(statuses, schemeStatuses, hasIssueCounts ? issueCounts : null)
+      : [];
+    const automationByStatus = provisionalOrphans.length
+      ? await loadStatusAutomationReferences(
+          installationKey,
+          provisionalOrphans.map((o) => o.name).filter(Boolean)
+        ).catch(fallbackOn("overview.status_automation_lookup_failed", () => null, { installationKey }))
+      : null;
+
+    const orphans = schemeStatusesAvailable
+      ? findOrphanedStatuses(statuses, schemeStatuses, hasIssueCounts ? issueCounts : null, automationByStatus)
       : [];
     const balance = schemeStatusesAvailable
       ? computeSchemeCategoryBalance(schemes, schemeStatuses, statuses)

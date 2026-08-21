@@ -23,14 +23,25 @@ const workflow = (over = {}) => ({
   reducibleStatusCount: 0,
   orphanCount: 0,
   safeToRemoveCount: 0,
+  // The split introduced when rule references became part of the model: orphans a rule
+  // holds open are a different finding from orphans nothing reaches at all.
+  ruleOnlyStatusCount: 0,
+  unreachableNoRuleCount: 0,
+  automationChecked: true,
   flaggedSchemeCount: 0,
   ...over,
 });
 
+// The counts, not the display lists. The score used to read `overConfigured.length` off
+// the Overview's top-8 lists, which capped its own numerator at sixteen.
 const projects = (over = {}) => ({
   totalProjects: 100,
-  overConfigured: [],
-  unusedProjects: [],
+  medianFieldCount: 20,
+  overConfiguredFloor: 40,
+  overConfiguredCount: 0,
+  idleOverConfiguredCount: 0,
+  unusedProjectCount: 0,
+  staleProjectCount: 0,
   ...over,
 });
 
@@ -140,21 +151,111 @@ describe("computeSiteHealth — scoring", () => {
     });
   });
 
-  // The status-reachability advice used to warn that automation was invisible to this app.
-  // It no longer is, so the wording turns on whether an analysis actually exists.
-  describe("status reachability advice", () => {
-    const orphaned = workflow({ orphanCount: 12, safeToRemoveCount: 5 });
-    const reach = (health) => health.dimensions.find((d) => d.key === "status-reachability").action;
+  // Status reachability used to score every unreachable status the same way, whether or
+  // not an automation rule transitioned into it. On this site that was 94 statuses scored
+  // as dead when 63 of them are load-bearing, and it made the weakest dimension on the page
+  // a number nobody could act on.
+  describe("status reachability and coverage", () => {
+    const dim = (health, key) => health.dimensions.find((d) => d.key === key);
+    // 94 unreachable by a scheme; 63 of those a rule still reaches.
+    const split = workflow({
+      statusCount: 400, orphanCount: 94, unreachableNoRuleCount: 31,
+      ruleOnlyStatusCount: 63, safeToRemoveCount: 27,
+    });
 
-    test("points at the automation tab once an analysis exists", () => {
-      const health = computeSiteHealth({ workflow: orphaned, automation: automation() });
-      expect(reach(health)).toMatch(/Automation tab/);
-      expect(reach(health)).not.toMatch(/not visible to this app/);
+    test("scores reachability on the statuses no rule reaches", () => {
+      const health = computeSiteHealth({ workflow: split });
+      // 31/400 against a 20% tolerance, not 94/400.
+      expect(dim(health, "status-reachability").score).toBe(61);
+      expect(dim(health, "status-reachability").detail).toContain("31 of 400");
+    });
+
+    test("reports the rule-only statuses as their own dimension", () => {
+      const health = computeSiteHealth({ workflow: split });
+      const coverage = dim(health, "status-coverage");
+      expect(coverage.available).toBe(true);
+      // 63/400 is well past the 10% bound: these are live process steps no scheme documents.
+      expect(coverage.score).toBe(0);
+      expect(coverage.detail).toMatch(/reachable only through an automation rule/);
+    });
+
+    test("advises deletion only for statuses nothing at all reaches", () => {
+      const health = computeSiteHealth({ workflow: split });
+      expect(dim(health, "status-reachability").action).toMatch(/no scheme, no rule and no issue/);
+    });
+
+    test("says so when every unreachable status is held open by a rule", () => {
+      const allHeld = workflow({ orphanCount: 20, unreachableNoRuleCount: 0, ruleOnlyStatusCount: 20, safeToRemoveCount: 0 });
+      expect(dim(computeSiteHealth({ workflow: allHeld }), "status-reachability").action)
+        .toMatch(/held open by an automation rule/);
+    });
+
+    // Coverage is a claim about rules. Without an analysis it is unknowable, and scoring it
+    // as perfect would be the same false all-clear the credential dimension used to give.
+    test("coverage is unavailable, not perfect, when no rules have been read", () => {
+      const unchecked = workflow({ orphanCount: 12, automationChecked: false, ruleOnlyStatusCount: 0, unreachableNoRuleCount: 12 });
+      const coverage = dim(computeSiteHealth({ workflow: unchecked }), "status-coverage");
+      expect(coverage).toMatchObject({ available: false, score: null });
+      expect(coverage.reason).toMatch(/no automation analysis/i);
     });
 
     test("still warns about the blind spot when no analysis has been built", () => {
-      const health = computeSiteHealth({ workflow: orphaned });
-      expect(reach(health)).toMatch(/No automation analysis has been built/);
+      const unchecked = workflow({ orphanCount: 12, safeToRemoveCount: 5, automationChecked: false, unreachableNoRuleCount: 12 });
+      const reachability = dim(computeSiteHealth({ workflow: unchecked }), "status-reachability");
+      expect(reachability.detail).toMatch(/No automation analysis/);
+      expect(reachability.action).toMatch(/a rule could still transition into one of these/);
+    });
+
+    // An older cached measurement predates the split and carries only orphanCount. It must
+    // still score rather than reporting unavailable.
+    test("falls back to the whole orphan count on a payload built before the split", () => {
+      const legacy = { available: true, schemeStatusesAvailable: true, statusCount: 400, orphanCount: 40, safeToRemoveCount: 0, hasIssueCounts: true };
+      expect(dim(computeSiteHealth({ workflow: legacy }), "status-reachability").score).toBe(50);
+    });
+  });
+
+  // Project consistency was pinned near 100 by construction. Its rate came from the
+  // Overview's display lists, which are sliced to eight, so the numerator could never
+  // exceed sixteen however irregular the estate was.
+  describe("project dimensions", () => {
+    const dim = (health, key) => health.dimensions.find((d) => d.key === key);
+
+    test("scores consistency over every project, not a top-eight list", () => {
+      const health = computeSiteHealth({
+        projects: projects({ totalProjects: 200, overConfiguredCount: 64, overConfiguredFloor: 76, medianFieldCount: 38 }),
+      });
+      // 64/200 = 32%, past the 25% tolerance. Capped at 8 this was 4% and scored 84.
+      expect(dim(health, "project-consistency").score).toBe(0);
+      expect(dim(health, "project-consistency").detail).toContain("64 of 200");
+    });
+
+    test("names the threshold and the median it was derived from", () => {
+      const health = computeSiteHealth({ projects: projects({ overConfiguredCount: 5, overConfiguredFloor: 76, medianFieldCount: 38 }) });
+      expect(dim(health, "project-consistency").detail).toMatch(/76 or more fields, against a median of 38/);
+    });
+
+    test("distinguishes over-configured from over-configured and idle", () => {
+      const busy = computeSiteHealth({ projects: projects({ overConfiguredCount: 10, idleOverConfiguredCount: 0 }) });
+      const idle = computeSiteHealth({ projects: projects({ overConfiguredCount: 10, idleOverConfiguredCount: 6 }) });
+
+      expect(dim(busy, "project-consistency").action).toMatch(/scope to review rather than cleanup/);
+      expect(dim(idle, "project-consistency").action).toMatch(/6 of them carry little issue volume/);
+    });
+
+    test("scores activity separately from shape", () => {
+      const health = computeSiteHealth({
+        projects: projects({ totalProjects: 200, staleProjectCount: 31, unusedProjectCount: 12 }),
+      });
+      // 43/200 against a 30% tolerance.
+      expect(dim(health, "project-activity").score).toBe(28);
+      expect(dim(health, "project-activity").detail).toMatch(/31 projects.*no activity.*12 carry fields/);
+    });
+
+    test("both are unavailable without project usage data", () => {
+      const health = computeSiteHealth({ projects: { totalProjects: 0 } });
+      for (const key of ["project-consistency", "project-activity"]) {
+        expect(dim(health, key)).toMatchObject({ available: false, score: null });
+      }
     });
   });
 

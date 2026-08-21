@@ -519,7 +519,7 @@ describe("WorkflowTab — unreachable statuses vs automation", () => {
 
   test("names the rules holding a status that otherwise looks safe to delete", () => {
     render(<WorkflowInsights insights={withOrphans([
-      { statusId: "1", name: "Parking Lot", issueCount: 0, safeToRemove: true, automationRuleCount: 3 },
+      { statusId: "1", name: "Parking Lot", issueCount: 0, safeToRemove: false, automationRuleCount: 3, ruleOnly: true },
     ], true)} loading={false} />);
 
     // "never used" and "3 rules" sit on the same row deliberately: the second is the reason
@@ -528,12 +528,18 @@ describe("WorkflowTab — unreachable statuses vs automation", () => {
     expect(screen.getByText("3 rules")).toBeInTheDocument();
   });
 
+  // safeToRemove now carries the rule term itself -- findOrphanedStatuses is given the
+  // references before it builds the list, so `safeToRemove: true, automationRuleCount: 2`
+  // is a shape the resolver can no longer produce. The invariant is pinned in
+  // workflow-insights.test.js; what this asserts is that the tab renders the model's
+  // verdict rather than recomputing it, which is what it used to do.
   test("stops calling a status safe once a rule references it", () => {
     const { container } = render(<WorkflowInsights insights={withOrphans([
-      { statusId: "1", name: "Parking Lot", issueCount: 0, safeToRemove: true, automationRuleCount: 2 },
+      { statusId: "1", name: "Parking Lot", issueCount: 0, safeToRemove: false, automationRuleCount: 2, ruleOnly: true },
     ], true)} loading={false} />);
 
     expect(container.querySelector(".wf-orphan--safe")).toBeNull();
+    expect(screen.getByText("2 rules")).toBeInTheDocument();
   });
 
   test("keeps the safe marker for a status nothing references", () => {

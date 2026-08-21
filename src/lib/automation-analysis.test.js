@@ -256,10 +256,42 @@ describe("extractOutboundHosts", () => {
 });
 
 describe("analyzeRuleRisks", () => {
-  it("flags a rule carrying a redacted credential as high severity", () => {
-    const r = rule({ components: [action("jira.issue.outgoing.webhook", { customBody: "client_secret=[[REDACTED:a1b2c3d4]]" })] });
+  // The bug this pins. This used to test the serialized rule for the redactor's
+  // `[[REDACTED:...]]` marker, which only exists in a rule the snapshot script has already
+  // rewritten -- and the browser analyses the RAW export from Jira, where that marker
+  // cannot appear. So the check could only ever return false, and a site with 86
+  // credential-bearing rules was reported as storing none.
+  it("flags a rule carrying a live credential as high severity", () => {
+    const r = rule({ components: [action("jira.issue.outgoing.webhook", { customBody: "grant_type=client_credentials&client_secret=Xq7~vN2rL8pZ" })] });
     const risks = analyzeRuleRisks(r);
-    expect(risks).toContainEqual(expect.objectContaining({ code: "embedded-credential", severity: "high" }));
+    expect(risks).toContainEqual(expect.objectContaining({
+      code: "embedded-credential",
+      severity: "high",
+      kinds: ["form-encoded-secret"],
+    }));
+  });
+
+  it("names every kind of credential the rule carries", () => {
+    const r = rule({
+      trigger: { component: "TRIGGER", type: "jira.incoming.webhook", value: { webhookToken: "9f2c4a1e77" } },
+      components: [action("jira.issue.outgoing.webhook", { url: "https://hooks.slack.com/services/T00/B00/XXXXXXXXXXXX" })],
+    });
+    const credential = analyzeRuleRisks(r).find((risk) => risk.code === "embedded-credential");
+    expect(credential.kinds).toEqual(["incoming-webhook-url", "webhook-token"]);
+  });
+
+  it("does not flag a rule whose secret is a smart-value reference", () => {
+    // This is the remediation the finding advises. Flagging it would mean a rule could
+    // never clear the finding by doing the right thing.
+    const r = rule({ components: [action("jira.issue.outgoing.webhook", { customBody: "client_secret={{graphSecret}}" })] });
+    expect(analyzeRuleRisks(r).map((risk) => risk.code)).not.toContain("embedded-credential");
+  });
+
+  it("still flags a rule read from an already-redacted snapshot", () => {
+    const r = rule({ components: [action("jira.issue.outgoing.webhook", { customBody: "client_secret=[[REDACTED:a1b2c3d4]]" })] });
+    expect(analyzeRuleRisks(r)).toContainEqual(expect.objectContaining({
+      code: "embedded-credential", severity: "high", kinds: ["redacted"],
+    }));
   });
 
   it("flags a rule with a trigger but no actions", () => {
