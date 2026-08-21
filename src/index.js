@@ -22,6 +22,7 @@ import { processProjectUsageReportJob } from "./lib/report-engine.js";
 import { buildWorkflowSnapshot, buildStatusHistorySnapshot } from "./lib/workflow-engine.js";
 import { buildScreenSnapshot } from "./lib/screen-engine.js";
 import { buildFilterSnapshot } from "./lib/filter-engine.js";
+import { buildDashboardSnapshot } from "./lib/dashboard-engine.js";
 import {
   ensureProjectStoreReady,
   readSnapshotMeta,
@@ -263,6 +264,17 @@ export async function consumeSnapshot(event) {
       const result = await buildWorkflowSnapshot(installationKey);
       console.log(
         `build-workflow-snapshot: ${result?.schemeCount ?? 0} schemes, ${result?.statusCount ?? 0} statuses, ${result?.projectCount ?? 0} projects`
+      );
+      return;
+    }
+
+    if (jobType === "build-dashboard-snapshot") {
+      const result = await buildDashboardSnapshot(installationKey);
+      // The walked count is logged alongside the totals, not only when it falls short. A pass
+      // that could not read every gadget list is a different artifact from one that did, and
+      // the log is where that gets noticed first.
+      console.log(
+        `build-dashboard-snapshot: ${result?.dashboards ?? 0} dashboards, ${result?.gadgets ?? 0} gadgets, ${result?.walked ?? 0} walked`
       );
       return;
     }

@@ -250,5 +250,10 @@ permissions:
     # is a personal list rather than an inventory. One new scope, and it is the one that
     # makes a filter's JQL readable, which is what the field and status joins are built on.
     - read:filter:jira
+    # Dashboards. /rest/api/3/dashboard/search is the site-wide enumerator; the unqualified
+    # /rest/api/3/dashboard returns only the caller's own. Gadget CONFIGURATION would need
+    # read:dashboard.property:jira on top of this, which is deliberately not requested yet --
+    # see dashboard-engine.js for why the gadget-to-filter link is not attempted.
+    - read:dashboard:jira
     - read:chat:rovo
     - storage:app

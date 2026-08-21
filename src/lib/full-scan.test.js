@@ -66,7 +66,7 @@ describe("nextStage", () => {
     stages = markStage(stages, "workflows", { state: "failed", error: "401" });
     // Every independent stage ahead of the blocked one has to be out of the way, or this
     // asserts stage ORDER rather than dependency blocking.
-    for (const key of ["screens", "filters", "fields"]) stages = markStage(stages, key, { state: "done" });
+    for (const key of ["screens", "filters", "dashboards", "fields"]) stages = markStage(stages, key, { state: "done" });
 
     const next = nextStage(stages);
     expect(next.key).toBe("status-history");
@@ -75,7 +75,7 @@ describe("nextStage", () => {
 
   test("does not block a stage whose dependencies all succeeded", () => {
     let stages = initialStages();
-    for (const key of ["workflows", "screens", "filters", "fields"]) stages = markStage(stages, key, { state: "done" });
+    for (const key of ["workflows", "screens", "filters", "dashboards", "fields"]) stages = markStage(stages, key, { state: "done" });
 
     expect(nextStage(stages).blockedBy).toBeUndefined();
   });

@@ -899,6 +899,38 @@ export async function getAllJiraProjects() {
 // last opened" must never render as "never opened".
 const FILTER_EXPAND = "description,owner,jql,sharePermissions,subscriptions,viewUrl,favouritedCount";
 
+// Every dashboard on the site, with the governance-relevant expansions.
+//
+// /rest/api/3/dashboard/search is the site-wide enumerator, the same way filter/search is --
+// /rest/api/3/dashboard returns the caller's own, which is a personal list. Requires
+// read:dashboard:jira.
+//
+// `popularity` is the count of people who have favourited it, and it is the closest thing
+// Jira gives to "is anyone using this". It is not a view count: a dashboard somebody checks
+// daily without favouriting reads as zero, so it bounds a claim about NEGLECT rather than
+// proving one.
+const DASHBOARD_EXPAND = "description,owner,viewUrl,favouritedCount,sharePermissions,editPermissions";
+
+export async function getAllDashboards() {
+  return paginate((startAt) =>
+    route`/rest/api/3/dashboard/search?maxResults=50&startAt=${startAt}&expand=${DASHBOARD_EXPAND}`);
+}
+
+// The gadgets on one dashboard.
+//
+// A flat { gadgets: [...] } payload rather than the paginated wrapper, like /status. One call
+// per dashboard, which is why the engine walks these with a concurrency limit rather than
+// firing them all at once.
+//
+// What this does NOT return is a gadget's configuration -- which filter a Filter Results
+// gadget points at lives in dashboard item properties, two further calls per gadget. That is
+// the field -> filter -> dashboard chain, and it is deliberately not attempted here; see
+// dashboard-engine.js.
+export async function getDashboardGadgets(dashboardId) {
+  const data = await jiraRequest(route`/rest/api/3/dashboard/${dashboardId}/gadget`);
+  return Array.isArray(data?.gadgets) ? data.gadgets : [];
+}
+
 export async function getAllFilters({ onPage } = {}) {
   return paginate((startAt) =>
     route`/rest/api/3/filter/search?maxResults=50&startAt=${startAt}&expand=${FILTER_EXPAND}&overrideSharePermissions=false`,

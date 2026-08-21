@@ -53,6 +53,9 @@ const mocks = vi.hoisted(() => ({
   writeFilterSnapshotMeta: vi.fn(async () => ({})),
   loadFilterReferencesFor: vi.fn(async () => ({ total: 0, filters: [] })),
   loadFilterReferenceCounts: vi.fn(async () => ({})),
+  loadDashboards: vi.fn(async () => []),
+  readDashboardSnapshotMeta: vi.fn(async () => null),
+  writeDashboardSnapshotMeta: vi.fn(async () => ({})),
   loadIssueScanProjectTotals: vi.fn(),
   loadSnapshotProjectFields: vi.fn(),
   countSnapshotProjectUsage: vi.fn(),
@@ -233,6 +236,9 @@ vi.mock("./lib/project-store.js", () => ({
   writeFilterSnapshotMeta: mocks.writeFilterSnapshotMeta,
   loadFilterReferencesFor: mocks.loadFilterReferencesFor,
   loadFilterReferenceCounts: mocks.loadFilterReferenceCounts,
+  loadDashboards: mocks.loadDashboards,
+  readDashboardSnapshotMeta: mocks.readDashboardSnapshotMeta,
+  writeDashboardSnapshotMeta: mocks.writeDashboardSnapshotMeta,
   loadSnapshotProjectFields: mocks.loadSnapshotProjectFields,
   countSnapshotProjectUsage: mocks.countSnapshotProjectUsage,
   loadFieldSummary: mocks.loadFieldSummary,
@@ -389,6 +395,8 @@ const {
   buildFilterInventory,
   getFilterUsage,
   getFieldFilterCounts,
+  getDashboardInventory,
+  buildDashboardInventory,
   getAutomationCascades,
   getCascadeGraph,
   getStatusAutomationUsage,
@@ -4967,6 +4975,89 @@ describe("getFieldFilterCounts", () => {
   });
 });
 
+// A dashboard is the most visible thing in Jira and the least owned.
+describe("getDashboardInventory", () => {
+  const row = (over = {}) => ({
+    id: "1", name: "Delivery overview",
+    owner: { accountId: "a1", displayName: "Bob", active: true },
+    ownerName: "Bob", ownerActive: true,
+    shares: [], editShares: [], sharedWithEveryone: false, editableByEveryone: false,
+    popularity: 4, gadgetCount: 6, gadgets: [], shareCount: 0,
+    ...over,
+  });
+
+  test("derives the findings at read time", async () => {
+    mocks.readDashboardSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready", gadgetsWalked: 2 });
+    mocks.loadDashboards.mockResolvedValue([row(), row({ id: "2", name: "Orphan", owner: null, ownerActive: null })]);
+
+    const result = await getDashboardInventory({ context: ctxWithAccount() });
+
+    expect(result).toMatchObject({ available: true, total: 2, orphanedCount: 1 });
+    // The whole list travels, because the tab filters over it client-side.
+    expect(result.allDashboards).toHaveLength(2);
+  });
+
+  // Without this the tab would present a partial pass as a complete one and call unread
+  // dashboards empty.
+  test("carries how far the gadget walk actually got", async () => {
+    mocks.readDashboardSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready", gadgetsWalked: 180 });
+    mocks.loadDashboards.mockResolvedValue([row()]);
+
+    const result = await getDashboardInventory({ context: ctxWithAccount() });
+    expect(result.gadgetsWalked).toBe(180);
+  });
+
+  test("reports never-built rather than empty", async () => {
+    mocks.readDashboardSnapshotMeta.mockResolvedValue(null);
+    expect(await getDashboardInventory({ context: ctxWithAccount() }))
+      .toMatchObject({ available: false, neverBuilt: true });
+  });
+
+  test("carries the failure reason forward when the last build failed", async () => {
+    mocks.readDashboardSnapshotMeta.mockResolvedValue({ version: null, state: "failed", lastError: "401 scope does not match" });
+    const result = await getDashboardInventory({ context: ctxWithAccount() });
+    expect(result.lastError).toMatch(/401/);
+  });
+});
+
+describe("buildDashboardInventory", () => {
+  test("queues a build and marks the row building", async () => {
+    mocks.readDashboardSnapshotMeta.mockResolvedValue(null);
+    mocks.kvsGet.mockResolvedValue(null);
+
+    const result = await buildDashboardInventory({ context: ctxWithAccount() });
+
+    expect(result).toMatchObject({ queued: true });
+    expect(mocks.writeDashboardSnapshotMeta).toHaveBeenCalledWith("test-install", expect.objectContaining({ state: "building" }));
+  });
+
+  test("refuses in read-only mode, and says so", async () => {
+    mocks.readDashboardSnapshotMeta.mockResolvedValue(null);
+    mocks.kvsGet.mockResolvedValue({ readOnlyMode: true });
+
+    const result = await buildDashboardInventory({ context: ctxWithAccount() });
+    expect(result.queued).toBe(false);
+    expect(result.error).toMatch(/Read-only/);
+  });
+
+  test("does not queue a second build over one still running", async () => {
+    mocks.readDashboardSnapshotMeta.mockResolvedValue({ state: "building", startedAt: new Date().toISOString() });
+    expect(await buildDashboardInventory({ context: ctxWithAccount() }))
+      .toMatchObject({ queued: false, reason: "already-building" });
+  });
+
+  // A wedged row would otherwise suppress every future rebuild with no way out of the UI.
+  test("queues over a build that can no longer be running", async () => {
+    mocks.readDashboardSnapshotMeta.mockResolvedValue({
+      state: "building",
+      startedAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+    });
+    mocks.kvsGet.mockResolvedValue(null);
+
+    expect(await buildDashboardInventory({ context: ctxWithAccount() })).toMatchObject({ queued: true });
+  });
+});
+
 // The bug this exists to stop recurring: two resolvers pushed a bare payload instead of
 // wrapping it in `body`, and Forge rejected the invocation with "Event body must be an
 // object" the first time a user clicked the button. Every test involved passed, because they
@@ -4978,12 +5069,14 @@ describe("every queued job carries a body envelope", () => {
   const queuers = [
     ["buildFilterInventory", () => buildFilterInventory({ context: ctxWithAccount() })],
     ["buildScreenInventory", () => buildScreenInventory({ context: ctxWithAccount() })],
+    ["buildDashboardInventory", () => buildDashboardInventory({ context: ctxWithAccount() })],
   ];
 
   test.each(queuers)("%s pushes { body: { jobType, installationKey } }", async (_name, run) => {
     mocks.kvsGet.mockResolvedValue(null);
     mocks.readFilterSnapshotMeta.mockResolvedValue(null);
     mocks.readScreenSnapshotMeta.mockResolvedValue(null);
+    mocks.readDashboardSnapshotMeta.mockResolvedValue(null);
     mocks.queuePush.mockClear();
 
     await run();

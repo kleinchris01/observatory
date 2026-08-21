@@ -65,6 +65,10 @@ export const DEFAULT_HEALTH_TOLERANCES = {
   // boards and dashboards with it, which is worse than clutter and less immediate than a
   // credential sitting in plaintext.
   filterDefects: 0.15,
+  // Dashboards that are orphaned, editable by anyone, or empty. Looser than the filter bound:
+  // a dashboard breaking is visible the moment somebody opens it, where a filter returns the
+  // wrong answer silently and can be wrong for months.
+  dashboardDefects: 0.20,
 };
 
 // rate 0 -> 100, rate >= tolerance -> 0, linear between. Deliberately linear: a curve
@@ -85,6 +89,7 @@ function unavailable(key, label, pillar, reason) {
 export const HEALTH_PILLARS = [
   { key: "fields", label: "Fields" },
   { key: "filters", label: "Filters" },
+  { key: "dashboards", label: "Dashboards" },
   { key: "workflows", label: "Workflows and statuses" },
   { key: "screens", label: "Screens" },
   { key: "automation", label: "Automation" },
@@ -113,7 +118,7 @@ export function resolveHealthTolerances(overrides = {}) {
   return out;
 }
 
-export function computeSiteHealth({ fieldUsage, workflow, projects, automation, screens, adoption, filters, tolerances } = {}) {
+export function computeSiteHealth({ fieldUsage, workflow, projects, automation, screens, adoption, filters, dashboards, tolerances } = {}) {
   const TOLERANCE = resolveHealthTolerances(tolerances);
   const dimensions = [];
 
@@ -201,6 +206,45 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
   } else {
     dimensions.push(unavailable("filter-hygiene", "Filter hygiene", "filters",
       "No saved filter inventory yet. Build one from the Filters tab or run a full scan."));
+  }
+
+  // ── Dashboard hygiene ─────────────────────────────────────────────────────
+  // Dashboards that will vanish, that anyone can rewrite, or that nobody finished.
+  //
+  // One dimension, like filters and for the same reason: every dimension added makes every
+  // existing one quieter, and the credential finding can already move the headline by under
+  // ten points. The breakdown belongs on the Dashboards tab.
+  //
+  // The empty count is excluded when the gadget walk was partial. A pass that reached 180 of
+  // 200 dashboards can say which of those 180 are empty, and cannot say anything about the
+  // other 20 -- so scoring the rate against the full total would report a shortfall in the
+  // BUILD as a defect in the estate.
+  if (dashboards?.available && dashboards.total > 0) {
+    const rate = Number(dashboards.defectRate) || 0;
+    const orphaned = Number(dashboards.orphanedCount) || 0;
+    const editable = Number(dashboards.editableByEveryoneCount) || 0;
+    const empty = dashboards.emptyCount;
+    dimensions.push({
+      key: "dashboard-hygiene",
+      label: "Dashboard hygiene",
+      pillar: "dashboards",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(rate, TOLERANCE.dashboardDefects),
+      detail: orphaned + editable === 0 && !empty
+        ? `All ${dashboards.total} dashboards have a live owner and a bounded edit list.`
+        : `${orphaned} of ${dashboards.total} dashboards have no live owner, ${editable} can be rearranged by any logged-in user${empty ? `, and ${empty} carry no gadgets` : ""}.`,
+      action: orphaned > 0
+        ? "Jira deletes a dashboard with its owner. A wall-screen dashboard owned by somebody who left has a deletion date nobody has written down."
+        : editable > 0
+          ? "Anyone can rearrange these for everybody who uses them, and the owner is not told. Narrow the edit permission to a role or a group."
+          : empty
+            ? "These render as an empty grid to anyone who opens them."
+            : null,
+    });
+  } else {
+    dimensions.push(unavailable("dashboard-hygiene", "Dashboard hygiene", "dashboards",
+      "No dashboard inventory yet. Build one from the Dashboards tab or run a full scan."));
   }
 
   // ── Status naming ─────────────────────────────────────────────────────────

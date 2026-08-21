@@ -33,6 +33,7 @@ const OverviewTab = React.lazy(() => import("./tabs/OverviewTab").then((m) => ({
 const ProjectUsageTab = React.lazy(() => import("./tabs/ProjectUsageTab").then((m) => ({ default: m.ProjectUsageTab })));
 const ReportsTab = React.lazy(() => import("./tabs/ReportsTab").then((m) => ({ default: m.ReportsTab })));
 const ScansTab = React.lazy(() => import("./tabs/ScansTab").then((m) => ({ default: m.ScansTab })));
+const DashboardsTab = React.lazy(() => import("./tabs/DashboardsTab").then((m) => ({ default: m.DashboardsTab })));
 const FiltersTab = React.lazy(() => import("./tabs/FiltersTab").then((m) => ({ default: m.FiltersTab })));
 const AutomationTab = React.lazy(() =>
   import("./tabs/AutomationTab").then((m) => ({ default: m.AutomationTab }))
@@ -196,6 +197,7 @@ export function AdminApp() {
     { key: "workflows", label: "Workflows", icon: "activity" },
     { key: "screens", label: "Screens", icon: "copy" },
     { key: "filters", label: "Saved Filters", icon: "search" },
+    { key: "dashboards", label: "Dashboards", icon: "barChart" },
     { key: "automation", label: "Automation", icon: "refreshCw" },
     { key: "reports", label: "Reports", icon: "barChart" },
     { key: "scans", label: "Scans", icon: "zap" },
@@ -294,6 +296,8 @@ export function AdminApp() {
             <ScreensTab intent={navIntent} />
           ) : activeTab === "filters" ? (
             <FiltersTab siteOrigin={siteOrigin} intent={navIntent} />
+          ) : activeTab === "dashboards" ? (
+            <DashboardsTab siteOrigin={siteOrigin} intent={navIntent} />
           ) : activeTab === "automation" ? (
             <AutomationTab siteOrigin={siteOrigin} intent={navIntent} />
           ) : activeTab === "reports" ? (

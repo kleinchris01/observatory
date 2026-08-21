@@ -55,6 +55,9 @@ import {
   writeFilterSnapshotMeta,
   loadFilterReferencesFor,
   loadFilterReferenceCounts,
+  loadDashboards,
+  readDashboardSnapshotMeta,
+  writeDashboardSnapshotMeta,
   loadSnapshotProjectFields,
   countSnapshotProjectUsage,
   loadFieldSummary,
@@ -127,11 +130,14 @@ import {
   buildWorkflowOverview,
   buildScreenOverview,
   buildFilterOverview,
+  buildDashboardOverview,
   attachUniqueIssueCounts,
 } from "./lib/site-health.js";
 import { summarizeAdoption, computeProjectAdoption } from "./lib/project-adoption.js";
 import { summarizeFilters, summarizeFilterHealth } from "./lib/filter-insights.js";
+import { summarizeDashboards, summarizeDashboardHealth } from "./lib/dashboard-insights.js";
 import { isFilterBuildStale } from "./lib/filter-engine.js";
+import { isDashboardBuildStale } from "./lib/dashboard-engine.js";
 import { probeEndpoint, probeStargateEndpoint, getCloudId, getAllJiraProjects } from "./lib/jira-api.js";
 import {
   findDuplicateStatusGroups,
@@ -1369,6 +1375,80 @@ async function getFilterUsage({ payload, context }) {
     console.error("getFilterUsage failed:", error);
     throw error;
   }
+}
+
+// The dashboard inventory, with its governance findings.
+//
+// Derived at read time from the snapshot rather than stored pre-analysed, like the filter
+// pillar: the analysis is pure over a few hundred rows, and a stored finding can disagree
+// with a rebuilt snapshot where a derived one cannot.
+async function getDashboardInventory({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const installationKey = getInstallationKey(context);
+    const meta = await readDashboardSnapshotMeta(installationKey);
+
+    if (!meta?.version) {
+      return {
+        available: false,
+        state: meta?.state || "idle",
+        lastError: meta?.lastError || null,
+        // A build that died mid-flight would otherwise suppress every future rebuild, so the
+        // tab needs to know it can offer the button again.
+        stale: isDashboardBuildStale(meta),
+        neverBuilt: true,
+      };
+    }
+
+    const dashboards = await loadDashboards(installationKey, meta.version);
+    const summary = summarizeDashboards(dashboards);
+
+    return {
+      available: true,
+      state: meta.state || "idle",
+      version: meta.version,
+      refreshedAt: meta.refreshedAt || null,
+      lastError: meta.lastError || null,
+      // How much of the estate the gadget walk actually reached. Without this the tab would
+      // present a partial pass as a complete one.
+      gadgetsWalked: meta.gadgetsWalked,
+      ...summary,
+      health: summarizeDashboardHealth(summary),
+      // Sent whole rather than paged. A few hundred dashboards is one fetch the tab already
+      // pays for, and paging server-side would make client-side filtering impossible without
+      // re-querying on every keystroke.
+      allDashboards: dashboards,
+    };
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("getDashboardInventory failed:", error);
+    throw error;
+  }
+}
+
+// Queue a rebuild of the dashboard inventory.
+async function buildDashboardInventory({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  const meta = await readDashboardSnapshotMeta(installationKey);
+  // Suppress only a build that is both building AND not stale. A wedged row would otherwise
+  // block every future rebuild with no way out of the UI.
+  if (meta?.state === "building" && !isDashboardBuildStale(meta)) {
+    return { queued: false, reason: "already-building", meta };
+  }
+
+  const adminConfig = await readAdminConfig();
+  if (adminConfig.readOnlyMode) {
+    return { queued: false, error: "Read-only mode is enabled. Disable it before building the dashboard inventory." };
+  }
+
+  // Wrapped in `body`, like every other push here. The consumer reads event?.body?.jobType,
+  // so a bare payload arrives bodyless and Forge rejects the invocation outright.
+  await inventorySnapshotQueue.push({ body: { jobType: "build-dashboard-snapshot", installationKey } });
+  await writeDashboardSnapshotMeta(installationKey, { state: "building", startedAt: new Date().toISOString(), lastError: null });
+  return { queued: true };
 }
 
 // Parts that are written to SQL and nowhere else.
@@ -3582,7 +3662,7 @@ const EMPTY_DASHBOARD = {
 export async function getAdminOverview({ context }) {
   await ensureProjectStoreReady();
   const installationKey = getInstallationKey(context);
-  const [meta, summaryCounts, config, legacySummaryCount, workflow, screens, filterOverview, automationAnalysis] = await Promise.all([
+  const [meta, summaryCounts, config, legacySummaryCount, workflow, screens, filterOverview, dashboardOverview, automationAnalysis] = await Promise.all([
     readSnapshotMeta(installationKey),
     // Counted in SQL rather than loaded. This used to pull up to 5,000 summary rows --
     // including two LONGTEXT columns -- across the wire, and use them for a count grouped by
@@ -3598,6 +3678,7 @@ export async function getAdminOverview({ context }) {
     // dashboard build below, which is a bigger cost than the one finding is worth here -- the
     // Filters tab does the full join when somebody opens it.
     buildFilterOverview(installationKey),
+    buildDashboardOverview(installationKey),
     // Falls back to null rather than failing the overview. The automation dimensions then
     // report as unavailable, which is the same thing a fresh install shows -- an overview
     // that 500s because one optional input is missing is worse than one missing a section.
@@ -3677,6 +3758,7 @@ export async function getAdminOverview({ context }) {
     automation,
     screens,
     filters: filterOverview?.health ?? null,
+    dashboards: dashboardOverview?.health ?? null,
     // Workflow, project and automation dimensions were scored against hardcoded constants
     // while every field rule was tunable. Same config surface now feeds both.
     tolerances: config?.healthTolerances,
@@ -3714,6 +3796,7 @@ export async function getAdminOverview({ context }) {
     // the automation pillar learned: trimming this to the headline fields made every problem
     // the analysis had already found invisible on the page that exists to surface problems.
     filters: filterOverview,
+    dashboards: dashboardOverview,
     health,
     // The whole health summary, not just the three headline fields it used to carry. The
     // overview's findings list needs the same counts the score does -- while this was
@@ -3804,6 +3887,7 @@ async function getHealthHistory({ payload, context }) {
 const PILLAR_INPUTS = {
   fields: ["fieldUsage"],
   filters: ["filters"],
+  dashboards: ["dashboards"],
   workflows: ["workflow"],
   screens: ["screens"],
   automation: ["automation"],
@@ -3823,10 +3907,11 @@ async function getPillarHealth({ payload, context }) {
   // already reports as unavailable -- and unavailable dimensions from other pillars are
   // discarded below anyway, so the returned pillar is byte-identical to what the full
   // computation produced for it.
-  const [workflow, screens, filterOverview, automationAnalysis] = await Promise.all([
+  const [workflow, screens, filterOverview, dashboardOverview, automationAnalysis] = await Promise.all([
     needs.has("workflow") ? buildWorkflowOverview(installationKey) : Promise.resolve(null),
     needs.has("screens") ? buildScreenOverview(installationKey) : Promise.resolve(null),
     needs.has("filters") ? buildFilterOverview(installationKey) : Promise.resolve(null),
+    needs.has("dashboards") ? buildDashboardOverview(installationKey) : Promise.resolve(null),
     needs.has("automation")
       ? readAutomationAnalysis(installationKey).catch(fallbackOn("pillar-health.automation_load_failed", () => null, { installationKey }))
       : Promise.resolve(null),
@@ -3877,6 +3962,7 @@ async function getPillarHealth({ payload, context }) {
     screens,
     adoption,
     filters: filterOverview?.health ?? null,
+    dashboards: dashboardOverview?.health ?? null,
     tolerances: config?.healthTolerances,
   });
 
@@ -4629,6 +4715,8 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   getAutomationCascades,   // Admin read: one filtered page of cascade relationships
   getCascadeGraph,         // Admin read: loops and multi-rule chains across every edge
   getStatusAutomationUsage,// Admin read: which rules reference one status, by direction
+  getDashboardInventory,   // Admin read: dashboards, their gadgets and their findings
+  buildDashboardInventory, // Mutating: queues a rebuild of the dashboard snapshot
   getFilterInventory,      // Admin read: saved filters, their findings and their references
   buildFilterInventory,    // Mutating: queues a rebuild of the saved filter snapshot
   getFilterUsage,          // Admin read: which filters reference one field or status
