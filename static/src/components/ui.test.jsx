@@ -2,7 +2,8 @@ import React from "react";
 import { describe, test, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { StatTile, StatRow, Panel, Chip, EmptyState, BarList, FindingRow, LinkButton, PageHeader, SortFilterBar } from "./ui";
+import { router } from "@forge/bridge";
+import { StatTile, StatRow, Panel, Chip, EmptyState, BarList, FindingRow, LinkButton, PageHeader, RuleLink, SortFilterBar } from "./ui";
 
 // These are the shared vocabulary that replaced four separate stat-card idioms. They are
 // small, but they now render on every tab, so a regression here is a regression
@@ -271,5 +272,39 @@ describe("SortFilterBar", () => {
   test("renders option counts when a caller supplies them", () => {
     render(<SortFilterBar search="" onSearchChange={vi.fn()} filters={filters()} />);
     expect(screen.getByRole("option", { name: "Date (12)" })).toBeInTheDocument();
+  });
+});
+
+// RuleLink moved here from AutomationTab.jsx when the Workflows tab started rendering one
+// too: importing it across tabs would have pulled the whole AutomationTab chunk into the
+// Workflows bundle for a single anchor. Its tests came with it.
+describe("RuleLink", () => {
+  const siteOrigin = "https://example.atlassian.net";
+
+  it("deep links to the rule in Jira automation", () => {
+    render(<RuleLink id={28499275} name="Update cost review" siteOrigin={siteOrigin} />);
+    expect(screen.getByRole("link", { name: "Update cost review" }))
+      .toHaveAttribute("href", "https://example.atlassian.net/jira/settings/automation#/rule/28499275");
+  });
+
+  it("falls back to plain text when the site origin is unknown", () => {
+    render(<RuleLink id={1} name="Nameless" siteOrigin="" />);
+    expect(screen.getByText("Nameless")).toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
+  it("names a rule the directory could not resolve", () => {
+    render(<RuleLink id={77} siteOrigin={siteOrigin} />);
+    expect(screen.getByRole("link", { name: "Rule 77" })).toBeInTheDocument();
+  });
+
+  // Forge iframes cannot navigate the parent window; the click is handed to router.open.
+  it("opens through the Forge router rather than navigating the iframe", async () => {
+    const user = userEvent.setup();
+    render(<RuleLink id={5} name="Any rule" siteOrigin={siteOrigin} />);
+
+    await user.click(screen.getByRole("link", { name: "Any rule" }));
+
+    expect(router.open).toHaveBeenCalledWith("https://example.atlassian.net/jira/settings/automation#/rule/5");
   });
 });

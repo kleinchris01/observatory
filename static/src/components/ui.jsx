@@ -1,5 +1,6 @@
 import React from "react";
 import { Icon } from "./Icons";
+import { buildAutomationRuleUrl, handleJiraLinkClick } from "../utils";
 
 // Shared presentation primitives.
 //
@@ -167,6 +168,34 @@ export function FindingRow({ tone = "info", title, detail, count, action }) {
     </div>
   );
 }
+
+// A rule name that opens the rule in Jira.
+//
+// Lived in AutomationTab.jsx while that was the only tab rendering one. The Workflows tab
+// now lists the rules holding a status open, and importing this across tabs would pull the
+// whole AutomationTab chunk into the Workflows bundle for one anchor.
+//
+// Falls back to plain text when the site origin is unknown -- an anchor that silently does
+// nothing on click is worse than a label.
+export function RuleLink({ id, name, siteOrigin, className = "" }) {
+  const href = buildAutomationRuleUrl(siteOrigin, id);
+  const label = name || `Rule ${id}`;
+  if (!href) return <span className={className}>{label}</span>;
+
+  return (
+    <a
+      className={`rule-link ${className}`.trim()}
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      title={`Open "${label}" in Jira automation`}
+      onClick={(event) => { event.stopPropagation(); handleJiraLinkClick(event, href); }}
+    >
+      {label}
+    </a>
+  );
+}
+
 
 // ── Governance rows ─────────────────────────────────────────────────────────
 //

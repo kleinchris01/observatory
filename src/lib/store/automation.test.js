@@ -8,9 +8,17 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@forge/kvs", () => ({ kvs: mocks }));
 vi.mock("@forge/sql", () => ({ sql: { prepare: vi.fn() } }));
+
+const { sql } = await import("@forge/sql");
 vi.mock("./core.js", () => ({
   ensureProjectStoreReady: vi.fn().mockResolvedValue(undefined),
   withSqlRetry: (op) => op(),
+  // The real coercion, not a stub: the cascade readers turn TINYINT columns into booleans
+  // through it, and a stub returning undefined would make every enabled flag read as false.
+  toNumber: (value, fallback = 0) => {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : fallback;
+  },
 }));
 vi.mock("../logger.js", () => ({
   fallbackOn: (_event, fallback) => () => fallback(),
@@ -251,5 +259,210 @@ describe("referenceRowsFrom", () => {
     const many = Array.from({ length: 542 }, (_, i) => String(i));
     const rows = referenceRowsFrom({ entries: [{ label: "Hot", write: many }] }, "field");
     expect(rows).toHaveLength(542);
+  });
+});
+
+// ── Cascades ────────────────────────────────────────────────────────────────
+//
+// These edges used to live in the analysis document under MAX_STORED_CASCADES = 150, which
+// existed because the document has to fit in a KVS value. This site produces 1,457, so the
+// tab showed roughly a tenth of them and the rest were unreachable by any amount of
+// scrolling. In rows there is no cap to apply.
+
+describe("cascadeRowsFrom", () => {
+  it("flattens the wire tuples into rows", async () => {
+    const { cascadeRowsFrom } = await import("./automation.js");
+    expect(cascadeRowsFrom({ edges: [["1", "2", "Owner", 0], ["9", "9", "Status", 1]] })).toEqual([
+      ["1", "2", "Owner", 0],
+      ["9", "9", "Status", 1],
+    ]);
+  });
+
+  it("keeps one row per field, because the field is the hop", async () => {
+    // Two rules linked by three fields are one relationship and three ways to break it.
+    const { cascadeRowsFrom } = await import("./automation.js");
+    const rows = cascadeRowsFrom({ edges: [["1", "2", "A", 0], ["1", "2", "B", 0], ["1", "2", "C", 0]] });
+    expect(rows).toHaveLength(3);
+  });
+
+  it("drops a duplicate tuple rather than letting it distort the batches", async () => {
+    const { cascadeRowsFrom } = await import("./automation.js");
+    expect(cascadeRowsFrom({ edges: [["1", "2", "A", 0], ["1", "2", "A", 0]] })).toHaveLength(1);
+  });
+
+  it("skips an edge with no usable field or endpoint", async () => {
+    const { cascadeRowsFrom } = await import("./automation.js");
+    expect(cascadeRowsFrom({ edges: [["1", "2", "", 0], [null, "2", "A", 0], ["1", null, "A", 0]] })).toEqual([]);
+  });
+
+  it("normalises the self-triggering flag to the column's type", async () => {
+    const { cascadeRowsFrom } = await import("./automation.js");
+    expect(cascadeRowsFrom({ edges: [["9", "9", "S", true]] })[0][3]).toBe(1);
+    expect(cascadeRowsFrom({ edges: [["1", "2", "S", undefined]] })[0][3]).toBe(0);
+  });
+
+  it("truncates a field name to what the column holds", async () => {
+    const { cascadeRowsFrom } = await import("./automation.js");
+    const long = "x".repeat(400);
+    expect(cascadeRowsFrom({ edges: [["1", "2", long, 0]] })[0][2]).toHaveLength(191);
+  });
+
+  it("handles a missing document rather than throwing", async () => {
+    const { cascadeRowsFrom } = await import("./automation.js");
+    expect(cascadeRowsFrom(null)).toEqual([]);
+    expect(cascadeRowsFrom({})).toEqual([]);
+  });
+});
+
+describe("loadCascades", () => {
+  // Each call runs two statements -- the page and the group count -- so the harness answers
+  // in order and records what was asked.
+  function stubSql(pageRows = [], total = 0) {
+    const calls = [];
+    let n = 0;
+    sql.prepare.mockImplementation((text) => ({
+      bindParams: (...params) => {
+        calls.push({ text, params });
+        return { execute: async () => (n++ === 0 ? { rows: pageRows } : { rows: [{ total }] }) };
+      },
+    }));
+    return calls;
+  }
+
+  it("groups in SQL rather than in the browser", async () => {
+    const { loadCascades } = await import("./automation.js");
+    const calls = stubSql([], 0);
+    await loadCascades("scope");
+
+    // The old view grouped a 150-row page client-side, which is only correct while the page
+    // IS the whole set. Grouping a page of a larger set splits one relationship across a
+    // page boundary and renders it twice.
+    expect(calls[0].text).toMatch(/GROUP BY\s+c\.source_rule_id, c\.target_rule_id/);
+    // ...and the total counts GROUPS, so a reader is never paged toward an unreachable number.
+    expect(calls[1].text).toMatch(/COUNT\(\*\) AS total FROM \(/);
+  });
+
+  it("splits the concatenated fields back into a list", async () => {
+    const { loadCascades } = await import("./automation.js");
+    stubSql([{
+      source_rule_id: "1", target_rule_id: "2", self_triggering: 0,
+      source_name: "Writer", target_name: "Listener", source_enabled: 1, target_enabled: 0,
+      field_count: 3, fields: ["A", "B", "C"].join(""),
+    }], 1);
+
+    const { cascades } = await loadCascades("scope");
+    expect(cascades[0]).toMatchObject({
+      sourceName: "Writer", targetName: "Listener",
+      fields: ["A", "B", "C"], fieldCount: 3,
+      selfTriggering: false, sourceEnabled: true, targetEnabled: false,
+    });
+  });
+
+  it("filters to self-triggering or cross-rule cascades", async () => {
+    const { loadCascades } = await import("./automation.js");
+    let calls = stubSql([], 0);
+    await loadCascades("scope", { kind: "self" });
+    expect(calls[0].text).toContain("c.self_triggering = 1");
+
+    calls = stubSql([], 0);
+    await loadCascades("scope", { kind: "cross" });
+    expect(calls[0].text).toContain("c.self_triggering = 0");
+  });
+
+  it("binds a rule to whichever end the direction names", async () => {
+    const { loadCascades } = await import("./automation.js");
+    // "What does this rule wake" and "what wakes this rule" are different questions, and
+    // the second is the one an admin asks when a rule fires and they cannot see why.
+    let calls = stubSql([], 0);
+    await loadCascades("scope", { ruleId: "7", direction: "source" });
+    expect(calls[0].text).toContain("c.source_rule_id = ?");
+
+    calls = stubSql([], 0);
+    await loadCascades("scope", { ruleId: "7", direction: "target" });
+    expect(calls[0].text).toContain("c.target_rule_id = ?");
+  });
+
+  it("searches the field and both rule names", async () => {
+    const { loadCascades } = await import("./automation.js");
+    const calls = stubSql([], 0);
+    await loadCascades("scope", { search: "  Owner  " });
+
+    expect(calls[0].params).toEqual(expect.arrayContaining(["%Owner%"]));
+    expect(calls[0].text).toContain("LOWER(c.field) LIKE");
+    expect(calls[0].text).toContain("LOWER(COALESCE(s.name, '')) LIKE");
+    expect(calls[0].text).toContain("LOWER(COALESCE(t.name, '')) LIKE");
+  });
+
+  it("never binds LIMIT or OFFSET, and bounds both", async () => {
+    const { loadCascades } = await import("./automation.js");
+    const calls = stubSql([], 0);
+    // Forge SQL rejects a placeholder in LIMIT, so coercing to a bounded integer here is the
+    // only thing between a caller and an injection.
+    await loadCascades("scope", { limit: 99999, offset: -5 });
+
+    expect(calls[0].text).toContain("LIMIT 500 OFFSET 0");
+    expect(calls[0].params).not.toContain(500);
+  });
+});
+
+describe("loadCascadeEdges", () => {
+  it("returns every edge unpaged, because a loop is a property of the whole graph", async () => {
+    const { loadCascadeEdges } = await import("./automation.js");
+    let asked = "";
+    sql.prepare.mockImplementation((text) => {
+      asked = text;
+      return { bindParams: () => ({ execute: async () => ({ rows: [{ source_rule_id: "1", target_rule_id: "2", field: "A" }] }) }) };
+    });
+
+    const edges = await loadCascadeEdges("scope");
+    // Walking a page finds chains that stop at the page boundary, which is not a smaller
+    // answer -- it is a wrong one.
+    expect(asked).not.toContain("OFFSET");
+    expect(edges).toEqual([{ sourceId: "1", targetId: "2", field: "A" }]);
+  });
+
+  it("selects only what the walk needs", async () => {
+    const { loadCascadeEdges } = await import("./automation.js");
+    let asked = "";
+    sql.prepare.mockImplementation((text) => {
+      asked = text;
+      return { bindParams: () => ({ execute: async () => ({ rows: [] }) }) };
+    });
+
+    await loadCascadeEdges("scope");
+    // Names are attached afterwards from the directory: joining 1,457 rows to compute
+    // something that uses only ids would pay for names on every edge to render a few hundred.
+    expect(asked).not.toMatch(/JOIN automation_rules/);
+  });
+});
+
+describe("loadRuleDirectoryFor", () => {
+  it("returns nothing without asking when given no ids", async () => {
+    const { loadRuleDirectoryFor } = await import("./automation.js");
+    sql.prepare.mockClear();
+    expect(await loadRuleDirectoryFor("scope", [])).toEqual(new Map());
+    expect(sql.prepare).not.toHaveBeenCalled();
+  });
+
+  it("chunks against the bind-parameter ceiling", async () => {
+    const { loadRuleDirectoryFor } = await import("./automation.js");
+    let statements = 0;
+    sql.prepare.mockImplementation(() => {
+      statements += 1;
+      return { bindParams: () => ({ execute: async () => ({ rows: [] }) }) };
+    });
+
+    await loadRuleDirectoryFor("scope", Array.from({ length: 250 }, (_, i) => String(i)));
+    expect(statements).toBe(3);
+  });
+
+  it("keys by rule id and carries the enabled state", async () => {
+    const { loadRuleDirectoryFor } = await import("./automation.js");
+    sql.prepare.mockImplementation(() => ({
+      bindParams: () => ({ execute: async () => ({ rows: [{ rule_id: "5", name: "Alpha", enabled: 0, trigger_type: "t" }] }) }),
+    }));
+
+    const directory = await loadRuleDirectoryFor("scope", ["5"]);
+    expect(directory.get("5")).toMatchObject({ name: "Alpha", enabled: false });
   });
 });

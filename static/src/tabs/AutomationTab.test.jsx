@@ -9,10 +9,8 @@ import {
   analyzeExportFile,
   filterFindings,
   findingDetailLine,
-  groupCascades,
   persistAnalysis,
   riskDetail,
-  RuleLink,
   sortEntries,
   triggerLabel,
 } from "./AutomationTab";
@@ -158,37 +156,6 @@ describe("sortEntries", () => {
   });
 });
 
-describe("RuleLink", () => {
-  const siteOrigin = "https://example.atlassian.net";
-
-  it("deep links to the rule in Jira automation", () => {
-    render(<RuleLink id={28499275} name="Update cost review" siteOrigin={siteOrigin} />);
-    expect(screen.getByRole("link", { name: "Update cost review" }))
-      .toHaveAttribute("href", "https://example.atlassian.net/jira/settings/automation#/rule/28499275");
-  });
-
-  it("falls back to plain text when the site origin is unknown", () => {
-    render(<RuleLink id={1} name="Nameless" siteOrigin="" />);
-    expect(screen.getByText("Nameless")).toBeInTheDocument();
-    expect(screen.queryByRole("link")).not.toBeInTheDocument();
-  });
-
-  it("names a rule the directory could not resolve", () => {
-    render(<RuleLink id={77} siteOrigin={siteOrigin} />);
-    expect(screen.getByRole("link", { name: "Rule 77" })).toBeInTheDocument();
-  });
-
-  // Forge iframes cannot navigate the parent window; the click is handed to router.open.
-  it("opens through the Forge router rather than navigating the iframe", async () => {
-    const user = userEvent.setup();
-    render(<RuleLink id={5} name="Any rule" siteOrigin={siteOrigin} />);
-
-    await user.click(screen.getByRole("link", { name: "Any rule" }));
-
-    expect(router.open).toHaveBeenCalledWith("https://example.atlassian.net/jira/settings/automation#/rule/5");
-  });
-});
-
 describe("riskDetail", () => {
   // The sentences were stored 675 times, most of them identical. Rebuilding them from the
   // code is what let the whole findings list fit under one key.
@@ -240,52 +207,18 @@ describe("filterFindings", () => {
   });
 });
 
-describe("groupCascades", () => {
-  // One row per edge produced 25 consecutive lines naming the same rule; grouping is the
-  // whole reason the section is readable.
-  it("collapses many edges between the same pair into one row", () => {
-    const groups = groupCascades([
-      { sourceId: 1, targetId: 2, sourceName: "A", targetName: "B", field: "F1", selfTriggering: false },
-      { sourceId: 1, targetId: 2, sourceName: "A", targetName: "B", field: "F2", selfTriggering: false },
-      { sourceId: 1, targetId: 2, sourceName: "A", targetName: "B", field: "F3", selfTriggering: false },
-    ]);
-    expect(groups).toHaveLength(1);
-    expect(groups[0].fields).toEqual(["F1", "F2", "F3"]);
-  });
-
-  it("keeps separate rule pairs apart", () => {
-    const groups = groupCascades([
-      { sourceId: 1, targetId: 2, field: "F", selfTriggering: false },
-      { sourceId: 1, targetId: 3, field: "F", selfTriggering: false },
-    ]);
-    expect(groups).toHaveLength(2);
-  });
-
-  it("puts self-triggering rules first, since they are likeliest and cheapest to fix", () => {
-    const groups = groupCascades([
-      { sourceId: 1, targetId: 2, field: "F", selfTriggering: false },
-      { sourceId: 9, targetId: 9, field: "G", selfTriggering: true },
-    ]);
-    expect(groups[0].selfTriggering).toBe(true);
-  });
-
-  it("deduplicates a field repeated on the same pair", () => {
-    const groups = groupCascades([
-      { sourceId: 1, targetId: 2, field: "F", selfTriggering: false },
-      { sourceId: 1, targetId: 2, field: "F", selfTriggering: false },
-    ]);
-    expect(groups[0].fields).toEqual(["F"]);
-  });
-
-  it("handles an empty list", () => {
-    expect(groupCascades([])).toEqual([]);
-  });
-});
+// groupCascades was deleted rather than moved.
+//
+// It collapsed many edges between one rule pair into a single row, which is the right shape
+// -- but it did it in the browser over whatever survived MAX_STORED_CASCADES. That is only
+// correct while the stored list IS the whole set. Grouping a PAGE of 1,457 edges splits one
+// relationship across a page boundary and renders it twice, so the GROUP BY moved into
+// loadCascades and is tested in src/lib/store/automation.test.js.
 
 describe("analyzeExportFile", () => {
   it("derives every document from a real export shape", async () => {
     const docs = await analyzeExportFile(exportFile({ cloud: true, rules: [RULE] }));
-    expect(Object.keys(docs).sort()).toEqual(["analysis", "directory", "fields", "findings", "statuses"]);
+    expect(Object.keys(docs).sort()).toEqual(["analysis", "cascades", "directory", "fields", "findings", "statuses"]);
     expect(docs.analysis.estate).toMatchObject({ ruleCount: 1, enabledCount: 1 });
     expect(docs.fields.entries.map((e) => e.label).sort()).toEqual(["Actual SEOBD", "Post sourcing cost review"]);
   });
@@ -310,12 +243,14 @@ describe("persistAnalysis", () => {
   it("writes the analysis last, after every index", async () => {
     const save = vi.fn().mockResolvedValue({});
     await persistAnalysis(
-      { analysis: { a: 1 }, fields: { f: 1 }, statuses: { s: 1 }, directory: { d: 1 }, findings: { fi: 1 } },
+      { analysis: { a: 1 }, fields: { f: 1 }, statuses: { s: 1 }, directory: { d: 1 }, findings: { fi: 1 }, cascades: { c: 1 } },
       { save }
     );
 
     const order = save.mock.calls.map((c) => (c[0] === "saveAutomationIndex" ? c[1].part : c[0]));
-    expect(order).toEqual(["fields", "statuses", "directory", "findings", "saveAutomationAnalysis"]);
+    // Cascades go after the directory, which the cascade views join to for rule names, and
+    // before the analysis, which is the commit point.
+    expect(order).toEqual(["fields", "statuses", "directory", "findings", "cascades", "saveAutomationAnalysis"]);
   });
 
   it("stops before the commit point if an index write fails", async () => {
@@ -529,53 +464,214 @@ describe("AutomationTab", () => {
   });
 
   describe("cascades", () => {
-    async function openCascades(data = analysis()) {
+    // Every cascade now comes from automation_cascades through a paged resolver, rather than
+    // from whatever fitted in the analysis document. The tab renders what it is given and
+    // filters by asking again -- so these pin the wiring, and the grouping and filtering
+    // themselves are tested against the query in src/lib/store/automation.test.js.
+    const cascadePage = (over = {}) => ({
+      available: true,
+      summary: { edges: 1457, pairs: 1143, selfTriggeringRules: 123, fields: 214 },
+      cascades: [
+        {
+          sourceId: "9", sourceName: "Loopy rule", targetId: "9", targetName: "Loopy rule",
+          selfTriggering: true, fields: ["Owner"], fieldCount: 1,
+        },
+        {
+          sourceId: "1", sourceName: "Writer", targetId: "2", targetName: "Listener",
+          selfTriggering: false, fields: ["A", "B", "C"], fieldCount: 3,
+        },
+      ],
+      total: 2, page: 1, pageSize: 50,
+      ...over,
+    });
+
+    async function openCascades({ page = cascadePage(), graph = null, data = analysis() } = {}) {
       const user = userEvent.setup();
-      routeInvoke({ getAutomationInsights: data });
+      routeInvoke({
+        getAutomationInsights: data,
+        getAutomationCascades: page,
+        getCascadeGraph: graph ?? { available: false, reason: "no-cascades" },
+      });
       const view = render(<AutomationTab />);
       await screen.findByText("1,477");
       await user.click(within(view.container.querySelector(".sub-nav")).getByText("Cascades"));
+      await screen.findByText("Relationships");
       return { user, ...view };
     }
 
     it("names both rules on a cross-rule cascade", async () => {
       const { container } = await openCascades();
-      const rows = container.querySelectorAll(".cascade");
-      expect([...rows].map((r) => r.textContent).join(" ")).toContain("Writer");
-      expect([...rows].map((r) => r.textContent).join(" ")).toContain("Listener");
+      await waitFor(() => expect(container.querySelectorAll(".cascade").length).toBe(2));
+
+      const text = [...container.querySelectorAll(".cascade")].map((r) => r.textContent).join(" ");
+      expect(text).toContain("Writer");
+      expect(text).toContain("Listener");
     });
 
-    it("flags self-triggering rules and lists them first", async () => {
+    it("flags a self-triggering rule and shows it without a second rule", async () => {
       const { container } = await openCascades();
+      await waitFor(() => expect(container.querySelector(".cascade")).toBeTruthy());
+
       const first = container.querySelector(".cascade");
       expect(first.className).toContain("cascade--self");
       expect(first.textContent).toContain("Loopy rule");
     });
 
     it("lists the fields involved once per rule pair rather than repeating the rule", async () => {
-      const { container } = await openCascades(analysis({
-        cascades: [
-          { sourceId: 1, targetId: 2, sourceName: "Auto-Populate", targetName: "Child", field: "A", selfTriggering: false },
-          { sourceId: 1, targetId: 2, sourceName: "Auto-Populate", targetName: "Child", field: "B", selfTriggering: false },
-          { sourceId: 1, targetId: 2, sourceName: "Auto-Populate", targetName: "Child", field: "C", selfTriggering: false },
-        ],
-        cascadesTotal: 3, selfTriggeringTotal: 0,
-      }));
+      const { container } = await openCascades();
+      await waitFor(() => expect(container.querySelectorAll(".cascade").length).toBe(2));
 
-      expect(container.querySelectorAll(".cascade")).toHaveLength(1);
-      const row = container.querySelector(".cascade");
-      expect(row.textContent.match(/Auto-Populate/g)).toHaveLength(1);
-      for (const f of ["A", "B", "C"]) expect(row.textContent).toContain(f);
+      const row = [...container.querySelectorAll(".cascade")].find((r) => r.textContent.includes("Writer"));
+      expect(row.textContent.match(/Writer/g)).toHaveLength(1);
+      for (const field of ["A", "B", "C"]) expect(row.textContent).toContain(field);
     });
 
+    it("pages rather than truncating, and says how many there are", async () => {
+      // The defect this replaces: 150 of 1,457 were stored and the rest were unreachable by
+      // any amount of scrolling, under a footnote saying so.
+      const { container } = await openCascades({
+        page: cascadePage({ total: 1143 }),
+      });
+
+      await waitFor(() => expect(container.querySelector(".pagination-bar")).toBeTruthy());
+      expect(container.querySelector(".pagination-bar__status").textContent).toMatch(/1,143 relationships/);
+      expect(screen.getByText("1,457")).toBeInTheDocument();
+    });
+
+    it("asks the resolver again when the filter changes", async () => {
+      const { user } = await openCascades();
+
+      await user.selectOptions(screen.getByLabelText(/kind/i), "self");
+
+      await waitFor(() =>
+        expect(invoke).toHaveBeenCalledWith("getAutomationCascades", expect.objectContaining({ kind: "self", page: 1 })));
+    });
+
+    // Neither empty state renders the sub-view switcher, so these cannot wait on it.
+    async function openEmptyCascades(data) {
+      const user = userEvent.setup();
+      routeInvoke({
+        getAutomationInsights: data,
+        getAutomationCascades: { available: false, summary: { edges: 0, pairs: 0, selfTriggeringRules: 0, fields: 0 }, cascades: [], total: 0 },
+        getCascadeGraph: { available: false, reason: "no-cascades" },
+      });
+      const view = render(<AutomationTab />);
+      await screen.findByText("1,477");
+      await user.click(within(view.container.querySelector(".sub-nav")).getByText("Cascades"));
+      return view;
+    }
+
     it("says so when nothing can cascade", async () => {
-      await openCascades(analysis({ cascades: [], cascadesTotal: 0, selfTriggeringTotal: 0 }));
+      await openEmptyCascades(analysis({ cascades: [], cascadesTotal: 0, selfTriggeringTotal: 0 }));
       expect(await screen.findByText(/no rule writes a field that another rule triggers on/i)).toBeInTheDocument();
     });
 
-    it("reports the true total when the stored list is truncated", async () => {
-      await openCascades(analysis({ cascadesTotal: 1457 }));
-      expect(await screen.findByText(/showing 2 of 1,457 cascade paths/i)).toBeInTheDocument();
+    // An install that imported before the table existed has an estate summary claiming
+    // cascades and no rows behind it. Saying "nothing cascades" there would be a false
+    // all-clear over data we simply never wrote.
+    it("asks for a re-import rather than claiming nothing cascades", async () => {
+      await openEmptyCascades(analysis({ cascadesTotal: 1457 }));
+      expect(await screen.findByText(/imported before cascades were stored in full/i)).toBeInTheDocument();
+    });
+  });
+
+  describe("cascade loops and chains", () => {
+    // The multi-hop view the cap made impossible. A chain A -> B -> C is found by walking the
+    // edge set, and walking a set truncated at 150 finds chains that stop where the
+    // truncation did -- so the answer was not "fewer chains", it was "wrong chains".
+    const graph = (over = {}) => ({
+      available: true,
+      ruleCount: 318, edgeCount: 1143, rulesInLoops: 89, deepestChain: 9, truncated: false, maxDepth: 8,
+      loops: [{
+        size: 3, selfTriggering: false,
+        ruleIds: ["1", "2", "3"], ruleNames: ["Alpha", "Beta", "Gamma"],
+        path: [
+          { id: "1", name: "Alpha", viaFields: ["Owner"], enabled: true },
+          { id: "2", name: "Beta", viaFields: ["Status"], enabled: true },
+          { id: "3", name: "Gamma", viaFields: ["Owner"], enabled: false },
+          { id: "1", name: "Alpha", viaFields: [], enabled: true },
+        ],
+      }],
+      chains: [{
+        length: 4, ruleIds: ["7", "8", "9", "10"],
+        steps: [
+          { id: "7", name: "Start", viaFields: ["Milestone"], enabled: true },
+          { id: "8", name: "Middle", viaFields: ["Checkpoint"], enabled: true },
+          { id: "9", name: "Later", viaFields: ["Fix Version"], enabled: true },
+          { id: "10", name: "End", viaFields: [], enabled: true },
+        ],
+      }],
+      ...over,
+    });
+
+    async function openChains(over = {}) {
+      const user = userEvent.setup();
+      routeInvoke({
+        getAutomationInsights: analysis(),
+        getAutomationCascades: {
+          available: true,
+          summary: { edges: 1457, pairs: 1143, selfTriggeringRules: 123, fields: 214 },
+          cascades: [], total: 0, page: 1, pageSize: 50,
+        },
+        getCascadeGraph: graph(over),
+      });
+      const view = render(<AutomationTab />);
+      await screen.findByText("1,477");
+      await user.click(within(view.container.querySelector(".sub-nav")).getByText("Cascades"));
+      await user.click(await screen.findByText(/Loops and chains/));
+      return { user, ...view };
+    }
+
+    it("shows a loop as a walkable path, naming the field that carries each hop", async () => {
+      const { container } = await openChains();
+
+      await waitFor(() => expect(container.querySelector(".cascade-path")).toBeTruthy());
+      const path = container.querySelector(".cascade-path");
+      expect(path.textContent).toContain("Alpha");
+      expect(path.textContent).toContain("Beta");
+      expect(path.textContent).toContain("Gamma");
+      // The field is what an admin breaks to stop the loop, so it is on the hop rather than
+      // summarised at the end.
+      expect(path.textContent).toContain("Owner");
+      expect(path.textContent).toContain("Status");
+    });
+
+    it("marks a disabled rule inside a path, because it does not currently fire", async () => {
+      const { container } = await openChains();
+      await waitFor(() => expect(container.querySelector(".cascade-path")).toBeTruthy());
+      expect(container.querySelector(".cascade-path").textContent).toContain("disabled");
+    });
+
+    it("counts the rules caught in a loop, not the loops", async () => {
+      await openChains();
+      // A rule in two loops is one rule with a problem.
+      expect(await screen.findByText(/89 rules caught in one/)).toBeInTheDocument();
+    });
+
+    it("switches to the chains that are not loops", async () => {
+      const { user, container } = await openChains();
+
+      await user.click(await screen.findByText(/^Chains$/));
+      await waitFor(() => expect(container.querySelector(".cascade-chain").textContent).toContain("4 rules deep"));
+
+      const path = container.querySelector(".cascade-path");
+      expect(path.textContent).toContain("Start");
+      expect(path.textContent).toContain("End");
+      expect(path.className).not.toContain("cascade-path--loop");
+    });
+
+    // A truncated answer presented as a complete one is worse than a smaller one that says
+    // what it left out -- and the distinction matters: loops are found by decomposition
+    // rather than by walking paths, so they are complete even when the chain walk is not.
+    it("says when the walk hit its bound, and that loops are unaffected", async () => {
+      await openChains({ truncated: true });
+      expect(await screen.findByText(/sample rather than the full set/i)).toBeInTheDocument();
+      expect(screen.getByText(/Loops are unaffected/)).toBeInTheDocument();
+    });
+
+    it("says so when no rule can reach itself", async () => {
+      await openChains({ loops: [], rulesInLoops: 0 });
+      expect(await screen.findByText(/no rule can reach itself through other rules/i)).toBeInTheDocument();
     });
   });
 
@@ -774,7 +870,7 @@ describe("AutomationTab", () => {
 
       await waitFor(() => expect(invoke).toHaveBeenCalledWith("saveAutomationAnalysis", expect.any(Object)));
       const parts = invoke.mock.calls.filter((c) => c[0] === "saveAutomationIndex").map((c) => c[1].part);
-      expect(parts).toEqual(["fields", "statuses", "directory", "findings"]);
+      expect(parts).toEqual(["fields", "statuses", "directory", "findings", "cascades"]);
     });
 
     it("shows a parse error against the control and keeps it usable", async () => {
