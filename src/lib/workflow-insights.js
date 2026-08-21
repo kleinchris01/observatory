@@ -127,32 +127,56 @@ export function findDuplicateStatusGroups(statuses = []) {
 // Statuses in the site catalog that no workflow scheme reaches.
 //
 // `issueCountByStatusId` is optional and comes from the universe scan. Without it an
-// orphan is "defined but unreachable"; with it, a zero-count orphan is provably safe to
-// delete -- nothing has ever been in it -- which is the difference between a suggestion
-// and an action. A non-zero count on an unreachable status is its own finding: history
-// exists in a status no current workflow can produce.
-export function findOrphanedStatuses(statuses = [], schemeStatusPairs = [], issueCountByStatusId = null) {
+// orphan is "defined but unreachable"; with it, a zero-count orphan has provably never
+// held an issue.
+//
+// `automationByStatusName` is the third input and the one that changes what the other two
+// mean. It is keyed by lowercased status name and comes from automation_references, where
+// every status a rule reads, writes or transitions to is a row. A status no scheme reaches
+// and no issue has ever entered is still load-bearing if a rule transitions into it --
+// deleting it breaks the rule silently.
+//
+// That correction used to live in the Workflows tab's JSX, which tested
+// `safeToRemove && !automationRuleCount` at render time. The model asserted one thing and
+// exactly one call site quietly disagreed with it; the health score, which reads the same
+// model, did not, and scored a status reachability figure that counted rule-reachable
+// statuses as dead. It belongs here, once, where every caller inherits it.
+//
+// null (rather than an empty object) means no automation analysis has been built, so
+// nothing is known about rule references. Callers must present that as "no evidence"
+// rather than "no rules", which is what `automationChecked` on the summary is for.
+export function findOrphanedStatuses(statuses = [], schemeStatusPairs = [], issueCountByStatusId = null, automationByStatusName = null) {
   const referenced = new Set(schemeStatusPairs.map((pair) => String(pair.statusId)));
   return statuses
     .filter((status) => !referenced.has(String(status.statusId ?? status.id)))
     .map((status) => {
       const id = String(status.statusId ?? status.id);
       const issueCount = issueCountByStatusId ? Number(issueCountByStatusId.get(id) ?? 0) : null;
+      const refs = automationByStatusName
+        ? automationByStatusName[String(status.name || "").toLowerCase()] ?? null
+        : null;
+      const automationRuleCount = automationByStatusName ? Number(refs?.ruleCount ?? 0) : null;
+
       return {
         statusId: id,
         name: status.name,
         statusCategory: status.statusCategory || null,
         issueCount,
+        // null when no analysis exists -- the blanket caveat still applies to this status.
+        // A number means this status specifically was checked.
+        automationRuleCount,
+        automationEnabledRuleCount: automationByStatusName ? Number(refs?.enabledRuleCount ?? 0) : null,
+        // Unreachable by a scheme, but a rule can still put an issue there. This is not a
+        // cleanup target -- it is configuration that works and is invisible in the workflow
+        // admin, which is arguably worse.
+        ruleOnly: (automationRuleCount ?? 0) > 0,
         // Only assert safety when the scan actually observed the catalog. A null count
         // means "unknown", which must never render as "safe to delete".
         //
-        // Note the deliberate limit of this claim: it means no workflow reaches the status
-        // and no issue has ever entered it. It does NOT mean no automation rule references
-        // it. Jira Automation rules cannot be read from a Forge app -- site-relative
-        // endpoints 401 with no declarable scope, the api.atlassian.com gateway rejects the
-        // route, and Forge exposes no automation permission -- so callers must present this
-        // as "no evidence of use" rather than "safe to delete".
-        safeToRemove: issueCount === 0,
+        // The automation term uses ?? 0 deliberately: with no analysis built the claim
+        // degrades to what it used to mean, and the summary's automationChecked flag is
+        // what tells a reader which of the two they are looking at.
+        safeToRemove: issueCount === 0 && (automationRuleCount ?? 0) === 0,
       };
     })
     .sort((left, right) => (right.issueCount ?? 0) - (left.issueCount ?? 0) || left.name.localeCompare(right.name));
@@ -236,6 +260,16 @@ export function summarizeWorkflowInsights({ duplicateGroups = [], orphans = [], 
     reducibleStatusCount: duplicateGroups.reduce((sum, group) => sum + (group.count - 1), 0),
     orphanCount: orphans.length,
     safeToRemoveCount: orphans.filter((o) => o.safeToRemove).length,
+    // Unreachable by a scheme, reachable by a rule. Split out because it is the opposite
+    // finding to the one above and was being counted as the same thing: these are the
+    // statuses where "unreachable" is a reporting artefact rather than dead configuration.
+    ruleOnlyStatusCount: orphans.filter((o) => o.ruleOnly).length,
+    // Unreachable by anything we can see. The real cleanup target, and the number status
+    // reachability should have been scored on all along.
+    unreachableNoRuleCount: orphans.filter((o) => !o.ruleOnly).length,
+    // Whether the rule question was asked at all. Without it the two counts above are
+    // "0 rule-referenced" only in the sense that nobody looked.
+    automationChecked: orphans.some((o) => o.automationRuleCount !== null),
     flaggedSchemeCount: balance.filter((entry) => entry.flags.length > 0).length,
   };
 }

@@ -138,6 +138,44 @@ describe("findOrphanedStatuses", () => {
     const allPairs = statuses.map((s) => ({ schemeId: "s1", statusId: s.statusId }));
     expect(findOrphanedStatuses(statuses, allPairs)).toEqual([]);
   });
+
+  // A status no scheme reaches and no issue ever entered is STILL load-bearing if a rule
+  // transitions into it -- deleting it breaks the rule silently. This lived in the
+  // Workflows tab's JSX as `safeToRemove && !automationRuleCount`, so the model asserted
+  // one thing and one call site quietly disagreed. The health score read the model.
+  describe("automation references", () => {
+    const counts = new Map([["2", 0], ["3", 0]]);
+
+    test("a rule reference stops a status being safe to remove", () => {
+      const orphans = findOrphanedStatuses(statuses, pairs, counts, {
+        unused: { ruleCount: 2, enabledRuleCount: 1 },
+      });
+
+      const held = orphans.find((o) => o.name === "Unused");
+      const dead = orphans.find((o) => o.name === "Also Unused");
+
+      expect(held).toMatchObject({ automationRuleCount: 2, ruleOnly: true, safeToRemove: false });
+      expect(dead).toMatchObject({ automationRuleCount: 0, ruleOnly: false, safeToRemove: true });
+    });
+
+    test("matches on the status name, case-insensitively", () => {
+      const orphans = findOrphanedStatuses(statuses, pairs, counts, { "also unused": { ruleCount: 5 } });
+      expect(orphans.find((o) => o.name === "Also Unused").automationRuleCount).toBe(5);
+    });
+
+    test("counts are null, not zero, when no analysis has been built", () => {
+      const orphans = findOrphanedStatuses(statuses, pairs, counts, null);
+      expect(orphans.every((o) => o.automationRuleCount === null)).toBe(true);
+      expect(orphans.every((o) => o.ruleOnly === false)).toBe(true);
+      // Degrades to what the claim used to mean; automationChecked tells a reader which.
+      expect(orphans.every((o) => o.safeToRemove === true)).toBe(true);
+    });
+
+    test("a status present in the analysis with no rules reads as zero, not unknown", () => {
+      const orphans = findOrphanedStatuses(statuses, pairs, counts, {});
+      expect(orphans.every((o) => o.automationRuleCount === 0)).toBe(true);
+    });
+  });
 });
 
 describe("computeSchemeCategoryBalance", () => {
@@ -222,7 +260,10 @@ describe("summarizeWorkflowInsights", () => {
         { count: 3, statuses: [] },
         { count: 2, statuses: [] },
       ],
-      orphans: [{ safeToRemove: true }, { safeToRemove: false }],
+      orphans: [
+        { safeToRemove: true, ruleOnly: false, automationRuleCount: 0 },
+        { safeToRemove: false, ruleOnly: true, automationRuleCount: 4 },
+      ],
       balance: [{ flags: [{ code: "no-done" }] }, { flags: [] }],
     });
 
@@ -232,7 +273,20 @@ describe("summarizeWorkflowInsights", () => {
     expect(summary.reducibleStatusCount).toBe(3);
     expect(summary.orphanCount).toBe(2);
     expect(summary.safeToRemoveCount).toBe(1);
+    // The two halves of the orphan count, which status reachability and status coverage
+    // are scored on separately.
+    expect(summary.ruleOnlyStatusCount).toBe(1);
+    expect(summary.unreachableNoRuleCount).toBe(1);
+    expect(summary.automationChecked).toBe(true);
     expect(summary.flaggedSchemeCount).toBe(1);
+  });
+
+  test("reports automationChecked false when no orphan carries a rule answer", () => {
+    const summary = summarizeWorkflowInsights({
+      orphans: [{ safeToRemove: true, ruleOnly: false, automationRuleCount: null }],
+    });
+    expect(summary.automationChecked).toBe(false);
+    expect(summary.ruleOnlyStatusCount).toBe(0);
   });
 
   test("is all zeroes for a clean site", () => {

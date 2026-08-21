@@ -732,12 +732,6 @@ async function getWorkflowInsights({ context }) {
     const schemeStatusesAvailable = schemeStatuses.length > 0;
 
     const duplicateGroups = findDuplicateStatusGroups(statuses);
-    // Computed only when the underlying data supports them. Deriving these and then
-    // hiding the lists still leaked the numbers into the summary, which rendered
-    // "435 unreachable statuses" directly above a warning saying the data was missing.
-    const orphans = schemeStatusesAvailable
-      ? findOrphanedStatuses(statuses, schemeStatuses, hasIssueCounts ? issueCounts : null)
-      : [];
     const balance = schemeStatusesAvailable
       ? computeSchemeCategoryBalance(schemes, schemeStatuses, statuses)
       : [];
@@ -750,20 +744,39 @@ async function getWorkflowInsights({ context }) {
     // automation_references, where every status a rule reads, writes or transitions to is a
     // row. A warning that applies to every status tells a reader nothing about any status.
     //
+    // Looked up BEFORE the orphan list is built rather than joined onto it afterwards.
+    // Joining afterwards meant the per-status answer and the summary disagreed: the rows
+    // knew which statuses a rule held open, and summarizeWorkflowInsights -- which the
+    // health score reads -- did not, so it counted every one of them as dead configuration.
+    //
     // Best-effort: no automation analysis means the caveat is still the honest answer, so
     // failure here degrades to the old warning rather than to a false all-clear.
-    const orphanPage = orphans.slice(0, 200);
+    //
+    // Computed only when the underlying data supports them. Deriving these and then
+    // hiding the lists still leaked the numbers into the summary, which rendered
+    // "435 unreachable statuses" directly above a warning saying the data was missing.
+    const provisionalOrphans = schemeStatusesAvailable
+      ? findOrphanedStatuses(statuses, schemeStatuses, hasIssueCounts ? issueCounts : null)
+      : [];
+
     let automationByStatus = null;
-    try {
-      automationByStatus = await loadStatusAutomationReferences(
-        installationKey,
-        orphanPage.map((o) => o.name).filter(Boolean)
-      );
-    } catch (error) {
-      logger.warn("workflow-insights.status_automation_lookup_failed", {
-        installationKey, error: String(error?.message || error),
-      });
+    if (provisionalOrphans.length) {
+      try {
+        automationByStatus = await loadStatusAutomationReferences(
+          installationKey,
+          provisionalOrphans.map((o) => o.name).filter(Boolean)
+        );
+      } catch (error) {
+        logger.warn("workflow-insights.status_automation_lookup_failed", {
+          installationKey, error: String(error?.message || error),
+        });
+      }
     }
+
+    const orphans = schemeStatusesAvailable
+      ? findOrphanedStatuses(statuses, schemeStatuses, hasIssueCounts ? issueCounts : null, automationByStatus)
+      : [];
+    const orphanPage = orphans.slice(0, 200);
 
     return {
       available: true,
@@ -782,16 +795,10 @@ async function getWorkflowInsights({ context }) {
           everCount: hasHistoryCounts ? (history.counts.get(String(s.statusId ?? s.id)) ?? null) : null,
         })),
       })),
-      orphans: orphanPage.map((orphan) => {
-        const refs = automationByStatus?.[String(orphan.name || "").toLowerCase()] || null;
-        return {
-          ...orphan,
-          // null when no automation analysis exists -- the caveat still applies to this
-          // status. A number means we checked it specifically.
-          automationRuleCount: automationByStatus ? (refs?.ruleCount ?? 0) : null,
-          automationEnabledRuleCount: automationByStatus ? (refs?.enabledRuleCount ?? 0) : null,
-        };
-      }),
+      // Already carries automationRuleCount, ruleOnly and a safeToRemove that accounts for
+      // rules -- findOrphanedStatuses was given the references above, so there is nothing
+      // left to join on here.
+      orphans: orphanPage,
       // Whether the per-status answer is available at all, so the tab can drop the blanket
       // warning rather than showing it alongside evidence that contradicts it.
       automationChecked: Boolean(automationByStatus),

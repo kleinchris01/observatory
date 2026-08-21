@@ -23,8 +23,16 @@ export const DEFAULT_HEALTH_TOLERANCES = {
   unusedFields: 0.35,
   duplicateStatuses: 0.15,
   unreachableStatuses: 0.20,
+  // Statuses only an automation rule reaches. Tighter than the unreachable bound: an
+  // unreachable status is clutter, whereas one of these is a live process step that the
+  // workflow does not document, and a handful of them is already a real divergence.
+  ruleOnlyStatuses: 0.10,
   flaggedSchemes: 0.40,
   irregularProjects: 0.25,
+  // Projects with no work, or none in six months. Forgiving: a healthy estate always
+  // carries some finished projects, and retiring them is optional. It bottoms out because
+  // past a third of the site nobody can tell a finished project from an abandoned one.
+  inactiveProjects: 0.30,
   // Far tighter than the rest, and deliberately so. The others measure untidiness, where a
   // few percent is normal on any real site. A rule storing a credential in plaintext is not
   // untidiness -- one is a problem and 2% of the estate is a bad day.
@@ -164,8 +172,19 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
   // ── Status reachability ───────────────────────────────────────────────────
   // Only scored when the scheme->status mapping exists. Without it every status looks
   // unreachable, which would report a catastrophic score for a healthy site.
+  //
+  // Scored on orphans NO RULE TOUCHES, not on every orphan. A status a rule transitions
+  // into is reachable -- an issue gets there, users see it, deleting it breaks the rule.
+  // Counting those as unreachable is what made this dimension read 0 on a site whose real
+  // dead-status problem is a third the size, and it made the site's weakest dimension a
+  // number nobody could act on. The statuses only a rule reaches are their own dimension
+  // below, because they are a different finding with a different fix.
   if (workflow?.available && workflow.schemeStatusesAvailable && workflow.statusCount > 0) {
-    const rate = (Number(workflow.orphanCount) || 0) / workflow.statusCount;
+    // Falls back to the whole orphan count on a payload built before the split, so an
+    // older cached measurement still scores rather than reporting unavailable.
+    const dead = Number(workflow.unreachableNoRuleCount ?? workflow.orphanCount) || 0;
+    const ruleOnly = Number(workflow.ruleOnlyStatusCount) || 0;
+    const rate = dead / workflow.statusCount;
     dimensions.push({
       key: "status-reachability",
       label: "Status reachability",
@@ -173,20 +192,55 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1,
       score: scoreFromRate(rate, TOLERANCE.unreachableStatuses),
-      detail: workflow.hasIssueCounts
-        ? `${workflow.orphanCount} statuses no scheme reaches, ${workflow.safeToRemoveCount} of them never used.`
-        : `${workflow.orphanCount} statuses no scheme reaches. Run a scan to confirm which are unused.`,
-      // The caveat used to read "automation rules are not visible to this app". They are
-      // now, so the advice names the check instead of warning about a blind spot -- but
-      // only when an analysis exists. Without one the blind spot is still real.
+      detail: !workflow.automationChecked
+        ? `${dead} of ${workflow.statusCount} statuses no scheme reaches. No automation analysis, so a rule could still be using them.`
+        : workflow.hasIssueCounts
+          ? `${dead} of ${workflow.statusCount} statuses no scheme and no rule reaches, ${workflow.safeToRemoveCount} of them never used.`
+          : `${dead} of ${workflow.statusCount} statuses no scheme and no rule reaches. Run a scan to confirm which are unused.`,
       action: workflow.safeToRemoveCount > 0
-        ? automation?.available
-          ? `${workflow.safeToRemoveCount} statuses are unreachable and have never held an issue. Check the Automation tab's status list before deleting — a rule that transitions into one of these keeps it in use.`
+        ? workflow.automationChecked
+          ? `${workflow.safeToRemoveCount} statuses are reached by no scheme, no rule and no issue in history. These are the ones that are actually safe to delete.`
           : `${workflow.safeToRemoveCount} statuses are unreachable and have never held an issue. No automation analysis has been built, so a rule could still transition into one of these — confirm before deleting.`
-        : null,
+        : ruleOnly > 0
+          ? "Every unreachable status is held open by an automation rule. Nothing here is safe to delete yet."
+          : null,
     });
   } else {
     dimensions.push(unavailable("status-reachability", "Status reachability", "workflows", workflow?.available ? "Jira did not return workflow status data." : "No workflow inventory yet."));
+  }
+
+  // ── Status coverage ───────────────────────────────────────────────────────
+  // Statuses an automation rule can put an issue into, that no workflow scheme contains.
+  //
+  // Not a cleanup target and not untidiness -- it is process that exists and is invisible
+  // in Jira's own workflow admin. Someone reading the scheme cannot see these states at
+  // all, so the documented process and the real one differ by however many this is.
+  //
+  // Only scored once the rules have actually been read. Without an analysis every status
+  // would score as fully covered, which is the same false all-clear this whole change is
+  // about.
+  if (workflow?.available && workflow.schemeStatusesAvailable && workflow.statusCount > 0 && workflow.automationChecked) {
+    const ruleOnly = Number(workflow.ruleOnlyStatusCount) || 0;
+    const rate = ruleOnly / workflow.statusCount;
+    dimensions.push({
+      key: "status-coverage",
+      label: "Status coverage",
+      pillar: "workflows",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(rate, TOLERANCE.ruleOnlyStatuses),
+      detail: ruleOnly === 0
+        ? `Every status a rule touches is also in a workflow scheme.`
+        : `${ruleOnly} of ${workflow.statusCount} statuses are reachable only through an automation rule, not through any scheme.`,
+      action: ruleOnly > 0
+        ? "Issues reach these states without any workflow saying so. Add them to the scheme that should own them, or move the rule's transition."
+        : null,
+    });
+  } else {
+    dimensions.push(unavailable("status-coverage", "Status coverage", "workflows",
+      workflow?.available && workflow.schemeStatusesAvailable
+        ? "No automation analysis yet, so rule-only statuses cannot be identified."
+        : "No workflow inventory yet."));
   }
 
   // ── Workflow structure ────────────────────────────────────────────────────
@@ -229,10 +283,21 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
   }
 
   // ── Project consistency ───────────────────────────────────────────────────
+  // Field-count deviation from the site norm, over every project rather than over a
+  // display list.
+  //
+  // Two separate defects were folded together here. The rate was built from
+  // `overConfigured.length` and `unusedProjects.length`, which are the Overview's top-8
+  // display lists -- so the numerator was capped at sixteen and the dimension could not
+  // fall below ~94 on a site of any size. And "over-configured" itself meant
+  // over-configured AND barely used, which on an active site is nobody, while the label
+  // claimed the field-count finding on its own. The result was a permanent 100.
   const totalProjects = Number(projects?.totalProjects) || 0;
   if (totalProjects > 0) {
-    const irregular = (projects.overConfigured?.length || 0) + (projects.unusedProjects?.length || 0);
-    const rate = irregular / totalProjects;
+    const overConfigured = Number(projects.overConfiguredCount) || 0;
+    const rate = overConfigured / totalProjects;
+    const floor = Number(projects.overConfiguredFloor) || 0;
+    const idle = Number(projects.idleOverConfiguredCount) || 0;
     dimensions.push({
       key: "project-consistency",
       label: "Project consistency",
@@ -240,11 +305,43 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1,
       score: scoreFromRate(rate, TOLERANCE.irregularProjects),
-      detail: `${projects.overConfigured?.length || 0} projects configured well past the norm, ${projects.unusedProjects?.length || 0} with fields but no issues.`,
-      action: irregular > 0 ? "These are the projects where field cleanup has the least risk." : null,
+      detail: overConfigured === 0
+        ? `No project carries more than ${floor} fields, against a median of ${projects.medianFieldCount}.`
+        : `${overConfigured} of ${totalProjects} projects carry ${floor} or more fields, against a median of ${projects.medianFieldCount}.`,
+      action: idle > 0
+        ? `${idle} of them carry little issue volume too — those are where field cleanup has the least risk.`
+        : overConfigured > 0
+          ? "All of them carry real issue volume, so this is scope to review rather than cleanup to schedule."
+          : null,
     });
   } else {
     dimensions.push(unavailable("project-consistency", "Project consistency", "projects", "No project usage data yet."));
+  }
+
+  // ── Project activity ──────────────────────────────────────────────────────
+  // Configuration outliving the work it was built for. Distinct from consistency: a
+  // project can be perfectly ordinary in shape and have had nothing touched in a year,
+  // and that is the cheapest field cleanup on the site.
+  if (totalProjects > 0) {
+    const unused = Number(projects.unusedProjectCount) || 0;
+    const stale = Number(projects.staleProjectCount) || 0;
+    const rate = (unused + stale) / totalProjects;
+    dimensions.push({
+      key: "project-activity",
+      label: "Project activity",
+      pillar: "projects",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(rate, TOLERANCE.inactiveProjects),
+      detail: unused + stale === 0
+        ? `All ${totalProjects} projects carry work and have been touched in the last six months.`
+        : `${stale} projects have had no activity in six months and ${unused} carry fields but no work at all.`,
+      action: unused + stale > 0
+        ? "Retiring fields from a project nobody is using costs nothing and is not reversible by accident."
+        : null,
+    });
+  } else {
+    dimensions.push(unavailable("project-activity", "Project activity", "projects", "No project usage data yet."));
   }
 
   // ── Automation security ───────────────────────────────────────────────────
