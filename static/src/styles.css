@@ -5419,6 +5419,118 @@ code {
 .ui-health__pillarscore--none { font-size: 0.72rem; font-weight: 500; opacity: 0.4; font-variant-numeric: normal; }
 .ui-health__pillarempty { margin: 0; font-size: 0.74rem; opacity: 0.45; line-height: 1.4; }
 
+/* -- Governance ledger ------------------------------------------------------
+   One row per governance metric: the score, where it is going, the evidence, and the
+   findings that act on it. Replaces the two panels that used to state the same facts in
+   two vocabularies -- a scored bar in "Site health" and a counted row in "What needs
+   attention" -- with a single grid where the score and its consequence share a line.
+
+   The grid is deliberately explicit rather than flex: the bars, scores and sparklines have
+   to line up down the column across five pillars, and a flex row cannot promise that. */
+.ui-gov-pillars { display: flex; flex-direction: column; gap: 14px; margin-top: 6px; }
+.ui-gov-pillar { display: flex; flex-direction: column; gap: 8px; }
+.ui-gov-pillar + .ui-gov-pillar { border-top: 1px solid var(--stroke); padding-top: 14px; }
+.ui-gov-list { display: flex; flex-direction: column; gap: 10px; }
+
+.ui-gov {
+  display: grid;
+  grid-template-columns: minmax(7rem, 11rem) minmax(3rem, 1fr) 2.2rem auto;
+  grid-template-areas:
+    "head  track trend trend"
+    "body  body  body  act";
+  align-items: center;
+  gap: 5px 10px;
+  border-left: 2px solid transparent;
+  padding-left: 9px;
+}
+/* Urgency is carried on the rail, not on the text. At this density a coloured label per row
+   is noise; a 2px edge reads as structure and still scans top to bottom. */
+.ui-gov--critical { border-left-color: #c9605a; }
+.ui-gov--warning { border-left-color: #c9860a; }
+.ui-gov--info { border-left-color: #4d8fd6; }
+.ui-gov--clear { border-left-color: rgba(111, 174, 129, 0.45); }
+
+.ui-gov__head { grid-area: head; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ui-gov__label { font-size: 0.8rem; font-weight: 600; }
+.ui-gov__band {
+  font-size: 0.62rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+  opacity: 0.75;
+}
+.ui-gov__band--critical { color: #c9605a; }
+.ui-gov__band--warning { color: #c9860a; }
+.ui-gov__band--info { color: #4d8fd6; opacity: 0.6; }
+
+.ui-gov__track {
+  grid-area: track; height: 7px; border-radius: 3px; overflow: hidden;
+  background: rgba(255, 255, 255, 0.07);
+}
+:root[data-theme="light"] .ui-gov__track { background: rgba(0, 0, 0, 0.07); }
+.ui-gov__track--none { background: transparent; }
+.ui-gov__bar { display: block; height: 100%; border-radius: 3px; background: #4d8fd6; min-width: 2px; }
+/* The bar takes the row's urgency so a long bar can never read as good news on a row that
+   is flagged. A 41-scoring stability row with a blue two-fifths bar looked reassuring. */
+.ui-gov__bar--critical { background: #c9605a; }
+.ui-gov__bar--warning { background: #c9860a; }
+.ui-gov__bar--clear { background: #6fae81; }
+.ui-gov__score {
+  grid-area: track; justify-self: end; margin-right: -2.7rem;
+  font-size: 0.78rem; font-variant-numeric: tabular-nums; opacity: 0.75;
+}
+
+.ui-gov__trend { grid-area: trend; display: flex; align-items: center; gap: 5px; justify-self: end; }
+.ui-spark { display: block; overflow: visible; }
+.ui-spark--none { font-size: 0.7rem; opacity: 0.25; }
+.ui-spark polyline { stroke: var(--muted); }
+.ui-spark--up polyline { stroke: #6fae81; }
+.ui-spark--down polyline { stroke: #e0796d; }
+.ui-trend { font-size: 0.7rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ui-trend--up { color: #6fae81; }
+.ui-trend--down { color: #e0796d; }
+
+.ui-gov__body { grid-area: body; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.ui-gov__detail { font-size: 0.74rem; opacity: 0.6; line-height: 1.45; }
+.ui-gov__detail--muted { opacity: 0.4; font-style: italic; }
+.ui-gov__advice { font-size: 0.73rem; opacity: 0.5; line-height: 1.45; }
+.ui-gov__act { grid-area: act; display: flex; align-items: center; gap: 8px; }
+.ui-gov__count { font-size: 0.78rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* The findings under a metric. Buttons rather than links: they change the tab rather than
+   navigating, and a reader has to be able to tell that the count is the thing to click. */
+.ui-gov__findings { display: flex; flex-wrap: wrap; gap: 5px; }
+.ui-gov__finding {
+  display: inline-flex; align-items: baseline; gap: 6px;
+  font: inherit; font-size: 0.73rem; text-align: left; cursor: pointer;
+  padding: 3px 8px; border-radius: 6px;
+  border: 1px solid var(--stroke); background: rgba(255, 255, 255, 0.03);
+  color: inherit;
+}
+:root[data-theme="light"] .ui-gov__finding { background: rgba(0, 0, 0, 0.02); }
+.ui-gov__finding:hover { border-color: rgba(125, 165, 215, 0.55); }
+.ui-gov__finding:focus-visible { outline: 2px solid var(--cool); outline-offset: 1px; }
+.ui-gov__findingcount { font-weight: 700; font-variant-numeric: tabular-nums; }
+.ui-gov__finding--critical .ui-gov__findingcount { color: #c9605a; }
+.ui-gov__finding--warning .ui-gov__findingcount { color: #c9860a; }
+.ui-gov__findingtitle { opacity: 0.8; }
+.ui-gov__findingarrow { opacity: 0.35; font-size: 0.8em; }
+
+/* The urgency tally beside the headline score. */
+.ui-health__tally { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 0.74rem; }
+.ui-health__tallyitem { opacity: 0.6; }
+.ui-health__tallyitem--critical { color: #c9605a; opacity: 0.95; font-weight: 600; }
+.ui-health__tallyitem--warning { color: #c9860a; opacity: 0.9; }
+.ui-health__tallyitem--info { color: #4d8fd6; opacity: 0.8; }
+
+/* Below this the four columns stop fitting and the row stacks: label and band on one line,
+   bar and trend on the next, evidence beneath. */
+@media (max-width: 720px) {
+  .ui-gov {
+    grid-template-columns: 1fr auto;
+    grid-template-areas: "head trend" "track track" "body body" "act act";
+  }
+  .ui-gov__score { margin-right: 0; }
+  .ui-gov__act { justify-content: flex-start; }
+}
+
 /* â”€â”€ Severity bands in the findings list â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .ui-bands { display: flex; flex-direction: column; gap: 16px; }
 .ui-band { display: flex; flex-direction: column; gap: 8px; }
