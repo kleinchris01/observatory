@@ -663,3 +663,74 @@ describe("WorkflowTab — which rules hold a status open", () => {
   });
 });
 
+// One grid used to hold both findings at once: statuses nothing reaches, and statuses an
+// automation rule holds open. Those are opposite conclusions -- delete versus do not delete
+// -- and the Overview counts them separately, so arriving from either count has to narrow to
+// the statuses that count was about.
+describe("WorkflowInsights — arriving from a finding", () => {
+  const orphans = [
+    { statusId: "1", name: "Parking Lot", issueCount: 0, safeToRemove: false, automationRuleCount: 3, ruleOnly: true },
+    { statusId: "2", name: "On Ice", issueCount: 804, safeToRemove: false, automationRuleCount: 17, ruleOnly: true },
+    { statusId: "3", name: "Ghost", issueCount: 0, safeToRemove: true, automationRuleCount: 0, ruleOnly: false },
+  ];
+  const insights = (over = {}) => ({
+    available: true, schemeStatusesAvailable: true, hasIssueCounts: true, automationChecked: true,
+    orphans, duplicateGroups: [], balance: [],
+    summary: { duplicateGroupCount: 0, orphanCount: orphans.length, flaggedSchemeCount: 0 },
+    statusTotals: { catalogCount: 10, withIssues: 5 },
+    snapshotStatus: { state: "ready", refreshedAt: "2026-08-13T00:00:00Z" },
+    ...over,
+  });
+  const names = (container) => [...container.querySelectorAll(".wf-orphan__name")].map((n) => n.textContent);
+
+  test("shows every unreachable status when opened normally", () => {
+    const { container } = render(<WorkflowInsights insights={insights()} loading={false} load={vi.fn()} />);
+    expect(names(container)).toEqual(["Parking Lot", "On Ice", "Ghost"]);
+  });
+
+  test("narrows to the statuses a rule holds open", () => {
+    const { container } = render(<WorkflowInsights
+      insights={insights()} loading={false} load={vi.fn()}
+      intent={{ view: "insights", panel: "orphans", statuses: "rule-only" }} />);
+    expect(names(container)).toEqual(["Parking Lot", "On Ice"]);
+  });
+
+  test("narrows to the statuses that are actually safe to delete", () => {
+    const { container } = render(<WorkflowInsights
+      insights={insights()} loading={false} load={vi.fn()}
+      intent={{ view: "insights", panel: "orphans", statuses: "safe-to-remove" }} />);
+    expect(names(container)).toEqual(["Ghost"]);
+  });
+
+  test("counts each bucket on its own control", () => {
+    const { container } = render(<WorkflowInsights insights={insights()} loading={false} load={vi.fn()} />);
+    const chips = [...container.querySelectorAll(".wf-orphan-filters .findings-filter-button")].map((b) => b.textContent);
+    expect(chips).toEqual(["All unreachable3", "No evidence of use1", "Held open by a rule2"]);
+  });
+
+  test("the reader can clear the filter the finding applied", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<WorkflowInsights
+      insights={insights()} loading={false} load={vi.fn()}
+      intent={{ statuses: "safe-to-remove" }} />);
+    expect(names(container)).toEqual(["Ghost"]);
+
+    await user.click(screen.getByText("All unreachable"));
+    expect(names(container)).toEqual(["Parking Lot", "On Ice", "Ghost"]);
+  });
+
+  // Without an analysis every orphan is in the same bucket, so a filter row would be three
+  // controls that all do the same thing.
+  test("offers no buckets when the rules have never been read", () => {
+    const { container } = render(<WorkflowInsights
+      insights={insights({ automationChecked: false })} loading={false} load={vi.fn()} />);
+    expect(container.querySelector(".wf-orphan-filters")).toBeNull();
+  });
+
+  test("says the filter matched nothing rather than looking empty", () => {
+    const { container } = render(<WorkflowInsights
+      insights={insights({ orphans: [orphans[2]], summary: { orphanCount: 1 } })}
+      loading={false} load={vi.fn()} intent={{ statuses: "rule-only" }} />);
+    expect(container.textContent).toMatch(/No unreachable status matches/);
+  });
+});

@@ -4,7 +4,7 @@ import { formatNumber, formatRelativeTime } from "../utils";
 import { Icon } from "../components/Icons";
 import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, SortFilterBar, PanelGrid, GridSpan, PillarHealthPanel, BarList } from "../components/ui";
 import { SubNavLayout } from "../components/admin/primitives";
-import { useVisiblePolling } from "../hooks";
+import { useNavIntent, useVisiblePolling } from "../hooks";
 
 // Screen and scheme inventory.
 //
@@ -159,8 +159,27 @@ export function SchemeOperations({ scheme, operations }) {
   );
 }
 
-export function ScreensTab() {
+// The two scheme findings the Overview counts, as predicates over what the tab already has.
+const SCHEME_FILTERS = [
+  { key: "all", label: "All schemes", match: () => true },
+  // Nothing routes to it, so it cannot reach a project until an issue type screen scheme
+  // references it.
+  { key: "unused", label: "No issue type maps to it", match: (scheme) => (scheme.issueTypeSchemeCount ?? 0) === 0 },
+  // Points at a screen the catalog does not contain. Jira falls back silently when one of
+  // these resolves, so nobody finds it by using Jira.
+  { key: "dangling", label: "Points at a missing screen", match: (_scheme, operations) => operations.some((op) => op.dangling) },
+];
+
+export function ScreensTab({ intent = null }) {
   const [view, setView] = React.useState("screens");
+  // Which finding the reader arrived from, if any.
+  //
+  // The screen filter is applied in SQL rather than here: the tab shows 25 of ~760 screens,
+  // so filtering the page in the browser would narrow an arbitrary slice and present it as
+  // the whole answer. The scheme filter IS client-side, because every scheme is already on
+  // the page.
+  const [screenFilter, setScreenFilter] = React.useState(null);
+  const [schemeFilter, setSchemeFilter] = React.useState("all");
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
@@ -179,9 +198,17 @@ export function ScreensTab() {
     return () => window.clearTimeout(handle);
   }, [search]);
 
+  useNavIntent(intent, (nav) => {
+    if (nav.view) setView(nav.view);
+    setScreenFilter(nav.filter ?? null);
+    setSchemeFilter(nav.schemes ?? "all");
+    setSearch("");
+    setPage(1);
+  });
+
   const load = React.useCallback(async () => {
     try {
-      const result = await invoke("getScreenInventory", { page, pageSize: PAGE_SIZE, search: debouncedSearch, sort });
+      const result = await invoke("getScreenInventory", { page, pageSize: PAGE_SIZE, search: debouncedSearch, sort, filter: screenFilter });
       setData(result);
       setError("");
     } catch (err) {
@@ -191,7 +218,7 @@ export function ScreensTab() {
     } finally {
       setLoading(false);
     }
-  }, [page, debouncedSearch, sort]);
+  }, [page, debouncedSearch, sort, screenFilter]);
 
   React.useEffect(() => { load(); }, [load]);
 
@@ -206,6 +233,12 @@ export function ScreensTab() {
       .catch(() => { if (!cancelled) setPillar(null); });
     return () => { cancelled = true; };
   }, [data?.refreshedAt]);
+
+  const visibleSchemes = React.useMemo(() => {
+    const option = SCHEME_FILTERS.find((f) => f.key === schemeFilter) ?? SCHEME_FILTERS[0];
+    return (data?.screenSchemes || []).filter((scheme) =>
+      option.match(scheme, (data?.schemeOperations || []).filter((op) => op.schemeId === scheme.schemeId)));
+  }, [data?.screenSchemes, data?.schemeOperations, schemeFilter]);
 
   // Transitions grouped by the screen they open. Done here rather than server-side so an
   // expanded screen row costs nothing extra -- the whole list is already on the page.
@@ -472,12 +505,41 @@ export function ScreensTab() {
               sortOptions={SCREEN_SORT_OPTIONS}
               resultCount={data?.screens?.total ?? 0}
               totalCount={data?.totalScreens ?? 0}
-              onClear={() => { setSearch(""); setSort(DEFAULT_SCREEN_SORT); setPage(1); }}
+              onClear={() => { setSearch(""); setSort(DEFAULT_SCREEN_SORT); setScreenFilter(null); setPage(1); }}
             />
+
+            {/* Why this is a subset. Arriving from "252 screens nothing reaches" and seeing
+                252 rows with nothing saying why would be indistinguishable from a catalogue
+                that had shrunk. */}
+            {data?.screens?.filter && (
+              <div className="admin-field-browser__active-filters">
+                <Chip onRemove={() => { setScreenFilter(null); setPage(1); }} removeLabel="Show every screen">
+                  {data.screens.filterLabel}
+                </Chip>
+              </div>
+            )}
+
+            {/* Asked for and not applied. Reachability needs the workflow snapshot, and
+                showing the whole catalogue under a heading that promised a subset would be
+                worse than saying the filter could not run. */}
+            {data?.screens?.filterRequested && !data?.screens?.filter && (
+              <p className="ui-note">
+                <Icon name="info" size={13} />
+                <span>
+                  That finding filters on which screens a workflow transition opens, and no
+                  workflow inventory has been built — so every screen is shown instead. Build
+                  it from the Workflows tab.
+                </span>
+              </p>
+            )}
 
             {!data?.screens?.rows?.length ? (
               <EmptyState inline>
-                {debouncedSearch ? "No screens match that search." : "No screens in this snapshot."}
+                {debouncedSearch
+                  ? "No screens match that search."
+                  : data?.screens?.filter
+                    ? `No screens match "${data.screens.filterLabel}".`
+                    : "No screens in this snapshot."}
               </EmptyState>
             ) : (
               <div className="screen-list">
@@ -513,11 +575,35 @@ export function ScreensTab() {
             icon="layers"
             description="Which screen serves create, edit and view. An operation with no explicit mapping inherits the default — shown, because only an explicit mapping was a decision."
           >
+            {/* Every scheme is already on the page, so unlike the screen list this narrows
+                in the browser. Both findings the Overview counts are expressible here: a
+                scheme nothing maps to, and a scheme pointing at a screen that is gone. */}
+            {data?.screenSchemes?.length > 0 && (
+              <div className="findings-filter-bar">
+                {SCHEME_FILTERS.map((option) => (
+                  <button
+                    key={option.key}
+                    type="button"
+                    className={`findings-filter-button${schemeFilter === option.key ? " findings-filter-button--active" : ""}`}
+                    onClick={() => setSchemeFilter(option.key)}
+                  >
+                    <span>{option.label}</span>
+                    <strong>
+                      {formatNumber(data.screenSchemes.filter((scheme) =>
+                        option.match(scheme, (data.schemeOperations || []).filter((op) => op.schemeId === scheme.schemeId))).length)}
+                    </strong>
+                  </button>
+                ))}
+              </div>
+            )}
+
             {!data?.screenSchemes?.length ? (
               <EmptyState inline>No screen schemes in this snapshot.</EmptyState>
+            ) : visibleSchemes.length === 0 ? (
+              <EmptyState inline>No screen scheme matches that filter.</EmptyState>
             ) : (
               <div className="screen-scheme-list">
-                {data.screenSchemes.map((scheme) => (
+                {visibleSchemes.map((scheme) => (
                   <SchemeOperations
                     key={scheme.schemeId}
                     scheme={scheme}

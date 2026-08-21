@@ -65,3 +65,28 @@ export function useRefreshOnVisible(fn) {
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, []);
 }
+
+// Apply a navigation intent once per navigation.
+//
+// The Overview's findings name an exact set -- "252 screens nothing reaches", "86 statuses
+// only an automation rule can reach" -- and used to hand the reader the tab and nothing
+// else, at page one of the whole catalogue. An intent is the filter that turns the tab into
+// the set the finding named.
+//
+// Keyed on object identity rather than on the values inside it, which is deliberate: the
+// shell mints a fresh object on every navigation, so clicking the same finding twice
+// re-applies the filter after the reader has changed it. Comparing values would make the
+// second click do nothing.
+//
+// `apply` is called with the intent, never with null, so a tab opened normally is left
+// exactly as the reader left it.
+export function useNavIntent(intent, apply) {
+  const saved = React.useRef(apply);
+  saved.current = apply;
+
+  React.useEffect(() => {
+    if (!intent) return;
+    saved.current(intent);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [intent]);
+}

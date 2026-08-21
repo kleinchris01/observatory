@@ -80,6 +80,17 @@ const bootStatusNode = document.getElementById("boot-status");
 
 export function AdminApp() {
   const [activeTab, setActiveTab] = React.useState("overview");
+  // The filter a finding wants applied when it opens a tab.
+  //
+  // A fresh object per navigation, so clicking the same finding twice re-applies its filter
+  // after the reader has changed it -- see useNavIntent. Held here rather than in each tab
+  // because the Overview names the destination and the destination applies it, and neither
+  // of them owns the hop between.
+  const [navIntent, setNavIntent] = React.useState(null);
+  const navigate = React.useCallback((tab, intent = null) => {
+    setActiveTab(tab);
+    setNavIntent(intent ? { ...intent } : null);
+  }, []);
   const [reportsInitialSection, setReportsInitialSection] = React.useState("");
   const [theme, setTheme] = React.useState(() => localStorage.getItem("atlasiq-field-theme") || "dark");
   const [overview, setOverview] = React.useState(null);
@@ -198,7 +209,7 @@ export function AdminApp() {
                 key={key}
                 className={`admin-nav__item${activeTab === key ? " admin-nav__item--active" : ""}`}
                 type="button"
-                onClick={() => setActiveTab(key)}
+                onClick={() => navigate(key)}
               >
                 <Icon name={icon} size={15} />
                 <span>{label}</span>
@@ -251,11 +262,12 @@ export function AdminApp() {
                 onMigrateNamespace={handleMigrateNamespace}
                 migratingNamespace={migratingNamespace}
                 onOpenRqtIndex={() => { setReportsInitialSection("rqt"); setActiveTab("reports"); }}
-                onNavigate={(tab) => setActiveTab(tab)}
+                onNavigate={navigate}
               />
             )
           ) : activeTab === "fields" ? (
             <FieldBrowserTab
+              intent={navIntent}
               selectedFieldIds={selectedFieldIds}
               onToggleField={toggleFieldSelection}
               onSetSelectedFieldIds={setSelectedFieldIds}
@@ -263,18 +275,18 @@ export function AdminApp() {
               siteOrigin={siteOrigin}
             />
           ) : activeTab === "projects" ? (
-            <ProjectUsageTab siteOrigin={siteOrigin} />
+            <ProjectUsageTab siteOrigin={siteOrigin} intent={navIntent} />
           ) : activeTab === "workflows" ? (
             <React.Suspense fallback={<div className="empty-state">Loading…</div>}>
-              <WorkflowTab />
+              <WorkflowTab intent={navIntent} siteOrigin={siteOrigin} />
             </React.Suspense>
           ) : activeTab === "screens" ? (
             <React.Suspense fallback={<div className="empty-state">Loading…</div>}>
-              <ScreensTab />
+              <ScreensTab intent={navIntent} />
             </React.Suspense>
           ) : activeTab === "automation" ? (
             <React.Suspense fallback={<div className="empty-state">Loading…</div>}>
-              <AutomationTab siteOrigin={siteOrigin} />
+              <AutomationTab siteOrigin={siteOrigin} intent={navIntent} />
             </React.Suspense>
           ) : activeTab === "reports" ? (
             <ReportsTab siteOrigin={siteOrigin} selectedFieldIds={selectedFieldIds} onSetSelectedFieldIds={setSelectedFieldIds} autoGenerate={pendingReportGenerate} onAutoGenerateConsumed={() => setPendingReportGenerate(false)} initialSection={reportsInitialSection} />

@@ -31,7 +31,7 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
       count: findingsSummary.adminAttention,
       title: "Fields need admin attention",
       detail: "Configuration problems that affect how these fields behave in Jira.",
-      onOpen: () => onNavigate("fields"),
+      onOpen: () => onNavigate("fields", { findings: "admin-attention" }),
       openLabel: "Field Browser",
     });
   }
@@ -45,7 +45,7 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
       count: findingsSummary.risky,
       title: "Fields flagged as risky",
       detail: "Global contexts or broad scope that make changes hard to reason about.",
-      onOpen: () => onNavigate("fields"),
+      onOpen: () => onNavigate("fields", { findings: "risky" }),
       openLabel: "Field Browser",
     });
   }
@@ -61,7 +61,7 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
       detail: workflow.reducibleStatusCount > 0
         ? `Consolidating them removes ${formatNumber(workflow.reducibleStatusCount)} statuses from the site.`
         : "Statuses that almost certainly mean the same thing.",
-      onOpen: () => onNavigate("workflows"),
+      onOpen: () => onNavigate("workflows", { view: "insights", panel: "duplicates" }),
       openLabel: "Workflows",
     });
   }
@@ -82,7 +82,7 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
       detail: workflow.automationChecked
         ? "No workflow reaches them, no automation rule references them, and no issue has ever been in one."
         : "No workflow reaches them and no issue has ever been in one. No rule export has been imported, so check the Automation tab before deleting.",
-      onOpen: () => onNavigate("workflows"),
+      onOpen: () => onNavigate("workflows", { view: "insights", panel: "orphans", statuses: "safe-to-remove" }),
       openLabel: "Workflows",
     });
   }
@@ -99,7 +99,7 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
       count: workflow.ruleOnlyStatusCount,
       title: "Statuses only an automation rule can reach",
       detail: "No scheme contains them, so they are invisible in Jira's workflow admin — but a rule transitions issues into them.",
-      onOpen: () => onNavigate("workflows"),
+      onOpen: () => onNavigate("workflows", { view: "insights", panel: "orphans", statuses: "rule-only" }),
       openLabel: "Workflows",
     });
   }
@@ -113,7 +113,7 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
       count: workflow.flaggedSchemeCount,
       title: "Workflow schemes with a structural flag",
       detail: "Missing a Done status, heavily weighted to In Progress, or oversized.",
-      onOpen: () => onNavigate("workflows"),
+      onOpen: () => onNavigate("workflows", { view: "insights", panel: "balance" }),
       openLabel: "Workflows",
     });
   }
@@ -131,7 +131,7 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
       detail: dashboard.projects.idleOverConfiguredCount > 0
         ? `Median project carries ${formatNumber(dashboard.projects.medianFieldCount)} fields. ${formatNumber(dashboard.projects.idleOverConfiguredCount)} of these carry little issue volume too.`
         : `Median project carries ${formatNumber(dashboard.projects.medianFieldCount)} fields; these carry far more.`,
-      onOpen: () => onNavigate("projects"),
+      onOpen: () => onNavigate("projects", { filter: "over-configured" }),
       openLabel: "Project Usage",
     });
   }
@@ -145,7 +145,7 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
       count: findingsSummary.cleanup,
       title: "Fields suggested for cleanup",
       detail: "Unused, unpopulated, or superseded by another field.",
-      onOpen: () => onNavigate("fields"),
+      onOpen: () => onNavigate("fields", { findings: "cleanup" }),
       openLabel: "Field Browser",
     });
   }
@@ -161,7 +161,7 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
       count: findingsSummary.standardize,
       title: "Fields that could be standardised",
       detail: "Close enough to another field that one definition would serve both.",
-      onOpen: () => onNavigate("fields"),
+      onOpen: () => onNavigate("fields", { findings: "standardize" }),
       openLabel: "Field Browser",
     });
   }
@@ -181,7 +181,7 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
       count: automation.credentialRuleCount,
       title: "Automation rules storing a credential in plaintext",
       detail: "Anyone who can view the rule can read the secret. Rotate them, then move to a smart-value reference or an Automation connection.",
-      onOpen: () => onNavigate("automation"),
+      onOpen: () => onNavigate("automation", { section: "findings", risk: "embedded-credential" }),
       openLabel: "Automation",
     });
   }
@@ -195,7 +195,7 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
       count: automation.selfTriggeringCount,
       title: "Rules that write a field they trigger on",
       detail: "These loop without a second rule involved. Check the conditions guarding them before the next execution-limit surprise.",
-      onOpen: () => onNavigate("automation"),
+      onOpen: () => onNavigate("automation", { section: "cascades", cascadeKind: "self" }),
       openLabel: "Automation",
     });
   }
@@ -209,7 +209,7 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
       count: automation.externalHttpCount,
       title: "Rules sending data outside Atlassian",
       detail: "Each moves Jira data out of the tenancy. Confirm every destination is still one you own.",
-      onOpen: () => onNavigate("automation"),
+      onOpen: () => onNavigate("automation", { section: "findings", risk: "external-http" }),
       openLabel: "Automation",
     });
   }
@@ -223,7 +223,7 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
       count: automation.noActionCount,
       title: "Rules with a trigger but no actions",
       detail: "They consume execution budget on every trigger and do nothing with it.",
-      onOpen: () => onNavigate("automation"),
+      onOpen: () => onNavigate("automation", { section: "findings", risk: "no-actions" }),
       openLabel: "Automation",
     });
   }
@@ -237,7 +237,7 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
       count: automation.disabledCount,
       title: "Disabled automation rules",
       detail: "A large disabled estate hides which rules were retired on purpose and which were forgotten. Decide per rule: revive or delete.",
-      onOpen: () => onNavigate("automation"),
+      onOpen: () => onNavigate("automation", { section: "findings", risk: "disabled" }),
       openLabel: "Automation",
     });
   }
@@ -253,7 +253,7 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
       count: screens.danglingOperations,
       title: "Scheme operations pointing at a missing screen",
       detail: "Jira falls back silently when one of these resolves, so the form a user sees is not the one the scheme names.",
-      onOpen: () => onNavigate("screens"),
+      onOpen: () => onNavigate("screens", { view: "schemes", schemes: "dangling" }),
       openLabel: "Screens",
     });
   }
@@ -269,7 +269,7 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
       count: screens.unresolvedScreens,
       title: "Screens whose contents could not be read",
       detail: "Not counted as empty — the build could not see them at all, so the screen findings below exclude these.",
-      onOpen: () => onNavigate("screens"),
+      onOpen: () => onNavigate("screens", { view: "screens", filter: "unresolved" }),
       openLabel: "Screens",
     });
   }
@@ -286,7 +286,7 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
       count: screens.unreachedScreens,
       title: "Screens nothing reaches",
       detail: "No scheme maps to them and no workflow transition opens them, so no user encounters them.",
-      onOpen: () => onNavigate("screens"),
+      onOpen: () => onNavigate("screens", { view: "screens", filter: "unreached" }),
       openLabel: "Screens",
     });
   }
@@ -302,7 +302,7 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
       count: screens.transitionOnlyScreens,
       title: "Screens used only by a workflow transition",
       detail: "No screen scheme references them, so they look orphaned in the scheme view — but a transition opens them. Do not delete these.",
-      onOpen: () => onNavigate("screens"),
+      onOpen: () => onNavigate("screens", { view: "screens", filter: "transition-only" }),
       openLabel: "Screens",
     });
   }
@@ -316,7 +316,7 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
       count: screens.emptyScreens,
       title: "Screens carrying no fields",
       detail: "Read successfully and found to have nothing on them.",
-      onOpen: () => onNavigate("screens"),
+      onOpen: () => onNavigate("screens", { view: "screens", filter: "empty" }),
       openLabel: "Screens",
     });
   }
@@ -330,7 +330,7 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
       count: screens.unusedSchemes,
       title: "Screen schemes no issue type maps to",
       detail: "They cannot route anything to a project until an issue type screen scheme references them.",
-      onOpen: () => onNavigate("screens"),
+      onOpen: () => onNavigate("screens", { view: "schemes", schemes: "unused" }),
       openLabel: "Screens",
     });
   }
@@ -346,7 +346,7 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
       count: dashboard.projects.unusedProjectCount,
       title: "Projects carrying fields but no work",
       detail: "Configured and then either abandoned or never started. Retiring fields here costs nothing.",
-      onOpen: () => onNavigate("projects"),
+      onOpen: () => onNavigate("projects", { filter: "no-work" }),
       openLabel: "Project Usage",
     });
   }
@@ -360,7 +360,7 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
       count: dashboard.projects.staleProjectCount ?? dashboard.projects.staleProjects.length,
       title: "Projects with no activity in over six months",
       detail: "Still carrying field configuration. The cheapest place to retire fields, if the project is genuinely done.",
-      onOpen: () => onNavigate("projects"),
+      onOpen: () => onNavigate("projects", { filter: "stale" }),
       openLabel: "Project Usage",
     });
   }

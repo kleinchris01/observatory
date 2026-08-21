@@ -886,6 +886,11 @@ async function getScreenInventory({ payload, context }) {
       // because the tab shows 25 of ~760 screens -- sorting the page in the browser would
       // reorder an arbitrary slice and present it as the top of the catalog.
       sort: optionalString(payload?.sort, "sort") || DEFAULT_SCREEN_SORT,
+      // Which finding the reader arrived from, if they arrived from one. Whitelisted by the
+      // store, and dropped there when it needs a workflow snapshot that does not exist --
+      // the result says which of those happened rather than silently showing everything.
+      filter: optionalString(payload?.filter, "filter") || null,
+      workflowVersion: workflowMeta?.version || null,
     }),
     loadScreenSchemes(installationKey, meta.version),
     loadScreenSchemeOperations(installationKey, meta.version),

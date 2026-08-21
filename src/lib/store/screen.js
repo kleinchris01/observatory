@@ -201,19 +201,97 @@ const SCREEN_SORTS = {
 export const DEFAULT_SCREEN_SORT = "fields-desc";
 export const SCREEN_SORT_KEYS = Object.keys(SCREEN_SORTS);
 
-export async function loadScreensPage(scopeKey, version, { limit = 50, offset = 0, search = "", sort = DEFAULT_SCREEN_SORT } = {}) {
+// Which screens a finding is about, as a WHERE clause.
+//
+// The Overview counts these -- "252 screens nothing reaches" -- and until now clicking that
+// count opened the Screens tab at page one of 746, leaving the reader to find the 252 by
+// hand. There is no per-screen reachability column to filter on, because reachability is a
+// question about two other tables, so each filter is the same NOT EXISTS pair the governance
+// summary already counts with.
+//
+// Keyed by the finding rather than by the shape of the query, so the Overview asks for what
+// it named on screen and cannot ask for something the summary does not count.
+export const SCREEN_FILTERS = {
+  // Read successfully and found to have nothing on them. Unreadable screens are excluded:
+  // a screen whose contents could not be read is unmeasured, not empty.
+  empty: {
+    label: "Carrying no fields",
+    where: () => ({ sql: "field_count = 0 AND tabs_resolved = 'resolved'", params: [] }),
+  },
+  // The build could not see them at all, so they cap every other figure on the tab.
+  unresolved: {
+    label: "Contents could not be read",
+    where: () => ({ sql: "tabs_resolved <> 'resolved'", params: [] }),
+  },
+  // No scheme routes to them AND no transition opens them. Needs the workflow snapshot;
+  // without it the claim is unknowable rather than false, so the filter refuses to apply.
+  unreached: {
+    label: "Nothing reaches them",
+    needsWorkflow: true,
+    where: (workflowVersion) => ({
+      sql: `NOT EXISTS (
+              SELECT 1 FROM snapshot_screen_scheme_operations o
+              WHERE o.scope_key = snapshot_screens.scope_key AND o.version = snapshot_screens.version
+                AND o.screen_id = snapshot_screens.screen_id
+            )
+            AND NOT EXISTS (
+              SELECT 1 FROM snapshot_transition_screens t
+              WHERE t.scope_key = snapshot_screens.scope_key AND t.version = ?
+                AND t.screen_id = snapshot_screens.screen_id
+            )`,
+      params: [workflowVersion],
+    }),
+  },
+  // The correction to the finding above: no scheme names them, but a transition opens them
+  // every time somebody moves an issue. Do not delete these.
+  "transition-only": {
+    label: "Opened only by a workflow transition",
+    needsWorkflow: true,
+    where: (workflowVersion) => ({
+      sql: `NOT EXISTS (
+              SELECT 1 FROM snapshot_screen_scheme_operations o
+              WHERE o.scope_key = snapshot_screens.scope_key AND o.version = snapshot_screens.version
+                AND o.screen_id = snapshot_screens.screen_id
+            )
+            AND EXISTS (
+              SELECT 1 FROM snapshot_transition_screens t
+              WHERE t.scope_key = snapshot_screens.scope_key AND t.version = ?
+                AND t.screen_id = snapshot_screens.screen_id
+            )`,
+      params: [workflowVersion],
+    }),
+  },
+};
+
+export const SCREEN_FILTER_KEYS = Object.keys(SCREEN_FILTERS);
+
+export async function loadScreensPage(scopeKey, version, { limit = 50, offset = 0, search = "", sort = DEFAULT_SCREEN_SORT, filter = null, workflowVersion = null } = {}) {
   await ensureProjectStoreReady();
 
   const safeLimit = Math.max(1, Math.min(200, Math.trunc(Number(limit)) || 50));
   const safeOffset = Math.max(0, Math.trunc(Number(offset)) || 0);
   const orderBy = SCREEN_SORTS[String(sort || "").trim()] || SCREEN_SORTS[DEFAULT_SCREEN_SORT];
 
+  // Unqualified here, because the reachability sub-selects correlate on the outer table by
+  // name and an alias would have to be threaded through all four of them.
   const where = ["scope_key = ?", "version = ?"];
   const params = [scopeKey, version];
   const term = String(search || "").trim();
   if (term) {
     where.push("(name LIKE ? OR screen_id LIKE ?)");
     params.push(`%${term}%`, `%${term}%`);
+  }
+
+  // An unknown filter is ignored rather than rejected: this is a read path reached from a
+  // deep link, and a stale link should show the unfiltered tab rather than an error page.
+  // A filter that needs the workflow snapshot is dropped when there is not one -- "we
+  // cannot tell" must never render as "none", which is the rule the whole pillar follows.
+  const requested = SCREEN_FILTERS[String(filter || "").trim()];
+  const applied = requested && (!requested.needsWorkflow || workflowVersion) ? requested : null;
+  if (applied) {
+    const clause = applied.where(workflowVersion);
+    where.push(`(${clause.sql})`);
+    params.push(...clause.params);
   }
 
   const countResult = await withSqlRetry(() =>
@@ -234,6 +312,13 @@ export async function loadScreensPage(scopeKey, version, { limit = 50, offset = 
   return {
     total: toNumber(countResult.rows?.[0]?.total, 0),
     rows: (result.rows || []).map(mapScreenRow),
+    // What was actually applied, which is not always what was asked for. A reachability
+    // filter with no workflow snapshot behind it is dropped, and a tab that rendered the
+    // whole catalogue while claiming to show 252 unreachable screens would be worse than
+    // one that says the filter could not be applied.
+    filter: applied ? String(filter).trim() : null,
+    filterLabel: applied ? applied.label : null,
+    filterRequested: requested ? String(filter).trim() : null,
   };
 }
 
@@ -339,11 +424,30 @@ export async function loadScreenSchemes(scopeKey, version) {
       ORDER BY name ASC
     `).bindParams(scopeKey, version).execute()
   );
+  // How many issue type screen schemes map to each one.
+  //
+  // A screen scheme nothing maps to cannot route anything to a project, which the governance
+  // summary already counts -- and the Screens tab could not filter to, because the mapping
+  // layer was only ever sent as a separate list without the join. Counted here so the tab can
+  // narrow to the exact schemes that count was about.
+  const mapped = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT screen_scheme_id, COUNT(DISTINCT itss_id) AS itss_count
+      FROM snapshot_itss_mappings
+      WHERE scope_key = ? AND version = ? AND screen_scheme_id IS NOT NULL
+      GROUP BY screen_scheme_id
+    `).bindParams(scopeKey, version).execute()
+  );
+  const itssCounts = new Map((mapped.rows || []).map((row) => [String(row.screen_scheme_id), toNumber(row.itss_count)]));
+
   return (result.rows || []).map((row) => ({
     schemeId: row.scheme_id,
     name: row.name || row.scheme_id,
     description: row.description || "",
     screens: safeParseJson(row.screens_json, null),
+    // 0 means no issue type screen scheme references it, which is the "unused scheme"
+    // finding on the Overview.
+    issueTypeSchemeCount: itssCounts.get(String(row.scheme_id)) ?? 0,
   }));
 }
 

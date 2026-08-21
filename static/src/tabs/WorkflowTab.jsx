@@ -4,6 +4,7 @@ import { formatTimestamp, formatRelativeTime, formatNumber } from "../utils";
 import { Icon } from "../components/Icons";
 import { StatTile, StatRow, Panel, EmptyState, PageHeader, SortFilterBar, Chip, RuleLink } from "../components/ui";
 import { SubNavLayout } from "../components/admin/primitives";
+import { useNavIntent } from "../hooks";
 
 // Workflow scheme + status inventory.
 //
@@ -193,10 +194,23 @@ function StatusRulesPanel({ status, siteOrigin, onClose, load = invoke }) {
   );
 }
 
-export function WorkflowInsights({ insights, loading, siteOrigin, load = invoke }) {
+export function WorkflowInsights({ insights, loading, siteOrigin, load = invoke, intent = null }) {
   // Which status the reader has opened, if any. One at a time: this is a drill-down, not a
   // column, and 94 expanded panels is not a page.
   const [openStatus, setOpenStatus] = React.useState(null);
+
+  // Which unreachable statuses to show.
+  //
+  // One grid used to hold both findings at once: the ones nothing reaches at all and the
+  // ones an automation rule holds open. Those are opposite conclusions -- delete versus do
+  // not delete -- and the Overview counts them separately, so arriving from either count
+  // has to narrow to the statuses that count was about.
+  const [statusFilter, setStatusFilter] = React.useState("all");
+
+  useNavIntent(intent, (nav) => {
+    setStatusFilter(nav.statuses ?? "all");
+    setOpenStatus(null);
+  });
   if (loading && !insights) return <EmptyState>Analysing the workflow inventory…</EmptyState>;
   if (!insights) return null;
 
@@ -208,7 +222,18 @@ export function WorkflowInsights({ insights, loading, siteOrigin, load = invoke 
     );
   }
 
-  const { summary, duplicateGroups = [], orphans = [], balance = [], hasIssueCounts, schemeStatusesAvailable } = insights;
+  const { summary, duplicateGroups = [], orphans: allOrphans = [], balance = [], hasIssueCounts, schemeStatusesAvailable } = insights;
+
+  const ORPHAN_FILTERS = [
+    { key: "all", label: "All unreachable", match: () => true },
+    // Nothing reaches them and nothing has ever been in one. The only ones that are
+    // actually safe to delete.
+    { key: "safe-to-remove", label: "No evidence of use", match: (o) => o.safeToRemove },
+    // Unreachable by a scheme, reachable by a rule. Live states no workflow documents.
+    { key: "rule-only", label: "Held open by a rule", match: (o) => o.ruleOnly },
+  ];
+  const activeOrphanFilter = ORPHAN_FILTERS.find((f) => f.key === statusFilter) ?? ORPHAN_FILTERS[0];
+  const orphans = allOrphans.filter(activeOrphanFilter.match);
 
   return (
     <div className="wf-insights">
@@ -300,8 +325,31 @@ export function WorkflowInsights({ insights, loading, siteOrigin, load = invoke 
               </span>
             </p>
           )}
+          {/* Offered only when there is something to narrow to. On a site with no automation
+              analysis every orphan is in the same bucket and a filter row would be three
+              buttons that all do the same thing. */}
+          {allOrphans.length > 0 && insights?.automationChecked && (
+            <div className="findings-filter-bar wf-orphan-filters">
+              {ORPHAN_FILTERS.map((option) => (
+                <button
+                  key={option.key}
+                  type="button"
+                  className={`findings-filter-button${statusFilter === option.key ? " findings-filter-button--active" : ""}`}
+                  onClick={() => { setStatusFilter(option.key); setOpenStatus(null); }}
+                >
+                  <span>{option.label}</span>
+                  <strong>{formatNumber(allOrphans.filter(option.match).length)}</strong>
+                </button>
+              ))}
+            </div>
+          )}
+
           {orphans.length === 0 ? (
-            <EmptyState inline>Every status is reachable from a scheme.</EmptyState>
+            <EmptyState inline>
+              {allOrphans.length === 0
+                ? "Every status is reachable from a scheme."
+                : `No unreachable status matches "${activeOrphanFilter.label}".`}
+            </EmptyState>
           ) : (
             <div className="wf-orphan-grid">
               {orphans.map((orphan) => (
@@ -469,8 +517,13 @@ function DepartedChart({ statuses }) {
   );
 }
 
-export function WorkflowTab() {
+export function WorkflowTab({ intent = null, siteOrigin = "" }) {
   const [view, setView] = React.useState("schemes");
+  // Arrived from an Overview finding: switch to the view that holds it. The filter within
+  // that view belongs to the view, so the intent travels on rather than being unpacked here.
+  useNavIntent(intent, (nav) => {
+    if (nav.view) setView(nav.view);
+  });
   const [insights, setInsights] = React.useState(null);
   const [insightsLoading, setInsightsLoading] = React.useState(false);
   const [data, setData] = React.useState(null);
@@ -719,7 +772,7 @@ export function WorkflowTab() {
               is why moving between it and any other tab felt like changing product. */}
           <SubNavLayout items={navItems} activeKey={view} onSelect={setView}>
           {view === "insights" ? (
-            <WorkflowInsights insights={insights} loading={insightsLoading} />
+            <WorkflowInsights insights={insights} loading={insightsLoading} siteOrigin={siteOrigin} intent={intent} />
           ) : loading ? (
             <EmptyState>Loading…</EmptyState>
           ) : view === "schemes" ? (

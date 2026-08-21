@@ -3,12 +3,22 @@ import { invoke, view } from "@forge/bridge";
 import { openFieldExpertRovo, buildFieldRovoPrompt, buildProjectRovoPrompt, buildReportRovoPrompt } from "../utils";
 import { Icon } from "../components/Icons";
 import { Chip, EmptyState } from "../components/ui";
+import { useNavIntent } from "../hooks";
 import { FieldCard } from "../components/FieldCard";
 
 // The custom field inventory: filters, findings and per-field detail.
+
+// The four finding categories, as the active-filter chip words them. Shared with the
+// findings chip row below so the two can never disagree about what a filter is called.
+const FINDINGS_FILTER_LABELS = {
+  "admin-attention": "Admin attention",
+  risky: "Risk",
+  cleanup: "Cleanup",
+  standardize: "Standardize",
+};
 // The largest single tab, and the one most worth testing in isolation.
 
-export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSelectedFieldIds, onGoToReport, siteOrigin }) {
+export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSelectedFieldIds, onGoToReport, siteOrigin, intent = null }) {
   const selectedSet = React.useMemo(() => new Set(selectedFieldIds), [selectedFieldIds]);
   const [pageSize, setPageSize] = React.useState(() => {
     const saved = Number(localStorage.getItem("admin-field-pagesize"));
@@ -292,6 +302,17 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
   const startItem = total > 0 ? (page - 1) * pageSize + 1 : 0;
   const endItem = Math.min(page * pageSize, total);
 
+  // Arrived from an Overview finding: show the fields it counted, not page one of 1,615.
+  //
+  // The finding names an exact set -- "123 fields need admin attention" -- and the chip it
+  // maps to already existed here. What was missing was the hop: clicking the count opened
+  // this tab unfiltered and left the reader to find the 123 by hand.
+  useNavIntent(intent, (nav) => {
+    if (!nav.findings) return;
+    setFindingsFilter(nav.findings);
+    setPage(1);
+  });
+
   const findingsChips = [
     { key: "all", label: "All fields" },
     { key: "admin-attention", label: "Admin attention", count: summary.adminAttention },
@@ -361,7 +382,10 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
       chips.push({ id: "contexts", label: `Contexts: ${range}`, clear: () => { setMinContexts(""); setMaxContexts(""); setPage(1); } });
     }
     if (findingsFilter !== "all") {
-      chips.push({ id: "findingsFilter", label: `Findings: Admin attention`, clear: () => { setFindingsFilter("all"); setPage(1); } });
+      // Was hardcoded to "Admin attention" whichever filter was set, which is a lie the
+      // moment a deep link can arrive with any of the four.
+      const label = FINDINGS_FILTER_LABELS[findingsFilter] ?? findingsFilter;
+      chips.push({ id: "findingsFilter", label: `Findings: ${label}`, clear: () => { setFindingsFilter("all"); setPage(1); } });
     }
     return chips;
   }, [fieldOrigin, projectUsageFilter, hasDescription, duplicateNamesOnly, minIssues, maxIssues, minActiveProjects, maxActiveProjects, minContexts, maxContexts, findingsFilter]);
