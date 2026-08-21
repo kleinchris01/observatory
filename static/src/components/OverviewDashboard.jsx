@@ -337,6 +337,40 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
 
   // ── Projects ────────────────────────────────────────────────────────────
 
+  // A project people LEFT, which no lifetime total can show: it looks busy right up until
+  // you divide by time. Ordered most-recent-decline-first by the resolver, because those are
+  // the ones somebody might still remember the reason for.
+  if (dashboard?.adoption?.available && dashboard.adoption.fellOffCount > 0) {
+    const worst = dashboard.adoption.fellOff?.[0];
+    findings.push({
+      key: "projects-fell-off",
+      dimension: "project-adoption",
+      pillar: "projects",
+      tone: "warning",
+      count: dashboard.adoption.fellOffCount,
+      title: "Projects people have stopped using",
+      detail: worst?.declineFrom
+        ? `Running far below their own historical rate. The most recent, ${worst.projectKey}, dropped off around ${worst.declineFrom}.`
+        : "Running far below their own historical rate — they had a real life and lost it.",
+      onOpen: () => onNavigate("projects", { filter: "fell-off" }),
+      openLabel: "Project Usage",
+    });
+  }
+
+  if (dashboard?.adoption?.available && dashboard.adoption.neverAdoptedCount > 0) {
+    findings.push({
+      key: "projects-never-adopted",
+      dimension: "project-adoption",
+      pillar: "projects",
+      tone: "info",
+      count: dashboard.adoption.neverAdoptedCount,
+      title: "Projects that never took off",
+      detail: "Old enough to judge and carrying under an issue a month across their whole life. Worth asking what people used instead.",
+      onOpen: () => onNavigate("projects", { filter: "no-work" }),
+      openLabel: "Project Usage",
+    });
+  }
+
   if (dashboard?.projects?.unusedProjectCount > 0) {
     findings.push({
       key: "unused-projects",

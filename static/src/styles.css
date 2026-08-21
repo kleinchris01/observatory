@@ -5644,6 +5644,46 @@ button.wf-orphan__count--rules:hover { border-color: rgba(125, 165, 215, 0.55); 
 button.wf-orphan__count--rules:focus-visible { outline: 2px solid var(--cool); outline-offset: 1px; }
 button.wf-orphan__count--rules[aria-expanded="true"] { border-color: rgba(125, 165, 215, 0.7); }
 
+/* -- Project adoption -------------------------------------------------------
+   Every project figure used to be a lifetime total with nothing to divide it by, which
+   flatters old projects and buries new ones. These render the rate and its shape. */
+.adoption-bars {
+  display: flex; align-items: flex-end; gap: 1px;
+  height: 46px; margin: 12px 0 6px;
+  padding: 4px 6px; border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+}
+:root[data-theme="light"] .adoption-bars { background: rgba(0, 0, 0, 0.03); }
+.adoption-bars__bar {
+  flex: 1 1 auto; min-width: 2px; border-radius: 1px;
+  background: #4d8fd6; opacity: 0.75;
+}
+/* Months after the decline began, so the drop reads as a shape and not just a date. */
+.adoption-bars__bar--after { background: #c9860a; opacity: 0.6; }
+
+.adoption-story {
+  display: flex; flex-wrap: wrap; gap: 4px 14px;
+  font-size: 0.76rem; opacity: 0.7; line-height: 1.5;
+}
+.adoption-story__decline { color: #d98f4e; opacity: 0.95; }
+
+/* The rail carries the rate rather than the total, so projects can be compared at a glance
+   without their age doing the talking. */
+.projects-rail__item-adoption {
+  display: flex; align-items: baseline; gap: 8px;
+  margin-top: 3px; font-size: 0.7rem; opacity: 0.6;
+}
+.projects-rail__score {
+  font-weight: 700; font-variant-numeric: tabular-nums;
+  padding: 0 5px; border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+}
+:root[data-theme="light"] .projects-rail__score { background: rgba(0, 0, 0, 0.07); }
+.projects-rail__score--fell { color: #e0796d; }
+.projects-rail__age { margin-left: auto; }
+.projects-rail__fell { color: #d98f4e; font-weight: 600; }
+.projects-rail__filters { margin-bottom: 6px; }
+
 /* â”€â”€ Endpoint probe results â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .probe-results { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
 .probe-results__summary { font-size: 0.82rem; margin: 0; opacity: 0.85; }

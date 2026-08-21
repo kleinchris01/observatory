@@ -189,7 +189,145 @@ function SchemePeerBars({ scheme, project, allProjects }) {
 // which forms a project routes to, and none at all of the automation firing inside it. Both
 // joins existed as data and neither had a query. This is the answer to "what am I actually
 // looking at" for a project on a site nobody has audited.
-export function ProjectOverview({ project, overview, loading, fields = [] }) {
+// Adoption, in the three parts it is actually made of.
+//
+// Deliberately not a single opaque number. "ADVEV scores 41" tells an admin nothing they can
+// act on; "top 12% by volume, running at a third of its own historical rate, fell off in
+// 2023-04" tells them what happened and roughly when. The score is the way in, the
+// components are the finding -- the same shape the site health dimensions already use.
+
+function formatRate(value) {
+  if (!Number.isFinite(value)) return "—";
+  if (value >= 10) return formatNumber(Math.round(value));
+  if (value >= 1) return value.toFixed(1);
+  // Below one a day, a per-day figure rounds to nothing useful. Per week is the honest unit.
+  return `${(value * 7).toFixed(1)}/wk`;
+}
+
+function formatAge(days) {
+  if (!Number.isFinite(days)) return "—";
+  if (days < 60) return `${Math.round(days)} days`;
+  if (days < 730) return `${Math.round(days / 30)} months`;
+  return `${(days / 365).toFixed(1)} years`;
+}
+
+// The monthly shape, so a decline has a picture as well as a date.
+//
+// Scaled to the project's own peak rather than to the site's, because the question this
+// answers is "what did this project do relative to its own best month". Bars carry no axis
+// on purpose: at this size the shape is the message and a scale would be unreadable.
+export function ActivitySparkbars({ months = [], peakIssues = 0, declineFrom = null }) {
+  if (months.length < 2) return null;
+  // A long-lived project has more months than there are pixels. The most recent 48 is four
+  // years, which is enough to see a decline and few enough that each bar is visible.
+  const shown = months.slice(-48);
+  const peak = Math.max(1, peakIssues || Math.max(...shown.map((m) => m.issueCount)));
+
+  return (
+    <div className="adoption-bars" role="img" aria-label={`Issues created per month over the last ${shown.length} months`}>
+      {shown.map((m) => (
+        <span
+          key={m.month}
+          className={`adoption-bars__bar${declineFrom && m.month >= declineFrom ? " adoption-bars__bar--after" : ""}`}
+          style={{ height: `${Math.max(2, Math.round((m.issueCount / peak) * 100))}%` }}
+          title={`${m.month}: ${formatNumber(m.issueCount)} issues`}
+        />
+      ))}
+    </div>
+  );
+}
+
+export function ProjectAdoptionPanel({ adoption, context }) {
+  if (!adoption?.measured) {
+    return (
+      <Panel title="Adoption" icon="activity">
+        {/* Unmeasured is not the same as unused, and this pillar exists because the two used
+            to be indistinguishable: a project with no captured dates would otherwise read as
+            created today and never adopted. */}
+        <EmptyState inline>
+          {adoption?.reason || "No issue dates have been captured for this project. Run a Universal Scan to measure adoption."}
+        </EmptyState>
+      </Panel>
+    );
+  }
+
+  const trend = adoption.momentum === null ? null
+    : adoption.momentum >= 1.15 ? "up"
+      : adoption.momentum <= 0.85 ? "down" : "flat";
+  const tone = adoption.fellOff ? "critical" : adoption.neverAdopted ? "warning" : "neutral";
+
+  return (
+    <Panel
+      title="Adoption"
+      icon="activity"
+      description={`First issue ${adoption.firstIssueCreatedAt?.slice(0, 10)} · ${formatAge(adoption.ageDays)} old`}
+    >
+      <StatRow>
+        <StatTile
+          label="Adoption score"
+          value={adoption.score ?? "—"}
+          hint={adoption.volumePercentile != null ? `busier than ${adoption.volumePercentile}% of projects here` : undefined}
+          tone={tone}
+          icon="activity"
+        />
+        <StatTile
+          label="Issues per day"
+          value={formatRate(adoption.issuesPerDay)}
+          hint={context?.medianIssuesPerDay != null
+            ? `site median ${formatRate(context.medianIssuesPerDay)}`
+            : "since its first issue"}
+        />
+        <StatTile
+          label="Recent rate"
+          value={formatRate(adoption.recentIssuesPerDay)}
+          hint={adoption.momentum === null ? "last 90 days" : `${adoption.momentum.toFixed(2)}× its lifetime rate`}
+          tone={trend === "down" ? "warning" : trend === "up" ? "success" : "neutral"}
+        />
+        <StatTile
+          label="Fills per issue"
+          value={adoption.fillsPerIssue == null ? "—" : adoption.fillsPerIssue.toFixed(1)}
+          hint="field values written per issue"
+        />
+      </StatRow>
+
+      <ActivitySparkbars
+        months={adoption.months}
+        peakIssues={adoption.peakIssues}
+        declineFrom={adoption.declineFrom}
+      />
+
+      <div className="adoption-story">
+        {adoption.peakMonth && (
+          <span>
+            Busiest month was <strong>{adoption.peakMonth}</strong> with {formatNumber(adoption.peakIssues)} issues.
+          </span>
+        )}
+        {/* The question this whole feature was built to answer: not just that a project fell
+            off, but when -- while somebody still remembers why. */}
+        {adoption.declineFrom && (
+          <span className="adoption-story__decline">
+            Dropped below half that from <strong>{adoption.declineFrom}</strong>.
+          </span>
+        )}
+        {adoption.fellOff && !adoption.declineFrom && (
+          <span className="adoption-story__decline">
+            Running far below its own historical rate.
+          </span>
+        )}
+        {adoption.neverAdopted && (
+          <span className="adoption-story__decline">
+            Never picked up: under an issue a month across its whole life.
+          </span>
+        )}
+        {!adoption.oldEnough && (
+          <span>Too new to judge — adoption is measured from 90 days.</span>
+        )}
+      </div>
+    </Panel>
+  );
+}
+
+export function ProjectOverview({ project, overview, loading, fields = [], adoption = null, adoptionContext = null }) {
   if (loading) return <EmptyState inline>Loading everything that touches this project…</EmptyState>;
   if (!overview?.available) {
     return <EmptyState inline>{overview?.reason || "This project could not be loaded."}</EmptyState>;
@@ -208,6 +346,11 @@ export function ProjectOverview({ project, overview, loading, fields = [] }) {
 
   return (
     <PanelGrid>
+      {/* Adoption leads, because "is anyone using this" comes before "how is it configured".
+          A project nobody works in does not have a field problem worth solving. */}
+      <GridSpan wide>
+        <ProjectAdoptionPanel adoption={adoption} context={adoptionContext} />
+      </GridSpan>
       <GridSpan wide>
         <StatRow>
           <StatTile
@@ -415,6 +558,12 @@ export function buildProjectFilters(projects = []) {
       match: (p) => (p.fieldCount ?? 0) > 0 && measuredVolume(p, hasUniqueCounts) === 0,
     },
     {
+      key: "fell-off",
+      label: "Fell off",
+      hint: "Had a real life and lost it — running far below its own historical rate.",
+      match: (p) => Boolean(p.adoption?.fellOff),
+    },
+    {
       key: "stale",
       label: "Quiet 6 months",
       hint: "Carrying work, but nothing has been touched in over six months.",
@@ -540,6 +689,18 @@ export function ProjectsTabView({
                     <span>{project.projectName}</span>
                     <span>{formatNumber(project.fieldCount)} fields</span>
                   </div>
+                  {/* The rate, not the total. A lifetime count says how long a project has
+                      existed at least as much as how used it is. */}
+                  {project.adoption && (
+                    <div className="projects-rail__item-adoption">
+                      <span className={`projects-rail__score${project.adoption.fellOff ? " projects-rail__score--fell" : ""}`}>
+                        {project.adoption.score}
+                      </span>
+                      <span>{formatRate(project.adoption.issuesPerDay)}/day</span>
+                      <span className="projects-rail__age">{formatAge(project.adoption.ageDays)}</span>
+                      {project.adoption.fellOff && <span className="projects-rail__fell">fell off</span>}
+                    </div>
+                  )}
                 </button>
               );
             }) : (
@@ -633,6 +794,8 @@ export function ProjectsTabView({
                     overview={overview}
                     loading={overviewLoading}
                     fields={fields}
+                    adoption={data?.selectedAdoption ?? null}
+                    adoptionContext={data?.adoptionContext ?? null}
                   />
                   <SchemePeerBars
                     scheme={data?.workflowScheme}

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { TopFieldsChart, FieldTypeDonut, ProjectsTabView,
-  ProjectOverview, buildProjectFilters,
+  ProjectOverview, buildProjectFilters, ProjectAdoptionPanel, ActivitySparkbars,
 } from "./ProjectsTab";
 
 // ---------------------------------------------------------------------------
@@ -575,7 +575,7 @@ describe("buildProjectFilters", () => {
   });
 
   it("survives an empty rail", () => {
-    expect(buildProjectFilters([]).map((f) => f.key)).toEqual(["all", "over-configured", "no-work", "stale"]);
+    expect(buildProjectFilters([]).map((f) => f.key)).toEqual(["all", "over-configured", "no-work", "fell-off", "stale"]);
   });
 });
 
@@ -627,5 +627,105 @@ describe("ProjectsTabView — arriving from a finding", () => {
 
     expect(container.textContent).toMatch(/No project matches/);
     expect(container.textContent).not.toMatch(/No projects with cached field usage/);
+  });
+});
+
+// "Fell off" is the finding people will actually chase: a project that had a real life and
+// lost it, which a lifetime total can never show.
+describe("buildProjectFilters — adoption", () => {
+  const project = (key, over = {}) => ({
+    projectId: key, projectKey: key, projectName: key,
+    fieldCount: 20, totalIssueCount: 5000, uniqueIssueCount: 500,
+    latestIssueUpdatedAt: new Date().toISOString(), ...over,
+  });
+
+  it("narrows to the projects people left", () => {
+    const projects = [
+      project("LIVE", { adoption: { fellOff: false, score: 70 } }),
+      project("LEFT", { adoption: { fellOff: true, score: 22, declineFrom: "2023-04" } }),
+    ];
+    const filter = buildProjectFilters(projects).find((f) => f.key === "fell-off");
+    expect(projects.filter(filter.match).map((p) => p.projectKey)).toEqual(["LEFT"]);
+  });
+
+  // A site scanned before issue dates were captured has no adoption on any row. The filter
+  // matches nothing rather than throwing, and the rail says so.
+  it("matches nothing rather than throwing when adoption was never measured", () => {
+    const projects = [project("A"), project("B")];
+    const filter = buildProjectFilters(projects).find((f) => f.key === "fell-off");
+    expect(projects.filter(filter.match)).toEqual([]);
+  });
+});
+
+describe("ProjectAdoptionPanel", () => {
+  const adoption = (over = {}) => ({
+    measured: true, oldEnough: true,
+    firstIssueCreatedAt: "2019-03-11T09:00:00.000Z",
+    ageDays: 2726, issuesPerDay: 22.2, recentIssuesPerDay: 0.4, momentum: 0.02,
+    fillsPerIssue: 14.2, score: 45, volumePercentile: 75,
+    peakMonth: "2022-07", peakIssues: 1910, declineFrom: "2023-02",
+    fellOff: true, neverAdopted: false,
+    months: [
+      { month: "2022-06", issueCount: 1800 },
+      { month: "2022-07", issueCount: 1910 },
+      { month: "2023-02", issueCount: 400 },
+      { month: "2023-03", issueCount: 90 },
+    ],
+    ...over,
+  });
+
+  it("dates the decline, which is the question the whole feature answers", () => {
+    render(<ProjectAdoptionPanel adoption={adoption()} context={{ medianIssuesPerDay: 4.4 }} />);
+    expect(screen.getByText("2022-07")).toBeInTheDocument();
+    expect(screen.getByText("2023-02")).toBeInTheDocument();
+  });
+
+  it("reads the recent rate against the project's own history", () => {
+    render(<ProjectAdoptionPanel adoption={adoption()} context={{}} />);
+    expect(screen.getByText(/0\.02× its lifetime rate/)).toBeInTheDocument();
+  });
+
+  it("puts the volume percentile against the site, not against a constant", () => {
+    render(<ProjectAdoptionPanel adoption={adoption()} context={{ medianIssuesPerDay: 4.4 }} />);
+    expect(screen.getByText(/busier than 75% of projects here/)).toBeInTheDocument();
+  });
+
+  // Unmeasured is not unused, and this pillar exists because the two used to be
+  // indistinguishable: a project with no captured dates would read as created today and
+  // never adopted.
+  it("asks for a scan rather than reporting a project as unused", () => {
+    render(<ProjectAdoptionPanel adoption={{ measured: false, reason: "No issue dates captured. Run a Universal Scan." }} />);
+    expect(screen.getByText(/Run a Universal Scan/)).toBeInTheDocument();
+    expect(screen.queryByText(/Adoption score/)).not.toBeInTheDocument();
+  });
+
+  it("refuses to judge a project too new to judge", () => {
+    render(<ProjectAdoptionPanel adoption={adoption({ oldEnough: false, fellOff: false, declineFrom: null })} context={{}} />);
+    expect(screen.getByText(/Too new to judge/)).toBeInTheDocument();
+  });
+
+  it("says a project never picked up, which is a different finding from falling off", () => {
+    render(<ProjectAdoptionPanel adoption={adoption({ fellOff: false, declineFrom: null, neverAdopted: true })} context={{}} />);
+    expect(screen.getByText(/Never picked up/)).toBeInTheDocument();
+  });
+});
+
+describe("ActivitySparkbars", () => {
+  const months = Array.from({ length: 60 }, (_, i) => ({ month: `20${20 + Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, "0")}`, issueCount: 100 }));
+
+  it("caps how much history it draws", () => {
+    // A long-lived project has more months than there are pixels.
+    const { container } = render(<ActivitySparkbars months={months} peakIssues={100} />);
+    expect(container.querySelectorAll(".adoption-bars__bar")).toHaveLength(48);
+  });
+
+  it("marks the months after the decline began", () => {
+    const { container } = render(<ActivitySparkbars months={months} peakIssues={100} declineFrom="2023-01" />);
+    expect(container.querySelectorAll(".adoption-bars__bar--after").length).toBeGreaterThan(0);
+  });
+
+  it("draws nothing from a single month, because one point is not a shape", () => {
+    const { container } = render(<ActivitySparkbars months={[{ month: "2026-01", issueCount: 5 }]} />);
+    expect(container.firstChild).toBeNull();
   });
 });
