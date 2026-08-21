@@ -54,6 +54,7 @@ import {
   readFilterSnapshotMeta,
   writeFilterSnapshotMeta,
   loadFilterReferencesFor,
+  loadFilterReferenceCounts,
   loadSnapshotProjectFields,
   countSnapshotProjectUsage,
   loadFieldSummary,
@@ -1288,6 +1289,53 @@ async function buildFilterInventory({ context }) {
   await inventorySnapshotQueue.push({ jobType: "build-filter-snapshot", installationKey });
   await writeFilterSnapshotMeta(installationKey, { state: "building", startedAt: new Date().toISOString(), lastError: null });
   return { queued: true };
+}
+
+// How many saved filters reference each field on a page.
+//
+// Mirrors getFieldScreenCounts exactly, including its posture: an unbuilt inventory reports
+// available:false so the chip renders as unknown rather than as zero. "No filter uses this
+// field" is permission to delete it; "we have not looked" is not, and the two must never
+// render the same.
+//
+// Batched because the Field Browser shows twenty-five fields a page, and asking per field is
+// twenty-five round trips to draw one column.
+async function getFieldFilterCounts({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  const meta = await readFilterSnapshotMeta(installationKey);
+  if (!meta?.version) {
+    return { available: false, reason: "No saved filter inventory has been built yet.", counts: {} };
+  }
+
+  // Filters name fields the way a person writes JQL -- by NAME for most fields, and by
+  // cf[10001] for the escape hatch -- so the lookup is by name, with the id as a fallback.
+  // The field catalog is what maps one to the other, and the caller already has it.
+  const fields = Array.isArray(payload?.fields) ? payload.fields.slice(0, 500) : [];
+  const labels = [];
+  const labelToField = new Map();
+  for (const field of fields) {
+    for (const label of [field?.name, field?.id].filter(Boolean)) {
+      const key = String(label).toLowerCase();
+      labels.push(String(label));
+      if (!labelToField.has(key)) labelToField.set(key, String(field.id));
+    }
+  }
+
+  const byLabel = await loadFilterReferenceCounts(installationKey, meta.version, "field", labels);
+
+  // Folded back onto the field id, taking the larger when a field is referenced both ways.
+  // Summing would double-count a filter that names the same field by name and by id.
+  const counts = {};
+  for (const [label, count] of Object.entries(byLabel)) {
+    const fieldId = labelToField.get(label);
+    if (!fieldId) continue;
+    counts[fieldId] = Math.max(counts[fieldId] ?? 0, count);
+  }
+
+  return { available: true, version: meta.version, refreshedAt: meta.refreshedAt, counts };
 }
 
 // Which saved filters reference one field or status.
@@ -4578,6 +4626,7 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   getFilterInventory,      // Admin read: saved filters, their findings and their references
   buildFilterInventory,    // Mutating: queues a rebuild of the saved filter snapshot
   getFilterUsage,          // Admin read: which filters reference one field or status
+  getFieldFilterCounts,    // Admin read: saved-filter counts for a page of fields
   getHealthHistory,        // Admin read: the site health series and per-dimension deltas
   getPillarHealth,         // Admin read: one pillar of the score, for the tab it is about
   getProjectOverview,      // Admin read: every pillar that touches one project

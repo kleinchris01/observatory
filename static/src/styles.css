@@ -5739,6 +5739,22 @@ a.filter-row__name:hover { text-decoration: underline; }
 :root[data-theme="light"] .filter-dupe__member { background: rgba(0, 0, 0, 0.04); }
 .filter-dupe__owner { opacity: 0.5; font-size: 0.9em; }
 
+/* -- Saved filter usage, on a field and on a status --------------------------
+   The cross-pillar half that was missing. An automation rule breaking is loud; a saved
+   filter breaking is not, so these lists exist to make the quiet failure visible. */
+.filter-usage__list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.filter-usage__item {
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px;
+  font-size: 0.78rem; padding-left: 10px; border-left: 2px solid rgba(201, 134, 10, 0.45);
+}
+.filter-usage__item a { color: var(--cool); text-decoration: none; }
+.filter-usage__item a:hover { text-decoration: underline; }
+.filter-usage__owner { font-size: 0.72rem; opacity: 0.55; }
+.filter-usage__subs { font-size: 0.72rem; color: #c9860a; }
+
+/* The filter half of the status drill-down, separated from the rule groups above it. */
+.wf-statusrules__group--filters { border-top: 1px solid var(--stroke); padding-top: 11px; }
+
 /* â”€â”€ Endpoint probe results â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .probe-results { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
 .probe-results__summary { font-size: 0.82rem; margin: 0; opacity: 0.85; }

@@ -164,8 +164,15 @@ describe("AdminApp tab navigation", () => {
     await waitFor(() => expect(document.querySelector(".admin-field-browser")).toBeTruthy());
 
     // Project Usage
+    //
+    // Every tab is lazily imported now, so a click has to resolve a chunk before the tab
+    // mounts and its first effect runs. Under a full-suite run that occasionally exceeds
+    // waitFor's default second; the assertion is unchanged, it is just given room.
     await user.click(within(adminNav).getByText("Project Usage"));
-    await waitFor(() => expect(invoke).toHaveBeenCalledWith("getProjectsView", expect.any(Object)));
+    await waitFor(
+      () => expect(invoke).toHaveBeenCalledWith("getProjectsView", expect.any(Object)),
+      { timeout: 5000 }
+    );
 
     // Reports
     await user.click(within(adminNav).getByText("Reports"));
