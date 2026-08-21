@@ -33,6 +33,10 @@ export const DEFAULT_HEALTH_TOLERANCES = {
   // carries some finished projects, and retiring them is optional. It bottoms out because
   // past a third of the site nobody can tell a finished project from an abandoned one.
   inactiveProjects: 0.30,
+  // Projects that had a life and lost it, or never got one. Sits between the two: less
+  // forgiving than inactivity, because a project people abandoned is configuration nobody
+  // owns, and more forgiving than a defect bound, because some projects are meant to end.
+  unadoptedProjects: 0.25,
   // Far tighter than the rest, and deliberately so. The others measure untidiness, where a
   // few percent is normal on any real site. A rule storing a credential in plaintext is not
   // untidiness -- one is a problem and 2% of the estate is a bad day.
@@ -103,7 +107,7 @@ export function resolveHealthTolerances(overrides = {}) {
   return out;
 }
 
-export function computeSiteHealth({ fieldUsage, workflow, projects, automation, screens, tolerances } = {}) {
+export function computeSiteHealth({ fieldUsage, workflow, projects, automation, screens, adoption, tolerances } = {}) {
   const TOLERANCE = resolveHealthTolerances(tolerances);
   const dimensions = [];
 
@@ -342,6 +346,44 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
     });
   } else {
     dimensions.push(unavailable("project-activity", "Project activity", "projects", "No project usage data yet."));
+  }
+
+  // ── Project adoption ──────────────────────────────────────────────────────
+  // Whether the work people do matches the projects that exist for them to do it in.
+  //
+  // Distinct from project activity above, which asks whether anything happened recently.
+  // This asks whether the RATE is healthy for the project's age -- which catches the case
+  // activity cannot: a project somebody touched last week that has collapsed from 500 issues
+  // a month to three. Every other project figure in this app was a lifetime total with
+  // nothing to divide it by, which flatters old projects and buries new ones.
+  //
+  // Judged only over projects old enough to judge. A site of projects spun up last month has
+  // no adoption problem, and reporting one would be an artefact of when it was measured.
+  if (adoption?.available && adoption.judgeableProjects > 0) {
+    const fellOff = Number(adoption.fellOffCount) || 0;
+    const never = Number(adoption.neverAdoptedCount) || 0;
+    const rate = (fellOff + never) / adoption.judgeableProjects;
+    dimensions.push({
+      key: "project-adoption",
+      label: "Project adoption",
+      pillar: "projects",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(rate, TOLERANCE.unadoptedProjects),
+      detail: fellOff + never === 0
+        ? `All ${adoption.judgeableProjects} projects old enough to judge are being used at a rate that matches their age.`
+        : `${fellOff} projects have fallen well below their own historical rate and ${never} never took off, of ${adoption.judgeableProjects} old enough to judge.`,
+      action: fellOff > 0
+        ? "A project people left is configuration nobody owns. The Projects tab dates each decline — start with the ones that fell off most recently, while somebody still remembers why."
+        : never > 0
+          ? "These were created and never adopted. Worth asking what people used instead before retiring the fields."
+          : null,
+    });
+  } else {
+    dimensions.push(unavailable("project-adoption", "Project adoption", "projects",
+      adoption?.available
+        ? "No project is old enough to judge adoption yet."
+        : "No issue dates captured. Run a Universal Scan to measure adoption."));
   }
 
   // ── Automation security ───────────────────────────────────────────────────

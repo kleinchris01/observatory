@@ -123,6 +123,17 @@ export async function clearIssueScanBuffer(scopeKey) {
       .bindParams(scopeKey)
       .execute()
   );
+
+  // The activity histogram accumulates the same way the buffer does -- one row per project
+  // per month, incremented as pages arrive -- so it has to be cleared for the same reason.
+  // Left behind, a re-scan would add a second lifetime of issues on top of the first and
+  // every rate derived from it would double.
+  await withSqlRetry(() =>
+    sql
+      .prepare("DELETE FROM issue_scan_project_activity WHERE scope_key = ?")
+      .bindParams(scopeKey)
+      .execute()
+  );
 }
 
 export async function resetIssueScanWorkers(scopeKey) {
@@ -243,6 +254,79 @@ export async function updateIssueScanWorker(scopeKey, workerId, patch) {
   );
 
   return next;
+}
+
+// One row per project per month, with the exact first and last issue seen inside it.
+//
+// The boundaries are stored per month rather than per project so this table needs no second
+// table beside it: the site's first issue is the first_created_at of a project's earliest
+// month, and its last is the last_created_at of the latest. Month granularity alone would
+// put a three-week-old project's age anywhere between one day and six weeks.
+//
+// LEAST and GREATEST over ISO-8601 strings, which sort lexicographically -- and guarded with
+// COALESCE, because LEAST(NULL, x) is NULL in MySQL and the first flush for a month always
+// meets a NULL.
+export async function flushIssueScanActivity(scopeKey, projectMonths) {
+  // projectMonths: Map<`${projectId}|${month}`, { projectId, month, count, first, last }>
+  if (!projectMonths?.size) return;
+  await ensureProjectStoreReady();
+
+  const rows = [...projectMonths.values()];
+  for (const batch of chunkArray(rows, 100)) {
+    const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?)").join(", ");
+    const params = batch.flatMap((entry) => [
+      scopeKey, entry.projectId, entry.month, entry.count, entry.first, entry.last,
+    ]);
+
+    await withSqlRetry(() =>
+      sql
+        .prepare(`
+          INSERT INTO issue_scan_project_activity
+            (scope_key, project_id, month, issue_count, first_created_at, last_created_at)
+          VALUES ${valuesSql}
+          ON DUPLICATE KEY UPDATE
+            issue_count = issue_count + VALUES(issue_count),
+            first_created_at = LEAST(COALESCE(first_created_at, VALUES(first_created_at)), VALUES(first_created_at)),
+            last_created_at = GREATEST(COALESCE(last_created_at, VALUES(last_created_at)), VALUES(last_created_at))
+        `)
+        .bindParams(...params)
+        .execute()
+    );
+  }
+}
+
+// Every project's activity, oldest month first.
+//
+// Returned whole rather than paged: the reference site has 200 projects averaging a few
+// years, so this is a few thousand rows of three columns, and every consumer -- the rail's
+// sort, the adoption panel, the health dimension -- needs the whole series to compute a rate
+// against the site.
+export async function loadProjectActivity(scopeKey) {
+  await ensureProjectStoreReady();
+
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT project_id, month, issue_count, first_created_at, last_created_at
+      FROM issue_scan_project_activity
+      WHERE scope_key = ?
+      ORDER BY project_id ASC, month ASC
+    `).bindParams(scopeKey).execute()
+  );
+
+  const byProject = new Map();
+  for (const row of result.rows || []) {
+    const projectId = String(row.project_id);
+    if (!byProject.has(projectId)) {
+      byProject.set(projectId, { projectId, months: [], firstIssueCreatedAt: null, lastIssueCreatedAt: null });
+    }
+    const entry = byProject.get(projectId);
+    entry.months.push({ month: row.month, issueCount: toNumber(row.issue_count) });
+    // Rows arrive oldest month first, so the first non-null lower bound is the project's
+    // first issue and the last non-null upper bound is its most recent.
+    if (row.first_created_at && !entry.firstIssueCreatedAt) entry.firstIssueCreatedAt = row.first_created_at;
+    if (row.last_created_at) entry.lastIssueCreatedAt = row.last_created_at;
+  }
+  return byProject;
 }
 
 export async function flushIssueScanCounts(scopeKey, fieldProjectCounts, projectTotals) {

@@ -49,6 +49,7 @@ import {
   loadAnySnapshotProjectUsage,
   listSnapshotProjects,
   loadIssueScanProjectTotals,
+  loadProjectActivity,
   loadSnapshotProjectFields,
   countSnapshotProjectUsage,
   loadFieldSummary,
@@ -121,6 +122,7 @@ import {
   buildScreenOverview,
   attachUniqueIssueCounts,
 } from "./lib/site-health.js";
+import { summarizeAdoption, computeProjectAdoption } from "./lib/project-adoption.js";
 import { probeEndpoint, probeStargateEndpoint, getCloudId, getAllJiraProjects } from "./lib/jira-api.js";
 import {
   findDuplicateStatusGroups,
@@ -2617,6 +2619,12 @@ async function getProjectsView({ payload, context }) {
   // correct branch was unreachable. Attach it here.
   const allProjects = await attachUniqueIssueCounts(installationKey, rawProjects);
 
+  // Adoption for every project the rail can show, so it can be sorted and filtered by it.
+  // Best-effort: a site scanned before issue dates were captured renders the rail exactly as
+  // it does today, with the adoption panel reporting itself unmeasured.
+  const activity = await loadProjectActivity(installationKey)
+    .catch(fallbackOn("projects.activity_load_failed", () => new Map(), { installationKey }));
+
   // Only show projects the CALLING user actually has Browse Projects
   // permission on -- never surface another project's name/existence to
   // someone who can't see it in Jira itself.
@@ -2626,8 +2634,27 @@ async function getProjectsView({ payload, context }) {
   );
   const projects = allProjects.filter((p) => browsableProjectIds.has(String(p.projectId)));
 
+  // Scored across the projects the reader may browse, not across the site.
+  //
+  // A percentile is only meaningful against a population, and the population a reader can
+  // reason about is the one in front of them. Scoring against every project on the site would
+  // put a project in the 90th percentile of a list they cannot see the rest of.
+  const adoption = summarizeAdoption(projects, activity);
+  const adoptionByProject = new Map(adoption.projects.map((row) => [String(row.projectId), row]));
+
   const selectedProjectId = String(payload?.projectId || "").trim() || projects[0]?.projectId || "";
   const selectedProject = projects.find((project) => project.projectId === selectedProjectId) || projects[0] || null;
+  // The rail carries only what it sorts and filters on. The monthly series is per selected
+  // project, because 200 projects' worth of history is not a sidebar.
+  const railAdoption = (project) => {
+    const row = adoptionByProject.get(String(project.projectId));
+    if (!row?.measured) return null;
+    return {
+      score: row.score, issuesPerDay: row.issuesPerDay, recentIssuesPerDay: row.recentIssuesPerDay,
+      momentum: row.momentum, ageDays: row.ageDays, firstIssueCreatedAt: row.firstIssueCreatedAt,
+      fellOff: row.fellOff, neverAdopted: row.neverAdopted, declineFrom: row.declineFrom,
+    };
+  };
 
   if (!selectedProject) {
     return {
@@ -2733,9 +2760,21 @@ async function getProjectsView({ payload, context }) {
   const totalPages = Math.max(1, Math.ceil(totalFields / PROJECTS_VIEW_PAGE_SIZE));
 
   return {
-    projects,
+    projects: projects.map((project) => ({ ...project, adoption: railAdoption(project) })),
     availableTypes,
     selectedProject,
+    // The selected project's adoption in full, monthly series included. This is what dates a
+    // decline: "fell off in 2023-04" comes from the shape, not from a single number.
+    selectedAdoption: selectedProject
+      ? adoptionByProject.get(String(selectedProject.projectId)) ?? null
+      : null,
+    // What normal looks like here, so a rate has something to be read against.
+    adoptionContext: {
+      available: adoption.available,
+      medianIssuesPerDay: adoption.medianIssuesPerDay,
+      measuredProjects: adoption.measuredProjects,
+      totalProjects: adoption.totalProjects,
+    },
     workflowScheme,
     fields,
     totalFields,
@@ -3407,9 +3446,39 @@ export async function getAdminOverview({ context }) {
         hydrateFieldForGovernance(f, null, dup.get(normalizeFieldName(f.name)) ?? 1, config.governanceThresholds)
       );
       findingsSummary = summarizeFindings(hydrated);
+      // Adoption travels beside the shape insights rather than inside them: one asks how a
+      // project is configured and the other asks whether anyone is using it, and folding
+      // them together is what let a three-week-old project read as abandoned.
+      //
+      // Only the counts and a short worst-first list reach the Overview. The full per-project
+      // series is what the Projects tab loads, and shipping 200 projects' worth of monthly
+      // history with the landing page would dwarf everything else on it.
+      const activity = await loadProjectActivity(installationKey)
+        .catch(fallbackOn("overview.project_activity_load_failed", () => new Map(), { installationKey }));
+      const adoption = summarizeAdoption(projects, activity);
+
       dashboard = {
         fieldUsage: buildFieldUsageInsights(hydrated),
         projects: buildProjectInsights(projects),
+        adoption: {
+          available: adoption.available,
+          measuredProjects: adoption.measuredProjects,
+          judgeableProjects: adoption.judgeableProjects,
+          fellOffCount: adoption.fellOffCount,
+          neverAdoptedCount: adoption.neverAdoptedCount,
+          medianIssuesPerDay: adoption.medianIssuesPerDay,
+          // Most recent decline first: the ones somebody might still remember the reason for.
+          fellOff: adoption.projects
+            .filter((row) => row.fellOff)
+            .sort((a, b) => String(b.declineFrom || "").localeCompare(String(a.declineFrom || "")))
+            .slice(0, 8)
+            .map((row) => ({
+              projectKey: row.projectKey, projectName: row.projectName,
+              declineFrom: row.declineFrom, peakMonth: row.peakMonth, peakIssues: row.peakIssues,
+              issuesPerDay: row.issuesPerDay, recentIssuesPerDay: row.recentIssuesPerDay,
+              momentum: row.momentum, score: row.score,
+            })),
+        },
       };
     } catch (error) {
       // Overview must still render its job counts and config if the dashboard build
@@ -3555,6 +3624,7 @@ async function getPillarHealth({ payload, context }) {
 
   let fieldUsage = null;
   let projects = null;
+  let adoption = null;
   if (meta?.version) {
     try {
       const [fields, rawProjects] = await Promise.all([
@@ -3568,6 +3638,11 @@ async function getPillarHealth({ payload, context }) {
       );
       fieldUsage = buildFieldUsageInsights(hydrated);
       projects = buildProjectInsights(withCounts);
+      // Best-effort, like every optional pillar input: a site scanned before issue dates
+      // were captured has no activity, and the dimension says so rather than scoring zero.
+      const activity = await loadProjectActivity(installationKey)
+        .catch(fallbackOn("pillar-health.project_activity_load_failed", () => new Map(), { installationKey }));
+      adoption = summarizeAdoption(withCounts, activity);
     } catch (error) {
       logger.warn("pillar-health.field_inputs_failed", { installationKey, error: String(error?.message || error) });
     }
@@ -3579,6 +3654,7 @@ async function getPillarHealth({ payload, context }) {
     projects,
     automation: automationAnalysis?.estate?.health ?? { available: false },
     screens,
+    adoption,
     tolerances: config?.healthTolerances,
   });
 

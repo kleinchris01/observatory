@@ -21,6 +21,7 @@ import {
 import { fallbackOn } from "./logger.js";
 import {
   loadIssueScanProjectTotals,
+  loadProjectActivity,
   loadScreenGovernanceSummary,
   loadStatusIssueCounts,
   loadStatusesCatalog,
@@ -33,6 +34,7 @@ import {
 // store modules but not this one, because the automation pillar is written by an import
 // rather than built by a snapshot job and never needed to be part of that surface.
 import { loadStatusAutomationReferences } from "./store/automation.js";
+import { summarizeAdoption } from "./project-adoption.js";
 
 // Top finding-type/field-type breakdowns are capped -- Overview is a glance-level
 // summary, not the full Field Browser, and shipping ~1500 hydrated fields' worth of
@@ -403,6 +405,7 @@ export async function captureSiteHealth(installationKey, deps) {
 
     let fieldUsage = null;
     let projects = null;
+    let adoption = null;
     if (meta?.version) {
       const [fields, rawProjects] = await Promise.all([
         loadSnapshotFields(installationKey, meta.version),
@@ -415,6 +418,14 @@ export async function captureSiteHealth(installationKey, deps) {
       );
       fieldUsage = buildFieldUsageInsights(hydrated);
       projects = buildProjectInsights(withCounts);
+
+      // Adoption reads the same project rows the shape insights do, plus the activity
+      // series. Best-effort: a site scanned before issue dates were captured has no
+      // activity, and the dimension reports itself unmeasured rather than scoring a rate
+      // it could not derive.
+      const activity = await loadProjectActivity(installationKey)
+        .catch(fallbackOn("overview.project_activity_load_failed", () => new Map(), { installationKey }));
+      adoption = summarizeAdoption(withCounts, activity);
     }
 
     const health = computeSiteHealth({
@@ -423,6 +434,7 @@ export async function captureSiteHealth(installationKey, deps) {
       projects,
       automation: automationAnalysis?.estate?.health ?? { available: false },
       screens,
+      adoption,
       tolerances: config?.healthTolerances,
     });
 

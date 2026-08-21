@@ -31,6 +31,7 @@ import {
   updateIssueScanWorker,
   replaceFieldOptionsCache,
   flushIssueScanCounts,
+  flushIssueScanActivity,
   flushIssueScanStatusCounts,
   clearStatusIssueCounts,
   finalizeIssueScan,
@@ -348,7 +349,10 @@ export async function runIssueScanCoordinator(installationKey) {
       const { loadSnapshotFields } = await import("./project-store.js");
       const snapshotFields = await loadSnapshotFields(installationKey, snapshotMeta.version);
       const ids = new Set(snapshotFields.map((field) => field.id));
-      if (ids.size > 0) fieldIds = ["project", ...ids];
+      // "created" alongside "project", for the same reason: neither is a custom field, and
+      // a targeted scan that omits it cannot say how old a project is or when work in it
+      // stopped. One more field on a payload already carrying hundreds.
+      if (ids.size > 0) fieldIds = ["project", "created", ...ids];
       const selectFields = snapshotFields.filter((field) => isSelectFieldType(field.type));
       for (const field of selectFields) {
         try {
@@ -415,6 +419,9 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
   let pendingIssues = 0;
   const fieldProjectCounts = new Map();
   const projectTotals = new Map();
+  // One entry per project per month, carrying the exact first and last issue seen in it.
+  // Keyed the same way the row is, so a flush is a straight map over the values.
+  const projectMonths = new Map();
   // `${statusId}|${projectId}` -> { statusId, statusName, statusCategory, projectId, projectKey, count }
   const statusCounts = new Map();
   const rqtFieldHits = new Map();
@@ -471,6 +478,8 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
       if (page > 0 && page % ISSUE_SCAN_FLUSH_EVERY_PAGES === 0) {
         if (fieldProjectCounts.size > 0 || projectTotals.size > 0) {
           await flushIssueScanCounts(installationKey, fieldProjectCounts, projectTotals);
+          await flushIssueScanActivity(installationKey, projectMonths);
+          projectMonths.clear();
           fieldProjectCounts.clear();
           projectTotals.clear();
         }
@@ -531,7 +540,8 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
           await appendIssueScanLogEntry(installationKey, `Worker ${workerId}: page token expired (400), restarting from page 1`).catch(ignoreWith("scan.log_append_failed", { workerId }));
           if (fieldProjectCounts.size > 0 || projectTotals.size > 0) {
             await flushIssueScanCounts(installationKey, fieldProjectCounts, projectTotals).catch(ignoreWith("scan.count_flush_failed_on_token_reset", { workerId }));
-            fieldProjectCounts.clear(); projectTotals.clear();
+            await flushIssueScanActivity(installationKey, projectMonths).catch(ignoreWith("scan.activity_flush_failed_on_token_reset", { workerId }));
+            fieldProjectCounts.clear(); projectTotals.clear(); projectMonths.clear();
           }
           if (rqtFieldHits.size > 0) { await upsertRqtFieldHits(installationKey, rqtFieldHits).catch(ignoreWith("scan.rqt_field_flush_failed", { workerId })); rqtFieldHits.clear(); }
           if (rqtIssueBuffer.length > 0) { await upsertRqtIssueKeys(installationKey, rqtIssueBuffer).catch(ignoreWith("scan.rqt_issue_flush_failed", { workerId })); rqtIssueBuffer.length = 0; }
@@ -558,6 +568,22 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
         const projEntry = projectTotals.get(projectId) || { count: 0, key: projectKey_, name: projectName };
         projEntry.count++;
         projectTotals.set(projectId, projEntry);
+
+        // When the work happened, which is the whole basis of an adoption rate. Skipped
+        // rather than defaulted when Jira did not return it: a scan built before this field
+        // was requested has no dates, and a project dated "today" because the value was
+        // missing would read as brand new and wildly under-adopted.
+        const created = issue.fields?.created;
+        if (typeof created === "string" && created.length >= 7) {
+          const month = created.slice(0, 7);
+          const monthKey = `${projectId}|${month}`;
+          const monthEntry = projectMonths.get(monthKey)
+            || { projectId, month, count: 0, first: created, last: created };
+          monthEntry.count++;
+          if (created < monthEntry.first) monthEntry.first = created;
+          if (created > monthEntry.last) monthEntry.last = created;
+          projectMonths.set(monthKey, monthEntry);
+        }
 
         // Status is already on every issue -- a universe scan requests "*all" -- so
         // counting it here costs no extra Jira traffic, only an accumulator. Keyed by

@@ -56,6 +56,16 @@ const automation = (over = {}) => ({
   ...over,
 });
 
+// Adoption is judged only over projects old enough to judge, so a fixture has to say how
+// many those are -- a site of brand-new projects has no adoption problem.
+const adoption = (over = {}) => ({
+  available: true,
+  judgeableProjects: 100,
+  fellOffCount: 0,
+  neverAdoptedCount: 0,
+  ...over,
+});
+
 const screens = (over = {}) => ({
   available: true,
   totalScreens: 760,
@@ -73,7 +83,7 @@ describe("computeSiteHealth — scoring", () => {
   test("a clean site scores at the top", () => {
     const health = computeSiteHealth({
       fieldUsage: fieldUsage(), workflow: workflow(), projects: projects(),
-      automation: automation(), screens: screens(),
+      automation: automation(), screens: screens(), adoption: adoption(),
     });
 
     expect(health.score).toBeGreaterThanOrEqual(90);
@@ -531,5 +541,50 @@ describe("computeSiteHealth tolerance tuning", () => {
   test("omitting tolerances behaves exactly as before", () => {
     const input = { fieldUsage: { totalFields: 100, duplicateClusters: 5 } };
     expect(computeSiteHealth(input)).toEqual(computeSiteHealth({ ...input, tolerances: undefined }));
+  });
+});
+
+// Every project figure in this app was a lifetime total with nothing to divide it by, which
+// flatters old projects and buries new ones. Adoption is the rate; this dimension is the
+// share of projects whose rate says nobody is there any more.
+describe("project adoption", () => {
+  const dim = (health) => health.dimensions.find((d) => d.key === "project-adoption");
+
+  test("scores the share that fell off or never started", () => {
+    const health = computeSiteHealth({ adoption: adoption({ judgeableProjects: 180, fellOffCount: 22, neverAdoptedCount: 9 }) });
+    // 31/180 = 17%, against a 25% tolerance.
+    expect(dim(health).score).toBe(31);
+    expect(dim(health).detail).toMatch(/22 projects have fallen well below their own historical rate and 9 never took off/);
+  });
+
+  test("leads with the ones people left, not the ones nobody started", () => {
+    // A project people abandoned is configuration nobody owns, and somebody may still
+    // remember why. A project nobody started is a different conversation.
+    const left = computeSiteHealth({ adoption: adoption({ fellOffCount: 5 }) });
+    const never = computeSiteHealth({ adoption: adoption({ neverAdoptedCount: 5 }) });
+
+    expect(dim(left).action).toMatch(/dates each decline/);
+    expect(dim(never).action).toMatch(/what people used instead/);
+  });
+
+  // A site of projects spun up last month has no adoption problem, and reporting one would
+  // be an artefact of when it was measured.
+  test("is unavailable when nothing is old enough to judge", () => {
+    const health = computeSiteHealth({ adoption: adoption({ judgeableProjects: 0 }) });
+    expect(dim(health)).toMatchObject({ available: false, score: null });
+    expect(dim(health).reason).toMatch(/old enough/i);
+  });
+
+  test("asks for a scan rather than scoring zero when no dates were captured", () => {
+    const health = computeSiteHealth({});
+    expect(dim(health)).toMatchObject({ available: false, score: null });
+    expect(dim(health).reason).toMatch(/Universal Scan/);
+  });
+
+  test("belongs to the projects pillar, beside shape and activity", () => {
+    const health = computeSiteHealth({ projects: projects(), adoption: adoption() });
+    const pillar = health.pillars.find((p) => p.key === "projects");
+    expect(pillar.dimensions.map((d) => d.key).sort())
+      .toEqual(["project-activity", "project-adoption", "project-consistency"]);
   });
 });

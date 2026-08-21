@@ -38,6 +38,11 @@ const automation = () => ({
 
 const dashboard = () => ({
   fieldUsage: {},
+  adoption: {
+    available: true, measuredProjects: 190, judgeableProjects: 180,
+    fellOffCount: 22, neverAdoptedCount: 9, medianIssuesPerDay: 4.4,
+    fellOff: [{ projectKey: "ADVEV", declineFrom: "2023-04" }],
+  },
   projects: {
     totalProjects: 200, medianFieldCount: 38, overConfiguredCount: 64,
     idleOverConfiguredCount: 9, unusedProjectCount: 12, staleProjectCount: 31,
@@ -70,6 +75,8 @@ const EXPECTED = [
   ["Screens carrying no fields", "screens", { view: "screens", filter: "empty" }],
   ["Screen schemes no issue type maps to", "screens", { view: "schemes", schemes: "unused" }],
 
+  ["Projects people have stopped using", "projects", { filter: "fell-off" }],
+  ["Projects that never took off", "projects", { filter: "no-work" }],
   ["Projects configured well past the site norm", "projects", { filter: "over-configured" }],
   ["Projects carrying fields but no work", "projects", { filter: "no-work" }],
   ["Projects with no activity in over six months", "projects", { filter: "stale" }],

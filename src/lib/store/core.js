@@ -324,6 +324,39 @@ export const CREATE_AUTOMATION_CASCADES_TARGET_INDEX = `
   ON automation_cascades (scope_key, target_rule_id)
 `;
 
+// When work actually happened in each project, by month.
+//
+// Every rate on the Projects tab was a lifetime total with nothing to divide it by, which
+// systematically flatters old projects and buries new ones: a project spun up three weeks
+// ago with 40 issues looks abandoned next to one carrying 61,000 over eight years, when the
+// first is being adopted twice as fast. "Is anyone using this" is a rate, and a rate needs
+// an age.
+//
+// Jira Cloud does not expose a project creation date -- there is no `created` on the project
+// resource at any endpoint -- so the anchor is the first issue ever created in the project.
+// That is arguably the better anchor anyway: it is when work started rather than when an
+// admin clicked Create, and where the two differ it is the one that makes a rate mean
+// something. A project with fields and no first issue is already its own finding.
+//
+// Month granularity for the histogram, exact timestamps for the boundaries. The histogram
+// answers "when did this fall off"; the timestamps answer "how old is it", which month
+// granularity would get badly wrong on a project three weeks old.
+//
+// Accumulated during the crawl like issue_scan_buffer, and cleared with it: this is the
+// final shape rather than something promoted later, because unlike field counts there is
+// nothing to reconcile against a catalogue.
+export const CREATE_ISSUE_SCAN_PROJECT_ACTIVITY_TABLE = `
+  CREATE TABLE IF NOT EXISTS issue_scan_project_activity (
+    scope_key VARCHAR(191) NOT NULL,
+    project_id VARCHAR(191) NOT NULL,
+    month CHAR(7) NOT NULL,
+    issue_count BIGINT NOT NULL DEFAULT 0,
+    first_created_at VARCHAR(64) NULL,
+    last_created_at VARCHAR(64) NULL,
+    PRIMARY KEY (scope_key, project_id, month)
+  )
+`;
+
 // Findings per rule. Paginating these was the reason the analysis document grew a preview
 // alongside a full list; in SQL the preview is just a LIMIT.
 export const CREATE_AUTOMATION_FINDINGS_TABLE = `
@@ -851,7 +884,8 @@ const projectStoreMigrations = migrationRunner
   .enqueue("v072_alter_workflow_meta_add_transition_screens",
     "ALTER TABLE workflow_snapshot_meta ADD COLUMN IF NOT EXISTS transition_screens INTEGER NULL")
   .enqueue("v073_create_automation_cascades_table", CREATE_AUTOMATION_CASCADES_TABLE)
-  .enqueue("v074_create_automation_cascades_target_index", CREATE_AUTOMATION_CASCADES_TARGET_INDEX);
+  .enqueue("v074_create_automation_cascades_target_index", CREATE_AUTOMATION_CASCADES_TARGET_INDEX)
+  .enqueue("v075_create_issue_scan_project_activity_table", CREATE_ISSUE_SCAN_PROJECT_ACTIVITY_TABLE);
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history
