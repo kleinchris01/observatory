@@ -85,6 +85,11 @@ const mocks = vi.hoisted(() => ({
   loadIssueRqtValues: vi.fn(),
   readWorkflowSnapshotMeta: vi.fn(),
   readAutomationAnalysis: vi.fn(),
+  replaceAutomationCascades: vi.fn(async () => 0),
+  loadCascadeSummary: vi.fn(async () => ({ edges: 0, pairs: 0, selfTriggeringRules: 0, fields: 0 })),
+  loadCascades: vi.fn(async () => ({ cascades: [], total: 0 })),
+  loadCascadeEdges: vi.fn(async () => []),
+  loadRuleDirectoryFor: vi.fn(async () => new Map()),
   writeAutomationAnalysis: vi.fn(),
   readAutomationPart: vi.fn(),
   writeAutomationPart: vi.fn(),
@@ -187,6 +192,11 @@ vi.mock("./lib/store/automation.js", () => ({
   replaceAutomationReferences: mocks.replaceAutomationReferences,
   replaceAutomationRules: mocks.replaceAutomationRules,
   replaceAutomationFindings: mocks.replaceAutomationFindings,
+  replaceAutomationCascades: mocks.replaceAutomationCascades,
+  loadCascadeSummary: mocks.loadCascadeSummary,
+  loadCascades: mocks.loadCascades,
+  loadCascadeEdges: mocks.loadCascadeEdges,
+  loadRuleDirectoryFor: mocks.loadRuleDirectoryFor,
   loadAutomationReferencesFor: mocks.loadAutomationReferencesFor,
   loadRulesForProject: mocks.loadRulesForProject,
   loadStatusAutomationReferences: mocks.loadStatusAutomationReferences,
@@ -361,6 +371,9 @@ const {
   saveAutomationAnalysis,
   getAutomationIndex,
   saveAutomationIndex,
+  getAutomationCascades,
+  getCascadeGraph,
+  getStatusAutomationUsage,
   getAutomationFieldUsage,
   getAutomationFieldCounts,
   getScreenInventory,
@@ -4459,3 +4472,151 @@ describe("buildScreenInventory", () => {
     expect(mocks.queueScreenSnapshotBuild).toHaveBeenCalled();
   });
 });
+
+// The cascade cap is the defect these exist to prevent recurring. 150 of this site's 1,457
+// edges were stored, the tab said so in a footnote, and the remaining 1,307 were unreachable
+// by any means at all.
+describe("getAutomationCascades", () => {
+  beforeEach(() => {
+    mocks.loadCascadeSummary.mockResolvedValue({ edges: 1457, pairs: 1143, selfTriggeringRules: 123, fields: 214 });
+    mocks.loadCascades.mockResolvedValue({ cascades: [{ sourceId: "1", targetId: "2", fields: ["A"] }], total: 1143 });
+  });
+
+  test("returns a page against the whole edge set, not a stored slice", async () => {
+    const result = await getAutomationCascades({ payload: { page: 2, pageSize: 50 }, context: ctxWithAccount() });
+
+    expect(result).toMatchObject({ available: true, total: 1143, page: 2 });
+    expect(result.summary.edges).toBe(1457);
+    expect(mocks.loadCascades).toHaveBeenCalledWith("test-install", expect.objectContaining({ limit: 50, offset: 50 }));
+  });
+
+  test("bounds the page size rather than trusting the payload", async () => {
+    await getAutomationCascades({ payload: { page: 1, pageSize: 5000 }, context: ctxWithAccount() });
+    expect(mocks.loadCascades).toHaveBeenCalledWith("test-install", expect.objectContaining({ limit: 200 }));
+  });
+
+  test("rejects an unknown filter value instead of passing it through", async () => {
+    await getAutomationCascades({ payload: { kind: "'; DROP TABLE" }, context: ctxWithAccount() });
+    expect(mocks.loadCascades).toHaveBeenCalledWith("test-install", expect.objectContaining({ kind: "all" }));
+  });
+
+  test("defaults an unrecognised direction to the source end", async () => {
+    await getAutomationCascades({ payload: { ruleId: "7", direction: "sideways" }, context: ctxWithAccount() });
+    expect(mocks.loadCascades).toHaveBeenCalledWith("test-install", expect.objectContaining({ direction: "source" }));
+  });
+
+  // Zero edges and no analysis are different states. A site whose rules genuinely cascade
+  // nowhere should read as clean rather than as unbuilt.
+  test("reports unavailable when nothing has been imported", async () => {
+    mocks.loadCascadeSummary.mockResolvedValue({ edges: 0, pairs: 0, selfTriggeringRules: 0, fields: 0 });
+    const result = await getAutomationCascades({ payload: {}, context: ctxWithAccount() });
+    expect(result.available).toBe(false);
+  });
+});
+
+describe("getCascadeGraph", () => {
+  // A -> B -> C -> A, plus a tail that leaves the loop.
+  const edges = [
+    { sourceId: "1", targetId: "2", field: "Owner" },
+    { sourceId: "2", targetId: "3", field: "Status" },
+    { sourceId: "3", targetId: "1", field: "Owner" },
+    { sourceId: "9", targetId: "8", field: "Milestone" },
+    { sourceId: "8", targetId: "7", field: "Checkpoint" },
+  ];
+
+  beforeEach(() => {
+    mocks.loadCascadeEdges.mockResolvedValue(edges);
+    mocks.loadRuleDirectoryFor.mockResolvedValue(new Map([
+      ["1", { id: "1", name: "Alpha", enabled: true }],
+      ["2", { id: "2", name: "Beta", enabled: true }],
+      ["3", { id: "3", name: "Gamma", enabled: false }],
+      ["9", { id: "9", name: "Start", enabled: true }],
+      ["8", { id: "8", name: "Middle", enabled: true }],
+      ["7", { id: "7", name: "End", enabled: true }],
+    ]));
+  });
+
+  test("finds a loop no single hop reveals", async () => {
+    const result = await getCascadeGraph({ payload: {}, context: ctxWithAccount() });
+
+    expect(result.available).toBe(true);
+    expect(result.loops).toHaveLength(1);
+    expect(result.loops[0].ruleNames.sort()).toEqual(["Alpha", "Beta", "Gamma"]);
+    expect(result.rulesInLoops).toBe(3);
+  });
+
+  test("finds the multi-rule chain that is not a loop", async () => {
+    const result = await getCascadeGraph({ payload: {}, context: ctxWithAccount() });
+
+    expect(result.chains).toHaveLength(1);
+    expect(result.chains[0].steps.map((s) => s.name)).toEqual(["Start", "Middle", "End"]);
+  });
+
+  test("names the field carrying each hop, which is what an admin breaks", async () => {
+    const result = await getCascadeGraph({ payload: {}, context: ctxWithAccount() });
+    const hops = result.chains[0].steps.flatMap((s) => s.viaFields);
+    expect(hops).toEqual(["Milestone", "Checkpoint"]);
+  });
+
+  test("attaches the enabled state, so a dead hop is visible", async () => {
+    const result = await getCascadeGraph({ payload: {}, context: ctxWithAccount() });
+    expect(result.loops[0].path.some((step) => step.enabled === false)).toBe(true);
+  });
+
+  // Names are looked up only for the rules that appear in an answer. Joining all 1,457 edges
+  // to the directory would pay for names on every edge to render a few hundred.
+  test("looks up only the rules that appear in a loop or a chain", async () => {
+    await getCascadeGraph({ payload: {}, context: ctxWithAccount() });
+    const asked = mocks.loadRuleDirectoryFor.mock.calls[0][1];
+    expect(asked.sort()).toEqual(["1", "2", "3", "7", "8", "9"]);
+  });
+
+  test("bounds the requested depth", async () => {
+    const result = await getCascadeGraph({ payload: { maxDepth: 9999 }, context: ctxWithAccount() });
+    expect(result.maxDepth).toBeLessThanOrEqual(8);
+  });
+
+  test("reports unavailable rather than an empty graph when nothing is stored", async () => {
+    mocks.loadCascadeEdges.mockResolvedValue([]);
+    const result = await getCascadeGraph({ payload: {}, context: ctxWithAccount() });
+    expect(result).toMatchObject({ available: false, reason: "no-cascades" });
+  });
+});
+
+describe("getStatusAutomationUsage", () => {
+  test("groups the rules by direction, because direction is the consequence", async () => {
+    mocks.loadAutomationReferencesFor.mockResolvedValue({
+      total: 3, ruleCount: 3,
+      references: [
+        { direction: "write", rule_id: "1", name: "Sends to Parking Lot", enabled: 1 },
+        { direction: "trigger", rule_id: "2", name: "Fires on entry", enabled: 0 },
+        { direction: "read", rule_id: "3", name: "Checks the status", enabled: 1 },
+      ],
+    });
+
+    const result = await getStatusAutomationUsage({ payload: { statusName: "Parking Lot" }, context: ctxWithAccount() });
+
+    // A rule that transitions INTO a status keeps it alive; one that reads it in a condition
+    // breaks if it goes but does not keep it in use.
+    expect(result.write.rules[0].name).toBe("Sends to Parking Lot");
+    expect(result.trigger.rules[0].enabled).toBe(false);
+    expect(result.read.count).toBe(1);
+    expect(result.referenced).toBe(true);
+  });
+
+  test("distinguishes no rules from no analysis", async () => {
+    mocks.loadAutomationReferencesFor.mockResolvedValue({ total: 0, ruleCount: 0, references: [] });
+    const found = await getStatusAutomationUsage({ payload: { statusName: "Ghost" }, context: ctxWithAccount() });
+    expect(found).toMatchObject({ available: true, referenced: false });
+
+    // "No rule touches this status" is permission to delete it. "We have not looked" is not.
+    mocks.loadAutomationReferencesFor.mockRejectedValueOnce(new Error("sql down"));
+    const unknown = await getStatusAutomationUsage({ payload: { statusName: "Ghost" }, context: ctxWithAccount() });
+    expect(unknown).toMatchObject({ available: false, reason: "no-analysis" });
+  });
+
+  test("requires a status name", async () => {
+    await expect(getStatusAutomationUsage({ payload: {}, context: ctxWithAccount() })).rejects.toThrow(/statusName is required/);
+  });
+});
+

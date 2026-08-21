@@ -128,6 +128,7 @@ import {
   computeSchemeCategoryBalance,
   summarizeWorkflowInsights,
 } from "./lib/workflow-insights.js";
+import { analyzeCascadeGraph, MAX_CHAIN_DEPTH } from "./lib/cascade-graph.js";
 import {
   readAutomationAnalysis,
   writeAutomationAnalysis,
@@ -139,6 +140,11 @@ import {
   loadStatusAutomationReferences,
   loadGlobalRulesAffectingProject,
   replaceAutomationFindings,
+  replaceAutomationCascades,
+  loadCascadeSummary,
+  loadCascades,
+  loadCascadeEdges,
+  loadRuleDirectoryFor,
   loadAutomationReferencesFor,
   AUTOMATION_PARTS,
   MAX_PREVIEW_FINDINGS,
@@ -1123,7 +1129,7 @@ async function saveAutomationIndex({ payload, context }) {
 
     // The analysis has its own resolver, with its own validation and the server clock
     // stamp. Routing it through here would bypass both.
-    if (part === "analysis" || !Object.prototype.hasOwnProperty.call(AUTOMATION_PARTS, part)) {
+    if (part === "analysis" || !isAutomationIndexPart(part)) {
       throw new Error(`unknown automation index part: ${part}`);
     }
     if (!document || typeof document !== "object" || Array.isArray(document)) {
@@ -1133,7 +1139,12 @@ async function saveAutomationIndex({ payload, context }) {
       throw new Error(`unsupported index schemaVersion: ${document.schemaVersion}`);
     }
 
-    await writeAutomationPart(installationKey, part, document);
+    // SQL-only parts skip the KVS copy entirely. Cascades are the reason that distinction
+    // exists: 1,457 edges is precisely the shape that does not belong in a document with a
+    // 240 KB ceiling, and the cap that ceiling forced is what this whole change removes.
+    if (!SQL_ONLY_AUTOMATION_PARTS.has(part)) {
+      await writeAutomationPart(installationKey, part, document);
+    }
 
     // Also shred into SQL, where the caps do not apply and the cross-pillar join is a real
     // indexed query rather than a string match over a loaded document.
@@ -1155,6 +1166,8 @@ async function saveAutomationIndex({ payload, context }) {
         rowsWritten = await replaceAutomationRules(installationKey, document);
       } else if (part === "findings") {
         rowsWritten = await replaceAutomationFindings(installationKey, document);
+      } else if (part === "cascades") {
+        rowsWritten = await replaceAutomationCascades(installationKey, document);
       }
     } catch (sqlError) {
       logger.warn("automation.sql_index_failed", {
@@ -1162,12 +1175,186 @@ async function saveAutomationIndex({ payload, context }) {
         part,
         error: String(sqlError?.message || sqlError),
       });
+      // For the document-backed parts a SQL failure is recoverable: the KVS copy succeeded
+      // and is what the tab currently renders. For a SQL-only part there is no second copy,
+      // so swallowing it would leave the estate summary claiming cascades that were never
+      // written and a Cascades section that is silently empty.
+      if (SQL_ONLY_AUTOMATION_PARTS.has(part)) throw sqlError;
     }
 
     return { saved: true, part, rowsWritten };
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
     console.error("saveAutomationIndex failed:", error);
+    throw error;
+  }
+}
+
+
+// Parts that are written to SQL and nowhere else.
+//
+// Everything in AUTOMATION_PARTS has a KVS document behind it; cascades deliberately do not.
+// Kept as its own set rather than a flag on the parts map so the map keeps meaning exactly
+// "these have a storage key".
+const SQL_ONLY_AUTOMATION_PARTS = new Set(["cascades"]);
+
+function isAutomationIndexPart(part) {
+  return Object.prototype.hasOwnProperty.call(AUTOMATION_PARTS, part)
+    || SQL_ONLY_AUTOMATION_PARTS.has(part);
+}
+
+// A page of cascades, filtered.
+//
+// The tab used to render whatever survived MAX_STORED_CASCADES -- 150 of this site's 1,457
+// -- grouped in the browser. That grouping was only correct because the stored set WAS the
+// whole page; grouping a page of a larger set splits one relationship across a page boundary
+// and renders it twice. So both the filtering and the grouping happen in SQL, and the total
+// counts groups rather than edges so a reader is never paged toward a number they cannot
+// reach.
+async function getAutomationCascades({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const installationKey = getInstallationKey(context);
+    const page = Math.max(1, Math.trunc(Number(payload?.page)) || 1);
+    const pageSize = Math.max(1, Math.min(200, Math.trunc(Number(payload?.pageSize)) || 50));
+
+    const [summary, result] = await Promise.all([
+      loadCascadeSummary(installationKey),
+      loadCascades(installationKey, {
+        search: String(payload?.search ?? "").slice(0, 200),
+        kind: ["all", "self", "cross"].includes(payload?.kind) ? payload.kind : "all",
+        ruleId: payload?.ruleId ? String(payload.ruleId) : null,
+        direction: payload?.direction === "target" ? "target" : "source",
+        field: payload?.field ? String(payload.field) : null,
+        limit: pageSize,
+        offset: (page - 1) * pageSize,
+      }),
+    ]);
+
+    return {
+      // Zero edges and no analysis are different states. A site whose rules genuinely
+      // cascade nowhere should read as clean, not as unbuilt.
+      available: summary.edges > 0,
+      summary,
+      cascades: result.cascades,
+      total: result.total,
+      page,
+      pageSize,
+    };
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("getAutomationCascades failed:", error);
+    throw error;
+  }
+}
+
+// The multi-rule picture: loops, and the chains that are not loops.
+//
+// This is what the cap made impossible rather than merely incomplete. A chain A -> B -> C is
+// found by walking the edge set, and walking a set truncated at 150 finds chains that stop
+// where the truncation did -- so the answer was not "fewer chains", it was "wrong chains".
+//
+// Computed on demand rather than stored. The walk is a few milliseconds over this site's
+// 1,143 unique edges, and storing its output would mean a second thing to keep in step with
+// the edges: a stored chain list and a re-imported estate can disagree, and a derived one
+// cannot.
+async function getCascadeGraph({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const installationKey = getInstallationKey(context);
+    const maxDepth = Math.max(2, Math.min(MAX_CHAIN_DEPTH, Math.trunc(Number(payload?.maxDepth)) || MAX_CHAIN_DEPTH));
+
+    const edges = await loadCascadeEdges(installationKey);
+    if (!edges.length) return { available: false, reason: "no-cascades" };
+
+    // Names are attached after the walk rather than carried through it. The graph only needs
+    // ids, and joining 1,457 rows to the directory to compute something that uses ids would
+    // be paying for names on every edge to render them on a few hundred.
+    const analysis = analyzeCascadeGraph(edges, { maxDepth });
+    const involved = new Set([
+      ...analysis.loops.flatMap((loop) => loop.ruleIds),
+      ...analysis.chains.flatMap((chain) => chain.ruleIds),
+    ]);
+    const directory = await loadRuleDirectoryFor(installationKey, [...involved]);
+
+    const hydrate = (step) => ({
+      ...step,
+      name: directory.get(String(step.id))?.name ?? step.name,
+      enabled: directory.get(String(step.id))?.enabled ?? null,
+    });
+
+    return {
+      available: true,
+      ruleCount: analysis.ruleCount,
+      edgeCount: analysis.edgeCount,
+      rulesInLoops: analysis.rulesInLoops,
+      deepestChain: analysis.deepestChain,
+      // Reported, never silent. A truncated answer presented as complete is worse than a
+      // smaller one that says what it left out.
+      truncated: analysis.truncated,
+      maxDepth,
+      loops: analysis.loops.map((loop) => ({
+        ...loop,
+        ruleNames: loop.ruleIds.map((id) => directory.get(String(id))?.name ?? id),
+        path: loop.path.map(hydrate),
+      })),
+      chains: analysis.chains.map((chain) => ({ ...chain, steps: chain.steps.map(hydrate) })),
+    };
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("getCascadeGraph failed:", error);
+    throw error;
+  }
+}
+
+// Which rules reference one status, by direction.
+//
+// The Workflows tab has been able to say "17 rules" against an unreachable status since the
+// references moved to SQL, and a count is where the question starts rather than where it
+// ends: an admin looking at a status they want to delete needs the rule names, and needs to
+// know whether a rule TRANSITIONS INTO it -- which keeps it alive -- or merely reads it in a
+// condition, which does not.
+async function getStatusAutomationUsage({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const installationKey = getInstallationKey(context);
+    const statusName = String(payload?.statusName ?? "").trim();
+    if (!statusName) throw new Error("statusName is required");
+
+    const hit = await loadAutomationReferencesFor(installationKey, "status", statusName)
+      .catch(fallbackOn("automation.sql_status_reference_read_failed", () => null, { installationKey }));
+
+    // No analysis and no references are different answers. "No rule touches this status" is
+    // permission to delete it; "we have not looked" is not, and this pillar exists because
+    // the two used to be indistinguishable.
+    if (!hit) return { available: false, reason: "no-analysis", label: statusName };
+
+    const group = (direction) => {
+      const rows = hit.references.filter((r) => r.direction === direction);
+      return {
+        count: rows.length,
+        rules: rows.map((r) => ({
+          id: r.rule_id,
+          name: r.name ?? `Rule ${r.rule_id}`,
+          enabled: r.enabled === null || r.enabled === undefined ? null : r.enabled === 1,
+        })),
+      };
+    };
+
+    return {
+      available: true,
+      label: statusName,
+      referenced: hit.total > 0,
+      ruleCount: hit.ruleCount,
+      // Direction is the whole point. A rule that transitions INTO a status keeps it in use;
+      // one that reads it in a condition breaks if it disappears but does not keep it alive.
+      write: group("write"),
+      read: group("read"),
+      trigger: group("trigger"),
+    };
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("getStatusAutomationUsage failed:", error);
     throw error;
   }
 }
@@ -4125,6 +4312,9 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   getFieldScreenReachability, // Admin read: which screens carry one field
   buildScreenInventory,    // Mutating: queues a full screen and scheme snapshot build
 
+  getAutomationCascades,   // Admin read: one filtered page of cascade relationships
+  getCascadeGraph,         // Admin read: loops and multi-rule chains across every edge
+  getStatusAutomationUsage,// Admin read: which rules reference one status, by direction
   getHealthHistory,        // Admin read: the site health series and per-dimension deltas
   getPillarHealth,         // Admin read: one pillar of the score, for the tab it is about
   getProjectOverview,      // Admin read: every pillar that touches one project

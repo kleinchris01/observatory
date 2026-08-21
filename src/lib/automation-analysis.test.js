@@ -578,7 +578,7 @@ describe("analyzeRules", () => {
 
   it("returns every document the tab needs from one pass", () => {
     const out = analyzeRules(rules, { source: "export.json" });
-    expect(Object.keys(out).sort()).toEqual(["analysis", "directory", "fields", "findings", "statuses"]);
+    expect(Object.keys(out).sort()).toEqual(["analysis", "cascades", "directory", "fields", "findings", "statuses"]);
     expect(out.analysis).toMatchObject({ schemaVersion: 1, source: "export.json" });
   });
 
@@ -707,5 +707,40 @@ describe("summarizeEstate", () => {
 
   it("handles an empty estate without dividing by zero", () => {
     expect(summarizeEstate([])).toMatchObject({ ruleCount: 0, enabledCount: 0, fieldsReferenced: 0, cascadeCount: 0 });
+  });
+});
+
+// The uncapped cascade document, separate from the analysis document's capped copy.
+//
+// analysis.cascades stays at MAX_STORED_CASCADES because it has to fit in a KVS value; this
+// one is shredded straight into rows, and the cap is exactly what made the multi-hop question
+// unanswerable -- a chain A -> B -> C is found by walking the edge set, and a walk over a set
+// truncated at 150 finds chains that stop where the truncation did.
+describe("buildCascadeDocument", () => {
+  const edge = (over = {}) => ({ sourceId: 1, targetId: 2, field: "Owner", selfTriggering: false, ...over });
+
+  it("carries every edge, with no cap", async () => {
+    const { buildCascadeDocument, MAX_STORED_CASCADES } = await import("./automation-analysis.js");
+    const many = Array.from({ length: MAX_STORED_CASCADES * 4 }, (_, i) => edge({ targetId: i }));
+    const doc = buildCascadeDocument(many);
+
+    expect(doc.total).toBe(MAX_STORED_CASCADES * 4);
+    expect(doc.edges).toHaveLength(MAX_STORED_CASCADES * 4);
+  });
+
+  it("emits tuples, because key names cost more than values over 1,457 edges", async () => {
+    const { buildCascadeDocument } = await import("./automation-analysis.js");
+    expect(buildCascadeDocument([edge()]).edges[0]).toEqual(["1", "2", "Owner", 0]);
+  });
+
+  it("flags a self-triggering edge for the column that indexes it", async () => {
+    const { buildCascadeDocument } = await import("./automation-analysis.js");
+    expect(buildCascadeDocument([edge({ sourceId: 9, targetId: 9, selfTriggering: true })]).edges[0][3]).toBe(1);
+  });
+
+  it("is empty rather than absent when nothing cascades", async () => {
+    const { buildCascadeDocument } = await import("./automation-analysis.js");
+    expect(buildCascadeDocument([])).toEqual({ schemaVersion: 1, total: 0, edges: [] });
+    expect(buildCascadeDocument()).toEqual({ schemaVersion: 1, total: 0, edges: [] });
   });
 });

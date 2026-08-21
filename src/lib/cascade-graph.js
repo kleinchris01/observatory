@@ -130,10 +130,21 @@ function cycleWithin(component, edges) {
   const stack = [start];
   const seen = new Set([start]);
 
+  // A component of more than one rule wants the cycle THROUGH those rules. A self-edge on
+  // any member is a real loop, but it is a loop of one and it is already reported as its own
+  // finding -- and taking it here returns "b -> b" for a component of six, which hides the
+  // six-rule cycle that is the whole reason this component was reported.
+  //
+  // Found by wiring this up: on the reference estate the largest loop spans six rules and
+  // one of them also triggers itself, so the headline finding rendered as a two-step path
+  // while still claiming a size of six.
+  const skipSelfEdges = members.size > 1;
+
   while (stack.length) {
     const node = stack.pop();
     for (const edge of edges.get(node) ?? []) {
       if (!members.has(edge.to)) continue;
+      if (skipSelfEdges && edge.to === node) continue;
       if (edge.to === start) {
         const path = [node];
         let cursor = node;

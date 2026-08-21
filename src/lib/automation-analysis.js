@@ -621,6 +621,25 @@ export function buildRuleDirectory(summaries = []) {
   };
 }
 
+// Every cascade edge, for the relational store.
+//
+// Separate from the analysis document's `cascades`, which stays capped at
+// MAX_STORED_CASCADES because it has to fit in a KVS value. This one has no cap: it is
+// shredded straight into rows, and the cap is exactly what made the multi-hop question
+// unanswerable -- a chain A -> B -> C -> D is found by walking the edge set, and a walk over
+// a set truncated at 150 finds chains that stop where the truncation did.
+//
+// Tuples rather than objects, like the rule directory and for the same reason: over 1,457
+// edges the repeated key names cost more than the values. Positions are
+// [sourceId, targetId, field, selfTriggering].
+export function buildCascadeDocument(cascades = []) {
+  return {
+    schemaVersion: 1,
+    total: cascades.length,
+    edges: cascades.map((c) => [String(c.sourceId), String(c.targetId), c.field ?? "", c.selfTriggering ? 1 : 0]),
+  };
+}
+
 export function hydrateRuleDirectory(document) {
   const byId = new Map();
   for (const [id, name, enabled, triggerType, projectCount] of document?.rules ?? []) {
@@ -652,6 +671,7 @@ export function analyzeRules(rules = [], { source = "unknown", now = Date.now() 
     statuses: buildIndexDocument(statuses, "status", enabledById),
     directory: buildRuleDirectory(summaries),
     findings: buildFindingsDocument(summaries),
+    cascades: buildCascadeDocument(cascades),
   };
 }
 

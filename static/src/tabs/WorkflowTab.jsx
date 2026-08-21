@@ -2,7 +2,7 @@ import React from "react";
 import { invoke } from "@forge/bridge";
 import { formatTimestamp, formatRelativeTime, formatNumber } from "../utils";
 import { Icon } from "../components/Icons";
-import { StatTile, StatRow, Panel, EmptyState, PageHeader, SortFilterBar } from "../components/ui";
+import { StatTile, StatRow, Panel, EmptyState, PageHeader, SortFilterBar, Chip, RuleLink } from "../components/ui";
 import { SubNavLayout } from "../components/admin/primitives";
 
 // Workflow scheme + status inventory.
@@ -120,7 +120,83 @@ const DUPLICATE_KIND_LABEL = {
 //
 // Ordered by what an admin can act on soonest: duplicates are unambiguous cleanup,
 // orphans need a check before deleting, and scheme balance is a judgement call.
-export function WorkflowInsights({ insights, loading }) {
+// Which rules hold a status open, and how.
+//
+// The tab has been able to say "17 rules" against an unreachable status since the references
+// moved to SQL. A count is where the question starts, not where it ends: an admin looking at
+// a status they want to delete needs the rule NAMES, and needs to know whether a rule
+// transitions issues INTO it -- which is what keeps it alive -- or merely reads it in a
+// condition, which breaks if the status goes but does not keep it in use.
+//
+// Fetched when a status is opened rather than with the page. There are 94 unreachable
+// statuses on this site and a reader opens one or two.
+function StatusRulesPanel({ status, siteOrigin, onClose, load = invoke }) {
+  const [usage, setUsage] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    load("getStatusAutomationUsage", { statusName: status.name })
+      .then((result) => { if (!cancelled) { setUsage(result); setLoading(false); } })
+      .catch(() => { if (!cancelled) { setUsage(null); setLoading(false); } });
+    return () => { cancelled = true; };
+  }, [status.name, load]);
+
+  // Ordered by consequence, not alphabetically. A rule that transitions into this status is
+  // the reason it cannot be deleted; the other two break if it is.
+  const groups = [
+    { key: "write", label: "Transitions issues into it", tone: "danger", hint: "These keep the status in use. Deleting it breaks them." },
+    { key: "trigger", label: "Runs when an issue enters or leaves it", tone: "warning", hint: "These stop firing if the status is deleted." },
+    { key: "read", label: "Checks it in a condition", tone: "info", hint: "These break if the status is deleted, but do not keep it alive." },
+  ];
+
+  return (
+    <div className="wf-statusrules">
+      <div className="wf-statusrules__head">
+        <h4 className="wf-statusrules__title">{status.name}</h4>
+        <button type="button" className="ghost-button" onClick={onClose}>Close</button>
+      </div>
+
+      {loading ? (
+        <EmptyState inline>Looking up the rules…</EmptyState>
+      ) : !usage?.available ? (
+        // "No rule touches this status" is permission to delete it. "We have not looked" is
+        // not, and this pillar exists because the two used to be indistinguishable.
+        <EmptyState inline>
+          No rule export has been imported, so nothing is known about which rules use this status.
+        </EmptyState>
+      ) : !usage.referenced ? (
+        <EmptyState inline>No automation rule references this status.</EmptyState>
+      ) : (
+        <div className="wf-statusrules__groups">
+          {groups.filter((group) => usage[group.key]?.count > 0).map((group) => (
+            <section key={group.key} className="wf-statusrules__group">
+              <header className="wf-statusrules__grouphead">
+                <Chip tone={group.tone}>{group.label}</Chip>
+                <span className="wf-statusrules__count">{formatNumber(usage[group.key].count)}</span>
+                <p className="wf-statusrules__hint">{group.hint}</p>
+              </header>
+              <ul className="wf-statusrules__list">
+                {usage[group.key].rules.map((rule) => (
+                  <li key={`${group.key}-${rule.id}`} className="wf-statusrules__rule">
+                    <RuleLink id={rule.id} name={rule.name} siteOrigin={siteOrigin} />
+                    {rule.enabled === false && <Chip tone="neutral">disabled</Chip>}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function WorkflowInsights({ insights, loading, siteOrigin, load = invoke }) {
+  // Which status the reader has opened, if any. One at a time: this is a drill-down, not a
+  // column, and 94 expanded panels is not a page.
+  const [openStatus, setOpenStatus] = React.useState(null);
   if (loading && !insights) return <EmptyState>Analysing the workflow inventory…</EmptyState>;
   if (!insights) return null;
 
@@ -245,17 +321,32 @@ export function WorkflowInsights({ insights, loading }) {
                   {/* The per-status answer. A status no workflow reaches and no issue ever
                       entered still is not safe to delete if a rule transitions into it --
                       which is precisely what the old blanket warning could not tell you. */}
+                  {/* The count is the way in, not the answer. "17 rules" tells a reader they
+                      cannot delete this status; it does not tell them which rules to look at,
+                      or whether any of them transitions issues INTO it. */}
                   {orphan.automationRuleCount > 0 && (
-                    <span
+                    <button
+                      type="button"
                       className="wf-orphan__count wf-orphan__count--rules"
-                      title="An automation rule references this status. Deleting it will break that rule."
+                      title={`Show the ${orphan.automationRuleCount} rules that reference "${orphan.name}"`}
+                      onClick={() => setOpenStatus(openStatus?.statusId === orphan.statusId ? null : orphan)}
+                      aria-expanded={openStatus?.statusId === orphan.statusId}
                     >
                       {formatNumber(orphan.automationRuleCount)} {orphan.automationRuleCount === 1 ? "rule" : "rules"}
-                    </span>
+                    </button>
                   )}
                 </div>
               ))}
             </div>
+          )}
+
+          {openStatus && (
+            <StatusRulesPanel
+              status={openStatus}
+              siteOrigin={siteOrigin}
+              onClose={() => setOpenStatus(null)}
+              load={load}
+            />
           )}
         </Panel>
       )}

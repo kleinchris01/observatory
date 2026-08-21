@@ -567,3 +567,99 @@ describe("WorkflowTab — unreachable statuses vs automation", () => {
     expect(screen.queryByText(/Automation rules are not included/i)).not.toBeInTheDocument();
   });
 });
+
+// A count is where the question starts, not where it ends. The tab has been able to say
+// "17 rules" against an unreachable status since the references moved to SQL, and an admin
+// looking at a status they want to delete needs the rule NAMES -- and needs to know whether
+// a rule transitions issues INTO it, which is what keeps it alive.
+describe("WorkflowTab — which rules hold a status open", () => {
+  const insights = (orphans) => ({
+    available: true,
+    schemeStatusesAvailable: true,
+    hasIssueCounts: true,
+    automationChecked: true,
+    orphans,
+    duplicateGroups: [],
+    balance: [],
+    summary: { duplicateGroupCount: 0, orphanCount: orphans.length, flaggedSchemeCount: 0 },
+    statusTotals: { catalogCount: 10, withIssues: 5 },
+    snapshotStatus: { state: "ready", refreshedAt: "2026-08-13T00:00:00Z" },
+  });
+
+  const parkingLot = [{ statusId: "1", name: "Parking Lot", issueCount: 0, safeToRemove: false, automationRuleCount: 3, ruleOnly: true }];
+
+  const usage = (over = {}) => ({
+    available: true, label: "Parking Lot", referenced: true, ruleCount: 3,
+    write: { count: 1, rules: [{ id: "10", name: "Sends to Parking Lot", enabled: true }] },
+    trigger: { count: 1, rules: [{ id: "11", name: "Fires on entry", enabled: false }] },
+    read: { count: 1, rules: [{ id: "12", name: "Checks the status", enabled: true }] },
+    ...over,
+  });
+
+  test("opens the rule list from the count", async () => {
+    const user = userEvent.setup();
+    const load = vi.fn().mockResolvedValue(usage());
+    render(<WorkflowInsights insights={insights(parkingLot)} loading={false} load={load} />);
+
+    await user.click(screen.getByRole("button", { name: "3 rules" }));
+
+    expect(await screen.findByText("Sends to Parking Lot")).toBeInTheDocument();
+    expect(load).toHaveBeenCalledWith("getStatusAutomationUsage", { statusName: "Parking Lot" });
+  });
+
+  test("leads with the rules that transition issues into it", async () => {
+    const user = userEvent.setup();
+    render(<WorkflowInsights insights={insights(parkingLot)} loading={false} load={vi.fn().mockResolvedValue(usage())} />);
+
+    await user.click(screen.getByRole("button", { name: "3 rules" }));
+    await screen.findByText("Sends to Parking Lot");
+
+    // Ordered by consequence rather than alphabetically: a rule that transitions into this
+    // status is the reason it cannot be deleted; the other two break if it is.
+    const groups = [...document.querySelectorAll(".wf-statusrules__group")];
+    expect(groups[0].textContent).toContain("Transitions issues into it");
+    expect(groups[0].textContent).toContain("Deleting it breaks them");
+  });
+
+  test("marks a disabled rule, which is not currently holding anything open", async () => {
+    const user = userEvent.setup();
+    render(<WorkflowInsights insights={insights(parkingLot)} loading={false} load={vi.fn().mockResolvedValue(usage())} />);
+
+    await user.click(screen.getByRole("button", { name: "3 rules" }));
+    const row = (await screen.findByText("Fires on entry")).closest(".wf-statusrules__rule");
+    expect(row.textContent).toContain("disabled");
+  });
+
+  test("closes again on a second click", async () => {
+    const user = userEvent.setup();
+    render(<WorkflowInsights insights={insights(parkingLot)} loading={false} load={vi.fn().mockResolvedValue(usage())} />);
+
+    await user.click(screen.getByRole("button", { name: "3 rules" }));
+    await screen.findByText("Sends to Parking Lot");
+    await user.click(screen.getByRole("button", { name: "3 rules" }));
+
+    expect(screen.queryByText("Sends to Parking Lot")).not.toBeInTheDocument();
+  });
+
+  // "No rule touches this status" is permission to delete it. "We have not looked" is not,
+  // and this pillar exists because the two used to be indistinguishable.
+  test("says nothing is known rather than nothing uses it, with no analysis", async () => {
+    const user = userEvent.setup();
+    const load = vi.fn().mockResolvedValue({ available: false, reason: "no-analysis", label: "Parking Lot" });
+    render(<WorkflowInsights insights={insights(parkingLot)} loading={false} load={load} />);
+
+    await user.click(screen.getByRole("button", { name: "3 rules" }));
+    expect(await screen.findByText(/nothing is known about which rules use this status/i)).toBeInTheDocument();
+  });
+
+  test("a status no rule references offers no way in", () => {
+    render(<WorkflowInsights
+      insights={insights([{ statusId: "2", name: "Ghost", issueCount: 0, safeToRemove: true, automationRuleCount: 0, ruleOnly: false }])}
+      loading={false}
+      load={vi.fn()}
+    />);
+
+    expect(screen.queryByRole("button", { name: /rules?$/ })).not.toBeInTheDocument();
+  });
+});
+

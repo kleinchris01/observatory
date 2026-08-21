@@ -291,6 +291,39 @@ export const CREATE_AUTOMATION_RULE_PROJECTS_BY_PROJECT_INDEX = `
     ON automation_rule_projects (scope_key, project_id)
 `;
 
+// Cascade edges: rule A writes a field rule B triggers on, and their project scopes overlap.
+//
+// These lived in the analysis document, capped at MAX_STORED_CASCADES = 150. This site has
+// 1,457 of them, so the tab has been showing a tenth of the estate's cascades under a
+// footnote -- and the cap was not arbitrary, it was what kept the document inside the ~240 KB
+// a KVS value holds. In SQL there is no cap to apply, which also makes the multi-hop
+// question answerable: a chain A -> B -> C cannot be found in a list that was truncated
+// before C.
+//
+// One row per (source, target, field). Two rules linked by three fields are three rows and
+// one relationship; collapsing them here would lose which field carries which hop, which is
+// the thing an admin has to break to stop the cascade.
+//
+// self_triggering is stored rather than derived from source = target, because it is what the
+// UI filters and sorts on and a computed column is not indexable here.
+export const CREATE_AUTOMATION_CASCADES_TABLE = `
+  CREATE TABLE IF NOT EXISTS automation_cascades (
+    scope_key VARCHAR(191) NOT NULL,
+    source_rule_id VARCHAR(64) NOT NULL,
+    target_rule_id VARCHAR(64) NOT NULL,
+    field VARCHAR(191) NOT NULL,
+    self_triggering TINYINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (scope_key, source_rule_id, target_rule_id, field)
+  )
+`;
+
+// The reverse direction: "what wakes this rule", which is the question an admin asks when a
+// rule fires and they cannot see why. The primary key only serves "what does this rule wake".
+export const CREATE_AUTOMATION_CASCADES_TARGET_INDEX = `
+  CREATE INDEX idx_automation_cascades_target
+  ON automation_cascades (scope_key, target_rule_id)
+`;
+
 // Findings per rule. Paginating these was the reason the analysis document grew a preview
 // alongside a full list; in SQL the preview is just a LIMIT.
 export const CREATE_AUTOMATION_FINDINGS_TABLE = `
@@ -816,7 +849,9 @@ const projectStoreMigrations = migrationRunner
   // that is a different fact from having looked and found none. Without this column the
   // two are indistinguishable, and the tab reported the first as the second.
   .enqueue("v072_alter_workflow_meta_add_transition_screens",
-    "ALTER TABLE workflow_snapshot_meta ADD COLUMN IF NOT EXISTS transition_screens INTEGER NULL");
+    "ALTER TABLE workflow_snapshot_meta ADD COLUMN IF NOT EXISTS transition_screens INTEGER NULL")
+  .enqueue("v073_create_automation_cascades_table", CREATE_AUTOMATION_CASCADES_TABLE)
+  .enqueue("v074_create_automation_cascades_target_index", CREATE_AUTOMATION_CASCADES_TARGET_INDEX);
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history

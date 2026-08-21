@@ -290,6 +290,233 @@ export async function loadRulesForProject(scopeKey, projectId, { limit = 100 } =
   }));
 }
 
+// ── Cascades ────────────────────────────────────────────────────────────────
+//
+// Every edge, not the first 150.
+//
+// The cascade list lived in the analysis document under a MAX_STORED_CASCADES cap, which
+// existed because the document has to fit in a KVS value. This site produces 1,457 edges,
+// so the tab was showing roughly a tenth of them behind a "showing 150 of 1,457" footnote --
+// and no amount of scrolling could reach the rest.
+//
+// The cap also made the multi-hop question unanswerable. A chain A -> B -> C -> D is found
+// by walking the edge set, and a walk over a truncated edge set finds truncated chains: the
+// graph code has existed and been tested since it was written, and could not be wired to
+// anything because the data it needed was thrown away at import.
+
+// Rows per statement. Four bound params per row against the reference writer's five, so a
+// slightly larger batch stays inside the same bound-parameter ceiling.
+const CASCADE_BATCH = 40;
+
+// Flatten the import document into rows.
+//
+// Tuples on the wire -- [sourceId, targetId, field, selfTriggering] -- because over 1,457
+// edges the repeated key names cost more than the values do.
+export function cascadeRowsFrom(document) {
+  const rows = [];
+  const seen = new Set();
+  for (const edge of document?.edges ?? []) {
+    const [sourceId, targetId, field, selfTriggering] = edge ?? [];
+    if (sourceId == null || targetId == null) continue;
+    const label = String(field ?? "").slice(0, 191);
+    if (!label) continue;
+    // The primary key is (scope, source, target, field), so a duplicate tuple would make the
+    // INSERT a no-op anyway -- dropping it here keeps the batch sizes honest.
+    const key = `${sourceId}|${targetId}|${label}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    rows.push([String(sourceId), String(targetId), label, selfTriggering ? 1 : 0]);
+  }
+  return rows;
+}
+
+export async function replaceAutomationCascades(scopeKey, document) {
+  const rows = cascadeRowsFrom(document).map((row) => [scopeKey, ...row]);
+  return replaceRows(
+    scopeKey,
+    "automation_cascades",
+    ["scope_key", "source_rule_id", "target_rule_id", "field", "self_triggering"],
+    rows,
+    CASCADE_BATCH
+  );
+}
+
+// Headline counts, from the rows rather than from a number the writer had to remember.
+//
+// `pairs` is the count that belongs on screen next to `edges`: two rules linked by three
+// fields are one relationship an admin can break, not three.
+export async function loadCascadeSummary(scopeKey) {
+  await ensureProjectStoreReady();
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT
+        COUNT(*) AS edges,
+        COUNT(DISTINCT CONCAT(source_rule_id, '>', target_rule_id)) AS pairs,
+        COUNT(DISTINCT CASE WHEN self_triggering = 1 THEN source_rule_id END) AS self_rules,
+        COUNT(DISTINCT field) AS fields
+      FROM automation_cascades WHERE scope_key = ?
+    `).bindParams(scopeKey).execute()
+  );
+  const row = result.rows?.[0] || {};
+  return {
+    edges: toNumber(row.edges),
+    pairs: toNumber(row.pairs),
+    selfTriggeringRules: toNumber(row.self_rules),
+    fields: toNumber(row.fields),
+  };
+}
+
+// One page of cascades, grouped into the relationship an admin acts on.
+//
+// Grouped in SQL rather than in the browser. The old view grouped a 150-row page
+// client-side, which is only correct because the page WAS the whole stored set; grouping a
+// page of a larger set would split one relationship across two pages and render it twice.
+//
+// `direction` decides which end `ruleId` binds to, which is the difference between "what
+// does this rule wake" and "what wakes this rule" -- the second being the question an admin
+// asks when a rule fires and they cannot see why.
+export async function loadCascades(scopeKey, {
+  search = "",
+  kind = "all",
+  ruleId = null,
+  direction = "source",
+  field = null,
+  limit = 100,
+  offset = 0,
+} = {}) {
+  await ensureProjectStoreReady();
+  // Interpolated, never bound: Forge SQL rejects a placeholder in LIMIT/OFFSET. Coercing to
+  // a bounded integer here is the only thing between a caller and an injection, and
+  // project-store.schema.test.js asserts no query binds either.
+  const cap = Math.max(1, Math.min(500, Math.trunc(Number(limit)) || 100));
+  const skip = Math.max(0, Math.min(100000, Math.trunc(Number(offset)) || 0));
+
+  const where = ["c.scope_key = ?"];
+  const params = [scopeKey];
+
+  if (kind === "self") where.push("c.self_triggering = 1");
+  else if (kind === "cross") where.push("c.self_triggering = 0");
+
+  if (ruleId) {
+    where.push(direction === "target" ? "c.target_rule_id = ?" : "c.source_rule_id = ?");
+    params.push(String(ruleId));
+  }
+  if (field) {
+    where.push("LOWER(c.field) = LOWER(?)");
+    params.push(String(field));
+  }
+  // Matches a rule at either end as well as the field, because "what is Story Points caught
+  // up in" and "what is this rule caught up in" are the same search box to a reader.
+  if (search.trim()) {
+    where.push("(LOWER(c.field) LIKE LOWER(?) OR LOWER(COALESCE(s.name, '')) LIKE LOWER(?) OR LOWER(COALESCE(t.name, '')) LIKE LOWER(?))");
+    const term = `%${search.trim()}%`;
+    params.push(term, term, term);
+  }
+
+  const from = `
+    FROM automation_cascades c
+    LEFT JOIN automation_rules s ON s.scope_key = c.scope_key AND s.rule_id = c.source_rule_id
+    LEFT JOIN automation_rules t ON t.scope_key = c.scope_key AND t.rule_id = c.target_rule_id
+    WHERE ${where.join(" AND ")}
+  `;
+
+  const rows = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT
+        c.source_rule_id, c.target_rule_id, c.self_triggering,
+        s.name AS source_name, s.enabled AS source_enabled,
+        t.name AS target_name, t.enabled AS target_enabled,
+        COUNT(*) AS field_count,
+        GROUP_CONCAT(c.field ORDER BY c.field SEPARATOR '\u001f') AS fields
+      ${from}
+      GROUP BY c.source_rule_id, c.target_rule_id, c.self_triggering,
+               s.name, s.enabled, t.name, t.enabled
+      ORDER BY c.self_triggering DESC, field_count DESC, c.source_rule_id ASC, c.target_rule_id ASC
+      LIMIT ${cap} OFFSET ${skip}
+    `).bindParams(...params).execute()
+  );
+
+  // The total is a count of GROUPS, matching what the rows are. Counting edges here would
+  // page a reader through a number they can never reach.
+  const counted = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT COUNT(*) AS total FROM (
+        SELECT 1 ${from}
+        GROUP BY c.source_rule_id, c.target_rule_id
+      ) grouped
+    `).bindParams(...params).execute()
+  );
+
+  return {
+    cascades: (rows.rows || []).map((row) => ({
+      sourceId: row.source_rule_id,
+      sourceName: row.source_name || row.source_rule_id,
+      sourceEnabled: row.source_enabled == null ? null : toNumber(row.source_enabled) === 1,
+      targetId: row.target_rule_id,
+      targetName: row.target_name || row.target_rule_id,
+      targetEnabled: row.target_enabled == null ? null : toNumber(row.target_enabled) === 1,
+      selfTriggering: toNumber(row.self_triggering) === 1,
+      fields: String(row.fields || "").split("\u001f").filter(Boolean),
+      fieldCount: toNumber(row.field_count),
+    })),
+    total: toNumber(counted.rows?.[0]?.total),
+  };
+}
+
+// Every edge, for the graph walk.
+//
+// Deliberately unpaged and deliberately narrow: loops and chains are properties of the WHOLE
+// graph, and a walk over a page finds chains that stop at the page boundary. Only the three
+// columns the walk needs are selected -- names are attached afterwards from the directory,
+// so the edge set stays small enough to hold whatever the estate's size.
+export async function loadCascadeEdges(scopeKey, { limit = 20000 } = {}) {
+  await ensureProjectStoreReady();
+  const cap = Math.max(1, Math.min(50000, Math.trunc(Number(limit)) || 20000));
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT c.source_rule_id, c.target_rule_id, c.field
+      FROM automation_cascades c
+      WHERE c.scope_key = ?
+      ORDER BY c.source_rule_id, c.target_rule_id, c.field
+      LIMIT ${cap}
+    `).bindParams(scopeKey).execute()
+  );
+  return (result.rows || []).map((row) => ({
+    sourceId: row.source_rule_id,
+    targetId: row.target_rule_id,
+    field: row.field,
+  }));
+}
+
+// Names and states for a set of rule ids, so a chain reads as rule names rather than a walk
+// of numeric ids. Chunked against the bind-parameter ceiling like every other IN-list here.
+export async function loadRuleDirectoryFor(scopeKey, ruleIds = []) {
+  await ensureProjectStoreReady();
+  const ids = [...new Set((ruleIds || []).map((id) => String(id)).filter(Boolean))];
+  if (!ids.length) return new Map();
+
+  const out = new Map();
+  for (let i = 0; i < ids.length; i += 100) {
+    const batch = ids.slice(i, i + 100);
+    const result = await withSqlRetry(() =>
+      sql.prepare(`
+        SELECT rule_id, name, enabled, trigger_type
+        FROM automation_rules
+        WHERE scope_key = ? AND rule_id IN (${batch.map(() => "?").join(", ")})
+      `).bindParams(scopeKey, ...batch).execute()
+    );
+    for (const row of result.rows || []) {
+      out.set(String(row.rule_id), {
+        id: String(row.rule_id),
+        name: row.name || String(row.rule_id),
+        enabled: toNumber(row.enabled) === 1,
+        triggerType: row.trigger_type || null,
+      });
+    }
+  }
+  return out;
+}
+
 export async function replaceAutomationFindings(scopeKey, findingsDocument) {
   const rows = [];
   for (const row of findingsDocument?.findings ?? []) {

@@ -1,7 +1,7 @@
 import React from "react";
 import { invoke } from "@forge/bridge";
-import { formatRelativeTime, formatNumber, buildAutomationRuleUrl, handleJiraLinkClick } from "../utils";
-import { BarList, Chip, EmptyState, FindingRow, Panel, StatRow, StatTile } from "../components/ui";
+import { formatRelativeTime, formatNumber } from "../utils";
+import { BarList, Chip, EmptyState, FindingRow, Panel, RuleLink, SortFilterBar, StatRow, StatTile } from "../components/ui";
 import { SubNavLayout } from "../components/admin/primitives";
 import { Icon } from "../components/Icons";
 import { analyzeRules, expandFinding, hydrateRuleDirectory } from "../../../src/lib/automation-analysis";
@@ -94,6 +94,9 @@ export async function persistAnalysis(documents, { save = invoke } = {}) {
   await save("saveAutomationIndex", { part: "statuses", document: documents.statuses });
   await save("saveAutomationIndex", { part: "directory", document: documents.directory });
   await save("saveAutomationIndex", { part: "findings", document: documents.findings });
+  // Cascades go after the directory, because the cascade views join to it for rule names --
+  // and before the analysis, which is the commit point.
+  await save("saveAutomationIndex", { part: "cascades", document: documents.cascades });
   await save("saveAutomationAnalysis", { analysis: documents.analysis });
 }
 
@@ -117,29 +120,6 @@ export function riskDetail(risk) {
     default:
       return risk.code;
   }
-}
-
-// A rule name that opens the rule in Jira.
-//
-// Falls back to plain text when the site origin is unknown -- an anchor that silently does
-// nothing on click is worse than a label.
-export function RuleLink({ id, name, siteOrigin, className = "" }) {
-  const href = buildAutomationRuleUrl(siteOrigin, id);
-  const label = name || `Rule ${id}`;
-  if (!href) return <span className={className}>{label}</span>;
-
-  return (
-    <a
-      className={`rule-link ${className}`.trim()}
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      title={`Open "${label}" in Jira automation`}
-      onClick={(event) => { event.stopPropagation(); handleJiraLinkClick(event, href); }}
-    >
-      {label}
-    </a>
-  );
 }
 
 // ── Reference explorer ──────────────────────────────────────────────────────
@@ -331,85 +311,341 @@ function ReferenceExplorer({ noun, index, directory, loading, error, onRetry, si
 }
 
 // ── Cascades ────────────────────────────────────────────────────────────────
-
-// Grouped by source rule rather than listed per edge.
 //
-// One row per edge produced 25 consecutive lines reading "Auto-Populate Child Fields from
-// Parent Story writes and triggers on this field", which is the same fact restated for each
-// of ten fields. Grouping turns that into one row naming the rule and the fields it loops on.
-export function groupCascades(cascades = []) {
-  const bySource = new Map();
-  for (const c of cascades) {
-    const key = `${c.sourceId}|${c.selfTriggering ? "self" : c.targetId}`;
-    if (!bySource.has(key)) {
-      bySource.set(key, {
-        key,
-        sourceId: c.sourceId,
-        sourceName: c.sourceName,
-        targetId: c.targetId,
-        targetName: c.targetName,
-        selfTriggering: c.selfTriggering,
-        fields: [],
-      });
-    }
-    const group = bySource.get(key);
-    if (!group.fields.includes(c.field)) group.fields.push(c.field);
-  }
-  return [...bySource.values()].sort((a, b) => {
-    if (a.selfTriggering !== b.selfTriggering) return a.selfTriggering ? -1 : 1;
-    return b.fields.length - a.fields.length;
-  });
+// Two questions, and the tab used to answer neither properly.
+//
+// "Which rules wake which" was answered with the first 150 of this site's 1,457 edges,
+// because that is what fits in the analysis document beside everything else it carries. The
+// remaining 1,307 were unreachable by any amount of scrolling, under a footnote saying so.
+//
+// "What happens after that" was not answered at all. cascade-graph.js has found loops and
+// multi-hop chains since it was written and nothing imported it, because a walk over an edge
+// set truncated at 150 does not find shorter chains -- it finds wrong ones, stopping wherever
+// the truncation landed.
+//
+// Both now read from automation_cascades, where every edge is a row.
+
+const CASCADE_PAGE_SIZE = 50;
+
+const CASCADE_KINDS = [
+  { value: "all", label: "All cascades" },
+  { value: "self", label: "Self-triggering only" },
+  { value: "cross", label: "Between rules only" },
+];
+
+// One relationship: the rules at each end, and every field that carries a hop between them.
+//
+// Two rules linked by three fields are one relationship an admin can break, not three rows.
+// The grouping happens in SQL now rather than in the browser -- grouping a PAGE of a larger
+// set would split one relationship across a page boundary and render it twice.
+export function CascadeRow({ cascade, siteOrigin, onFocusRule }) {
+  const { selfTriggering, sourceId, sourceName, targetId, targetName, fields } = cascade;
+
+  return (
+    <div className={`cascade${selfTriggering ? " cascade--self" : ""}`}>
+      <div className="cascade__head">
+        <Chip tone={selfTriggering ? "warning" : "neutral"}>
+          {selfTriggering ? "Self-triggering" : "Cascade"}
+        </Chip>
+        <RuleLink id={sourceId} name={sourceName} siteOrigin={siteOrigin} className="cascade__rule" />
+        {!selfTriggering && (
+          <>
+            <span className="cascade__arrow" aria-label="triggers">→</span>
+            <RuleLink id={targetId} name={targetName} siteOrigin={siteOrigin} className="cascade__rule" />
+          </>
+        )}
+        {/* The way from one relationship into everything the target is caught up in. This is
+            how a reader walks a chain by hand when the graph view is too dense to read. */}
+        {onFocusRule && !selfTriggering && (
+          <button
+            type="button"
+            className="cascade__focus"
+            onClick={() => onFocusRule(targetId, targetName)}
+            title={`Show what "${targetName}" goes on to trigger`}
+          >
+            then what?
+          </button>
+        )}
+      </div>
+      <div className="cascade__fields">
+        <span className="cascade__via">via</span>
+        {fields.map((f) => <Chip key={f}>{f}</Chip>)}
+      </div>
+    </div>
+  );
 }
 
-function CascadeSection({ data, siteOrigin }) {
-  const groups = React.useMemo(() => groupCascades(data.cascades), [data.cascades]);
+// A walk through several rules, as a path a person can trace in the automation admin.
+//
+// The form matters more than the fact. "These five rules can all reach each other" is true
+// and useless; "A writes Owner, which wakes B, which writes Status, which wakes C" is the
+// same fact in the shape somebody can act on, and every hop names the field to break.
+export function CascadePath({ steps, siteOrigin, loop = false }) {
+  return (
+    <ol className={`cascade-path${loop ? " cascade-path--loop" : ""}`}>
+      {steps.map((step, index) => (
+        <li key={`${step.id}-${index}`} className="cascade-path__step">
+          <span className="cascade-path__ordinal">{index + 1}</span>
+          <RuleLink id={step.id} name={step.name} siteOrigin={siteOrigin} className="cascade-path__rule" />
+          {step.enabled === false && <Chip tone="neutral">disabled</Chip>}
+          {step.viaFields?.length > 0 && (
+            <span className="cascade-path__via">
+              writes {step.viaFields.map((f) => <Chip key={f}>{f}</Chip>)}
+            </span>
+          )}
+        </li>
+      ))}
+    </ol>
+  );
+}
 
-  if (!data.cascadesTotal) {
-    return <EmptyState inline>No rule writes a field that another rule triggers on.</EmptyState>;
-  }
+// The relationship list: every edge, filtered and paged server-side.
+function CascadeRelationships({ siteOrigin, summary, load = invoke }) {
+  const [search, setSearch] = React.useState("");
+  const [kind, setKind] = React.useState("all");
+  const [focus, setFocus] = React.useState(null);
+  const [page, setPage] = React.useState(1);
+  const [data, setData] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+
+  // Debounced, because every keystroke is a query now that filtering is server-side.
+  const [term, setTerm] = React.useState("");
+  React.useEffect(() => {
+    const id = setTimeout(() => setTerm(search), 250);
+    return () => clearTimeout(id);
+  }, [search]);
+
+  // Any change to what is being asked resets to the first page. Without this, narrowing a
+  // filter while on page 12 shows an empty list that looks like "no results".
+  React.useEffect(() => { setPage(1); }, [term, kind, focus]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    load("getAutomationCascades", {
+      search: term, kind, page, pageSize: CASCADE_PAGE_SIZE,
+      ruleId: focus?.id ?? null, direction: "source",
+    })
+      .then((result) => { if (!cancelled) { setData(result); setLoading(false); } })
+      .catch(() => { if (!cancelled) { setData(null); setLoading(false); } });
+    return () => { cancelled = true; };
+  }, [term, kind, page, focus, load]);
+
+  const total = data?.total ?? 0;
+  const pages = Math.max(1, Math.ceil(total / CASCADE_PAGE_SIZE));
+  const cascades = data?.cascades ?? [];
 
   return (
     <>
       <StatRow>
-        <StatTile label="Cascade paths" value={formatNumber(data.cascadesTotal)} icon="activity" />
+        <StatTile label="Cascade paths" value={formatNumber(summary.edges)} hint={`${formatNumber(summary.pairs)} distinct rule pairs`} icon="activity" />
         <StatTile
           label="Self-triggering rules"
-          value={formatNumber(data.selfTriggeringTotal ?? 0)}
+          value={formatNumber(summary.selfTriggeringRules)}
           hint="Write a field they also trigger on"
           icon="alertTriangle"
-          tone={data.selfTriggeringTotal > 0 ? "warning" : "neutral"}
+          tone={summary.selfTriggeringRules > 0 ? "warning" : "neutral"}
         />
-        <StatTile label="Distinct rule pairs" value={formatNumber(groups.length)} icon="layers" />
+        <StatTile label="Fields carrying a hop" value={formatNumber(summary.fields)} icon="layers" />
       </StatRow>
 
-      <div className="cascade-list">
-        {groups.map((g) => (
-          <div key={g.key} className={`cascade${g.selfTriggering ? " cascade--self" : ""}`}>
-            <div className="cascade__head">
-              <Chip tone={g.selfTriggering ? "warning" : "neutral"}>
-                {g.selfTriggering ? "Self-triggering" : "Cascade"}
-              </Chip>
-              <RuleLink id={g.sourceId} name={g.sourceName} siteOrigin={siteOrigin} className="cascade__rule" />
-              {!g.selfTriggering ? (
-                <>
-                  <span className="cascade__arrow" aria-label="triggers">→</span>
-                  <RuleLink id={g.targetId} name={g.targetName} siteOrigin={siteOrigin} className="cascade__rule" />
-                </>
-              ) : null}
-            </div>
-            <div className="cascade__fields">
-              <span className="cascade__via">via</span>
-              {g.fields.map((f) => <Chip key={f}>{f}</Chip>)}
-            </div>
+      <SortFilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Filter by field or rule name…"
+        searchLabel="Filter cascades"
+        filters={[{ key: "kind", label: "Kind", value: kind, onChange: setKind, options: CASCADE_KINDS }]}
+        resultCount={total}
+        totalCount={summary.pairs}
+        onClear={() => { setSearch(""); setKind("all"); setFocus(null); }}
+      />
+
+      {focus && (
+        <div className="cascade-focus">
+          <span>Showing only what</span>
+          <Chip tone="active" onRemove={() => setFocus(null)} removeLabel="Clear rule filter">{focus.name}</Chip>
+          <span>goes on to trigger.</span>
+        </div>
+      )}
+
+      {loading ? (
+        <EmptyState inline>Loading cascades…</EmptyState>
+      ) : cascades.length === 0 ? (
+        <EmptyState inline>No cascade matches these filters.</EmptyState>
+      ) : (
+        <>
+          <div className="cascade-list">
+            {cascades.map((cascade) => (
+              <CascadeRow
+                key={`${cascade.sourceId}-${cascade.targetId}`}
+                cascade={cascade}
+                siteOrigin={siteOrigin}
+                onFocusRule={(id, name) => setFocus({ id, name })}
+              />
+            ))}
           </div>
-        ))}
+
+          {pages > 1 && (
+            <section className="pagination-bar">
+              <span className="pagination-bar__status">
+                Page {formatNumber(page)} of {formatNumber(pages)} · {formatNumber(total)} relationships
+              </span>
+              <div className="pagination-bar__actions">
+                <button type="button" className="ghost-button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>
+                  Previous
+                </button>
+                <button type="button" className="ghost-button" onClick={() => setPage((p) => Math.min(pages, p + 1))} disabled={page >= pages}>
+                  Next
+                </button>
+              </div>
+            </section>
+          )}
+        </>
+      )}
+    </>
+  );
+}
+
+// Loops and chains: the multi-rule picture.
+function CascadeChains({ siteOrigin, load = invoke }) {
+  const [graph, setGraph] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+  const [view, setView] = React.useState("loops");
+
+  React.useEffect(() => {
+    let cancelled = false;
+    load("getCascadeGraph", {})
+      .then((result) => { if (!cancelled) { setGraph(result); setLoading(false); } })
+      .catch(() => { if (!cancelled) { setGraph(null); setLoading(false); } });
+    return () => { cancelled = true; };
+  }, [load]);
+
+  if (loading) return <EmptyState inline>Walking the cascade graph…</EmptyState>;
+  if (!graph?.available) return <EmptyState inline>No cascades to walk. Import a rule export first.</EmptyState>;
+
+  const loops = graph.loops ?? [];
+  const chains = graph.chains ?? [];
+  const showing = view === "loops" ? loops : chains;
+
+  return (
+    <>
+      <StatRow>
+        <StatTile
+          label="Loops"
+          value={formatNumber(loops.length)}
+          hint={`${formatNumber(graph.rulesInLoops)} rules caught in one`}
+          icon="refreshCw"
+          tone={loops.length > 0 ? "warning" : "neutral"}
+        />
+        <StatTile label="Multi-rule chains" value={formatNumber(chains.length)} hint={`deepest is ${formatNumber(graph.deepestChain)} rules`} icon="activity" />
+        <StatTile label="Rules in the graph" value={formatNumber(graph.ruleCount)} hint={`${formatNumber(graph.edgeCount)} connections`} icon="layers" />
+      </StatRow>
+
+      <div className="cascade-views">
+        <button type="button" className={`cascade-view${view === "loops" ? " cascade-view--active" : ""}`} onClick={() => setView("loops")}>
+          Loops <span className="cascade-view__count">{formatNumber(loops.length)}</span>
+        </button>
+        <button type="button" className={`cascade-view${view === "chains" ? " cascade-view--active" : ""}`} onClick={() => setView("chains")}>
+          Chains <span className="cascade-view__count">{formatNumber(chains.length)}</span>
+        </button>
       </div>
 
-      {data.cascadesTotal > data.cascades.length ? (
-        <div className="ui-truncation">
-          Showing {formatNumber(data.cascades.length)} of {formatNumber(data.cascadesTotal)} cascade paths.
+      {view === "loops" ? (
+        <p className="ui-note">
+          <Icon name="info" size={13} />
+          <span>
+            Every rule in a loop can reach every other one. Nothing in Jira&apos;s automation
+            admin shows you this — the path below is one concrete way round, and breaking any
+            single hop breaks the loop.
+          </span>
+        </p>
+      ) : (
+        <p className="ui-note">
+          <Icon name="info" size={13} />
+          <span>
+            Chains start at a rule nothing else triggers, which is the end an admin controls.
+            A chain beginning in the middle is a suffix of one that started earlier.
+          </span>
+        </p>
+      )}
+
+      {showing.length === 0 ? (
+        <EmptyState inline>
+          {view === "loops" ? "No rule can reach itself through other rules." : "No cascade runs more than one hop."}
+        </EmptyState>
+      ) : (
+        <div className="cascade-chain-list">
+          {showing.map((entry, index) => (
+            <div key={entry.ruleIds.join("-")} className="cascade-chain">
+              <div className="cascade-chain__head">
+                <Chip tone={view === "loops" ? (entry.selfTriggering ? "warning" : "critical") : "neutral"}>
+                  {view === "loops"
+                    ? entry.selfTriggering ? "Self-triggering" : `Loop of ${entry.size}`
+                    : `${entry.length} rules deep`}
+                </Chip>
+                <span className="cascade-chain__index">#{index + 1}</span>
+              </div>
+              <CascadePath steps={view === "loops" ? entry.path : entry.steps} siteOrigin={siteOrigin} loop={view === "loops"} />
+            </div>
+          ))}
         </div>
-      ) : null}
+      )}
+
+      {/* Reported, never silent. A truncated answer presented as a complete one is worse
+          than a smaller answer that says what it left out. */}
+      {graph.truncated && (
+        <div className="ui-truncation">
+          The walk hit its bound before every chain was enumerated, so this is a sample rather
+          than the full set. Loops are unaffected — they are found by decomposition, not by
+          walking paths, so every one of them is here.
+        </div>
+      )}
+    </>
+  );
+}
+
+function CascadeSection({ data, siteOrigin, load = invoke }) {
+  const [section, setSection] = React.useState("relationships");
+  const [summary, setSummary] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    load("getAutomationCascades", { page: 1, pageSize: 1 })
+      .then((result) => { if (!cancelled) { setSummary(result); setLoading(false); } })
+      .catch(() => { if (!cancelled) { setSummary(null); setLoading(false); } });
+    return () => { cancelled = true; };
+  }, [load]);
+
+  if (loading) return <EmptyState inline>Loading cascades…</EmptyState>;
+
+  // The estate summary still carries a cascade count from the analysis document, so a site
+  // whose rows were never written -- imported before the table existed -- says to re-import
+  // rather than claiming nothing cascades.
+  if (!summary?.available) {
+    return (
+      <EmptyState inline>
+        {data.cascadesTotal > 0
+          ? "This analysis was imported before cascades were stored in full. Re-import the rule export to see every cascade."
+          : "No rule writes a field that another rule triggers on."}
+      </EmptyState>
+    );
+  }
+
+  return (
+    <>
+      <div className="cascade-views cascade-views--top">
+        <button type="button" className={`cascade-view${section === "relationships" ? " cascade-view--active" : ""}`} onClick={() => setSection("relationships")}>
+          Relationships <span className="cascade-view__count">{formatNumber(summary.summary.pairs)}</span>
+        </button>
+        <button type="button" className={`cascade-view${section === "chains" ? " cascade-view--active" : ""}`} onClick={() => setSection("chains")}>
+          Loops and chains
+        </button>
+      </div>
+
+      {section === "relationships"
+        ? <CascadeRelationships siteOrigin={siteOrigin} summary={summary.summary} load={load} />
+        : <CascadeChains siteOrigin={siteOrigin} load={load} />}
     </>
   );
 }
@@ -828,7 +1064,7 @@ export function AutomationTab({ siteOrigin }) {
           <Panel
             title="Rules that can trigger other rules"
             icon="refreshCw"
-            description="A rule that writes a field another rule watches can start a cascade. Self-triggering rules write a field they themselves trigger on, and loop without a second rule involved."
+            description="A rule that writes a field another rule watches can start a cascade. Relationships are every single hop; loops and chains are what happens when those hops join up."
           >
             <CascadeSection data={data} siteOrigin={siteOrigin} />
           </Panel>

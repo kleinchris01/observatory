@@ -5550,6 +5550,100 @@ code {
 }
 .ui-band__desc { grid-area: desc; margin: 0; font-size: 0.73rem; opacity: 0.5; line-height: 1.4; }
 
+/* -- Cascade views ----------------------------------------------------------
+   Two questions on one section: which rules wake which (relationships), and what happens
+   after that (loops and chains). The switcher is a segmented control rather than a second
+   sub-nav, because the sub-nav already owns "which section of Automation am I in". */
+.cascade-views { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 10px; }
+.cascade-views--top { margin-bottom: 14px; }
+.cascade-view {
+  display: inline-flex; align-items: baseline; gap: 6px;
+  font: inherit; font-size: 0.78rem; font-weight: 600; cursor: pointer; color: inherit;
+  padding: 5px 11px; border-radius: 7px;
+  border: 1px solid var(--stroke); background: transparent;
+}
+.cascade-view:hover { border-color: rgba(125, 165, 215, 0.5); }
+.cascade-view:focus-visible { outline: 2px solid var(--cool); outline-offset: 1px; }
+.cascade-view--active { background: rgba(125, 165, 215, 0.14); border-color: rgba(125, 165, 215, 0.55); }
+.cascade-view__count { font-size: 0.7rem; font-weight: 500; opacity: 0.6; font-variant-numeric: tabular-nums; }
+
+/* "Then what?" -- the way from one relationship into everything the target rule goes on to
+   trigger. This is how a reader walks a chain by hand when the graph view is too dense. */
+.cascade__focus {
+  font: inherit; font-size: 0.7rem; cursor: pointer; color: var(--cool);
+  background: none; border: none; padding: 2px 4px; border-radius: 4px; opacity: 0.75;
+}
+.cascade__focus:hover { opacity: 1; text-decoration: underline; }
+.cascade__focus:focus-visible { outline: 2px solid var(--cool); outline-offset: 1px; }
+
+.cascade-focus {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
+  font-size: 0.76rem; opacity: 0.8; margin: 0 0 10px;
+}
+
+/* A chain as a numbered walk. The ordinal matters more than it looks: an admin comparing
+   this against Jira's automation admin needs to know which hop they are on. */
+.cascade-chain-list { display: flex; flex-direction: column; gap: 12px; }
+.cascade-chain {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 11px 13px; border-radius: var(--radius-md);
+  border: 1px solid var(--stroke); background: rgba(255, 255, 255, 0.02);
+}
+:root[data-theme="light"] .cascade-chain { background: rgba(0, 0, 0, 0.015); }
+.cascade-chain__head { display: flex; align-items: center; gap: 8px; }
+.cascade-chain__index { font-size: 0.72rem; opacity: 0.4; font-variant-numeric: tabular-nums; margin-left: auto; }
+
+.cascade-path { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.cascade-path__step {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 7px;
+  padding-left: 10px; border-left: 2px solid var(--stroke);
+}
+/* A loop's rail is continuous and coloured, because the last step returns to the first --
+   that is the whole finding, and a plain list would hide it. */
+.cascade-path--loop .cascade-path__step { border-left-color: rgba(201, 96, 90, 0.5); }
+.cascade-path__ordinal {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 1.15rem; height: 1.15rem; border-radius: 50%;
+  font-size: 0.65rem; font-weight: 700; font-variant-numeric: tabular-nums;
+  background: rgba(255, 255, 255, 0.08); opacity: 0.7;
+}
+:root[data-theme="light"] .cascade-path__ordinal { background: rgba(0, 0, 0, 0.07); }
+.cascade-path__rule { font-size: 0.8rem; font-weight: 600; }
+.cascade-path__via { display: inline-flex; align-items: center; gap: 5px; font-size: 0.72rem; opacity: 0.55; }
+
+/* -- Rules holding a status open --------------------------------------------
+   Opened from the rule count on an unreachable status. Grouped by direction, because
+   direction is the consequence: a rule that transitions INTO a status keeps it alive, one
+   that reads it in a condition breaks if it goes but does not keep it in use. */
+.wf-statusrules {
+  margin-top: 14px; padding: 13px; border-radius: var(--radius-md);
+  border: 1px solid var(--stroke); background: rgba(255, 255, 255, 0.025);
+  display: flex; flex-direction: column; gap: 11px;
+}
+:root[data-theme="light"] .wf-statusrules { background: rgba(0, 0, 0, 0.02); }
+.wf-statusrules__head { display: flex; align-items: center; gap: 10px; }
+.wf-statusrules__title { margin: 0; font-size: 0.88rem; font-weight: 600; flex: 1; }
+.wf-statusrules__groups { display: flex; flex-direction: column; gap: 13px; }
+.wf-statusrules__group { display: flex; flex-direction: column; gap: 6px; }
+.wf-statusrules__grouphead {
+  display: grid; grid-template-columns: auto auto 1fr; align-items: center; gap: 3px 8px;
+  grid-template-areas: "chip count ." "hint hint hint";
+}
+.wf-statusrules__count { grid-area: count; font-size: 0.74rem; font-weight: 600; opacity: 0.6; font-variant-numeric: tabular-nums; }
+.wf-statusrules__hint { grid-area: hint; margin: 0; font-size: 0.72rem; opacity: 0.5; line-height: 1.4; }
+.wf-statusrules__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.wf-statusrules__rule { display: flex; align-items: center; gap: 7px; font-size: 0.78rem; padding-left: 10px; }
+
+/* The rule count on an unreachable status is a control now, not a label. It has to keep
+   reading as the badge it was while announcing that it does something. */
+button.wf-orphan__count--rules {
+  font: inherit; cursor: pointer; color: inherit;
+  border: 1px solid transparent;
+}
+button.wf-orphan__count--rules:hover { border-color: rgba(125, 165, 215, 0.55); }
+button.wf-orphan__count--rules:focus-visible { outline: 2px solid var(--cool); outline-offset: 1px; }
+button.wf-orphan__count--rules[aria-expanded="true"] { border-color: rgba(125, 165, 215, 0.7); }
+
 /* â”€â”€ Endpoint probe results â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .probe-results { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
 .probe-results__summary { font-size: 0.82rem; margin: 0; opacity: 0.85; }

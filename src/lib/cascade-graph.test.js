@@ -164,3 +164,50 @@ describe("analyzeCascadeGraph", () => {
     expect(analyzeCascadeGraph()).toMatchObject({ ruleCount: 0, loops: [], rulesInLoops: 0 });
   });
 });
+
+// A component of more than one rule must never render as a one-rule path.
+//
+// cycleWithin walks out from component[0] and returns as soon as it finds an edge back to
+// it. When component[0] also triggers ITSELF, that edge is found first -- so a loop spanning
+// six rules returned "x -> x" while still reporting a size of six, hiding the six-rule cycle
+// that is the entire reason the component was reported. Invisible until the graph was wired
+// to a UI; on the reference estate it hit the largest loop on the site.
+describe("findCascadeLoops — a self-edge must not stand in for the component's cycle", () => {
+  it("walks the real cycle when a member also triggers itself", () => {
+    const loops = findCascadeLoops(buildCascadeGraph(edges("a>b:X", "b>a:Y", "b>b:Self")));
+
+    expect(loops).toHaveLength(1);
+    expect(loops[0].size).toBe(2);
+    expect(new Set(loops[0].path.map((s) => s.id)).size).toBe(2);
+  });
+
+  it("still reports a genuine loop of one as a loop of one", () => {
+    const loops = findCascadeLoops(buildCascadeGraph(edges("a>a:Self")));
+    expect(loops[0]).toMatchObject({ size: 1, selfTriggering: true });
+    expect(loops[0].path.map((s) => s.id)).toEqual(["a", "a"]);
+  });
+
+  it("every returned path is a closed cycle over real edges", () => {
+    // The invariant the bug broke. A path that is not a walk an admin can trace is worse
+    // than no path: it sends them looking for a hop that does not exist.
+    const graph = buildCascadeGraph(edges(
+      "a>b:1", "b>c:2", "c>a:3", "a>a:4", "c>b:5", "d>e:6", "e>d:7", "e>e:8"
+    ));
+
+    for (const loop of findCascadeLoops(graph)) {
+      const path = loop.path.map((s) => s.id);
+      expect(path[0]).toBe(path[path.length - 1]);
+      for (let i = 0; i < path.length - 1; i++) {
+        expect((graph.edges.get(path[i]) ?? []).some((e) => e.to === path[i + 1])).toBe(true);
+      }
+    }
+  });
+
+  it("names the field on every hop of the path", () => {
+    // The field is what an admin breaks to stop the loop, so a hop without one is a hop
+    // they cannot act on.
+    const loops = findCascadeLoops(buildCascadeGraph(edges("a>b:Owner", "b>a:Status", "a>a:Self")));
+    const hops = loops[0].path.slice(0, -1);
+    expect(hops.every((step) => step.viaFields.length > 0)).toBe(true);
+  });
+});
