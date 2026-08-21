@@ -52,6 +52,7 @@ const mocks = vi.hoisted(() => ({
   readFilterSnapshotMeta: vi.fn(async () => null),
   writeFilterSnapshotMeta: vi.fn(async () => ({})),
   loadFilterReferencesFor: vi.fn(async () => ({ total: 0, filters: [] })),
+  loadFilterReferenceCounts: vi.fn(async () => ({})),
   loadIssueScanProjectTotals: vi.fn(),
   loadSnapshotProjectFields: vi.fn(),
   countSnapshotProjectUsage: vi.fn(),
@@ -231,6 +232,7 @@ vi.mock("./lib/project-store.js", () => ({
   readFilterSnapshotMeta: mocks.readFilterSnapshotMeta,
   writeFilterSnapshotMeta: mocks.writeFilterSnapshotMeta,
   loadFilterReferencesFor: mocks.loadFilterReferencesFor,
+  loadFilterReferenceCounts: mocks.loadFilterReferenceCounts,
   loadSnapshotProjectFields: mocks.loadSnapshotProjectFields,
   countSnapshotProjectUsage: mocks.countSnapshotProjectUsage,
   loadFieldSummary: mocks.loadFieldSummary,
@@ -386,6 +388,7 @@ const {
   getFilterInventory,
   buildFilterInventory,
   getFilterUsage,
+  getFieldFilterCounts,
   getAutomationCascades,
   getCascadeGraph,
   getStatusAutomationUsage,
@@ -4857,6 +4860,65 @@ describe("getPillarHealth — only loads what the pillar is scored from", () => 
 
   test("still requires a pillar", async () => {
     await expect(getPillarHealth({ payload: {}, context: ctxWithAccount() })).rejects.toThrow(/pillar/);
+  });
+});
+
+// The cross-pillar half. The Field Browser already says which automation rules write a field;
+// this says which saved searches would silently start returning the wrong answer without it.
+describe("getFieldFilterCounts", () => {
+  test("looks a field up by name AND by id, because JQL uses both", async () => {
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "v1", refreshedAt: "2026-08-21T00:00:00Z" });
+    mocks.loadFilterReferenceCounts.mockResolvedValue({ "story points": 12 });
+
+    const result = await getFieldFilterCounts({
+      payload: { fields: [{ id: "customfield_10001", name: "Story Points" }] },
+      context: ctxWithAccount(),
+    });
+
+    const labels = mocks.loadFilterReferenceCounts.mock.calls[0][3];
+    expect(labels).toEqual(expect.arrayContaining(["Story Points", "customfield_10001"]));
+    expect(result.counts).toEqual({ customfield_10001: 12 });
+  });
+
+  test("does not double-count a field named both ways", async () => {
+    // Summing would count one filter twice when it references the field by name in a clause
+    // and by cf[...] in an ORDER BY.
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "v1" });
+    mocks.loadFilterReferenceCounts.mockResolvedValue({ "story points": 12, customfield_10001: 9 });
+
+    const result = await getFieldFilterCounts({
+      payload: { fields: [{ id: "customfield_10001", name: "Story Points" }] },
+      context: ctxWithAccount(),
+    });
+
+    expect(result.counts.customfield_10001).toBe(12);
+  });
+
+  // Zero here reads as "safe to delete" and would be the opposite of what an unbuilt pillar
+  // knows. The chip renders unknown instead.
+  test("reports unavailable rather than zero when nothing has been built", async () => {
+    mocks.readFilterSnapshotMeta.mockResolvedValue(null);
+
+    const result = await getFieldFilterCounts({ payload: { fields: [{ id: "f", name: "F" }] }, context: ctxWithAccount() });
+
+    expect(result).toMatchObject({ available: false, counts: {} });
+    expect(mocks.loadFilterReferenceCounts).not.toHaveBeenCalled();
+  });
+
+  test("bounds how many fields one call can ask about", async () => {
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "v1" });
+    const fields = Array.from({ length: 900 }, (_, i) => ({ id: `f${i}`, name: `F${i}` }));
+
+    await getFieldFilterCounts({ payload: { fields }, context: ctxWithAccount() });
+
+    // 500 fields, each contributing a name and an id.
+    expect(mocks.loadFilterReferenceCounts.mock.calls[0][3]).toHaveLength(1000);
+  });
+
+  test("survives a payload with no fields", async () => {
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "v1" });
+    const result = await getFieldFilterCounts({ payload: {}, context: ctxWithAccount() });
+    expect(result.counts).toEqual({});
   });
 });
 

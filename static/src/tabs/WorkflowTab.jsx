@@ -133,14 +133,26 @@ const DUPLICATE_KIND_LABEL = {
 // statuses on this site and a reader opens one or two.
 function StatusRulesPanel({ status, siteOrigin, onClose, load = invoke }) {
   const [usage, setUsage] = React.useState(null);
+  const [filters, setFilters] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    load("getStatusAutomationUsage", { statusName: status.name })
-      .then((result) => { if (!cancelled) { setUsage(result); setLoading(false); } })
-      .catch(() => { if (!cancelled) { setUsage(null); setLoading(false); } });
+    // Two sources, one question. A rule transitioning into a status keeps it alive; a saved
+    // filter searching on it breaks silently when it goes. Fetched together because the
+    // answer is only complete with both, and asked for independently because either pillar
+    // can be unbuilt without the other.
+    Promise.all([
+      load("getStatusAutomationUsage", { statusName: status.name }).catch(() => null),
+      load("getFilterUsage", { kind: "status", label: status.name }).catch(() => null),
+    ])
+      .then(([rules, filterUsage]) => {
+        if (cancelled) return;
+        setUsage(rules);
+        setFilters(filterUsage);
+        setLoading(false);
+      });
     return () => { cancelled = true; };
   }, [status.name, load]);
 
@@ -189,6 +201,41 @@ function StatusRulesPanel({ status, siteOrigin, onClose, load = invoke }) {
             </section>
           ))}
         </div>
+      )}
+
+      {/* The other source. Kept visually separate from the rules rather than merged into
+          them: a rule breaking is loud and a filter breaking is not, and a reader deciding
+          whether to delete a status needs to know which kind of breakage they are looking
+          at. */}
+      {!loading && (
+        <section className="wf-statusrules__group wf-statusrules__group--filters">
+          <header className="wf-statusrules__grouphead">
+            <Chip tone={filters?.total > 0 ? "warning" : "neutral"}>Searched by saved filters</Chip>
+            {filters?.available && <span className="wf-statusrules__count">{formatNumber(filters.total)}</span>}
+            <p className="wf-statusrules__hint">
+              {!filters?.available
+                ? "No saved filter inventory has been built, so this is unknown."
+                : filters.total === 0
+                  ? "No saved filter names this status."
+                  : "These keep working if the status is deleted, and quietly return a different set of issues."}
+            </p>
+          </header>
+          {filters?.available && filters.total > 0 && (
+            <ul className="wf-statusrules__list">
+              {filters.filters.map((filter) => (
+                <li key={`filter-${filter.id}`} className="wf-statusrules__rule">
+                  <span>{filter.name}</span>
+                  {filter.ownerName && <Chip tone="neutral">{filter.ownerName}</Chip>}
+                  {filter.subscriptionCount > 0 && (
+                    <Chip tone="warning">
+                      {formatNumber(filter.subscriptionCount)} subscription{filter.subscriptionCount === 1 ? "" : "s"}
+                    </Chip>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       )}
     </div>
   );

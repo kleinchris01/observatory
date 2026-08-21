@@ -13,6 +13,7 @@ import {
   ProjectUsageBuildBadge,
   AutomationUsageSection,
   ScreenUsageSection,
+  FilterUsageSection,
 } from "./FieldCard";
 
 // ---------------------------------------------------------------------------
@@ -873,5 +874,58 @@ describe("ProjectUsageBuildBadge — never contradict the counts on the same row
       totalIssueCount: 500, activeProjectCount: 0, projectUsageState: "building",
     }} />);
     expect(screen.getByText(/Usage Building/i)).toBeInTheDocument();
+  });
+});
+
+// The cross-pillar half that was missing. An automation rule breaking is loud -- it errors,
+// it shows in the rule's audit log. A saved filter is not: delete a field forty filters search
+// on and every one keeps running and quietly returns a different set of issues.
+describe("FilterUsageSection", () => {
+  const field = { id: "customfield_10001", name: "Story Points" };
+
+  test("names the filters that would break, and says how they break", async () => {
+    invoke.mockResolvedValue({
+      available: true, label: "Story Points", kind: "field", total: 2,
+      filters: [
+        { id: "1", name: "Sprint readiness", ownerName: "Bob", ownerActive: true, subscriptionCount: 0 },
+        { id: "2", name: "Weekly rollup", ownerName: "Ann", ownerActive: false, subscriptionCount: 3 },
+      ],
+    });
+
+    render(<FilterUsageSection field={field} siteOrigin="https://example.atlassian.net" />);
+
+    expect(await screen.findByText("Sprint readiness")).toBeInTheDocument();
+    expect(screen.getByText(/quietly return a different set of issues/i)).toBeInTheDocument();
+    // A subscription makes the silent failure worse: the wrong answer gets emailed.
+    expect(screen.getByText("3 subscriptions")).toBeInTheDocument();
+  });
+
+  // "No filter uses this field" is permission to delete it. "We have not looked" is not, and
+  // the two must never render the same.
+  test("says nobody has looked rather than nothing uses it", async () => {
+    invoke.mockResolvedValue({ available: false, reason: "no-inventory", label: "Story Points" });
+    render(<FilterUsageSection field={field} />);
+
+    expect(await screen.findByText(/filter usage is unknown for this field/i)).toBeInTheDocument();
+  });
+
+  test("reports a genuinely unreferenced field differently", async () => {
+    invoke.mockResolvedValue({ available: true, total: 0, filters: [] });
+    render(<FilterUsageSection field={field} />);
+
+    expect(await screen.findByText(/No saved filter searches on, or sorts by, this field/i)).toBeInTheDocument();
+  });
+
+  test("asks by name, because that is how JQL names a field", async () => {
+    invoke.mockResolvedValue({ available: true, total: 0, filters: [] });
+    render(<FilterUsageSection field={field} />);
+
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("getFilterUsage", { kind: "field", label: "Story Points" }));
+  });
+
+  test("does not fetch while the card is collapsed", () => {
+    invoke.mockClear();
+    render(<FilterUsageSection field={field} enabled={false} />);
+    expect(invoke).not.toHaveBeenCalled();
   });
 });

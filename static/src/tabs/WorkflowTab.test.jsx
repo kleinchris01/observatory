@@ -734,3 +734,77 @@ describe("WorkflowInsights — arriving from a finding", () => {
     expect(container.textContent).toMatch(/No unreachable status matches/);
   });
 });
+
+// A rule breaking is loud; a saved filter breaking is not. A reader deciding whether to
+// delete a status needs both answers, and needs to see which source each comes from.
+describe("WorkflowInsights — filters that search on a status", () => {
+  const orphans = [{ statusId: "1", name: "Parking Lot", issueCount: 0, safeToRemove: false, automationRuleCount: 3, ruleOnly: true }];
+  const insights = {
+    available: true, schemeStatusesAvailable: true, hasIssueCounts: true, automationChecked: true,
+    orphans, duplicateGroups: [], balance: [],
+    summary: { duplicateGroupCount: 0, orphanCount: 1, flaggedSchemeCount: 0 },
+    statusTotals: { catalogCount: 10, withIssues: 5 },
+    snapshotStatus: { state: "ready", refreshedAt: "2026-08-13T00:00:00Z" },
+  };
+
+  const route = (filterResult) => vi.fn((name) => {
+    if (name === "getFilterUsage") return Promise.resolve(filterResult);
+    return Promise.resolve({
+      available: true, label: "Parking Lot", referenced: true, ruleCount: 1,
+      write: { count: 1, rules: [{ id: "10", name: "Sends to Parking Lot", enabled: true }] },
+      trigger: { count: 0, rules: [] }, read: { count: 0, rules: [] },
+    });
+  });
+
+  test("lists the filters alongside the rules", async () => {
+    const user = userEvent.setup();
+    const load = route({
+      available: true, total: 1,
+      filters: [{ id: "9", name: "Parked work", ownerName: "Ann", subscriptionCount: 2 }],
+    });
+    render(<WorkflowInsights insights={insights} loading={false} load={load} />);
+
+    await user.click(screen.getByRole("button", { name: "3 rules" }));
+
+    expect(await screen.findByText("Parked work")).toBeInTheDocument();
+    expect(screen.getByText(/quietly return a different set of issues/i)).toBeInTheDocument();
+    // Both sources answered, and both are visible.
+    expect(screen.getByText("Sends to Parking Lot")).toBeInTheDocument();
+  });
+
+  test("says the filter half is unknown rather than empty when nothing is built", async () => {
+    const user = userEvent.setup();
+    const load = route({ available: false, reason: "no-inventory" });
+    render(<WorkflowInsights insights={insights} loading={false} load={load} />);
+
+    await user.click(screen.getByRole("button", { name: "3 rules" }));
+    expect(await screen.findByText(/No saved filter inventory has been built/i)).toBeInTheDocument();
+  });
+
+  test("a status no filter names says so plainly", async () => {
+    const user = userEvent.setup();
+    const load = route({ available: true, total: 0, filters: [] });
+    render(<WorkflowInsights insights={insights} loading={false} load={load} />);
+
+    await user.click(screen.getByRole("button", { name: "3 rules" }));
+    expect(await screen.findByText(/No saved filter names this status/i)).toBeInTheDocument();
+  });
+
+  // One pillar being unbuilt must not take the other's answer down with it.
+  test("still shows the rules when the filter lookup fails", async () => {
+    const user = userEvent.setup();
+    const load = vi.fn((name) => {
+      if (name === "getFilterUsage") return Promise.reject(new Error("sql down"));
+      return Promise.resolve({
+        available: true, referenced: true, ruleCount: 1,
+        write: { count: 1, rules: [{ id: "10", name: "Sends to Parking Lot", enabled: true }] },
+        trigger: { count: 0, rules: [] }, read: { count: 0, rules: [] },
+      });
+    });
+    render(<WorkflowInsights insights={insights} loading={false} load={load} />);
+
+    await user.click(screen.getByRole("button", { name: "3 rules" }));
+    expect(await screen.findByText("Sends to Parking Lot")).toBeInTheDocument();
+  });
+});
+

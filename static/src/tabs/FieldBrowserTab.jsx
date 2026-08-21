@@ -60,6 +60,7 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
   // "this field is on no screen" from "no screen inventory exists", and only the envelope
   // carries that. A bare {} would collapse both into an em dash with no explanation.
   const [screenCounts, setScreenCounts] = React.useState({ available: false, counts: {} });
+  const [filterCounts, setFilterCounts] = React.useState({ available: false, counts: {} });
 
   React.useEffect(() => {
     if (!filtersOpen) return;
@@ -278,6 +279,20 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
     invoke("getAutomationFieldCounts", { fields: fields.map((f) => ({ id: f.id, name: f.name })) })
       .then((result) => { if (!cancelled) setAutomationCounts(result?.counts || {}); })
       .catch(() => { if (!cancelled) setAutomationCounts({}); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageFieldKey]);
+
+  React.useEffect(() => {
+    if (!fields.length) return undefined;
+    let cancelled = false;
+    // Name AND id, because JQL names most fields by name and reaches the rest through
+    // cf[10001]. The resolver folds both back onto the field id.
+    invoke("getFieldFilterCounts", { fields: fields.map((f) => ({ id: f.id, name: f.name })) })
+      .then((result) => { if (!cancelled) setFilterCounts(result || { available: false, counts: {} }); })
+      // Silent, like the two above: an unbuilt filter inventory is the normal fresh-install
+      // state, and the chip renders that as unknown rather than as zero.
+      .catch(() => { if (!cancelled) setFilterCounts({ available: false, counts: {} }); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageFieldKey]);
@@ -669,6 +684,7 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
                 rovoEnabled={rovoEnabled}
                 automationCounts={automationCounts[field.id]}
                 screenCount={screenCounts.available ? (screenCounts.counts[field.id] ?? 0) : null}
+                filterCount={filterCounts.available ? (filterCounts.counts[field.id] ?? 0) : null}
                 screenSnapshot={screenCounts}
               />
             );

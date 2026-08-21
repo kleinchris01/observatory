@@ -92,6 +92,108 @@ export function AutomationRuleLink({ rule, siteOrigin }) {
   );
 }
 
+// Which saved filters would silently start returning the wrong answer if this field went
+// away.
+//
+// The second half of the "do not delete this" answer, and the half that was missing. An
+// automation rule breaking is loud -- it errors, it shows up in the rule's audit log. A saved
+// filter is not: delete a field forty filters search on and every one of them keeps running
+// and quietly returns a different set of issues, with no error anywhere and nobody told.
+//
+// Sits beside Automation Usage rather than inside it, because the two answer the same
+// question from different sources and a reader needs to see which one is talking.
+export function FilterUsageSection({ field, enabled = true, siteOrigin }) {
+  const [state, setState] = React.useState({ loading: true, error: "", data: null });
+
+  React.useEffect(() => {
+    if (!enabled) return undefined;
+    let cancelled = false;
+    setState({ loading: true, error: "", data: null });
+    // Looked up by NAME, because that is how JQL names a field. The id is the fallback for
+    // the cf[10001] escape hatch, which getFilterUsage resolves the same way.
+    invoke("getFilterUsage", { kind: "field", label: field.name || field.id })
+      .then((data) => { if (!cancelled) setState({ loading: false, error: "", data }); })
+      .catch((err) => { if (!cancelled) setState({ loading: false, error: err?.message || "Failed to load.", data: null }); });
+    return () => { cancelled = true; };
+  }, [enabled, field.id, field.name]);
+
+  const { loading, error, data } = state;
+  const total = data?.total ?? 0;
+
+  return (
+    <CollapsibleSection
+      title="Saved Filter Usage"
+      badge={data?.available && total > 0 ? `${formatNumber(total)} filter${total === 1 ? "" : "s"}` : null}
+    >
+      {loading ? (
+        <div className="empty-state empty-state--inline">Checking saved filters…</div>
+      ) : error ? (
+        <div className="empty-state empty-state--inline">Could not check saved filters. {error}</div>
+      ) : !data?.available ? (
+        // Never phrased as "no filter uses this field". Nothing has been built, so the honest
+        // answer is that nobody has looked -- which is not permission to delete anything.
+        <div className="empty-state empty-state--inline">
+          No saved filter inventory has been built, so filter usage is unknown for this field.
+          Build one on the Saved Filters tab to find out.
+        </div>
+      ) : total === 0 ? (
+        <div className="empty-state empty-state--inline">
+          No saved filter searches on, or sorts by, this field.
+        </div>
+      ) : (
+        <>
+          <p className="ui-note">
+            <Icon name="alertTriangle" size={13} />
+            <span>
+              These searches would keep running if this field were deleted, and quietly return
+              a different set of issues. Nothing errors and nobody is told.
+            </span>
+          </p>
+          <ul className="filter-usage__list">
+            {data.filters.map((filter) => {
+              const href = siteOrigin ? `${siteOrigin}/issues/?filter=${filter.id}` : null;
+              return (
+                <li key={filter.id} className="filter-usage__item">
+                  {href ? (
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={(event) => handleJiraLinkClick(event, href)}
+                      title="Open this filter in Jira"
+                    >
+                      {filter.name}
+                    </a>
+                  ) : (
+                    <span>{filter.name}</span>
+                  )}
+                  {filter.ownerName && (
+                    <span className="filter-usage__owner">
+                      {filter.ownerName}{filter.ownerActive === false ? " · inactive" : ""}
+                    </span>
+                  )}
+                  {/* A subscription makes the silent failure louder in the worst way: the
+                      wrong answer gets emailed on a schedule. */}
+                  {filter.subscriptionCount > 0 && (
+                    <span className="filter-usage__subs">
+                      {formatNumber(filter.subscriptionCount)} subscription{filter.subscriptionCount === 1 ? "" : "s"}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+          {data.filters.length < total && (
+            <div className="ui-truncation">
+              Showing {formatNumber(data.filters.length)} of {formatNumber(total)} references.
+            </div>
+          )}
+        </>
+      )}
+    </CollapsibleSection>
+  );
+}
+
 export function AutomationUsageSection({ field, enabled = true, siteOrigin, rovoEnabled = false }) {
   const [state, setState] = React.useState({ loading: true, error: "", data: null });
 
@@ -460,6 +562,7 @@ export function FieldCard({
   showGovernance = true,
   automationCounts,
   screenCount,
+  filterCount,
   screenSnapshot,
 }) {
   const displayField = React.useMemo(() => mergeFieldMetrics(field, details), [field, details]);
@@ -562,6 +665,15 @@ export function FieldCard({
             value={screenCount === null || screenCount === undefined ? "—" : screenCount}
             tone={screenCount === 0 ? "warm" : "neutral"}
           />
+          {/* A dash, never a zero, when no filter inventory has been built. Zero here reads
+              as "safe to delete" and would be the opposite of what an unbuilt pillar knows.
+              A non-zero count is a warning rather than a neutral fact: these searches break
+              silently. */}
+          <MetricChip
+            label="Filters"
+            value={filterCount === null || filterCount === undefined ? "—" : filterCount}
+            tone={filterCount > 0 ? "alert" : "neutral"}
+          />
         </div>
         <span className="field-card__toggle-icon" aria-hidden="true" />
       </button>
@@ -658,6 +770,7 @@ export function FieldCard({
               </CollapsibleSection>}
 
               {showGovernance ? <AutomationUsageSection field={field} enabled={expanded} siteOrigin={siteOrigin} rovoEnabled={rovoEnabled} /> : null}
+              {showGovernance ? <FilterUsageSection field={field} enabled={expanded} siteOrigin={siteOrigin} /> : null}
 
               <CollapsibleSection
                 title="Contexts"
