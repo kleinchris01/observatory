@@ -102,8 +102,10 @@ describe("OverviewDashboard — findings", () => {
     expect(screen.getByText("Governance")).toBeInTheDocument();
     expect(screen.getByText("Fields need admin attention")).toBeInTheDocument();
 
+    // The finding carries the filter that turns the destination into the set it named.
+    // Routing to the tab and stopping there left the reader at page one of 1,615 fields.
     await userEvent.click(screen.getAllByRole("button", { name: /Field Browser/ })[0]);
-    expect(onNavigate).toHaveBeenCalledWith("fields");
+    expect(onNavigate).toHaveBeenCalledWith("fields", { findings: "admin-attention" });
   });
 
   test("routes workflow findings to the Workflows tab", async () => {
@@ -112,7 +114,7 @@ describe("OverviewDashboard — findings", () => {
 
     expect(screen.getByText("Groups of duplicate statuses")).toBeInTheDocument();
     await userEvent.click(screen.getAllByRole("button", { name: /^Workflows$/ })[0]);
-    expect(onNavigate).toHaveBeenCalledWith("workflows");
+    expect(onNavigate).toHaveBeenCalledWith("workflows", expect.objectContaining({ view: "insights" }));
   });
 
   test("quantifies what consolidation would actually save", () => {
@@ -204,7 +206,7 @@ describe("OverviewDashboard — automation and screen findings", () => {
     renderAll({ onNavigate });
 
     await userEvent.click(screen.getAllByRole("button", { name: /^Automation$/ })[0]);
-    expect(onNavigate).toHaveBeenCalledWith("automation");
+    expect(onNavigate).toHaveBeenCalledWith("automation", expect.objectContaining({ section: expect.any(String) }));
   });
 
   test("routes a screen finding to the Screens tab", async () => {
@@ -212,7 +214,7 @@ describe("OverviewDashboard — automation and screen findings", () => {
     renderAll({ onNavigate });
 
     await userEvent.click(screen.getAllByRole("button", { name: /^Screens$/ })[0]);
-    expect(onNavigate).toHaveBeenCalledWith("screens");
+    expect(onNavigate).toHaveBeenCalledWith("screens", expect.objectContaining({ view: expect.any(String) }));
   });
 
   // The same rule the workflow findings already follow, now enforced for the two pillars

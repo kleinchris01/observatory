@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { TopFieldsChart, FieldTypeDonut, ProjectsTabView,
-  ProjectOverview,
+  ProjectOverview, buildProjectFilters,
 } from "./ProjectsTab";
 
 // ---------------------------------------------------------------------------
@@ -503,5 +503,129 @@ describe("ProjectOverview — inferred site-wide rules", () => {
     })} />);
 
     expect(screen.getByText(/No site-wide rule shows evidence/i)).toBeInTheDocument();
+  });
+});
+
+// The rail had no filtering at all, so "64 projects configured well past the site norm"
+// dropped the reader at whichever project happened to sort first.
+//
+// The predicates are derived here rather than sent down, because the rail already holds
+// every project the reader may browse and the thresholds are a function of that list. One
+// honest consequence: a count here can be lower than the same count on the Overview, because
+// the rail is permission-filtered and the score is not.
+describe("buildProjectFilters", () => {
+  const project = (key, over = {}) => ({
+    projectId: key, projectKey: key, projectName: key,
+    fieldCount: 20, totalIssueCount: 5000, uniqueIssueCount: null,
+    latestIssueUpdatedAt: new Date().toISOString(), ...over,
+  });
+  const match = (projects, key) => {
+    const filter = buildProjectFilters(projects).find((f) => f.key === key);
+    return projects.filter(filter.match).map((p) => p.projectKey);
+  };
+
+  it("derives the over-configured floor from the site's own median", () => {
+    const projects = [...Array.from({ length: 20 }, (_, i) => project(`B${i}`, { fieldCount: 30 })), project("BIG", { fieldCount: 90 })];
+    // max(10, median * 2) -- the same floor the score judges against.
+    expect(buildProjectFilters(projects).find((f) => f.key === "over-configured").label).toBe("60+ fields");
+    expect(match(projects, "over-configured")).toEqual(["BIG"]);
+  });
+
+  it("guards the floor on a site whose median project carries one field", () => {
+    const projects = [...Array.from({ length: 10 }, (_, i) => project(`B${i}`, { fieldCount: 1 })), project("SMALL", { fieldCount: 6 })];
+    // Twice the median is 2, which would make a six-field project an outlier. It is not.
+    expect(match(projects, "over-configured")).toEqual([]);
+  });
+
+  it("counts a busy project past the norm as over-configured", () => {
+    // The measure is field count alone. Requiring light volume too is what made this
+    // finding impossible to trip on an active site.
+    const projects = [...Array.from({ length: 10 }, (_, i) => project(`B${i}`, { fieldCount: 20 })), project("BUSY", { fieldCount: 90, totalIssueCount: 400000 })];
+    expect(match(projects, "over-configured")).toEqual(["BUSY"]);
+  });
+
+  it("finds projects with fields and no work", () => {
+    const projects = [project("A", { uniqueIssueCount: 500 }), project("EMPTY", { fieldCount: 12, uniqueIssueCount: 0, totalIssueCount: 0 })];
+    expect(match(projects, "no-work")).toEqual(["EMPTY"]);
+  });
+
+  // A project the scan has not reached is unmeasured, not empty. Coercing it to zero would
+  // report most of the estate as abandoned halfway through every scan.
+  it("does not call an unmeasured project empty", () => {
+    const projects = [project("SCANNED", { uniqueIssueCount: 5000 }), project("PENDING", { uniqueIssueCount: null, totalIssueCount: 0 })];
+    expect(match(projects, "no-work")).toEqual([]);
+  });
+
+  it("finds projects that have gone quiet", () => {
+    const old = new Date(Date.now() - 400 * 24 * 60 * 60 * 1000).toISOString();
+    const projects = [project("LIVE"), project("QUIET", { latestIssueUpdatedAt: old })];
+    expect(match(projects, "stale")).toEqual(["QUIET"]);
+  });
+
+  it("does not call a project that never started stale", () => {
+    // Staleness needs recorded work to have gone quiet. A project that never started is the
+    // other finding, and counting it as both would double-charge one project.
+    const projects = [project("NEVER", { totalIssueCount: 0, uniqueIssueCount: 0, latestIssueUpdatedAt: "2019-01-01T00:00:00Z" })];
+    expect(match(projects, "stale")).toEqual([]);
+  });
+
+  it("keeps everything under the default", () => {
+    const projects = [project("A"), project("B")];
+    expect(match(projects, "all")).toEqual(["A", "B"]);
+  });
+
+  it("survives an empty rail", () => {
+    expect(buildProjectFilters([]).map((f) => f.key)).toEqual(["all", "over-configured", "no-work", "stale"]);
+  });
+});
+
+describe("ProjectsTabView — arriving from a finding", () => {
+  const project = (key, over = {}) => ({
+    projectId: key, projectKey: key, projectName: `Project ${key}`,
+    fieldCount: 20, totalIssueCount: 5000, uniqueIssueCount: 500,
+    latestIssueUpdatedAt: new Date().toISOString(), ...over,
+  });
+  const data = {
+    projects: [
+      ...Array.from({ length: 10 }, (_, i) => project(`B${i}`)),
+      project("BIG", { fieldCount: 90 }),
+    ],
+    selectedProject: null, fields: [], availableTypes: [], totalFields: 0, page: 1, totalPages: 1,
+  };
+  const noop = () => {};
+
+  it("narrows the rail to the projects the finding counted", () => {
+    const { container } = render(<ProjectsTabView
+      data={data} loading={false} selectedProjectId="BIG" onSelectProject={noop}
+      projectQuery="" onProjectQueryChange={noop} fieldQuery="" onFieldQueryChange={noop}
+      fieldType="all" onFieldTypeChange={noop} fieldSort="issues-desc" onFieldSortChange={noop}
+      onChangePage={noop} projectFilter="over-configured" onProjectFilterChange={noop}
+    />);
+
+    const keys = [...container.querySelectorAll(".projects-rail__item strong")].map((n) => n.textContent);
+    expect(keys).toEqual(["BIG"]);
+  });
+
+  it("shows every project when opened normally", () => {
+    const { container } = render(<ProjectsTabView
+      data={data} loading={false} selectedProjectId="BIG" onSelectProject={noop}
+      projectQuery="" onProjectQueryChange={noop} fieldQuery="" onFieldQueryChange={noop}
+      fieldType="all" onFieldTypeChange={noop} fieldSort="issues-desc" onFieldSortChange={noop}
+      onChangePage={noop} projectFilter="all" onProjectFilterChange={noop}
+    />);
+
+    expect(container.querySelectorAll(".projects-rail__item")).toHaveLength(11);
+  });
+
+  it("says the filter matched nothing rather than looking like an empty site", () => {
+    const { container } = render(<ProjectsTabView
+      data={data} loading={false} selectedProjectId="BIG" onSelectProject={noop}
+      projectQuery="" onProjectQueryChange={noop} fieldQuery="" onFieldQueryChange={noop}
+      fieldType="all" onFieldTypeChange={noop} fieldSort="issues-desc" onFieldSortChange={noop}
+      onChangePage={noop} projectFilter="no-work" onProjectFilterChange={noop}
+    />);
+
+    expect(container.textContent).toMatch(/No project matches/);
+    expect(container.textContent).not.toMatch(/No projects with cached field usage/);
   });
 });

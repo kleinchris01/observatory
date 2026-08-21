@@ -3,6 +3,7 @@ import { invoke } from "@forge/bridge";
 import { formatRelativeTime, formatNumber } from "../utils";
 import { BarList, Chip, EmptyState, FindingRow, Panel, RuleLink, SortFilterBar, StatRow, StatTile } from "../components/ui";
 import { SubNavLayout } from "../components/admin/primitives";
+import { useNavIntent } from "../hooks";
 import { Icon } from "../components/Icons";
 import { analyzeRules, expandFinding, hydrateRuleDirectory } from "../../../src/lib/automation-analysis";
 
@@ -400,11 +401,21 @@ export function CascadePath({ steps, siteOrigin, loop = false }) {
 }
 
 // The relationship list: every edge, filtered and paged server-side.
-function CascadeRelationships({ siteOrigin, summary, load = invoke }) {
+function CascadeRelationships({ siteOrigin, summary, load = invoke, intent = null }) {
   const [search, setSearch] = React.useState("");
   const [kind, setKind] = React.useState("all");
   const [focus, setFocus] = React.useState(null);
   const [page, setPage] = React.useState(1);
+
+  // "88 rules that write a field they trigger on" lands here showing exactly those, not all
+  // 1,143 relationships. Self-triggering is a cascade property rather than a rule finding,
+  // which is why it routes here and not to the Findings section.
+  useNavIntent(intent, (nav) => {
+    if (!nav.cascadeKind) return;
+    setKind(nav.cascadeKind);
+    setSearch("");
+    setFocus(null);
+  });
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
 
@@ -604,7 +615,7 @@ function CascadeChains({ siteOrigin, load = invoke }) {
   );
 }
 
-function CascadeSection({ data, siteOrigin, load = invoke }) {
+function CascadeSection({ data, siteOrigin, load = invoke, intent = null }) {
   const [section, setSection] = React.useState("relationships");
   const [summary, setSummary] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
@@ -644,7 +655,7 @@ function CascadeSection({ data, siteOrigin, load = invoke }) {
       </div>
 
       {section === "relationships"
-        ? <CascadeRelationships siteOrigin={siteOrigin} summary={summary.summary} load={load} />
+        ? <CascadeRelationships siteOrigin={siteOrigin} summary={summary.summary} load={load} intent={intent} />
         : <CascadeChains siteOrigin={siteOrigin} load={load} />}
     </>
   );
@@ -674,9 +685,17 @@ export function filterFindings(findings, { search = "", severity = "all", risk =
   });
 }
 
-function FindingsSection({ data, findings, loading, error, onRetry, siteOrigin }) {
+function FindingsSection({ data, findings, loading, error, onRetry, siteOrigin, intent = null }) {
   const [filters, setFilters] = React.useState({ search: "", severity: "all", risk: "all", state: "all", trigger: "all" });
   const [page, setPage] = React.useState(0);
+
+  // "86 rules storing a credential in plaintext" opens this section filtered to those 86,
+  // rather than to all 675 rules that carry any finding at all.
+  useNavIntent(intent, (nav) => {
+    if (!nav.risk) return;
+    setFilters({ search: "", severity: "all", risk: nav.risk, state: "all", trigger: "all" });
+    setPage(0);
+  });
 
   const setFilter = (key, value) => {
     setFilters((f) => ({ ...f, [key]: value }));
@@ -818,11 +837,17 @@ export function Pager({ page, pageCount, total, onChange }) {
 
 // ── Tab ─────────────────────────────────────────────────────────────────────
 
-export function AutomationTab({ siteOrigin }) {
+export function AutomationTab({ siteOrigin, intent = null }) {
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
   const [section, setSection] = React.useState("overview");
+
+  // Arrived from an Overview finding. The section is this component's to switch; the filter
+  // inside it belongs to the section, so the intent is passed down rather than unpacked here.
+  useNavIntent(intent, (nav) => {
+    if (nav.section) setSection(nav.section);
+  });
   const [importing, setImporting] = React.useState(false);
   const [importError, setImportError] = React.useState("");
   const fileInputRef = React.useRef(null);
@@ -1066,7 +1091,7 @@ export function AutomationTab({ siteOrigin }) {
             icon="refreshCw"
             description="A rule that writes a field another rule watches can start a cascade. Relationships are every single hop; loops and chains are what happens when those hops join up."
           >
-            <CascadeSection data={data} siteOrigin={siteOrigin} />
+            <CascadeSection data={data} siteOrigin={siteOrigin} intent={intent} />
           </Panel>
         ) : (
           <Panel
@@ -1081,6 +1106,7 @@ export function AutomationTab({ siteOrigin }) {
               error={indexState.findings?.error}
               onRetry={() => loadIndex("findings")}
               siteOrigin={siteOrigin}
+              intent={intent}
             />
           </Panel>
         )}

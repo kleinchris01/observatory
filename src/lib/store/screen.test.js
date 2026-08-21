@@ -24,6 +24,7 @@ import { sql } from "@forge/sql";
 import {
   replaceScreenSnapshot,
   loadScreensPage,
+  SCREEN_FILTERS,
   loadScreenFields,
   loadScreensForField,
   loadScreenSchemes,
@@ -498,5 +499,100 @@ describe("meta", () => {
     mockRows([]);
     await writeScreenSnapshotMeta("scope-1", {});
     expect(boundParamsFor("INSERT INTO screen_snapshot_meta")).toContain("idle");
+  });
+});
+
+// The Overview counts "252 screens nothing reaches" and, until now, clicking that count
+// opened page one of 746 and left the reader to find the 252 by hand.
+//
+// There is no per-screen reachability column to filter on -- reachability is a question
+// about two other tables -- so each filter is the same NOT EXISTS pair the governance
+// summary already counts with.
+describe("loadScreensPage — filtering to a finding", () => {
+  function capture(rows = []) {
+    const calls = [];
+    sql.prepare.mockImplementation((text) => ({
+      bindParams: (...params) => {
+        calls.push({ text, params });
+        // First statement is the count, second is the page.
+        return { execute: async () => ({ rows: calls.length === 1 ? [{ total: rows.length }] : rows }) };
+      },
+    }));
+    return calls;
+  }
+
+  test("narrows to screens carrying no fields, excluding the unreadable", () => {
+    const calls = capture();
+    return loadScreensPage("scope-1", "v1", { filter: "empty" }).then(() => {
+      // A screen whose contents could not be read is unmeasured, not empty.
+      expect(calls[0].text).toContain("field_count = 0 AND tabs_resolved = 'resolved'");
+    });
+  });
+
+  test("narrows to screens whose contents could not be read", async () => {
+    const calls = capture();
+    await loadScreensPage("scope-1", "v1", { filter: "unresolved" });
+    expect(calls[0].text).toContain("tabs_resolved <> 'resolved'");
+  });
+
+  test("excludes both routes to a screen before calling it unreached", async () => {
+    const calls = capture();
+    await loadScreensPage("scope-1", "v1", { filter: "unreached", workflowVersion: "wf-9" });
+
+    // The scheme chain AND a transition that opens it. Excluding only the first is what
+    // called screens in daily use unreachable.
+    expect(calls[0].text).toContain("NOT EXISTS");
+    expect(calls[0].text).toContain("snapshot_screen_scheme_operations");
+    expect(calls[0].text).toContain("snapshot_transition_screens");
+    expect(calls[0].params).toContain("wf-9");
+  });
+
+  test("transition-only is the inverse: no scheme, but a transition", async () => {
+    const calls = capture();
+    await loadScreensPage("scope-1", "v1", { filter: "transition-only", workflowVersion: "wf-9" });
+    const clause = calls[0].text;
+    expect(clause).toMatch(/NOT EXISTS[\s\S]*snapshot_screen_scheme_operations/);
+    expect(clause).toMatch(/AND EXISTS[\s\S]*snapshot_transition_screens/);
+  });
+
+  // "We cannot tell" must never render as "none". A reachability filter with no workflow
+  // snapshot behind it is dropped, and the caller is told which happened.
+  test("drops a reachability filter when there is no workflow snapshot", async () => {
+    const calls = capture();
+    const result = await loadScreensPage("scope-1", "v1", { filter: "unreached", workflowVersion: null });
+
+    expect(calls[0].text).not.toContain("snapshot_transition_screens");
+    expect(result.filter).toBeNull();
+    expect(result.filterRequested).toBe("unreached");
+  });
+
+  test("reports which filter actually applied", async () => {
+    capture();
+    const result = await loadScreensPage("scope-1", "v1", { filter: "empty" });
+    expect(result).toMatchObject({ filter: "empty", filterLabel: "Carrying no fields", filterRequested: "empty" });
+  });
+
+  // A stale deep link should show the unfiltered tab rather than an error page.
+  test("ignores an unknown filter rather than rejecting it", async () => {
+    const calls = capture();
+    const result = await loadScreensPage("scope-1", "v1", { filter: "'; DROP TABLE snapshot_screens; --" });
+
+    expect(calls[0].text).not.toContain("DROP TABLE");
+    expect(result.filter).toBeNull();
+    expect(result.filterRequested).toBeNull();
+  });
+
+  test("combines with search rather than replacing it", async () => {
+    const calls = capture();
+    await loadScreensPage("scope-1", "v1", { filter: "empty", search: "Bug" });
+    expect(calls[0].text).toContain("name LIKE ?");
+    expect(calls[0].text).toContain("field_count = 0");
+    expect(calls[0].params).toContain("%Bug%");
+  });
+
+  test("every filter the Overview can ask for has a label", () => {
+    for (const key of ["empty", "unresolved", "unreached", "transition-only"]) {
+      expect(SCREEN_FILTERS[key]?.label).toBeTruthy();
+    }
   });
 });

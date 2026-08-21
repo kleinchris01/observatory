@@ -373,6 +373,59 @@ export function ProjectOverview({ project, overview, loading, fields = [] }) {
   );
 }
 
+// The project findings the Overview counts, as predicates over the rail's own rows.
+//
+// Derived here rather than sent down, because the rail already holds every project the
+// reader may browse and the thresholds are a function of that list. One honest consequence:
+// the count on a chip here can be lower than the count on the Overview, because the rail is
+// filtered to projects the reader has Browse permission on and the score is not. That is the
+// right asymmetry -- the alternative is naming projects somebody cannot see.
+
+// Fields configured, no work recorded. Uses the measured issue count where the scan has
+// produced one; null means unmeasured, and a project nobody has scanned is not a project
+// with no work.
+function measuredVolume(project, hasUniqueCounts) {
+  return hasUniqueCounts ? project.uniqueIssueCount ?? null : project.totalIssueCount ?? null;
+}
+
+const STALE_MS = 180 * 24 * 60 * 60 * 1000;
+
+export function buildProjectFilters(projects = []) {
+  const hasUniqueCounts = projects.some((p) => p.uniqueIssueCount != null);
+
+  // max(10, median * 2) -- the same floor the score judges against, and guarded the same
+  // way: on a site whose median project carries one field, "twice the median" is noise.
+  const counts = projects.map((p) => p.fieldCount ?? 0).sort((a, b) => a - b);
+  const median = counts.length ? counts[Math.min(counts.length - 1, Math.floor(counts.length * 0.5))] : 0;
+  const floor = Math.max(10, median * 2);
+  const now = Date.now();
+
+  return [
+    { key: "all", label: "All projects", match: () => true },
+    {
+      key: "over-configured",
+      label: `${floor}+ fields`,
+      hint: `Configured well past the site norm — the median project carries ${median}.`,
+      match: (p) => (p.fieldCount ?? 0) >= floor,
+    },
+    {
+      key: "no-work",
+      label: "Fields but no work",
+      hint: "Configured and then either abandoned or never started.",
+      match: (p) => (p.fieldCount ?? 0) > 0 && measuredVolume(p, hasUniqueCounts) === 0,
+    },
+    {
+      key: "stale",
+      label: "Quiet 6 months",
+      hint: "Carrying work, but nothing has been touched in over six months.",
+      match: (p) => {
+        const at = Date.parse(p.latestIssueUpdatedAt || "");
+        return (p.totalIssueCount ?? 0) > 0 && Number.isFinite(at) && now - at > STALE_MS;
+      },
+    },
+  ];
+}
+
 export function ProjectsTabView({
   data,
   loading,
@@ -392,11 +445,20 @@ export function ProjectsTabView({
   projectUsageRestoring,
   overview,
   overviewLoading,
+  projectFilter = "all",
+  onProjectFilterChange,
 }) {
   // Overview first: on a project you have never looked at, what runs it matters before
   // which 170 fields it carries.
   const [view, setView] = React.useState("overview");
-  const projects = data?.projects || [];
+  const allProjects = data?.projects || [];
+
+  const projectFilters = React.useMemo(() => buildProjectFilters(allProjects), [allProjects]);
+  const activeProjectFilter = projectFilters.find((f) => f.key === projectFilter) ?? projectFilters[0];
+  const projects = React.useMemo(
+    () => allProjects.filter(activeProjectFilter.match),
+    [allProjects, activeProjectFilter]
+  );
   const selectedProject = data?.selectedProject || null;
   const fields = data?.fields || [];
   const availableTypes = data?.availableTypes || [];
@@ -430,6 +492,27 @@ export function ProjectsTabView({
               data-search-input="primary"
             />
           </label>
+
+          {/* The findings the Overview counts, as a way into the rail. Arriving from
+              "64 projects configured well past the site norm" used to drop the reader at
+              whichever project happened to sort first. */}
+          {onProjectFilterChange && allProjects.length > 0 && (
+            <div className="findings-filter-bar projects-rail__filters">
+              {projectFilters.map((option) => (
+                <button
+                  key={option.key}
+                  type="button"
+                  title={option.hint}
+                  className={`findings-filter-button${projectFilter === option.key ? " findings-filter-button--active" : ""}`}
+                  onClick={() => onProjectFilterChange(option.key)}
+                >
+                  <span>{option.label}</span>
+                  <strong>{formatNumber(allProjects.filter(option.match).length)}</strong>
+                </button>
+              ))}
+            </div>
+          )}
+
           <div className="projects-rail__list">
             {loading && !projects.length ? (
               Array.from({ length: 5 }, (_, i) => <SkeletonProjectItem key={i} />)
@@ -461,7 +544,9 @@ export function ProjectsTabView({
               );
             }) : (
               <div className="empty-state empty-state--inline">
-                {loading ? "Loading projects..." : (
+                {loading ? "Loading projects..." : projectFilter !== "all" && allProjects.length > 0 ? (
+                  <p style={{ margin: 0 }}>No project matches &ldquo;{activeProjectFilter.label}&rdquo;.</p>
+                ) : (
                   <>
                     <p style={{ margin: "0 0 8px" }}>No projects with cached field usage were found.</p>
                     {onRestoreProjectUsageCache ? (

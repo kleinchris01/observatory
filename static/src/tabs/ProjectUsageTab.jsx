@@ -1,12 +1,13 @@
 import React from "react";
 import { invoke } from "@forge/bridge";
 import { EmptyState } from "../components/ui";
+import { useNavIntent } from "../hooks";
 
 // Per-project field usage view.
 
 const ProjectsTabView = React.lazy(() => import("../components/ProjectsTab").then((m) => ({ default: m.ProjectsTabView })));
 
-export function ProjectUsageTab({ siteOrigin }) {
+export function ProjectUsageTab({ siteOrigin, intent = null }) {
   const [projectQuery, setProjectQuery] = React.useState("");
   const [deferredProjectQuery, setDeferredProjectQuery] = React.useState("");
   const [fieldQuery, setFieldQuery] = React.useState("");
@@ -18,6 +19,15 @@ export function ProjectUsageTab({ siteOrigin }) {
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [loadError, setLoadError] = React.useState("");
+  // Which finding the reader arrived from. Applied to the rail rather than to the query:
+  // the rail already holds every project the reader may browse, and the thresholds are a
+  // function of that list.
+  const [projectFilter, setProjectFilter] = React.useState("all");
+
+  useNavIntent(intent, (nav) => {
+    setProjectFilter(nav.filter ?? "all");
+    setProjectQuery("");
+  });
 
   React.useEffect(() => {
     const t = setTimeout(() => { setDeferredProjectQuery(projectQuery); }, 350);
@@ -98,6 +108,8 @@ export function ProjectUsageTab({ siteOrigin }) {
           onChangePage={setPage}
           overview={overview}
           overviewLoading={overviewLoading}
+          projectFilter={projectFilter}
+          onProjectFilterChange={setProjectFilter}
         />
       </React.Suspense>
     </>

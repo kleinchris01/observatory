@@ -347,3 +347,95 @@ describe("ScreensTab — sorting and search", () => {
     expect(screen.queryByText("Built")).not.toBeInTheDocument();
   });
 });
+
+// Arriving from "252 screens nothing reaches" used to open page one of 746 and leave the
+// reader to find the 252 by hand.
+//
+// The screen filter runs in SQL, not here: the tab shows 25 of ~760, so narrowing the page
+// in the browser would filter an arbitrary slice and present it as the whole answer. The
+// scheme filter IS client-side, because every scheme is already on the page.
+describe("ScreensTab — arriving from a finding", () => {
+  const inventory = (over = {}) => ({
+    state: "ready", version: "v1", totalScreens: 746, page: 1, pageSize: 25, sort: "fields-desc",
+    screens: { total: 1, rows: [{ screenId: "1", name: "A screen", tabCount: 1, fieldCount: 0, tabsResolved: "resolved" }] },
+    screenSchemes: [], schemeOperations: [], issueTypeScreenSchemes: [],
+    distributions: {}, governance: {}, transitionScreens: [],
+    ...over,
+  });
+
+  function route(result) {
+    invoke.mockImplementation((name) => {
+      if (name === "getScreenInventory") return Promise.resolve(result);
+      return Promise.resolve({ pillar: null });
+    });
+  }
+
+  test("sends the finding's filter to the resolver", async () => {
+    route(inventory({ screens: { total: 252, rows: [], filter: "unreached", filterLabel: "Nothing reaches them", filterRequested: "unreached" } }));
+    render(<ScreensTab intent={{ view: "screens", filter: "unreached" }} />);
+
+    await waitFor(() => {
+      const sent = invoke.mock.calls.filter((c) => c[0] === "getScreenInventory").pop();
+      expect(sent[1].filter).toBe("unreached");
+    });
+  });
+
+  test("says which subset it is showing", async () => {
+    route(inventory({ screens: { total: 252, rows: [{ screenId: "1", name: "A screen", tabCount: 1, fieldCount: 0, tabsResolved: "resolved" }], filter: "unreached", filterLabel: "Nothing reaches them", filterRequested: "unreached" } }));
+    render(<ScreensTab intent={{ view: "screens", filter: "unreached" }} />);
+
+    // 252 rows with nothing saying why would be indistinguishable from a catalogue that
+    // had shrunk.
+    expect(await screen.findByText("Nothing reaches them")).toBeInTheDocument();
+  });
+
+  // Reachability needs the workflow snapshot. Showing the whole catalogue under a heading
+  // that promised a subset would be worse than saying the filter could not run.
+  test("says so when the filter could not be applied", async () => {
+    route(inventory({ screens: { total: 746, rows: [{ screenId: "1", name: "A screen", tabCount: 1, fieldCount: 0, tabsResolved: "resolved" }], filter: null, filterLabel: null, filterRequested: "unreached" } }));
+    render(<ScreensTab intent={{ view: "screens", filter: "unreached" }} />);
+
+    expect(await screen.findByText(/no workflow inventory has been built/i)).toBeInTheDocument();
+  });
+
+  test("opens the schemes view narrowed to the ones nothing maps to", async () => {
+    route(inventory({
+      screenSchemes: [
+        { schemeId: "1", name: "Used scheme", issueTypeSchemeCount: 3 },
+        { schemeId: "2", name: "Orphan scheme", issueTypeSchemeCount: 0 },
+      ],
+      schemeOperations: [],
+    }));
+    const { container } = render(<ScreensTab intent={{ view: "schemes", schemes: "unused" }} />);
+
+    await waitFor(() => expect(container.textContent).toContain("Orphan scheme"));
+    expect(container.textContent).not.toContain("Used scheme");
+  });
+
+  test("opens the schemes view narrowed to the ones pointing at a missing screen", async () => {
+    route(inventory({
+      screenSchemes: [
+        { schemeId: "1", name: "Intact scheme", issueTypeSchemeCount: 1 },
+        { schemeId: "2", name: "Broken scheme", issueTypeSchemeCount: 1 },
+      ],
+      schemeOperations: [
+        { schemeId: "1", operation: "create", screenId: "9", dangling: false },
+        { schemeId: "2", operation: "edit", screenId: "404", dangling: true },
+      ],
+    }));
+    const { container } = render(<ScreensTab intent={{ view: "schemes", schemes: "dangling" }} />);
+
+    await waitFor(() => expect(container.textContent).toContain("Broken scheme"));
+    expect(container.textContent).not.toContain("Intact scheme");
+  });
+
+  test("opened normally, it filters nothing", async () => {
+    route(inventory());
+    render(<ScreensTab />);
+
+    await waitFor(() => {
+      const sent = invoke.mock.calls.filter((c) => c[0] === "getScreenInventory").pop();
+      expect(sent[1].filter).toBeNull();
+    });
+  });
+});

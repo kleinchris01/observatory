@@ -906,3 +906,61 @@ describe("DIRECTIONS", () => {
     }
   });
 });
+
+// "86 rules storing a credential in plaintext" used to open the Findings section showing all
+// 675 rules that carry any finding at all, leaving the reader to set the filter themselves.
+describe("AutomationTab — arriving from a finding", () => {
+  test("opens the section the finding lives in", async () => {
+    routeInvoke({ getAutomationInsights: analysis() });
+    const { container } = render(<AutomationTab intent={{ section: "cascades", cascadeKind: "self" }} />);
+
+    await waitFor(() =>
+      expect(container.querySelector(".sub-nav__item--active")?.textContent).toMatch(/Cascades/));
+  });
+
+  test("filters the findings list to the risk the finding counted", async () => {
+    routeInvoke({
+      getAutomationInsights: analysis({ findingsTotal: 2 }),
+      "getAutomationIndex:findings": {
+        available: true, part: "findings", total: 2,
+        findings: [
+          { id: 1, n: "Leaks a secret", e: 1, t: "jira.jql.scheduled", u: 1, p: 1, w: [], s: "high", r: [{ c: "embedded-credential", s: "high" }] },
+          { id: 2, n: "Merely disabled", e: 0, t: "jira.jql.scheduled", u: 1, p: 1, w: [], s: "info", r: [{ c: "disabled", s: "info", d: 30 }] },
+        ],
+      },
+      "getAutomationIndex:directory": DIRECTORY,
+    });
+
+    render(<AutomationTab intent={{ section: "findings", risk: "embedded-credential" }} />);
+
+    expect(await screen.findByText("Leaks a secret")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText("Merely disabled")).not.toBeInTheDocument());
+  });
+
+  // Self-triggering is a cascade property rather than a rule finding, which is why it routes
+  // to the cascade list and not to Findings.
+  test("filters the cascade list to self-triggering rules", async () => {
+    routeInvoke({
+      getAutomationInsights: analysis(),
+      getAutomationCascades: {
+        available: true,
+        summary: { edges: 1457, pairs: 1143, selfTriggeringRules: 123, fields: 214 },
+        cascades: [], total: 0, page: 1, pageSize: 50,
+      },
+      getCascadeGraph: { available: false, reason: "no-cascades" },
+    });
+
+    render(<AutomationTab intent={{ section: "cascades", cascadeKind: "self" }} />);
+
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("getAutomationCascades", expect.objectContaining({ kind: "self" })));
+  });
+
+  test("opened normally, it filters nothing", async () => {
+    routeInvoke({ getAutomationInsights: analysis() });
+    const { container } = render(<AutomationTab />);
+
+    await screen.findByText("1,477");
+    expect(container.querySelector(".sub-nav__item--active")?.textContent).toMatch(/Overview/);
+  });
+});

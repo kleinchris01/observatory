@@ -1,7 +1,7 @@
 import React from "react";
 import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
-import { useVisiblePolling, useRefreshOnVisible } from "./hooks";
+import { useVisiblePolling, useRefreshOnVisible, useNavIntent } from "./hooks";
 
 const setVisibility = (state) => {
   Object.defineProperty(document, "visibilityState", { value: state, configurable: true });
@@ -61,5 +61,56 @@ describe("useVisiblePolling still guards the Scans panels", () => {
     fn.mockClear();
     act(() => { vi.advanceTimersByTime(3000); });
     expect(fn).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe("useNavIntent", () => {
+  // Keyed on object identity rather than on the values inside it, deliberately: the shell
+  // mints a fresh object per navigation, so clicking the same finding twice re-applies its
+  // filter after the reader has changed it. Comparing values would make the second click
+  // silently do nothing.
+  test("applies an intent when one arrives", () => {
+    const apply = vi.fn();
+    renderHook(({ intent }) => useNavIntent(intent, apply), {
+      initialProps: { intent: { filter: "unreached" } },
+    });
+    expect(apply).toHaveBeenCalledWith({ filter: "unreached" });
+  });
+
+  test("does nothing when a tab is opened normally", () => {
+    const apply = vi.fn();
+    renderHook(({ intent }) => useNavIntent(intent, apply), { initialProps: { intent: null } });
+    expect(apply).not.toHaveBeenCalled();
+  });
+
+  test("re-applies when the same finding is clicked again", () => {
+    const apply = vi.fn();
+    const { rerender } = renderHook(({ intent }) => useNavIntent(intent, apply), {
+      initialProps: { intent: { filter: "empty" } },
+    });
+    // A fresh object with identical values -- what the shell produces on a second click.
+    rerender({ intent: { filter: "empty" } });
+    expect(apply).toHaveBeenCalledTimes(2);
+  });
+
+  test("does not re-apply on an unrelated re-render", () => {
+    const apply = vi.fn();
+    const intent = { filter: "empty" };
+    const { rerender } = renderHook(({ intent: i }) => useNavIntent(i, apply), {
+      initialProps: { intent },
+    });
+    rerender({ intent });
+    expect(apply).toHaveBeenCalledTimes(1);
+  });
+
+  // The handler is held in a ref, so a tab that rebuilds its closure every render does not
+  // re-run the filter on every keystroke.
+  test("a new handler identity does not re-apply the intent", () => {
+    const intent = { filter: "empty" };
+    let calls = 0;
+    const { rerender } = renderHook(() => useNavIntent(intent, () => { calls += 1; }));
+    rerender();
+    rerender();
+    expect(calls).toBe(1);
   });
 });
