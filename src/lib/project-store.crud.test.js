@@ -45,6 +45,7 @@ import {
   searchFieldOptionsCache,
   loadFieldSummary,
   listFieldSummaries,
+  countFieldSummariesByStatus,
   listSavedReports,
   saveSavedReport,
   deleteSavedReport,
@@ -459,6 +460,44 @@ describe("reports and summaries", () => {
     const calls = mockSqlQueries([[]]);
     await listFieldSummaries("scope", 25);
     expect(sqlHas(calls[0], "field_summaries")).toBe(true);
+  });
+
+  // The Overview used to load up to 5,000 summary rows -- including two LONGTEXT columns --
+  // and use them for a count grouped by status and a total. Same six integers, one row back.
+  describe("countFieldSummariesByStatus", () => {
+    test("counts in SQL rather than loading the rows", async () => {
+      const calls = mockSqlQueries([[{ summary_status: "ready", total: 1200 }]]);
+      await countFieldSummariesByStatus("scope");
+
+      expect(sqlHas(calls[0], "GROUP BY summary_status")).toBe(true);
+      // The columns that made the old query expensive must not appear.
+      expect(sqlHas(calls[0], "field_json")).toBe(false);
+      expect(sqlHas(calls[0], "progress_log")).toBe(false);
+    });
+
+    test("returns every state, including the ones with no rows", async () => {
+      mockSqlQueries([[{ summary_status: "ready", total: 3 }, { summary_status: "failed", total: 1 }]]);
+      const { counts, total } = await countFieldSummariesByStatus("scope");
+
+      expect(counts).toEqual({ queued: 0, building: 0, ready: 3, failed: 1, cancelled: 0, unbuilt: 0 });
+      expect(total).toBe(4);
+    });
+
+    // The rule the replaced loop implemented, pinned against the query that implements it now.
+    test("counts an unrecognised status as unbuilt rather than dropping it", async () => {
+      mockSqlQueries([[{ summary_status: "some-unknown-state", total: 2 }, { summary_status: null, total: 5 }]]);
+      const { counts, total } = await countFieldSummariesByStatus("scope");
+
+      expect(counts.unbuilt).toBe(7);
+      expect(total).toBe(7);
+    });
+
+    test("is all zeroes on a site with no summaries", async () => {
+      mockSqlQueries([[]]);
+      const { counts, total } = await countFieldSummariesByStatus("scope");
+      expect(total).toBe(0);
+      expect(Object.values(counts).every((n) => n === 0)).toBe(true);
+    });
   });
 
   test("listSavedReports maps report rows", async () => {

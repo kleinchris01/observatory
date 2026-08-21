@@ -7,13 +7,7 @@ import { formatTimestamp, formatNumber, toDisplayName, buildValueJql, formatShor
 import { Icon, useLiveDuration } from "./components/Icons";
 import { ReportErrorBoundary, SavedReportsPanel, ProjectUsageReportView } from "./components/ReportView";
 import { MetricChip, FindingBadge, FindingsStrip, SkeletonFieldCard, SkeletonProjectItem, InlineOptionsContext, FieldCard } from "./components/FieldCard";
-import { ConfigTab } from "./tabs/ConfigTab";
-import { FieldBrowserTab } from "./tabs/FieldBrowserTab";
-import { OverviewTab } from "./tabs/OverviewTab";
-import { ProjectUsageTab } from "./tabs/ProjectUsageTab";
-import { ReportsTab } from "./tabs/ReportsTab";
 import { useRefreshOnVisible } from "./hooks";
-import { ScansTab } from "./tabs/ScansTab";
 
 // Lazy: both pull in recharts (+122KB gzip measured on the macro bundle) and
 // sit behind tabs not shown by default -- split into their own chunk, fetched
@@ -27,6 +21,18 @@ const RqtIndexView = React.lazy(() =>
 const WorkflowTab = React.lazy(() =>
   import("./tabs/WorkflowTab").then((m) => ({ default: m.WorkflowTab }))
 );
+// Every tab is loaded on demand.
+//
+// Six of these were static imports, which meant the entry bundle carried the Field Browser,
+// Reports, Scans, Project Usage, Config and the Overview whether or not anybody opened them --
+// 420 KB before a single tab was clicked. The other four were already lazy; this is the same
+// pattern applied to the rest rather than a new one.
+const ConfigTab = React.lazy(() => import("./tabs/ConfigTab").then((m) => ({ default: m.ConfigTab })));
+const FieldBrowserTab = React.lazy(() => import("./tabs/FieldBrowserTab").then((m) => ({ default: m.FieldBrowserTab })));
+const OverviewTab = React.lazy(() => import("./tabs/OverviewTab").then((m) => ({ default: m.OverviewTab })));
+const ProjectUsageTab = React.lazy(() => import("./tabs/ProjectUsageTab").then((m) => ({ default: m.ProjectUsageTab })));
+const ReportsTab = React.lazy(() => import("./tabs/ReportsTab").then((m) => ({ default: m.ReportsTab })));
+const ScansTab = React.lazy(() => import("./tabs/ScansTab").then((m) => ({ default: m.ScansTab })));
 const FiltersTab = React.lazy(() => import("./tabs/FiltersTab").then((m) => ({ default: m.FiltersTab })));
 const AutomationTab = React.lazy(() =>
   import("./tabs/AutomationTab").then((m) => ({ default: m.AutomationTab }))
@@ -255,6 +261,10 @@ export function AdminApp() {
             </div>
           )}
 
+          {/* One boundary for every tab, rather than one per lazy tab. The chain below is
+              mutually exclusive -- exactly one arm renders -- so a single fallback covers
+              all of them and keeps the loading state identical whichever is opened. */}
+          <React.Suspense fallback={<div className="empty-state">Loading…</div>}>
           {activeTab === "overview" ? (
             loadingOverview && !overview ? (
               <div className="empty-state">Loading…</div>
@@ -279,21 +289,13 @@ export function AdminApp() {
           ) : activeTab === "projects" ? (
             <ProjectUsageTab siteOrigin={siteOrigin} intent={navIntent} />
           ) : activeTab === "workflows" ? (
-            <React.Suspense fallback={<div className="empty-state">Loading…</div>}>
-              <WorkflowTab intent={navIntent} siteOrigin={siteOrigin} />
-            </React.Suspense>
+            <WorkflowTab intent={navIntent} siteOrigin={siteOrigin} />
           ) : activeTab === "screens" ? (
-            <React.Suspense fallback={<div className="empty-state">Loading…</div>}>
-              <ScreensTab intent={navIntent} />
-            </React.Suspense>
+            <ScreensTab intent={navIntent} />
           ) : activeTab === "filters" ? (
-            <React.Suspense fallback={<div className="empty-state">Loading…</div>}>
-              <FiltersTab siteOrigin={siteOrigin} intent={navIntent} />
-            </React.Suspense>
+            <FiltersTab siteOrigin={siteOrigin} intent={navIntent} />
           ) : activeTab === "automation" ? (
-            <React.Suspense fallback={<div className="empty-state">Loading…</div>}>
-              <AutomationTab siteOrigin={siteOrigin} intent={navIntent} />
-            </React.Suspense>
+            <AutomationTab siteOrigin={siteOrigin} intent={navIntent} />
           ) : activeTab === "reports" ? (
             <ReportsTab siteOrigin={siteOrigin} selectedFieldIds={selectedFieldIds} onSetSelectedFieldIds={setSelectedFieldIds} autoGenerate={pendingReportGenerate} onAutoGenerateConsumed={() => setPendingReportGenerate(false)} initialSection={reportsInitialSection} />
           ) : activeTab === "scans" ? (
@@ -301,6 +303,7 @@ export function AdminApp() {
           ) : (
             <ConfigTab config={config} onSave={handleSaveConfig} saving={savingConfig} />
           )}
+          </React.Suspense>
         </div>
       </div>
     </div>
