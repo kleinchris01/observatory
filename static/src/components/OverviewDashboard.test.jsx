@@ -97,7 +97,9 @@ describe("OverviewDashboard — findings", () => {
     const onNavigate = vi.fn();
     render(<OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} onNavigate={onNavigate} />);
 
-    expect(screen.getByText("What needs attention")).toBeInTheDocument();
+    // One panel over the score and the findings, replacing "Site health" and "What needs
+    // attention" -- which stated the same facts in two vocabularies.
+    expect(screen.getByText("Governance")).toBeInTheDocument();
     expect(screen.getByText("Fields need admin attention")).toBeInTheDocument();
 
     await userEvent.click(screen.getAllByRole("button", { name: /Field Browser/ })[0]);
@@ -227,11 +229,11 @@ describe("OverviewDashboard — automation and screen findings", () => {
   test("shows a credential finding as critical and a disabled-rule finding as cleanup", () => {
     renderAll();
 
-    const credential = screen.getByText("Automation rules storing a credential in plaintext").closest(".ui-finding");
-    const disabled = screen.getByText("Disabled automation rules").closest(".ui-finding");
+    const credential = screen.getByText("Automation rules storing a credential in plaintext").closest(".ui-gov");
+    const disabled = screen.getByText("Disabled automation rules").closest(".ui-gov");
 
-    expect(credential.className).toMatch(/ui-finding--critical/);
-    expect(disabled.className).toMatch(/ui-finding--info/);
+    expect(credential.className).toMatch(/ui-gov--critical/);
+    expect(disabled.className).toMatch(/ui-gov--info/);
   });
 
 
@@ -241,7 +243,7 @@ describe("OverviewDashboard — automation and screen findings", () => {
   test("names screens a transition keeps alive, so they are not cleaned up", () => {
     renderAll();
 
-    const row = screen.getByText("Screens used only by a workflow transition").closest(".ui-finding");
+    const row = screen.getByText("Screens used only by a workflow transition").closest(".ui-gov");
     expect(row).toHaveTextContent(/Do not delete these/i);
   });
 
@@ -252,12 +254,18 @@ describe("OverviewDashboard — automation and screen findings", () => {
     expect(screen.queryByText("Screens used only by a workflow transition")).not.toBeInTheDocument();
   });
 
-  test("groups findings into severity bands rather than one flat list", () => {
+  // Urgency moved from a band heading with rows beneath it to a label on each row, because
+  // in the ledger a row's neighbours are the other metrics in its pillar rather than the
+  // other findings of its severity. The tally beside the score is what the band headings
+  // used to be: a count of how much of each there is.
+  test("labels each row with its urgency and tallies them beside the score", () => {
     renderAll();
 
-    expect(screen.getByText("Act now")).toBeInTheDocument();
-    expect(screen.getByText("Worth reviewing")).toBeInTheDocument();
-    expect(screen.getByText("Cleanup when convenient")).toBeInTheDocument();
+    expect(screen.getAllByText("Act now").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Worth reviewing").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Cleanup when convenient").length).toBeGreaterThan(0);
+    expect(screen.getByText(/\d+ to act on/)).toBeInTheDocument();
+    expect(screen.getByText(/\d+ to clean up/)).toBeInTheDocument();
   });
 
   test("finally reports the standardise count, which was computed and then dropped", () => {
@@ -307,7 +315,10 @@ describe("OverviewDashboard — health pillars", () => {
   test("collapses an unmeasured pillar to a single reason", () => {
     render(<OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} health={health} onNavigate={vi.fn()} />);
 
-    expect(screen.getByText("not measured")).toBeInTheDocument();
+    // "not measured" is a statement about SCORING, so it appears against the screens
+    // pillar the score covered and could not score -- not against a pillar that exists
+    // only because findings landed in it.
+    expect(screen.getAllByText("not measured")).toHaveLength(1);
     expect(screen.getByText("No screen inventory yet.")).toBeInTheDocument();
     expect(screen.queryByText("Screen hygiene")).not.toBeInTheDocument();
   });
@@ -434,13 +445,13 @@ describe("OverviewDashboard — projects panel", () => {
 describe("OverviewDashboard — resilience", () => {
   test("renders with no data at all rather than crashing", () => {
     render(<OverviewDashboard />);
-    expect(screen.getByText("What needs attention")).toBeInTheDocument();
+    expect(screen.getByText("Governance")).toBeInTheDocument();
   });
 
   test("deep links are inert rather than throwing when no navigator is supplied", async () => {
     render(<OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} />);
     await userEvent.click(screen.getAllByRole("button", { name: /Field Browser/ })[0]);
-    expect(screen.getByText("What needs attention")).toBeInTheDocument();
+    expect(screen.getByText("Governance")).toBeInTheDocument();
   });
 
   test("the RQT panel degrades to dashes when its resolver fails", async () => {
@@ -496,12 +507,12 @@ describe("OverviewDashboard — site health", () => {
   test("prompts for a build rather than showing a zero when nothing is measured", () => {
     render(<OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} health={{ score: null }} onNavigate={vi.fn()} />);
 
-    expect(screen.getByText(/Nothing measured yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/unchecked rather than clean|Nothing flagged/i)).toBeInTheDocument();
     expect(screen.queryByText("0")).not.toBeInTheDocument();
   });
 
   test("renders without a health object at all", () => {
     render(<OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} onNavigate={vi.fn()} />);
-    expect(screen.getByText(/Nothing measured yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/unchecked rather than clean|Nothing flagged/i)).toBeInTheDocument();
   });
 });

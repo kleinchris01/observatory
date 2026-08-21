@@ -139,7 +139,7 @@ describe("AdminApp smoke test", () => {
     expect(screen.getByText("Admin")).toBeInTheDocument();
     // Overview tab is the default active tab
     await waitFor(() => {
-      expect(screen.getByText("What needs attention")).toBeInTheDocument();
+      expect(screen.getByText("Governance")).toBeInTheDocument();
     });
   });
 });
@@ -157,7 +157,7 @@ describe("AdminApp tab navigation", () => {
     expect(adminNav).toBeTruthy();
 
     // Overview is default
-    await waitFor(() => expect(screen.getByText("What needs attention")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Governance")).toBeInTheDocument());
 
     // Field Browser
     await user.click(within(adminNav).getByText("Field Browser"));
@@ -287,7 +287,7 @@ describe("AdminApp Scans tab -> Snapshot subnav -- stalled snapshot build", () =
 describe("AdminApp Overview tab -- Snapshot and Field Usage Jobs moved out", () => {
   it("no longer renders a Snapshot or Field usage jobs section, but still routes governance findings", async () => {
     await renderAdminApp();
-    await waitFor(() => expect(screen.getByText("What needs attention")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Governance")).toBeInTheDocument());
 
     expect(screen.queryByRole("heading", { name: "Snapshot" })).not.toBeInTheDocument();
     expect(screen.queryByText("Field usage jobs")).not.toBeInTheDocument();
@@ -328,7 +328,7 @@ describe("AdminApp Overview tab -- Developer Console links", () => {
   it("opens Dev Console links via router.open instead of native navigation", async () => {
     const user = userEvent.setup();
     await renderAdminApp();
-    await waitFor(() => expect(screen.getByText("What needs attention")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Governance")).toBeInTheDocument());
 
     await user.click(screen.getByText("App overview"));
 

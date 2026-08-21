@@ -168,6 +168,151 @@ export function FindingRow({ tone = "info", title, detail, count, action }) {
   );
 }
 
+// ── Governance rows ─────────────────────────────────────────────────────────
+//
+// One governance metric, in the form both the Overview and the per-pillar tabs render it.
+//
+// The Overview used to carry two panels over the same facts: "Site health" scored each
+// dimension and "What needs attention" counted and linked the findings derived from those
+// same dimensions. A reader comparing them had to work out that "Automation security 0"
+// and "86 rules storing a credential in plaintext" were one thing said twice. This is that
+// thing said once: the score, the evidence, the urgency, where it is going, and the way in.
+
+// Urgency bands, in the order they are shown. `clear` is not shown as a band -- it is the
+// absence of one -- but it is a value the derivation can return.
+export const GOVERNANCE_BANDS = [
+  { key: "critical", label: "Act now", description: "Broken or exposed configuration. Someone is relying on these being right." },
+  { key: "warning", label: "Worth reviewing", description: "Working today, but the cost or the risk is growing." },
+  { key: "info", label: "Cleanup when convenient", description: "Safe to leave. Safe to remove, once confirmed." },
+];
+
+const BAND_LABELS = Object.fromEntries(GOVERNANCE_BANDS.map((b) => [b.key, b.label]));
+
+// A score's movement across the history window, as a shape rather than a number.
+//
+// Deliberately tiny and deliberately unlabelled: at this density the question a reader has
+// is "is this getting better or worse", not "what was it on the 14th". The delta beside it
+// carries the magnitude.
+//
+// Nulls in `points` are gaps -- days the dimension was not measured -- and are skipped
+// rather than drawn as zero, which is the same distinction the score itself makes between
+// "not looked at" and "looked at and bad".
+export function Sparkline({ points = [], width = 56, height = 16, title }) {
+  const measured = points
+    .map((point, index) => ({ index, score: point?.score }))
+    .filter((point) => typeof point.score === "number");
+
+  // One point is not a trend. Rendering a flat line through a single dot would assert a
+  // stability nobody measured.
+  if (measured.length < 2) {
+    return <span className="ui-spark ui-spark--none" title={title || "Not enough history to show a trend"}>—</span>;
+  }
+
+  const span = Math.max(1, points.length - 1);
+  const coords = measured.map(({ index, score }) => {
+    const x = (index / span) * (width - 2) + 1;
+    // Scores are always 0-100, so the scale is fixed rather than fitted. A fitted scale
+    // would make a two-point wobble look like a collapse.
+    const y = height - 1 - (score / 100) * (height - 2);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+
+  const last = measured[measured.length - 1];
+  const first = measured[0];
+  const direction = last.score > first.score ? "up" : last.score < first.score ? "down" : "flat";
+
+  return (
+    <svg
+      className={`ui-spark ui-spark--${direction}`}
+      width={width}
+      height={height}
+      viewBox={`0 0 ${width} ${height}`}
+      role="img"
+      aria-label={title || `Trend: ${direction}`}
+    >
+      <polyline points={coords.join(" ")} fill="none" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
+
+// The signed change, worded so a rise is always good.
+//
+// Every dimension here is scored so that higher is better, which makes "+12" unambiguous.
+// null is "no comparison available" -- either one measurement, or a dimension that did not
+// exist at the start of the window -- and renders as nothing rather than as "0", because a
+// dimension nobody could compare has not held steady.
+export function TrendDelta({ delta }) {
+  if (typeof delta !== "number" || delta === 0) return null;
+  const direction = delta > 0 ? "up" : "down";
+  return (
+    <span className={`ui-trend ui-trend--${direction}`}>
+      {delta > 0 ? "+" : "−"}{Math.abs(delta)}
+    </span>
+  );
+}
+
+// One metric. Score, evidence, urgency, trend, and the control that acts on it.
+//
+// `band` is required and carries meaning, like `tone` everywhere else in this file: use
+// "critical" only when a person should act on the value now, or it stops meaning anything.
+export function GovernanceRow({
+  label,
+  score = null,
+  band = "info",
+  detail,
+  action,
+  count,
+  trend = null,
+  reason,
+  children,
+}) {
+  const scored = typeof score === "number";
+
+  return (
+    <div className={`ui-gov ui-gov--${band}`}>
+      <div className="ui-gov__head">
+        <span className="ui-gov__label">{label}</span>
+        {band !== "clear" && <span className={`ui-gov__band ui-gov__band--${band}`}>{BAND_LABELS[band] ?? band}</span>}
+      </div>
+
+      {scored ? (
+        <>
+          <span className="ui-gov__track">
+            <span className={`ui-gov__bar ui-gov__bar--${band}`} style={{ width: `${score}%` }} />
+          </span>
+          <span className="ui-gov__score">{score}</span>
+        </>
+      ) : (
+        // A metric with no score still gets its columns, so a mixed list stays aligned and
+        // the reason sits where the evidence would.
+        <span className="ui-gov__track ui-gov__track--none" />
+      )}
+
+      {trend ? (
+        <span className="ui-gov__trend">
+          <Sparkline points={trend.points} title={trend.title} />
+          <TrendDelta delta={trend.delta} />
+        </span>
+      ) : (
+        <span className="ui-gov__trend" />
+      )}
+
+      <div className="ui-gov__body">
+        {detail && <span className="ui-gov__detail">{detail}</span>}
+        {!detail && reason && <span className="ui-gov__detail ui-gov__detail--muted">{reason}</span>}
+        {children}
+      </div>
+
+      {(count !== undefined && count !== null) || action ? (
+        <div className="ui-gov__act">
+          {count !== undefined && count !== null && <span className="ui-gov__count">{count}</span>}
+          {action}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 // The search / sort / filter toolbar every list tab gets.
 //
 // Before this, six tabs had each grown their own: the Field Browser had a filter panel with
@@ -296,6 +441,19 @@ export function GridSpan({ children, wide = false }) {
   return <div className={wide ? "ui-panelgrid__span" : "ui-panelgrid__cell"}>{children}</div>;
 }
 
+// The urgency band a bare score implies, when no hand-authored finding says otherwise.
+//
+// Capped at "warning" deliberately. A dimension scoring badly with no finding attached to
+// it means nobody has decided it is urgent -- only a finding, which is written by hand with
+// a consequence in it, can claim "act now". Without the cap a site would open with six red
+// rows the moment a new dimension scored low, and the band would stop meaning anything.
+export function bandFromScore(score) {
+  if (typeof score !== "number") return "clear";
+  if (score >= 90) return "clear";
+  if (score >= 70) return "info";
+  return "warning";
+}
+
 // One pillar of the site health score, on the tab that pillar is about.
 //
 // The score already groups its dimensions into exactly the tabs this app has -- fields,
@@ -303,7 +461,11 @@ export function GridSpan({ children, wide = false }) {
 // already computed and were only ever shown on the Overview. Showing a pillar next to the
 // inventory it scores is what makes it actionable: the number and the thing it measures on
 // the same page.
-export function PillarHealthPanel({ pillar, onOpenTrends }) {
+//
+// Built on GovernanceRow rather than its own bar markup, so a metric reads the same here as
+// it does in the Overview's ledger. It had grown a second dialect of the same row -- the
+// exact thing this file exists to stop.
+export function PillarHealthPanel({ pillar, onOpenTrends, trendsByDimension = null }) {
   if (!pillar) {
     return (
       <Panel title="Governance" icon="activity">
@@ -331,16 +493,16 @@ export function PillarHealthPanel({ pillar, onOpenTrends }) {
             <span className={`ui-health__score ui-health__score--${(pillar.grade || "e").toLowerCase()}`}>{pillar.score}</span>
             <span className="ui-health__of">/ 100</span>
           </div>
-          <div className="ui-health__dims">
+          <div className="ui-gov-list">
             {scored.map((dim) => (
-              <div key={dim.key} className="ui-health__dim">
-                <span className="ui-health__dimlabel">{dim.label}</span>
-                <span className="ui-health__dimtrack">
-                  <span className="ui-health__dimbar" style={{ width: `${dim.score}%` }} />
-                </span>
-                <span className="ui-health__dimval">{dim.score}</span>
-                <span className="ui-health__dimdetail">{dim.detail}</span>
-              </div>
+              <GovernanceRow
+                key={dim.key}
+                label={dim.label}
+                score={dim.score}
+                band={bandFromScore(dim.score)}
+                detail={dim.detail}
+                trend={trendsByDimension?.[dim.key] ?? null}
+              />
             ))}
           </div>
         </>

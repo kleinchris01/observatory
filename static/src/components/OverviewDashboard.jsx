@@ -2,7 +2,8 @@ import React from "react";
 import { invoke } from "@forge/bridge";
 import { Icon } from "./Icons";
 import { formatNumber, formatRelativeTime } from "../utils";
-import { StatTile, StatRow, Panel, EmptyState, BarList, FindingRow, LinkButton } from "./ui";
+import { StatTile, StatRow, Panel, EmptyState, BarList, LinkButton, GovernanceRow, TrendDelta, bandFromScore } from "./ui";
+import { HEALTH_PILLARS } from "../../../src/lib/health-score";
 
 // The admin landing page.
 //
@@ -18,21 +19,14 @@ import { StatTile, StatRow, Panel, EmptyState, BarList, FindingRow, LinkButton }
 // omitted rather than rendered as zero, because "0 duplicate statuses" and "we have never
 // looked for duplicate statuses" are completely different statements.
 
-// Severity bands, in the order they are shown. The list used to be a flat severity sort,
-// which reads fine at six rows and stops reading at sixteen -- everything below the fold
-// looked equally optional. The bands say what the tone already meant, in words.
-const FINDING_BANDS = [
-  { tone: "critical", label: "Act now", description: "Broken or exposed configuration. Someone is relying on these being right." },
-  { tone: "warning", label: "Worth reviewing", description: "Working today, but the cost or the risk is growing." },
-  { tone: "info", label: "Cleanup when convenient", description: "Safe to leave. Safe to remove, once confirmed." },
-];
-
 function buildFindings({ findingsSummary, dashboard, workflow, screens, automation, onNavigate }) {
   const findings = [];
 
   if (findingsSummary?.adminAttention > 0) {
     findings.push({
       key: "admin-attention",
+      dimension: "field-governance",
+      pillar: "fields",
       tone: "critical",
       count: findingsSummary.adminAttention,
       title: "Fields need admin attention",
@@ -45,6 +39,8 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
   if (findingsSummary?.risky > 0) {
     findings.push({
       key: "risky",
+      dimension: "field-governance",
+      pillar: "fields",
       tone: "warning",
       count: findingsSummary.risky,
       title: "Fields flagged as risky",
@@ -57,6 +53,8 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
   if (workflow?.available && workflow.duplicateGroupCount > 0) {
     findings.push({
       key: "duplicate-statuses",
+      dimension: "status-naming",
+      pillar: "workflows",
       tone: "warning",
       count: workflow.duplicateGroupCount,
       title: "Groups of duplicate statuses",
@@ -73,6 +71,8 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
   if (workflow?.available && workflow.safeToRemoveCount > 0) {
     findings.push({
       key: "unused-statuses",
+      dimension: "status-reachability",
+      pillar: "workflows",
       tone: "info",
       count: workflow.safeToRemoveCount,
       title: "Statuses with no evidence of use",
@@ -87,9 +87,28 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
     });
   }
 
+  // Statuses reachable only through an automation rule. The opposite finding to the one
+  // above and it used to hide inside it: an issue reaches these states, users see them, and
+  // no workflow scheme says they exist.
+  if (workflow?.available && workflow.automationChecked && workflow.ruleOnlyStatusCount > 0) {
+    findings.push({
+      key: "rule-only-statuses",
+      dimension: "status-coverage",
+      pillar: "workflows",
+      tone: "warning",
+      count: workflow.ruleOnlyStatusCount,
+      title: "Statuses only an automation rule can reach",
+      detail: "No scheme contains them, so they are invisible in Jira's workflow admin — but a rule transitions issues into them.",
+      onOpen: () => onNavigate("workflows"),
+      openLabel: "Workflows",
+    });
+  }
+
   if (workflow?.available && workflow.flaggedSchemeCount > 0) {
     findings.push({
       key: "scheme-balance",
+      dimension: "workflow-structure",
+      pillar: "workflows",
       tone: "warning",
       count: workflow.flaggedSchemeCount,
       title: "Workflow schemes with a structural flag",
@@ -102,10 +121,16 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
   if (dashboard?.projects?.overConfigured?.length > 0) {
     findings.push({
       key: "over-configured",
+      dimension: "project-consistency",
+      pillar: "projects",
       tone: "info",
-      count: dashboard.projects.overConfigured.length,
+      count: dashboard.projects.overConfiguredCount ?? dashboard.projects.overConfigured.length,
       title: "Projects configured well past the site norm",
-      detail: `Median project carries ${formatNumber(dashboard.projects.medianFieldCount)} fields; these carry far more with little issue volume.`,
+      // No longer claims light issue volume: that is the idle SUBSET, and asserting it of
+      // the whole list is what made this finding impossible to trip on an active site.
+      detail: dashboard.projects.idleOverConfiguredCount > 0
+        ? `Median project carries ${formatNumber(dashboard.projects.medianFieldCount)} fields. ${formatNumber(dashboard.projects.idleOverConfiguredCount)} of these carry little issue volume too.`
+        : `Median project carries ${formatNumber(dashboard.projects.medianFieldCount)} fields; these carry far more.`,
       onOpen: () => onNavigate("projects"),
       openLabel: "Project Usage",
     });
@@ -114,6 +139,8 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
   if (findingsSummary?.cleanup > 0) {
     findings.push({
       key: "cleanup",
+      dimension: null,
+      pillar: "fields",
       tone: "info",
       count: findingsSummary.cleanup,
       title: "Fields suggested for cleanup",
@@ -128,6 +155,8 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
   if (findingsSummary?.standardize > 0) {
     findings.push({
       key: "standardize",
+      dimension: "field-naming",
+      pillar: "fields",
       tone: "info",
       count: findingsSummary.standardize,
       title: "Fields that could be standardised",
@@ -146,6 +175,8 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
   if (automation?.available && automation.credentialRuleCount > 0) {
     findings.push({
       key: "automation-credentials",
+      dimension: "automation-security",
+      pillar: "automation",
       tone: "critical",
       count: automation.credentialRuleCount,
       title: "Automation rules storing a credential in plaintext",
@@ -158,6 +189,8 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
   if (automation?.available && automation.selfTriggeringCount > 0) {
     findings.push({
       key: "automation-self-triggering",
+      dimension: "automation-stability",
+      pillar: "automation",
       tone: "warning",
       count: automation.selfTriggeringCount,
       title: "Rules that write a field they trigger on",
@@ -170,6 +203,8 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
   if (automation?.available && automation.externalHttpCount > 0) {
     findings.push({
       key: "automation-external",
+      dimension: "automation-exposure",
+      pillar: "automation",
       tone: "warning",
       count: automation.externalHttpCount,
       title: "Rules sending data outside Atlassian",
@@ -182,6 +217,8 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
   if (automation?.available && automation.noActionCount > 0) {
     findings.push({
       key: "automation-inert",
+      dimension: "automation-hygiene",
+      pillar: "automation",
       tone: "info",
       count: automation.noActionCount,
       title: "Rules with a trigger but no actions",
@@ -194,6 +231,8 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
   if (automation?.available && automation.disabledCount > 0) {
     findings.push({
       key: "automation-disabled",
+      dimension: "automation-hygiene",
+      pillar: "automation",
       tone: "info",
       count: automation.disabledCount,
       title: "Disabled automation rules",
@@ -208,6 +247,8 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
   if (screens?.available && screens.danglingOperations > 0) {
     findings.push({
       key: "screen-dangling",
+      dimension: "screen-integrity",
+      pillar: "screens",
       tone: "critical",
       count: screens.danglingOperations,
       title: "Scheme operations pointing at a missing screen",
@@ -222,6 +263,8 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
   if (screens?.available && screens.unresolvedScreens > 0) {
     findings.push({
       key: "screen-unresolved",
+      dimension: "screen-hygiene",
+      pillar: "screens",
       tone: "warning",
       count: screens.unresolvedScreens,
       title: "Screens whose contents could not be read",
@@ -237,6 +280,8 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
   if (screens?.available && screens.unreachedScreens > 0) {
     findings.push({
       key: "screen-unreached",
+      dimension: "screen-hygiene",
+      pillar: "screens",
       tone: "info",
       count: screens.unreachedScreens,
       title: "Screens nothing reaches",
@@ -251,6 +296,8 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
   if (screens?.available && screens.transitionOnlyScreens > 0) {
     findings.push({
       key: "screen-transition-only",
+      dimension: "screen-hygiene",
+      pillar: "screens",
       tone: "info",
       count: screens.transitionOnlyScreens,
       title: "Screens used only by a workflow transition",
@@ -263,6 +310,8 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
   if (screens?.available && screens.emptyScreens > 0) {
     findings.push({
       key: "screen-empty",
+      dimension: "screen-hygiene",
+      pillar: "screens",
       tone: "info",
       count: screens.emptyScreens,
       title: "Screens carrying no fields",
@@ -275,6 +324,8 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
   if (screens?.available && screens.unusedSchemes > 0) {
     findings.push({
       key: "screen-unused-schemes",
+      dimension: "screen-integrity",
+      pillar: "screens",
       tone: "info",
       count: screens.unusedSchemes,
       title: "Screen schemes no issue type maps to",
@@ -286,11 +337,27 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
 
   // ── Projects ────────────────────────────────────────────────────────────
 
+  if (dashboard?.projects?.unusedProjectCount > 0) {
+    findings.push({
+      key: "unused-projects",
+      dimension: "project-activity",
+      pillar: "projects",
+      tone: "info",
+      count: dashboard.projects.unusedProjectCount,
+      title: "Projects carrying fields but no work",
+      detail: "Configured and then either abandoned or never started. Retiring fields here costs nothing.",
+      onOpen: () => onNavigate("projects"),
+      openLabel: "Project Usage",
+    });
+  }
+
   if (dashboard?.projects?.staleProjects?.length > 0) {
     findings.push({
       key: "stale-projects",
+      dimension: "project-activity",
+      pillar: "projects",
       tone: "info",
-      count: dashboard.projects.staleProjects.length,
+      count: dashboard.projects.staleProjectCount ?? dashboard.projects.staleProjects.length,
       title: "Projects with no activity in over six months",
       detail: "Still carrying field configuration. The cheapest place to retire fields, if the project is genuinely done.",
       onOpen: () => onNavigate("projects"),
@@ -301,7 +368,207 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
   return findings;
 }
 
-function FindingsPanel({ findings, workflow, screens, automation, onNavigate }) {
+// -- The governance ledger ---------------------------------------------------
+//
+// One table over what were two panels saying the same things in two vocabularies.
+//
+// "Site health" scored thirteen dimensions with a bar each. "What needs attention" counted
+// and deep-linked the findings derived from those same dimensions. So "Automation security
+// 0" and "86 automation rules storing a credential in plaintext" appeared in different
+// panels, in different orders, with nothing connecting them -- and a reader had to work out
+// that they were one fact stated twice. Worse, the two could disagree: a dimension could
+// score badly with no finding beneath it, and a finding could fire for something no
+// dimension measured, and neither panel could say so.
+//
+// The ledger is the join. Every row is a governance metric; the score says how bad, the
+// finding says what to do, and the trend says which way it is going.
+
+// Bands ordered by urgency, so the worst of a row's findings decides its band.
+const BAND_RANK = { critical: 0, warning: 1, info: 2, clear: 3 };
+
+// Labels and order come from the score's own pillar definition rather than a second copy
+// here. HEALTH_PILLARS is a pure constant in a module that imports nothing, which is what
+// makes it usable from the browser bundle -- the same reason the automation analysis is.
+const PILLAR_LABELS = Object.fromEntries(HEALTH_PILLARS.map((p) => [p.key, p.label]));
+
+function worstBand(bands) {
+  return bands.reduce((worst, band) => (BAND_RANK[band] < BAND_RANK[worst] ? band : worst), "clear");
+}
+
+// Assemble the rows, grouped by pillar and ordered by urgency within each.
+//
+// `history` is optional and comes from getHealthHistory. Without it the rows render without
+// a trend column rather than with an empty one -- a site with one measurement has no trend,
+// and drawing a flat line would assert a stability nobody observed.
+export function buildGovernanceLedger({ health, findings = [], history = null }) {
+  const trendByKey = new Map(
+    (history?.available && history.hasTrend ? history.dimensions ?? [] : [])
+      .map((entry) => [entry.key, { delta: entry.delta, points: entry.points, title: `${entry.key} over ${history.days} days` }])
+  );
+
+  // A cached measurement from before pillars existed carries only a flat dimensions array.
+  // Synthesised into groups rather than dropped, so an older payload renders its rows
+  // instead of an empty state claiming nothing has been measured.
+  const scoredPillars = health?.pillars?.length
+    ? health.pillars
+    : health?.dimensions?.length
+      ? [{ key: "all", label: null, available: true, score: null, grade: null, total: health.dimensions.length, dimensions: health.dimensions }]
+      : [];
+
+  // Findings grouped by the dimension they are evidence for. A dimension can have several:
+  // automation hygiene covers both disabled rules and inert ones.
+  const findingsByDimension = new Map();
+  const unmeasured = [];
+  for (const finding of findings) {
+    if (!finding.dimension) { unmeasured.push(finding); continue; }
+    if (!findingsByDimension.has(finding.dimension)) findingsByDimension.set(finding.dimension, []);
+    findingsByDimension.get(finding.dimension).push(finding);
+  }
+
+  const claimed = new Set();
+  const byKey = new Map();
+  for (const pillar of scoredPillars) {
+    const rows = (pillar.dimensions ?? []).map((dim) => {
+      const own = findingsByDimension.get(dim.key) ?? [];
+      own.forEach((f) => claimed.add(f.key));
+
+      // The more urgent of what the finding says and what the score implies.
+      //
+      // A finding's tone is written by hand with a consequence attached, so it can escalate
+      // past anything a score justifies -- only a finding can claim "act now". But it must
+      // not SOFTEN the score: "Project consistency 0" sitting under "cleanup when
+      // convenient" is incoherent, and it happened because the over-configured finding is
+      // authored as low urgency while the dimension it belongs to had bottomed out.
+      //
+      // bandFromScore caps itself at "warning", so the score alone can never turn the page
+      // red; it can only stop a bad number being described as optional.
+      const band = own.length
+        ? worstBand([...own.map((f) => f.tone), bandFromScore(dim.score)])
+        : bandFromScore(dim.score);
+
+      return {
+        key: dim.key,
+        label: dim.label,
+        // An unscored dimension with a finding beneath it still has something to say. Only
+        // a dimension with neither a score nor a finding is nothing to show, and those
+        // collapse into the pillar's one-line reason.
+        available: dim.available || own.length > 0,
+        score: dim.available ? dim.score : null,
+        band: dim.available ? band : (own.length ? worstBand(own.map((f) => f.tone)) : "clear"),
+        // The dimension's evidence sentence, which already names the rate it was derived
+        // from. The findings beneath it carry the counts and the links.
+        detail: dim.available ? dim.detail : null,
+        reason: dim.available ? null : dim.reason,
+        action: dim.available ? dim.action : null,
+        findings: own,
+        trend: trendByKey.get(dim.key) ?? null,
+      };
+    });
+    byKey.set(pillar.key, { ...pillar, rows, fromScore: true });
+  }
+
+  // Findings no dimension covers, in two kinds and both kept.
+  //
+  // Some are genuinely unmeasured -- "1,204 fields suggested for cleanup" is a real finding
+  // that nothing in the score scores. Others are findings whose dimension exists in
+  // principle but not in this payload, which is the normal state before the site has ever
+  // been scored: the Overview must still route attention on a site with no health score at
+  // all, because that is exactly the site with the most to fix.
+  const orphans = [
+    ...unmeasured,
+    ...findings.filter((f) => f.dimension && !claimed.has(f.key)),
+  ];
+  for (const finding of orphans) {
+    const row = {
+      key: finding.key,
+      // The row IS the finding, so its count and its way in sit on the row itself rather
+      // than in a chip beneath. A chip here would render the same sentence twice: once as
+      // the row's label and once as the chip's.
+      label: finding.title,
+      available: true,
+      // Rendered without a score rather than with a zero. Nothing measured this as a rate.
+      score: null,
+      band: finding.tone,
+      detail: finding.detail,
+      reason: null,
+      action: null,
+      findings: [],
+      count: finding.count,
+      openLabel: finding.openLabel,
+      onOpen: finding.onOpen,
+      trend: null,
+      unscored: true,
+    };
+    const pillarKey = finding.pillar || "fields";
+    if (!byKey.has(pillarKey)) {
+      byKey.set(pillarKey, {
+        key: pillarKey,
+        label: PILLAR_LABELS[pillarKey] ?? pillarKey,
+        // fromScore false: this pillar exists because findings landed in it, not because
+        // the score measured it. The difference matters at render time -- "not measured"
+        // is a statement about scoring, and printing it beside three findings would say
+        // the opposite of what the rows show.
+        fromScore: false,
+        available: false, score: null, grade: null, total: 0, rows: [],
+      });
+    }
+    byKey.get(pillarKey).rows.push(row);
+  }
+
+  // Ordered by the score's own pillar order, so the page does not reshuffle when a pillar
+  // gains its first dimension. Anything unrecognised sorts to the end rather than vanishing.
+  const order = new Map(HEALTH_PILLARS.map((p, i) => [p.key, i]));
+  const pillars = [...byKey.values()]
+    .filter((pillar) => pillar.rows.length > 0)
+    .sort((a, b) => (order.get(a.key) ?? 99) - (order.get(b.key) ?? 99));
+
+  if (!pillars.length) return null;
+
+  // Urgency first inside each pillar, then worst score. A pillar's rows are a worklist.
+  for (const pillar of pillars) {
+    pillar.rows.sort((a, b) =>
+      BAND_RANK[a.band] - BAND_RANK[b.band] || (a.score ?? 101) - (b.score ?? 101) || a.label.localeCompare(b.label));
+  }
+
+  const allRows = pillars.flatMap((p) => p.rows);
+  return {
+    pillars,
+    counts: {
+      critical: allRows.filter((r) => r.band === "critical").length,
+      warning: allRows.filter((r) => r.band === "warning").length,
+      info: allRows.filter((r) => r.band === "info").length,
+    },
+    // Whether any row can show movement. Drives whether the trend column is offered at all.
+    hasTrends: trendByKey.size > 0,
+  };
+}
+
+// The history series, fetched separately from the overview payload.
+//
+// Deliberately not folded into getAdminOverview. The ledger renders completely without it
+// -- the trend column simply is not offered -- so making the landing page's first paint
+// wait on a second query would trade something a reader needs immediately for something
+// that is only interesting once they have read the rows.
+//
+// A failure is silence, not an error. "We could not draw the sparklines" is not worth
+// interrupting the page that tells you a rule is leaking a credential.
+export function useHealthHistory({ days = 90, load = invoke } = {}) {
+  const [history, setHistory] = React.useState(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    load("getHealthHistory", { days })
+      .then((result) => { if (!cancelled) setHistory(result); })
+      .catch(() => { if (!cancelled) setHistory(null); });
+    return () => { cancelled = true; };
+  }, [days, load]);
+
+  return history;
+}
+
+function GovernanceLedgerPanel({ health, findings, history, workflow, screens, automation, onNavigate }) {
+  const ledger = React.useMemo(() => buildGovernanceLedger({ health, findings, history }), [health, findings, history]);
+
   // Which pillars have never been built. Named individually, because "nothing flagged" while
   // three of five pillars have never been looked at is not a clean bill of health -- it is a
   // clean bill of the two things we checked.
@@ -311,9 +578,12 @@ function FindingsPanel({ findings, workflow, screens, automation, onNavigate }) 
     !automation?.available && { label: "automation analysis", tab: "automation" },
   ].filter(Boolean);
 
-  if (!findings.length) {
+  // No rows at all. Two different reasons, and they must not be worded the same: a site
+  // where everything came back clean and a site where nothing has been looked at produce
+  // the same empty table, and only one of them is good news.
+  if (!ledger) {
     return (
-      <Panel title="What needs attention" icon="checkCircle">
+      <Panel title="Governance" icon="activity">
         <EmptyState
           action={unbuilt.length ? <LinkButton onClick={() => onNavigate(unbuilt[0].tab)}>Build {unbuilt[0].label}</LinkButton> : null}
         >
@@ -325,92 +595,44 @@ function FindingsPanel({ findings, workflow, screens, automation, onNavigate }) 
     );
   }
 
-  const bands = FINDING_BANDS
-    .map((band) => ({ ...band, items: findings.filter((f) => f.tone === band.tone) }))
-    .filter((band) => band.items.length > 0);
+  const dimensions = health?.dimensions ?? [];
+  const scored = dimensions.filter((d) => d.available);
+  const missing = dimensions.filter((d) => !d.available);
+  const { critical, warning, info } = ledger.counts;
+  // A site can have findings and no score -- nothing has been scored yet, but plenty has
+  // been found. The hero is what is conditional; the table is not.
+  const scoreKnown = typeof health?.score === "number";
+  const grade = (health?.grade || "e").toLowerCase();
 
   return (
     <Panel
-      title="What needs attention"
-      icon="alertTriangle"
-      description="Grouped by how soon it matters. Each opens the tab that resolves it."
-    >
-      <div className="ui-bands">
-        {bands.map((band) => (
-          <section key={band.tone} className="ui-band">
-            <header className={`ui-band__head ui-band__head--${band.tone}`}>
-              <h4 className="ui-band__title">{band.label}</h4>
-              <span className="ui-band__count">{band.items.length}</span>
-              <p className="ui-band__desc">{band.description}</p>
-            </header>
-            <div className="ui-finding-list">
-              {band.items.map((finding) => (
-                <FindingRow
-                  key={finding.key}
-                  tone={finding.tone}
-                  count={formatNumber(finding.count)}
-                  title={finding.title}
-                  detail={finding.detail}
-                  action={<LinkButton onClick={finding.onOpen}>{finding.openLabel}</LinkButton>}
-                />
-              ))}
-            </div>
-          </section>
-        ))}
-      </div>
-
-      {unbuilt.length > 0 && (
-        <p className="ui-note">
-          <Icon name="info" size={13} />
-          <span>
-            No {unbuilt.map((u) => u.label).join(", no ")} has been built, so nothing above
-            reflects {unbuilt.length === 1 ? "it" : "them"}.
-          </span>
-        </p>
-      )}
-    </Panel>
-  );
-}
-
-
-// ── Site health ─────────────────────────────────────────────────────────────
-//
-// The headline number is a way into the findings, not a finding. So it ships with the
-// dimension that scored worst and what would move it, and it states how many dimensions
-// it could actually score -- a 90 from two inputs is a weaker claim than a 72 from seven,
-// and the reader has to be able to tell.
-
-function HealthPanel({ health, onNavigate }) {
-  if (!health || health.score === null) {
-    return (
-      <Panel title="Site health" icon="activity">
-        <EmptyState>
-          Nothing measured yet. Build a snapshot and the workflow inventory to score the site.
-        </EmptyState>
-      </Panel>
-    );
-  }
-
-  // Both counts come from the dimensions array rather than one from the array and one
-  // from separate metadata -- otherwise the heading and the note can disagree about how
-  // much of the site was actually measured.
-  const scored = health.dimensions.filter((d) => d.available);
-  const missing = health.dimensions.filter((d) => !d.available);
-  const partial = missing.length > 0;
-
-  return (
-    <Panel
-      title="Site health"
+      title="Governance"
       icon="activity"
-      description={`Scored across ${scored.length} of ${health.dimensions.length} dimensions.`}
+      description={dimensions.length
+        ? `Every measure of the site, worst first. Scored across ${scored.length} of ${dimensions.length} dimensions.`
+        : "Every finding on the site, worst first. Nothing has been scored yet."}
+      action={<LinkButton onClick={() => onNavigate("reports")}>Trends</LinkButton>}
     >
       <div className="ui-health">
         <div className="ui-health__hero">
-          <span className={`ui-health__score ui-health__score--${health.grade.toLowerCase()}`}>{health.score}</span>
-          <span className="ui-health__of">/ 100</span>
-          <span className={`ui-health__grade ui-health__grade--${health.grade.toLowerCase()}`}>{health.grade}</span>
+          {scoreKnown && (
+            <>
+              <span className={`ui-health__score ui-health__score--${grade}`}>{health.score}</span>
+              <span className="ui-health__of">/ 100</span>
+              <span className={`ui-health__grade ui-health__grade--${grade}`}>{health.grade}</span>
+              {history?.hasTrend && <TrendDelta delta={history.delta} />}
+            </>
+          )}
+          {/* The counts the old findings panel led with, kept as the one-line summary of
+              what the table below holds. */}
+          <span className="ui-health__tally">
+            {critical > 0 && <span className="ui-health__tallyitem ui-health__tallyitem--critical">{critical} to act on</span>}
+            {warning > 0 && <span className="ui-health__tallyitem ui-health__tallyitem--warning">{warning} to review</span>}
+            {info > 0 && <span className="ui-health__tallyitem ui-health__tallyitem--info">{info} to clean up</span>}
+            {critical + warning + info === 0 && <span className="ui-health__tallyitem">nothing flagged</span>}
+          </span>
         </div>
-        {health.weakest && (
+        {scoreKnown && health.weakest && (
           <p className="ui-health__weakest">
             Weakest: <strong>{health.weakest.label}</strong> at {health.weakest.score}.
             {health.weakest.action ? ` ${health.weakest.action}` : ""}
@@ -418,51 +640,71 @@ function HealthPanel({ health, onNavigate }) {
         )}
       </div>
 
-      {/* Grouped by pillar rather than listed flat. Thirteen equal-weight bars in one column
-          is a table of contents with no headings -- the reader cannot tell which area of the
-          site a row belongs to without reading every label. Falls back to a single unnamed
-          group if the score predates pillars, so an older cached payload still renders. */}
-      <div className="ui-health__pillars">
-        {(health.pillars?.length ? health.pillars : [{ key: "all", label: null, dimensions: scored, available: true, score: null }])
-          .map((pillar) => (
-            <section key={pillar.key} className="ui-health__pillar">
-              {pillar.label && (
-                <header className="ui-health__pillarhead">
-                  <h4 className="ui-health__pillartitle">{pillar.label}</h4>
-                  {pillar.available ? (
-                    <span className={`ui-health__pillarscore ui-health__score--${(pillar.grade || "e").toLowerCase()}`}>
-                      {pillar.score}
-                    </span>
-                  ) : (
-                    <span className="ui-health__pillarscore ui-health__pillarscore--none">not measured</span>
-                  )}
-                </header>
-              )}
-
+      <div className="ui-gov-pillars">
+        {ledger.pillars.map((pillar) => (
+          <section key={pillar.key} className="ui-gov-pillar">
+            <header className="ui-health__pillarhead">
+              <h4 className="ui-health__pillartitle">{pillar.label}</h4>
               {pillar.available ? (
-                <div className="ui-health__dims">
-                  {pillar.dimensions.filter((d) => d.available).map((dim) => (
-                    <div key={dim.key} className="ui-health__dim">
-                      <span className="ui-health__dimlabel">{dim.label}</span>
-                      <span className="ui-health__dimtrack">
-                        <span className="ui-health__dimbar" style={{ width: `${dim.score}%` }} />
-                      </span>
-                      <span className="ui-health__dimval">{dim.score}</span>
-                      <span className="ui-health__dimdetail">{dim.detail}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                // One line for the whole pillar instead of one dark bar per dimension. The
-                // reason is identical across them, and repeating it three times reads as
-                // three problems rather than one unbuilt snapshot.
-                <p className="ui-health__pillarempty">{pillar.reason || "Not measured yet."}</p>
-              )}
-            </section>
-          ))}
+                <span className={`ui-health__pillarscore ui-health__score--${(pillar.grade || "e").toLowerCase()}`}>
+                  {pillar.score}
+                </span>
+              ) : pillar.fromScore ? (
+                <span className="ui-health__pillarscore ui-health__pillarscore--none">not measured</span>
+              ) : null}
+            </header>
+
+            {pillar.rows.every((row) => !row.available) ? (
+              // One line for the whole pillar instead of one dark row per dimension. The
+              // reason is identical across them, and repeating it reads as three problems
+              // rather than one unbuilt snapshot.
+              <p className="ui-health__pillarempty">{pillar.reason || "Not measured yet."}</p>
+            ) : (
+              <div className="ui-gov-list">
+                {pillar.rows.filter((row) => row.available).map((row) => (
+                  <GovernanceRow
+                    key={row.key}
+                    label={row.label}
+                    score={row.score}
+                    band={row.band}
+                    detail={row.detail}
+                    trend={ledger.hasTrends ? row.trend : null}
+                    count={row.count === undefined ? undefined : formatNumber(row.count)}
+                    action={row.onOpen ? <LinkButton onClick={row.onOpen}>{row.openLabel}</LinkButton> : null}
+                  >
+                    {/* The findings beneath the metric: what to do, how many, and the way
+                        in. A dimension with no finding shows its own advice instead. */}
+                    {row.findings.length > 0 ? (
+                      <div className="ui-gov__findings">
+                        {row.findings.map((finding) => (
+                          <button
+                            type="button"
+                            key={finding.key}
+                            className={`ui-gov__finding ui-gov__finding--${finding.tone}`}
+                            onClick={finding.onOpen}
+                            title={finding.detail}
+                          >
+                            <span className="ui-gov__findingcount">{formatNumber(finding.count)}</span>
+                            <span className="ui-gov__findingtitle">{finding.title}</span>
+                            {/* The destination, not a bare arrow. A reader has to be able to
+                                tell where a chip goes before clicking it, and the old
+                                findings list said so explicitly. */}
+                            <span className="ui-gov__findingarrow">&#8594; {finding.openLabel}</span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : row.action ? (
+                      <span className="ui-gov__advice">{row.action}</span>
+                    ) : null}
+                  </GovernanceRow>
+                ))}
+              </div>
+            )}
+          </section>
+        ))}
       </div>
 
-      {partial && (
+      {missing.length > 0 && (
         <p className="ui-note">
           <Icon name="info" size={13} />
           <span>
@@ -472,9 +714,21 @@ function HealthPanel({ health, onNavigate }) {
           </span>
         </p>
       )}
+
+      {unbuilt.length > 0 && (
+        <p className="ui-note">
+          <Icon name="info" size={13} />
+          <span>
+            No {unbuilt.map((u) => u.label).join(", no ")} has been built, so those are
+            unchecked rather than clean and nothing above reflects{" "}
+            {unbuilt.length === 1 ? "it" : "them"}.
+          </span>
+        </p>
+      )}
     </Panel>
   );
 }
+
 
 // ── Workflow ────────────────────────────────────────────────────────────────
 
@@ -750,16 +1004,26 @@ function RqtPanel({ onOpenRqtIndex }) {
   );
 }
 
-export function OverviewDashboard({ dashboard, findingsSummary, workflow, screens, automation, health, onOpenRqtIndex, onNavigate }) {
+export function OverviewDashboard({ dashboard, findingsSummary, workflow, screens, automation, health, history, onOpenRqtIndex, onNavigate }) {
   // onNavigate is optional so this stays renderable in isolation; without it the deep
   // links become inert rather than throwing.
   const navigate = onNavigate || (() => {});
   const findings = buildFindings({ findingsSummary, dashboard, workflow, screens, automation, onNavigate: navigate });
+  // A caller may pass history in -- tests do -- but nobody has to.
+  const fetched = useHealthHistory();
+  const series = history ?? fetched;
 
   return (
     <div className="ui-dashboard">
-      <HealthPanel health={health} onNavigate={navigate} />
-      <FindingsPanel findings={findings} workflow={workflow} screens={screens} automation={automation} onNavigate={navigate} />
+      <GovernanceLedgerPanel
+        health={health}
+        findings={findings}
+        history={series}
+        workflow={workflow}
+        screens={screens}
+        automation={automation}
+        onNavigate={navigate}
+      />
       <WorkflowPanel workflow={workflow} onNavigate={navigate} />
       <ProjectsPanel projects={dashboard?.projects} onNavigate={navigate} />
       <FieldsPanel fieldUsage={dashboard?.fieldUsage} onNavigate={navigate} />
