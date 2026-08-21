@@ -50,6 +50,10 @@ import {
   listSnapshotProjects,
   loadIssueScanProjectTotals,
   loadProjectActivity,
+  loadFilters,
+  readFilterSnapshotMeta,
+  writeFilterSnapshotMeta,
+  loadFilterReferencesFor,
   loadSnapshotProjectFields,
   countSnapshotProjectUsage,
   loadFieldSummary,
@@ -120,9 +124,12 @@ import {
   buildProjectInsights,
   buildWorkflowOverview,
   buildScreenOverview,
+  buildFilterOverview,
   attachUniqueIssueCounts,
 } from "./lib/site-health.js";
 import { summarizeAdoption, computeProjectAdoption } from "./lib/project-adoption.js";
+import { summarizeFilters, summarizeFilterHealth } from "./lib/filter-insights.js";
+import { isFilterBuildStale } from "./lib/filter-engine.js";
 import { probeEndpoint, probeStargateEndpoint, getCloudId, getAllJiraProjects } from "./lib/jira-api.js";
 import {
   findDuplicateStatusGroups,
@@ -1197,6 +1204,117 @@ async function saveAutomationIndex({ payload, context }) {
   }
 }
 
+
+// The saved filter inventory, with its governance findings.
+//
+// Everything is derived at read time from the snapshot rather than stored pre-analysed: the
+// analysis is pure over a few hundred rows, and storing it would mean a second thing to keep
+// in step with the filters -- a stored finding and a rebuilt snapshot can disagree, and a
+// derived one cannot.
+async function getFilterInventory({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const installationKey = getInstallationKey(context);
+    const meta = await readFilterSnapshotMeta(installationKey);
+
+    if (!meta?.version) {
+      return {
+        available: false,
+        state: meta?.state || "idle",
+        lastError: meta?.lastError || null,
+        // A build that died mid-flight would otherwise suppress every future rebuild, so the
+        // tab needs to know it can offer the button again.
+        stale: isFilterBuildStale(meta),
+        neverBuilt: true,
+      };
+    }
+
+    const [filters, snapshotMeta] = await Promise.all([
+      loadFilters(installationKey, meta.version),
+      readSnapshotMeta(installationKey),
+    ]);
+
+    // The project catalog, for the broken-reference join. Best-effort: without it that one
+    // finding is skipped and `projectsChecked` says so, rather than reporting zero broken
+    // references because nobody looked.
+    let projectKeys = null;
+    if (snapshotMeta?.version) {
+      const projects = await listSnapshotProjects(installationKey, snapshotMeta.version)
+        .catch(fallbackOn("filters.project_keys_load_failed", () => [], { installationKey }));
+      if (projects.length) projectKeys = new Set(projects.map((p) => p.projectKey).filter(Boolean));
+    }
+
+    const summary = summarizeFilters(filters, { projectKeys });
+
+    return {
+      available: true,
+      state: meta.state || "idle",
+      version: meta.version,
+      refreshedAt: meta.refreshedAt || null,
+      lastError: meta.lastError || null,
+      ...summary,
+      health: summarizeFilterHealth(summary),
+      // Sent whole rather than paged. A few hundred filters is one fetch the tab already
+      // pays for, and paging server-side would make client-side filtering impossible without
+      // re-querying on every keystroke -- the same call the Automation findings list makes.
+      allFilters: filters,
+    };
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("getFilterInventory failed:", error);
+    throw error;
+  }
+}
+
+// Queue a rebuild of the filter inventory.
+async function buildFilterInventory({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  const meta = await readFilterSnapshotMeta(installationKey);
+  // Suppress only a build that is both building AND not stale. A wedged row would otherwise
+  // block every future rebuild with no way out of the UI.
+  if (meta?.state === "building" && !isFilterBuildStale(meta)) {
+    return { queued: false, reason: "already-building", meta };
+  }
+
+  const adminConfig = await readAdminConfig();
+  if (adminConfig.readOnlyMode) {
+    return { queued: false, error: "Read-only mode is enabled. Disable it before building the filter inventory." };
+  }
+
+  await inventorySnapshotQueue.push({ jobType: "build-filter-snapshot", installationKey });
+  await writeFilterSnapshotMeta(installationKey, { state: "building", startedAt: new Date().toISOString(), lastError: null });
+  return { queued: true };
+}
+
+// Which saved filters reference one field or status.
+//
+// The second half of the cross-pillar answer. The Field Browser already says which automation
+// rules write a field; this says which saved searches would silently start returning the wrong
+// answer if it went away.
+async function getFilterUsage({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const installationKey = getInstallationKey(context);
+    const kind = payload?.kind === "status" ? "status" : payload?.kind === "project" ? "project" : "field";
+    const label = String(payload?.label ?? "").trim();
+    if (!label) throw new Error("label is required");
+
+    const meta = await readFilterSnapshotMeta(installationKey);
+    // No inventory is "we have not looked", never "no filter uses this". Saying the second
+    // with nothing behind it is the false reassurance this whole pillar exists to stop.
+    if (!meta?.version) return { available: false, reason: "no-inventory", label };
+
+    const result = await loadFilterReferencesFor(installationKey, meta.version, kind, label);
+    return { available: true, label, kind, ...result };
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("getFilterUsage failed:", error);
+    throw error;
+  }
+}
 
 // Parts that are written to SQL and nowhere else.
 //
@@ -3409,13 +3527,18 @@ const EMPTY_DASHBOARD = {
 export async function getAdminOverview({ context }) {
   await ensureProjectStoreReady();
   const installationKey = getInstallationKey(context);
-  const [meta, summaries, config, legacySummaryCount, workflow, screens, automationAnalysis] = await Promise.all([
+  const [meta, summaries, config, legacySummaryCount, workflow, screens, filterOverview, automationAnalysis] = await Promise.all([
     readSnapshotMeta(installationKey),
     listFieldSummaries(installationKey, 5000).catch(fallbackOn("overview.summaries_load_failed", () => [], { installationKey })),
     readAdminConfig(),
     countOldScopeKeyRows(installationKey).catch(fallbackOn("overview.legacy_row_count_failed", 0, { installationKey })),
     buildWorkflowOverview(installationKey),
     buildScreenOverview(installationKey),
+    // Without the project catalog the broken-reference check is skipped and says so. Passing
+    // it would mean loading the project list before this Promise.all rather than inside the
+    // dashboard build below, which is a bigger cost than the one finding is worth here -- the
+    // Filters tab does the full join when somebody opens it.
+    buildFilterOverview(installationKey),
     // Falls back to null rather than failing the overview. The automation dimensions then
     // report as unavailable, which is the same thing a fresh install shows -- an overview
     // that 500s because one optional input is missing is worse than one missing a section.
@@ -3498,6 +3621,7 @@ export async function getAdminOverview({ context }) {
     projects: dashboard?.projects,
     automation,
     screens,
+    filters: filterOverview?.health ?? null,
     // Workflow, project and automation dimensions were scored against hardcoded constants
     // while every field rule was tunable. Same config surface now feeds both.
     tolerances: config?.healthTolerances,
@@ -3531,6 +3655,10 @@ export async function getAdminOverview({ context }) {
     findingsSummary,
     workflow,
     screens,
+    // The counts the Overview's findings list needs, not just the score's rate. Same lesson
+    // the automation pillar learned: trimming this to the headline fields made every problem
+    // the analysis had already found invisible on the page that exists to surface problems.
+    filters: filterOverview,
     health,
     // The whole health summary, not just the three headline fields it used to carry. The
     // overview's findings list needs the same counts the score does -- while this was
@@ -4396,6 +4524,9 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   getAutomationCascades,   // Admin read: one filtered page of cascade relationships
   getCascadeGraph,         // Admin read: loops and multi-rule chains across every edge
   getStatusAutomationUsage,// Admin read: which rules reference one status, by direction
+  getFilterInventory,      // Admin read: saved filters, their findings and their references
+  buildFilterInventory,    // Mutating: queues a rebuild of the saved filter snapshot
+  getFilterUsage,          // Admin read: which filters reference one field or status
   getHealthHistory,        // Admin read: the site health series and per-dimension deltas
   getPillarHealth,         // Admin read: one pillar of the score, for the tab it is about
   getProjectOverview,      // Admin read: every pillar that touches one project

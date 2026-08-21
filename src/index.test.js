@@ -29,6 +29,10 @@ vi.mock("./lib/screen-engine.js", () => ({
   buildScreenSnapshot: vi.fn().mockResolvedValue({ screens: 760, fields: 21888, unresolvedScreens: 1 }),
 }));
 
+vi.mock("./lib/filter-engine.js", () => ({
+  buildFilterSnapshot: vi.fn().mockResolvedValue({ built: true, version: "v1", filters: 412, refs: 1840 }),
+}));
+
 vi.mock("./lib/scan-engine.js", () => ({
   runIssueScanCoordinator: vi.fn().mockResolvedValue(undefined),
   runIssueScanWorkerV2: vi.fn().mockResolvedValue(undefined),
@@ -121,6 +125,7 @@ import {
 import { processProjectUsageReportJob } from "./lib/report-engine.js";
 import { buildWorkflowSnapshot, buildStatusHistorySnapshot } from "./lib/workflow-engine.js";
 import { buildScreenSnapshot } from "./lib/screen-engine.js";
+import { buildFilterSnapshot } from "./lib/filter-engine.js";
 import { readAdminConfig, runDeltaIssueScanJob, ADMIN_ONLY_FUNCTIONS, SHARED_RESOLVER_FUNCTIONS } from "./resolvers.js";
 
 const CONTEXT = { installContext: "ari:cloud:jira::site/UUID" };
@@ -372,6 +377,28 @@ describe("consumeSnapshot job routing", () => {
   test("routes build-screen-snapshot to the screen engine", async () => {
     await consumeSnapshot(event({ jobType: "build-screen-snapshot" }));
     expect(buildScreenSnapshot).toHaveBeenCalledWith("scope-1");
+  });
+
+  // The cheapest structural build here: one paginated endpoint with everything expanded, so
+  // ~40 calls for 2,000 filters and no per-item walk.
+  test("routes build-filter-snapshot to the filter engine", async () => {
+    await consumeSnapshot(event({ jobType: "build-filter-snapshot" }));
+    expect(buildFilterSnapshot).toHaveBeenCalledWith("scope-1");
+  });
+
+  test("a failing filter build does not rethrow, so Forge will not retry it forever", async () => {
+    buildFilterSnapshot.mockRejectedValueOnce(new Error("401 scope does not match"));
+    await expect(consumeSnapshot(event({ jobType: "build-filter-snapshot" }))).resolves.toBeUndefined();
+  });
+
+  test("logs zeroes rather than undefined when the filter build returns no counts", async () => {
+    buildFilterSnapshot.mockResolvedValueOnce(undefined);
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await consumeSnapshot(event({ jobType: "build-filter-snapshot" }));
+
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("0 filters"));
+    log.mockRestore();
   });
 
   test("a failing screen build does not rethrow, so Forge will not retry it forever", async () => {

@@ -48,6 +48,10 @@ const mocks = vi.hoisted(() => ({
   loadAnySnapshotProjectUsage: vi.fn(),
   listSnapshotProjects: vi.fn(),
   loadProjectActivity: vi.fn(async () => new Map()),
+  loadFilters: vi.fn(async () => []),
+  readFilterSnapshotMeta: vi.fn(async () => null),
+  writeFilterSnapshotMeta: vi.fn(async () => ({})),
+  loadFilterReferencesFor: vi.fn(async () => ({ total: 0, filters: [] })),
   loadIssueScanProjectTotals: vi.fn(),
   loadSnapshotProjectFields: vi.fn(),
   countSnapshotProjectUsage: vi.fn(),
@@ -222,6 +226,10 @@ vi.mock("./lib/project-store.js", () => ({
   listSnapshotProjects: mocks.listSnapshotProjects,
   loadIssueScanProjectTotals: mocks.loadIssueScanProjectTotals,
   loadProjectActivity: mocks.loadProjectActivity,
+  loadFilters: mocks.loadFilters,
+  readFilterSnapshotMeta: mocks.readFilterSnapshotMeta,
+  writeFilterSnapshotMeta: mocks.writeFilterSnapshotMeta,
+  loadFilterReferencesFor: mocks.loadFilterReferencesFor,
   loadSnapshotProjectFields: mocks.loadSnapshotProjectFields,
   countSnapshotProjectUsage: mocks.countSnapshotProjectUsage,
   loadFieldSummary: mocks.loadFieldSummary,
@@ -373,6 +381,9 @@ const {
   saveAutomationAnalysis,
   getAutomationIndex,
   saveAutomationIndex,
+  getFilterInventory,
+  buildFilterInventory,
+  getFilterUsage,
   getAutomationCascades,
   getCascadeGraph,
   getStatusAutomationUsage,
@@ -4619,6 +4630,145 @@ describe("getStatusAutomationUsage", () => {
 
   test("requires a status name", async () => {
     await expect(getStatusAutomationUsage({ payload: {}, context: ctxWithAccount() })).rejects.toThrow(/statusName is required/);
+  });
+});
+
+// A saved filter is the one piece of Jira configuration that fails silently in both
+// directions: delete a field forty filters search on and the searches quietly return the
+// wrong answer, and leave a filter owned by somebody who left and it keeps emailing a list
+// from an account nobody administers.
+describe("getFilterInventory", () => {
+  const filterRow = (over = {}) => ({
+    id: "1", name: "Open bugs", jql: "project = ADVEV AND status = Open",
+    owner: { accountId: "a1", displayName: "Bob", active: true },
+    ownerName: "Bob", ownerActive: true,
+    shares: [], sharedWithEveryone: false, shareCount: 0,
+    subscriptionCount: 0, lastUsedAt: new Date().toISOString(),
+    fieldRefs: ["project", "status"], projectRefs: ["ADVEV"], statusRefs: ["Open"],
+    ...over,
+  });
+
+  beforeEach(() => {
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready", refreshedAt: "2026-08-20T00:00:00Z" });
+    mocks.loadFilters.mockResolvedValue([
+      filterRow(),
+      filterRow({ id: "2", name: "Orphan", owner: null, ownerActive: null }),
+    ]);
+    mocks.readSnapshotMeta.mockResolvedValue({ version: "fv1" });
+    mocks.listSnapshotProjects.mockResolvedValue([{ projectId: "1", projectKey: "ADVEV", projectName: "ADVEV" }]);
+  });
+
+  test("derives the findings at read time rather than storing them", async () => {
+    const result = await getFilterInventory({ payload: {}, context: ctxWithAccount() });
+
+    expect(result.available).toBe(true);
+    expect(result.total).toBe(2);
+    expect(result.orphanedCount).toBe(1);
+    // The whole list travels, because the tab filters over it client-side rather than
+    // re-querying on every keystroke.
+    expect(result.allFilters).toHaveLength(2);
+  });
+
+  test("joins to the project catalog so a broken scope can be found", async () => {
+    mocks.loadFilters.mockResolvedValue([filterRow({ projectRefs: ["GHOST"] })]);
+    const result = await getFilterInventory({ payload: {}, context: ctxWithAccount() });
+
+    expect(result.projectsChecked).toBe(true);
+    expect(result.brokenProjectCount).toBe(1);
+  });
+
+  // "No broken references" and "nobody looked" are different claims, and only one of them is
+  // permission to act.
+  test("says the project check could not run rather than reporting it clean", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue(null);
+    const result = await getFilterInventory({ payload: {}, context: ctxWithAccount() });
+
+    expect(result.projectsChecked).toBe(false);
+    expect(result.brokenProjectCount).toBe(0);
+  });
+
+  test("reports never-built rather than empty", async () => {
+    mocks.readFilterSnapshotMeta.mockResolvedValue(null);
+    const result = await getFilterInventory({ payload: {}, context: ctxWithAccount() });
+
+    expect(result).toMatchObject({ available: false, neverBuilt: true });
+  });
+
+  test("carries the failure reason forward when the last build failed", async () => {
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: null, state: "failed", lastError: "401 scope does not match" });
+    const result = await getFilterInventory({ payload: {}, context: ctxWithAccount() });
+
+    expect(result.lastError).toMatch(/401/);
+  });
+});
+
+describe("buildFilterInventory", () => {
+  test("queues a build and marks the row building", async () => {
+    mocks.readFilterSnapshotMeta.mockResolvedValue(null);
+    mocks.kvsGet.mockResolvedValue(null);
+
+    const result = await buildFilterInventory({ context: ctxWithAccount() });
+
+    expect(result).toMatchObject({ queued: true });
+    expect(mocks.writeFilterSnapshotMeta).toHaveBeenCalledWith("test-install", expect.objectContaining({ state: "building" }));
+  });
+
+  test("refuses in read-only mode, and says so", async () => {
+    mocks.readFilterSnapshotMeta.mockResolvedValue(null);
+    mocks.kvsGet.mockResolvedValue({ readOnlyMode: true });
+
+    const result = await buildFilterInventory({ context: ctxWithAccount() });
+    expect(result.queued).toBe(false);
+    expect(result.error).toMatch(/Read-only/);
+  });
+
+  test("does not queue a second build over one still running", async () => {
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ state: "building", startedAt: new Date().toISOString() });
+    const result = await buildFilterInventory({ context: ctxWithAccount() });
+    expect(result).toMatchObject({ queued: false, reason: "already-building" });
+  });
+
+  // A Forge invocation timeout is a hard kill, so a wedged row would otherwise suppress every
+  // future rebuild with no way out of the UI.
+  test("queues over a build that can no longer be running", async () => {
+    mocks.readFilterSnapshotMeta.mockResolvedValue({
+      state: "building",
+      startedAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+    });
+    mocks.kvsGet.mockResolvedValue(null);
+
+    expect(await buildFilterInventory({ context: ctxWithAccount() })).toMatchObject({ queued: true });
+  });
+});
+
+describe("getFilterUsage", () => {
+  test("returns the filters that would break if a field went away", async () => {
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "v1" });
+    mocks.loadFilterReferencesFor.mockResolvedValue({
+      total: 2,
+      filters: [{ id: "1", name: "Open bugs", ownerName: "Bob", ownerActive: true, subscriptionCount: 0, lastUsedAt: null }],
+    });
+
+    const result = await getFilterUsage({ payload: { kind: "field", label: "Story Points" }, context: ctxWithAccount() });
+    expect(result).toMatchObject({ available: true, kind: "field", total: 2 });
+  });
+
+  // Saying "no filter uses this" with nothing behind it is the false reassurance this whole
+  // pillar exists to stop.
+  test("distinguishes no inventory from no references", async () => {
+    mocks.readFilterSnapshotMeta.mockResolvedValue(null);
+    const result = await getFilterUsage({ payload: { label: "Story Points" }, context: ctxWithAccount() });
+    expect(result).toMatchObject({ available: false, reason: "no-inventory" });
+  });
+
+  test("defaults an unrecognised kind to field rather than passing it through", async () => {
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "v1" });
+    await getFilterUsage({ payload: { kind: "'; DROP TABLE", label: "X" }, context: ctxWithAccount() });
+    expect(mocks.loadFilterReferencesFor).toHaveBeenCalledWith("test-install", "v1", "field", "X");
+  });
+
+  test("requires a label", async () => {
+    await expect(getFilterUsage({ payload: {}, context: ctxWithAccount() })).rejects.toThrow(/label is required/);
   });
 });
 

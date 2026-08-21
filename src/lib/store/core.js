@@ -324,6 +324,99 @@ export const CREATE_AUTOMATION_CASCADES_TARGET_INDEX = `
   ON automation_cascades (scope_key, target_rule_id)
 `;
 
+// The saved filter inventory, versioned like every other snapshot here.
+//
+// Filters are the one piece of Jira configuration that fails silently in both directions:
+// delete a field forty filters search on and those searches quietly return the wrong answer,
+// and leave a filter owned by somebody who left and it keeps emailing a subscription list
+// from an account nobody administers.
+//
+// owner_active is a tri-state and the column is nullable for that reason: 1 active,
+// 0 deactivated, NULL when the owner is gone entirely. Jira deletes a filter with its owner,
+// so the third case is the one that takes boards and dashboards with it.
+export const CREATE_SNAPSHOT_FILTERS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_filters (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    filter_id VARCHAR(64) NOT NULL,
+    name TEXT NULL,
+    description TEXT NULL,
+    jql LONGTEXT NULL,
+    jql_normalized VARCHAR(512) NULL,
+    owner_account_id VARCHAR(191) NULL,
+    owner_name TEXT NULL,
+    owner_active TINYINT NULL,
+    subscription_count INT NOT NULL DEFAULT 0,
+    favourited_count INT NOT NULL DEFAULT 0,
+    shared_with_everyone TINYINT NOT NULL DEFAULT 0,
+    share_count INT NOT NULL DEFAULT 0,
+    last_used_at VARCHAR(64) NULL,
+    view_url TEXT NULL,
+    PRIMARY KEY (scope_key, version, filter_id)
+  )
+`;
+
+// Duplicate detection is a GROUP BY on the normalized JQL, so it gets an index rather than a
+// full scan of a LONGTEXT column across every filter on the site.
+export const CREATE_SNAPSHOT_FILTERS_JQL_INDEX = `
+  CREATE INDEX idx_snapshot_filters_jql
+  ON snapshot_filters (scope_key, version, jql_normalized)
+`;
+
+// What each filter depends on: one row per (filter, kind, label).
+//
+// The same shape automation_references uses, and for the same reason -- this is the join that
+// answers "is anything using this field" from a second source. A field that no rule writes
+// and forty filters search on is not unused, and until this table existed there was no way
+// to know that.
+export const CREATE_SNAPSHOT_FILTER_REFS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_filter_refs (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    filter_id VARCHAR(64) NOT NULL,
+    kind VARCHAR(16) NOT NULL,
+    label VARCHAR(191) NOT NULL,
+    PRIMARY KEY (scope_key, version, filter_id, kind, label)
+  )
+`;
+
+// The direction the cross-pillar reads go in: given a field or status, which filters use it.
+export const CREATE_SNAPSHOT_FILTER_REFS_LABEL_INDEX = `
+  CREATE INDEX idx_snapshot_filter_refs_label
+  ON snapshot_filter_refs (scope_key, version, kind, label)
+`;
+
+// Who a filter is shared with. Split from the filter row because one filter has many shares
+// and the interesting question -- "what is shared with everyone" -- is a filter over these.
+export const CREATE_SNAPSHOT_FILTER_SHARES_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_filter_shares (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    filter_id VARCHAR(64) NOT NULL,
+    share_index INT NOT NULL,
+    share_type VARCHAR(32) NOT NULL,
+    target_id VARCHAR(191) NULL,
+    target_name TEXT NULL,
+    role_id VARCHAR(191) NULL,
+    PRIMARY KEY (scope_key, version, filter_id, share_index)
+  )
+`;
+
+// Build state, mirroring workflow_snapshot_meta and screen_snapshot_meta.
+export const CREATE_FILTER_SNAPSHOT_META_TABLE = `
+  CREATE TABLE IF NOT EXISTS filter_snapshot_meta (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NULL,
+    state VARCHAR(32) NOT NULL DEFAULT 'idle',
+    started_at VARCHAR(64) NULL,
+    completed_at VARCHAR(64) NULL,
+    refreshed_at VARCHAR(64) NULL,
+    total_filters INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT NULL,
+    PRIMARY KEY (scope_key)
+  )
+`;
+
 // When work actually happened in each project, by month.
 //
 // Every rate on the Projects tab was a lifetime total with nothing to divide it by, which
@@ -885,7 +978,13 @@ const projectStoreMigrations = migrationRunner
     "ALTER TABLE workflow_snapshot_meta ADD COLUMN IF NOT EXISTS transition_screens INTEGER NULL")
   .enqueue("v073_create_automation_cascades_table", CREATE_AUTOMATION_CASCADES_TABLE)
   .enqueue("v074_create_automation_cascades_target_index", CREATE_AUTOMATION_CASCADES_TARGET_INDEX)
-  .enqueue("v075_create_issue_scan_project_activity_table", CREATE_ISSUE_SCAN_PROJECT_ACTIVITY_TABLE);
+  .enqueue("v075_create_issue_scan_project_activity_table", CREATE_ISSUE_SCAN_PROJECT_ACTIVITY_TABLE)
+  .enqueue("v076_create_snapshot_filters_table", CREATE_SNAPSHOT_FILTERS_TABLE)
+  .enqueue("v077_create_snapshot_filters_jql_index", CREATE_SNAPSHOT_FILTERS_JQL_INDEX)
+  .enqueue("v078_create_snapshot_filter_refs_table", CREATE_SNAPSHOT_FILTER_REFS_TABLE)
+  .enqueue("v079_create_snapshot_filter_refs_label_index", CREATE_SNAPSHOT_FILTER_REFS_LABEL_INDEX)
+  .enqueue("v080_create_snapshot_filter_shares_table", CREATE_SNAPSHOT_FILTER_SHARES_TABLE)
+  .enqueue("v081_create_filter_snapshot_meta_table", CREATE_FILTER_SNAPSHOT_META_TABLE);
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history

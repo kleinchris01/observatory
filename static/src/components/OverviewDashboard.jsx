@@ -19,7 +19,7 @@ import { HEALTH_PILLARS } from "../../../src/lib/health-score";
 // omitted rather than rendered as zero, because "0 duplicate statuses" and "we have never
 // looked for duplicate statuses" are completely different statements.
 
-function buildFindings({ findingsSummary, dashboard, workflow, screens, automation, onNavigate }) {
+function buildFindings({ findingsSummary, dashboard, workflow, screens, automation, filters, onNavigate }) {
   const findings = [];
 
   if (findingsSummary?.adminAttention > 0) {
@@ -239,6 +239,81 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
       detail: "A large disabled estate hides which rules were retired on purpose and which were forgotten. Decide per rule: revive or delete.",
       onOpen: () => onNavigate("automation", { section: "findings", risk: "disabled" }),
       openLabel: "Automation",
+    });
+  }
+
+  // ── Filters ─────────────────────────────────────────────────────────────
+  //
+  // A filter owned by a deleted account is the highest-consequence finding in this pillar and
+  // the one nobody discovers until it breaks: Jira deletes the filter with the account, and
+  // every board and dashboard built on it breaks at the same moment.
+  if (filters?.available && filters.orphanedCount > 0) {
+    findings.push({
+      key: "filters-orphaned",
+      dimension: "filter-hygiene",
+      pillar: "filters",
+      tone: "critical",
+      count: filters.orphanedCount,
+      title: "Saved filters with no live owner",
+      detail: "Jira deletes a filter with its owner. Reassign these before the accounts are removed, not after.",
+      onOpen: () => onNavigate("filters", { view: "filters", finding: "orphaned-owner" }),
+      openLabel: "Filters",
+    });
+  }
+
+  if (filters?.available && filters.brokenProjectCount > 0) {
+    findings.push({
+      key: "filters-broken-scope",
+      dimension: "filter-hygiene",
+      pillar: "filters",
+      tone: "warning",
+      count: filters.brokenProjectCount,
+      title: "Filters naming a project that does not exist",
+      detail: "These error rather than returning the wrong answer quietly, which makes them the cheapest of the filter findings to justify fixing.",
+      onOpen: () => onNavigate("filters", { view: "broken" }),
+      openLabel: "Filters",
+    });
+  }
+
+  if (filters?.available && filters.subscribedButUnusedCount > 0) {
+    findings.push({
+      key: "filters-zombie-subscriptions",
+      dimension: "filter-hygiene",
+      pillar: "filters",
+      tone: "warning",
+      count: filters.subscribedButUnusedCount,
+      title: "Email subscriptions on filters nobody opens",
+      detail: "Recurring email from a search no one reads is what teaches people to filter Jira to trash, taking the useful mail with it.",
+      onOpen: () => onNavigate("filters", { view: "filters", finding: "subscribed-but-unused" }),
+      openLabel: "Filters",
+    });
+  }
+
+  if (filters?.available && filters.sharedWithEveryoneCount > 0) {
+    findings.push({
+      key: "filters-shared-everyone",
+      dimension: "filter-hygiene",
+      pillar: "filters",
+      tone: "info",
+      count: filters.sharedWithEveryoneCount,
+      title: "Filters shared with every logged-in user",
+      detail: "Anyone on the site can run these, against every project they can browse. Usually deliberate — worth confirming it still is.",
+      onOpen: () => onNavigate("filters", { view: "filters", finding: "shared-with-everyone" }),
+      openLabel: "Filters",
+    });
+  }
+
+  if (filters?.available && filters.reducibleCount > 0) {
+    findings.push({
+      key: "filters-duplicates",
+      dimension: "filter-hygiene",
+      pillar: "filters",
+      tone: "info",
+      count: filters.reducibleCount,
+      title: "Duplicate saved filters",
+      detail: `${filters.duplicateGroupCount} groups of filters run the same query. Consolidating each to one removes ${filters.reducibleCount}.`,
+      onOpen: () => onNavigate("filters", { view: "duplicates" }),
+      openLabel: "Filters",
     });
   }
 
@@ -600,7 +675,7 @@ export function useHealthHistory({ days = 90, load = invoke } = {}) {
   return history;
 }
 
-function GovernanceLedgerPanel({ health, findings, history, workflow, screens, automation, onNavigate }) {
+function GovernanceLedgerPanel({ health, findings, history, workflow, screens, automation, filters, onNavigate }) {
   const ledger = React.useMemo(() => buildGovernanceLedger({ health, findings, history }), [health, findings, history]);
 
   // Which pillars have never been built. Named individually, because "nothing flagged" while
@@ -610,6 +685,7 @@ function GovernanceLedgerPanel({ health, findings, history, workflow, screens, a
     !workflow?.available && { label: "workflow inventory", tab: "workflows" },
     !screens?.available && { label: "screen inventory", tab: "screens" },
     !automation?.available && { label: "automation analysis", tab: "automation" },
+    !filters?.available && { label: "saved filter inventory", tab: "filters" },
   ].filter(Boolean);
 
   // No rows at all. Two different reasons, and they must not be worded the same: a site
@@ -1038,11 +1114,11 @@ function RqtPanel({ onOpenRqtIndex }) {
   );
 }
 
-export function OverviewDashboard({ dashboard, findingsSummary, workflow, screens, automation, health, history, onOpenRqtIndex, onNavigate }) {
+export function OverviewDashboard({ dashboard, findingsSummary, workflow, screens, automation, filters, health, history, onOpenRqtIndex, onNavigate }) {
   // onNavigate is optional so this stays renderable in isolation; without it the deep
   // links become inert rather than throwing.
   const navigate = onNavigate || (() => {});
-  const findings = buildFindings({ findingsSummary, dashboard, workflow, screens, automation, onNavigate: navigate });
+  const findings = buildFindings({ findingsSummary, dashboard, workflow, screens, automation, filters, onNavigate: navigate });
   // A caller may pass history in -- tests do -- but nobody has to.
   const fetched = useHealthHistory();
   const series = history ?? fetched;
@@ -1056,6 +1132,7 @@ export function OverviewDashboard({ dashboard, findingsSummary, workflow, screen
         workflow={workflow}
         screens={screens}
         automation={automation}
+        filters={filters}
         onNavigate={navigate}
       />
       <WorkflowPanel workflow={workflow} onNavigate={navigate} />
