@@ -1286,7 +1286,10 @@ async function buildFilterInventory({ context }) {
     return { queued: false, error: "Read-only mode is enabled. Disable it before building the filter inventory." };
   }
 
-  await inventorySnapshotQueue.push({ jobType: "build-filter-snapshot", installationKey });
+  // The `body` envelope is the contract, not decoration: the consumer reads
+  // event?.body?.jobType, and a payload pushed without it arrives with no body at all --
+  // Forge rejects the invocation outright with "Event body must be an object".
+  await inventorySnapshotQueue.push({ body: { jobType: "build-filter-snapshot", installationKey } });
   await writeFilterSnapshotMeta(installationKey, { state: "building", startedAt: new Date().toISOString(), lastError: null });
   return { queued: true };
 }
