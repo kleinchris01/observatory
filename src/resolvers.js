@@ -1394,8 +1394,9 @@ async function getDashboardInventory({ context }) {
         state: meta?.state || "idle",
         lastError: meta?.lastError || null,
         // A build that died mid-flight would otherwise suppress every future rebuild, so the
-        // tab needs to know it can offer the button again.
-        stale: isDashboardBuildStale(meta),
+        // tab needs to know it can offer the button again. Named staleBuild to match the
+        // screen and filter pillars -- one idea, one name, or a surface forgets to read it.
+        staleBuild: isDashboardBuildStale(meta),
         neverBuilt: true,
       };
     }
@@ -1406,6 +1407,9 @@ async function getDashboardInventory({ context }) {
     return {
       available: true,
       state: meta.state || "idle",
+      // Carried on this path too: a rebuild over an existing snapshot wedges exactly the
+      // same way, and reporting it only on the never-built path leaves that case stuck.
+      staleBuild: isDashboardBuildStale(meta),
       version: meta.version,
       refreshedAt: meta.refreshedAt || null,
       lastError: meta.lastError || null,

@@ -5058,6 +5058,30 @@ describe("buildDashboardInventory", () => {
   });
 });
 
+// A dashboard build hard-killed at the invocation ceiling wedges the tab exactly as the
+// filter one did. Both read paths carry the flag, because the wedge is as reachable on a
+// rebuild as on a first build.
+describe("getDashboardInventory staleness", () => {
+  test("reports a wedged build on both the never-built and rebuild paths", async () => {
+    const wedged = { state: "building", startedAt: new Date(Date.now() - 3600e3).toISOString() };
+
+    mocks.readDashboardSnapshotMeta.mockResolvedValue({ ...wedged, version: null });
+    expect((await getDashboardInventory({ context: ctxWithAccount() })).staleBuild).toBe(true);
+
+    mocks.readDashboardSnapshotMeta.mockResolvedValue({ ...wedged, version: "v1" });
+    const live = await getDashboardInventory({ context: ctxWithAccount() });
+    expect(live.available).toBe(true);
+    expect(live.staleBuild).toBe(true);
+  });
+
+  test("does not call a build that just started stale", async () => {
+    mocks.readDashboardSnapshotMeta.mockResolvedValue({
+      version: "v1", state: "building", startedAt: new Date().toISOString(),
+    });
+    expect((await getDashboardInventory({ context: ctxWithAccount() })).staleBuild).toBe(false);
+  });
+});
+
 // The bug this exists to stop recurring: two resolvers pushed a bare payload instead of
 // wrapping it in `body`, and Forge rejected the invocation with "Event body must be an
 // object" the first time a user clicked the button. Every test involved passed, because they

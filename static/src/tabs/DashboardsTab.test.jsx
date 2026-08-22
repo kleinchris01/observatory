@@ -191,3 +191,30 @@ describe("DashboardsTab", () => {
     expect(await screen.findByText(/Read-only mode is enabled/)).toBeInTheDocument();
   });
 });
+
+// The same wedge the filter pillar hit on a live site: a build hard-killed at Forge's
+// invocation ceiling leaves the row saying "building" forever, and gating the rebuild button
+// on that state alone disables the only control that could recover it.
+describe("a build that is no longer running", () => {
+  test("offers the rebuild button instead of a permanent spinner", async () => {
+    invoke.mockResolvedValue({
+      available: false, neverBuilt: true, state: "building", staleBuild: true,
+    });
+
+    render(<DashboardsTab />);
+
+    expect(await screen.findByRole("button", { name: /rebuild/i })).toBeEnabled();
+    expect(screen.getByText(/no longer running/i)).toBeInTheDocument();
+  });
+
+  test("still shows a spinner for a build that genuinely is running", async () => {
+    invoke.mockResolvedValue({
+      available: false, neverBuilt: true, state: "building", staleBuild: false,
+    });
+
+    render(<DashboardsTab />);
+
+    expect(await screen.findByText(/Building the dashboard inventory/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /building/i })).toBeDisabled();
+  });
+});

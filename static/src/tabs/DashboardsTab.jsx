@@ -169,7 +169,12 @@ export function DashboardsTab({ siteOrigin = "", intent = null }) {
   React.useEffect(() => { load(); }, [load]);
 
   // Poll only while a build is in flight and only while somebody is looking.
-  useVisiblePolling(data?.state === "building", load, POLL_MS);
+  // "building" alone is not enough to believe: a Forge invocation timeout is a hard kill, so
+  // the state outlives the job that set it and the tab would disable the only control that
+  // could recover it. Same derivation as the filter and screen pillars.
+  const isBuilding = ["building", "queued"].includes(data?.state) && !data?.staleBuild;
+
+  useVisiblePolling(isBuilding, load, POLL_MS);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -226,12 +231,14 @@ export function DashboardsTab({ siteOrigin = "", intent = null }) {
         />
         <EmptyState
           action={
-            <button type="button" className="primary-button" onClick={handleBuild} disabled={building || data?.state === "building"}>
-              {data?.state === "building" ? "Building…" : building ? "Starting…" : "Build dashboard inventory"}
+            <button type="button" className="primary-button" onClick={handleBuild} disabled={building || isBuilding}>
+              {isBuilding ? "Building…" : building ? "Starting…" : data?.staleBuild ? "Rebuild" : "Build dashboard inventory"}
             </button>
           }
         >
-          {data?.state === "building"
+          {data?.staleBuild
+            ? "A build was started but is no longer running — it most likely hit the invocation time limit. Rebuild to recover it."
+            : isBuilding
             ? "Building the dashboard inventory…"
             : data?.lastError
               ? `The last build failed: ${data.lastError}`
@@ -251,8 +258,8 @@ export function DashboardsTab({ siteOrigin = "", intent = null }) {
         description="The most visible thing in Jira and the least owned. A dashboard on a wall screen owned by somebody who left has a deletion date nobody has written down."
         meta={data.refreshedAt ? `Built ${formatRelativeTime(data.refreshedAt)}` : undefined}
         actions={
-          <button type="button" className="secondary-button" onClick={handleBuild} disabled={building || data.state === "building"}>
-            {data.state === "building" ? "Building…" : "Rebuild"}
+          <button type="button" className="secondary-button" onClick={handleBuild} disabled={building || isBuilding}>
+            {isBuilding ? "Building…" : "Rebuild"}
           </button>
         }
       />
