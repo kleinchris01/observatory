@@ -2,9 +2,15 @@
 //
 // Follows screen-engine.js, and is markedly cheaper than either of its predecessors. One
 // paginated endpoint returns filters fifty at a time with every governance-relevant field
-// already expanded -- no per-item walk, no second round trip. A site with 2,000 filters is
-// 40 calls, which is well inside a single 900s consumer invocation, so this runs single-pass
-// like the screen build rather than resuming like the issue crawl.
+// already expanded -- no per-item walk, no second round trip.
+//
+// This was originally written as "a site with 2,000 filters is 40 calls, well inside a single
+// 900s invocation", and it runs single-pass on that assumption. A real tenant then failed to
+// finish: expanded with sharePermissions and subscriptions, filter/search is slow enough per
+// page that a large enough estate runs out of invocation before it runs out of filters. The
+// budget below is the honest version of that assumption -- single-pass is still the design,
+// but it now admits when single-pass was not enough instead of being killed mid-sentence.
+// Making this resumable is the real fix if the budget is ever actually hit.
 //
 // The expensive part is not the fetching, it is the JQL: every filter's query is scanned for
 // the fields, projects and statuses it depends on. That is pure CPU over strings already in
@@ -28,6 +34,22 @@ import {
 // a minute so a build finishing right at the limit is never declared stale out from under
 // itself.
 export const FILTER_BUILD_STALE_MS = 16 * 60 * 1000;
+
+// How long the fetch may run before it gives up on its own terms.
+//
+// The consumer ceiling is 900s and filter/search is expanded with sharePermissions and
+// subscriptions, which makes it one of the slower endpoints Jira offers -- 50 rows a page,
+// no parallelism. A site with enough filters will not finish, and being hard-killed is the
+// worst way to not finish: no error is written, the row stays "building", and the next
+// person sees a spinner with no explanation. Stopping at ten minutes leaves time to write a
+// failure that says what happened, and to say how far it got.
+export const FILTER_FETCH_BUDGET_MS = 10 * 60 * 1000;
+
+// How often progress is written while the fetch runs.
+//
+// Not every page: that would be a SQL write per 50 filters for no extra insight. Every
+// thirty seconds is enough that a build killed anyway still leaves a usable trail.
+const PROGRESS_INTERVAL_MS = 30 * 1000;
 
 // True when a build was started but can no longer be running.
 //
@@ -121,7 +143,29 @@ export async function buildFilterSnapshot(installationKey, { now = Date.now() } 
 
   try {
     incrMetric(METRIC_NAMES.jiraRequest);
-    const raw = await getAllFilters();
+
+    // Progress is recorded in total_filters, which is otherwise unwritten until the build
+    // succeeds. It costs no migration and turns a wedged row from "something went wrong" into
+    // "it read 3,400 filters and then stopped", which is the difference between guessing at
+    // the cause and knowing it.
+    let lastProgressAt = now;
+    const raw = await getAllFilters({
+      onPage: async ({ fetched }) => {
+        const elapsed = Date.now() - now;
+        if (elapsed > FILTER_FETCH_BUDGET_MS) {
+          throw new Error(
+            `Stopped after ${Math.round(elapsed / 1000)}s having read ${fetched} filters. ` +
+            "This site has more saved filters than one pass can read within Forge's time limit."
+          );
+        }
+        if (Date.now() - lastProgressAt < PROGRESS_INTERVAL_MS) return;
+        lastProgressAt = Date.now();
+        // Best-effort. A progress write that fails must not abort a build that is otherwise
+        // healthy -- the number is a convenience, the snapshot is the job.
+        await writeFilterSnapshotMeta(installationKey, { totalFilters: fetched })
+          .catch(() => {});
+      },
+    });
 
     const filters = [];
     const refs = [];

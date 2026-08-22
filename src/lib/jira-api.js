@@ -379,7 +379,7 @@ export async function callerHasJiraAdmin(accountId) {
   }
 }
 
-export async function paginate(pathBuilder, valuesKey = "values") {
+export async function paginate(pathBuilder, valuesKey = "values", { onPage } = {}) {
   const results = [];
   let startAt = 0;
   while (true) {
@@ -388,6 +388,10 @@ export async function paginate(pathBuilder, valuesKey = "values") {
     results.push(...values);
     const total = data?.total ?? values.length;
     const nextStart = startAt + values.length;
+    // Called after each page so a long walk can report progress or stop itself. Awaited and
+    // deliberately not caught: a caller that throws here -- an exhausted time budget -- means
+    // to abort the walk, and swallowing that would defeat the point.
+    if (onPage) await onPage({ fetched: results.length, total, startAt });
     if (!values.length || data?.isLast === true || nextStart >= total) break;
     startAt = nextStart;
   }
@@ -895,9 +899,10 @@ export async function getAllJiraProjects() {
 // last opened" must never render as "never opened".
 const FILTER_EXPAND = "description,owner,jql,sharePermissions,subscriptions,viewUrl,favouritedCount";
 
-export async function getAllFilters() {
+export async function getAllFilters({ onPage } = {}) {
   return paginate((startAt) =>
-    route`/rest/api/3/filter/search?maxResults=50&startAt=${startAt}&expand=${FILTER_EXPAND}&overrideSharePermissions=false`);
+    route`/rest/api/3/filter/search?maxResults=50&startAt=${startAt}&expand=${FILTER_EXPAND}&overrideSharePermissions=false`,
+  "values", { onPage });
 }
 
 export async function getAllScreens() {

@@ -4686,6 +4686,44 @@ describe("getFilterInventory", () => {
     expect(result.allFilters).toHaveLength(2);
   });
 
+  // A build hard-killed at the invocation ceiling leaves the row saying "building" with no
+  // error, forever. The tab gates its rebuild control on this flag, so a resolver that
+  // withholds it is a tab that can never recover -- which is exactly what happened on a live
+  // site. Both paths carry it: the wedge is just as reachable on a rebuild over an existing
+  // snapshot as on a first build, and only the first path ever reported it.
+  test("reports a wedged first build so the UI can offer a rebuild", async () => {
+    mocks.readFilterSnapshotMeta.mockResolvedValue({
+      version: null, state: "building",
+      startedAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+    });
+
+    const result = await getFilterInventory({ payload: {}, context: ctxWithAccount() });
+    expect(result.available).toBe(false);
+    expect(result.staleBuild).toBe(true);
+  });
+
+  test("reports a wedged rebuild over a snapshot that already exists", async () => {
+    mocks.readFilterSnapshotMeta.mockResolvedValue({
+      version: "v1", state: "building",
+      startedAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+    });
+
+    const result = await getFilterInventory({ payload: {}, context: ctxWithAccount() });
+    expect(result.available).toBe(true);
+    expect(result.staleBuild).toBe(true);
+  });
+
+  // The other half of the tri-state: a build that started a minute ago is still running, and
+  // saying otherwise would hand a user a rebuild button that races the job already in flight.
+  test("does not call a build that just started stale", async () => {
+    mocks.readFilterSnapshotMeta.mockResolvedValue({
+      version: "v1", state: "building", startedAt: new Date().toISOString(),
+    });
+
+    const result = await getFilterInventory({ payload: {}, context: ctxWithAccount() });
+    expect(result.staleBuild).toBe(false);
+  });
+
   test("joins to the project catalog so a broken scope can be found", async () => {
     mocks.loadFilters.mockResolvedValue([filterRow({ projectRefs: ["GHOST"] })]);
     const result = await getFilterInventory({ payload: {}, context: ctxWithAccount() });
