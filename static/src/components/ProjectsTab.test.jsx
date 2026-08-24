@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { TopFieldsChart, FieldTypeDonut, ProjectsTabView,
-  ProjectOverview, buildProjectFilters, ProjectAdoptionPanel, ActivitySparkbars,
+  ProjectOverview, buildProjectFilters, projectFilterCount, ProjectAdoptionPanel, ActivitySparkbars,
 } from "./ProjectsTab";
 
 // ---------------------------------------------------------------------------
@@ -729,3 +729,123 @@ describe("ActivitySparkbars", () => {
     expect(container.firstChild).toBeNull();
   });
 });
+
+// The bug: every one of these chips read "0" on a live site with 126 projects, because the
+// inputs they need had never been collected. A zero says "we looked and found none". Using
+// it for "we have not looked" is the false all-clear this whole app is built to refuse -- and
+// the field card two tabs over already renders a dash for exactly this case.
+describe("buildProjectFilters — measured, or honestly not", () => {
+  const project = (key, over = {}) => ({
+    projectId: key, projectKey: key, projectName: key,
+    fieldCount: 20, totalIssueCount: 5000, uniqueIssueCount: 500,
+    latestIssueUpdatedAt: new Date().toISOString(), ...over,
+  });
+  const option = (projects, key) => buildProjectFilters(projects).find((f) => f.key === key);
+
+  // Adoption needs the activity series, which only a Universal Scan populates. Until one has
+  // run, every project carries adoption: null.
+  it("cannot answer 'fell off' before a Universal Scan has run", () => {
+    const projects = [project("A"), project("B")];
+    const fellOff = option(projects, "fell-off");
+
+    expect(fellOff.measurable).toBe(false);
+    expect(projectFilterCount(fellOff, projects)).toBeNull();
+    expect(fellOff.unmeasuredHint).toMatch(/Universal Scan/);
+  });
+
+  it("answers 'fell off' the moment any project has adoption", () => {
+    const projects = [
+      project("A", { adoption: { fellOff: true, score: 20 } }),
+      project("B", { adoption: { fellOff: false, score: 70 } }),
+    ];
+    const fellOff = option(projects, "fell-off");
+
+    expect(fellOff.measurable).toBe(true);
+    expect(projectFilterCount(fellOff, projects)).toBe(1);
+  });
+
+  // Zero and null are different answers, and this is the pair that proves it: the same
+  // projects, one measured and one not.
+  it("tells a measured zero from an unmeasured one", () => {
+    const measured = [project("A", { adoption: { fellOff: false } })];
+    const unmeasured = [project("A")];
+
+    expect(projectFilterCount(option(measured, "fell-off"), measured)).toBe(0);
+    expect(projectFilterCount(option(unmeasured, "fell-off"), unmeasured)).toBeNull();
+  });
+
+  it("cannot answer 'quiet 6 months' with no activity dates", () => {
+    const projects = [project("A", { latestIssueUpdatedAt: null })];
+    const stale = option(projects, "stale");
+
+    expect(stale.measurable).toBe(false);
+    expect(projectFilterCount(stale, projects)).toBeNull();
+  });
+
+  it("answers 'quiet 6 months' once any project has a date", () => {
+    const old = new Date(Date.now() - 400 * 24 * 60 * 60 * 1000).toISOString();
+    const projects = [project("LIVE"), project("QUIET", { latestIssueUpdatedAt: old })];
+
+    expect(projectFilterCount(option(projects, "stale"), projects)).toBe(1);
+  });
+
+  // Field counts come from the snapshot every row is built from, so this one is answerable
+  // whenever the rail has anything in it at all.
+  it("can always answer the field-count question", () => {
+    const projects = [project("A", { adoption: undefined, latestIssueUpdatedAt: null, uniqueIssueCount: null })];
+    expect(option(projects, "over-configured").measurable).toBe(true);
+    expect(option(projects, "all").measurable).toBe(true);
+  });
+});
+
+describe("ProjectsTabView — an unanswerable filter", () => {
+  const project = (key, over = {}) => ({
+    projectId: key, projectKey: key, projectName: key,
+    fieldCount: 20, totalIssueCount: 5000, uniqueIssueCount: 500,
+    latestIssueUpdatedAt: new Date().toISOString(), ...over,
+  });
+  const data = { projects: [project("A"), project("B")], selectedProject: null, fields: [], availableTypes: [], totalFields: 0, page: 1, totalPages: 1 };
+  const noop = () => {};
+
+  const render_ = (props = {}) => render(<ProjectsTabView
+    data={data} loading={false} selectedProjectId="A" onSelectProject={noop}
+    projectQuery="" onProjectQueryChange={noop} fieldQuery="" onFieldQueryChange={noop}
+    fieldType="all" onFieldTypeChange={noop} fieldSort="issues-desc" onFieldSortChange={noop}
+    onChangePage={noop} projectFilter="all" onProjectFilterChange={noop} {...props}
+  />);
+
+  it("shows a dash rather than a zero", () => {
+    const { container } = render_();
+    const fellOff = [...container.querySelectorAll(".findings-filter-button")]
+      .find((b) => b.textContent.includes("Fell off"));
+
+    expect(fellOff.textContent).toContain("—");
+    expect(fellOff.textContent).not.toMatch(/Fell off\s*0/);
+  });
+
+  it("will not let a reader select a filter that cannot answer", () => {
+    const { container } = render_();
+    const fellOff = [...container.querySelectorAll(".findings-filter-button")]
+      .find((b) => b.textContent.includes("Fell off"));
+
+    expect(fellOff).toBeDisabled();
+    expect(fellOff.getAttribute("title")).toMatch(/Universal Scan/);
+  });
+
+  it("keeps a measurable filter clickable", () => {
+    const { container } = render_();
+    const overConfigured = [...container.querySelectorAll(".findings-filter-button")]
+      .find((b) => b.textContent.includes("fields"));
+
+    expect(overConfigured).not.toBeDisabled();
+  });
+
+  // Arriving from an Overview deep link before the input exists must explain itself rather
+  // than look like an empty site.
+  it("explains an empty rail rather than implying nothing matched", () => {
+    const { container } = render_({ projectFilter: "fell-off" });
+    expect(container.textContent).toMatch(/Universal Scan/);
+    expect(container.textContent).not.toMatch(/No project matches/);
+  });
+});
+

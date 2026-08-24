@@ -543,36 +543,68 @@ export function buildProjectFilters(projects = []) {
   const floor = Math.max(10, median * 2);
   const now = Date.now();
 
+  // Whether the input a filter needs was ever collected.
+  //
+  // This is the whole point of the tri-state, and it shipped without it. "Fell off" needs
+  // the adoption series, which only a Universal Scan populates; until one has run, every
+  // project has adoption: null, every match returns false, and the chip read "0" -- which is
+  // indistinguishable from "no project on this site has fallen off". It was reporting the
+  // absence of a measurement as a clean bill of health, which is the one thing this app is
+  // built not to do, and the field card two tabs over already renders a dash for exactly
+  // this case.
+  const anyAdoption = projects.some((p) => p.adoption);
+  const anyActivityDate = projects.some((p) => Number.isFinite(Date.parse(p.latestIssueUpdatedAt || "")));
+  const anyVolume = hasUniqueCounts || projects.some((p) => p.totalIssueCount != null);
+
   return [
-    { key: "all", label: "All projects", match: () => true },
+    { key: "all", label: "All projects", measurable: true, match: () => true },
     {
       key: "over-configured",
       label: `${floor}+ fields`,
       hint: `Configured well past the site norm — the median project carries ${median}.`,
+      // Field counts come from the snapshot every project row is built from, so this one is
+      // answerable whenever the rail has anything in it at all.
+      measurable: true,
       match: (p) => (p.fieldCount ?? 0) >= floor,
     },
     {
       key: "no-work",
       label: "Fields but no work",
       hint: "Configured and then either abandoned or never started.",
+      measurable: anyVolume,
+      unmeasuredHint: "No issue counts have been collected yet. Run a scan from the Scans tab.",
       match: (p) => (p.fieldCount ?? 0) > 0 && measuredVolume(p, hasUniqueCounts) === 0,
     },
     {
       key: "fell-off",
       label: "Fell off",
       hint: "Had a real life and lost it — running far below its own historical rate.",
+      measurable: anyAdoption,
+      unmeasuredHint: "Adoption needs issue creation dates, which only a Universal Scan collects. Run one from the Scans tab.",
       match: (p) => Boolean(p.adoption?.fellOff),
     },
     {
       key: "stale",
       label: "Quiet 6 months",
       hint: "Carrying work, but nothing has been touched in over six months.",
+      measurable: anyActivityDate,
+      unmeasuredHint: "No project has a recorded last-activity date yet. Run a scan from the Scans tab.",
       match: (p) => {
         const at = Date.parse(p.latestIssueUpdatedAt || "");
         return (p.totalIssueCount ?? 0) > 0 && Number.isFinite(at) && now - at > STALE_MS;
       },
     },
   ];
+}
+
+// What the chip shows: a number when the question is answerable, and a dash when it is not.
+//
+// Never zero for an unmeasured filter. Zero is a finding -- it says we looked and found
+// none -- and using it for "we have not looked" is the same false all-clear the rest of this
+// app refuses to give.
+export function projectFilterCount(option, projects) {
+  if (!option.measurable) return null;
+  return projects.filter(option.match).length;
 }
 
 export function ProjectsTabView({
@@ -647,18 +679,25 @@ export function ProjectsTabView({
               whichever project happened to sort first. */}
           {onProjectFilterChange && allProjects.length > 0 && (
             <div className="findings-filter-bar projects-rail__filters">
-              {projectFilters.map((option) => (
-                <button
-                  key={option.key}
-                  type="button"
-                  title={option.hint}
-                  className={`findings-filter-button${projectFilter === option.key ? " findings-filter-button--active" : ""}`}
-                  onClick={() => onProjectFilterChange(option.key)}
-                >
-                  <span>{option.label}</span>
-                  <strong>{formatNumber(allProjects.filter(option.match).length)}</strong>
-                </button>
-              ))}
+              {projectFilters.map((option) => {
+                const count = projectFilterCount(option, allProjects);
+                const unmeasured = count === null;
+                return (
+                  <button
+                    key={option.key}
+                    type="button"
+                    // The reason it cannot be answered, not the description of what it would
+                    // have meant -- a reader hovering a dash wants to know what to build.
+                    title={unmeasured ? option.unmeasuredHint : option.hint}
+                    disabled={unmeasured}
+                    className={`findings-filter-button${projectFilter === option.key ? " findings-filter-button--active" : ""}${unmeasured ? " findings-filter-button--unmeasured" : ""}`}
+                    onClick={() => onProjectFilterChange(option.key)}
+                  >
+                    <span>{option.label}</span>
+                    <strong>{unmeasured ? "—" : formatNumber(count)}</strong>
+                  </button>
+                );
+              })}
             </div>
           )}
 
@@ -706,7 +745,11 @@ export function ProjectsTabView({
             }) : (
               <div className="empty-state empty-state--inline">
                 {loading ? "Loading projects..." : projectFilter !== "all" && allProjects.length > 0 ? (
-                  <p style={{ margin: 0 }}>No project matches &ldquo;{activeProjectFilter.label}&rdquo;.</p>
+                  <p style={{ margin: 0 }}>
+                    {activeProjectFilter.measurable
+                      ? `No project matches “${activeProjectFilter.label}”.`
+                      : activeProjectFilter.unmeasuredHint}
+                  </p>
                 ) : (
                   <>
                     <p style={{ margin: "0 0 8px" }}>No projects with cached field usage were found.</p>

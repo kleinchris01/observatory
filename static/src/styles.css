@@ -5644,6 +5644,11 @@ button.wf-orphan__count--rules:hover { border-color: rgba(125, 165, 215, 0.55); 
 button.wf-orphan__count--rules:focus-visible { outline: 2px solid var(--cool); outline-offset: 1px; }
 button.wf-orphan__count--rules[aria-expanded="true"] { border-color: rgba(125, 165, 215, 0.7); }
 
+/* A filter whose input was never collected. Dimmed and unclickable rather than showing a
+   zero, because zero is a finding -- it says we looked and found none. */
+.findings-filter-button--unmeasured { opacity: 0.4; cursor: not-allowed; }
+.findings-filter-button--unmeasured strong { opacity: 0.6; }
+
 /* -- Project adoption -------------------------------------------------------
    Every project figure used to be a lifetime total with nothing to divide it by, which
    flatters old projects and buries new ones. These render the rate and its shape. */
