@@ -24,6 +24,8 @@ import {
   loadProjectActivity,
   loadFilters,
   readFilterSnapshotMeta,
+  loadDashboards,
+  readDashboardSnapshotMeta,
   loadScreenGovernanceSummary,
   loadStatusIssueCounts,
   loadStatusesCatalog,
@@ -38,6 +40,7 @@ import {
 import { loadStatusAutomationReferences } from "./store/automation.js";
 import { summarizeAdoption } from "./project-adoption.js";
 import { summarizeFilters, summarizeFilterHealth } from "./filter-insights.js";
+import { summarizeDashboards, summarizeDashboardHealth } from "./dashboard-insights.js";
 
 // Top finding-type/field-type breakdowns are capped -- Overview is a glance-level
 // summary, not the full Field Browser, and shipping ~1500 hydrated fields' worth of
@@ -385,6 +388,42 @@ export async function buildFilterOverview(installationKey, { projectKeys = null 
   }
 }
 
+// Dashboard health for the Overview.
+//
+// Mirrors buildFilterOverview, including its failure posture: a pillar that cannot be built
+// reports unavailable and the score excludes it, rather than 500ing an overview that has six
+// other pillars to show.
+export async function buildDashboardOverview(installationKey) {
+  try {
+    const meta = await readDashboardSnapshotMeta(installationKey);
+    if (!meta?.version) return { available: false, state: meta?.state || "idle", lastError: meta?.lastError || null };
+
+    const dashboards = await loadDashboards(installationKey, meta.version);
+    const summary = summarizeDashboards(dashboards);
+
+    return {
+      available: summary.available,
+      state: meta.state || "idle",
+      refreshedAt: meta.refreshedAt || null,
+      lastError: meta.lastError || null,
+      // Carried so the tab can caveat its own number: a pass that reached 180 of 200
+      // dashboards cannot claim any of the other 20 is empty.
+      gadgetsWalked: meta.gadgetsWalked,
+      ...summary,
+      // The full per-dashboard list stays on the tab.
+      dashboards: undefined,
+      worst: summary.dashboards.slice(0, 8).map((d) => ({
+        id: d.id, name: d.name, ownerName: d.ownerName,
+        popularity: d.popularity, code: d.findings[0]?.code ?? null,
+      })),
+      health: summarizeDashboardHealth(summary),
+    };
+  } catch (error) {
+    console.warn("buildDashboardOverview failed:", error?.message || error);
+    return { available: false, state: "error" };
+  }
+}
+
 // Screen health for the Overview, as aggregate counts rather than a second inventory.
 //
 // Mirrors buildWorkflowOverview, including its failure posture: a screens pillar that cannot
@@ -448,6 +487,7 @@ export async function captureSiteHealth(installationKey, deps) {
       readAutomationAnalysis(installationKey).catch(() => null),
     ]);
     let filters = null;
+    let dashboards = null;
 
     let fieldUsage = null;
     let projects = null;
@@ -477,6 +517,7 @@ export async function captureSiteHealth(installationKey, deps) {
       // the rows already loaded rather than fetched again.
       const projectKeys = new Set(withCounts.map((p) => p.projectKey).filter(Boolean));
       filters = (await buildFilterOverview(installationKey, { projectKeys })).health ?? null;
+      dashboards = (await buildDashboardOverview(installationKey)).health ?? null;
     }
 
     const health = computeSiteHealth({
@@ -487,6 +528,7 @@ export async function captureSiteHealth(installationKey, deps) {
       screens,
       adoption,
       filters,
+      dashboards,
       tolerances: config?.healthTolerances,
     });
 

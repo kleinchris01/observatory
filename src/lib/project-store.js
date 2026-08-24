@@ -16,5 +16,6 @@ export * from "./store/rqt.js";
 export * from "./store/scan.js";
 export * from "./store/screen.js";
 export * from "./store/filter.js";
+export * from "./store/dashboard.js";
 export * from "./store/snapshot.js";
 export * from "./store/workflow.js";

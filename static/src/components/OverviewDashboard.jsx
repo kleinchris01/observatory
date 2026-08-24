@@ -19,7 +19,7 @@ import { HEALTH_PILLARS } from "../../../src/lib/health-score";
 // omitted rather than rendered as zero, because "0 duplicate statuses" and "we have never
 // looked for duplicate statuses" are completely different statements.
 
-function buildFindings({ findingsSummary, dashboard, workflow, screens, automation, filters, onNavigate }) {
+function buildFindings({ findingsSummary, dashboard, workflow, screens, automation, filters, dashboards, onNavigate }) {
   const findings = [];
 
   if (findingsSummary?.adminAttention > 0) {
@@ -239,6 +239,52 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
       detail: "A large disabled estate hides which rules were retired on purpose and which were forgotten. Decide per rule: revive or delete.",
       onOpen: () => onNavigate("automation", { section: "findings", risk: "disabled" }),
       openLabel: "Automation",
+    });
+  }
+
+  // ── Dashboards ──────────────────────────────────────────────────────────
+  //
+  // Jira deletes a dashboard with its owner, exactly as it deletes a filter -- so a wall
+  // screen owned by somebody who left has a deletion date nobody has written down.
+  if (dashboards?.available && dashboards.orphanedCount > 0) {
+    findings.push({
+      key: "dashboards-orphaned",
+      dimension: "dashboard-hygiene",
+      pillar: "dashboards",
+      tone: "critical",
+      count: dashboards.orphanedCount,
+      title: "Dashboards with no live owner",
+      detail: "Jira deletes a dashboard with its owner. Reassign these before the accounts are removed, not after.",
+      onOpen: () => onNavigate("dashboards", { finding: "orphaned-owner" }),
+      openLabel: "Dashboards",
+    });
+  }
+
+  if (dashboards?.available && dashboards.editableByEveryoneCount > 0) {
+    findings.push({
+      key: "dashboards-open-edit",
+      dimension: "dashboard-hygiene",
+      pillar: "dashboards",
+      tone: "warning",
+      count: dashboards.editableByEveryoneCount,
+      title: "Dashboards any logged-in user can rearrange",
+      detail: "The next person to move a gadget moves it for everybody, and the owner is not told.",
+      onOpen: () => onNavigate("dashboards", { finding: "editable-by-everyone" }),
+      openLabel: "Dashboards",
+    });
+  }
+
+  if (dashboards?.available && dashboards.emptyCount > 0) {
+    findings.push({
+      key: "dashboards-empty",
+      dimension: "dashboard-hygiene",
+      pillar: "dashboards",
+      tone: "info",
+      count: dashboards.emptyCount,
+      title: "Dashboards with no gadgets",
+      detail: "Anyone opening these sees an empty grid.",
+      onOpen: () => onNavigate("dashboards", { finding: "empty" }),
+      openLabel: "Dashboards",
     });
   }
 
@@ -675,7 +721,7 @@ export function useHealthHistory({ days = 90, load = invoke } = {}) {
   return history;
 }
 
-function GovernanceLedgerPanel({ health, findings, history, workflow, screens, automation, filters, onNavigate }) {
+function GovernanceLedgerPanel({ health, findings, history, workflow, screens, automation, filters, dashboards, onNavigate }) {
   const ledger = React.useMemo(() => buildGovernanceLedger({ health, findings, history }), [health, findings, history]);
 
   // Which pillars have never been built. Named individually, because "nothing flagged" while
@@ -686,6 +732,7 @@ function GovernanceLedgerPanel({ health, findings, history, workflow, screens, a
     !screens?.available && { label: "screen inventory", tab: "screens" },
     !automation?.available && { label: "automation analysis", tab: "automation" },
     !filters?.available && { label: "saved filter inventory", tab: "filters" },
+    !dashboards?.available && { label: "dashboard inventory", tab: "dashboards" },
   ].filter(Boolean);
 
   // No rows at all. Two different reasons, and they must not be worded the same: a site
@@ -1114,11 +1161,11 @@ function RqtPanel({ onOpenRqtIndex }) {
   );
 }
 
-export function OverviewDashboard({ dashboard, findingsSummary, workflow, screens, automation, filters, health, history, onOpenRqtIndex, onNavigate }) {
+export function OverviewDashboard({ dashboard, findingsSummary, workflow, screens, automation, filters, dashboards, health, history, onOpenRqtIndex, onNavigate }) {
   // onNavigate is optional so this stays renderable in isolation; without it the deep
   // links become inert rather than throwing.
   const navigate = onNavigate || (() => {});
-  const findings = buildFindings({ findingsSummary, dashboard, workflow, screens, automation, filters, onNavigate: navigate });
+  const findings = buildFindings({ findingsSummary, dashboard, workflow, screens, automation, filters, dashboards, onNavigate: navigate });
   // A caller may pass history in -- tests do -- but nobody has to.
   const fetched = useHealthHistory();
   const series = history ?? fetched;
@@ -1133,6 +1180,7 @@ export function OverviewDashboard({ dashboard, findingsSummary, workflow, screen
         screens={screens}
         automation={automation}
         filters={filters}
+        dashboards={dashboards}
         onNavigate={navigate}
       />
       <WorkflowPanel workflow={workflow} onNavigate={navigate} />

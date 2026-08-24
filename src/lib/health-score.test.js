@@ -78,6 +78,17 @@ const filters = (over = {}) => ({
   ...over,
 });
 
+// Like filters: one rate rather than four, so the fixture is correspondingly small.
+const dashboards = (over = {}) => ({
+  available: true,
+  total: 212,
+  defectRate: 0,
+  orphanedCount: 0,
+  editableByEveryoneCount: 0,
+  emptyCount: 0,
+  ...over,
+});
+
 const screens = (over = {}) => ({
   available: true,
   totalScreens: 760,
@@ -95,7 +106,7 @@ describe("computeSiteHealth — scoring", () => {
   test("a clean site scores at the top", () => {
     const health = computeSiteHealth({
       fieldUsage: fieldUsage(), workflow: workflow(), projects: projects(),
-      automation: automation(), screens: screens(), adoption: adoption(), filters: filters(),
+      automation: automation(), screens: screens(), adoption: adoption(), filters: filters(), dashboards: dashboards(),
     });
 
     expect(health.score).toBeGreaterThanOrEqual(90);
@@ -598,5 +609,48 @@ describe("project adoption", () => {
     const pillar = health.pillars.find((p) => p.key === "projects");
     expect(pillar.dimensions.map((d) => d.key).sort())
       .toEqual(["project-activity", "project-adoption", "project-consistency"]);
+  });
+});
+
+// A dashboard is the most visible thing in Jira and the least owned: it goes on a wall
+// screen, gets linked in a status report, and is never opened again.
+describe("dashboard hygiene", () => {
+  const dim = (health) => health.dimensions.find((d) => d.key === "dashboard-hygiene");
+
+  test("scores the share that will vanish or that anyone can rewrite", () => {
+    const health = computeSiteHealth({ dashboards: dashboards({ total: 212, defectRate: 0.12, orphanedCount: 18, editableByEveryoneCount: 22, emptyCount: 9 }) });
+    // 12% against a 20% tolerance.
+    expect(dim(health).score).toBe(40);
+    expect(dim(health).detail).toMatch(/18 of 212 dashboards have no live owner/);
+  });
+
+  test("leads with the ones that will disappear", () => {
+    // Jira deletes a dashboard with its owner, so an orphan has a deletion date nobody has
+    // written down. An open edit list is bad manners; this is data loss.
+    const orphan = computeSiteHealth({ dashboards: dashboards({ orphanedCount: 4, defectRate: 0.1 }) });
+    const editable = computeSiteHealth({ dashboards: dashboards({ editableByEveryoneCount: 4, defectRate: 0.1 }) });
+
+    expect(dim(orphan).action).toMatch(/deletion date nobody has written down/);
+    expect(dim(editable).action).toMatch(/Narrow the edit permission/);
+  });
+
+  // A pass that reached 180 of 200 dashboards can say which of those 180 are empty and
+  // nothing about the other 20. Reporting the shortfall in the BUILD as a defect in the
+  // estate is the failure mode this guards.
+  test("omits the empty count from its wording when the gadget walk was partial", () => {
+    const health = computeSiteHealth({ dashboards: dashboards({ orphanedCount: 2, defectRate: 0.05, emptyCount: null }) });
+    expect(dim(health).detail).not.toMatch(/carry no gadgets/);
+  });
+
+  test("asks for a build rather than scoring zero when nothing has been inventoried", () => {
+    const health = computeSiteHealth({});
+    expect(dim(health)).toMatchObject({ available: false, score: null });
+    expect(dim(health).reason).toMatch(/No dashboard inventory yet/);
+  });
+
+  test("is its own pillar", () => {
+    const health = computeSiteHealth({ dashboards: dashboards() });
+    const pillar = health.pillars.find((p) => p.key === "dashboards");
+    expect(pillar.dimensions.map((d) => d.key)).toEqual(["dashboard-hygiene"]);
   });
 });

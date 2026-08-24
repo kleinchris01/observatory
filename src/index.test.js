@@ -33,6 +33,10 @@ vi.mock("./lib/filter-engine.js", () => ({
   buildFilterSnapshot: vi.fn().mockResolvedValue({ built: true, version: "v1", filters: 412, refs: 1840 }),
 }));
 
+vi.mock("./lib/dashboard-engine.js", () => ({
+  buildDashboardSnapshot: vi.fn().mockResolvedValue({ built: true, version: "v1", dashboards: 212, gadgets: 900, walked: 212 }),
+}));
+
 vi.mock("./lib/scan-engine.js", () => ({
   runIssueScanCoordinator: vi.fn().mockResolvedValue(undefined),
   runIssueScanWorkerV2: vi.fn().mockResolvedValue(undefined),
@@ -126,6 +130,7 @@ import { processProjectUsageReportJob } from "./lib/report-engine.js";
 import { buildWorkflowSnapshot, buildStatusHistorySnapshot } from "./lib/workflow-engine.js";
 import { buildScreenSnapshot } from "./lib/screen-engine.js";
 import { buildFilterSnapshot } from "./lib/filter-engine.js";
+import { buildDashboardSnapshot } from "./lib/dashboard-engine.js";
 import { readAdminConfig, runDeltaIssueScanJob, ADMIN_ONLY_FUNCTIONS, SHARED_RESOLVER_FUNCTIONS } from "./resolvers.js";
 
 const CONTEXT = { installContext: "ari:cloud:jira::site/UUID" };
@@ -384,6 +389,29 @@ describe("consumeSnapshot job routing", () => {
   test("routes build-filter-snapshot to the filter engine", async () => {
     await consumeSnapshot(event({ jobType: "build-filter-snapshot" }));
     expect(buildFilterSnapshot).toHaveBeenCalledWith("scope-1");
+  });
+
+  test("routes build-dashboard-snapshot to the dashboard engine", async () => {
+    await consumeSnapshot(event({ jobType: "build-dashboard-snapshot" }));
+    expect(buildDashboardSnapshot).toHaveBeenCalledWith("scope-1");
+  });
+
+  test("a failing dashboard build does not rethrow, so Forge will not retry it forever", async () => {
+    buildDashboardSnapshot.mockRejectedValueOnce(new Error("401 scope does not match"));
+    await expect(consumeSnapshot(event({ jobType: "build-dashboard-snapshot" }))).resolves.toBeUndefined();
+  });
+
+  // The walked count is logged alongside the totals, not only when it falls short: a pass
+  // that could not read every gadget list is a different artifact from one that did.
+  test("logs how far the gadget walk got, even when the build returns nothing", async () => {
+    buildDashboardSnapshot.mockResolvedValueOnce(undefined);
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await consumeSnapshot(event({ jobType: "build-dashboard-snapshot" }));
+
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("0 dashboards"));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("0 walked"));
+    log.mockRestore();
   });
 
   test("a failing filter build does not rethrow, so Forge will not retry it forever", async () => {

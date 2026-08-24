@@ -36,6 +36,9 @@ export const FULL_SCAN_STAGES = [
   // expanded, ~40 calls for 2,000 filters, no per-item walk. It earns its place early
   // because the field snapshot below is the thing its references protect.
   { key: "filters", label: "Saved filter inventory", needs: [], mode: "inline" },
+  // One call to enumerate, then one per dashboard for its gadgets. Between the filter build
+  // (one paginated endpoint) and the screen build (a tab and field walk under every screen).
+  { key: "dashboards", label: "Dashboard inventory", needs: [], mode: "inline" },
   { key: "fields", label: "Field snapshot", needs: [], mode: "inline" },
   { key: "status-history", label: "Status history", needs: ["workflows"], mode: "inline" },
   {

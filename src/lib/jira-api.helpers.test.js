@@ -42,6 +42,9 @@ import {
   getStatusesForProjects,
   STATUS_HISTORY_TIMEOUT_MS,
   JIRA_REQUEST_HARD_TIMEOUT_MS,
+  getAllFilters,
+  getAllDashboards,
+  getDashboardGadgets,
 } from "./jira-api.js";
 
 // Not exported by the module; mirrored here so the timer mock can recognise it.
@@ -962,3 +965,68 @@ describe("getEverInStatusCounts — timeout behaviour", () => {
     expect(STATUS_HISTORY_TIMEOUT_MS).toBeLessThanOrEqual(JIRA_REQUEST_HARD_TIMEOUT_MS);
   });
 });
+
+// The two site-wide enumerators. Both have an unqualified sibling that returns only the
+// CALLER's items -- /rest/api/3/filter and /rest/api/3/dashboard -- which is a personal list
+// rather than an inventory, so the endpoint each one asks for is load-bearing.
+describe("getAllFilters", () => {
+  test("asks the site-wide search endpoint with the governance expansions", async () => {
+    mockRequestJira.mockResolvedValue(jiraResponse({ body: { values: [{ id: 1 }], total: 1, isLast: true } }));
+
+    await getAllFilters();
+
+    const url = mockRequestJira.mock.calls[0][0];
+    expect(url).toContain("/rest/api/3/filter/search");
+    // Without these the response carries an id and a name and nothing worth governing.
+    for (const field of ["jql", "owner", "sharePermissions", "subscriptions"]) {
+      expect(url).toContain(field);
+    }
+  });
+
+  test("pages until Jira says it is done", async () => {
+    mockRequestJira
+      .mockResolvedValueOnce(jiraResponse({ body: { values: [{ id: 1 }, { id: 2 }], total: 3, isLast: false } }))
+      .mockResolvedValueOnce(jiraResponse({ body: { values: [{ id: 3 }], total: 3, isLast: true } }));
+
+    expect(await getAllFilters()).toHaveLength(3);
+  });
+});
+
+describe("getAllDashboards", () => {
+  test("asks the site-wide search endpoint with the governance expansions", async () => {
+    mockRequestJira.mockResolvedValue(jiraResponse({ body: { values: [{ id: 1 }], total: 1, isLast: true } }));
+
+    await getAllDashboards();
+
+    const url = mockRequestJira.mock.calls[0][0];
+    expect(url).toContain("/rest/api/3/dashboard/search");
+    // editPermissions is the one that separates "anyone can view" from "anyone can rewrite".
+    for (const field of ["owner", "sharePermissions", "editPermissions"]) {
+      expect(url).toContain(field);
+    }
+  });
+
+  test("returns an empty list rather than throwing on an empty site", async () => {
+    mockRequestJira.mockResolvedValue(jiraResponse({ body: { values: [], total: 0, isLast: true } }));
+    expect(await getAllDashboards()).toEqual([]);
+  });
+});
+
+describe("getDashboardGadgets", () => {
+  test("reads the flat gadgets payload", async () => {
+    // A { gadgets: [...] } wrapper rather than the paginated shape, like /status.
+    mockRequestJira.mockResolvedValue(jiraResponse({ body: { gadgets: [{ id: 1, title: "Filter Results" }] } }));
+
+    const gadgets = await getDashboardGadgets("10100");
+
+    expect(gadgets).toHaveLength(1);
+    expect(mockRequestJira.mock.calls[0][0]).toContain("/rest/api/3/dashboard/10100/gadget");
+  });
+
+  test("returns an empty list when the payload is not the shape it expects", async () => {
+    // Best-effort like the rest of this layer: one odd payload must not kill the walk.
+    mockRequestJira.mockResolvedValue(jiraResponse({ body: {} }));
+    expect(await getDashboardGadgets("1")).toEqual([]);
+  });
+});
+

@@ -324,6 +324,98 @@ export const CREATE_AUTOMATION_CASCADES_TARGET_INDEX = `
   ON automation_cascades (scope_key, target_rule_id)
 `;
 
+// The dashboard inventory, versioned like every other snapshot here.
+//
+// A dashboard is the most visible thing in Jira and the least owned: it goes on a wall
+// screen, gets linked in a status report, and is never opened again. It is also the end of a
+// dependency chain nobody can see from either end -- a gadget reads a filter, the filter
+// searches a field -- so deleting the field breaks the dashboard three steps later with no
+// error at any of them.
+//
+// owner_active is the same tri-state the filter table uses: 1 active, 0 deactivated, NULL
+// when the owner is gone. Jira deletes a dashboard with its owner, so the third case is a
+// deletion date nobody has written down.
+//
+// gadget_count is nullable for a reason that is not cosmetic. NULL means the per-dashboard
+// gadget walk did not reach this one, and a partial walk can say a dashboard HAS gadgets but
+// cannot say one has none. Storing 0 for "we did not look" would turn an unfinished pass
+// into a list of empty dashboards.
+export const CREATE_SNAPSHOT_DASHBOARDS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_dashboards (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    dashboard_id VARCHAR(64) NOT NULL,
+    name TEXT NULL,
+    description TEXT NULL,
+    owner_account_id VARCHAR(191) NULL,
+    owner_name TEXT NULL,
+    owner_active TINYINT NULL,
+    popularity INT NOT NULL DEFAULT 0,
+    gadget_count INT NULL,
+    shared_with_everyone TINYINT NOT NULL DEFAULT 0,
+    editable_by_everyone TINYINT NOT NULL DEFAULT 0,
+    share_count INT NOT NULL DEFAULT 0,
+    view_url TEXT NULL,
+    PRIMARY KEY (scope_key, version, dashboard_id)
+  )
+`;
+
+// The gadgets on each dashboard.
+//
+// Stored rather than only counted, because the count alone cannot answer "what is on this
+// thing" -- and because a gadget's module key is what a later pass will join to a filter once
+// gadget properties are read.
+export const CREATE_SNAPSHOT_DASHBOARD_GADGETS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_dashboard_gadgets (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    dashboard_id VARCHAR(64) NOT NULL,
+    gadget_id VARCHAR(64) NOT NULL,
+    title TEXT NULL,
+    module_key VARCHAR(255) NULL,
+    position_row INT NULL,
+    position_column INT NULL,
+    PRIMARY KEY (scope_key, version, dashboard_id, gadget_id)
+  )
+`;
+
+// Who a dashboard is shared with, and who may edit it. `permission_kind` separates the two
+// because they are different claims: readable by everyone is usually intended, editable by
+// everyone is a shared document with no owner in practice.
+export const CREATE_SNAPSHOT_DASHBOARD_SHARES_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_dashboard_shares (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    dashboard_id VARCHAR(64) NOT NULL,
+    permission_kind VARCHAR(16) NOT NULL,
+    share_index INT NOT NULL,
+    share_type VARCHAR(32) NOT NULL,
+    target_id VARCHAR(191) NULL,
+    target_name TEXT NULL,
+    PRIMARY KEY (scope_key, version, dashboard_id, permission_kind, share_index)
+  )
+`;
+
+// Build state, mirroring filter_snapshot_meta and screen_snapshot_meta.
+//
+// gadgets_walked is the honesty column: a pass that enumerated dashboards but could not read
+// every gadget list has to be able to say so, or "12 empty dashboards" becomes a claim the
+// build never established.
+export const CREATE_DASHBOARD_SNAPSHOT_META_TABLE = `
+  CREATE TABLE IF NOT EXISTS dashboard_snapshot_meta (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NULL,
+    state VARCHAR(32) NOT NULL DEFAULT 'idle',
+    started_at VARCHAR(64) NULL,
+    completed_at VARCHAR(64) NULL,
+    refreshed_at VARCHAR(64) NULL,
+    total_dashboards INTEGER NOT NULL DEFAULT 0,
+    gadgets_walked INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT NULL,
+    PRIMARY KEY (scope_key)
+  )
+`;
+
 // The saved filter inventory, versioned like every other snapshot here.
 //
 // Filters are the one piece of Jira configuration that fails silently in both directions:
@@ -984,7 +1076,11 @@ const projectStoreMigrations = migrationRunner
   .enqueue("v078_create_snapshot_filter_refs_table", CREATE_SNAPSHOT_FILTER_REFS_TABLE)
   .enqueue("v079_create_snapshot_filter_refs_label_index", CREATE_SNAPSHOT_FILTER_REFS_LABEL_INDEX)
   .enqueue("v080_create_snapshot_filter_shares_table", CREATE_SNAPSHOT_FILTER_SHARES_TABLE)
-  .enqueue("v081_create_filter_snapshot_meta_table", CREATE_FILTER_SNAPSHOT_META_TABLE);
+  .enqueue("v081_create_filter_snapshot_meta_table", CREATE_FILTER_SNAPSHOT_META_TABLE)
+  .enqueue("v082_create_snapshot_dashboards_table", CREATE_SNAPSHOT_DASHBOARDS_TABLE)
+  .enqueue("v083_create_snapshot_dashboard_gadgets_table", CREATE_SNAPSHOT_DASHBOARD_GADGETS_TABLE)
+  .enqueue("v084_create_snapshot_dashboard_shares_table", CREATE_SNAPSHOT_DASHBOARD_SHARES_TABLE)
+  .enqueue("v085_create_dashboard_snapshot_meta_table", CREATE_DASHBOARD_SNAPSHOT_META_TABLE);
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history

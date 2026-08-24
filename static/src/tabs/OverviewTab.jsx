@@ -45,6 +45,7 @@ export function OverviewTab({ overview, onMigrateNamespace, migratingNamespace, 
           screens={overview.screens}
           automation={overview.automation}
           filters={overview.filters}
+          dashboards={overview.dashboards}
           health={overview.health}
           onOpenRqtIndex={onOpenRqtIndex}
           onNavigate={onNavigate}

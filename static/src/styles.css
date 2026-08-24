@@ -5760,6 +5760,33 @@ a.filter-row__name:hover { text-decoration: underline; }
 /* The filter half of the status drill-down, separated from the rule groups above it. */
 .wf-statusrules__group--filters { border-top: 1px solid var(--stroke); padding-top: 11px; }
 
+/* -- Dashboards -------------------------------------------------------------
+   Mirrors the filter row: what it is and who owns it, then what is on it, then what is
+   wrong with it. Gadget titles are chips because they are the only handle a reader has on
+   a dashboard's contents until gadget configuration is readable. */
+.dash-list { display: flex; flex-direction: column; gap: 10px; }
+.dash-row {
+  display: flex; flex-direction: column; gap: 7px;
+  padding: 11px 13px; border-radius: var(--radius-md);
+  border: 1px solid var(--stroke); background: rgba(255, 255, 255, 0.02);
+  border-left: 2px solid transparent;
+}
+:root[data-theme="light"] .dash-row { background: rgba(0, 0, 0, 0.015); }
+.dash-row--flagged { border-left-color: #c9860a; }
+.dash-row__head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.dash-row__name { font-size: 0.86rem; font-weight: 600; }
+a.dash-row__name { color: var(--cool); text-decoration: none; }
+a.dash-row__name:hover { text-decoration: underline; }
+.dash-row__owner { font-size: 0.74rem; opacity: 0.6; }
+.dash-row__meta { margin-left: auto; font-size: 0.72rem; opacity: 0.45; white-space: nowrap; }
+.dash-row__gadgets { display: flex; flex-wrap: wrap; gap: 5px; }
+.dash-row__more { font-size: 0.7rem; opacity: 0.45; align-self: center; }
+.dash-row__findings { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.dash-row__finding { font-size: 0.74rem; line-height: 1.45; padding-left: 10px; border-left: 2px solid transparent; }
+.dash-row__finding--high { border-left-color: #c9605a; opacity: 0.9; }
+.dash-row__finding--medium { border-left-color: #c9860a; opacity: 0.8; }
+.dash-row__finding--low { border-left-color: rgba(125, 165, 215, 0.5); opacity: 0.65; }
+
 /* â”€â”€ Endpoint probe results â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .probe-results { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
 .probe-results__summary { font-size: 0.82rem; margin: 0; opacity: 0.85; }
