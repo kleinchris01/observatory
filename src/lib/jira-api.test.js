@@ -620,6 +620,29 @@ describe("paginate", () => {
     expect(mockRequestJira).toHaveBeenCalledTimes(1);
   });
 
+  // The hook exists so a long walk can bound itself. A caller that throws from it means to
+  // abort -- a filter build out of time, say -- and paginate must let that through rather
+  // than swallowing it and returning a half-read list as if it were the whole estate.
+  test("reports progress after each page and lets the hook abort the walk", async () => {
+    mockRequestJira
+      .mockResolvedValueOnce(jiraResponse({ body: { values: [1, 2], total: 6 } }))
+      .mockResolvedValueOnce(jiraResponse({ body: { values: [3, 4], total: 6 } }))
+      .mockResolvedValueOnce(jiraResponse({ body: { values: [5, 6], total: 6 } }));
+
+    const seen = [];
+    await paginate((startAt) => `/x?startAt=${startAt}`, "values", {
+      onPage: ({ fetched, total }) => { seen.push([fetched, total]); },
+    });
+    expect(seen).toEqual([[2, 6], [4, 6], [6, 6]]);
+
+    mockRequestJira.mockReset();
+    mockRequestJira.mockResolvedValue(jiraResponse({ body: { values: [1, 2], total: 500 } }));
+    await expect(paginate(() => "/x", "values", {
+      onPage: () => { throw new Error("out of time"); },
+    })).rejects.toThrow("out of time");
+    expect(mockRequestJira).toHaveBeenCalledTimes(1);
+  });
+
   // Without this guard a page of zero values with a non-zero total loops forever.
   test("stops on an empty page even when total claims more remain", async () => {
     mockRequestJira.mockResolvedValue(jiraResponse({ body: { values: [], total: 500 } }));

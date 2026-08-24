@@ -1225,8 +1225,10 @@ async function getFilterInventory({ payload, context }) {
         state: meta?.state || "idle",
         lastError: meta?.lastError || null,
         // A build that died mid-flight would otherwise suppress every future rebuild, so the
-        // tab needs to know it can offer the button again.
-        stale: isFilterBuildStale(meta),
+        // tab needs to know it can offer the button again. Named staleBuild because that is
+        // what the screen pillar already calls it -- the flag means the same thing on every
+        // surface, and a second name for it is how one of them ends up not reading it.
+        staleBuild: isFilterBuildStale(meta),
         neverBuilt: true,
       };
     }
@@ -1251,6 +1253,7 @@ async function getFilterInventory({ payload, context }) {
     return {
       available: true,
       state: meta.state || "idle",
+      staleBuild: isFilterBuildStale(meta),
       version: meta.version,
       refreshedAt: meta.refreshedAt || null,
       lastError: meta.lastError || null,

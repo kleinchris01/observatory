@@ -187,7 +187,18 @@ export function FiltersTab({ siteOrigin = "", intent = null }) {
   React.useEffect(() => { load(); }, [load]);
 
   // Poll only while a build is in flight and only while somebody is looking.
-  useVisiblePolling(data?.state === "building", load, POLL_MS);
+  // "building" alone is not enough to believe. A Forge invocation timeout is a hard kill:
+  // the row is marked building before the first API call and the catch that would mark it
+  // failed never runs, so the state outlives the job that set it. Gating the button on the
+  // raw state meant a build that died at the 900s ceiling disabled the only control that
+  // could recover it -- the permanent wedge filter-engine.js warns about, reachable from
+  // the UI. The backend already refuses to suppress a stale rebuild; this is the half that
+  // was missing. Same name and same shape as the screen pillar.
+  const isBuilding = ["building", "queued"].includes(data?.state) && !data?.staleBuild;
+
+  // Stop polling a build that is no longer running, too -- otherwise the tab refreshes
+  // itself forever against a corpse.
+  useVisiblePolling(isBuilding, load, POLL_MS);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -245,16 +256,18 @@ export function FiltersTab({ siteOrigin = "", intent = null }) {
         />
         <EmptyState
           action={
-            <button type="button" className="primary-button" onClick={handleBuild} disabled={building || data?.state === "building"}>
-              {data?.state === "building" ? "Building…" : building ? "Starting…" : "Build filter inventory"}
+            <button type="button" className="primary-button" onClick={handleBuild} disabled={building || isBuilding}>
+              {isBuilding ? "Building…" : building ? "Starting…" : data?.staleBuild ? "Rebuild" : "Build filter inventory"}
             </button>
           }
         >
-          {data?.state === "building"
+          {isBuilding
             ? "Building the filter inventory…"
-            : data?.lastError
-              ? `The last build failed: ${data.lastError}`
-              : "No filter inventory yet. Build one to see which filters are orphaned, over-shared, or holding a field open."}
+            : data?.staleBuild
+              ? "A build was started but is no longer running — it most likely hit the invocation time limit. Rebuild to recover it."
+              : data?.lastError
+                ? `The last build failed: ${data.lastError}`
+                : "No filter inventory yet. Build one to see which filters are orphaned, over-shared, or holding a field open."}
         </EmptyState>
         {error && <div className="error-banner">{error}</div>}
       </>
@@ -274,8 +287,8 @@ export function FiltersTab({ siteOrigin = "", intent = null }) {
         description="Which searches exist, who owns them, and what they depend on. A filter is the one piece of Jira configuration that fails silently in both directions."
         meta={data.refreshedAt ? `Built ${formatRelativeTime(data.refreshedAt)}` : undefined}
         actions={
-          <button type="button" className="secondary-button" onClick={handleBuild} disabled={building || data.state === "building"}>
-            {data.state === "building" ? "Building…" : "Rebuild"}
+          <button type="button" className="secondary-button" onClick={handleBuild} disabled={building || isBuilding}>
+            {isBuilding ? "Building…" : "Rebuild"}
           </button>
         }
       />

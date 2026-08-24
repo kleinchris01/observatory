@@ -209,3 +209,48 @@ describe("FiltersTab", () => {
     expect(await screen.findByText(/Read-only mode is enabled/)).toBeInTheDocument();
   });
 });
+
+// The wedge.
+//
+// A build that hits Forge's invocation ceiling is hard-killed: the row is marked "building"
+// and the catch that would mark it failed never runs. The tab used to gate its only recovery
+// control on that state alone, so the spinner outlived the job forever and the button that
+// could have fixed it was disabled -- on a real site this sat for hours. The backend already
+// refused to suppress a stale rebuild; the tab just never asked.
+describe("a build that is no longer running", () => {
+  test("offers the rebuild button instead of a permanent spinner", async () => {
+    invoke.mockResolvedValue({
+      available: false, neverBuilt: true, state: "building", staleBuild: true,
+    });
+
+    render(<FiltersTab />);
+
+    const button = await screen.findByRole("button", { name: /rebuild/i });
+    expect(button).toBeEnabled();
+    expect(screen.getByText(/no longer running/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Building the filter inventory/i)).not.toBeInTheDocument();
+  });
+
+  test("still shows a spinner for a build that genuinely is running", async () => {
+    invoke.mockResolvedValue({
+      available: false, neverBuilt: true, state: "building", staleBuild: false,
+    });
+
+    render(<FiltersTab />);
+
+    expect(await screen.findByText(/Building the filter inventory/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /building/i })).toBeDisabled();
+  });
+
+  // The same trap on a site that already has a snapshot: the rebuild wedges, and every later
+  // rebuild is refused by a button that will not enable itself.
+  test("re-enables rebuild when a refresh over an existing snapshot wedges", async () => {
+    invoke.mockResolvedValue(inventory({ state: "building", staleBuild: true }));
+
+    render(<FiltersTab />);
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Rebuild" })).toBeEnabled()
+    );
+  });
+});
