@@ -489,6 +489,10 @@ export function sliceProjectKeys(keys, issueCountByKey, sliceCount) {
 
 export async function runIssueScanWorkerV2(installationKey, workerId) {
   const tag = `runIssueScanWorker[${workerId}]`;
+  // The rate-limit counters are module state, and module state in Forge is per invocation.
+  // Reset here so what gets reported below is this chunk's pressure and not a leftover total
+  // from whatever else ran in this container -- a field snapshot build, a screen probe.
+  resetScanTelemetry();
   let pendingIssues = 0;
   const fieldProjectCounts = new Map();
   const projectTotals = new Map();
@@ -773,6 +777,24 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
 
     const processedIssues = Number(worker.processedIssues || 0) + issueCount;
     const processedPages = Number(worker.processedPages || 0) + pageCount;
+
+    // Surfaced rather than merely collected.
+    //
+    // getScanTelemetry() existed, and scan-engine imported it and never called it -- so the
+    // 429 count was measured on every request and shown to nobody for the one scan most
+    // likely to provoke it. Slices make that number the deciding input for
+    // ISSUE_SCAN_SLICES_PER_WORKER, so it goes where an admin already looks.
+    //
+    // Per invocation and labelled as such. There is no counter shared across workers, and
+    // presenting one chunk's number as a scan-wide total would be worse than not showing it.
+    const { rl429Count, rlRetryCount } = getScanTelemetry();
+    await appendIssueScanLogEntry(
+      installationKey,
+      `Worker ${workerId}: +${issueCount.toLocaleString()} issues over ${pageCount} ${pageCount === 1 ? "page" : "pages"}` +
+      ` across ${slices.length} ${slices.length === 1 ? "slice" : "slices"}` +
+      ` — this chunk: ${rl429Count} rate-limited, ${rlRetryCount} retried` +
+      ` (${processedIssues.toLocaleString()} total for this worker)`
+    ).catch(ignoreWith("scan.log_append_failed", { workerId }));
     // Done only when every slice is done. A worker with one slice still holding a cursor has
     // more of its own projects to crawl, however finished the others are.
     const isDone = slices.every((slice) => slice.done);

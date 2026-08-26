@@ -885,6 +885,37 @@ describe("queueIssueScanChunk", () => {
 // while BASE_JIRA_CONCURRENCY permits four. That is what held a measured run at ~64 issues/sec.
 // These pin the two halves that make slicing correct rather than merely parallel: disjoint
 // queries, and a worker that is only "done" when every slice is.
+// Rate-limit pressure has to reach a human, not just a counter.
+//
+// getScanTelemetry() was imported by scan-engine and never called, so the 429 count was
+// measured on every request and displayed nowhere -- for the one scan most likely to provoke
+// it. With slices raising concurrency, that number is the input that decides
+// ISSUE_SCAN_SLICES_PER_WORKER, so it belongs in the progress log the Scans tab renders.
+describe("scan rate-limit reporting", () => {
+  test("writes this chunk's 429 count to the scan progress log", async () => {
+    const store = await getProjectStoreMock();
+    const jiraApi = await getJiraApiMock();
+    store.readIssueScanMeta.mockResolvedValue({ state: "building" });
+    store.readIssueScanWorker.mockResolvedValue({ status: "queued", jqlFilter: "project = ALPHA", fieldIds: null });
+    store.atomicAccumulateIssueScanProgress.mockResolvedValue({ processedPages: 1, totalPages: 1 });
+    jiraApi.getScanTelemetry.mockReturnValue({ rl429Count: 4, rlRetryCount: 2 });
+    jiraApi.jiraRequest.mockResolvedValue({ issues: [], nextPageToken: null });
+
+    await runIssueScanWorkerV2(INSTALLATION_KEY, 0);
+
+    // Reset first, or the number describes whatever else ran in this container rather than
+    // this chunk -- module state in Forge is per invocation, not per scan.
+    expect(jiraApi.resetScanTelemetry).toHaveBeenCalled();
+
+    const logged = store.appendIssueScanLogEntry.mock.calls.map((c) => c[1]).join(" | ");
+    expect(logged).toMatch(/4 rate-limited/);
+    expect(logged).toMatch(/2 retried/);
+    // Labelled per chunk. There is no counter shared across workers, and presenting one
+    // chunk's number as a scan-wide total would be worse than showing nothing.
+    expect(logged).toMatch(/this chunk/);
+  });
+});
+
 describe("sliceProjectKeys", () => {
   const counts = new Map([["A", 1000], ["B", 900], ["C", 100], ["D", 50]]);
 
