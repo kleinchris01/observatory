@@ -1080,7 +1080,38 @@ const projectStoreMigrations = migrationRunner
   .enqueue("v082_create_snapshot_dashboards_table", CREATE_SNAPSHOT_DASHBOARDS_TABLE)
   .enqueue("v083_create_snapshot_dashboard_gadgets_table", CREATE_SNAPSHOT_DASHBOARD_GADGETS_TABLE)
   .enqueue("v084_create_snapshot_dashboard_shares_table", CREATE_SNAPSHOT_DASHBOARD_SHARES_TABLE)
-  .enqueue("v085_create_dashboard_snapshot_meta_table", CREATE_DASHBOARD_SNAPSHOT_META_TABLE);
+  .enqueue("v085_create_dashboard_snapshot_meta_table", CREATE_DASHBOARD_SNAPSHOT_META_TABLE)
+  // Resumable-build state for the filter and dashboard inventories.
+  //
+  // Both were single-invocation builds and both died at the 900s ceiling on a large site. These
+  // five columns are what lets them checkpoint instead: the version being written (kept apart
+  // from the published `version`, so a reader never sees a half-built snapshot as current), the
+  // token that distinguishes a build resuming itself from a second person clicking Rebuild, an
+  // opaque JSON cursor, and progress for the UI.
+  //
+  // `updated_at` is the heartbeat and is load-bearing: staleness is judged from it rather than
+  // started_at, or a long healthy build would be declared abandoned while still working.
+  .enqueue("v086_alter_filter_meta_add_building_version", "ALTER TABLE filter_snapshot_meta ADD COLUMN IF NOT EXISTS building_version VARCHAR(64) NULL")
+  .enqueue("v087_alter_filter_meta_add_build_token", "ALTER TABLE filter_snapshot_meta ADD COLUMN IF NOT EXISTS build_token VARCHAR(96) NULL")
+  .enqueue("v088_alter_filter_meta_add_build_cursor", "ALTER TABLE filter_snapshot_meta ADD COLUMN IF NOT EXISTS build_cursor TEXT NULL")
+  .enqueue("v089_alter_filter_meta_add_processed", "ALTER TABLE filter_snapshot_meta ADD COLUMN IF NOT EXISTS processed INTEGER NOT NULL DEFAULT 0")
+  .enqueue("v090_alter_filter_meta_add_total_expected", "ALTER TABLE filter_snapshot_meta ADD COLUMN IF NOT EXISTS total_expected INTEGER NOT NULL DEFAULT 0")
+  .enqueue("v091_alter_filter_meta_add_updated_at", "ALTER TABLE filter_snapshot_meta ADD COLUMN IF NOT EXISTS updated_at VARCHAR(64) NULL")
+  .enqueue("v092_alter_dashboard_meta_add_building_version", "ALTER TABLE dashboard_snapshot_meta ADD COLUMN IF NOT EXISTS building_version VARCHAR(64) NULL")
+  .enqueue("v093_alter_dashboard_meta_add_build_token", "ALTER TABLE dashboard_snapshot_meta ADD COLUMN IF NOT EXISTS build_token VARCHAR(96) NULL")
+  .enqueue("v094_alter_dashboard_meta_add_build_cursor", "ALTER TABLE dashboard_snapshot_meta ADD COLUMN IF NOT EXISTS build_cursor TEXT NULL")
+  .enqueue("v095_alter_dashboard_meta_add_processed", "ALTER TABLE dashboard_snapshot_meta ADD COLUMN IF NOT EXISTS processed INTEGER NOT NULL DEFAULT 0")
+  .enqueue("v096_alter_dashboard_meta_add_total_expected", "ALTER TABLE dashboard_snapshot_meta ADD COLUMN IF NOT EXISTS total_expected INTEGER NOT NULL DEFAULT 0")
+  .enqueue("v097_alter_dashboard_meta_add_updated_at", "ALTER TABLE dashboard_snapshot_meta ADD COLUMN IF NOT EXISTS updated_at VARCHAR(64) NULL")
+  // Marks a dashboard as having had its gadget list walked, whether or not that walk could
+  // read anything. Distinct from gadget_count, which is NULL both for "not yet walked" and for
+  // "walked and unreadable" -- without this flag the resumable build would keep handing the
+  // unreadable ones back to itself and never terminate on a site with one broken dashboard.
+  .enqueue("v098_alter_snapshot_dashboards_add_gadget_walk_done", "ALTER TABLE snapshot_dashboards ADD COLUMN IF NOT EXISTS gadget_walk_done TINYINT NOT NULL DEFAULT 0")
+  // Per-slice cursors for the issue crawl. A worker used to hold one JQL and one page token,
+  // which meant one request in flight against a concurrency budget of four. Slices are how it
+  // uses the rest; each carries its own query, cursor and done flag.
+  .enqueue("v099_alter_issue_scan_workers_add_slices", "ALTER TABLE issue_scan_workers ADD COLUMN IF NOT EXISTS slices_json LONGTEXT NULL");
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history

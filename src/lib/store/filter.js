@@ -21,7 +21,8 @@ export async function readFilterSnapshotMeta(scopeKey) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
     sql.prepare(`
-      SELECT version, state, started_at, completed_at, refreshed_at, total_filters, last_error
+      SELECT version, state, started_at, completed_at, refreshed_at, total_filters, last_error,
+             building_version, build_token, build_cursor, processed, total_expected, updated_at
       FROM filter_snapshot_meta WHERE scope_key = ?
     `).bindParams(scopeKey).execute()
   );
@@ -35,6 +36,12 @@ export async function readFilterSnapshotMeta(scopeKey) {
     refreshedAt: row.refreshed_at || null,
     totalFilters: toNumber(row.total_filters),
     lastError: row.last_error || null,
+    buildingVersion: row.building_version || null,
+    buildToken: row.build_token || null,
+    buildCursor: row.build_cursor || null,
+    processed: toNumber(row.processed),
+    totalExpected: toNumber(row.total_expected),
+    updatedAt: row.updated_at || null,
   };
 }
 
@@ -48,8 +55,9 @@ export async function writeFilterSnapshotMeta(scopeKey, patch = {}) {
   await withSqlRetry(() =>
     sql.prepare(`
       INSERT INTO filter_snapshot_meta
-        (scope_key, version, state, started_at, completed_at, refreshed_at, total_filters, last_error)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        (scope_key, version, state, started_at, completed_at, refreshed_at, total_filters, last_error,
+         building_version, build_token, build_cursor, processed, total_expected, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON DUPLICATE KEY UPDATE
         version = VALUES(version),
         state = VALUES(state),
@@ -57,7 +65,13 @@ export async function writeFilterSnapshotMeta(scopeKey, patch = {}) {
         completed_at = VALUES(completed_at),
         refreshed_at = VALUES(refreshed_at),
         total_filters = VALUES(total_filters),
-        last_error = VALUES(last_error)
+        last_error = VALUES(last_error),
+        building_version = VALUES(building_version),
+        build_token = VALUES(build_token),
+        build_cursor = VALUES(build_cursor),
+        processed = VALUES(processed),
+        total_expected = VALUES(total_expected),
+        updated_at = VALUES(updated_at)
     `).bindParams(
       scopeKey,
       next.version || null,
@@ -66,7 +80,13 @@ export async function writeFilterSnapshotMeta(scopeKey, patch = {}) {
       next.completedAt || null,
       next.refreshedAt || null,
       Number(next.totalFilters) || 0,
-      next.lastError || null
+      next.lastError || null,
+      next.buildingVersion || null,
+      next.buildToken || null,
+      next.buildCursor || null,
+      Number(next.processed) || 0,
+      Number(next.totalExpected) || 0,
+      next.updatedAt || null
     ).execute()
   );
   return next;
@@ -77,7 +97,12 @@ export async function writeFilterSnapshotMeta(scopeKey, patch = {}) {
 // Replace, never merge: a rebuild describes the estate as it now stands, so a filter somebody
 // deleted has to disappear here too -- otherwise it keeps protecting a field from cleanup
 // forever, which is the exact failure this pillar exists to prevent in the other direction.
-export async function replaceFilterSnapshot(scopeKey, version, { filters = [], refs = [], shares = [] }) {
+// Drop anything already stored under a version.
+//
+// Split out of replaceFilterSnapshot so a resumable build can clear ONCE at the start and then
+// append chunk by chunk. A chunked build that cleared on every write would delete the pages it
+// had already fetched, and never finish no matter how long it ran.
+export async function clearFilterSnapshotVersion(scopeKey, version) {
   await ensureProjectStoreReady();
 
   for (const table of ["snapshot_filters", "snapshot_filter_refs", "snapshot_filter_shares"]) {
@@ -86,6 +111,15 @@ export async function replaceFilterSnapshot(scopeKey, version, { filters = [], r
         .bindParams(scopeKey, version).execute()
     );
   }
+}
+
+// Append one chunk's rows to a version, leaving whatever is already there.
+//
+// INSERT IGNORE throughout, so a chunk redelivered by the queue is idempotent: Forge can
+// deliver a message more than once, and a resumable build must survive that without doubling
+// its own rows.
+export async function appendFilterSnapshot(scopeKey, version, { filters = [], refs = [], shares = [] }) {
+  await ensureProjectStoreReady();
 
   for (const batch of chunkArray(filters, FILTER_BATCH)) {
     const values = batch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
@@ -144,6 +178,14 @@ export async function replaceFilterSnapshot(scopeKey, version, { filters = [], r
   }
 
   return { filters: filters.length, refs: refs.length, shares: shares.length };
+}
+
+// Clear a version and write it in one call. The single-invocation shape, kept because the
+// non-chunked callers and their tests are still correct -- it is now composed of the two
+// halves above rather than being a third implementation of them.
+export async function replaceFilterSnapshot(scopeKey, version, payload = {}) {
+  await clearFilterSnapshotVersion(scopeKey, version);
+  return appendFilterSnapshot(scopeKey, version, payload);
 }
 
 // Every filter in a version, with its shares folded back in.

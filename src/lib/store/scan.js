@@ -154,13 +154,14 @@ export async function replaceIssueScanWorkers(scopeKey, workers) {
   if (!workers.length) return;
   const now = new Date().toISOString();
   for (const batch of chunkArray(workers, 50)) {
-    const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
+    const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((worker) => [
       scopeKey,
       worker.workerId,
       worker.status || "queued",
       worker.jqlFilter || null,
       worker.fieldIds ? JSON.stringify(worker.fieldIds) : null,
+      worker.slices ? JSON.stringify(worker.slices) : null,
       worker.nextPageToken || null,
       worker.processedPages || 0,
       worker.processedIssues || 0,
@@ -172,7 +173,7 @@ export async function replaceIssueScanWorkers(scopeKey, workers) {
       sql
         .prepare(`
           INSERT INTO issue_scan_workers (
-            scope_key, worker_id, status, jql_filter, field_ids_json, next_page_token,
+            scope_key, worker_id, status, jql_filter, field_ids_json, slices_json, next_page_token,
             processed_pages, processed_issues, updated_at, last_error
           )
           VALUES ${valuesSql}
@@ -188,7 +189,7 @@ export async function readIssueScanWorker(scopeKey, workerId) {
   const result = await withSqlRetry(() =>
     sql
       .prepare(`
-        SELECT worker_id, status, jql_filter, field_ids_json, next_page_token,
+        SELECT worker_id, status, jql_filter, field_ids_json, slices_json, next_page_token,
                processed_pages, processed_issues, updated_at, last_error
         FROM issue_scan_workers
         WHERE scope_key = ? AND worker_id = ?
@@ -205,6 +206,7 @@ export async function readIssueScanWorker(scopeKey, workerId) {
     status: row.status || "queued",
     jqlFilter: row.jql_filter || null,
     fieldIds: safeParseJson(row.field_ids_json, null),
+    slices: safeParseJson(row.slices_json, null),
     nextPageToken: row.next_page_token || null,
     processedPages: toNumber(row.processed_pages),
     processedIssues: toNumber(row.processed_issues),
@@ -231,6 +233,7 @@ export async function updateIssueScanWorker(scopeKey, workerId, patch) {
         SET status = ?,
             jql_filter = ?,
             field_ids_json = ?,
+            slices_json = ?,
             next_page_token = ?,
             processed_pages = ?,
             processed_issues = ?,
@@ -242,6 +245,7 @@ export async function updateIssueScanWorker(scopeKey, workerId, patch) {
         next.status || "queued",
         next.jqlFilter || null,
         next.fieldIds ? JSON.stringify(next.fieldIds) : null,
+        next.slices ? JSON.stringify(next.slices) : null,
         next.nextPageToken || null,
         next.processedPages || 0,
         next.processedIssues || 0,

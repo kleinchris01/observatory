@@ -269,7 +269,7 @@ export async function consumeSnapshot(event) {
     }
 
     if (jobType === "build-dashboard-snapshot") {
-      const result = await buildDashboardSnapshot(installationKey);
+      const result = await buildDashboardSnapshot(installationKey, event?.body || {});
       // The walked count is logged alongside the totals, not only when it falls short. A pass
       // that could not read every gadget list is a different artifact from one that did, and
       // the log is where that gets noticed first.
@@ -280,9 +280,16 @@ export async function consumeSnapshot(event) {
     }
 
     if (jobType === "build-filter-snapshot") {
-      const result = await buildFilterSnapshot(installationKey);
+      // The whole event body travels, not just the key: a resumable build checkpoints and
+      // re-queues itself with a token, and the chunk needs that token to tell its own
+      // continuation apart from a second person clicking Rebuild.
+      const result = await buildFilterSnapshot(installationKey, event?.body || {});
       console.log(
-        `build-filter-snapshot: ${result?.filters ?? 0} filters, ${result?.refs ?? 0} references`
+        result?.completed
+          ? `build-filter-snapshot: completed - ${result.processed} filters`
+          : result?.checkpointed
+            ? `build-filter-snapshot: checkpointed - ${result.processed}/${result.totalExpected || "?"} filters; requeued`
+            : `build-filter-snapshot: ${result?.reason || "no-op"}`
       );
       return;
     }

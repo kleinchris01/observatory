@@ -6,6 +6,8 @@ import {
   runIssueScanCoordinator,
   completeIssueScanFinalization,
   runIssueScanWorkerV2,
+  sliceProjectKeys,
+  normalizeWorkerSlices,
 } from "./scan-engine.js";
 
 // ── Module mocks ─────────────────────────────────────────────────────────────
@@ -32,6 +34,7 @@ vi.mock("./jira-api.js", () => ({
   withTimeout: vi.fn().mockImplementation((promise) => promise),
   ISSUE_SCAN_PAGE_SIZE: 100,
   ISSUE_SCAN_WORKERS: 4,
+  ISSUE_SCAN_SLICES_PER_WORKER: 3,
   ISSUE_SCAN_INTER_PAGE_DELAY_MS: 100,
   ISSUE_SCAN_FLUSH_EVERY_PAGES: 5,
   // Must be present: the worker loop does `page % ISSUE_SCAN_CANCEL_CHECK_EVERY_PAGES`,
@@ -53,6 +56,7 @@ vi.mock("./project-store.js", () => ({
   updateIssueScanWorker: vi.fn().mockResolvedValue(undefined),
   replaceFieldOptionsCache: vi.fn().mockResolvedValue({ optionCount: 0 }),
   flushIssueScanCounts: vi.fn().mockResolvedValue(undefined),
+  flushIssueScanActivity: vi.fn().mockResolvedValue(undefined),
   flushIssueScanStatusCounts: vi.fn().mockResolvedValue(undefined),
   clearStatusIssueCounts: vi.fn().mockResolvedValue(undefined),
   finalizeIssueScan: vi.fn().mockResolvedValue(undefined),
@@ -629,6 +633,29 @@ describe("runIssueScanWorkerV2", () => {
       expect(statusCounts.get("3|11").count).toBe(1);
     });
 
+    // The adoption bug, pinned.
+    //
+    // flushIssueScanActivity used to be called from exactly two places: the mid-chunk flush,
+    // which the code's own comment admits "never fires" (ISSUE_SCAN_FLUSH_EVERY_PAGES equals
+    // ISSUE_SCAN_CHUNK_PAGES, so `page % N === 0` is never true for pages 0..N-1), and the 400
+    // token-expiry recovery. The end-of-chunk flush -- the one that runs every invocation --
+    // wrote counts but not activity.
+    //
+    // So project activity months were accumulated in memory on every chunk and then discarded.
+    // That is the entire basis of the adoption rate, which is why the Projects rail could never
+    // answer "fell off" or "quiet 6 months" even after a scan that reported success.
+    it("writes project activity, not just counts, on the path that actually runs", async () => {
+      const { store } = await runWorkerOverPage([
+        issue("ALPHA-1", "10", "ALPHA", "3", "In Review", { created: "2026-03-14T00:00:00.000Z" }),
+      ]);
+
+      expect(store.flushIssueScanCounts).toHaveBeenCalled();
+      expect(store.flushIssueScanActivity).toHaveBeenCalled();
+
+      const months = store.flushIssueScanActivity.mock.calls.at(-1)[1];
+      expect(months.get("10|2026-03")).toMatchObject({ projectId: "10", month: "2026-03", count: 1 });
+    });
+
     it("skips issues with no status rather than bucketing them under a blank id", async () => {
       const { statusCounts } = await runWorkerOverPage([
         { key: "ALPHA-1", fields: { project: { id: "10", key: "ALPHA", name: "Alpha" } } },
@@ -849,5 +876,107 @@ describe("queueIssueScanChunk", () => {
       INSTALLATION_KEY,
       expect.objectContaining({ state: "queued" })
     );
+  });
+});
+
+// ── Slices: the concurrency the worker was always allowed and never used ──────────────
+//
+// Pagination is sequential, so a worker crawling one JQL keeps exactly one request in flight
+// while BASE_JIRA_CONCURRENCY permits four. That is what held a measured run at ~64 issues/sec.
+// These pin the two halves that make slicing correct rather than merely parallel: disjoint
+// queries, and a worker that is only "done" when every slice is.
+// Rate-limit pressure has to reach a human, not just a counter.
+//
+// getScanTelemetry() was imported by scan-engine and never called, so the 429 count was
+// measured on every request and displayed nowhere -- for the one scan most likely to provoke
+// it. With slices raising concurrency, that number is the input that decides
+// ISSUE_SCAN_SLICES_PER_WORKER, so it belongs in the progress log the Scans tab renders.
+describe("scan rate-limit reporting", () => {
+  test("writes this chunk's 429 count to the scan progress log", async () => {
+    const store = await getProjectStoreMock();
+    const jiraApi = await getJiraApiMock();
+    store.readIssueScanMeta.mockResolvedValue({ state: "building" });
+    store.readIssueScanWorker.mockResolvedValue({ status: "queued", jqlFilter: "project = ALPHA", fieldIds: null });
+    store.atomicAccumulateIssueScanProgress.mockResolvedValue({ processedPages: 1, totalPages: 1 });
+    jiraApi.getScanTelemetry.mockReturnValue({ rl429Count: 4, rlRetryCount: 2 });
+    jiraApi.jiraRequest.mockResolvedValue({ issues: [], nextPageToken: null });
+
+    await runIssueScanWorkerV2(INSTALLATION_KEY, 0);
+
+    // Reset first, or the number describes whatever else ran in this container rather than
+    // this chunk -- module state in Forge is per invocation, not per scan.
+    expect(jiraApi.resetScanTelemetry).toHaveBeenCalled();
+
+    const logged = store.appendIssueScanLogEntry.mock.calls.map((c) => c[1]).join(" | ");
+    expect(logged).toMatch(/4 rate-limited/);
+    expect(logged).toMatch(/2 retried/);
+    // Labelled per chunk. There is no counter shared across workers, and presenting one
+    // chunk's number as a scan-wide total would be worse than showing nothing.
+    expect(logged).toMatch(/this chunk/);
+  });
+});
+
+describe("sliceProjectKeys", () => {
+  const counts = new Map([["A", 1000], ["B", 900], ["C", 100], ["D", 50]]);
+
+  test("splits projects into balanced, disjoint slices", () => {
+    const slices = sliceProjectKeys(["A", "B", "C", "D"], counts, 2);
+
+    expect(slices).toHaveLength(2);
+    // Every project appears exactly once. An overlap would double-count issues into the field
+    // usage totals, which is the number the whole app is built on.
+    const mentioned = slices.flatMap((s) => ["A", "B", "C", "D"].filter((k) => s.jql.includes(`"${k}"`)));
+    expect([...mentioned].sort()).toEqual(["A", "B", "C", "D"]);
+    // Largest-first packing: the two big projects land in different slices, or the invocation
+    // is only as fast as the slice holding both.
+    const withA = slices.find((s) => s.jql.includes('"A"'));
+    expect(withA.jql).not.toContain('"B"');
+  });
+
+  test("never makes more slices than there are projects", () => {
+    // A single project cannot be split -- there is no cursor-safe way to partition one
+    // project's issues across queries without risking gaps or double counting.
+    expect(sliceProjectKeys(["A"], counts, 4)).toHaveLength(1);
+  });
+
+  test("starts every slice with no cursor and not done", () => {
+    for (const slice of sliceProjectKeys(["A", "B"], counts, 2)) {
+      expect(slice).toMatchObject({ token: null, done: false, pages: 0, issues: 0 });
+    }
+  });
+});
+
+describe("normalizeWorkerSlices", () => {
+  // A scan already running when this deploys has a single jqlFilter and a single
+  // nextPageToken and no slices at all. Presenting it as one slice means the crawl has exactly
+  // one code path, and an in-flight scan finishes on its original cursor instead of restarting.
+  test("presents a pre-slice worker as a single slice on its existing cursor", () => {
+    const slices = normalizeWorkerSlices({
+      jqlFilter: 'project IN ("ALPHA")',
+      nextPageToken: "cursor-abc",
+      processedPages: 7,
+      processedIssues: 700,
+    });
+
+    expect(slices).toEqual([
+      { id: 0, jql: 'project IN ("ALPHA")', token: "cursor-abc", done: false, pages: 7, issues: 700 },
+    ]);
+  });
+
+  test("round-trips stored slices, preserving each cursor and done flag", () => {
+    const slices = normalizeWorkerSlices({
+      slices: [
+        { id: 0, jql: "a", token: "t0", done: true, pages: 3, issues: 300 },
+        { id: 1, jql: "b", token: null, done: false },
+      ],
+    });
+
+    expect(slices[0]).toMatchObject({ jql: "a", token: "t0", done: true, pages: 3 });
+    // A slice that has never run must not inherit the other's progress.
+    expect(slices[1]).toMatchObject({ jql: "b", token: null, done: false, pages: 0, issues: 0 });
+  });
+
+  test("returns nothing for a worker with no projects at all", () => {
+    expect(normalizeWorkerSlices({ jqlFilter: null })).toEqual([]);
   });
 });

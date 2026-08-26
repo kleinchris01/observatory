@@ -5,12 +5,17 @@
 // already expanded -- no per-item walk, no second round trip.
 //
 // This was originally written as "a site with 2,000 filters is 40 calls, well inside a single
-// 900s invocation", and it runs single-pass on that assumption. A real tenant then failed to
-// finish: expanded with sharePermissions and subscriptions, filter/search is slow enough per
-// page that a large enough estate runs out of invocation before it runs out of filters. The
-// budget below is the honest version of that assumption -- single-pass is still the design,
-// but it now admits when single-pass was not enough instead of being killed mid-sentence.
-// Making this resumable is the real fix if the budget is ever actually hit.
+// 900s invocation", and it ran single-pass on that assumption. A real tenant disproved it:
+// expanded with sharePermissions and subscriptions, filter/search is slow enough per page that
+// a large estate runs out of invocation before it runs out of filters. A time budget was tried
+// first, which turned a silent kill into a legible failure but still did not produce a
+// snapshot.
+//
+// It is now resumable, which is what the issue crawl has always been. Each invocation fetches
+// a fixed number of pages, appends them under the in-flight version, checkpoints its cursor and
+// re-queues itself. Nothing here depends on finishing inside one invocation, so nothing here
+// breaks when it cannot. See resumable-build.js -- the machinery is shared, and this file only
+// says what a chunk of filters is.
 //
 // The expensive part is not the fetching, it is the JQL: every filter's query is scanned for
 // the fields, projects and statuses it depends on. That is pure CPU over strings already in
@@ -19,14 +24,17 @@
 // not unused.
 
 import { logger } from "./logger.js";
-import { incrMetric, METRIC_NAMES, getAllFilters } from "./jira-api.js";
+import { incrMetric, METRIC_NAMES, getFilterPage } from "./jira-api.js";
+import { inventorySnapshotQueue } from "./queues.js";
+import { isBuildStale, startResumableBuild, runBuildChunk } from "./resumable-build.js";
 import { extractJqlReferences, normalizeJql } from "./jql-refs.js";
 import { isSharedWithEveryone } from "./filter-insights.js";
 import {
   ensureProjectStoreReady,
   readFilterSnapshotMeta,
   writeFilterSnapshotMeta,
-  replaceFilterSnapshot,
+  clearFilterSnapshotVersion,
+  appendFilterSnapshot,
   pruneFilterSnapshots,
 } from "./project-store.js";
 
@@ -35,33 +43,23 @@ import {
 // itself.
 export const FILTER_BUILD_STALE_MS = 16 * 60 * 1000;
 
-// How long the fetch may run before it gives up on its own terms.
+// Pages of 50 filters per invocation.
 //
-// The consumer ceiling is 900s and filter/search is expanded with sharePermissions and
-// subscriptions, which makes it one of the slower endpoints Jira offers -- 50 rows a page,
-// no parallelism. A site with enough filters will not finish, and being hard-killed is the
-// worst way to not finish: no error is written, the row stays "building", and the next
-// person sees a spinner with no explanation. Stopping at ten minutes leaves time to write a
-// failure that says what happened, and to say how far it got.
-export const FILTER_FETCH_BUDGET_MS = 10 * 60 * 1000;
+// Sized like ISSUE_SCAN_CHUNK_PAGES (10) and for the same reason: small enough that a chunk
+// finishes comfortably inside 900s even when every page is slow, which is the entire point --
+// a chunk that might not fit is just the old bug with extra steps. Raising it trades resilience
+// for fewer round trips, and the round trips were never the problem.
+export const FILTER_CHUNK_PAGES = 10;
+export const FILTER_PAGE_SIZE = 50;
 
-// How often progress is written while the fetch runs.
-//
-// Not every page: that would be a SQL write per 50 filters for no extra insight. Every
-// thirty seconds is enough that a build killed anyway still leaves a usable trail.
-const PROGRESS_INTERVAL_MS = 30 * 1000;
 
 // True when a build was started but can no longer be running.
 //
-// A Forge invocation timeout is a hard kill: state is marked "building" before the first API
-// call and the catch that would mark it "failed" never runs. Without this the row stays
-// "building" forever and every future rebuild is suppressed as already-running -- a permanent
-// wedge with no way out of the UI. Ask the clock, not the state alone.
+// Delegates to the shared implementation so every pillar answers this question the same way.
+// Kept as a named export because the resolver and both tabs import it by this name, and a
+// rename would be churn with no reader benefit.
 export function isFilterBuildStale(meta, now = Date.now()) {
-  if (meta?.state !== "building") return false;
-  const startedAt = Date.parse(meta?.startedAt || "");
-  if (!Number.isFinite(startedAt)) return true;
-  return now - startedAt > FILTER_BUILD_STALE_MS;
+  return isBuildStale(meta, now, FILTER_BUILD_STALE_MS);
 }
 
 // Jira's filter payload, flattened into the row shape plus its references.
@@ -127,88 +125,88 @@ export function shapeFilter(raw) {
   };
 }
 
-export async function buildFilterSnapshot(installationKey, { now = Date.now() } = {}) {
-  await ensureProjectStoreReady();
+// What a chunk of the filter inventory is.
+//
+// Everything else -- versioning, checkpointing, re-queueing, staleness, failure reporting --
+// is in resumable-build.js. This object is the only part that knows about filters.
+export const filterBuildSpec = {
+  name: "filter-snapshot",
+  staleMs: FILTER_BUILD_STALE_MS,
+  readMeta: readFilterSnapshotMeta,
+  writeMeta: writeFilterSnapshotMeta,
+  clearVersion: clearFilterSnapshotVersion,
+  prune: pruneFilterSnapshots,
 
-  const existing = await readFilterSnapshotMeta(installationKey);
-  if (existing?.state === "building" && !isFilterBuildStale(existing, now)) {
-    return { skipped: true, reason: "already-building" };
-  }
+  enqueue: (installationKey, { buildToken }) =>
+    inventorySnapshotQueue.push({
+      body: { jobType: "build-filter-snapshot", installationKey, buildToken },
+    }),
 
-  const version = String(now);
-  const startedAt = new Date(now).toISOString();
-  await writeFilterSnapshotMeta(installationKey, {
-    state: "building", startedAt, completedAt: null, lastError: null,
-  });
+  async runChunk({ installationKey, version, cursor }) {
+    await ensureProjectStoreReady();
 
-  try {
-    incrMetric(METRIC_NAMES.jiraRequest);
-
-    // Progress is recorded in total_filters, which is otherwise unwritten until the build
-    // succeeds. It costs no migration and turns a wedged row from "something went wrong" into
-    // "it read 3,400 filters and then stopped", which is the difference between guessing at
-    // the cause and knowing it.
-    let lastProgressAt = now;
-    const raw = await getAllFilters({
-      onPage: async ({ fetched }) => {
-        const elapsed = Date.now() - now;
-        if (elapsed > FILTER_FETCH_BUDGET_MS) {
-          throw new Error(
-            `Stopped after ${Math.round(elapsed / 1000)}s having read ${fetched} filters. ` +
-            "This site has more saved filters than one pass can read within Forge's time limit."
-          );
-        }
-        if (Date.now() - lastProgressAt < PROGRESS_INTERVAL_MS) return;
-        lastProgressAt = Date.now();
-        // Best-effort. A progress write that fails must not abort a build that is otherwise
-        // healthy -- the number is a convenience, the snapshot is the job.
-        await writeFilterSnapshotMeta(installationKey, { totalFilters: fetched })
-          .catch(() => {});
-      },
-    });
+    let startAt = Number(cursor?.startAt) || 0;
+    let total = Number(cursor?.total) || 0;
+    let fetched = 0;
+    let done = false;
 
     const filters = [];
     const refs = [];
     const shares = [];
-    for (const entry of raw) {
-      const shaped = shapeFilter(entry);
-      // A filter with no id is not a filter. Skipped rather than thrown on: one malformed
-      // entry must not cost the other 1,999.
-      if (!shaped) continue;
-      filters.push(shaped.filter);
-      refs.push(...shaped.refs);
-      shares.push(...shaped.shares);
+
+    for (let page = 0; page < FILTER_CHUNK_PAGES; page++) {
+      incrMetric(METRIC_NAMES.jiraRequest);
+      const data = await getFilterPage(startAt, FILTER_PAGE_SIZE);
+      const values = Array.isArray(data?.values) ? data.values : [];
+      total = Number(data?.total ?? total) || total;
+
+      for (const entry of values) {
+        const shaped = shapeFilter(entry);
+        // A filter with no id is not a filter. Skipped rather than thrown on: one malformed
+        // entry must not cost the other 1,999.
+        if (!shaped) continue;
+        filters.push(shaped.filter);
+        refs.push(...shaped.refs);
+        shares.push(...shaped.shares);
+      }
+
+      fetched += values.length;
+      startAt += values.length;
+
+      // Same three exit conditions paginate() uses. Without the empty-page guard a page of zero
+      // values with a non-zero total loops until the invocation dies.
+      if (!values.length || data?.isLast === true || (total > 0 && startAt >= total)) {
+        done = true;
+        break;
+      }
     }
 
-    await replaceFilterSnapshot(installationKey, version, { filters, refs, shares });
+    // Written before the checkpoint, so a chunk that lands its rows and then fails to update
+    // the cursor is re-run and overwrites them rather than losing them. INSERT IGNORE makes
+    // that repeat harmless.
+    if (filters.length) {
+      await appendFilterSnapshot(installationKey, version, { filters, refs, shares });
+    }
 
-    const refreshedAt = new Date().toISOString();
-    await writeFilterSnapshotMeta(installationKey, {
-      version,
-      state: "ready",
-      completedAt: refreshedAt,
-      refreshedAt,
-      totalFilters: filters.length,
-      lastError: null,
-    });
+    return {
+      done,
+      processed: fetched,
+      totalExpected: total,
+      cursor: done ? null : { startAt, total },
+    };
+  },
 
-    // Pruned inline after success, like the other snapshots: the previous version is dead the
-    // moment this one is readable, and leaving it costs storage for nothing.
-    await pruneFilterSnapshots(installationKey, version).catch((error) => {
-      logger.warn("filter-snapshot.prune_failed", { installationKey, error: String(error?.message || error) });
-    });
+  finalize: ({ processed }) => ({ totalFilters: processed }),
+};
 
-    logger.info("filter-snapshot.built", {
-      installationKey, version, filters: filters.length, refs: refs.length, shares: shares.length,
-    });
-    return { built: true, version, filters: filters.length, refs: refs.length };
-  } catch (error) {
-    logger.error("filter-snapshot.failed", { installationKey, error: String(error?.message || error) });
-    await writeFilterSnapshotMeta(installationKey, {
-      state: "failed",
-      completedAt: new Date().toISOString(),
-      lastError: String(error?.message || error).slice(0, 500),
-    }).catch(() => {});
-    throw error;
-  }
+// Queue a resumable build of the filter inventory.
+export async function queueFilterSnapshotBuild(installationKey, { now = Date.now() } = {}) {
+  await ensureProjectStoreReady();
+  return startResumableBuild(filterBuildSpec, installationKey, { now });
+}
+
+// Run one chunk. This is what the queue consumer calls.
+export async function buildFilterSnapshot(installationKey, message = {}, { now = Date.now() } = {}) {
+  await ensureProjectStoreReady();
+  return runBuildChunk(filterBuildSpec, installationKey, message, { now });
 }

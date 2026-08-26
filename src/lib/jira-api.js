@@ -34,6 +34,19 @@ export const FIELD_SUMMARY_QUEUE_STALE_AFTER_MS = 60 * 1000;
 export const FIELD_SUMMARY_BUILD_STALE_AFTER_MS = 5 * 60 * 1000;
 export const ISSUE_SCAN_PAGE_SIZE = 100;      // Jira Cloud cursor-based search caps maxResults at 100
 export const ISSUE_SCAN_WORKERS = 5;          // parallel Forge workers; keep low because each invocation has its own in-memory limiter
+// Independent JQL slices crawled concurrently WITHIN one worker invocation.
+//
+// Pagination is sequential -- page N+1 needs page N's cursor -- so a worker crawling a single
+// JQL keeps exactly one request in flight while BASE_JIRA_CONCURRENCY permits four. That is
+// the whole reason a measured run sat at ~6.9s/page and ~64 issues/sec: five workers against
+// a budget sized for twenty.
+//
+// Three rather than four, deliberately. It leaves a slot for the retry of a slice that 429s
+// instead of putting every slot into steady-state traffic, and each concurrent slice holds its
+// own page of issues plus accumulated buffers, so this multiplies invocation memory as well as
+// throughput. Raise it only with the 429 telemetry from a real run in hand -- getScanTelemetry()
+// reports rl429Count, and that is the number that says whether there is headroom.
+export const ISSUE_SCAN_SLICES_PER_WORKER = 3;
 // Fixed pause between pages per worker. Predates the adaptive limiter, which now handles
 // Jira pressure reactively (widening the request interval on 429s, easing back on success
 // streaks) -- so this is a static tax on top of a system that already self-regulates.
@@ -911,6 +924,14 @@ const FILTER_EXPAND = "description,owner,jql,sharePermissions,subscriptions,view
 // proving one.
 const DASHBOARD_EXPAND = "description,owner,viewUrl,favouritedCount,sharePermissions,editPermissions";
 
+// One page of dashboards. Exposed alongside the full walk for the same reason as
+// getFilterPage: the dashboard build is resumable and drives its own pagination.
+export async function getDashboardPage(startAt = 0, maxResults = 50) {
+  return jiraRequest(
+    route`/rest/api/3/dashboard/search?maxResults=${maxResults}&startAt=${startAt}&expand=${DASHBOARD_EXPAND}`
+  );
+}
+
 export async function getAllDashboards() {
   return paginate((startAt) =>
     route`/rest/api/3/dashboard/search?maxResults=50&startAt=${startAt}&expand=${DASHBOARD_EXPAND}`);
@@ -929,6 +950,18 @@ export async function getAllDashboards() {
 export async function getDashboardGadgets(dashboardId) {
   const data = await jiraRequest(route`/rest/api/3/dashboard/${dashboardId}/gadget`);
   return Array.isArray(data?.gadgets) ? data.gadgets : [];
+}
+
+// One page of filters.
+//
+// Exposed as a single page rather than only as a full walk, because the filter build is
+// resumable: it fetches a bounded number of pages per invocation and checkpoints between them,
+// so it needs to drive the pagination itself rather than hand it to paginate() and hope the
+// whole estate arrives before the invocation is killed.
+export async function getFilterPage(startAt = 0, maxResults = 50) {
+  return jiraRequest(
+    route`/rest/api/3/filter/search?maxResults=${maxResults}&startAt=${startAt}&expand=${FILTER_EXPAND}&overrideSharePermissions=false`
+  );
 }
 
 export async function getAllFilters({ onPage } = {}) {
