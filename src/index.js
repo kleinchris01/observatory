@@ -21,6 +21,7 @@ import {
 import { processProjectUsageReportJob } from "./lib/report-engine.js";
 import { buildWorkflowSnapshot, buildStatusHistorySnapshot } from "./lib/workflow-engine.js";
 import { buildScreenSnapshot } from "./lib/screen-engine.js";
+import { runFullScanStep } from "./lib/full-scan-runner.js";
 import { buildFilterSnapshot } from "./lib/filter-engine.js";
 import { buildDashboardSnapshot } from "./lib/dashboard-engine.js";
 import {
@@ -275,6 +276,24 @@ export async function consumeSnapshot(event) {
       // the log is where that gets noticed first.
       console.log(
         `build-dashboard-snapshot: ${result?.dashboards ?? 0} dashboards, ${result?.gadgets ?? 0} gadgets, ${result?.walked ?? 0} walked`
+      );
+      return;
+    }
+
+    // One scan that runs everything. Each step is its own invocation, so a stage gets a fresh
+    // 900s budget rather than the remainder of the previous stage's.
+    if (jobType === "run-full-scan") {
+      const result = await runFullScanStep(installationKey, event?.body || {});
+      console.log(
+        result?.completed
+          ? `run-full-scan: complete - ${result.done}/${result.total} stages, ${result.failed} failed, ${result.skipped} skipped`
+          : result?.waiting
+            ? `run-full-scan: waiting on ${result.stage} (poll ${result.polls})`
+            : result?.handedOff
+              ? `run-full-scan: handed off to ${result.stage}`
+              : result?.advanced
+                ? `run-full-scan: ${result.done}/${result.total} stages done`
+                : `run-full-scan: ${result?.reason || "no-op"}`
       );
       return;
     }

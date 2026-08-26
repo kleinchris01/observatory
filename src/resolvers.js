@@ -115,6 +115,7 @@ import {
   DEFAULT_SCREEN_SORT,
   SCREEN_SORT_KEYS,
   recordHealthSnapshot,
+  readFullScanMeta,
   loadHealthHistory,
   loadTransitionScreens,
 } from "./lib/project-store.js";
@@ -138,6 +139,7 @@ import { summarizeFilters, summarizeFilterHealth } from "./lib/filter-insights.j
 import { summarizeDashboards, summarizeDashboardHealth } from "./lib/dashboard-insights.js";
 import { isFilterBuildStale, queueFilterSnapshotBuild } from "./lib/filter-engine.js";
 import { isDashboardBuildStale, queueDashboardSnapshotBuild } from "./lib/dashboard-engine.js";
+import { startFullScan, fullScanStageCatalog } from "./lib/full-scan-runner.js";
 import { probeEndpoint, probeStargateEndpoint, getCloudId, getAllJiraProjects } from "./lib/jira-api.js";
 import {
   findDuplicateStatusGroups,
@@ -3137,6 +3139,49 @@ async function searchFieldOptions({ payload, context }) {
   };
 }
 
+// Start the one scan that runs everything.
+//
+// Every pillar already had its own build button on its own tab, which meant "scan the site"
+// was a checklist: know which six to press, and in what order, or the tabs disagree with each
+// other afterwards. This is that checklist made into one action.
+//
+// Automation is deliberately not included. Jira publishes no API to enumerate automation
+// rules -- that pillar is fed by importing a rule export by hand -- and a scan that silently
+// skipped it while claiming to run everything would be worse than one that says what it covers.
+async function startFullSiteScan({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  const adminConfig = await readAdminConfig();
+  if (adminConfig.readOnlyMode) {
+    return { started: false, error: "Read-only mode is enabled. Disable it before running a scan." };
+  }
+
+  return startFullScan(installationKey);
+}
+
+// Progress for the Scans tab: one row per stage, plus the catalog so the tab can render the
+// full list before a scan has ever run rather than an empty panel.
+async function getFullScanStatus({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  const installationKey = getInstallationKey(context);
+  const meta = await readFullScanMeta(installationKey).catch(
+    fallbackOn("full_scan.meta_read_failed", null, { installationKey })
+  );
+
+  return {
+    catalog: fullScanStageCatalog(),
+    state: meta?.state || "idle",
+    stages: meta?.stages?.length ? meta.stages : null,
+    currentStage: meta?.currentStage || null,
+    startedAt: meta?.startedAt || null,
+    completedAt: meta?.completedAt || null,
+    updatedAt: meta?.updatedAt || null,
+    lastError: meta?.lastError || null,
+  };
+}
+
 async function startIssueScan({ context }) {
   await ensureProjectStoreReady();
   const installationKey = getInstallationKey(context);
@@ -4607,6 +4652,7 @@ function withAdminGuard(functions) {
 // the governance engine runs by. Admin *reads* are not audited -- they are frequent
 // (polled during scans) and recording them would bury the events that matter.
 const AUDITED_ADMIN_ACTIONS = new Set([
+  "startFullSiteScan",
   "startIssueScan",
   "resumeIssueScan",
   "cancelIssueScan",
@@ -4668,6 +4714,8 @@ function withAuditTrail(functions) {
 // raw object; the wrapping is applied to the whole registry at export.
 const RAW_ADMIN_ONLY_FUNCTIONS = {
   // Issue scan lifecycle â€” trigger and cancel full fieldÃ—issue scans
+  startFullSiteScan,       // Mutating: queues the one scan that runs every pillar
+  getFullScanStatus,       // Admin read: per-stage progress of the full scan
   startIssueScan,          // Mutating: queues a full issue scan job
   resumeIssueScan,         // Mutating: re-queues incomplete issue scan workers
   cancelIssueScan,         // Mutating: hard-stops the running issue scan

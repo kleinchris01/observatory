@@ -29,6 +29,10 @@ vi.mock("./lib/screen-engine.js", () => ({
   buildScreenSnapshot: vi.fn().mockResolvedValue({ screens: 760, fields: 21888, unresolvedScreens: 1 }),
 }));
 
+vi.mock("./lib/full-scan-runner.js", () => ({
+  runFullScanStep: vi.fn().mockResolvedValue({ advanced: true, done: 2, total: 8 }),
+}));
+
 vi.mock("./lib/filter-engine.js", () => ({
   buildFilterSnapshot: vi.fn().mockResolvedValue({ built: true, version: "v1", filters: 412, refs: 1840 }),
 }));
@@ -129,6 +133,7 @@ import {
 import { processProjectUsageReportJob } from "./lib/report-engine.js";
 import { buildWorkflowSnapshot, buildStatusHistorySnapshot } from "./lib/workflow-engine.js";
 import { buildScreenSnapshot } from "./lib/screen-engine.js";
+import { runFullScanStep } from "./lib/full-scan-runner.js";
 import { buildFilterSnapshot } from "./lib/filter-engine.js";
 import { buildDashboardSnapshot } from "./lib/dashboard-engine.js";
 import { readAdminConfig, runDeltaIssueScanJob, ADMIN_ONLY_FUNCTIONS, SHARED_RESOLVER_FUNCTIONS } from "./resolvers.js";
@@ -386,6 +391,54 @@ describe("consumeSnapshot job routing", () => {
 
   // The cheapest structural build here: one paginated endpoint with everything expanded, so
   // ~40 calls for 2,000 filters and no per-item walk.
+  // The full scan is a state machine spread across invocations, so its log is the only place a
+  // human can see which stage a run is on. Each outcome reads differently on purpose:
+  // "waiting" and "advanced" mean very different things when a scan looks stuck.
+  test("routes run-full-scan to the orchestrator and logs which outcome it got", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await consumeSnapshot(event({ jobType: "run-full-scan", stage: null, jobToken: "t" }));
+    expect(runFullScanStep).toHaveBeenCalledWith(
+      "scope-1",
+      expect.objectContaining({ jobType: "run-full-scan", jobToken: "t" })
+    );
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("2/8 stages done"));
+
+    runFullScanStep.mockResolvedValueOnce({ waiting: true, stage: "issues", polls: 12 });
+    await consumeSnapshot(event({ jobType: "run-full-scan" }));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("waiting on issues (poll 12)"));
+
+    runFullScanStep.mockResolvedValueOnce({ handedOff: true, stage: "filters" });
+    await consumeSnapshot(event({ jobType: "run-full-scan" }));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("handed off to filters"));
+
+    runFullScanStep.mockResolvedValueOnce({ completed: true, done: 7, total: 8, failed: 1, skipped: 0 });
+    await consumeSnapshot(event({ jobType: "run-full-scan" }));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("complete - 7/8 stages, 1 failed"));
+
+    log.mockRestore();
+  });
+
+  test("names the reason when a full-scan step declines to act", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    runFullScanStep.mockResolvedValueOnce({ ignored: true, reason: "stale-token" });
+    await consumeSnapshot(event({ jobType: "run-full-scan" }));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("stale-token"));
+
+    // And still says something rather than logging undefined when there is no reason at all.
+    runFullScanStep.mockResolvedValueOnce(undefined);
+    await consumeSnapshot(event({ jobType: "run-full-scan" }));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("no-op"));
+
+    log.mockRestore();
+  });
+
+  test("a failing full-scan step does not rethrow, so Forge will not retry it forever", async () => {
+    runFullScanStep.mockRejectedValueOnce(new Error("sql down"));
+    await expect(consumeSnapshot(event({ jobType: "run-full-scan" }))).resolves.toBeUndefined();
+  });
+
   test("routes build-filter-snapshot to the filter engine, message and all", async () => {
     await consumeSnapshot(event({ jobType: "build-filter-snapshot", buildToken: "tok-1" }));
     // The whole body travels, not just the key. The filter build is resumable: it re-queues

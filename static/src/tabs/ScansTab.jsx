@@ -862,6 +862,90 @@ export function UniverseScanPanel({ issueScan, onStart, onResume, onCancel, issu
   );
 }
 
+// One scan that runs every pillar.
+//
+// Before this, "scan the site" meant knowing which six buttons lived on which six tabs and
+// pressing them in the right order -- and getting the order wrong left the tabs disagreeing
+// with each other, with nothing to say so. The stages below are the same builds those buttons
+// always ran; the only thing that is new is that something sequences them.
+export function FullScanPanel({ status, onStart, starting }) {
+  const running = status?.state === "running";
+  const catalog = status?.catalog || [];
+  const byKey = new Map((status?.stages || []).map((stage) => [stage.key, stage]));
+
+  // The catalog renders even before a scan has ever run, so the list of what a scan covers is
+  // answerable without running one.
+  const rows = catalog.map((definition) => ({
+    ...definition,
+    ...(byKey.get(definition.key) || { state: "pending" }),
+  }));
+
+  const done = rows.filter((r) => r.state === "done").length;
+  const failed = rows.filter((r) => r.state === "failed").length;
+  const skipped = rows.filter((r) => r.state === "skipped").length;
+
+  const TONE = { done: "success", running: "active", failed: "critical", skipped: "warning", pending: "neutral" };
+  const LABEL = { done: "Done", running: "Running", failed: "Failed", skipped: "Skipped", pending: "Waiting" };
+
+  return (
+    <>
+      <PageHeader
+        title="Full site scan"
+        description="Every pillar in one pass, in dependency order. Each stage is the same build its own tab runs — this sequences them so the tabs cannot end up disagreeing about which snapshot they are describing."
+        meta={status?.completedAt ? `Last run ${formatRelativeTime(status.completedAt)}` : undefined}
+        actions={
+          <button type="button" className="primary-button" onClick={onStart} disabled={starting || running}>
+            {running ? "Scanning…" : starting ? "Starting…" : "Run full scan"}
+          </button>
+        }
+      />
+
+      <StatRow>
+        <StatTile label="Stages complete" value={`${done} / ${rows.length}`} tone={done === rows.length && !failed ? "success" : "neutral"} />
+        <StatTile label="Failed" value={failed} tone={failed ? "critical" : "neutral"} />
+        <StatTile label="Skipped" value={skipped} tone={skipped ? "warning" : "neutral"} hint="A stage is skipped when something it depends on did not complete. Running it against stale inputs would produce a wrong answer rather than a partial one." />
+      </StatRow>
+
+      <Panel title="Stages" icon="layers">
+        <table className="admin-table">
+          <thead>
+            <tr><th>Stage</th><th>Status</th><th>Detail</th></tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.key}>
+                <td>{row.label}</td>
+                <td><span className={`chip chip--${TONE[row.state] || "neutral"}`}>{LABEL[row.state] || row.state}</span></td>
+                <td className="admin-table__muted">
+                  {row.error
+                    || (row.state === "running" && status?.currentStage === row.key
+                      ? "In progress — this stage runs on its own and reports back."
+                      : row.completedAt
+                        ? formatRelativeTime(row.completedAt)
+                        : "")}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Panel>
+
+      {status?.lastError && !running && (
+        <div className="danger-zone__error" role="alert">{status.lastError}</div>
+      )}
+
+      <Panel title="What this does not cover" icon="alertTriangle">
+        <p>
+          <strong>Automation rules are not scanned.</strong> Jira publishes no API to enumerate
+          them — that pillar is fed by importing a rule export by hand, from the Automation tab.
+          A scan that quietly skipped it while calling itself complete would be claiming coverage
+          it does not have.
+        </p>
+      </Panel>
+    </>
+  );
+}
+
 export function ScansTab({ siteOrigin, initialSection }) {
   const [activeSection, setActiveSection] = React.useState(initialSection || "universe");
 
@@ -875,6 +959,8 @@ export function ScansTab({ siteOrigin, initialSection }) {
 
   // Universe scan state
   const [issueScanStatus, setIssueScanStatus] = React.useState(null);
+  const [fullScanStatus, setFullScanStatus] = React.useState(null);
+  const [fullScanStarting, setFullScanStarting] = React.useState(false);
   const [deltaIssueScanStatus, setDeltaIssueScanStatus] = React.useState(null);
   const [issueScanLoading, setIssueScanLoading] = React.useState(false);
   const [issueScanResuming, setIssueScanResuming] = React.useState(false);
@@ -929,11 +1015,19 @@ export function ScansTab({ siteOrigin, initialSection }) {
     try { const r = await invoke("getIssueScanStatus"); setIssueScanStatus(r?.meta || null); } catch (err) { setError(err.message || "Failed to load universe scan status."); }
   }, []);
 
+  const fetchFullScanStatus = React.useCallback(async () => {
+    try { setFullScanStatus(await invoke("getFullScanStatus")); } catch (err) { setError(err.message || "Failed to load full scan status."); }
+  }, []);
+
   const fetchDeltaStatus = React.useCallback(async () => {
     try { const r = await invoke("getDeltaIssueScanStatus"); setDeltaIssueScanStatus(r?.meta || null); } catch {}
   }, []);
 
-  React.useEffect(() => { fetchIssueScanStatus(); fetchDeltaStatus(); }, []);
+  React.useEffect(() => { fetchIssueScanStatus(); fetchDeltaStatus(); fetchFullScanStatus(); }, []);
+
+  // Polls only while a scan is actually running, like the panels beside it -- a tab left open
+  // overnight should not be a standing request generator.
+  useVisiblePolling(fullScanStatus?.state === "running", fetchFullScanStatus, 5000);
 
   // 15s, not 8s: a full scan runs for over an hour, so 8-second granularity was finer
   // than anyone reads while costing two resolver invocations -- and their SQL reads --
@@ -947,6 +1041,19 @@ export function ScansTab({ siteOrigin, initialSection }) {
   async function startScan() {
     setIssueScanLoading(true);
     try { await invoke("startIssueScan"); await fetchIssueScanStatus(); } catch (err) { setError(err.message || "Failed to start universe scan."); } finally { setIssueScanLoading(false); }
+  }
+
+  async function startFullScan() {
+    setFullScanStarting(true);
+    try {
+      const result = await invoke("startFullSiteScan");
+      if (result?.error) setError(result.error);
+      await fetchFullScanStatus();
+    } catch (err) {
+      setError(err.message || "Failed to start the full scan.");
+    } finally {
+      setFullScanStarting(false);
+    }
   }
 
   async function resumeScan() {
@@ -1003,6 +1110,7 @@ export function ScansTab({ siteOrigin, initialSection }) {
   }
 
   const subNavItems = [
+    { key: "full", label: "Full Scan", icon: "zap" },
     { key: "snapshot", label: "Snapshot", icon: "layers" },
     { key: "universe", label: "Universe Scan", icon: "zap" },
     { key: "quick", label: "Quick Scan", icon: "activity" },
@@ -1013,6 +1121,9 @@ export function ScansTab({ siteOrigin, initialSection }) {
     <div className="admin-scans-tab">
       {error && <div className="error-banner" style={{ margin: "0 0 12px 0" }}>{error}<button className="inline-text-button" type="button" onClick={() => setError("")} style={{ marginLeft: 10 }}>Dismiss</button></div>}
       <SubNavLayout items={subNavItems} activeKey={activeSection} onSelect={setActiveSection}>
+        {activeSection === "full" && (
+          <FullScanPanel status={fullScanStatus} onStart={startFullScan} starting={fullScanStarting} />
+        )}
         {activeSection === "snapshot" && (
           <SnapshotPanel
             snapshot={snapshotStatus}

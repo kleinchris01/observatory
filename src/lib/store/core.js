@@ -1111,7 +1111,17 @@ const projectStoreMigrations = migrationRunner
   // Per-slice cursors for the issue crawl. A worker used to hold one JQL and one page token,
   // which meant one request in flight against a concurrency budget of four. Slices are how it
   // uses the rest; each carries its own query, cursor and done flag.
-  .enqueue("v099_alter_issue_scan_workers_add_slices", "ALTER TABLE issue_scan_workers ADD COLUMN IF NOT EXISTS slices_json LONGTEXT NULL");
+  .enqueue("v099_alter_issue_scan_workers_add_slices", "ALTER TABLE issue_scan_workers ADD COLUMN IF NOT EXISTS slices_json LONGTEXT NULL")
+  // full_scan_meta has existed since v069 and was never written to -- the orchestrator was
+  // built and never wired. Wiring it needs two columns it did not anticipate: a heartbeat, and
+  // a count of how many times a handoff stage has been waited on.
+  //
+  // `polls` bounds that wait. Filters, dashboards and the issue crawl are multi-invocation
+  // machines with their own state; the orchestrator starts them and waits by re-queueing
+  // itself on a delay. Counting the waits is what stops a pillar that dies without writing a
+  // terminal state from holding the whole scan open forever.
+  .enqueue("v100_alter_full_scan_meta_add_updated_at", "ALTER TABLE full_scan_meta ADD COLUMN IF NOT EXISTS updated_at VARCHAR(64) NULL")
+  .enqueue("v101_alter_full_scan_meta_add_polls", "ALTER TABLE full_scan_meta ADD COLUMN IF NOT EXISTS polls INTEGER NOT NULL DEFAULT 0");
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history

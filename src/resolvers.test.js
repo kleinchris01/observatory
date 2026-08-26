@@ -50,6 +50,7 @@ const mocks = vi.hoisted(() => ({
   loadProjectActivity: vi.fn(async () => new Map()),
   loadFilters: vi.fn(async () => []),
   readFilterSnapshotMeta: vi.fn(async () => null),
+  readFullScanMeta: vi.fn(async () => null),
   pruneFilterSnapshots: vi.fn(),
   pruneDashboardSnapshots: vi.fn(),
   clearFilterSnapshotVersion: vi.fn(),
@@ -239,6 +240,7 @@ vi.mock("./lib/project-store.js", () => ({
   loadProjectActivity: mocks.loadProjectActivity,
   loadFilters: mocks.loadFilters,
   readFilterSnapshotMeta: mocks.readFilterSnapshotMeta,
+  readFullScanMeta: mocks.readFullScanMeta,
   pruneFilterSnapshots: mocks.pruneFilterSnapshots,
   pruneDashboardSnapshots: mocks.pruneDashboardSnapshots,
   clearFilterSnapshotVersion: mocks.clearFilterSnapshotVersion,
@@ -405,6 +407,8 @@ const {
   saveAutomationIndex,
   getFilterInventory,
   buildFilterInventory,
+  startFullSiteScan,
+  getFullScanStatus,
   getFilterUsage,
   getFieldFilterCounts,
   getDashboardInventory,
@@ -4674,6 +4678,60 @@ describe("getStatusAutomationUsage", () => {
 // directions: delete a field forty filters search on and the searches quietly return the
 // wrong answer, and leave a filter owned by somebody who left and it keeps emailing a list
 // from an account nobody administers.
+// The one-click entry point. The orchestrator behind it is tested in full-scan-runner.test.js;
+// what matters here is that the resolver refuses when it should and reports enough for the tab
+// to render the stage list before a scan has ever run.
+describe("startFullSiteScan / getFullScanStatus", () => {
+  beforeEach(() => {
+    mocks.kvsGet.mockResolvedValue(null);
+    mocks.readFullScanMeta.mockResolvedValue(null);
+  });
+
+  test("refuses in read-only mode, and says so", async () => {
+    mocks.kvsGet.mockResolvedValue({ readOnlyMode: true });
+
+    const result = await startFullSiteScan({ context: ctxWithAccount() });
+
+    expect(result.started).toBe(false);
+    expect(result.error).toMatch(/Read-only/);
+  });
+
+  test("returns the stage catalog even when no scan has ever run", async () => {
+    const result = await getFullScanStatus({ context: ctxWithAccount() });
+
+    // Renders as a list of what a scan covers rather than an empty panel -- the same reason
+    // the other tabs describe what they would show before they have anything to show.
+    expect(result.state).toBe("idle");
+    expect(result.stages).toBeNull();
+    expect(result.catalog.map((s) => s.key)).toEqual(expect.arrayContaining(["workflows", "filters", "dashboards", "issues"]));
+    expect(result.catalog.map((s) => s.key)).not.toContain("automation");
+  });
+
+  test("reports per-stage progress for a run in flight", async () => {
+    mocks.readFullScanMeta.mockResolvedValue({
+      state: "running",
+      currentStage: "issues",
+      stages: [{ key: "workflows", state: "done" }, { key: "issues", state: "running" }],
+      startedAt: "2026-08-26T00:00:00.000Z",
+    });
+
+    const result = await getFullScanStatus({ context: ctxWithAccount() });
+
+    expect(result).toMatchObject({ state: "running", currentStage: "issues" });
+    expect(result.stages).toHaveLength(2);
+  });
+
+  test("survives a meta read failure rather than taking the tab down", async () => {
+    mocks.readFullScanMeta.mockRejectedValueOnce(new Error("sql down"));
+
+    const result = await getFullScanStatus({ context: ctxWithAccount() });
+
+    // The Scans tab has several panels; one unreadable row must not blank the others.
+    expect(result.state).toBe("idle");
+    expect(result.catalog.length).toBeGreaterThan(0);
+  });
+});
+
 describe("getFilterInventory", () => {
   const filterRow = (over = {}) => ({
     id: "1", name: "Open bugs", jql: "project = ADVEV AND status = Open",
