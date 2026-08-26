@@ -643,6 +643,25 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
         } catch (searchErr) {
           const errStr = String(searchErr?.message || searchErr || "");
           const is400 = errStr.includes("400") || searchErr?.statusCode === 400 || searchErr?.status === 400;
+
+          // A 400 with no cursor is not an expired token, so it falls through to the rethrow
+          // below and kills the worker -- and with it the whole scan. It has happened on this
+          // site repeatedly and was never diagnosable, because the only thing recorded was
+          // "400 Bad Request": no JQL, no field count, no indication of which of the two
+          // things a search can be rejected for was at fault. Record the shape of the request
+          // that was refused, so the next occurrence is a question with an answer.
+          if (is400 && !slice.token) {
+            logger.error("scan.search_rejected_on_first_page", {
+              installationKey,
+              workerId,
+              sliceId: slice.id,
+              jqlLength: String(slice.jql || "").length,
+              jqlPreview: String(slice.jql || "").slice(0, 300),
+              fieldCount: Array.isArray(scanFields) ? scanFields.length : null,
+              error: errStr.slice(0, 500),
+            });
+          }
+
           if (is400 && slice.token) {
             // Cursor expired. Restart THIS slice only -- the others hold their own valid
             // cursors and there is no reason to make them re-crawl. Buffered rows are keyed by

@@ -136,7 +136,8 @@ export async function readFullScanMeta(scopeKey) {
   await ensureProjectStoreReady();
   const result = await withSqlRetry(() =>
     sql.prepare(`
-      SELECT state, job_token, current_stage, stages_json, started_at, completed_at, last_error
+      SELECT state, job_token, current_stage, stages_json, started_at, completed_at, last_error,
+             updated_at, polls
       FROM full_scan_meta WHERE scope_key = ?
     `).bindParams(scopeKey).execute()
   );
@@ -150,6 +151,11 @@ export async function readFullScanMeta(scopeKey) {
     startedAt: row.started_at || null,
     completedAt: row.completed_at || null,
     lastError: row.last_error || null,
+    // Heartbeat, and how many times the orchestrator has waited on the stage currently in
+    // flight. Both added when the orchestrator was finally wired: a handoff stage that dies
+    // without writing a terminal state would otherwise hold the whole scan open forever.
+    updatedAt: row.updated_at || null,
+    polls: toNumber(row.polls),
   };
 }
 
@@ -163,8 +169,9 @@ export async function writeFullScanMeta(scopeKey, patch = {}) {
   await withSqlRetry(() =>
     sql.prepare(`
       INSERT INTO full_scan_meta
-        (scope_key, state, job_token, current_stage, stages_json, started_at, completed_at, last_error)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        (scope_key, state, job_token, current_stage, stages_json, started_at, completed_at,
+         last_error, updated_at, polls)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON DUPLICATE KEY UPDATE
         state = VALUES(state),
         job_token = VALUES(job_token),
@@ -172,7 +179,9 @@ export async function writeFullScanMeta(scopeKey, patch = {}) {
         stages_json = VALUES(stages_json),
         started_at = VALUES(started_at),
         completed_at = VALUES(completed_at),
-        last_error = VALUES(last_error)
+        last_error = VALUES(last_error),
+        updated_at = VALUES(updated_at),
+        polls = VALUES(polls)
     `).bindParams(
       scopeKey,
       next.state || "idle",
@@ -181,7 +190,10 @@ export async function writeFullScanMeta(scopeKey, patch = {}) {
       JSON.stringify(next.stages || []),
       next.startedAt || null,
       next.completedAt || null,
-      next.lastError || null
+      next.lastError || null,
+      next.updatedAt || null,
+      Number(next.polls) || 0
     ).execute()
   );
+  return next;
 }

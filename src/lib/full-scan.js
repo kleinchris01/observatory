@@ -35,10 +35,16 @@ export const FULL_SCAN_STAGES = [
   // Cheapest structural stage by a wide margin: one paginated endpoint with everything
   // expanded, ~40 calls for 2,000 filters, no per-item walk. It earns its place early
   // because the field snapshot below is the thing its references protect.
-  { key: "filters", label: "Saved filter inventory", needs: [], mode: "inline" },
+  //
+  // Handoff, not inline, since the resumable rewrite. The filter build no longer finishes in
+  // one invocation by design -- it chunks, checkpoints and re-queues itself -- so the
+  // orchestrator starts it and waits for its meta row to reach a terminal state.
+  { key: "filters", label: "Saved filter inventory", needs: [], mode: "handoff" },
   // One call to enumerate, then one per dashboard for its gadgets. Between the filter build
   // (one paginated endpoint) and the screen build (a tab and field walk under every screen).
-  { key: "dashboards", label: "Dashboard inventory", needs: [], mode: "inline" },
+  // Handoff for the same reason, and more so: enumerating is one paginated search but the
+  // gadget walk is one request per dashboard, which is what killed it as a single pass.
+  { key: "dashboards", label: "Dashboard inventory", needs: [], mode: "handoff" },
   { key: "fields", label: "Field snapshot", needs: [], mode: "inline" },
   { key: "status-history", label: "Status history", needs: ["workflows"], mode: "inline" },
   {
@@ -52,6 +58,34 @@ export const FULL_SCAN_STAGES = [
   },
   { key: "health", label: "Record site health", needs: [], mode: "inline" },
 ];
+
+// How long the orchestrator will wait on a handoff stage before calling it dead.
+//
+// Waiting is a delayed re-queue of the orchestrator itself, so this is a count of polls rather
+// than a duration -- multiply by FULL_SCAN_POLL_DELAY_SECONDS for wall-clock. The issue crawl
+// gets far longer than the others because it legitimately runs for tens of minutes on a large
+// site, and declaring it dead at the same threshold as a filter build would abort exactly the
+// scan people care most about.
+export const FULL_SCAN_POLL_DELAY_SECONDS = 30;
+export const FULL_SCAN_MAX_POLLS = { issues: 480, default: 60 };
+
+export function maxPollsFor(stageKey) {
+  return FULL_SCAN_MAX_POLLS[stageKey] ?? FULL_SCAN_MAX_POLLS.default;
+}
+
+// A handoff stage's verdict, read from whatever meta row that pillar keeps.
+//
+// Every pillar spells its own progress differently but they all agree on the two endings, so
+// this maps to three words the orchestrator understands. Anything unrecognised counts as still
+// running: a stage is only declared finished on positive evidence, never on the absence of it.
+export function handoffStageState(meta, { stale = false } = {}) {
+  if (stale) return "failed";
+  if (!meta) return "running";
+  if (meta.state === "ready") return "done";
+  if (meta.state === "failed") return "failed";
+  if (meta.state === "cancelled") return "failed";
+  return "running";
+}
 
 export const FULL_SCAN_STAGE_KEYS = FULL_SCAN_STAGES.map((s) => s.key);
 
