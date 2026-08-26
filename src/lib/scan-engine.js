@@ -14,6 +14,7 @@ import {
   withTimeout,
   ISSUE_SCAN_PAGE_SIZE,
   ISSUE_SCAN_WORKERS,
+  ISSUE_SCAN_SLICES_PER_WORKER,
   ISSUE_SCAN_INTER_PAGE_DELAY_MS,
   ISSUE_SCAN_FLUSH_EVERY_PAGES,
   ISSUE_SCAN_CANCEL_CHECK_EVERY_PAGES,
@@ -311,9 +312,17 @@ export async function runIssueScanCoordinator(installationKey) {
       smallest.count += issueCountByKey.get(key) ?? 1;
     }
 
-    // Build one JQL filter per worker covering all its assigned projects
+    // Build one JQL filter per worker covering all its assigned projects. Kept because it is
+    // still what a single-slice worker crawls, and what the logs and older rows refer to.
     const workerJqls = bins.map((bin) =>
       bin.keys.length === 0 ? null : `project IN (${bin.keys.map((k) => `"${k}"`).join(", ")})`
+    );
+
+    // And the slices within each worker -- see sliceProjectKeys. This is where the throughput
+    // comes from: the same five invocations, each now using the request concurrency it was
+    // always permitted instead of one page at a time.
+    const workerSlices = bins.map((bin) =>
+      bin.keys.length === 0 ? [] : sliceProjectKeys(bin.keys, issueCountByKey, ISSUE_SCAN_SLICES_PER_WORKER)
     );
 
     // Keep the field inventory in sync with Jira before crawling — every scan run
@@ -393,6 +402,7 @@ export async function runIssueScanCoordinator(installationKey) {
         workerId,
         status: "queued",
         jqlFilter,
+        slices: workerSlices[workerId],
         fieldIds,
       }))
     );
@@ -412,6 +422,69 @@ export async function runIssueScanCoordinator(installationKey) {
       lastError: error?.message || String(error),
     }).catch(ignoreWith("scan.coordinator_failure_write_failed", { installationKey }));
   }
+}
+
+// A worker's slices, in the shape the crawl loop wants.
+//
+// Older worker rows -- and any scan already in flight when this deployed -- have a single
+// jqlFilter and a single nextPageToken and no slices at all. Rather than branch the crawl on
+// which shape it got, those are presented as one slice. The loop then has exactly one path,
+// and a scan running across the deploy finishes on its original cursor instead of restarting.
+export function normalizeWorkerSlices(worker) {
+  const stored = Array.isArray(worker?.slices) ? worker.slices : null;
+  if (stored && stored.length) {
+    return stored.map((slice, index) => ({
+      id: Number(slice.id ?? index),
+      jql: slice.jql,
+      token: slice.token || null,
+      done: Boolean(slice.done),
+      pages: Number(slice.pages) || 0,
+      issues: Number(slice.issues) || 0,
+    }));
+  }
+
+  if (!worker?.jqlFilter) return [];
+  return [{
+    id: 0,
+    jql: worker.jqlFilter,
+    token: worker.nextPageToken || null,
+    done: false,
+    pages: Number(worker.processedPages) || 0,
+    issues: Number(worker.processedIssues) || 0,
+  }];
+}
+
+// Split one worker's projects into slices of roughly equal issue volume.
+//
+// The same greedy largest-first bin-pack the coordinator uses to divide projects between
+// workers, applied one level down. Balance matters more here than there: slices run
+// concurrently inside a single invocation, so the invocation is only as fast as its slowest
+// slice, and one slice holding a 200k-issue project while the others idle wastes the
+// concurrency this exists to use.
+//
+// A worker with fewer projects than slices simply gets fewer slices. A single project cannot
+// be split -- there is no cursor-safe way to partition one project's issues across queries
+// without risking double-counting or gaps -- so a site whose volume sits in one giant project
+// is the case this does not help, and it is honest about that rather than pretending.
+export function sliceProjectKeys(keys, issueCountByKey, sliceCount) {
+  const usable = Math.max(1, Math.min(sliceCount, keys.length));
+  const bins = Array.from({ length: usable }, () => ({ keys: [], count: 0 }));
+  const sorted = [...keys].sort((a, b) => (issueCountByKey.get(b) ?? 1) - (issueCountByKey.get(a) ?? 1));
+  for (const key of sorted) {
+    const smallest = bins.reduce((min, b) => (b.count < min.count ? b : min));
+    smallest.keys.push(key);
+    smallest.count += issueCountByKey.get(key) ?? 1;
+  }
+  return bins
+    .filter((bin) => bin.keys.length > 0)
+    .map((bin, id) => ({
+      id,
+      jql: `project IN (${bin.keys.map((k) => `"${k}"`).join(", ")})`,
+      token: null,
+      done: false,
+      pages: 0,
+      issues: 0,
+    }));
 }
 
 export async function runIssueScanWorkerV2(installationKey, workerId) {
@@ -467,97 +540,122 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
     await updateIssueScanWorker(installationKey, workerId, { status: "building", lastError: null });
 
     const scanFields = Array.isArray(worker.fieldIds) && worker.fieldIds.length ? worker.fieldIds : ["*all"];
-    let currentNextPageToken = worker.nextPageToken || null;
+
+    // Slices: the concurrency this worker was always allowed and never used.
+    //
+    // Pagination is inherently sequential -- page N+1 needs the cursor from page N -- so a
+    // worker crawling one JQL has exactly ONE request in flight, then sleeps, then does the
+    // next. Meanwhile BASE_JIRA_CONCURRENCY permits four. Five workers against a budget sized
+    // for twenty is why a measured run sat at ~6.9s per page and ~64 issues/sec site-wide.
+    //
+    // Each worker already owns a bin-packed set of DISJOINT projects, so splitting them into
+    // independent JQL slices needs no coordination: separate queries, separate cursors, no
+    // overlap to de-duplicate. Running them concurrently within the one invocation multiplies
+    // throughput without adding a single Forge invocation, which is the point -- more workers
+    // would buy the same parallelism while multiplying invocations, and each invocation gets
+    // its OWN in-memory limiter, so N of them cannot coordinate a backoff between themselves.
+    // Concentrating the concurrency under one limiter is what keeps 429 handling coherent.
+    const slices = normalizeWorkerSlices(worker);
+
     let pageCount = 0;
     let issueCount = 0;
+    let cancelled = false;
 
-    for (let page = 0; page < ISSUE_SCAN_CHUNK_PAGES; page++) {
-      // With ISSUE_SCAN_FLUSH_EVERY_PAGES >= ISSUE_SCAN_CHUNK_PAGES this never fires and
-      // the single end-of-chunk flush below does the work. Kept rather than deleted so
-      // lowering the constant restores mid-chunk flushing without a code change.
-      if (page > 0 && page % ISSUE_SCAN_FLUSH_EVERY_PAGES === 0) {
-        if (fieldProjectCounts.size > 0 || projectTotals.size > 0) {
-          await flushIssueScanCounts(installationKey, fieldProjectCounts, projectTotals);
-          await flushIssueScanActivity(installationKey, projectMonths);
-          projectMonths.clear();
-          fieldProjectCounts.clear();
-          projectTotals.clear();
-        }
-        if (rqtFieldHits.size > 0) {
-          await upsertRqtFieldHits(installationKey, rqtFieldHits).catch(ignoreWith("scan.rqt_field_flush_failed", { installationKey }));
-          rqtFieldHits.clear();
-        }
-        if (pendingIssues > 0) {
-          const updMid = await atomicAccumulateIssueScanProgress(installationKey, 0, pendingIssues).catch(fallbackOn("scan.progress_accumulate_failed", null, { installationKey }));
-          if (updMid) {
-            const cur = updMid.processedIssues ?? 0;
-            const prev = cur - pendingIssues;
-            if (Math.floor(prev / 5000) < Math.floor(cur / 5000)) {
-              await appendIssueScanLogEntry(installationKey, `${cur.toLocaleString()} issues scanned`).catch(ignoreWith("scan.log_append_failed", { installationKey }));
-            }
+    // Buffers are drained on a serialized chain rather than whenever a slice feels like it.
+    //
+    // Two slices flushing at once would race the clear() against each other's writes. The
+    // snapshot-and-clear below happens synchronously before any await, so pages accumulating
+    // during a flush land in the fresh maps and are not lost with the old ones -- which is the
+    // bug the obvious version of this has.
+    let pagesSinceFlush = 0;
+    let flushChain = Promise.resolve();
+
+    async function drainBuffers() {
+      const counts = new Map(fieldProjectCounts);
+      const totals = new Map(projectTotals);
+      const months = new Map(projectMonths);
+      const statuses = new Map(statusCounts);
+      const rqtHits = new Map(rqtFieldHits);
+      const rqtIssues = rqtIssueBuffer.splice(0);
+      const rqtValues = rqtValueBuffer.splice(0);
+      const rqtFieldIssues = rqtFieldIssueBuffer.splice(0);
+      fieldProjectCounts.clear();
+      projectTotals.clear();
+      projectMonths.clear();
+      statusCounts.clear();
+      rqtFieldHits.clear();
+
+      if (counts.size > 0 || totals.size > 0) {
+        await flushIssueScanCounts(installationKey, counts, totals).catch(ignoreWith("scan.count_flush_failed", { workerId }));
+        await flushIssueScanActivity(installationKey, months).catch(ignoreWith("scan.activity_flush_failed", { workerId }));
+      }
+      if (statuses.size > 0) {
+        await flushIssueScanStatusCounts(installationKey, statuses).catch(ignoreWith("scan.status_flush_failed", { workerId }));
+      }
+      if (rqtHits.size > 0) await upsertRqtFieldHits(installationKey, rqtHits).catch(ignoreWith("scan.rqt_field_flush_failed", { workerId }));
+      if (rqtIssues.length > 0) await upsertRqtIssueKeys(installationKey, rqtIssues).catch(ignoreWith("scan.rqt_issue_flush_failed", { workerId }));
+      if (rqtValues.length > 0) await upsertRqtValueIssueKeys(installationKey, rqtValues).catch(ignoreWith("scan.rqt_value_flush_failed", { workerId }));
+      if (rqtFieldIssues.length > 0) await upsertRqtFieldIssueKeys(installationKey, rqtFieldIssues).catch(ignoreWith("scan.rqt_field_issue_flush_failed", { workerId }));
+    }
+
+    // Bounds memory. Slices run in parallel, so an invocation now processes
+    // ISSUE_SCAN_SLICES_PER_WORKER x ISSUE_SCAN_CHUNK_PAGES pages in the wall-clock time one
+    // slice used to take. Without a mid-chunk drain that is the same multiple of buffered
+    // rows held at once.
+    function maybeFlush() {
+      if (pagesSinceFlush < ISSUE_SCAN_FLUSH_EVERY_PAGES) return flushChain;
+      pagesSinceFlush = 0;
+      flushChain = flushChain.then(drainBuffers);
+      return flushChain;
+    }
+
+    async function runSlice(slice) {
+      for (let page = 0; page < ISSUE_SCAN_CHUNK_PAGES; page++) {
+        if (cancelled || slice.done) return;
+
+        if (page > 0 && page % ISSUE_SCAN_CANCEL_CHECK_EVERY_PAGES === 0) {
+          const cancelCheck = await readIssueScanMeta(installationKey);
+          if (cancelCheck?.state === "cancelled") {
+            console.log(`${tag}: scan cancelled`);
+            cancelled = true;
+            return;
           }
-          worker = await updateIssueScanWorker(installationKey, workerId, {
-            status: "building",
-            nextPageToken: currentNextPageToken,
-            processedIssues: Number(worker.processedIssues || 0) + issueCount,
-            processedPages: Number(worker.processedPages || 0) + pageCount,
-            lastError: null,
-          }) || worker;
-          issueCount = 0;
-          pageCount = 0;
-          pendingIssues = 0;
         }
-      }
 
-      if (page > 0 && page % ISSUE_SCAN_CANCEL_CHECK_EVERY_PAGES === 0) {
-        const cancelCheck = await readIssueScanMeta(installationKey);
-        if (cancelCheck?.state === "cancelled") {
-          console.log(`${tag}: scan cancelled`);
-          return;
-        }
-      }
+        const reqBody = {
+          jql: slice.jql,
+          maxResults: ISSUE_SCAN_PAGE_SIZE,
+          fields: scanFields,
+          fieldsByKeys: false,
+        };
+        if (slice.token) reqBody.nextPageToken = slice.token;
 
-      const reqBody = {
-        jql: worker.jqlFilter,
-        maxResults: ISSUE_SCAN_PAGE_SIZE,
-        fields: scanFields,
-        fieldsByKeys: false,
-      };
-      if (currentNextPageToken) reqBody.nextPageToken = currentNextPageToken;
-
-      let data;
-      try {
-        data = await jiraRequest(route`/rest/api/3/search/jql`, {
-          method: "POST",
-          body: JSON.stringify(reqBody),
-        });
-      } catch (searchErr) {
-        const errStr = String(searchErr?.message || searchErr || "");
-        const is400 = errStr.includes("400") || searchErr?.statusCode === 400 || searchErr?.status === 400;
-        if (is400 && currentNextPageToken) {
-          // Cursor token expired — flush buffered data and restart this worker from the beginning
-          console.warn(`${tag}: 400 on paginated search — nextPageToken likely expired; flushing and restarting worker`);
-          await appendIssueScanLogEntry(installationKey, `Worker ${workerId}: page token expired (400), restarting from page 1`).catch(ignoreWith("scan.log_append_failed", { workerId }));
-          if (fieldProjectCounts.size > 0 || projectTotals.size > 0) {
-            await flushIssueScanCounts(installationKey, fieldProjectCounts, projectTotals).catch(ignoreWith("scan.count_flush_failed_on_token_reset", { workerId }));
-            await flushIssueScanActivity(installationKey, projectMonths).catch(ignoreWith("scan.activity_flush_failed_on_token_reset", { workerId }));
-            fieldProjectCounts.clear(); projectTotals.clear(); projectMonths.clear();
+        let data;
+        try {
+          data = await jiraRequest(route`/rest/api/3/search/jql`, {
+            method: "POST",
+            body: JSON.stringify(reqBody),
+          });
+        } catch (searchErr) {
+          const errStr = String(searchErr?.message || searchErr || "");
+          const is400 = errStr.includes("400") || searchErr?.statusCode === 400 || searchErr?.status === 400;
+          if (is400 && slice.token) {
+            // Cursor expired. Restart THIS slice only -- the others hold their own valid
+            // cursors and there is no reason to make them re-crawl. Buffered rows are keyed by
+            // project and re-counted on the retry, which the flush upserts absorb.
+            console.warn(`${tag}: 400 on paginated search for slice ${slice.id} — token expired; restarting that slice`);
+            await appendIssueScanLogEntry(
+              installationKey,
+              `Worker ${workerId} slice ${slice.id}: page token expired (400), restarting that slice from page 1`
+            ).catch(ignoreWith("scan.log_append_failed", { workerId }));
+            slice.token = null;
+            return;
           }
-          if (rqtFieldHits.size > 0) { await upsertRqtFieldHits(installationKey, rqtFieldHits).catch(ignoreWith("scan.rqt_field_flush_failed", { workerId })); rqtFieldHits.clear(); }
-          if (rqtIssueBuffer.length > 0) { await upsertRqtIssueKeys(installationKey, rqtIssueBuffer).catch(ignoreWith("scan.rqt_issue_flush_failed", { workerId })); rqtIssueBuffer.length = 0; }
-          if (rqtValueBuffer.length > 0) { await upsertRqtValueIssueKeys(installationKey, rqtValueBuffer).catch(ignoreWith("scan.rqt_value_flush_failed", { workerId })); rqtValueBuffer.length = 0; }
-          if (rqtFieldIssueBuffer.length > 0) { await upsertRqtFieldIssueKeys(installationKey, rqtFieldIssueBuffer).catch(ignoreWith("scan.rqt_field_issue_flush_failed", { workerId })); rqtFieldIssueBuffer.length = 0; }
-          await updateIssueScanWorker(installationKey, workerId, {
-            status: "queued", nextPageToken: null, lastError: "Page token expired; restarting from beginning",
-          }).catch(ignoreWith("scan.token_reset_write_failed", { workerId }));
-          await queueIssueScanWorker(installationKey, workerId);
-          return;
+          throw searchErr;
         }
-        throw searchErr;
-      }
 
-      const issues = data?.issues || [];
-      const newNextPageToken = data?.nextPageToken || null;
+        const issues = data?.issues || [];
+        const newNextPageToken = data?.nextPageToken || null;
 
       for (const issue of issues) {
         const projectId = String(issue.fields?.project?.id || "");
@@ -643,52 +741,47 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
         }
       }
 
-      pageCount++;
-      issueCount += issues.length;
-      pendingIssues += issues.length;
-      currentNextPageToken = newNextPageToken;
-      if (!newNextPageToken || issues.length === 0) break;
-      await sleep(ISSUE_SCAN_INTER_PAGE_DELAY_MS);
+        pageCount++;
+        issueCount += issues.length;
+        pendingIssues += issues.length;
+        slice.pages = Number(slice.pages || 0) + 1;
+        slice.issues = Number(slice.issues || 0) + issues.length;
+        slice.token = newNextPageToken;
+        pagesSinceFlush++;
+        await maybeFlush();
+
+        if (!newNextPageToken || issues.length === 0) {
+          slice.done = true;
+          return;
+        }
+        await sleep(ISSUE_SCAN_INTER_PAGE_DELAY_MS);
+      }
     }
 
-    if (fieldProjectCounts.size > 0 || projectTotals.size > 0) {
-      await flushIssueScanCounts(installationKey, fieldProjectCounts, projectTotals);
-    }
-    if (statusCounts.size > 0) {
-      // Best-effort, like the RQT flushes below: per-status counts power the insights
-      // view, and losing them must never fail a scan whose primary output is field usage.
-      await flushIssueScanStatusCounts(installationKey, statusCounts).catch((e) => {
-        console.error(`${tag}: status count flush error`, e?.message || e);
-      });
-      statusCounts.clear();
-    }
-    if (rqtFieldHits.size > 0) {
-      await upsertRqtFieldHits(installationKey, rqtFieldHits).catch((e) => {
-        console.error(`${tag}: RQT flush error`, e?.message || e);
-      });
-    }
-    if (rqtIssueBuffer.length > 0) {
-      await upsertRqtIssueKeys(installationKey, rqtIssueBuffer).catch((e) => {
-        console.error(`${tag}: RQT issue key flush error`, e?.message || e);
-      });
-    }
-    if (rqtValueBuffer.length > 0) {
-      await upsertRqtValueIssueKeys(installationKey, rqtValueBuffer).catch((e) => {
-        console.error(`${tag}: RQT value index flush error`, e?.message || e);
-      });
-    }
-    if (rqtFieldIssueBuffer.length > 0) {
-      await upsertRqtFieldIssueKeys(installationKey, rqtFieldIssueBuffer).catch((e) => {
-        console.error(`RQT field issue index flush error`, e?.message || e);
-      });
-    }
+    await Promise.all(slices.filter((slice) => !slice.done).map(runSlice));
+    // Any drain still queued has to land before the checkpoint below, or the worker would
+    // record progress for rows that are still only in memory.
+    await flushChain;
+
+    if (cancelled) return;
+
+
+    // One drain, same code path as the mid-chunk ones. This used to be a second, hand-rolled
+    // copy of the same eight flushes, which is how the two drifted -- the mid-chunk version
+    // never flushed statusCounts.
+    await drainBuffers();
 
     const processedIssues = Number(worker.processedIssues || 0) + issueCount;
     const processedPages = Number(worker.processedPages || 0) + pageCount;
-    const isDone = !currentNextPageToken;
+    // Done only when every slice is done. A worker with one slice still holding a cursor has
+    // more of its own projects to crawl, however finished the others are.
+    const isDone = slices.every((slice) => slice.done);
     await updateIssueScanWorker(installationKey, workerId, {
       status: isDone ? "done" : "queued",
-      nextPageToken: currentNextPageToken,
+      slices,
+      // Kept in step with slice 0 purely so anything still reading the old single-cursor
+      // column sees something coherent. The slices array is the real state.
+      nextPageToken: slices[0]?.token || null,
       processedIssues,
       processedPages,
       lastError: null,

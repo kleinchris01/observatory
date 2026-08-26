@@ -1107,7 +1107,11 @@ const projectStoreMigrations = migrationRunner
   // read anything. Distinct from gadget_count, which is NULL both for "not yet walked" and for
   // "walked and unreadable" -- without this flag the resumable build would keep handing the
   // unreadable ones back to itself and never terminate on a site with one broken dashboard.
-  .enqueue("v098_alter_snapshot_dashboards_add_gadget_walk_done", "ALTER TABLE snapshot_dashboards ADD COLUMN IF NOT EXISTS gadget_walk_done TINYINT NOT NULL DEFAULT 0");
+  .enqueue("v098_alter_snapshot_dashboards_add_gadget_walk_done", "ALTER TABLE snapshot_dashboards ADD COLUMN IF NOT EXISTS gadget_walk_done TINYINT NOT NULL DEFAULT 0")
+  // Per-slice cursors for the issue crawl. A worker used to hold one JQL and one page token,
+  // which meant one request in flight against a concurrency budget of four. Slices are how it
+  // uses the rest; each carries its own query, cursor and done flag.
+  .enqueue("v099_alter_issue_scan_workers_add_slices", "ALTER TABLE issue_scan_workers ADD COLUMN IF NOT EXISTS slices_json LONGTEXT NULL");
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history

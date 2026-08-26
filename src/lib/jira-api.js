@@ -34,6 +34,19 @@ export const FIELD_SUMMARY_QUEUE_STALE_AFTER_MS = 60 * 1000;
 export const FIELD_SUMMARY_BUILD_STALE_AFTER_MS = 5 * 60 * 1000;
 export const ISSUE_SCAN_PAGE_SIZE = 100;      // Jira Cloud cursor-based search caps maxResults at 100
 export const ISSUE_SCAN_WORKERS = 5;          // parallel Forge workers; keep low because each invocation has its own in-memory limiter
+// Independent JQL slices crawled concurrently WITHIN one worker invocation.
+//
+// Pagination is sequential -- page N+1 needs page N's cursor -- so a worker crawling a single
+// JQL keeps exactly one request in flight while BASE_JIRA_CONCURRENCY permits four. That is
+// the whole reason a measured run sat at ~6.9s/page and ~64 issues/sec: five workers against
+// a budget sized for twenty.
+//
+// Three rather than four, deliberately. It leaves a slot for the retry of a slice that 429s
+// instead of putting every slot into steady-state traffic, and each concurrent slice holds its
+// own page of issues plus accumulated buffers, so this multiplies invocation memory as well as
+// throughput. Raise it only with the 429 telemetry from a real run in hand -- getScanTelemetry()
+// reports rl429Count, and that is the number that says whether there is headroom.
+export const ISSUE_SCAN_SLICES_PER_WORKER = 3;
 // Fixed pause between pages per worker. Predates the adaptive limiter, which now handles
 // Jira pressure reactively (widening the request interval on 429s, easing back on success
 // streaks) -- so this is a static tax on top of a system that already self-regulates.
