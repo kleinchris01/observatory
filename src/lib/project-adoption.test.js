@@ -69,9 +69,27 @@ describe("computeProjectAdoption — age and rate", () => {
     expect(Number.isFinite(adoption.issuesPerDay)).toBe(true);
   });
 
-  test("reports fills per issue, which is the configuration cost of one unit of work", () => {
-    const adoption = compute([100], {}, project({ totalIssueCount: 1400 }));
+  test("reports fills per issue against the measured issue count, not the month buckets", () => {
+    // 1,400 field values over 100 measured issues.
+    const adoption = compute([100], {}, project({ totalIssueCount: 1400, uniqueIssueCount: 100 }));
     expect(adoption.fillsPerIssue).toBe(14);
+  });
+
+  // The month buckets are built from creation dates gathered during a crawl and are
+  // legitimately incomplete while one runs, whereas the fills total keeps climbing. Dividing
+  // one by the other mixed two measurements taken at different moments: on a real site it
+  // reported 224.2 field values per issue in a project with 205 fields, which cannot exist.
+  test("does not divide a running fills total by a partial month series", () => {
+    // Months account for 100 issues; the project has actually measured 300.
+    const adoption = compute([100], {}, project({ totalIssueCount: 1400, uniqueIssueCount: 300 }));
+    expect(adoption.fillsPerIssue).toBeCloseTo(1400 / 300, 5);
+  });
+
+  test("reports nothing rather than guessing when the issue count is unmeasured", () => {
+    const adoption = compute([100], {}, project({ totalIssueCount: 1400, uniqueIssueCount: null }));
+    // "We have not counted the issues" is not a number, and inventing one from the month
+    // series is how the wrong figure got there in the first place.
+    expect(adoption.fillsPerIssue).toBeNull();
   });
 });
 

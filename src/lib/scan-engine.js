@@ -27,6 +27,7 @@ import {
   writeIssueScanMeta,
   readIssueScanMeta,
   clearIssueScanBuffer,
+  clearIssueScanBufferForProjects,
   replaceIssueScanWorkers,
   readIssueScanWorker,
   updateIssueScanWorker,
@@ -445,6 +446,7 @@ export function normalizeWorkerSlices(worker) {
       jql: slice.jql,
       token: slice.token || null,
       done: Boolean(slice.done),
+      keys: Array.isArray(slice.keys) ? slice.keys : null,
       pages: Number(slice.pages) || 0,
       issues: Number(slice.issues) || 0,
       // Restarts have to survive the trip through SQL. A slice restarts at most once per
@@ -460,10 +462,16 @@ export function normalizeWorkerSlices(worker) {
   return [{
     id: 0,
     jql: worker.jqlFilter,
+    // No key list on a pre-slice worker row, so a restart cannot delete its own contribution
+    // exactly. runSlice checks for this and declines to re-crawl rather than double-counting.
+    keys: null,
     token: worker.nextPageToken || null,
     done: false,
     pages: Number(worker.processedPages) || 0,
     issues: Number(worker.processedIssues) || 0,
+    // Same shape as a stored slice, so the crawl has one slice type and not two.
+    restarts: 0,
+    abandoned: false,
   }];
 }
 
@@ -492,6 +500,10 @@ export function sliceProjectKeys(keys, issueCountByKey, sliceCount) {
     .filter((bin) => bin.keys.length > 0)
     .map((bin, id) => ({
       id,
+      // Carried alongside the JQL, not parsed back out of it when needed. A restarting slice
+      // has to delete exactly what it contributed, and slices own disjoint projects, so the
+      // key list IS that contribution.
+      keys: bin.keys,
       jql: `project IN (${bin.keys.map((k) => `"${k}"`).join(", ")})`,
       token: null,
       done: false,
@@ -697,11 +709,37 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
               return;
             }
 
+            // Re-crawling double-counts unless what this slice already contributed is
+            // removed first. The count flush is additive --
+            // `issue_count = issue_count + VALUES(issue_count)` -- so a page counted twice is
+            // counted twice, and the result is a project reporting more field values per issue
+            // than it has fields. Slices own disjoint projects, so deleting the buffer rows
+            // for this slice's keys removes exactly its contribution and nobody else's.
+            //
+            // Without a key list -- a worker row written before slices existed -- that
+            // subtraction cannot be made exact, so the slice stops here instead. Losing the
+            // rest of one slice's coverage is recoverable and visible. Silently inflated
+            // counts are neither.
+            if (!Array.isArray(slice.keys) || slice.keys.length === 0) {
+              slice.done = true;
+              slice.abandoned = true;
+              await appendIssueScanLogEntry(
+                installationKey,
+                `Worker ${workerId}: search rejected (400) and this worker predates per-slice tracking, so it cannot restart without double-counting — stopping it instead. Start a fresh scan to recrawl these projects.`
+              ).catch(ignoreWith("scan.log_append_failed", { workerId }));
+              return;
+            }
+
+            await clearIssueScanBufferForProjects(installationKey, slice.keys)
+              .catch(ignoreWith("scan.buffer_clear_failed", { workerId, sliceId: slice.id }));
+
             await appendIssueScanLogEntry(
               installationKey,
-              `Worker ${workerId} slice ${slice.id}: search rejected (400)${slice.token ? ", page token likely expired" : ""} — restarting that slice from page 1 (attempt ${slice.restarts})`
+              `Worker ${workerId} slice ${slice.id}: search rejected (400)${slice.token ? ", page token likely expired" : ""} — cleared its counts and restarting from page 1 (attempt ${slice.restarts})`
             ).catch(ignoreWith("scan.log_append_failed", { workerId }));
             slice.token = null;
+            slice.pages = 0;
+            slice.issues = 0;
             return;
           }
           throw searchErr;

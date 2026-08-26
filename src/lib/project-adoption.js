@@ -157,8 +157,27 @@ export function computeProjectAdoption(project, activity, { now = Date.now(), re
   // Field values written per issue. The configuration cost of one unit of work, which is
   // what makes a heavily-configured project with little work expensive rather than merely
   // untidy.
+  //
+  // Divided by the project's MEASURED distinct-issue count, not by the sum of the monthly
+  // buckets above. The buckets come from issue creation dates gathered during a crawl and are
+  // legitimately incomplete while one is running, whereas `fills` is a running total. Dividing
+  // one by the other mixes two measurements taken at different moments and inflates the answer
+  // without saying so.
+  //
+  // On a real site that read 224.2 "field values written per issue" in a project with 205
+  // fields in use -- a ratio that cannot exist, because an issue cannot carry more values than
+  // there are fields to carry them. The same page showed 74.3 two tiles below, computed
+  // against the distinct-issue count, which was right. Two denominators, one numerator, no
+  // indication which to believe.
+  //
+  // Null when the distinct count has not been measured. "We have not counted the issues" is
+  // not a number, and inventing one from a partial month series is how the wrong figure got
+  // there in the first place.
   const fills = Number(project?.totalIssueCount) || 0;
-  const fillsPerIssue = totalIssues > 0 ? fills / totalIssues : null;
+  const measuredIssues = Number(project?.uniqueIssueCount);
+  const fillsPerIssue = Number.isFinite(measuredIssues) && measuredIssues > 0
+    ? fills / measuredIssues
+    : null;
 
   return {
     projectId: project?.projectId ?? null,

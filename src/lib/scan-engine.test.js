@@ -51,6 +51,7 @@ vi.mock("./project-store.js", () => ({
   writeIssueScanMeta: vi.fn().mockResolvedValue(undefined),
   readIssueScanMeta: vi.fn().mockResolvedValue(null),
   clearIssueScanBuffer: vi.fn().mockResolvedValue(undefined),
+  clearIssueScanBufferForProjects: vi.fn().mockResolvedValue({ cleared: 0 }),
   replaceIssueScanWorkers: vi.fn().mockResolvedValue(undefined),
   readIssueScanWorker: vi.fn().mockResolvedValue(null),
   updateIssueScanWorker: vi.fn().mockResolvedValue(undefined),
@@ -974,7 +975,19 @@ describe("normalizeWorkerSlices", () => {
     });
 
     expect(slices).toEqual([
-      { id: 0, jql: 'project IN ("ALPHA")', token: "cursor-abc", done: false, pages: 7, issues: 700 },
+      {
+        id: 0,
+        jql: 'project IN ("ALPHA")',
+        // No key list: a pre-slice row cannot say which projects it contributed counts for,
+        // which is why a restart on one declines to re-crawl rather than double-counting.
+        keys: null,
+        token: "cursor-abc",
+        done: false,
+        pages: 7,
+        issues: 700,
+        restarts: 0,
+        abandoned: false,
+      },
     ]);
   });
 
@@ -1004,6 +1017,10 @@ describe("normalizeWorkerSlices", () => {
 // defect, and it is the reason no universe scan on that site has ever completed.
 describe("scan resilience", () => {
   async function runWorkerWith({ workerRow, jiraImpl }) {
+    // Cleared per case, not per file. Without this the previous test's calls are still on the
+    // mocks and any "was not called" assertion reads the one before it -- the same bleed that
+    // "Queue full" caused, arriving from the other direction.
+    vi.clearAllMocks();
     const store = await getProjectStoreMock();
     const jiraApi = await getJiraApiMock();
     store.readIssueScanMeta.mockResolvedValue({ state: "building" });
@@ -1034,9 +1051,11 @@ describe("scan resilience", () => {
     expect(workerWrites.some((w) => w.status === "failed")).toBe(false);
   });
 
-  test("says which slice was refused, and whether it had a cursor", async () => {
+  test("says which slice was refused, and clears its counts before recrawling", async () => {
     const { store } = await runWorkerWith({
-      workerRow: worker({ nextPageToken: "cursor-1" }),
+      workerRow: worker({
+        slices: [{ id: 0, jql: 'project IN ("ALPHA")', keys: ["ALPHA"], token: "cursor-1", done: false }],
+      }),
       jiraImpl: async () => { const e = new Error("400 Bad Request"); e.status = 400; throw e; },
     });
 
@@ -1045,6 +1064,22 @@ describe("scan resilience", () => {
     // diagnosable. The entry now names the slice and the attempt.
     expect(logged).toMatch(/search rejected \(400\)/);
     expect(logged).toMatch(/attempt 1/);
+
+    // And the counts this slice already contributed are removed first. The flush is additive,
+    // so recrawling without this reports more field values per issue than a project has fields.
+    expect(store.clearIssueScanBufferForProjects).toHaveBeenCalledWith(INSTALLATION_KEY, ["ALPHA"]);
+  });
+
+  test("refuses to recrawl a worker that cannot say what it contributed", async () => {
+    const { store } = await runWorkerWith({
+      // A pre-slice worker row: one JQL, one cursor, no key list.
+      workerRow: worker({ nextPageToken: "cursor-1" }),
+      jiraImpl: async () => { const e = new Error("400 Bad Request"); e.status = 400; throw e; },
+    });
+
+    const logged = store.appendIssueScanLogEntry.mock.calls.map((c) => c[1]).join(" | ");
+    expect(logged).toMatch(/cannot restart without double-counting/);
+    expect(store.clearIssueScanBufferForProjects).not.toHaveBeenCalled();
   });
 
   test("gives up on one slice rather than looping on it forever", async () => {
