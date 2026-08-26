@@ -1,6 +1,6 @@
 import React from "react";
-import { describe, test, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, waitFor, within, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { invoke } from "@forge/bridge";
 import { FiltersTab, filterRows, sortFilters, FILTER_FINDINGS } from "./FiltersTab";
@@ -28,6 +28,22 @@ const filter = (over = {}) => ({
   ...over,
 });
 
+// The three rows a real inventory yields once filtered/sorted server-side. Named apart from
+// the fixture below because several tests need to reference the un-paginated set directly --
+// the whole point of these tests is that the tab renders whatever page the server sent it,
+// rather than filtering a full list it no longer holds.
+const allThreeFilters = [
+  filter({ id: "1", name: "Open bugs" }),
+  { ...filter({ id: "2", name: "Orphan", owner: null, ownerActive: null }),
+    findings: [{ code: "orphaned-owner", severity: "high", detail: "The owning account no longer exists." }] },
+  filter({ id: "3", name: "Everyone", sharedWithEveryone: true }),
+];
+
+// Matches the real getFilterInventory contract: `filters` is the CURRENT PAGE, already
+// filtered and sorted by the server, and `matchedTotal`/`findingCounts`/`totalPages` describe
+// the whole matched set rather than being derivable from the page alone. There is no
+// `allFilters` any more -- shipping the whole inventory in one response is the bug this
+// contract exists to fix.
 const inventory = (over = {}) => ({
   available: true, state: "ready", version: "v1",
   refreshedAt: "2026-08-20T00:00:00.000Z",
@@ -41,14 +57,12 @@ const inventory = (over = {}) => ({
     filters: [{ id: "1", name: "Mine", ownerName: "Bob" }, { id: "2", name: "Yours", ownerName: "Ann" }],
   }],
   brokenProjects: [{ id: "9", name: "Ghost filter", ownerName: "Bob", missing: ["GHOST"] }],
-  filters: [
-    { ...filter({ id: "2", name: "Orphan" }), findings: [{ code: "orphaned-owner", severity: "high", detail: "The owning account no longer exists." }] },
-  ],
-  allFilters: [
-    filter({ id: "1", name: "Open bugs" }),
-    filter({ id: "2", name: "Orphan", owner: null, ownerActive: null }),
-    filter({ id: "3", name: "Everyone", sharedWithEveryone: true }),
-  ],
+  findingCounts: { all: 3, "orphaned-owner": 1, "shared-with-everyone": 1, "subscribed-but-unused": 0, stale: 0 },
+  matchedTotal: 3,
+  page: 1,
+  pageSize: 25,
+  totalPages: 1,
+  filters: allThreeFilters,
   health: { available: true, defectRate: 0.1 },
   ...over,
 });
@@ -148,12 +162,18 @@ describe("FiltersTab", () => {
     expect(container.querySelector(".filter-row__refs").textContent).toContain("depends on");
   });
 
-  test("narrows to a finding when opened from the Overview", async () => {
+  // Narrowing is now the server's job -- the tab holds one page, not the whole inventory to
+  // filter locally. So what an intent from the Overview does is pass `finding` through to the
+  // resolver call, and the assertion has to be on that call rather than on rendered rows: a
+  // static mock response can't demonstrate server-side narrowing by itself.
+  test("passes the finding from an Overview intent through to the resolver", async () => {
     route({ getFilterInventory: inventory() });
-    const { container } = render(<FiltersTab intent={{ view: "filters", finding: "orphaned-owner" }} />);
+    render(<FiltersTab intent={{ view: "filters", finding: "orphaned-owner" }} />);
 
-    await waitFor(() => expect(container.querySelectorAll(".filter-row").length).toBe(1));
-    expect(container.querySelector(".filter-row__name").textContent).toBe("Orphan");
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith(
+      "getFilterInventory",
+      expect.objectContaining({ finding: "orphaned-owner" })
+    ));
   });
 
   test("opens the duplicates view from an intent", async () => {
@@ -207,6 +227,122 @@ describe("FiltersTab", () => {
     await user.click(screen.getByRole("button", { name: /rebuild/i }));
 
     expect(await screen.findByText(/Read-only mode is enabled/)).toBeInTheDocument();
+  });
+});
+
+// The reason this pillar's tab has any of this: 4,115 filters on a real site overflowed
+// Forge's response payload limit when the whole inventory was shipped in one call. Search,
+// sort, the finding filter and pagination all moved to the server as a result, so what has to
+// be pinned here is that the TAB actually asks the server for them, rather than quietly
+// re-filtering a full list it no longer has.
+describe("server-side search, sort, and paging", () => {
+  beforeEach(() => {
+    // shouldAdvanceTime keeps real wall-clock time moving for Testing Library's own
+    // findBy*/waitFor polling, while still letting the debounce timer be advanced exactly and
+    // deterministically with vi.advanceTimersByTime -- without it the two fight over the same
+    // clock and every findBy* call times out waiting on a clock nothing is moving.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  test("debounces the search box rather than sending a request per keystroke", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    route({ getFilterInventory: inventory() });
+    render(<FiltersTab />);
+    await screen.findByRole("heading", { name: "Saved filters" });
+    invoke.mockClear();
+
+    await user.type(screen.getByPlaceholderText(/Name, owner, or anything in the query/i), "open");
+
+    // Nothing sent yet -- still inside the debounce window.
+    expect(invoke).not.toHaveBeenCalled();
+
+    act(() => { vi.advanceTimersByTime(350); });
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith(
+      "getFilterInventory",
+      expect.objectContaining({ search: "open" })
+    ));
+    // One request for the whole word, not one per character.
+    const searchCalls = invoke.mock.calls.filter(
+      ([name, args]) => name === "getFilterInventory" && args?.search
+    );
+    expect(searchCalls).toHaveLength(1);
+  });
+
+  test("returns to page 1 when the search settles, so a stale page number is not reused", async () => {
+    route({ getFilterInventory: inventory({ page: 2 }) });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<FiltersTab />);
+    await screen.findByRole("heading", { name: "Saved filters" });
+    invoke.mockClear();
+
+    await user.type(screen.getByPlaceholderText(/Name, owner, or anything in the query/i), "x");
+    act(() => { vi.advanceTimersByTime(350); });
+
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith(
+      "getFilterInventory",
+      expect.objectContaining({ page: 1 })
+    ));
+  });
+
+  test("asks for the next page rather than slicing a list it does not hold", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    route({ getFilterInventory: inventory({ matchedTotal: 60, totalPages: 3 }) });
+    render(<FiltersTab />);
+    await screen.findByRole("heading", { name: "Saved filters" });
+    invoke.mockClear();
+
+    await user.click(screen.getByRole("button", { name: "Next" }));
+
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith(
+      "getFilterInventory",
+      expect.objectContaining({ page: 2 })
+    ));
+  });
+
+  // The rail has to describe the WHOLE matched set, not the page in hand -- a page can hold
+  // zero of a kind that exists hundreds of times elsewhere in the inventory. Proven here with
+  // findingCounts that deliberately disagree with what the delivered page contains: if the
+  // rail were counting the page instead of trusting the server's numbers, this would render 0.
+  test("renders finding-rail counts from the server, not by counting the current page", async () => {
+    route({ getFilterInventory: inventory({
+      filters: [filter({ id: "9", name: "CleanPageOnly", findings: [] })],
+      findingCounts: { all: 400, "orphaned-owner": 37, "shared-with-everyone": 12, "subscribed-but-unused": 0, stale: 5 },
+    }) });
+    render(<FiltersTab />);
+
+    const button = await screen.findByRole("button", { name: /No live owner/i });
+    expect(within(button).getByText("37")).toBeInTheDocument();
+  });
+
+  test("clicking a finding rail button asks the server for that finding", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    route({ getFilterInventory: inventory() });
+    render(<FiltersTab />);
+    await screen.findByRole("heading", { name: "Saved filters" });
+    invoke.mockClear();
+
+    await user.click(screen.getByRole("button", { name: /Shared with everyone/i }));
+
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith(
+      "getFilterInventory",
+      expect.objectContaining({ finding: "shared-with-everyone" })
+    ));
+  });
+
+  test("never asks for the whole inventory in one call", async () => {
+    route({ getFilterInventory: inventory() });
+    render(<FiltersTab />);
+    await screen.findByRole("heading", { name: "Saved filters" });
+
+    // The overflow this contract exists to prevent: a call with no bound on how many rows
+    // come back. Every call must carry a pageSize.
+    for (const [name, args] of invoke.mock.calls) {
+      if (name === "getFilterInventory") expect(args).toHaveProperty("pageSize");
+    }
   });
 });
 

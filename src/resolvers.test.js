@@ -51,6 +51,9 @@ const mocks = vi.hoisted(() => ({
   loadFilters: vi.fn(async () => []),
   readFilterSnapshotMeta: vi.fn(async () => null),
   readFullScanMeta: vi.fn(async () => null),
+  loadDashboardsForFilters: vi.fn(async () => []),
+  loadFieldNamesForFilterIds: vi.fn(async () => new Map()),
+  countGadgetConfigCoverage: vi.fn(async () => ({ total: 0, walked: 0 })),
   pruneFilterSnapshots: vi.fn(),
   pruneDashboardSnapshots: vi.fn(),
   clearFilterSnapshotVersion: vi.fn(),
@@ -241,6 +244,9 @@ vi.mock("./lib/project-store.js", () => ({
   loadFilters: mocks.loadFilters,
   readFilterSnapshotMeta: mocks.readFilterSnapshotMeta,
   readFullScanMeta: mocks.readFullScanMeta,
+  loadDashboardsForFilters: mocks.loadDashboardsForFilters,
+  loadFieldNamesForFilterIds: mocks.loadFieldNamesForFilterIds,
+  countGadgetConfigCoverage: mocks.countGadgetConfigCoverage,
   pruneFilterSnapshots: mocks.pruneFilterSnapshots,
   pruneDashboardSnapshots: mocks.pruneDashboardSnapshots,
   clearFilterSnapshotVersion: mocks.clearFilterSnapshotVersion,
@@ -409,6 +415,7 @@ const {
   buildFilterInventory,
   startFullSiteScan,
   getFullScanStatus,
+  getDashboardUsage,
   getFilterUsage,
   getFieldFilterCounts,
   getDashboardInventory,
@@ -4681,6 +4688,81 @@ describe("getStatusAutomationUsage", () => {
 // The one-click entry point. The orchestrator behind it is tested in full-scan-runner.test.js;
 // what matters here is that the resolver refuses when it should and reports enough for the tab
 // to render the stage list before a scan has ever run.
+// Which dashboards break if a field goes.
+//
+// Resolved as a chain -- field -> filters naming it -> gadgets showing those filters ->
+// dashboards carrying those gadgets -- because every leg is an exact join. The cheap version
+// matches gadget titles against filter names, which is right most of the time, and the case it
+// gets wrong is somebody's wall-screen going blank on Monday.
+describe("getDashboardUsage", () => {
+  beforeEach(() => {
+    mocks.readDashboardSnapshotMeta.mockResolvedValue({ version: "d1", state: "ready" });
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "f1", state: "ready" });
+    mocks.loadFilterReferencesFor.mockResolvedValue({ total: 1, filters: [{ id: "500", name: "Open bugs" }] });
+    mocks.countGadgetConfigCoverage.mockResolvedValue({ total: 40, walked: 40 });
+    mocks.loadDashboardsForFilters.mockResolvedValue([
+      { filterId: "500", dashboardId: "9", dashboardName: "Delivery", gadgetTitle: "Open bugs", ownerName: "Bob", popularity: 12, viewUrl: null },
+    ]);
+  });
+
+  test("walks field to filter to gadget to dashboard", async () => {
+    const result = await getDashboardUsage({ payload: { label: "Story Points" }, context: ctxWithAccount() });
+
+    expect(mocks.loadFilterReferencesFor).toHaveBeenCalledWith("test-install", "f1", "field", "Story Points");
+    expect(mocks.loadDashboardsForFilters).toHaveBeenCalledWith("test-install", "d1", ["500"]);
+    expect(result).toMatchObject({ available: true, total: 1, viaFilters: 1, complete: true });
+    // WHERE on the dashboard, not just which dashboard.
+    expect(result.dashboards[0].via[0]).toMatchObject({ gadgetTitle: "Open bugs", filterName: "Open bugs" });
+  });
+
+  test("counts a dashboard once even when several gadgets reach it", async () => {
+    mocks.loadDashboardsForFilters.mockResolvedValue([
+      { filterId: "500", dashboardId: "9", dashboardName: "Delivery", gadgetTitle: "Open bugs", popularity: 3 },
+      { filterId: "500", dashboardId: "9", dashboardName: "Delivery", gadgetTitle: "Bug trend", popularity: 3 },
+    ]);
+
+    const result = await getDashboardUsage({ payload: { label: "Story Points" }, context: ctxWithAccount() });
+
+    // Two gadgets on one dashboard is one dashboard at risk, not two findings.
+    expect(result.total).toBe(1);
+    expect(result.dashboards[0].via).toHaveLength(2);
+  });
+
+  // Which half is missing changes what an admin has to do, so they are reported apart rather
+  // than collapsed into one "unavailable".
+  test("says which inventory is missing, not just that one is", async () => {
+    mocks.readDashboardSnapshotMeta.mockResolvedValue(null);
+    expect(await getDashboardUsage({ payload: { label: "X" }, context: ctxWithAccount() }))
+      .toMatchObject({ available: false, reason: "no-dashboard-inventory" });
+
+    mocks.readDashboardSnapshotMeta.mockResolvedValue({ version: "d1" });
+    mocks.readFilterSnapshotMeta.mockResolvedValue(null);
+    expect(await getDashboardUsage({ payload: { label: "X" }, context: ctxWithAccount() }))
+      .toMatchObject({ available: false, reason: "no-filter-inventory" });
+  });
+
+  test("marks the answer incomplete when the gadget config walk has not finished", async () => {
+    mocks.countGadgetConfigCoverage.mockResolvedValue({ total: 40, walked: 12 });
+    mocks.loadFilterReferencesFor.mockResolvedValue({ total: 0, filters: [] });
+
+    const result = await getDashboardUsage({ payload: { label: "Story Points" }, context: ctxWithAccount() });
+
+    // Zero dashboards from a partial walk is not "no dashboard uses this field" -- and that
+    // sentence is what somebody deletes a field on.
+    expect(result).toMatchObject({ total: 0, complete: false });
+    expect(result.coverage).toMatchObject({ total: 40, walked: 12 });
+  });
+
+  test("does not query dashboards when no filter names the field", async () => {
+    mocks.loadFilterReferencesFor.mockResolvedValue({ total: 0, filters: [] });
+
+    const result = await getDashboardUsage({ payload: { label: "Unused" }, context: ctxWithAccount() });
+
+    expect(result).toMatchObject({ available: true, total: 0, complete: true });
+    expect(mocks.loadDashboardsForFilters).not.toHaveBeenCalled();
+  });
+});
+
 describe("startFullSiteScan / getFullScanStatus", () => {
   beforeEach(() => {
     mocks.kvsGet.mockResolvedValue(null);
@@ -4759,9 +4841,35 @@ describe("getFilterInventory", () => {
     expect(result.available).toBe(true);
     expect(result.total).toBe(2);
     expect(result.orphanedCount).toBe(1);
-    // The whole list travels, because the tab filters over it client-side rather than
-    // re-querying on every keystroke.
-    expect(result.allFilters).toHaveLength(2);
+    // Paged now, not the whole inventory. 4,115 filters on a real site overflowed Forge's
+    // response payload limit when the entire analyzed list was sent in one call.
+    expect(result.filters).toHaveLength(2);
+    expect(result.matchedTotal).toBe(2);
+    expect(result.page).toBe(1);
+    expect(result.totalPages).toBe(1);
+  });
+
+  test("attaches findings to every row, not only the ones the summary flagged", async () => {
+    // Two clean filters plus the one the fixture already flags -- every row in the RESPONSE
+    // must carry a findings array, or the rail's finding filter has nothing to match against
+    // for the clean ones.
+    mocks.loadFilters.mockResolvedValue([
+      filterRow({ id: "1" }),
+      filterRow({ id: "3", name: "Also clean" }),
+    ]);
+
+    const result = await getFilterInventory({ payload: {}, context: ctxWithAccount() });
+    expect(result.filters.every((f) => Array.isArray(f.findings))).toBe(true);
+    expect(result.filters.find((f) => f.id === "1").findings).toEqual([]);
+  });
+
+  test("does not ship the whole inventory under a second name", async () => {
+    // The old response carried BOTH `allFilters` (every filter, full row) and, via
+    // `...summary`, `filters` (summarizeFilters' own unbounded worst-first list for the
+    // Overview's top-8 panel) -- every flagged filter's full row sent twice, under two
+    // different keys, which is what helped overflow the payload at 4,115 filters.
+    const result = await getFilterInventory({ payload: {}, context: ctxWithAccount() });
+    expect(result).not.toHaveProperty("allFilters");
   });
 
   // A build hard-killed at the invocation ceiling leaves the row saying "building" with no
@@ -4832,6 +4940,107 @@ describe("getFilterInventory", () => {
     const result = await getFilterInventory({ payload: {}, context: ctxWithAccount() });
 
     expect(result.lastError).toMatch(/401/);
+  });
+});
+
+// The reason any of this exists: 4,115 filters on a real site overflowed Forge's response
+// payload limit when the whole inventory was sent in one call. Search, sort, the finding
+// filter and pagination all moved server-side as a result -- this is what has to hold for
+// that to actually bound the response regardless of estate size.
+describe("getFilterInventory paging", () => {
+  const filterRow = (over = {}) => ({
+    id: "1", name: "Open bugs", jql: "project = ADVEV AND status = Open",
+    owner: { accountId: "a1", displayName: "Bob", active: true },
+    ownerName: "Bob", ownerActive: true,
+    shares: [], sharedWithEveryone: false, shareCount: 0,
+    subscriptionCount: 0, lastUsedAt: new Date().toISOString(),
+    fieldRefs: ["project", "status"], projectRefs: ["ADVEV"], statusRefs: ["Open"],
+    ...over,
+  });
+
+  beforeEach(() => {
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready" });
+    mocks.readSnapshotMeta.mockResolvedValue(null);
+    // A page's worth of distinct, findable rows.
+    mocks.loadFilters.mockResolvedValue(
+      Array.from({ length: 30 }, (_, i) => filterRow({
+        id: String(i + 1),
+        name: i === 0 ? "Special one" : `Filter ${i + 1}`,
+        owner: i === 5 ? null : { accountId: "a1", displayName: "Bob", active: true },
+        ownerName: i === 5 ? null : "Bob",
+        ownerActive: i === 5 ? null : true,
+      }))
+    );
+  });
+
+  test("never returns more rows than pageSize, however large the inventory is", async () => {
+    const result = await getFilterInventory({ payload: { pageSize: 10 }, context: ctxWithAccount() });
+
+    expect(result.filters).toHaveLength(10);
+    expect(result.matchedTotal).toBe(30);
+    expect(result.totalPages).toBe(3);
+  });
+
+  test("defaults to a bounded page size when none is given", async () => {
+    const result = await getFilterInventory({ payload: {}, context: ctxWithAccount() });
+    expect(result.filters.length).toBeLessThanOrEqual(25);
+  });
+
+  // Matches getFieldInventory's own convention: this resolver is called only by Observatory's
+  // own frontend, so an out-of-range pageSize is a bug in that caller, not untrusted input to
+  // defend against silently. Throwing loudly surfaces the bug where it was introduced instead
+  // of masking it behind a clamp that quietly does something the caller never asked for.
+  test("rejects a pageSize outside the allowed range rather than silently clamping it", async () => {
+    await expect(getFilterInventory({ payload: { pageSize: 100000 }, context: ctxWithAccount() }))
+      .rejects.toThrow(/pageSize/);
+  });
+
+  test("searches name and jql server-side", async () => {
+    const result = await getFilterInventory({ payload: { search: "Special" }, context: ctxWithAccount() });
+    expect(result.filters).toHaveLength(1);
+    expect(result.filters[0].name).toBe("Special one");
+    expect(result.matchedTotal).toBe(1);
+  });
+
+  test("narrows to a finding server-side", async () => {
+    const result = await getFilterInventory({ payload: { finding: "orphaned-owner" }, context: ctxWithAccount() });
+    // Only row index 5 (owner: null) has the orphaned-owner finding.
+    expect(result.matchedTotal).toBe(1);
+    expect(result.filters).toHaveLength(1);
+  });
+
+  test("sorts server-side and returns pages in that order", async () => {
+    const first = await getFilterInventory({ payload: { sort: "name", pageSize: 5 }, context: ctxWithAccount() });
+    const names = first.filters.map((f) => f.name);
+    expect(names).toEqual([...names].sort());
+  });
+
+  test("falls back to the default sort for an unrecognised value, rather than erroring", async () => {
+    const result = await getFilterInventory({ payload: { sort: "definitely-not-a-real-sort" }, context: ctxWithAccount() });
+    expect(result.available).toBe(true);
+  });
+
+  // The rail describes the WHOLE matched set, not the current page -- a page can hold zero
+  // of a kind that exists dozens of times in the estate.
+  test("finding-rail counts describe the whole inventory, not the current page", async () => {
+    const result = await getFilterInventory({ payload: { finding: "orphaned-owner", pageSize: 1 }, context: ctxWithAccount() });
+    // The page holds exactly the one orphaned filter, but "all" must still count all 30.
+    expect(result.findingCounts.all).toBe(30);
+    expect(result.findingCounts["orphaned-owner"]).toBe(1);
+  });
+
+  test("page beyond the last available clamps rather than returning nothing silently unexplained", async () => {
+    const result = await getFilterInventory({ payload: { page: 999, pageSize: 10 }, context: ctxWithAccount() });
+    expect(result.page).toBe(result.totalPages);
+    expect(result.filters.length).toBeGreaterThan(0);
+  });
+
+  test("matchedTotal is independent of the whole-inventory total", async () => {
+    const result = await getFilterInventory({ payload: { search: "Special" }, context: ctxWithAccount() });
+    // 1 filter matches the search, but the inventory holds 30 -- the headline stat and the
+    // search result count must not collapse into the same number.
+    expect(result.matchedTotal).toBe(1);
+    expect(result.total).toBe(30);
   });
 });
 
@@ -5103,6 +5312,76 @@ describe("getDashboardInventory", () => {
     mocks.readDashboardSnapshotMeta.mockResolvedValue({ version: null, state: "failed", lastError: "401 scope does not match" });
     const result = await getDashboardInventory({ context: ctxWithAccount() });
     expect(result.lastError).toMatch(/401/);
+  });
+});
+
+// What a dashboard depends on, resolved through the gadget -> filter join done at build
+// time and the filter -> field join done here. The field card runs the same chain in reverse
+// ("which dashboards use this field"); this is the other direction, and both have to agree
+// because they read from the same tables.
+describe("getDashboardInventory field dependencies", () => {
+  const row = (over = {}) => ({
+    id: "1", name: "Delivery overview",
+    owner: { accountId: "a1", displayName: "Bob", active: true },
+    ownerName: "Bob", ownerActive: true,
+    shares: [], editShares: [], sharedWithEveryone: false, editableByEveryone: false,
+    popularity: 4, gadgetCount: 1, shareCount: 0,
+    gadgets: [{ id: "g1", title: "Open bugs", filterId: "500" }],
+    ...over,
+  });
+
+  test("attaches the fields a dashboard depends on via its gadgets' filters", async () => {
+    mocks.readDashboardSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready" });
+    mocks.loadDashboards.mockResolvedValue([row()]);
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "f1", state: "ready" });
+    mocks.loadFieldNamesForFilterIds.mockResolvedValue(new Map([["500", ["Story Points", "Status"]]]));
+
+    const result = await getDashboardInventory({ context: ctxWithAccount() });
+
+    expect(mocks.loadFieldNamesForFilterIds).toHaveBeenCalledWith("test-install", "f1", ["500"]);
+    expect(result.allDashboards[0].fieldRefs).toEqual(["Status", "Story Points"]);
+    expect(result.fieldRefsAvailable).toBe(true);
+  });
+
+  test("unions fields across a dashboard's several gadgets without duplicates", async () => {
+    mocks.readDashboardSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready" });
+    mocks.loadDashboards.mockResolvedValue([row({
+      gadgets: [{ id: "g1", filterId: "500" }, { id: "g2", filterId: "501" }],
+    })]);
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "f1", state: "ready" });
+    mocks.loadFieldNamesForFilterIds.mockResolvedValue(new Map([
+      ["500", ["Story Points"]],
+      ["501", ["Story Points", "Assignee"]],
+    ]));
+
+    const result = await getDashboardInventory({ context: ctxWithAccount() });
+    expect(result.allDashboards[0].fieldRefs).toEqual(["Assignee", "Story Points"]);
+  });
+
+  // Tri-state: no filter inventory means the join could not run, which is a different fact
+  // from a dashboard whose gadgets reference nothing.
+  test("reports fields as unmeasured, not empty, when no filter inventory exists", async () => {
+    mocks.readDashboardSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready" });
+    mocks.loadDashboards.mockResolvedValue([row()]);
+    mocks.readFilterSnapshotMeta.mockResolvedValue(null);
+
+    const result = await getDashboardInventory({ context: ctxWithAccount() });
+
+    expect(result.allDashboards[0].fieldRefs).toBeNull();
+    expect(result.fieldRefsAvailable).toBe(false);
+    expect(mocks.loadFieldNamesForFilterIds).not.toHaveBeenCalled();
+  });
+
+  test("reports an empty list, not null, when the inventory exists but nothing is referenced", async () => {
+    mocks.readDashboardSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready" });
+    mocks.loadDashboards.mockResolvedValue([row({ gadgets: [{ id: "g1", filterId: null }] })]);
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "f1", state: "ready" });
+
+    const result = await getDashboardInventory({ context: ctxWithAccount() });
+
+    expect(result.allDashboards[0].fieldRefs).toEqual([]);
+    expect(result.fieldRefsAvailable).toBe(true);
+    expect(mocks.loadFieldNamesForFilterIds).not.toHaveBeenCalled();
   });
 });
 

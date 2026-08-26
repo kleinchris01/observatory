@@ -932,6 +932,64 @@ export async function getDashboardPage(startAt = 0, maxResults = 50) {
   );
 }
 
+// What a gadget is configured to show.
+//
+// Two calls, because Jira models gadget config as arbitrary item properties: one to list the
+// keys, one to read a value. There is no bulk form and no way to ask for "the filter this
+// gadget uses" directly.
+//
+// Returns the referenced filter id, or null. Only the keys that actually carry one are read --
+// a gadget can have half a dozen properties recording column widths and refresh intervals,
+// and fetching those would double the cost of the walk for nothing.
+export async function getGadgetFilterId(dashboardId, gadgetId) {
+  const keyList = await jiraRequest(
+    route`/rest/api/3/dashboard/${dashboardId}/items/${gadgetId}/properties`
+  );
+  const keys = (keyList?.keys || []).map((k) => k?.key).filter(Boolean);
+
+  // "config" is where the standard Jira gadgets keep it. The others are what the common
+  // first-party gadgets have been observed to use.
+  const candidates = keys.filter((k) => /^(config|filter|filterId|savedFilter)$/i.test(k));
+
+  for (const key of candidates) {
+    const prop = await jiraRequest(
+      route`/rest/api/3/dashboard/${dashboardId}/items/${gadgetId}/properties/${key}`
+    );
+    const id = extractFilterId(prop?.value);
+    if (id) return id;
+  }
+  return null;
+}
+
+// A filter id out of a gadget config blob.
+//
+// Jira gadgets record this inconsistently: some store a bare id, some an object with
+// `filterId`, some a string like "filter-10123" or a full JQL-search URL. Exported so the
+// shapes can be tested without a Jira, because a parser that silently returns null for a shape
+// nobody anticipated produces a dependency graph with quiet holes in it.
+export function extractFilterId(value) {
+  if (value == null) return null;
+  if (typeof value === "number") return String(value);
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (/^\d+$/.test(trimmed)) return trimmed;
+    const tagged = trimmed.match(/(?:filter[-_]?|filterId=|requestId=)(\d+)/i);
+    return tagged ? tagged[1] : null;
+  }
+
+  if (typeof value === "object") {
+    // "config" is a container rather than a value: several gadgets nest the real config one
+    // level down under it, and a walker that only looked at value-shaped keys returned null
+    // for those -- a quiet hole in the dependency graph rather than a visible failure.
+    for (const key of ["filterId", "filter", "id", "savedFilterId", "requestId", "config"]) {
+      const nested = extractFilterId(value[key]);
+      if (nested) return nested;
+    }
+  }
+  return null;
+}
+
 export async function getAllDashboards() {
   return paginate((startAt) =>
     route`/rest/api/3/dashboard/search?maxResults=50&startAt=${startAt}&expand=${DASHBOARD_EXPAND}`);

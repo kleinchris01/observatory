@@ -1121,7 +1121,15 @@ const projectStoreMigrations = migrationRunner
   // itself on a delay. Counting the waits is what stops a pillar that dies without writing a
   // terminal state from holding the whole scan open forever.
   .enqueue("v100_alter_full_scan_meta_add_updated_at", "ALTER TABLE full_scan_meta ADD COLUMN IF NOT EXISTS updated_at VARCHAR(64) NULL")
-  .enqueue("v101_alter_full_scan_meta_add_polls", "ALTER TABLE full_scan_meta ADD COLUMN IF NOT EXISTS polls INTEGER NOT NULL DEFAULT 0");
+  .enqueue("v101_alter_full_scan_meta_add_polls", "ALTER TABLE full_scan_meta ADD COLUMN IF NOT EXISTS polls INTEGER NOT NULL DEFAULT 0")
+  // The gadget -> filter link, which is what makes dashboard -> field resolvable at all.
+  //
+  // config_walk_done is separate from filter_id for the same reason gadget_walk_done is
+  // separate from gadget_count: NULL filter_id means both "not looked at yet" and "looked at,
+  // points at no filter", and without the flag the build hands the second kind back to itself
+  // forever.
+  .enqueue("v102_alter_dashboard_gadgets_add_filter_id", "ALTER TABLE snapshot_dashboard_gadgets ADD COLUMN IF NOT EXISTS filter_id VARCHAR(64) NULL")
+  .enqueue("v103_alter_dashboard_gadgets_add_config_walk_done", "ALTER TABLE snapshot_dashboard_gadgets ADD COLUMN IF NOT EXISTS config_walk_done TINYINT NOT NULL DEFAULT 0");
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history

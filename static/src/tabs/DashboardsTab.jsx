@@ -129,6 +129,23 @@ function DashboardRow({ dashboard, siteOrigin }) {
         </div>
       )}
 
+      {/* What this dashboard would take with it. Resolved through gadget -> filter -> field,
+          so this is the same chain the field card runs in reverse -- a field card asking
+          "which dashboards" and a dashboard asking "which fields" read from one join, not two
+          that could disagree. Tri-state: null means the filter inventory the join needs was
+          never built, distinct from a dashboard whose gadgets genuinely reference nothing. */}
+      {dashboard.fieldRefs === null ? (
+        <div className="dash-row__depends dash-row__depends--unmeasured">
+          depends on: unknown — build a saved filter inventory to find out
+        </div>
+      ) : dashboard.fieldRefs?.length > 0 ? (
+        <div className="filter-row__refs">
+          <span className="filter-row__refslabel">depends on</span>
+          {dashboard.fieldRefs.slice(0, 8).map((ref) => <Chip key={`f-${ref}`}>{ref}</Chip>)}
+          {dashboard.fieldRefs.length > 8 && <span className="filter-row__more">+{dashboard.fieldRefs.length - 8} more</span>}
+        </div>
+      ) : null}
+
       {dashboard.findings.length > 0 && (
         <ul className="dash-row__findings">
           {dashboard.findings.map((finding) => (

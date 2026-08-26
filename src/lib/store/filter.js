@@ -341,3 +341,31 @@ export async function pruneFilterSnapshots(scopeKey, keepVersion) {
     );
   }
 }
+
+// Field names referenced by a set of filters, keyed by filter id.
+//
+// The reverse of loadFilterReferencesFor: that resolves field -> filters, this resolves
+// filters -> fields. Needed so a dashboard, which only knows the filter ids its gadgets point
+// at, can say what it depends on without the caller re-deriving the join by hand.
+export async function loadFieldNamesForFilterIds(scopeKey, version, filterIds = []) {
+  await ensureProjectStoreReady();
+  const ids = [...new Set(filterIds.filter(Boolean).map(String))];
+  if (!ids.length) return new Map();
+
+  const byFilter = new Map();
+  for (const batch of chunkArray(ids, 100)) {
+    const placeholders = batch.map(() => "?").join(", ");
+    const result = await withSqlRetry(() =>
+      sql.prepare(`
+        SELECT filter_id, label FROM snapshot_filter_refs
+        WHERE scope_key = ? AND version = ? AND kind = 'field' AND filter_id IN (${placeholders})
+      `).bindParams(scopeKey, version, ...batch).execute()
+    );
+    for (const row of result.rows || []) {
+      const id = String(row.filter_id);
+      if (!byFilter.has(id)) byFilter.set(id, []);
+      byFilter.get(id).push(row.label);
+    }
+  }
+  return byFilter;
+}

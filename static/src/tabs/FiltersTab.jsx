@@ -8,6 +8,24 @@ import {
 } from "../components/ui";
 import { SubNavLayout } from "../components/admin/primitives";
 import { useNavIntent, useVisiblePolling } from "../hooks";
+// The pure filter/search/sort logic now lives in filter-query.js and runs on the SERVER --
+// see getFilterInventory. Re-exported here so this module is still the one place tests and
+// other tabs import FILTER_FINDINGS/filterRows/sortFilters from; there is exactly one
+// implementation, just no longer one that runs a second time in the browser over the whole
+// inventory.
+export { FILTER_FINDINGS, filterRows, sortFilters } from "../../../src/lib/filter-query.js";
+import { FILTER_FINDINGS } from "../../../src/lib/filter-query.js";
+
+// Display labels for the sort dropdown. The KEYS have to match FILTER_SORTS in
+// filter-query.js -- the server validates against that list and falls back to "findings" for
+// anything else, so a key added here without a matching server case would silently sort by
+// relevance instead of doing what the label promised.
+const SORTS = [
+  { value: "findings", label: "Most findings first" },
+  { value: "name", label: "Name A–Z" },
+  { value: "subscriptions", label: "Most subscriptions" },
+  { value: "stale", label: "Least recently opened" },
+];
 
 // Saved filter inventory.
 //
@@ -23,77 +41,6 @@ import { useNavIntent, useVisiblePolling } from "../hooks";
 
 const PAGE_SIZE = 25;
 const POLL_MS = 4000;
-
-// The findings, in the order a reader should work through them. Ordered by consequence
-// rather than by count: an orphaned owner is a filter that will vanish, and a duplicate is
-// six people maintaining one search six times.
-export const FILTER_FINDINGS = [
-  { key: "all", label: "All filters", match: () => true },
-  {
-    key: "orphaned-owner",
-    label: "No live owner",
-    tone: "danger",
-    hint: "Jira deletes a filter with its owner. Everything built on these breaks at the same moment.",
-    match: (f) => f.findings.some((x) => x.code === "orphaned-owner"),
-  },
-  {
-    key: "shared-with-everyone",
-    label: "Shared with everyone",
-    tone: "warning",
-    hint: "Any logged-in user can run these, against every project they can browse.",
-    match: (f) => f.findings.some((x) => x.code === "shared-with-everyone"),
-  },
-  {
-    key: "subscribed-but-unused",
-    label: "Emailing nobody",
-    tone: "warning",
-    hint: "Recurring email from a search nobody opens is what teaches people to filter Jira to trash.",
-    match: (f) => f.findings.some((x) => x.code === "subscribed-but-unused"),
-  },
-  {
-    key: "stale",
-    label: "Not opened in a year",
-    tone: "info",
-    hint: "Filters are seasonal, so this is a list to review rather than a list to delete.",
-    match: (f) => f.findings.some((x) => x.code === "stale" || x.code === "never-used"),
-  },
-];
-
-const SORTS = [
-  { value: "findings", label: "Most findings first" },
-  { value: "name", label: "Name A–Z" },
-  { value: "subscriptions", label: "Most subscriptions" },
-  { value: "stale", label: "Least recently opened" },
-];
-
-export function sortFilters(filters, sort) {
-  const rows = [...filters];
-  if (sort === "name") return rows.sort((a, b) => String(a.name).localeCompare(String(b.name)));
-  if (sort === "subscriptions") return rows.sort((a, b) => b.subscriptionCount - a.subscriptionCount);
-  if (sort === "stale") {
-    // Never-opened first, then oldest. A filter Jira has never recorded a view of is stronger
-    // evidence than an old timestamp, so it sorts ahead rather than being treated as unknown.
-    return rows.sort((a, b) => {
-      if (!a.lastUsedAt && !b.lastUsedAt) return 0;
-      if (!a.lastUsedAt) return -1;
-      if (!b.lastUsedAt) return 1;
-      return Date.parse(a.lastUsedAt) - Date.parse(b.lastUsedAt);
-    });
-  }
-  return rows.sort((a, b) => b.findings.length - a.findings.length || String(a.name).localeCompare(String(b.name)));
-}
-
-export function filterRows(filters, { search = "", finding = "all" } = {}) {
-  const option = FILTER_FINDINGS.find((f) => f.key === finding) ?? FILTER_FINDINGS[0];
-  const term = search.trim().toLowerCase();
-  return filters.filter((row) => {
-    if (!option.match(row)) return false;
-    if (!term) return true;
-    // The JQL is searched too, which is how somebody finds "every filter that mentions this
-    // field" without leaving the tab.
-    return `${row.name} ${row.ownerName ?? ""} ${row.jql}`.toLowerCase().includes(term);
-  });
-}
 
 function OwnerChip({ filter }) {
   if (!filter.owner) return <Chip tone="danger" title="The owning account no longer exists">owner deleted</Chip>;
@@ -166,14 +113,29 @@ export function FiltersTab({ siteOrigin = "", intent = null }) {
   const [building, setBuilding] = React.useState(false);
   const [view, setView] = React.useState("filters");
   const [search, setSearch] = React.useState("");
+  // Debounced, the same way FieldBrowserTab debounces its own search box: typing fires a
+  // request per keystroke otherwise, and each one is now a server-side scan of every
+  // filter's name and JQL rather than a filter over an array already in the browser.
+  const [deferredSearch, setDeferredSearch] = React.useState("");
   const [finding, setFinding] = React.useState("all");
   const [sort, setSort] = React.useState("findings");
   const [page, setPage] = React.useState(1);
   const [pillar, setPillar] = React.useState(null);
 
+  React.useEffect(() => {
+    const t = setTimeout(() => { setDeferredSearch(search); setPage(1); }, 350);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // What used to run in the browser over the whole inventory now runs on the server over
+  // the same in-memory list, and only the current page crosses the wire. At 4,115 filters,
+  // shipping every one of them in a single response overflowed Forge's per-invocation
+  // payload limit -- the resolver was killing itself trying to answer this tab.
   const load = React.useCallback(async () => {
     try {
-      const result = await invoke("getFilterInventory", {});
+      const result = await invoke("getFilterInventory", {
+        search: deferredSearch, finding, sort, page, pageSize: PAGE_SIZE,
+      });
       setData(result);
       setError("");
     } catch (err) {
@@ -182,7 +144,7 @@ export function FiltersTab({ siteOrigin = "", intent = null }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [deferredSearch, finding, sort, page]);
 
   React.useEffect(() => { load(); }, [load]);
 
@@ -212,10 +174,11 @@ export function FiltersTab({ siteOrigin = "", intent = null }) {
     if (nav.view) setView(nav.view);
     setFinding(nav.finding ?? "all");
     setSearch("");
+    setDeferredSearch("");
     setPage(1);
   });
 
-  React.useEffect(() => { setPage(1); }, [search, finding, sort]);
+  React.useEffect(() => { setPage(1); }, [finding, sort]);
 
   async function handleBuild() {
     setBuilding(true);
@@ -230,20 +193,13 @@ export function FiltersTab({ siteOrigin = "", intent = null }) {
     }
   }
 
-  const all = data?.allFilters ?? [];
-  // Findings are attached by the resolver to the flagged rows only, so the unflagged ones
-  // need an empty list before anything can filter on it uniformly.
-  const withFindings = React.useMemo(() => {
-    const byId = new Map((data?.filters ?? []).map((f) => [f.id, f.findings]));
-    return all.map((f) => ({ ...f, findings: byId.get(f.id) ?? [] }));
-  }, [all, data?.filters]);
-
-  const rows = React.useMemo(
-    () => sortFilters(filterRows(withFindings, { search, finding }), sort),
-    [withFindings, search, finding, sort]
-  );
-  const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
-  const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  // The current page, already filtered and sorted server-side. `data.matchedTotal` is how
+  // many filters match the current search/finding -- distinct from `data.total`, the size of
+  // the whole inventory regardless of what is currently being searched for.
+  const pageRows = data?.filters ?? [];
+  const matchedTotal = data?.matchedTotal ?? 0;
+  const totalPages = data?.totalPages ?? 1;
+  const findingCounts = data?.findingCounts ?? {};
 
   if (loading && !data) return <EmptyState>Loading the saved filter inventory…</EmptyState>;
 
@@ -340,11 +296,15 @@ export function FiltersTab({ siteOrigin = "", intent = null }) {
               sort={sort}
               onSortChange={setSort}
               sortOptions={SORTS}
-              resultCount={rows.length}
+              resultCount={matchedTotal}
               totalCount={data.total}
-              onClear={() => { setSearch(""); setFinding("all"); setSort("findings"); }}
+              onClear={() => { setSearch(""); setDeferredSearch(""); setFinding("all"); setSort("findings"); }}
             />
 
+            {/* Counts here describe the WHOLE inventory, computed by the server over the full
+                analyzed list -- not the current page, which may hold none of a given kind.
+                Re-deriving them from pageRows would report "0 orphaned" on a page that
+                happens not to contain one, on a site that has hundreds. */}
             <div className="findings-filter-bar">
               {FILTER_FINDINGS.map((option) => (
                 <button
@@ -355,7 +315,7 @@ export function FiltersTab({ siteOrigin = "", intent = null }) {
                   onClick={() => setFinding(option.key)}
                 >
                   <span>{option.label}</span>
-                  <strong>{formatNumber(withFindings.filter(option.match).length)}</strong>
+                  <strong>{formatNumber(findingCounts[option.key] ?? 0)}</strong>
                 </button>
               ))}
             </div>
@@ -368,14 +328,14 @@ export function FiltersTab({ siteOrigin = "", intent = null }) {
               </div>
             )}
 
-            {pages > 1 && (
+            {totalPages > 1 && (
               <section className="pagination-bar">
                 <span className="pagination-bar__status">
-                  Page {formatNumber(page)} of {formatNumber(pages)} · {formatNumber(rows.length)} filters
+                  Page {formatNumber(page)} of {formatNumber(totalPages)} · {formatNumber(matchedTotal)} filters
                 </span>
                 <div className="pagination-bar__actions">
-                  <button type="button" className="ghost-button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>Previous</button>
-                  <button type="button" className="ghost-button" onClick={() => setPage((p) => Math.min(pages, p + 1))} disabled={page >= pages}>Next</button>
+                  <button type="button" className="ghost-button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1 || loading}>Previous</button>
+                  <button type="button" className="ghost-button" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages || loading}>Next</button>
                 </div>
               </section>
             )}

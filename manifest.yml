@@ -251,9 +251,16 @@ permissions:
     # makes a filter's JQL readable, which is what the field and status joins are built on.
     - read:filter:jira
     # Dashboards. /rest/api/3/dashboard/search is the site-wide enumerator; the unqualified
-    # /rest/api/3/dashboard returns only the caller's own. Gadget CONFIGURATION would need
-    # read:dashboard.property:jira on top of this, which is deliberately not requested yet --
-    # see dashboard-engine.js for why the gadget-to-filter link is not attempted.
+    # /rest/api/3/dashboard returns only the caller's own.
     - read:dashboard:jira
+    # Gadget CONFIGURATION, which is where the filter a gadget points at is recorded. Without
+    # it a dashboard is a list of titles: "Filter Results: Open Bugs" tells a reader nothing a
+    # machine can act on, and matching the title against filter names would produce a
+    # dependency graph that is right most of the time -- the worst kind, since every claim
+    # this app makes about what depends on what is load-bearing for a deletion decision.
+    #
+    # With it, dashboard -> gadget -> filter -> field resolves exactly, which is what lets a
+    # field card say which dashboards break if the field goes.
+    - read:dashboard.property:jira
     - read:chat:rovo
     - storage:app

@@ -194,6 +194,109 @@ export function FilterUsageSection({ field, enabled = true, siteOrigin }) {
   );
 }
 
+// Which dashboards break if this field goes.
+//
+// The chain is field -> the filters whose JQL names it -> the gadgets configured to show those
+// filters -> the dashboards those gadgets sit on. Every leg is an exact join. The cheap version
+// of this feature would match gadget titles against filter names, which is right most of the
+// time -- and "most of the time" is not a basis for deleting a field, because the case it gets
+// wrong is the one where somebody's wall-screen goes blank on Monday.
+export function DashboardUsageSection({ field, enabled = true, siteOrigin }) {
+  const [state, setState] = React.useState({ loading: true, error: "", data: null });
+
+  React.useEffect(() => {
+    if (!enabled) return undefined;
+    let cancelled = false;
+    setState({ loading: true, error: "", data: null });
+    // By NAME, like the filter lookup: the join runs through JQL, and JQL names fields.
+    invoke("getDashboardUsage", { label: field.name || field.id })
+      .then((data) => { if (!cancelled) setState({ loading: false, error: "", data }); })
+      .catch((err) => { if (!cancelled) setState({ loading: false, error: err?.message || "Failed to load.", data: null }); });
+    return () => { cancelled = true; };
+  }, [enabled, field.id, field.name]);
+
+  const { loading, error, data } = state;
+  const total = data?.total ?? 0;
+
+  // Which half is missing changes what an admin has to do about it, so they are not collapsed
+  // into one "unavailable".
+  const missing = data?.reason === "no-dashboard-inventory"
+    ? "No dashboard inventory has been built, so dashboard usage is unknown for this field. Build one on the Dashboards tab."
+    : data?.reason === "no-filter-inventory"
+      ? "Dashboards reach fields through saved filters, and no filter inventory has been built. Build one on the Saved Filters tab."
+      : null;
+
+  return (
+    <CollapsibleSection
+      title="Dashboard Usage"
+      badge={data?.available && total > 0 ? `${formatNumber(total)} dashboard${total === 1 ? "" : "s"}` : null}
+    >
+      {loading ? (
+        <div className="empty-state empty-state--inline">Checking dashboards…</div>
+      ) : error ? (
+        <div className="empty-state empty-state--inline">Could not check dashboards. {error}</div>
+      ) : missing ? (
+        // Never "no dashboard uses this field". Nobody has looked, and that is not permission
+        // to delete anything.
+        <div className="empty-state empty-state--inline">{missing}</div>
+      ) : !data?.available ? (
+        <div className="empty-state empty-state--inline">Dashboard usage is unknown for this field.</div>
+      ) : total === 0 ? (
+        <div className="empty-state empty-state--inline">
+          {data.complete
+            ? "No dashboard gadget shows a filter that uses this field."
+            : "No dashboard found so far — but the gadget configuration walk has not finished, so this is not yet a complete answer."}
+        </div>
+      ) : (
+        <>
+          <p className="ui-note">
+            <Icon name="alertTriangle" size={13} />
+            <span>
+              These dashboards render through a filter that names this field. Delete the field
+              and the gadget keeps rendering — against a different set of issues.
+            </span>
+          </p>
+          <ul className="filter-usage__list">
+            {data.dashboards.map((dash) => {
+              const href = dash.viewUrl || (siteOrigin ? `${siteOrigin}/jira/dashboards/${dash.id}` : null);
+              return (
+                <li key={dash.id} className="filter-usage__item">
+                  {href ? (
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={(event) => handleJiraLinkClick(event, href)}
+                      title="Open this dashboard in Jira"
+                    >
+                      {dash.name || `Dashboard ${dash.id}`}
+                    </a>
+                  ) : (
+                    <span>{dash.name || `Dashboard ${dash.id}`}</span>
+                  )}
+                  {dash.ownerName && <span className="filter-usage__owner">{dash.ownerName}</span>}
+                  {/* WHERE on the dashboard, not just which dashboard. "Sprint Health" tells a
+                      reader what to look at in a way the dashboard name alone does not. */}
+                  <span className="filter-usage__subs">
+                    via {dash.via.map((v) => v.gadgetTitle || v.filterName || "a gadget").slice(0, 3).join(", ")}
+                    {dash.via.length > 3 ? ` +${dash.via.length - 3} more` : ""}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+          {!data.complete && (
+            <div className="ui-truncation">
+              The gadget configuration walk reached {formatNumber(data.coverage?.walked ?? 0)} of{" "}
+              {formatNumber(data.coverage?.total ?? 0)} gadgets, so there may be more.
+            </div>
+          )}
+        </>
+      )}
+    </CollapsibleSection>
+  );
+}
+
 export function AutomationUsageSection({ field, enabled = true, siteOrigin, rovoEnabled = false }) {
   const [state, setState] = React.useState({ loading: true, error: "", data: null });
 
@@ -771,6 +874,7 @@ export function FieldCard({
 
               {showGovernance ? <AutomationUsageSection field={field} enabled={expanded} siteOrigin={siteOrigin} rovoEnabled={rovoEnabled} /> : null}
               {showGovernance ? <FilterUsageSection field={field} enabled={expanded} siteOrigin={siteOrigin} /> : null}
+              {showGovernance ? <DashboardUsageSection field={field} enabled={expanded} siteOrigin={siteOrigin} /> : null}
 
               <CollapsibleSection
                 title="Contexts"

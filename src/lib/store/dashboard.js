@@ -195,6 +195,97 @@ export async function appendDashboardSnapshot(scopeKey, version, { dashboards = 
   return { dashboards: dashboards.length, gadgets: gadgets.length, shares: shares.length };
 }
 
+// Gadgets whose configuration has not been read yet.
+//
+// The queue for the config phase, read from SQL each chunk rather than carried in the cursor
+// so a redelivered message re-reads what is actually still missing. Same shape and same reason
+// as loadDashboardIdsNeedingGadgets.
+export async function loadGadgetsNeedingConfig(scopeKey, version, limit = 40) {
+  await ensureProjectStoreReady();
+  const safeLimit = Math.max(1, Math.min(500, Number(limit) || 40));
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT dashboard_id, gadget_id FROM snapshot_dashboard_gadgets
+      WHERE scope_key = ? AND version = ? AND config_walk_done = 0
+      ORDER BY dashboard_id, gadget_id
+      LIMIT ${safeLimit}
+    `).bindParams(scopeKey, version).execute()
+  );
+  return (result.rows || []).map((r) => ({
+    dashboardId: String(r.dashboard_id),
+    gadgetId: String(r.gadget_id),
+  }));
+}
+
+// Record what a gadget points at. A null filterId is still a result -- it means the gadget was
+// read and references no filter -- which is why config_walk_done is set either way.
+export async function recordGadgetConfigs(scopeKey, version, entries = []) {
+  await ensureProjectStoreReady();
+  for (const entry of entries) {
+    await withSqlRetry(() =>
+      sql.prepare(`
+        UPDATE snapshot_dashboard_gadgets
+        SET filter_id = ?, config_walk_done = 1
+        WHERE scope_key = ? AND version = ? AND dashboard_id = ? AND gadget_id = ?
+      `).bindParams(
+        entry.filterId ? String(entry.filterId) : null,
+        scopeKey, version, String(entry.dashboardId), String(entry.gadgetId)
+      ).execute()
+    );
+  }
+  return { recorded: entries.length };
+}
+
+// Which dashboards reach a given filter, and through which gadget.
+//
+// The second leg of dashboard -> gadget -> filter -> field. Returns the gadget title as well
+// as the dashboard, because "Sprint Health" tells a reader where on the dashboard to look in a
+// way the dashboard name alone does not.
+export async function loadDashboardsForFilters(scopeKey, version, filterIds = []) {
+  await ensureProjectStoreReady();
+  const ids = [...new Set(filterIds.filter(Boolean).map(String))];
+  if (!ids.length) return [];
+
+  const rows = [];
+  for (const batch of chunkArray(ids, 50)) {
+    const placeholders = batch.map(() => "?").join(", ");
+    const result = await withSqlRetry(() =>
+      sql.prepare(`
+        SELECT g.filter_id, g.dashboard_id, g.gadget_id, g.title AS gadget_title,
+               d.name AS dashboard_name, d.view_url, d.owner_name, d.popularity
+        FROM snapshot_dashboard_gadgets g
+        JOIN snapshot_dashboards d
+          ON d.scope_key = g.scope_key AND d.version = g.version AND d.dashboard_id = g.dashboard_id
+        WHERE g.scope_key = ? AND g.version = ? AND g.filter_id IN (${placeholders})
+      `).bindParams(scopeKey, version, ...batch).execute()
+    );
+    rows.push(...(result.rows || []));
+  }
+
+  return rows.map((r) => ({
+    filterId: String(r.filter_id),
+    dashboardId: String(r.dashboard_id),
+    dashboardName: r.dashboard_name || null,
+    gadgetTitle: r.gadget_title || null,
+    ownerName: r.owner_name || null,
+    popularity: toNumber(r.popularity),
+    viewUrl: r.view_url || null,
+  }));
+}
+
+// How much of the config walk actually completed, so a caller can say "none found" honestly.
+export async function countGadgetConfigCoverage(scopeKey, version) {
+  await ensureProjectStoreReady();
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT COUNT(*) AS total, SUM(config_walk_done) AS walked
+      FROM snapshot_dashboard_gadgets WHERE scope_key = ? AND version = ?
+    `).bindParams(scopeKey, version).execute()
+  );
+  const row = result.rows?.[0] || {};
+  return { total: toNumber(row.total), walked: toNumber(row.walked) };
+}
+
 // Dashboards in a version whose gadget list has not been walked yet.
 //
 // The queue for phase two. Read from SQL each chunk rather than carried in the cursor, so a
@@ -245,7 +336,7 @@ export async function loadDashboards(scopeKey, version) {
       FROM snapshot_dashboard_shares WHERE scope_key = ? AND version = ?
     `).bindParams(scopeKey, version).execute()),
     withSqlRetry(() => sql.prepare(`
-      SELECT dashboard_id, gadget_id, title, module_key
+      SELECT dashboard_id, gadget_id, title, module_key, filter_id
       FROM snapshot_dashboard_gadgets WHERE scope_key = ? AND version = ?
     `).bindParams(scopeKey, version).execute()),
   ]);
@@ -265,6 +356,7 @@ export async function loadDashboards(scopeKey, version) {
     if (!gadgetsByDashboard.has(id)) gadgetsByDashboard.set(id, []);
     gadgetsByDashboard.get(id).push({
       id: String(row.gadget_id), title: row.title || null, moduleKey: row.module_key || null,
+      filterId: row.filter_id ? String(row.filter_id) : null,
     });
   }
 

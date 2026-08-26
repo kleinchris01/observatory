@@ -54,6 +54,9 @@ import {
   readFilterSnapshotMeta,
   writeFilterSnapshotMeta,
   loadFilterReferencesFor,
+  loadDashboardsForFilters,
+  loadFieldNamesForFilterIds,
+  countGadgetConfigCoverage,
   loadFilterReferenceCounts,
   loadDashboards,
   readDashboardSnapshotMeta,
@@ -138,6 +141,7 @@ import { summarizeAdoption, computeProjectAdoption } from "./lib/project-adoptio
 import { summarizeFilters, summarizeFilterHealth } from "./lib/filter-insights.js";
 import { summarizeDashboards, summarizeDashboardHealth } from "./lib/dashboard-insights.js";
 import { isFilterBuildStale, queueFilterSnapshotBuild } from "./lib/filter-engine.js";
+import { filterRows, sortFilters, filterFindingCounts, FILTER_SORTS } from "./lib/filter-query.js";
 import { isDashboardBuildStale, queueDashboardSnapshotBuild } from "./lib/dashboard-engine.js";
 import { startFullScan, fullScanStageCatalog } from "./lib/full-scan-runner.js";
 import { probeEndpoint, probeStargateEndpoint, getCloudId, getAllJiraProjects } from "./lib/jira-api.js";
@@ -1224,6 +1228,13 @@ async function saveAutomationIndex({ payload, context }) {
 async function getFilterInventory({ payload, context }) {
   incrMetric(METRIC_NAMES.resolver);
   try {
+    const params = payload || {};
+    if (params.page !== undefined && params.page !== null) requirePositiveInt(params.page, "page");
+    if (params.pageSize !== undefined && params.pageSize !== null) requireBoundedInt(params.pageSize, "pageSize", 1, 100);
+    optionalString(params.search, "search");
+    optionalString(params.finding, "finding");
+    optionalString(params.sort, "sort");
+
     const installationKey = getInstallationKey(context);
     const meta = await readFilterSnapshotMeta(installationKey);
 
@@ -1257,6 +1268,37 @@ async function getFilterInventory({ payload, context }) {
     }
 
     const summary = summarizeFilters(filters, { projectKeys });
+    // `summary.filters` is analyzeFilter's own output -- every filter with findings attached,
+    // unbounded, sorted worst-first. It exists so buildFilterOverview (the Overview's "worst"
+    // list) can slice(0, 8) from it. Spreading the whole summary into this response used to
+    // ship that unbounded list a SECOND time, in full, on top of the complete `allFilters`
+    // array below -- every filter with a finding sent twice. At 4,115 filters that duplication
+    // was a meaningful share of what overflowed the response.
+    const { filters: analyzedFilters, ...summaryForWire } = summary;
+
+    // The findings computed above, attached back onto the row shape the tab actually renders,
+    // by id. Without this the tab had to reconstruct it client-side by joining `allFilters`
+    // (no findings) against `summary.filters` (findings, but only the flagged subset) -- the
+    // exact duplication this removes, from the other direction.
+    const findingsById = new Map(analyzedFilters.map((f) => [f.id, f.findings]));
+    const withFindings = filters.map((f) => ({ ...f, findings: findingsById.get(f.id) ?? [] }));
+
+    // Filter, search and sort HERE, over the full in-memory list, and ship only one page.
+    // The full list already exists in memory for the summary above; the fix is not to avoid
+    // holding it, it is to stop SENDING all of it. Same logic the tab used to run in the
+    // browser, moved verbatim into filter-query.js so server and client can never disagree
+    // about which filters match.
+    const pageSize = Math.max(1, Math.min(100, Number(params.pageSize) || 25));
+    const requestedPage = Math.max(1, Number(params.page) || 1);
+    const search = String(params.search || "");
+    const finding = String(params.finding || "all");
+    const sort = FILTER_SORTS.includes(params.sort) ? params.sort : "findings";
+
+    const matched = sortFilters(filterRows(withFindings, { search, finding }), sort);
+    const matchedTotal = matched.length;
+    const totalPages = Math.max(1, Math.ceil(matchedTotal / pageSize));
+    const page = Math.min(requestedPage, totalPages);
+    const startIndex = (page - 1) * pageSize;
 
     return {
       available: true,
@@ -1265,12 +1307,20 @@ async function getFilterInventory({ payload, context }) {
       version: meta.version,
       refreshedAt: meta.refreshedAt || null,
       lastError: meta.lastError || null,
-      ...summary,
+      ...summaryForWire,
       health: summarizeFilterHealth(summary),
-      // Sent whole rather than paged. A few hundred filters is one fetch the tab already
-      // pays for, and paging server-side would make client-side filtering impossible without
-      // re-querying on every keystroke -- the same call the Automation findings list makes.
-      allFilters: filters,
+      // Counts for the finding rail, over the FULL list -- these describe the whole
+      // inventory, not just the current page, so the rail must not recompute them from a
+      // page that may hold none of a given kind.
+      findingCounts: filterFindingCounts(withFindings),
+      // The current page of the FILTERED, SORTED result. `matchedTotal` is how many filters
+      // match the current search/finding -- distinct from `total` above, which is the whole
+      // inventory regardless of what is currently being searched for.
+      matchedTotal,
+      page,
+      pageSize,
+      totalPages,
+      filters: matched.slice(startIndex, startIndex + pageSize),
     };
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
@@ -1355,6 +1405,88 @@ async function getFieldFilterCounts({ payload, context }) {
 // The second half of the cross-pillar answer. The Field Browser already says which automation
 // rules write a field; this says which saved searches would silently start returning the wrong
 // answer if it went away.
+// Which dashboards depend on a field, and where on them.
+//
+// Resolved as a chain rather than a guess: field -> the filters whose JQL names it ->
+// the gadgets configured to show those filters -> the dashboards those gadgets sit on. Every
+// leg is an exact join, which is what makes the answer safe to act on. Matching gadget titles
+// against filter names would have been far cheaper and right most of the time, and "most of
+// the time" is not a basis for deleting a field.
+async function getDashboardUsage({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const installationKey = getInstallationKey(context);
+    const label = String(payload?.label ?? "").trim();
+    if (!label) throw new Error("label is required");
+
+    const [dashMeta, filterMeta] = await Promise.all([
+      readDashboardSnapshotMeta(installationKey),
+      readFilterSnapshotMeta(installationKey),
+    ]);
+
+    // Both halves are required, and which one is missing changes what an admin has to do, so
+    // they are reported separately rather than as one "unavailable".
+    if (!dashMeta?.version) return { available: false, reason: "no-dashboard-inventory", label };
+    if (!filterMeta?.version) return { available: false, reason: "no-filter-inventory", label };
+
+    // Leg one: the filters that name this field.
+    const filterRefs = await loadFilterReferencesFor(installationKey, filterMeta.version, "field", label);
+    const filterIds = (filterRefs?.filters || []).map((f) => String(f.id)).filter(Boolean);
+
+    const coverage = await countGadgetConfigCoverage(installationKey, dashMeta.version);
+    // A config walk that did not finish cannot support "no dashboard uses this field". The
+    // count of what it reached travels so the tab can say how complete the answer is, rather
+    // than presenting a partial join as a clean bill of health.
+    const complete = coverage.total === 0 || coverage.walked >= coverage.total;
+
+    if (!filterIds.length) {
+      return {
+        available: true, label, total: 0, dashboards: [], viaFilters: 0,
+        coverage, complete,
+      };
+    }
+
+    // Leg two: the dashboards whose gadgets point at those filters.
+    const rows = await loadDashboardsForFilters(installationKey, dashMeta.version, filterIds);
+    const byFilter = new Map((filterRefs?.filters || []).map((f) => [String(f.id), f.name]));
+
+    // One entry per dashboard, carrying which gadgets and which filters got us there -- a
+    // dashboard reached through three gadgets is one dashboard, not three findings.
+    const byDashboard = new Map();
+    for (const row of rows) {
+      const entry = byDashboard.get(row.dashboardId) || {
+        id: row.dashboardId,
+        name: row.dashboardName,
+        ownerName: row.ownerName,
+        popularity: row.popularity,
+        viewUrl: row.viewUrl,
+        via: [],
+      };
+      entry.via.push({
+        gadgetTitle: row.gadgetTitle,
+        filterId: row.filterId,
+        filterName: byFilter.get(row.filterId) || null,
+      });
+      byDashboard.set(row.dashboardId, entry);
+    }
+
+    const dashboards = [...byDashboard.values()].sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+    return {
+      available: true,
+      label,
+      total: dashboards.length,
+      viaFilters: filterIds.length,
+      dashboards,
+      coverage,
+      complete,
+    };
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("getDashboardUsage failed:", error);
+    throw error;
+  }
+}
+
 async function getFilterUsage({ payload, context }) {
   incrMetric(METRIC_NAMES.resolver);
   try {
@@ -1404,6 +1536,39 @@ async function getDashboardInventory({ context }) {
     const dashboards = await loadDashboards(installationKey, meta.version);
     const summary = summarizeDashboards(dashboards);
 
+    // What each dashboard depends on. The gadget -> filter join already ran during the build;
+    // this is the second half, filter -> field, done once in bulk rather than once per
+    // dashboard -- a site with a few hundred dashboards and a shared handful of filters would
+    // otherwise re-run the same lookup for every dashboard that reuses a filter.
+    const filterMeta = await readFilterSnapshotMeta(installationKey)
+      .catch(fallbackOn("dashboard_inventory.filter_meta_read_failed", null, { installationKey }));
+
+    let fieldRefsAvailable = false;
+    if (filterMeta?.version) {
+      const filterIds = [...new Set(
+        dashboards.flatMap((d) => (d.gadgets || []).map((g) => g.filterId).filter(Boolean))
+      )];
+      if (filterIds.length) {
+        const fieldsByFilter = await loadFieldNamesForFilterIds(installationKey, filterMeta.version, filterIds)
+          .catch(fallbackOn("dashboard_inventory.field_join_failed", new Map(), { installationKey }));
+        for (const dashboard of dashboards) {
+          const names = new Set();
+          for (const gadget of dashboard.gadgets || []) {
+            if (!gadget.filterId) continue;
+            for (const name of fieldsByFilter.get(gadget.filterId) || []) names.add(name);
+          }
+          dashboard.fieldRefs = [...names].sort();
+        }
+      } else {
+        for (const dashboard of dashboards) dashboard.fieldRefs = [];
+      }
+      fieldRefsAvailable = true;
+    } else {
+      // Tri-state, like everywhere else this join is attempted: no filter inventory means
+      // "we have not looked", never "this dashboard depends on nothing".
+      for (const dashboard of dashboards) dashboard.fieldRefs = null;
+    }
+
     return {
       available: true,
       state: meta.state || "idle",
@@ -1416,6 +1581,9 @@ async function getDashboardInventory({ context }) {
       // How much of the estate the gadget walk actually reached. Without this the tab would
       // present a partial pass as a complete one.
       gadgetsWalked: meta.gadgetsWalked,
+      // Whether the filter -> field join could run at all, separate from whether any one
+      // dashboard's fieldRefs came back empty.
+      fieldRefsAvailable,
       ...summary,
       health: summarizeDashboardHealth(summary),
       // Sent whole rather than paged. A few hundred dashboards is one fetch the tab already
@@ -4768,7 +4936,8 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   buildDashboardInventory, // Mutating: queues a rebuild of the dashboard snapshot
   getFilterInventory,      // Admin read: saved filters, their findings and their references
   buildFilterInventory,    // Mutating: queues a rebuild of the saved filter snapshot
-  getFilterUsage,          // Admin read: which filters reference one field or status
+  getFilterUsage,
+  getDashboardUsage,       // Admin read: which dashboards reach a field, via which gadget
   getFieldFilterCounts,    // Admin read: saved-filter counts for a page of fields
   getHealthHistory,        // Admin read: the site health series and per-dimension deltas
   getPillarHealth,         // Admin read: one pillar of the score, for the tab it is about

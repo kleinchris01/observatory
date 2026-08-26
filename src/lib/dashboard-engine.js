@@ -29,6 +29,7 @@ import {
   METRIC_NAMES,
   getDashboardPage,
   getDashboardGadgets,
+  getGadgetFilterId,
   mapWithConcurrency,
 } from "./jira-api.js";
 import { inventorySnapshotQueue } from "./queues.js";
@@ -41,6 +42,8 @@ import {
   clearDashboardSnapshotVersion,
   appendDashboardSnapshot,
   loadDashboardIdsNeedingGadgets,
+  loadGadgetsNeedingConfig,
+  recordGadgetConfigs,
   pruneDashboardSnapshots,
 } from "./project-store.js";
 
@@ -62,6 +65,11 @@ export const DASHBOARD_FETCH_CONCURRENCY = 4;
 export const DASHBOARD_CHUNK_PAGES = 10;
 export const DASHBOARD_PAGE_SIZE = 50;
 export const DASHBOARD_GADGET_CHUNK = 60;
+
+// Gadget configs per invocation. Half the gadget chunk, because each one costs TWO requests
+// rather than one -- Jira models gadget config as arbitrary item properties, so reading it is
+// a list call and then a get.
+export const DASHBOARD_CONFIG_CHUNK = 30;
 
 // True when a build was started but can no longer be running.
 //
@@ -210,11 +218,18 @@ export const dashboardBuildSpec = {
     // Driven off the stored rows rather than a remembered list, so the batch survives being
     // carried across invocations in a TEXT cursor -- and so a redelivered message re-reads
     // what is actually still missing rather than trusting a stale list.
-    const pending = await loadDashboardIdsNeedingGadgets(installationKey, version, DASHBOARD_GADGET_CHUNK);
+    if (phase === "gadgets") {
+      const pending = await loadDashboardIdsNeedingGadgets(installationKey, version, DASHBOARD_GADGET_CHUNK);
 
-    if (!pending.length) {
-      return { done: true, processed: 0, extra: { walked: Number(cursor?.walked) || 0 } };
-    }
+      if (!pending.length) {
+        // Gadgets are all walked; now read what each one points at.
+        return {
+          done: false,
+          processed: 0,
+          cursor: { phase: "configs", walked: Number(cursor?.walked) || 0 },
+          extra: { walked: Number(cursor?.walked) || 0 },
+        };
+      }
 
     const gadgets = [];
     let walked = Number(cursor?.walked) || 0;
@@ -245,11 +260,50 @@ export const dashboardBuildSpec = {
 
     await appendDashboardSnapshot(installationKey, version, { gadgets, gadgetCounts: counts });
 
+      return {
+        done: false,
+        processed: pending.length,
+        cursor: { phase: "gadgets", walked },
+        extra: { walked },
+      };
+    }
+
+    // ── Phase three: what each gadget points at ─────────────────────────────
+    //
+    // This is the whole reason the dashboard pillar can answer "which dashboards break if this
+    // field goes". A dashboard on its own is a list of gadget titles; "Filter Results: Open
+    // Bugs" is a string, and matching it against filter names would produce a dependency graph
+    // that is right most of the time -- which is the worst kind, because every claim this app
+    // makes about what depends on what is load-bearing for a deletion decision.
+    const pendingConfigs = await loadGadgetsNeedingConfig(installationKey, version, DASHBOARD_CONFIG_CHUNK);
+
+    if (!pendingConfigs.length) {
+      return { done: true, processed: 0, extra: { walked: Number(cursor?.walked) || 0 } };
+    }
+
+    const configs = await mapWithConcurrency(pendingConfigs, DASHBOARD_FETCH_CONCURRENCY, async (g) => {
+      try {
+        const filterId = await getGadgetFilterId(g.dashboardId, g.gadgetId);
+        return { ...g, filterId };
+      } catch (error) {
+        // Per gadget, not fatal. A gadget whose properties cannot be read is recorded as
+        // walked-with-no-filter rather than retried forever -- the alternative is a build that
+        // never terminates because one gadget 403s.
+        logger.warn("dashboard-snapshot.gadget_config_failed", {
+          installationKey, dashboardId: g.dashboardId, gadgetId: g.gadgetId,
+          error: String(error?.message || error),
+        });
+        return { ...g, filterId: null };
+      }
+    });
+
+    await recordGadgetConfigs(installationKey, version, configs);
+
     return {
       done: false,
-      processed: pending.length,
-      cursor: { phase: "gadgets", walked },
-      extra: { walked },
+      processed: configs.length,
+      cursor: { phase: "configs", walked: Number(cursor?.walked) || 0 },
+      extra: { walked: Number(cursor?.walked) || 0 },
     };
   },
 
