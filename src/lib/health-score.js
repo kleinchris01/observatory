@@ -20,7 +20,6 @@
 export const DEFAULT_HEALTH_TOLERANCES = {
   duplicateFieldNames: 0.10,
   fieldFindings: 0.25,
-  unusedFields: 0.35,
   duplicateStatuses: 0.15,
   unreachableStatuses: 0.20,
   // Statuses only an automation rule reaches. Tighter than the unreachable bound: an
@@ -64,11 +63,22 @@ export const DEFAULT_HEALTH_TOLERANCES = {
   // screen bounds and the automation ones: a filter owned by a deleted account takes its
   // boards and dashboards with it, which is worse than clutter and less immediate than a
   // credential sitting in plaintext.
-  filterDefects: 0.15,
+  // Filters, one bound per rule. Ownership is the tightest: a filter without a live owner is
+  // on a deletion timer, where an over-shared one is merely untidy.
+  orphanedFilters: 0.05,
+  overSharedFilters: 0.20,
+  zombieSubscriptions: 0.10,
+  brokenFilterScope: 0.05,
   // Dashboards that are orphaned, editable by anyone, or empty. Looser than the filter bound:
   // a dashboard breaking is visible the moment somebody opens it, where a filter returns the
   // wrong answer silently and can be wrong for months.
-  dashboardDefects: 0.20,
+  // Dashboards. Looser than their filter equivalents throughout: a dashboard breaking is
+  // visible the moment somebody opens it, where a filter returns the wrong answer silently
+  // and can be wrong for months.
+  orphanedDashboards: 0.10,
+  editableDashboards: 0.25,
+  unusedDashboards: 0.35,
+  emptyDashboards: 0.15,
 };
 
 // rate 0 -> 100, rate >= tolerance -> 0, linear between. Deliberately linear: a curve
@@ -85,6 +95,36 @@ function scoreFromRate(rate, tolerance) {
 function unavailable(key, label, pillar, reason) {
   return { key, label, pillar, available: false, score: null, reason };
 }
+
+// How much each pillar is worth to the headline.
+//
+// Declared, because until now it was emergent: the headline was a flat weighted mean over
+// every dimension, so a pillar's influence was decided by how many rules somebody had got
+// round to writing for it. Automation carried 27% of the score and dashboards 5% -- not
+// because that was anyone's judgement about their relative importance, but because automation
+// had four dimensions and dashboards had one.
+//
+// That also made the score hostile to its own governance page. Adding a fourth filter rule
+// would have quietly quadrupled what filters were worth and taken that weight from everything
+// else, which meant "add a rule" was never a local decision.
+//
+// With this, a pillar is worth what it says here regardless of how many rules it contains.
+// Dimension weights still matter WITHIN a pillar -- automation security outranks automation
+// hygiene -- they just no longer leak across pillar boundaries.
+export const PILLAR_WEIGHTS = {
+  // Plaintext credentials in an automation rule is the highest-consequence thing this app
+  // finds anywhere, and it lives here.
+  automation: 2,
+  // Both shape what every user sees on every issue, every day.
+  workflows: 1.5,
+  fields: 1.5,
+  screens: 1,
+  projects: 1,
+  // A filter fails silently and can be wrong for months; a dashboard fails visibly the moment
+  // somebody opens it. Equal here because the pillar's own dimensions grade that difference.
+  filters: 1,
+  dashboards: 1,
+};
 
 export const HEALTH_PILLARS = [
   { key: "fields", label: "Fields" },
@@ -165,86 +205,192 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
   }
 
   // ── Filter hygiene ────────────────────────────────────────────────────────
-  // Saved filters that are broken, exposed, or emailing people from a search nobody reads.
+  // Saved filters, as four rules rather than one.
   //
-  // One dimension rather than four, deliberately. Every dimension added to this score makes
-  // every existing one quieter: at sixteen dimensions the credential finding -- weighted
-  // double precisely because it is the most serious thing this app can find -- could already
-  // only move the headline by ten points. The breakdown belongs on the Filters tab, where a
-  // reader is already asking about filters; the headline has to stay sensitive to the things
-  // that matter most.
+  // This was a single combined "filter hygiene" dimension, on the argument that every extra
+  // dimension makes every existing one quieter. That argument was right about the arithmetic
+  // and wrong about the fix: the dilution came from averaging dimensions across pillars, which
+  // PILLAR_WEIGHTS now prevents. Splitting costs the rest of the score nothing, and buys four
+  // separately tunable rules and four separately readable findings.
   //
-  // Duplicates are deliberately excluded from the rate. They are the most numerous filter
-  // finding and the least consequential, and including them at any weight turned this into a
-  // duplicate counter -- see summarizeFilterHealth.
-  if (filters?.available && filters.total > 0) {
-    const rate = Number(filters.defectRate) || 0;
+  // Duplicates are still deliberately absent. They are the most numerous filter finding and
+  // the least consequential, and at parity they were 70% of the combined rate -- a duplicate
+  // counter wearing a governance label.
+  const filterTotal = Number(filters?.total) || 0;
+  if (filters?.available && filterTotal > 0) {
     const orphaned = Number(filters.orphanedCount) || 0;
     const exposed = Number(filters.sharedWithEveryoneCount) || 0;
     const zombie = Number(filters.subscribedButUnusedCount) || 0;
     const broken = Number(filters.brokenProjectCount) || 0;
+
     dimensions.push({
-      key: "filter-hygiene",
-      label: "Filter hygiene",
+      key: "filter-ownership",
+      label: "Filter ownership",
+      pillar: "filters",
+      available: true,
+      // The heaviest of the four: Jira deletes a filter along with its owner, and every board
+      // and dashboard built on it breaks at the same moment, with no warning to anyone.
+      weight: 1.5,
+      score: scoreFromRate(orphaned / filterTotal, TOLERANCE.orphanedFilters),
+      detail: orphaned === 0
+        ? `All ${filterTotal} saved filters have a live owner.`
+        : `${orphaned} of ${filterTotal} filters have no live owner.`,
+      action: orphaned > 0
+        ? "Reassign these before the accounts are removed — the filter goes when the account does, and takes every board built on it."
+        : null,
+    });
+
+    dimensions.push({
+      key: "filter-exposure",
+      label: "Filter exposure",
       pillar: "filters",
       available: true,
       weight: 1,
-      score: scoreFromRate(rate, TOLERANCE.filterDefects),
-      detail: orphaned + exposed + zombie + broken === 0
-        ? `All ${filters.total} saved filters have a live owner and a scope that resolves.`
-        : `${orphaned} of ${filters.total} filters have no live owner, ${exposed} are shared with everyone, ${zombie} email a search nobody opens${broken > 0 ? `, and ${broken} name a project that does not exist` : ""}.`,
-      action: orphaned > 0
-        ? "Jira deletes a filter with its owner, and every board and dashboard built on it breaks at the same moment. Reassign these before the accounts are removed."
-        : broken > 0
-          ? "A filter naming a project that no longer exists errors rather than returning the wrong answer — the cheapest of these to fix and the easiest to prove."
-          : zombie > 0
-            ? "Recurring email from a filter nobody reads is what teaches people to filter Jira to trash."
-            : exposed > 0
-              ? "Shared with every logged-in user. Confirm each one is meant to be a site-wide search."
-              : null,
+      score: scoreFromRate(exposed / filterTotal, TOLERANCE.overSharedFilters),
+      detail: exposed === 0
+        ? `No filter is shared with every logged-in user.`
+        : `${exposed} of ${filterTotal} filters are shared with everyone.`,
+      action: exposed > 0 ? "Confirm each is meant to be a site-wide search rather than a personal one shared once and forgotten." : null,
     });
+
+    dimensions.push({
+      key: "filter-subscriptions",
+      label: "Filter subscriptions",
+      pillar: "filters",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(zombie / filterTotal, TOLERANCE.zombieSubscriptions),
+      detail: zombie === 0
+        ? "Every subscribed filter is opened by someone."
+        : `${zombie} of ${filterTotal} filters email a search nobody opens.`,
+      action: zombie > 0 ? "Recurring mail from a filter nobody reads is what teaches people to filter Jira to trash." : null,
+    });
+
+    // Tri-state: the broken-scope rule needs the project catalog to join against. Without it
+    // the answer is unknown, not zero -- "no filter names a missing project" is a claim, and
+    // one nobody has established.
+    if (filters.projectsChecked) {
+      dimensions.push({
+        key: "filter-scope",
+        label: "Filter scope",
+        pillar: "filters",
+        available: true,
+        weight: 1,
+        score: scoreFromRate(broken / filterTotal, TOLERANCE.brokenFilterScope),
+        detail: broken === 0
+          ? `Every filter's project scope resolves.`
+          : `${broken} of ${filterTotal} filters name a project that does not exist.`,
+        action: broken > 0
+          ? "These error rather than returning the wrong answer — the cheapest filter problem to fix and the easiest to prove."
+          : null,
+      });
+    } else {
+      dimensions.push(unavailable("filter-scope", "Filter scope", "filters",
+        "Checking a filter's scope needs the project catalog. Run a scan so the two can be joined."));
+    }
   } else {
-    dimensions.push(unavailable("filter-hygiene", "Filter hygiene", "filters",
-      "No saved filter inventory yet. Build one from the Filters tab or run a full scan."));
+    for (const [key, label] of [
+      ["filter-ownership", "Filter ownership"],
+      ["filter-exposure", "Filter exposure"],
+      ["filter-subscriptions", "Filter subscriptions"],
+      ["filter-scope", "Filter scope"],
+    ]) {
+      dimensions.push(unavailable(key, label, "filters",
+        "No saved filter inventory yet. Build one from the Filters tab or run a full scan."));
+    }
   }
 
-  // ── Dashboard hygiene ─────────────────────────────────────────────────────
-  // Dashboards that will vanish, that anyone can rewrite, or that nobody finished.
+  // ── Dashboards, as four rules rather than one ─────────────────────────────
   //
-  // One dimension, like filters and for the same reason: every dimension added makes every
-  // existing one quieter, and the credential finding can already move the headline by under
-  // ten points. The breakdown belongs on the Dashboards tab.
-  //
-  // The empty count is excluded when the gadget walk was partial. A pass that reached 180 of
-  // 200 dashboards can say which of those 180 are empty, and cannot say anything about the
-  // other 20 -- so scoring the rate against the full total would report a shortfall in the
-  // BUILD as a defect in the estate.
-  if (dashboards?.available && dashboards.total > 0) {
-    const rate = Number(dashboards.defectRate) || 0;
+  // Split for the same reason as filters: the dilution that justified keeping this as one
+  // combined dimension came from averaging across pillars, which PILLAR_WEIGHTS now prevents.
+  const dashTotal = Number(dashboards?.total) || 0;
+  if (dashboards?.available && dashTotal > 0) {
     const orphaned = Number(dashboards.orphanedCount) || 0;
     const editable = Number(dashboards.editableByEveryoneCount) || 0;
+    const unused = Number(dashboards.publishedUnusedCount) || 0;
     const empty = dashboards.emptyCount;
+
     dimensions.push({
-      key: "dashboard-hygiene",
-      label: "Dashboard hygiene",
+      key: "dashboard-ownership",
+      label: "Dashboard ownership",
+      pillar: "dashboards",
+      available: true,
+      // Heaviest of the four, and for the same reason as filter ownership: Jira deletes a
+      // dashboard along with its owner.
+      weight: 1.5,
+      score: scoreFromRate(orphaned / dashTotal, TOLERANCE.orphanedDashboards),
+      detail: orphaned === 0
+        ? `All ${dashTotal} dashboards have a live owner.`
+        : `${orphaned} of ${dashTotal} dashboards have no live owner.`,
+      action: orphaned > 0
+        ? "A wall-screen dashboard owned by somebody who left has a deletion date nobody has written down."
+        : null,
+    });
+
+    dimensions.push({
+      key: "dashboard-exposure",
+      label: "Dashboard exposure",
       pillar: "dashboards",
       available: true,
       weight: 1,
-      score: scoreFromRate(rate, TOLERANCE.dashboardDefects),
-      detail: orphaned + editable === 0 && !empty
-        ? `All ${dashboards.total} dashboards have a live owner and a bounded edit list.`
-        : `${orphaned} of ${dashboards.total} dashboards have no live owner, ${editable} can be rearranged by any logged-in user${empty ? `, and ${empty} carry no gadgets` : ""}.`,
-      action: orphaned > 0
-        ? "Jira deletes a dashboard with its owner. A wall-screen dashboard owned by somebody who left has a deletion date nobody has written down."
-        : editable > 0
-          ? "Anyone can rearrange these for everybody who uses them, and the owner is not told. Narrow the edit permission to a role or a group."
-          : empty
-            ? "These render as an empty grid to anyone who opens them."
-            : null,
+      score: scoreFromRate(editable / dashTotal, TOLERANCE.editableDashboards),
+      detail: editable === 0
+        ? "No dashboard can be rearranged by any logged-in user."
+        : `${editable} of ${dashTotal} dashboards can be rearranged by anyone.`,
+      action: editable > 0
+        ? "Anyone can rearrange these for everybody who uses them, and the owner is not told. Narrow the edit permission to a role or a group."
+        : null,
     });
+
+    dimensions.push({
+      key: "dashboard-adoption",
+      label: "Dashboard adoption",
+      pillar: "dashboards",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(unused / dashTotal, TOLERANCE.unusedDashboards),
+      detail: unused === 0
+        ? "Every shared dashboard has been favourited by somebody."
+        : `${unused} of ${dashTotal} dashboards are shared but favourited by nobody.`,
+      // Popularity is a favourite count, not a view count, so this bounds a claim about
+      // neglect rather than proving one -- and the action says so rather than implying the
+      // dashboard is definitely unread.
+      action: unused > 0
+        ? "Favourites are the closest signal Jira gives to use. Not proof nobody opens these, but the place to start asking."
+        : null,
+    });
+
+    // Tri-state. A pass that reached 180 of 200 dashboards can say which of those 180 are
+    // empty and can say nothing about the other 20, so scoring the rate against the full total
+    // would report a shortfall in the BUILD as a defect in the estate.
+    if (empty !== null && empty !== undefined) {
+      dimensions.push({
+        key: "dashboard-content",
+        label: "Dashboard content",
+        pillar: "dashboards",
+        available: true,
+        weight: 1,
+        score: scoreFromRate(Number(empty) / dashTotal, TOLERANCE.emptyDashboards),
+        detail: Number(empty) === 0
+          ? "Every dashboard carries at least one gadget."
+          : `${empty} of ${dashTotal} dashboards carry no gadgets at all.`,
+        action: Number(empty) > 0 ? "These render as an empty grid to anyone who opens them." : null,
+      });
+    } else {
+      dimensions.push(unavailable("dashboard-content", "Dashboard content", "dashboards",
+        "The gadget walk did not complete, so how many dashboards are empty is unknown."));
+    }
   } else {
-    dimensions.push(unavailable("dashboard-hygiene", "Dashboard hygiene", "dashboards",
-      "No dashboard inventory yet. Build one from the Dashboards tab or run a full scan."));
+    for (const [key, label] of [
+      ["dashboard-ownership", "Dashboard ownership"],
+      ["dashboard-exposure", "Dashboard exposure"],
+      ["dashboard-adoption", "Dashboard adoption"],
+      ["dashboard-content", "Dashboard content"],
+    ]) {
+      dimensions.push(unavailable(key, label, "dashboards",
+        "No dashboard inventory yet. Build one from the Dashboards tab or run a full scan."));
+    }
   }
 
   // ── Status naming ─────────────────────────────────────────────────────────
@@ -646,11 +792,6 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
 
   // ── Roll-up ───────────────────────────────────────────────────────────────
   const scored = dimensions.filter((d) => d.available);
-  const totalWeight = scored.reduce((sum, d) => sum + d.weight, 0);
-  const score = totalWeight > 0
-    ? Math.round(scored.reduce((sum, d) => sum + d.score * d.weight, 0) / totalWeight)
-    : null;
-
   // Per-pillar roll-ups, weighted the same way as the headline. Computed here so the
   // overview renders groups without re-deriving the weighting -- a second implementation in
   // JSX would eventually disagree with this one about what the site scored.
@@ -678,6 +819,24 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       reason: ownScored.length === 0 ? own[0]?.reason ?? null : null,
     };
   }).filter((p) => p.total > 0);
+
+  // The headline: a weighted mean over PILLARS, not over dimensions.
+  //
+  // Averaging dimensions directly meant a pillar's influence tracked its rule count. This
+  // averages each pillar's own score, weighted by what that pillar is declared to be worth,
+  // so the number of rules inside a pillar changes how precisely it is measured and not how
+  // much it counts.
+  //
+  // Pillars with nothing measured are excluded rather than scored zero -- the same rule every
+  // dimension already follows, applied one level up. A site with no dashboard inventory is not
+  // a site with bad dashboards.
+  const scoredPillars = pillars.filter((p) => p.available && p.score !== null);
+  const pillarWeight = scoredPillars.reduce((sum, p) => sum + (PILLAR_WEIGHTS[p.key] ?? 1), 0);
+  const score = pillarWeight > 0
+    ? Math.round(
+        scoredPillars.reduce((sum, p) => sum + p.score * (PILLAR_WEIGHTS[p.key] ?? 1), 0) / pillarWeight
+      )
+    : null;
 
   return {
     score,

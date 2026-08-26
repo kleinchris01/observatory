@@ -70,21 +70,24 @@ const adoption = (over = {}) => ({
 const filters = (over = {}) => ({
   available: true,
   total: 400,
-  defectRate: 0,
   orphanedCount: 0,
   sharedWithEveryoneCount: 0,
   subscribedButUnusedCount: 0,
   brokenProjectCount: 0,
+  // Scope can only be judged against the project catalog. A fixture that omits this is
+  // describing a site where that join never ran, which is a different site from a clean one.
+  projectsChecked: true,
   ...over,
 });
 
-// Like filters: one rate rather than four, so the fixture is correspondingly small.
 const dashboards = (over = {}) => ({
   available: true,
   total: 212,
-  defectRate: 0,
   orphanedCount: 0,
   editableByEveryoneCount: 0,
+  publishedUnusedCount: 0,
+  // Zero, not absent. Absent means the gadget walk did not finish, and "no empty dashboards"
+  // is then a claim nobody established.
   emptyCount: 0,
   ...over,
 });
@@ -614,43 +617,137 @@ describe("project adoption", () => {
 
 // A dashboard is the most visible thing in Jira and the least owned: it goes on a wall
 // screen, gets linked in a status report, and is never opened again.
-describe("dashboard hygiene", () => {
-  const dim = (health) => health.dimensions.find((d) => d.key === "dashboard-hygiene");
+//
+// Four rules rather than one combined "hygiene" score. The combined version could say a site
+// was at 40 without saying whether that was orphans or empty grids -- and there was no way to
+// tune the two separately, because there was only one bound behind them.
+describe("dashboard rules", () => {
+  const dim = (health, key) => health.dimensions.find((d) => d.key === key);
 
-  test("scores the share that will vanish or that anyone can rewrite", () => {
-    const health = computeSiteHealth({ dashboards: dashboards({ total: 212, defectRate: 0.12, orphanedCount: 18, editableByEveryoneCount: 22, emptyCount: 9 }) });
-    // 12% against a 20% tolerance.
-    expect(dim(health).score).toBe(40);
-    expect(dim(health).detail).toMatch(/18 of 212 dashboards have no live owner/);
+  test("scores each failure against its own bound", () => {
+    const health = computeSiteHealth({
+      dashboards: dashboards({ total: 200, orphanedCount: 20, editableByEveryoneCount: 50, publishedUnusedCount: 70, emptyCount: 30 }),
+    });
+
+    // 10% orphaned against a 10% bound bottoms out; 25% editable against 25% likewise. The
+    // point is that they are judged separately -- under one combined rate these four averaged
+    // into a single number that matched none of them.
+    expect(dim(health, "dashboard-ownership").score).toBe(0);
+    expect(dim(health, "dashboard-exposure").score).toBe(0);
+    expect(dim(health, "dashboard-adoption").score).toBe(0);
+    expect(dim(health, "dashboard-content").score).toBe(0);
+    expect(dim(health, "dashboard-ownership").detail).toMatch(/20 of 200 dashboards have no live owner/);
   });
 
-  test("leads with the ones that will disappear", () => {
+  test("weights ownership above the rest", () => {
+    const health = computeSiteHealth({ dashboards: dashboards() });
+
     // Jira deletes a dashboard with its owner, so an orphan has a deletion date nobody has
     // written down. An open edit list is bad manners; this is data loss.
-    const orphan = computeSiteHealth({ dashboards: dashboards({ orphanedCount: 4, defectRate: 0.1 }) });
-    const editable = computeSiteHealth({ dashboards: dashboards({ editableByEveryoneCount: 4, defectRate: 0.1 }) });
+    expect(dim(health, "dashboard-ownership").weight)
+      .toBeGreaterThan(dim(health, "dashboard-exposure").weight);
 
-    expect(dim(orphan).action).toMatch(/deletion date nobody has written down/);
-    expect(dim(editable).action).toMatch(/Narrow the edit permission/);
+    // The action appears only when there is something to act on -- a clean pillar offers no
+    // advice, which is why this needs its own fixture rather than the default one.
+    const withOrphans = computeSiteHealth({ dashboards: dashboards({ orphanedCount: 4 }) });
+    expect(dim(withOrphans, "dashboard-ownership").action).toMatch(/deletion date nobody has written down/);
+    expect(dim(health, "dashboard-ownership").action).toBeNull();
   });
 
   // A pass that reached 180 of 200 dashboards can say which of those 180 are empty and
-  // nothing about the other 20. Reporting the shortfall in the BUILD as a defect in the
-  // estate is the failure mode this guards.
-  test("omits the empty count from its wording when the gadget walk was partial", () => {
-    const health = computeSiteHealth({ dashboards: dashboards({ orphanedCount: 2, defectRate: 0.05, emptyCount: null }) });
-    expect(dim(health).detail).not.toMatch(/carry no gadgets/);
+  // nothing about the other 20. Reporting a shortfall in the BUILD as a defect in the estate
+  // is the failure mode this guards -- and it is why the count is tri-state rather than zero.
+  test("reports the empty count as unmeasured when the gadget walk was partial", () => {
+    const health = computeSiteHealth({ dashboards: dashboards({ orphanedCount: 2, emptyCount: null }) });
+
+    expect(dim(health, "dashboard-content")).toMatchObject({ available: false, score: null });
+    expect(dim(health, "dashboard-content").reason).toMatch(/gadget walk did not complete/);
+    // The other three are unaffected: a partial gadget walk does not stop us knowing who owns
+    // a dashboard or who can edit it.
+    expect(dim(health, "dashboard-ownership").available).toBe(true);
   });
 
   test("asks for a build rather than scoring zero when nothing has been inventoried", () => {
     const health = computeSiteHealth({});
-    expect(dim(health)).toMatchObject({ available: false, score: null });
-    expect(dim(health).reason).toMatch(/No dashboard inventory yet/);
+
+    for (const key of ["dashboard-ownership", "dashboard-exposure", "dashboard-adoption", "dashboard-content"]) {
+      expect(dim(health, key)).toMatchObject({ available: false, score: null });
+      expect(dim(health, key).reason).toMatch(/No dashboard inventory yet/);
+    }
   });
 
-  test("is its own pillar", () => {
+  test("is its own pillar, with four rules in it", () => {
     const health = computeSiteHealth({ dashboards: dashboards() });
     const pillar = health.pillars.find((p) => p.key === "dashboards");
-    expect(pillar.dimensions.map((d) => d.key)).toEqual(["dashboard-hygiene"]);
+
+    expect(pillar.dimensions.map((d) => d.key).sort()).toEqual([
+      "dashboard-adoption", "dashboard-content", "dashboard-exposure", "dashboard-ownership",
+    ]);
+  });
+});
+
+// The same split, on the pillar where a failure is least visible. A dashboard breaking is
+// obvious the moment somebody opens it; a filter returns the wrong answer in silence.
+describe("filter rules", () => {
+  const dim = (health, key) => health.dimensions.find((d) => d.key === key);
+
+  test("scores each failure against its own bound", () => {
+    const health = computeSiteHealth({
+      filters: filters({ total: 400, orphanedCount: 20, sharedWithEveryoneCount: 80, subscribedButUnusedCount: 40, brokenProjectCount: 20 }),
+    });
+
+    expect(dim(health, "filter-ownership").score).toBe(0);
+    expect(dim(health, "filter-exposure").score).toBe(0);
+    expect(dim(health, "filter-subscriptions").score).toBe(0);
+    expect(dim(health, "filter-scope").score).toBe(0);
+    expect(dim(health, "filter-ownership").detail).toMatch(/20 of 400 filters have no live owner/);
+  });
+
+  // Scope is the only one of the four that needs a second dataset. Without the project
+  // catalog "no filter names a missing project" is a claim nobody established, not a pass.
+  test("reports scope as unmeasured when the project catalog was never joined", () => {
+    const health = computeSiteHealth({ filters: filters({ projectsChecked: false }) });
+
+    expect(dim(health, "filter-scope")).toMatchObject({ available: false, score: null });
+    expect(dim(health, "filter-scope").reason).toMatch(/needs the project catalog/);
+    expect(dim(health, "filter-ownership").available).toBe(true);
+  });
+
+  test("is its own pillar, with four rules in it", () => {
+    const health = computeSiteHealth({ filters: filters() });
+    const pillar = health.pillars.find((p) => p.key === "filters");
+
+    expect(pillar.dimensions.map((d) => d.key).sort()).toEqual([
+      "filter-exposure", "filter-ownership", "filter-scope", "filter-subscriptions",
+    ]);
+  });
+});
+
+// What a pillar is worth no longer depends on how many rules somebody wrote for it.
+describe("pillar weighting", () => {
+  test("adding rules to a pillar does not change what that pillar is worth", () => {
+    // A site perfect everywhere except dashboards, which are at their worst.
+    const bad = computeSiteHealth({
+      fieldUsage: fieldUsage(), workflow: workflow(), projects: projects(), automation: automation(),
+      screens: screens(), adoption: adoption(), filters: filters(),
+      dashboards: dashboards({ total: 100, orphanedCount: 100, editableByEveryoneCount: 100, publishedUnusedCount: 100, emptyCount: 100 }),
+    });
+
+    // Dashboards is one of seven pillars carrying weight 1 out of 9 total, so a pillar scoring
+    // zero costs about an ninth of the headline -- regardless of it now having four rules
+    // rather than one. Under the old dimension-averaged headline, splitting one rule into four
+    // would have quadrupled that cost without anyone deciding it should.
+    expect(bad.score).toBeGreaterThan(80);
+    expect(bad.pillars.find((p) => p.key === "dashboards").score).toBe(0);
+  });
+
+  test("a pillar with nothing measured is excluded, not scored zero", () => {
+    const withoutDashboards = computeSiteHealth({
+      fieldUsage: fieldUsage(), workflow: workflow(), projects: projects(), automation: automation(),
+      screens: screens(), adoption: adoption(), filters: filters(),
+    });
+
+    // A site with no dashboard inventory is not a site with bad dashboards.
+    expect(withoutDashboards.score).toBeGreaterThanOrEqual(90);
   });
 });

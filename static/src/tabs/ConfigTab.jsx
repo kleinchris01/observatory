@@ -633,7 +633,7 @@ function RulesArea({ t, setThreshold, pct, setTolerancePercent }) {
         </p>
       </ConfigSection>
 
-      <ConfigSection title="Workflows & statuses" icon="activity">
+      <ConfigSection title="Workflows &amp; statuses" icon="activity">
         <p className="admin-config-section__desc">
           These score the status catalogue and the schemes that reach it. Unlike the field rules
           above they are a share of the estate rather than a raw count &mdash; a site with 400 statuses
@@ -641,118 +641,135 @@ function RulesArea({ t, setThreshold, pct, setTolerancePercent }) {
           would rank them the wrong way round.
         </p>
         <div className="admin-threshold-rules">
+          <ToleranceRule tone="cleanup" badge="Workflow" name="Duplicate statuses" pct={pct} set={setTolerancePercent} k="duplicateStatuses"
+            tail="of statuses duplicating another." />
+          <ToleranceRule tone="cleanup" badge="Workflow" name="Unreachable statuses" pct={pct} set={setTolerancePercent} k="unreachableStatuses"
+            tail="of statuses that no transition can reach." />
+          <ToleranceRule tone="cleanup" badge="Workflow" name="Rule-only statuses" pct={pct} set={setTolerancePercent} k="ruleOnlyStatuses"
+            tail="of statuses reached only by an automation rule, never by a person." />
+          <ToleranceRule tone="standardize" badge="Workflow" name="Scheme balance" pct={pct} set={setTolerancePercent} k="flaggedSchemes"
+            tail="of workflow schemes carrying a structural finding." />
+        </div>
+      </ConfigSection>
 
-          <div className="admin-threshold-rule">
-            <span className="admin-threshold-rule__badge admin-threshold-rule__badge--cleanup">Workflow</span>
-            <span className="admin-threshold-rule__sentence">
-              <strong>Duplicate statuses: score bottoms out at</strong>{" "}
-              <InlineThresholdInput value={pct("duplicateStatuses")} onChange={(v) => setTolerancePercent("duplicateStatuses", v)} min={1} max={100} />{" "}
-              % of statuses duplicating another. Below that the dimension scales down gradually.
-            </span>
-          </div>
+      <ConfigSection title="Saved filters" icon="search">
+        <p className="admin-config-section__desc">
+          A saved filter is the one piece of Jira configuration that fails silently in both
+          directions &mdash; it can return the wrong answer for months without anyone noticing, and it
+          takes every board and dashboard built on it when it goes. Four rules, tuned separately,
+          because the four failures are not equally serious.
+        </p>
+        <div className="admin-threshold-rules">
+          <ToleranceRule tone="risk" badge="Filter" name="Orphaned filters" pct={pct} set={setTolerancePercent} k="orphanedFilters"
+            tail="of filters with no live owner. Jira deletes a filter along with its owner, so these are on a timer." />
+          <ToleranceRule tone="cleanup" badge="Filter" name="Shared with everyone" pct={pct} set={setTolerancePercent} k="overSharedFilters"
+            tail="of filters visible to every logged-in user." />
+          <ToleranceRule tone="cleanup" badge="Filter" name="Subscribed but unread" pct={pct} set={setTolerancePercent} k="zombieSubscriptions"
+            tail="of filters emailing a search nobody opens." />
+          <ToleranceRule tone="risk" badge="Filter" name="Broken scope" pct={pct} set={setTolerancePercent} k="brokenFilterScope"
+            tail="of filters naming a project that does not exist." />
+        </div>
+      </ConfigSection>
 
-          <div className="admin-threshold-rule">
-            <span className="admin-threshold-rule__badge admin-threshold-rule__badge--cleanup">Workflow</span>
-            <span className="admin-threshold-rule__sentence">
-              <strong>Unreachable statuses: bottoms out at</strong>{" "}
-              <InlineThresholdInput value={pct("unreachableStatuses")} onChange={(v) => setTolerancePercent("unreachableStatuses", v)} min={1} max={100} />{" "}
-              % of statuses that no scheme can reach.
-            </span>
-          </div>
+      <ConfigSection title="Dashboards" icon="barChart">
+        <p className="admin-config-section__desc">
+          Looser bounds than the filter rules throughout, deliberately: a dashboard breaking is
+          visible the moment somebody opens it, where a filter is wrong in silence.
+        </p>
+        <div className="admin-threshold-rules">
+          <ToleranceRule tone="risk" badge="Dashboard" name="Orphaned dashboards" pct={pct} set={setTolerancePercent} k="orphanedDashboards"
+            tail="of dashboards with no live owner. A wall-screen dashboard owned by somebody who left has a deletion date nobody has written down." />
+          <ToleranceRule tone="cleanup" badge="Dashboard" name="Editable by everyone" pct={pct} set={setTolerancePercent} k="editableDashboards"
+            tail="of dashboards any logged-in user can rearrange, without the owner being told." />
+          <ToleranceRule tone="standardize" badge="Dashboard" name="Shared but unfavourited" pct={pct} set={setTolerancePercent} k="unusedDashboards"
+            tail="of shared dashboards nobody has favourited. Favourites are the closest signal Jira gives to use — this bounds a claim about neglect rather than proving one." />
+          <ToleranceRule tone="cleanup" badge="Dashboard" name="Empty dashboards" pct={pct} set={setTolerancePercent} k="emptyDashboards"
+            tail="of dashboards carrying no gadgets at all. Scored only when the gadget walk completed." />
+        </div>
+      </ConfigSection>
 
-          <div className="admin-threshold-rule">
-            <span className="admin-threshold-rule__badge admin-threshold-rule__badge--standardize">Workflow</span>
-            <span className="admin-threshold-rule__sentence">
-              <strong>Scheme balance: bottoms out at</strong>{" "}
-              <InlineThresholdInput value={pct("flaggedSchemes")} onChange={(v) => setTolerancePercent("flaggedSchemes", v)} min={1} max={100} />{" "}
-              % of schemes carrying a flag &mdash; no Done state, or uncategorised statuses.
-            </span>
-          </div>
+      <ConfigSection title="Screens" icon="layout">
+        <p className="admin-config-section__desc">
+          A scheme pointing at a screen that no longer exists does not error &mdash; Jira falls back
+          silently, so the form a user sees is not the one the scheme names. Nobody finds these by
+          using Jira.
+        </p>
+        <div className="admin-threshold-rules">
+          <ToleranceRule tone="risk" badge="Screen" name="Dangling scheme operations" pct={pct} set={setTolerancePercent} k="danglingScreenRefs"
+            tail="of scheme operations pointing at a screen that no longer exists." />
+          <ToleranceRule tone="cleanup" badge="Screen" name="Unreachable screens" pct={pct} set={setTolerancePercent} k="unusedScreens"
+            tail="of screens no scheme and no transition can reach." />
         </div>
       </ConfigSection>
 
       <ConfigSection title="Automation" icon="refreshCw">
         <p className="admin-config-section__desc">
-          Derived from the imported rule analysis. Credentials are deliberately the tightest bound in
-          the product: the others measure untidiness, where a few percent is normal on any real site.
-          A rule storing a secret in plaintext is not untidiness.
+          Fed by a rule export rather than a scan &mdash; Jira publishes no API to enumerate automation
+          rules, so these score whatever was last imported on the Automation tab.
         </p>
         <div className="admin-threshold-rules">
-
-          <div className="admin-threshold-rule">
-            <span className="admin-threshold-rule__badge admin-threshold-rule__badge--risk">Risk</span>
-            <span className="admin-threshold-rule__sentence">
-              <strong>Credentials in rules: bottoms out at</strong>{" "}
-              <InlineThresholdInput value={pct("credentialRules")} onChange={(v) => setTolerancePercent("credentialRules", v)} min={1} max={25} />{" "}
-              % of rules carrying a plaintext credential. Set this low and leave it low.
-            </span>
-          </div>
-
-          <div className="admin-threshold-rule">
-            <span className="admin-threshold-rule__badge admin-threshold-rule__badge--cleanup">Automation</span>
-            <span className="admin-threshold-rule__sentence">
-              <strong>Self-triggering rules: bottoms out at</strong>{" "}
-              <InlineThresholdInput value={pct("selfTriggeringRules")} onChange={(v) => setTolerancePercent("selfTriggeringRules", v)} min={1} max={100} />{" "}
-              % of rules writing a field they also trigger on. Raise it if yours are deliberately guarded.
-            </span>
-          </div>
-
-          <div className="admin-threshold-rule">
-            <span className="admin-threshold-rule__badge admin-threshold-rule__badge--cleanup">Automation</span>
-            <span className="admin-threshold-rule__sentence">
-              <strong>Disabled rules: bottoms out at</strong>{" "}
-              <InlineThresholdInput value={pct("disabledRules")} onChange={(v) => setTolerancePercent("disabledRules", v)} min={1} max={100} />{" "}
-              % of rules switched off &mdash; clutter rather than danger, so the most forgiving bound here.
-            </span>
-          </div>
+          <ToleranceRule tone="risk" badge="Risk" name="Credentials in rules" pct={pct} set={setTolerancePercent} k="credentialRules"
+            tail="of rules carrying a secret in plaintext. The highest-consequence thing this app finds anywhere." />
+          <ToleranceRule tone="cleanup" badge="Automation" name="Self-triggering rules" pct={pct} set={setTolerancePercent} k="selfTriggeringRules"
+            tail="of rules that can re-trigger themselves." />
+          <ToleranceRule tone="cleanup" badge="Automation" name="Disabled rules" pct={pct} set={setTolerancePercent} k="disabledRules"
+            tail="of rules left switched off." />
+          <ToleranceRule tone="cleanup" badge="Automation" name="Outbound HTTP" pct={pct} set={setTolerancePercent} k="externalHttpRules"
+            tail="of rules calling an external service." />
         </div>
       </ConfigSection>
 
-      <ConfigSection title="Estate-wide field &amp; project rates" icon="folder">
+      <ConfigSection title="Projects" icon="folder">
         <p className="admin-config-section__desc">
-          These sit alongside the per-field rules above rather than replacing them. The rules decide
-          whether one field is flagged; these decide how much the resulting rate costs the score.
+          Shares of the estate, not counts. Adoption needs issue creation dates, which only a
+          Universal Scan collects &mdash; until one has run that rule reports unmeasured rather than zero.
         </p>
         <div className="admin-threshold-rules">
-
-          <div className="admin-threshold-rule">
-            <span className="admin-threshold-rule__badge admin-threshold-rule__badge--standardize">Project</span>
-            <span className="admin-threshold-rule__sentence">
-              <strong>Irregular projects: bottoms out at</strong>{" "}
-              <InlineThresholdInput value={pct("irregularProjects")} onChange={(v) => setTolerancePercent("irregularProjects", v)} min={1} max={100} />{" "}
-              % of projects diverging from the field shape their scheme-siblings share.
-            </span>
-          </div>
-
-          <div className="admin-threshold-rule">
-            <span className="admin-threshold-rule__badge admin-threshold-rule__badge--cleanup">Cleanup</span>
-            <span className="admin-threshold-rule__sentence">
-              <strong>Flagged fields: bottoms out at</strong>{" "}
-              <InlineThresholdInput value={pct("fieldFindings")} onChange={(v) => setTolerancePercent("fieldFindings", v)} min={1} max={100} />{" "}
-              % of fields carrying at least one finding.
-            </span>
-          </div>
-
-          <div className="admin-threshold-rule">
-            <span className="admin-threshold-rule__badge admin-threshold-rule__badge--cleanup">Cleanup</span>
-            <span className="admin-threshold-rule__sentence">
-              <strong>Unused fields: bottoms out at</strong>{" "}
-              <InlineThresholdInput value={pct("unusedFields")} onChange={(v) => setTolerancePercent("unusedFields", v)} min={1} max={100} />{" "}
-              % of fields with no populated issues anywhere.
-            </span>
-          </div>
-
-          <div className="admin-threshold-rule">
-            <span className="admin-threshold-rule__badge admin-threshold-rule__badge--standardize">Standardize</span>
-            <span className="admin-threshold-rule__sentence">
-              <strong>Duplicate field names: bottoms out at</strong>{" "}
-              <InlineThresholdInput value={pct("duplicateFieldNames")} onChange={(v) => setTolerancePercent("duplicateFieldNames", v)} min={1} max={100} />{" "}
-              % of fields sharing a normalised name with another.
-            </span>
-          </div>
+          <ToleranceRule tone="standardize" badge="Project" name="Irregular projects" pct={pct} set={setTolerancePercent} k="irregularProjects"
+            tail="of projects carrying far more fields than the site median." />
+          <ToleranceRule tone="cleanup" badge="Project" name="Inactive projects" pct={pct} set={setTolerancePercent} k="inactiveProjects"
+            tail="of projects with no activity in six months, or fields but no work at all." />
+          <ToleranceRule tone="standardize" badge="Project" name="Unadopted projects" pct={pct} set={setTolerancePercent} k="unadoptedProjects"
+            tail="of projects running well below their own historical rate, or that never took off." />
         </div>
       </ConfigSection>
 
+      <ConfigSection title="Field rates" icon="layers">
+        <p className="admin-config-section__desc">
+          The two field rules scored as a share of the catalogue, rather than per field like the
+          thresholds above.
+        </p>
+        <div className="admin-threshold-rules">
+          <ToleranceRule tone="cleanup" badge="Field" name="Field findings" pct={pct} set={setTolerancePercent} k="fieldFindings"
+            tail="of the catalogue carrying a high or medium severity finding, weighted." />
+          <ToleranceRule tone="standardize" badge="Field" name="Duplicate field names" pct={pct} set={setTolerancePercent} k="duplicateFieldNames"
+            tail="of fields sharing a name with another." />
+        </div>
+      </ConfigSection>
+
+      <p className="admin-threshold-rules__note">
+        Every rule above feeds the site health score. A category&rsquo;s share of that score is fixed by
+        what the category is worth, not by how many rules it contains &mdash; so tuning a rule here
+        changes how strictly that one thing is judged, and never how much the category counts.
+      </p>
     </>
+  );
+}
+
+// One tolerance rule: a sentence with the bound in the middle of it.
+//
+// Twenty-five of these are rendered, and hand-writing the markup twenty-five times is how the
+// page ended up with nine rules on it while fourteen more tolerances quietly drove the score
+// with no control at all. A rule that is one line to add is a rule that gets added.
+function ToleranceRule({ tone, badge, name, pct, set, k, tail }) {
+  return (
+    <div className="admin-threshold-rule">
+      <span className={`admin-threshold-rule__badge admin-threshold-rule__badge--${tone}`}>{badge}</span>
+      <span className="admin-threshold-rule__sentence">
+        <strong>{name}:</strong> score bottoms out at{" "}
+        <InlineThresholdInput value={pct(k)} onChange={(v) => set(k, v)} min={1} max={100} />{" "}
+        % {tail}
+      </span>
+    </div>
   );
 }
