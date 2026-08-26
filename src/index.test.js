@@ -386,14 +386,25 @@ describe("consumeSnapshot job routing", () => {
 
   // The cheapest structural build here: one paginated endpoint with everything expanded, so
   // ~40 calls for 2,000 filters and no per-item walk.
-  test("routes build-filter-snapshot to the filter engine", async () => {
-    await consumeSnapshot(event({ jobType: "build-filter-snapshot" }));
-    expect(buildFilterSnapshot).toHaveBeenCalledWith("scope-1");
+  test("routes build-filter-snapshot to the filter engine, message and all", async () => {
+    await consumeSnapshot(event({ jobType: "build-filter-snapshot", buildToken: "tok-1" }));
+    // The whole body travels, not just the key. The filter build is resumable: it re-queues
+    // itself with a token, and a chunk that never sees that token cannot tell its own
+    // continuation from a second person clicking Rebuild.
+    expect(buildFilterSnapshot).toHaveBeenCalledWith(
+      "scope-1",
+      expect.objectContaining({ jobType: "build-filter-snapshot", buildToken: "tok-1" })
+    );
   });
 
-  test("routes build-dashboard-snapshot to the dashboard engine", async () => {
-    await consumeSnapshot(event({ jobType: "build-dashboard-snapshot" }));
-    expect(buildDashboardSnapshot).toHaveBeenCalledWith("scope-1");
+  test("routes build-dashboard-snapshot to the dashboard engine, message and all", async () => {
+    await consumeSnapshot(event({ jobType: "build-dashboard-snapshot", buildToken: "tok-2" }));
+    // Resumable, like the filter build: the token has to reach the chunk or it cannot tell its
+    // own continuation from a fresh Rebuild.
+    expect(buildDashboardSnapshot).toHaveBeenCalledWith(
+      "scope-1",
+      expect.objectContaining({ jobType: "build-dashboard-snapshot", buildToken: "tok-2" })
+    );
   });
 
   test("a failing dashboard build does not rethrow, so Forge will not retry it forever", async () => {
@@ -419,13 +430,30 @@ describe("consumeSnapshot job routing", () => {
     await expect(consumeSnapshot(event({ jobType: "build-filter-snapshot" }))).resolves.toBeUndefined();
   });
 
-  test("logs zeroes rather than undefined when the filter build returns no counts", async () => {
+  // The three outcomes a chunk can have are logged differently, because "checkpointed" and
+  // "completed" mean very different things to somebody reading the logs to find out whether a
+  // build is progressing or stuck.
+  test("distinguishes a checkpointed chunk from a completed build in the log", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    buildFilterSnapshot.mockResolvedValueOnce({ checkpointed: true, processed: 500, totalExpected: 4000 });
+    await consumeSnapshot(event({ jobType: "build-filter-snapshot" }));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("checkpointed - 500/4000"));
+
+    buildFilterSnapshot.mockResolvedValueOnce({ completed: true, processed: 4000 });
+    await consumeSnapshot(event({ jobType: "build-filter-snapshot" }));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("completed - 4000 filters"));
+
+    log.mockRestore();
+  });
+
+  test("says so rather than logging undefined when a chunk is ignored", async () => {
     buildFilterSnapshot.mockResolvedValueOnce(undefined);
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
 
     await consumeSnapshot(event({ jobType: "build-filter-snapshot" }));
 
-    expect(log).toHaveBeenCalledWith(expect.stringContaining("0 filters"));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("no-op"));
     log.mockRestore();
   });
 

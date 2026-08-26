@@ -911,6 +911,14 @@ const FILTER_EXPAND = "description,owner,jql,sharePermissions,subscriptions,view
 // proving one.
 const DASHBOARD_EXPAND = "description,owner,viewUrl,favouritedCount,sharePermissions,editPermissions";
 
+// One page of dashboards. Exposed alongside the full walk for the same reason as
+// getFilterPage: the dashboard build is resumable and drives its own pagination.
+export async function getDashboardPage(startAt = 0, maxResults = 50) {
+  return jiraRequest(
+    route`/rest/api/3/dashboard/search?maxResults=${maxResults}&startAt=${startAt}&expand=${DASHBOARD_EXPAND}`
+  );
+}
+
 export async function getAllDashboards() {
   return paginate((startAt) =>
     route`/rest/api/3/dashboard/search?maxResults=50&startAt=${startAt}&expand=${DASHBOARD_EXPAND}`);
@@ -929,6 +937,18 @@ export async function getAllDashboards() {
 export async function getDashboardGadgets(dashboardId) {
   const data = await jiraRequest(route`/rest/api/3/dashboard/${dashboardId}/gadget`);
   return Array.isArray(data?.gadgets) ? data.gadgets : [];
+}
+
+// One page of filters.
+//
+// Exposed as a single page rather than only as a full walk, because the filter build is
+// resumable: it fetches a bounded number of pages per invocation and checkpoints between them,
+// so it needs to drive the pagination itself rather than hand it to paginate() and hope the
+// whole estate arrives before the invocation is killed.
+export async function getFilterPage(startAt = 0, maxResults = 50) {
+  return jiraRequest(
+    route`/rest/api/3/filter/search?maxResults=${maxResults}&startAt=${startAt}&expand=${FILTER_EXPAND}&overrideSharePermissions=false`
+  );
 }
 
 export async function getAllFilters({ onPage } = {}) {

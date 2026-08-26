@@ -50,6 +50,12 @@ const mocks = vi.hoisted(() => ({
   loadProjectActivity: vi.fn(async () => new Map()),
   loadFilters: vi.fn(async () => []),
   readFilterSnapshotMeta: vi.fn(async () => null),
+  pruneFilterSnapshots: vi.fn(),
+  pruneDashboardSnapshots: vi.fn(),
+  clearFilterSnapshotVersion: vi.fn(),
+  appendFilterSnapshot: vi.fn(),
+  clearDashboardSnapshotVersion: vi.fn(),
+  appendDashboardSnapshot: vi.fn(),
   writeFilterSnapshotMeta: vi.fn(async () => ({})),
   loadFilterReferencesFor: vi.fn(async () => ({ total: 0, filters: [] })),
   loadFilterReferenceCounts: vi.fn(async () => ({})),
@@ -233,6 +239,12 @@ vi.mock("./lib/project-store.js", () => ({
   loadProjectActivity: mocks.loadProjectActivity,
   loadFilters: mocks.loadFilters,
   readFilterSnapshotMeta: mocks.readFilterSnapshotMeta,
+  pruneFilterSnapshots: mocks.pruneFilterSnapshots,
+  pruneDashboardSnapshots: mocks.pruneDashboardSnapshots,
+  clearFilterSnapshotVersion: mocks.clearFilterSnapshotVersion,
+  appendFilterSnapshot: mocks.appendFilterSnapshot,
+  clearDashboardSnapshotVersion: mocks.clearDashboardSnapshotVersion,
+  appendDashboardSnapshot: mocks.appendDashboardSnapshot,
   writeFilterSnapshotMeta: mocks.writeFilterSnapshotMeta,
   loadFilterReferencesFor: mocks.loadFilterReferencesFor,
   loadFilterReferenceCounts: mocks.loadFilterReferenceCounts,
@@ -4778,9 +4790,25 @@ describe("buildFilterInventory", () => {
     // rejects the invocation with "Event body must be an object" -- which is exactly what
     // shipped, because the original test only checked that SOMETHING was pushed.
     expect(mocks.queuePush).toHaveBeenCalledWith({
-      body: { jobType: "build-filter-snapshot", installationKey: "test-install" },
+      body: {
+        jobType: "build-filter-snapshot",
+        installationKey: "test-install",
+        // The token that lets a resumable build tell its own continuation apart from a second
+        // person clicking Rebuild. Without it, any check strict enough to refuse the second
+        // would also refuse the build resuming itself.
+        buildToken: expect.any(String),
+      },
     });
-    expect(mocks.writeFilterSnapshotMeta).toHaveBeenCalledWith("test-install", expect.objectContaining({ state: "building" }));
+    // Started as a resumable build: an in-flight version distinct from the published one, a
+    // zeroed cursor, and a heartbeat. A row marked "building" with no version to write into
+    // cannot be resumed by anything.
+    expect(mocks.writeFilterSnapshotMeta).toHaveBeenCalledWith("test-install", expect.objectContaining({
+      state: "building",
+      buildingVersion: expect.any(String),
+      buildToken: expect.any(String),
+      buildCursor: null,
+      processed: 0,
+    }));
   });
 
   test("refuses in read-only mode, and says so", async () => {

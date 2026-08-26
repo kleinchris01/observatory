@@ -136,8 +136,8 @@ import {
 import { summarizeAdoption, computeProjectAdoption } from "./lib/project-adoption.js";
 import { summarizeFilters, summarizeFilterHealth } from "./lib/filter-insights.js";
 import { summarizeDashboards, summarizeDashboardHealth } from "./lib/dashboard-insights.js";
-import { isFilterBuildStale } from "./lib/filter-engine.js";
-import { isDashboardBuildStale } from "./lib/dashboard-engine.js";
+import { isFilterBuildStale, queueFilterSnapshotBuild } from "./lib/filter-engine.js";
+import { isDashboardBuildStale, queueDashboardSnapshotBuild } from "./lib/dashboard-engine.js";
 import { probeEndpoint, probeStargateEndpoint, getCloudId, getAllJiraProjects } from "./lib/jira-api.js";
 import {
   findDuplicateStatusGroups,
@@ -1295,12 +1295,10 @@ async function buildFilterInventory({ context }) {
     return { queued: false, error: "Read-only mode is enabled. Disable it before building the filter inventory." };
   }
 
-  // The `body` envelope is the contract, not decoration: the consumer reads
-  // event?.body?.jobType, and a payload pushed without it arrives with no body at all --
-  // Forge rejects the invocation outright with "Event body must be an object".
-  await inventorySnapshotQueue.push({ body: { jobType: "build-filter-snapshot", installationKey } });
-  await writeFilterSnapshotMeta(installationKey, { state: "building", startedAt: new Date().toISOString(), lastError: null });
-  return { queued: true };
+  // Starting the build is the harness's job now, not this resolver's. It writes the in-flight
+  // version, the token and the zeroed progress in one place, so the queue message and the meta
+  // row can never disagree about which build is running.
+  return queueFilterSnapshotBuild(installationKey);
 }
 
 // How many saved filters reference each field on a page.
@@ -1450,9 +1448,8 @@ async function buildDashboardInventory({ context }) {
 
   // Wrapped in `body`, like every other push here. The consumer reads event?.body?.jobType,
   // so a bare payload arrives bodyless and Forge rejects the invocation outright.
-  await inventorySnapshotQueue.push({ body: { jobType: "build-dashboard-snapshot", installationKey } });
-  await writeDashboardSnapshotMeta(installationKey, { state: "building", startedAt: new Date().toISOString(), lastError: null });
-  return { queued: true };
+  // The harness owns starting a build -- see buildFilterInventory.
+  return queueDashboardSnapshotBuild(installationKey);
 }
 
 // Parts that are written to SQL and nowhere else.

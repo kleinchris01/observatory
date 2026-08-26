@@ -27,16 +27,20 @@ import { logger } from "./logger.js";
 import {
   incrMetric,
   METRIC_NAMES,
-  getAllDashboards,
+  getDashboardPage,
   getDashboardGadgets,
   mapWithConcurrency,
 } from "./jira-api.js";
+import { inventorySnapshotQueue } from "./queues.js";
+import { isBuildStale, startResumableBuild, runBuildChunk } from "./resumable-build.js";
 import { isSharedWithEveryone, isEditableByEveryone } from "./dashboard-insights.js";
 import {
   ensureProjectStoreReady,
   readDashboardSnapshotMeta,
   writeDashboardSnapshotMeta,
-  replaceDashboardSnapshot,
+  clearDashboardSnapshotVersion,
+  appendDashboardSnapshot,
+  loadDashboardIdsNeedingGadgets,
   pruneDashboardSnapshots,
 } from "./project-store.js";
 
@@ -49,16 +53,23 @@ export const DASHBOARD_BUILD_STALE_MS = 16 * 60 * 1000;
 // build's per-item walk uses.
 export const DASHBOARD_FETCH_CONCURRENCY = 4;
 
+// One invocation's worth of work, per phase.
+//
+// The dashboard build is the expensive one: enumerating is a paginated search, but the gadget
+// walk is one request PER dashboard. On a large site that is thousands of sequential-ish calls,
+// and it is why this build died at the 900s ceiling. Chunking is sized so neither phase can
+// approach the limit -- 10 pages to enumerate, 60 dashboards to walk at concurrency 4.
+export const DASHBOARD_CHUNK_PAGES = 10;
+export const DASHBOARD_PAGE_SIZE = 50;
+export const DASHBOARD_GADGET_CHUNK = 60;
+
 // True when a build was started but can no longer be running.
 //
 // A Forge invocation timeout is a hard kill: state is marked "building" before the first API
 // call and the catch that would mark it "failed" never runs. Without this the row stays
 // "building" forever and every future rebuild is suppressed as already-running.
 export function isDashboardBuildStale(meta, now = Date.now()) {
-  if (meta?.state !== "building") return false;
-  const startedAt = Date.parse(meta?.startedAt || "");
-  if (!Number.isFinite(startedAt)) return true;
-  return now - startedAt > DASHBOARD_BUILD_STALE_MS;
+  return isBuildStale(meta, now, DASHBOARD_BUILD_STALE_MS);
 }
 
 // Jira's dashboard payload, flattened into the row shape plus its shares.
@@ -125,89 +136,134 @@ export function shapeGadget(dashboardId, raw) {
   };
 }
 
-export async function buildDashboardSnapshot(installationKey, { now = Date.now() } = {}) {
-  await ensureProjectStoreReady();
+// What a chunk of the dashboard inventory is.
+//
+// Two phases, because the work has two shapes. Phase "list" pages through dashboard/search and
+// stores each page. Phase "gadgets" walks the stored dashboards a batch at a time, filling in
+// gadget counts. The cursor carries which phase it is in, so a build resumes into the right one
+// rather than restarting the cheap phase every invocation.
+export const dashboardBuildSpec = {
+  name: "dashboard-snapshot",
+  staleMs: DASHBOARD_BUILD_STALE_MS,
+  readMeta: readDashboardSnapshotMeta,
+  writeMeta: writeDashboardSnapshotMeta,
+  clearVersion: clearDashboardSnapshotVersion,
+  prune: pruneDashboardSnapshots,
 
-  const existing = await readDashboardSnapshotMeta(installationKey);
-  if (existing?.state === "building" && !isDashboardBuildStale(existing, now)) {
-    return { skipped: true, reason: "already-building" };
-  }
+  enqueue: (installationKey, { buildToken }) =>
+    inventorySnapshotQueue.push({
+      body: { jobType: "build-dashboard-snapshot", installationKey, buildToken },
+    }),
 
-  const version = String(now);
-  await writeDashboardSnapshotMeta(installationKey, {
-    state: "building", startedAt: new Date(now).toISOString(), completedAt: null, lastError: null,
-  });
+  async runChunk({ installationKey, version, cursor }) {
+    await ensureProjectStoreReady();
+    const phase = cursor?.phase || "list";
 
-  try {
-    incrMetric(METRIC_NAMES.jiraRequest);
-    const raw = await getAllDashboards();
+    if (phase === "list") {
+      let startAt = Number(cursor?.startAt) || 0;
+      let total = Number(cursor?.total) || 0;
+      let fetched = 0;
+      let listDone = false;
 
-    const dashboards = [];
-    const shares = [];
-    for (const entry of raw) {
-      const shaped = shapeDashboard(entry);
-      // A dashboard with no id is not a dashboard. Skipped rather than thrown on: one
-      // malformed entry must not cost the rest.
-      if (!shaped) continue;
-      dashboards.push(shaped.dashboard);
-      shares.push(...shaped.shares);
+      const dashboards = [];
+      const shares = [];
+
+      for (let page = 0; page < DASHBOARD_CHUNK_PAGES; page++) {
+        incrMetric(METRIC_NAMES.jiraRequest);
+        const data = await getDashboardPage(startAt, DASHBOARD_PAGE_SIZE);
+        const values = Array.isArray(data?.values) ? data.values : [];
+        total = Number(data?.total ?? total) || total;
+
+        for (const entry of values) {
+          const shaped = shapeDashboard(entry);
+          // A dashboard with no id is not a dashboard. Skipped rather than thrown on: one
+          // malformed entry must not cost the rest.
+          if (!shaped) continue;
+          dashboards.push(shaped.dashboard);
+          shares.push(...shaped.shares);
+        }
+
+        fetched += values.length;
+        startAt += values.length;
+
+        if (!values.length || data?.isLast === true || (total > 0 && startAt >= total)) {
+          listDone = true;
+          break;
+        }
+      }
+
+      if (dashboards.length) {
+        await appendDashboardSnapshot(installationKey, version, { dashboards, shares });
+      }
+
+      // Enumeration finished only moves to the next phase -- it is not the build finishing.
+      return {
+        done: false,
+        processed: fetched,
+        totalExpected: total,
+        cursor: listDone ? { phase: "gadgets" } : { phase: "list", startAt, total },
+      };
     }
 
-    // The per-dashboard half. A failure here is per dashboard rather than fatal: the one that
-    // failed keeps gadgetCount null and reads as unmeasured, and the other 200 still land.
+    // Phase two: fill in gadget counts, a batch at a time.
+    //
+    // Driven off the stored rows rather than a remembered list, so the batch survives being
+    // carried across invocations in a TEXT cursor -- and so a redelivered message re-reads
+    // what is actually still missing rather than trusting a stale list.
+    const pending = await loadDashboardIdsNeedingGadgets(installationKey, version, DASHBOARD_GADGET_CHUNK);
+
+    if (!pending.length) {
+      return { done: true, processed: 0, extra: { walked: Number(cursor?.walked) || 0 } };
+    }
+
     const gadgets = [];
-    let walked = 0;
-    const results = await mapWithConcurrency(dashboards, DASHBOARD_FETCH_CONCURRENCY, async (dashboard) => {
+    let walked = Number(cursor?.walked) || 0;
+
+    const results = await mapWithConcurrency(pending, DASHBOARD_FETCH_CONCURRENCY, async (dashboardId) => {
       try {
-        const list = await getDashboardGadgets(dashboard.id);
-        return { id: dashboard.id, gadgets: list.map((g) => shapeGadget(dashboard.id, g)).filter(Boolean) };
+        const list = await getDashboardGadgets(dashboardId);
+        return { id: dashboardId, gadgets: list.map((g) => shapeGadget(dashboardId, g)).filter(Boolean) };
       } catch (error) {
+        // Per dashboard rather than fatal: the one that failed keeps gadgetCount null and
+        // reads as unmeasured, and the rest still land.
         logger.warn("dashboard-snapshot.gadget_walk_failed", {
-          installationKey, dashboardId: dashboard.id, error: String(error?.message || error),
+          installationKey, dashboardId, error: String(error?.message || error),
         });
-        return { id: dashboard.id, gadgets: null };
+        return { id: dashboardId, gadgets: null };
       }
     });
 
-    const byId = new Map(dashboards.map((d) => [d.id, d]));
+    const counts = [];
     for (const result of results) {
-      if (!result?.gadgets) continue;
+      // A null gadget list still records a count of null, which is what marks the dashboard
+      // walked-and-unreadable rather than leaving it to be retried forever.
+      counts.push({ id: result.id, gadgetCount: result.gadgets ? result.gadgets.length : null });
+      if (!result.gadgets) continue;
       walked += 1;
-      const dashboard = byId.get(result.id);
-      if (dashboard) dashboard.gadgetCount = result.gadgets.length;
       gadgets.push(...result.gadgets);
     }
 
-    await replaceDashboardSnapshot(installationKey, version, { dashboards, gadgets, shares });
+    await appendDashboardSnapshot(installationKey, version, { gadgets, gadgetCounts: counts });
 
-    const refreshedAt = new Date().toISOString();
-    await writeDashboardSnapshotMeta(installationKey, {
-      version,
-      state: "ready",
-      completedAt: refreshedAt,
-      refreshedAt,
-      totalDashboards: dashboards.length,
-      // Recorded so the tab can caveat its own number: a pass that reached 180 of 200
-      // dashboards cannot claim any of the other 20 is empty.
-      gadgetsWalked: walked,
-      lastError: null,
-    });
+    return {
+      done: false,
+      processed: pending.length,
+      cursor: { phase: "gadgets", walked },
+      extra: { walked },
+    };
+  },
 
-    await pruneDashboardSnapshots(installationKey, version).catch((error) => {
-      logger.warn("dashboard-snapshot.prune_failed", { installationKey, error: String(error?.message || error) });
-    });
+  finalize: ({ result }) => ({ gadgetsWalked: Number(result?.extra?.walked) || 0 }),
+};
 
-    logger.info("dashboard-snapshot.built", {
-      installationKey, version, dashboards: dashboards.length, gadgets: gadgets.length, walked,
-    });
-    return { built: true, version, dashboards: dashboards.length, gadgets: gadgets.length, walked };
-  } catch (error) {
-    logger.error("dashboard-snapshot.failed", { installationKey, error: String(error?.message || error) });
-    await writeDashboardSnapshotMeta(installationKey, {
-      state: "failed",
-      completedAt: new Date().toISOString(),
-      lastError: String(error?.message || error).slice(0, 500),
-    }).catch(() => {});
-    throw error;
-  }
+// Queue a resumable build of the dashboard inventory.
+export async function queueDashboardSnapshotBuild(installationKey, { now = Date.now() } = {}) {
+  await ensureProjectStoreReady();
+  return startResumableBuild(dashboardBuildSpec, installationKey, { now });
+}
+
+// Run one chunk. This is what the queue consumer calls.
+export async function buildDashboardSnapshot(installationKey, message = {}, { now = Date.now() } = {}) {
+  await ensureProjectStoreReady();
+  return runBuildChunk(dashboardBuildSpec, installationKey, message, { now });
 }

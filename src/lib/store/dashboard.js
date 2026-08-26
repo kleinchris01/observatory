@@ -19,7 +19,8 @@ export async function readDashboardSnapshotMeta(scopeKey) {
   const result = await withSqlRetry(() =>
     sql.prepare(`
       SELECT version, state, started_at, completed_at, refreshed_at,
-             total_dashboards, gadgets_walked, last_error
+             total_dashboards, gadgets_walked, last_error,
+             building_version, build_token, build_cursor, processed, total_expected, updated_at
       FROM dashboard_snapshot_meta WHERE scope_key = ?
     `).bindParams(scopeKey).execute()
   );
@@ -34,6 +35,12 @@ export async function readDashboardSnapshotMeta(scopeKey) {
     totalDashboards: toNumber(row.total_dashboards),
     gadgetsWalked: toNumber(row.gadgets_walked),
     lastError: row.last_error || null,
+    buildingVersion: row.building_version || null,
+    buildToken: row.build_token || null,
+    buildCursor: row.build_cursor || null,
+    processed: toNumber(row.processed),
+    totalExpected: toNumber(row.total_expected),
+    updatedAt: row.updated_at || null,
   };
 }
 
@@ -48,8 +55,9 @@ export async function writeDashboardSnapshotMeta(scopeKey, patch = {}) {
     sql.prepare(`
       INSERT INTO dashboard_snapshot_meta
         (scope_key, version, state, started_at, completed_at, refreshed_at,
-         total_dashboards, gadgets_walked, last_error)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         total_dashboards, gadgets_walked, last_error,
+         building_version, build_token, build_cursor, processed, total_expected, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON DUPLICATE KEY UPDATE
         version = VALUES(version),
         state = VALUES(state),
@@ -58,7 +66,13 @@ export async function writeDashboardSnapshotMeta(scopeKey, patch = {}) {
         refreshed_at = VALUES(refreshed_at),
         total_dashboards = VALUES(total_dashboards),
         gadgets_walked = VALUES(gadgets_walked),
-        last_error = VALUES(last_error)
+        last_error = VALUES(last_error),
+        building_version = VALUES(building_version),
+        build_token = VALUES(build_token),
+        build_cursor = VALUES(build_cursor),
+        processed = VALUES(processed),
+        total_expected = VALUES(total_expected),
+        updated_at = VALUES(updated_at)
     `).bindParams(
       scopeKey,
       next.version || null,
@@ -68,7 +82,13 @@ export async function writeDashboardSnapshotMeta(scopeKey, patch = {}) {
       next.refreshedAt || null,
       Number(next.totalDashboards) || 0,
       Number(next.gadgetsWalked) || 0,
-      next.lastError || null
+      next.lastError || null,
+      next.buildingVersion || null,
+      next.buildToken || null,
+      next.buildCursor || null,
+      Number(next.processed) || 0,
+      Number(next.totalExpected) || 0,
+      next.updatedAt || null
     ).execute()
   );
   return next;
@@ -79,7 +99,9 @@ export async function writeDashboardSnapshotMeta(scopeKey, patch = {}) {
 // Replace, never merge: a rebuild describes the estate as it now stands, so a dashboard
 // somebody deleted has to disappear here too rather than lingering as a finding nobody can
 // act on.
-export async function replaceDashboardSnapshot(scopeKey, version, { dashboards = [], gadgets = [], shares = [] }) {
+// Drop anything already stored under a version. See the filter store for why this is split
+// out: a chunked build clears once, then appends.
+export async function clearDashboardSnapshotVersion(scopeKey, version) {
   await ensureProjectStoreReady();
 
   for (const table of ["snapshot_dashboards", "snapshot_dashboard_gadgets", "snapshot_dashboard_shares"]) {
@@ -88,6 +110,12 @@ export async function replaceDashboardSnapshot(scopeKey, version, { dashboards =
         .bindParams(scopeKey, version).execute()
     );
   }
+}
+
+// Append one chunk's rows to a version. INSERT IGNORE throughout, so a redelivered queue
+// message cannot double-count.
+export async function appendDashboardSnapshot(scopeKey, version, { dashboards = [], gadgets = [], shares = [], gadgetCounts = [] }) {
+  await ensureProjectStoreReady();
 
   for (const batch of chunkArray(dashboards, DASHBOARD_BATCH)) {
     const values = batch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
@@ -148,7 +176,52 @@ export async function replaceDashboardSnapshot(scopeKey, version, { dashboards =
     );
   }
 
+  // Gadget counts arrive in phase two, after the dashboards themselves are stored. Written
+  // one at a time rather than batched: the set is at most DASHBOARD_GADGET_CHUNK per chunk,
+  // and a per-row UPDATE keeps "walked but unreadable" (null) distinguishable from "not yet
+  // walked" (also null, but with no UPDATE having happened) via gadgets_walked in meta.
+  for (const entry of gadgetCounts) {
+    await withSqlRetry(() =>
+      sql.prepare(`
+        UPDATE snapshot_dashboards SET gadget_count = ?, gadget_walk_done = 1
+        WHERE scope_key = ? AND version = ? AND dashboard_id = ?
+      `).bindParams(
+        entry.gadgetCount === null || entry.gadgetCount === undefined ? null : Number(entry.gadgetCount),
+        scopeKey, version, String(entry.id)
+      ).execute()
+    );
+  }
+
   return { dashboards: dashboards.length, gadgets: gadgets.length, shares: shares.length };
+}
+
+// Dashboards in a version whose gadget list has not been walked yet.
+//
+// The queue for phase two. Read from SQL each chunk rather than carried in the cursor, so a
+// redelivered message re-reads what is ACTUALLY still missing instead of trusting a list that
+// may already have been processed. That is what makes the phase idempotent.
+//
+// `gadget_walk_done` rather than `gadget_count IS NULL`, because null is also the answer for a
+// dashboard that was walked and could not be read -- retrying those forever would mean the
+// build never terminates on a site with one broken dashboard.
+export async function loadDashboardIdsNeedingGadgets(scopeKey, version, limit = 60) {
+  await ensureProjectStoreReady();
+  const safeLimit = Math.max(1, Math.min(500, Number(limit) || 60));
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT dashboard_id FROM snapshot_dashboards
+      WHERE scope_key = ? AND version = ? AND gadget_walk_done = 0
+      ORDER BY dashboard_id
+      LIMIT ${safeLimit}
+    `).bindParams(scopeKey, version).execute()
+  );
+  return (result.rows || []).map((r) => String(r.dashboard_id));
+}
+
+// Clear a version and write it in one call, for the non-chunked callers.
+export async function replaceDashboardSnapshot(scopeKey, version, payload = {}) {
+  await clearDashboardSnapshotVersion(scopeKey, version);
+  return appendDashboardSnapshot(scopeKey, version, payload);
 }
 
 // Every dashboard in a version, with its shares and gadget titles folded back in.
