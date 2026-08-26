@@ -122,7 +122,8 @@ export async function appendFilterSnapshot(scopeKey, version, { filters = [], re
   await ensureProjectStoreReady();
 
   for (const batch of chunkArray(filters, FILTER_BATCH)) {
-    const values = batch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
+    // 16 placeholders for 16 columns. It was 15 for years -- see store-sql-arity.test.js.
+    const values = batch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
     const params = batch.flatMap((f) => [
       scopeKey, version, String(f.id),
       f.name ?? null, f.description ?? null, f.jql ?? null,

@@ -467,14 +467,25 @@ describe("consumeSnapshot job routing", () => {
 
   // The walked count is logged alongside the totals, not only when it falls short: a pass
   // that could not read every gadget list is a different artifact from one that did.
-  test("logs how far the gadget walk got, even when the build returns nothing", async () => {
-    buildDashboardSnapshot.mockResolvedValueOnce(undefined);
+  // The counts this used to print stopped existing when the dashboard build became resumable:
+  // a chunk returns checkpointed/completed, not {dashboards, gadgets, walked}. The log went on
+  // printing "0 dashboards, 0 gadgets, 0 walked" for a build that had just enumerated 612 of
+  // them, which is worse than printing nothing -- it reads as a build that found an empty site.
+  test("reports chunk progress rather than counts the build no longer returns", async () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
 
+    buildDashboardSnapshot.mockResolvedValueOnce({ checkpointed: true, processed: 60 });
     await consumeSnapshot(event({ jobType: "build-dashboard-snapshot" }));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("checkpointed - 60 items"));
 
-    expect(log).toHaveBeenCalledWith(expect.stringContaining("0 dashboards"));
-    expect(log).toHaveBeenCalledWith(expect.stringContaining("0 walked"));
+    buildDashboardSnapshot.mockResolvedValueOnce({ completed: true, processed: 1224 });
+    await consumeSnapshot(event({ jobType: "build-dashboard-snapshot" }));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("completed - 1224 items"));
+
+    buildDashboardSnapshot.mockResolvedValueOnce(undefined);
+    await consumeSnapshot(event({ jobType: "build-dashboard-snapshot" }));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("no-op"));
+
     log.mockRestore();
   });
 

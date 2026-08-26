@@ -275,7 +275,11 @@ export async function consumeSnapshot(event) {
       // that could not read every gadget list is a different artifact from one that did, and
       // the log is where that gets noticed first.
       console.log(
-        `build-dashboard-snapshot: ${result?.dashboards ?? 0} dashboards, ${result?.gadgets ?? 0} gadgets, ${result?.walked ?? 0} walked`
+        result?.completed
+          ? `build-dashboard-snapshot: completed - ${result.processed} items`
+          : result?.checkpointed
+            ? `build-dashboard-snapshot: checkpointed - ${result.processed} items; requeued`
+            : `build-dashboard-snapshot: ${result?.reason || "no-op"}`
       );
       return;
     }
