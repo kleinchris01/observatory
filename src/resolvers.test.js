@@ -426,6 +426,8 @@ const {
   getFullScanStatus,
   startQuickSiteScan,
   getQuickScanStatus,
+  resumeSiteScan,
+  cancelSiteScan,
   getDashboardUsage,
   getFilterUsage,
   getFieldFilterCounts,
@@ -4958,6 +4960,62 @@ describe("startQuickSiteScan / getQuickScanStatus", () => {
 
     expect(result.stages).toBeNull();
     expect(result.currentStage).toBeNull();
+  });
+});
+
+// The wedge these exist for: a scan orchestrator whose loop stopped stepping sits at
+// "running" forever, and startScan refuses every new run over it. The engine logic lives in
+// full-scan-runner.test.js; here we only check the resolvers reach it and stay outside the
+// read-only gate that a real scan sits behind.
+describe("resumeSiteScan / cancelSiteScan", () => {
+  beforeEach(() => {
+    mocks.readFullScanMeta.mockResolvedValue(null);
+  });
+
+  test("cancelSiteScan writes the terminal state that frees the shared row", async () => {
+    mocks.readFullScanMeta.mockResolvedValue({
+      state: "running", scanType: "full", jobToken: "tok",
+      stages: [{ key: "workflows", state: "done" }, { key: "filters", state: "running" }],
+    });
+
+    const result = await cancelSiteScan({ context: ctxWithAccount() });
+
+    expect(result).toMatchObject({ cancelled: true, scanType: "full" });
+    expect(mocks.writeFullScanMeta).toHaveBeenCalledWith(
+      "test-install",
+      expect.objectContaining({ state: "cancelled", jobToken: null })
+    );
+  });
+
+  test("cancelSiteScan is a no-op when nothing is running", async () => {
+    expect(await cancelSiteScan({ context: ctxWithAccount() })).toMatchObject({ cancelled: false, reason: "not-running" });
+  });
+
+  test("cancelSiteScan still works while read-only mode is on -- clearing a wedge is not a new scan", async () => {
+    mocks.kvsGet.mockResolvedValue({ readOnlyMode: true });
+    mocks.readFullScanMeta.mockResolvedValue({ state: "running", scanType: "full", jobToken: "tok", stages: [] });
+
+    expect(await cancelSiteScan({ context: ctxWithAccount() })).toMatchObject({ cancelled: true });
+  });
+
+  test("resumeSiteScan force-recovers a stalled run without waiting on the staleness clock", async () => {
+    mocks.readFullScanMeta.mockResolvedValue({
+      state: "running", scanType: "full", jobToken: "tok", currentStage: "filters",
+      stages: [{ key: "filters", state: "running" }],
+      updatedAt: new Date().toISOString(), // fresh -- force must override
+      recoveryCount: 0,
+    });
+
+    const result = await resumeSiteScan({ context: ctxWithAccount() });
+
+    expect(result).toMatchObject({ recovered: true, stage: "filters" });
+    expect(mocks.queuePush).toHaveBeenCalled();
+  });
+
+  test("both are registered as guarded admin-only functions", () => {
+    for (const name of ["resumeSiteScan", "cancelSiteScan"]) {
+      expect(Object.keys(ADMIN_ONLY_FUNCTIONS)).toContain(name);
+    }
   });
 });
 

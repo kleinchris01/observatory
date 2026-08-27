@@ -45,8 +45,17 @@ import {
   startQuickScan,
   runQuickScanStep,
   quickScanStageCatalog,
+  recoverStalledScan,
+  cancelScan,
 } from "./full-scan-runner.js";
-import { initialStages, markStage, FULL_SCAN_POLL_DELAY_SECONDS, QUICK_SCAN_STAGES } from "./full-scan.js";
+import {
+  initialStages,
+  markStage,
+  FULL_SCAN_POLL_DELAY_SECONDS,
+  FULL_SCAN_STALL_MS,
+  MAX_SCAN_RECOVERIES,
+  QUICK_SCAN_STAGES,
+} from "./full-scan.js";
 import { inventorySnapshotQueue } from "./queues.js";
 import { readFullScanMeta, writeFullScanMeta, readFilterSnapshotMeta, readIssueScanMeta } from "./project-store.js";
 import { buildWorkflowSnapshot } from "./workflow-engine.js";
@@ -359,5 +368,145 @@ describe("quick scan", () => {
     expect(keys).not.toContain("fields");
     expect(keys).not.toContain("issues");
     expect(keys).not.toContain("automation");
+  });
+});
+
+// The step machine cannot rescue itself from a lost queue message -- the thing that would
+// notice is the thing that stopped being called. recoverStalledScan runs from outside that
+// loop, on the hourly trigger, and re-enters it from the last checkpoint.
+describe("stall recovery", () => {
+  const NOW = 10_000_000;
+  const stalledBeat = new Date(NOW - (FULL_SCAN_STALL_MS + 60_000)).toISOString();
+  const freshBeat = new Date(NOW - 60_000).toISOString();
+
+  test("does nothing when no scan is running", async () => {
+    readFullScanMeta.mockResolvedValue({ state: "ready" });
+    expect(await recoverStalledScan("inst", { now: NOW })).toMatchObject({ recovered: false, reason: "not-running" });
+    expect(inventorySnapshotQueue.push).not.toHaveBeenCalled();
+  });
+
+  test("leaves a run alone while its loop is still touching the meta row", async () => {
+    readFullScanMeta.mockResolvedValue(running({ currentStage: "filters", updatedAt: freshBeat }));
+
+    expect(await recoverStalledScan("inst", { now: NOW })).toMatchObject({ recovered: false, reason: "healthy" });
+    expect(writeFullScanMeta).not.toHaveBeenCalled();
+    expect(inventorySnapshotQueue.push).not.toHaveBeenCalled();
+  });
+
+  test("re-queues a step for the handoff stage in flight, and counts the attempt", async () => {
+    const stages = markStage(withDone(["workflows", "screens"]), "filters", { state: "running" });
+    readFullScanMeta.mockResolvedValue(
+      running({ currentStage: "filters", stages, updatedAt: stalledBeat })
+    );
+
+    const result = await recoverStalledScan("inst", { now: NOW });
+
+    expect(result).toMatchObject({ recovered: true, stage: "filters", recoveryCount: 1 });
+    expect(lastWrite()).toMatchObject({ recoveryCount: 1 });
+    // The handoff stage is resumed through its own poll, not re-run -- its stage row is
+    // carried through unchanged.
+    expect(lastWrite().stages.find((s) => s.key === "filters").state).toBe("running");
+    expect(inventorySnapshotQueue.push).toHaveBeenCalledWith(
+      expect.objectContaining({ body: expect.objectContaining({ jobType: "run-full-scan", stage: "filters", jobToken: "job-token" }) })
+    );
+  });
+
+  test("resets an inline stage that died mid-run back to pending before re-kicking", async () => {
+    const stages = markStage(withDone(["workflows", "screens", "filters", "dashboards"]), "fields", { state: "running" });
+    readFullScanMeta.mockResolvedValue(running({ currentStage: null, stages, updatedAt: stalledBeat }));
+
+    await recoverStalledScan("inst", { now: NOW });
+
+    // nextStage skips a stage stuck at "running", so without this the scan would finish
+    // reporting a stage it never actually completed.
+    expect(lastWrite().stages.find((s) => s.key === "fields")).toMatchObject({ state: "pending", startedAt: null });
+    expect(inventorySnapshotQueue.push).toHaveBeenCalledWith(
+      expect.objectContaining({ body: expect.objectContaining({ stage: null }) })
+    );
+  });
+
+  test("gives up after the recovery budget is spent, failing the run out instead of leaving it running", async () => {
+    const stages = markStage(withDone(["workflows", "screens"]), "filters", { state: "running" });
+    readFullScanMeta.mockResolvedValue(
+      running({ currentStage: "filters", stages, updatedAt: stalledBeat, recoveryCount: MAX_SCAN_RECOVERIES })
+    );
+
+    const result = await recoverStalledScan("inst", { now: NOW });
+
+    expect(result).toMatchObject({ completed: true });
+    // "running" is the state that blocks every future scan from starting -- so a dead run
+    // has to reach a terminal state, not sit there.
+    expect(lastWrite().state).toBe("completed-with-failures");
+    expect(lastWrite().jobToken).toBeNull();
+    expect(lastWrite().stages.find((s) => s.key === "filters")).toMatchObject({ state: "failed" });
+    expect(inventorySnapshotQueue.push).not.toHaveBeenCalled();
+  });
+
+  test("force bypasses the freshness check for an operator-driven resume", async () => {
+    readFullScanMeta.mockResolvedValue(running({ currentStage: "filters", updatedAt: freshBeat }));
+
+    const result = await recoverStalledScan("inst", { now: NOW, force: true });
+
+    expect(result).toMatchObject({ recovered: true, stage: "filters" });
+    expect(inventorySnapshotQueue.push).toHaveBeenCalled();
+  });
+
+  test("re-kicks a stalled quick scan onto the quick-scan job, not the full one", async () => {
+    readFullScanMeta.mockResolvedValue({
+      state: "running",
+      scanType: "quick",
+      jobToken: "job-token",
+      currentStage: "filters",
+      stages: initialStages(QUICK_SCAN_STAGES),
+      polls: 0,
+      updatedAt: stalledBeat,
+    });
+
+    await recoverStalledScan("inst", { now: NOW });
+
+    expect(inventorySnapshotQueue.push).toHaveBeenCalledWith(
+      expect.objectContaining({ body: expect.objectContaining({ jobType: "run-quick-scan" }) })
+    );
+  });
+
+  test("a real stage transition clears the recovery budget", async () => {
+    readFullScanMeta.mockResolvedValue(
+      running({ currentStage: "filters", stages: withDone(["workflows", "screens"]), recoveryCount: 2 })
+    );
+    readFilterSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
+
+    await runFullScanStep("inst", { jobToken: "job-token" });
+
+    // The advance write, after filters resolved.
+    expect(lastWrite().recoveryCount).toBe(0);
+  });
+});
+
+describe("cancelling a scan", () => {
+  test("does nothing when no scan is running", async () => {
+    readFullScanMeta.mockResolvedValue({ state: "ready" });
+    expect(await cancelScan("inst")).toMatchObject({ cancelled: false, reason: "not-running" });
+  });
+
+  test("writes a terminal cancelled state, drops the job token, and settles every stage", async () => {
+    const stages = markStage(withDone(["workflows", "screens"]), "filters", { state: "running" });
+    readFullScanMeta.mockResolvedValue(running({ currentStage: "filters", stages }));
+
+    const result = await cancelScan("inst", { now: 5000 });
+
+    expect(result).toMatchObject({ cancelled: true, scanType: "full" });
+    const patch = lastWrite();
+    expect(patch.state).toBe("cancelled");
+    // A step still in the queue is ignored as a stale message once the token is gone.
+    expect(patch.jobToken).toBeNull();
+    expect(patch.stages.find((s) => s.key === "workflows").state).toBe("done");
+    expect(patch.stages.find((s) => s.key === "filters").state).toBe("failed");
+    expect(patch.stages.find((s) => s.key === "fields").state).toBe("skipped");
+  });
+
+  test("a cancelled run no longer blocks a fresh scan from starting", async () => {
+    readFullScanMeta.mockResolvedValue({ state: "cancelled", scanType: "full" });
+
+    expect(await startFullScan("inst")).toMatchObject({ started: true });
   });
 });

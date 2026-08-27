@@ -21,7 +21,7 @@ import {
 import { processProjectUsageReportJob } from "./lib/report-engine.js";
 import { buildWorkflowSnapshot, buildStatusHistorySnapshot } from "./lib/workflow-engine.js";
 import { buildScreenSnapshot } from "./lib/screen-engine.js";
-import { runFullScanStep, runQuickScanStep, startQuickScan } from "./lib/full-scan-runner.js";
+import { runFullScanStep, runQuickScanStep, startQuickScan, recoverStalledScan } from "./lib/full-scan-runner.js";
 import { buildFilterSnapshot } from "./lib/filter-engine.js";
 import { buildDashboardSnapshot } from "./lib/dashboard-engine.js";
 import {
@@ -145,16 +145,29 @@ export async function autoSnapshotCheck(_event, context) {
 // already has Forge's own slop in it -- offering false minute-level precision on top of that
 // would be worse than being honest that this is accurate to the hour, in UTC.
 export async function quickScanScheduleCheck(_event, context) {
+  const installationKey = getInstallationKey(context);
+
+  // Runs every hour whether or not scheduled quick scans are enabled. A full or quick scan
+  // whose orchestrator loop stopped -- a lost queue message, a consumer killed before it
+  // re-queued the next step -- leaves the shared meta row stuck at "running", and that
+  // blocks every future scan, scheduled or manual, until something clears it. This trigger
+  // is the only automated path that revisits it, so the watchdog runs before the schedule
+  // gate, not after.
+  const recovery = await recoverStalledScan(installationKey).catch((error) => {
+    logger.error("scan.watchdog_failed", { installationKey, error: error?.message || String(error) });
+    return { recovered: false, reason: "error" };
+  });
+
   const config = await readAdminConfig();
   const schedule = config.quickScanSchedule;
-  if (!schedule?.enabled) return { skipped: true, reason: "disabled" };
+  if (!schedule?.enabled) return { skipped: true, reason: "disabled", recovery };
 
   const now = new Date();
   const due = schedule.frequency === "daily"
     ? now.getUTCHours() === schedule.hourUtc
     : now.getUTCDay() === schedule.dayOfWeek && now.getUTCHours() === schedule.hourUtc;
 
-  if (!due) return { skipped: true, reason: "not due yet" };
+  if (!due) return { skipped: true, reason: "not due yet", recovery };
 
   // The due WINDOW is a whole hour wide and this fires roughly hourly, so without this guard
   // a trigger that fires twice in one hour -- Forge's delivery is at-least-once, not
@@ -162,10 +175,9 @@ export async function quickScanScheduleCheck(_event, context) {
   // hour and comfortably outside "the same firing running twice."
   const lastRun = schedule.lastScheduledRunAt ? new Date(schedule.lastScheduledRunAt).getTime() : 0;
   if (Date.now() - lastRun < 45 * 60 * 1000) {
-    return { skipped: true, reason: "already ran this hour" };
+    return { skipped: true, reason: "already ran this hour", recovery };
   }
 
-  const installationKey = getInstallationKey(context);
   const result = await startQuickScan(installationKey, { quickScanWindowHours: schedule.windowHours });
 
   if (result?.started) {
@@ -173,7 +185,7 @@ export async function quickScanScheduleCheck(_event, context) {
     incrMetric(METRIC_NAMES.snapshotScheduler);
   }
 
-  return result;
+  return { ...result, recovery };
 }
 
 export async function runProjectStorageMigrations() {
