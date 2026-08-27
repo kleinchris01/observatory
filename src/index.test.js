@@ -33,6 +33,7 @@ vi.mock("./lib/full-scan-runner.js", () => ({
   runFullScanStep: vi.fn().mockResolvedValue({ advanced: true, done: 2, total: 8 }),
   runQuickScanStep: vi.fn().mockResolvedValue({ advanced: true, done: 1, total: 6 }),
   startQuickScan: vi.fn().mockResolvedValue({ started: true, jobToken: "job-token" }),
+  recoverStalledScan: vi.fn().mockResolvedValue({ recovered: false, reason: "not-running" }),
 }));
 
 vi.mock("./lib/filter-engine.js", () => ({
@@ -141,7 +142,7 @@ import {
 import { processProjectUsageReportJob } from "./lib/report-engine.js";
 import { buildWorkflowSnapshot, buildStatusHistorySnapshot } from "./lib/workflow-engine.js";
 import { buildScreenSnapshot } from "./lib/screen-engine.js";
-import { runFullScanStep, runQuickScanStep, startQuickScan } from "./lib/full-scan-runner.js";
+import { runFullScanStep, runQuickScanStep, startQuickScan, recoverStalledScan } from "./lib/full-scan-runner.js";
 import { buildFilterSnapshot } from "./lib/filter-engine.js";
 import { buildDashboardSnapshot } from "./lib/dashboard-engine.js";
 import { readAdminConfig, runDeltaIssueScanJob, recordQuickScanScheduledRun, ADMIN_ONLY_FUNCTIONS, SHARED_RESOLVER_FUNCTIONS } from "./resolvers.js";
@@ -306,7 +307,7 @@ describe("quickScanScheduleCheck", () => {
   test("does nothing when disabled", async () => {
     readAdminConfig.mockResolvedValue({ quickScanSchedule: schedule({ enabled: false }) });
 
-    await expect(quickScanScheduleCheck({}, CONTEXT)).resolves.toEqual({ skipped: true, reason: "disabled" });
+    await expect(quickScanScheduleCheck({}, CONTEXT)).resolves.toMatchObject({ skipped: true, reason: "disabled" });
     expect(startQuickScan).not.toHaveBeenCalled();
   });
 
@@ -316,11 +317,11 @@ describe("quickScanScheduleCheck", () => {
 
     // 2026-08-23 is a Sunday. Right day, wrong hour -- not due.
     vi.setSystemTime(new Date("2026-08-23T14:00:00.000Z"));
-    await expect(quickScanScheduleCheck({}, CONTEXT)).resolves.toEqual({ skipped: true, reason: "not due yet" });
+    await expect(quickScanScheduleCheck({}, CONTEXT)).resolves.toMatchObject({ skipped: true, reason: "not due yet" });
 
     // Right hour, wrong day (Monday) -- not due.
     vi.setSystemTime(new Date("2026-08-24T00:00:00.000Z"));
-    await expect(quickScanScheduleCheck({}, CONTEXT)).resolves.toEqual({ skipped: true, reason: "not due yet" });
+    await expect(quickScanScheduleCheck({}, CONTEXT)).resolves.toMatchObject({ skipped: true, reason: "not due yet" });
 
     // Sunday, hour 0 -- due.
     vi.setSystemTime(new Date("2026-08-23T00:30:00.000Z"));
@@ -350,7 +351,7 @@ describe("quickScanScheduleCheck", () => {
 
     const result = await quickScanScheduleCheck({}, CONTEXT);
 
-    expect(result).toEqual({ skipped: true, reason: "already ran this hour" });
+    expect(result).toMatchObject({ skipped: true, reason: "already ran this hour" });
     expect(startQuickScan).not.toHaveBeenCalled();
   });
 
@@ -379,6 +380,37 @@ describe("quickScanScheduleCheck", () => {
     startQuickScan.mockResolvedValueOnce({ started: true, jobToken: "t" });
     await quickScanScheduleCheck({}, CONTEXT);
     expect(recordQuickScanScheduledRun).toHaveBeenCalled();
+  });
+
+  // The watchdog runs on this same hourly trigger, and it has to run whether or not
+  // scheduled quick scans are turned on -- a wedged scan blocks manual scans too, and this
+  // is the only automated path that revisits it.
+  test("runs the stall watchdog even when the schedule is disabled", async () => {
+    readAdminConfig.mockResolvedValue({ quickScanSchedule: schedule({ enabled: false }) });
+    recoverStalledScan.mockResolvedValueOnce({ recovered: true, stage: "filters", recoveryCount: 1 });
+
+    const result = await quickScanScheduleCheck({}, CONTEXT);
+
+    expect(recoverStalledScan).toHaveBeenCalledWith("scope-1");
+    expect(result).toMatchObject({ skipped: true, reason: "disabled", recovery: { recovered: true } });
+  });
+
+  test("a watchdog failure does not stop the trigger", async () => {
+    readAdminConfig.mockResolvedValue({ quickScanSchedule: schedule({ enabled: false }) });
+    recoverStalledScan.mockRejectedValueOnce(new Error("SQL rate limit"));
+
+    const result = await quickScanScheduleCheck({}, CONTEXT);
+
+    expect(result).toMatchObject({ skipped: true, reason: "disabled", recovery: { recovered: false, reason: "error" } });
+  });
+
+  test("a watchdog failure with no Error message still degrades cleanly", async () => {
+    readAdminConfig.mockResolvedValue({ quickScanSchedule: schedule({ enabled: false }) });
+    recoverStalledScan.mockRejectedValueOnce("bare string rejection");
+
+    const result = await quickScanScheduleCheck({}, CONTEXT);
+
+    expect(result).toMatchObject({ recovery: { recovered: false, reason: "error" } });
   });
 });
 

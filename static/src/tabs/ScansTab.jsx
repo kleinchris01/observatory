@@ -699,6 +699,31 @@ function SnapshotRecoveryNotice({ snapshot, onForceResume, forceResuming }) {
   );
 }
 
+// The orchestrator writes updatedAt on every step, so a run that has gone silent for this
+// long is one whose loop stopped -- a lost queue message, a consumer killed mid-stage.
+// Mirrors FULL_SCAN_STALL_MS in src/lib/full-scan.js; the hourly trigger recovers it on its
+// own, this is the "don't make me wait for the top of the hour" path.
+const SCAN_STALL_MS = 20 * 60 * 1000;
+
+function ScanStallRecoveryNotice({ status, onResume, onAbandon, resuming, abandoning }) {
+  if (status?.state !== "running" || !status?.updatedAt) return null;
+  if (Date.now() - new Date(status.updatedAt).getTime() <= SCAN_STALL_MS) return null;
+
+  return (
+    <div className="danger-zone__error" role="alert" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+      <span>This scan has not reported progress for over 20 minutes. Its background loop may have stopped.</span>
+      <span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button className="secondary-button secondary-button--small" type="button" onClick={onResume} disabled={resuming || abandoning}>
+          {resuming ? "Resuming…" : "Resume (stalled)"}
+        </button>
+        <button className="secondary-button secondary-button--small" type="button" onClick={onAbandon} disabled={resuming || abandoning}>
+          {abandoning ? "Abandoning…" : "Abandon scan"}
+        </button>
+      </span>
+    </div>
+  );
+}
+
 const STAGE_TONE = { done: "success", running: "active", failed: "critical", skipped: "warning", pending: "neutral" };
 const STAGE_LABEL = { done: "Done", running: "Running", failed: "Failed", skipped: "Skipped", pending: "Waiting" };
 
@@ -772,6 +797,7 @@ function ScanStageTable({ status }) {
 
 export function FullScanPanel({
   status, onStart, starting,
+  onResumeStalledScan, onAbandonScan, recoveringScan, abandoningScan,
   issueScan, onResumeIssueScan, onCancelIssueScan, resumingIssueScan, cancellingIssueScan,
   snapshot, onForceResumeSnapshot, forceResumingSnapshot, onSnapshotCleared,
 }) {
@@ -803,6 +829,14 @@ export function FullScanPanel({
       )}
 
       <ScanStageTable status={status} />
+
+      <ScanStallRecoveryNotice
+        status={status}
+        onResume={onResumeStalledScan}
+        onAbandon={onAbandonScan}
+        resuming={recoveringScan}
+        abandoning={abandoningScan}
+      />
 
       {status?.lastError && !running && (
         <div className="danger-zone__error" role="alert">{status.lastError}</div>
@@ -900,6 +934,7 @@ function QuickScanSchedule({ schedule, onChange, onSave, saving, saved }) {
 
 export function QuickScanPanel({
   status, onStart, starting,
+  onResumeStalledScan, onAbandonScan, recoveringScan, abandoningScan,
   deltaIssueScan,
   schedule, onChangeSchedule, onSaveSchedule, savingSchedule, scheduleSaved,
 }) {
@@ -935,6 +970,14 @@ export function QuickScanPanel({
       )}
 
       <ScanStageTable status={status} />
+
+      <ScanStallRecoveryNotice
+        status={status}
+        onResume={onResumeStalledScan}
+        onAbandon={onAbandonScan}
+        resuming={recoveringScan}
+        abandoning={abandoningScan}
+      />
 
       {status?.lastError && !running && (
         <div className="danger-zone__error" role="alert">{status.lastError}</div>
@@ -984,6 +1027,11 @@ export function ScansTab({ siteOrigin, initialSection }) {
   const [quickScanStatus, setQuickScanStatus] = React.useState(null);
   const [quickScanStarting, setQuickScanStarting] = React.useState(false);
   const [deltaIssueScanStatus, setDeltaIssueScanStatus] = React.useState(null);
+
+  // Full and quick scan share one meta row, so a stall-recovery action against either can
+  // change both panels' status -- one pair of flags, and both fetches run afterwards.
+  const [scanRecovering, setScanRecovering] = React.useState(false);
+  const [scanAbandoning, setScanAbandoning] = React.useState(false);
 
   const [schedule, setSchedule] = React.useState(DEFAULT_QUICK_SCAN_SCHEDULE);
   const [savingSchedule, setSavingSchedule] = React.useState(false);
@@ -1116,6 +1164,35 @@ export function ScansTab({ siteOrigin, initialSection }) {
     }
   }
 
+  async function resumeStalledSiteScan() {
+    setScanRecovering(true);
+    setError("");
+    try {
+      const result = await invoke("resumeSiteScan");
+      if (result?.recovered === false && result.reason === "not-running") {
+        setError("That scan is no longer running — nothing to resume.");
+      }
+      await Promise.all([fetchFullScanStatus(), fetchQuickScanStatus()]);
+    } catch (err) {
+      setError(err.message || "Failed to resume the scan.");
+    } finally {
+      setScanRecovering(false);
+    }
+  }
+
+  async function abandonSiteScan() {
+    setScanAbandoning(true);
+    setError("");
+    try {
+      await invoke("cancelSiteScan");
+      await Promise.all([fetchFullScanStatus(), fetchQuickScanStatus()]);
+    } catch (err) {
+      setError(err.message || "Failed to abandon the scan.");
+    } finally {
+      setScanAbandoning(false);
+    }
+  }
+
   async function saveSchedule() {
     setSavingSchedule(true);
     setError("");
@@ -1145,6 +1222,10 @@ export function ScansTab({ siteOrigin, initialSection }) {
             status={fullScanStatus}
             onStart={startFullScan}
             starting={fullScanStarting}
+            onResumeStalledScan={resumeStalledSiteScan}
+            onAbandonScan={abandonSiteScan}
+            recoveringScan={scanRecovering}
+            abandoningScan={scanAbandoning}
             issueScan={issueScanStatus}
             onResumeIssueScan={resumeScan}
             onCancelIssueScan={cancelScan}
@@ -1161,6 +1242,10 @@ export function ScansTab({ siteOrigin, initialSection }) {
             status={quickScanStatus}
             onStart={startQuickScan}
             starting={quickScanStarting}
+            onResumeStalledScan={resumeStalledSiteScan}
+            onAbandonScan={abandonSiteScan}
+            recoveringScan={scanRecovering}
+            abandoningScan={scanAbandoning}
             deltaIssueScan={deltaIssueScanStatus}
             schedule={schedule}
             onChangeSchedule={setSchedule}

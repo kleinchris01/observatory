@@ -139,6 +139,26 @@ export const FULL_SCAN_STAGE_KEYS = FULL_SCAN_STAGES.map((s) => s.key);
 // minute so a stage finishing right at the limit is never declared stale out from under it.
 export const FULL_SCAN_STAGE_STALE_MS = 16 * 60 * 1000;
 
+// How long the whole orchestrator can go without touching its own meta row before a
+// watchdog treats the run as wedged rather than working.
+//
+// The orchestrator writes updatedAt on every step -- each handoff poll, each stage
+// transition -- so a live loop keeps this fresh no matter how long the scan legitimately
+// runs. A frozen updatedAt means the loop itself stopped: a lost queue message, or a
+// consumer killed after starting a stage but before it could re-queue the next step.
+// Nothing inside runScanStep can detect that, because runScanStep is what stopped being
+// called. 20 minutes clears the 900s consumer ceiling plus the 30s poll delay with room to
+// spare, and sits well inside the hourly cadence of the trigger that runs the watchdog.
+export const FULL_SCAN_STALL_MS = 20 * 60 * 1000;
+
+// How many times the watchdog will re-kick a stalled run before giving up on it.
+//
+// Reset to zero on every real stage transition, so this only climbs across *consecutive*
+// stalls with no forward progress in between -- three of those, roughly three hours at the
+// hourly cadence, is a run that is not coming back. It is then failed out rather than left
+// "running" forever, which is the state that blocks every future scan from starting.
+export const MAX_SCAN_RECOVERIES = 3;
+
 export function initialStages(stageDefinitions = FULL_SCAN_STAGES) {
   return stageDefinitions.map((stage) => ({
     key: stage.key,

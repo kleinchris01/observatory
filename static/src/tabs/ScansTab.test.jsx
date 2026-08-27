@@ -2,6 +2,7 @@ import React from "react";
 import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { ScanDeltaChart, ScanThroughputChart, IssueCrawlLiveView, FullScanPanel, useVisiblePolling } from "./ScansTab";
+import userEvent from "@testing-library/user-event";
 import { renderHook, act } from "@testing-library/react";
 
 // ScansTab had no tests. These cover the two charts added to make the issue crawl's live view
@@ -182,6 +183,37 @@ describe("FullScanPanel — live progress while a stage is running", () => {
     const { container } = panel({ ...runningStatus, state: "idle", currentStage: null });
     expect(screen.queryByText(/Scanning — last update/i)).not.toBeInTheDocument();
     expect(container.querySelector(".stage-row--active")).toBeNull();
+  });
+
+  // The orchestrator writes updatedAt on every step, so a running scan that has gone silent
+  // for 20+ minutes is one whose loop stopped. The panel offers a way out that does not
+  // require waiting for the hourly trigger.
+  test("offers Resume and Abandon once a running scan has been silent past the stall window", async () => {
+    const onResumeStalledScan = vi.fn();
+    const onAbandonScan = vi.fn();
+    const stale = new Date(Date.now() - 25 * 60 * 1000).toISOString();
+    render(
+      <FullScanPanel
+        status={{ ...runningStatus, updatedAt: stale }}
+        onStart={noop} starting={false}
+        onResumeStalledScan={onResumeStalledScan} onAbandonScan={onAbandonScan}
+        recoveringScan={false} abandoningScan={false}
+        issueScan={null} onResumeIssueScan={noop} onCancelIssueScan={noop}
+        resumingIssueScan={false} cancellingIssueScan={false}
+        snapshot={null} onForceResumeSnapshot={noop} forceResumingSnapshot={false} onSnapshotCleared={noop}
+      />
+    );
+
+    expect(screen.getByText(/has not reported progress for over 20 minutes/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /Resume \(stalled\)/i }));
+    await userEvent.click(screen.getByRole("button", { name: /Abandon scan/i }));
+    expect(onResumeStalledScan).toHaveBeenCalledTimes(1);
+    expect(onAbandonScan).toHaveBeenCalledTimes(1);
+  });
+
+  test("does not show the stall notice while the scan is still reporting progress", () => {
+    panel(runningStatus); // updatedAt is now()
+    expect(screen.queryByText(/has not reported progress/i)).not.toBeInTheDocument();
   });
 });
 

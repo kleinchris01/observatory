@@ -146,7 +146,7 @@ import { summarizeDashboards, summarizeDashboardHealth } from "./lib/dashboard-i
 import { isFilterBuildStale, queueFilterSnapshotBuild } from "./lib/filter-engine.js";
 import { filterRows, sortFilters, filterFindingCounts, FILTER_SORTS } from "./lib/filter-query.js";
 import { isDashboardBuildStale, queueDashboardSnapshotBuild } from "./lib/dashboard-engine.js";
-import { startFullScan, fullScanStageCatalog, startQuickScan, quickScanStageCatalog } from "./lib/full-scan-runner.js";
+import { startFullScan, fullScanStageCatalog, startQuickScan, quickScanStageCatalog, recoverStalledScan, cancelScan } from "./lib/full-scan-runner.js";
 import { probeEndpoint, probeStargateEndpoint, getCloudId, getAllJiraProjects } from "./lib/jira-api.js";
 import {
   findDuplicateStatusGroups,
@@ -3474,6 +3474,29 @@ async function startFullSiteScan({ context }) {
   return startFullScan(installationKey);
 }
 
+// Recovery for a full or quick scan whose orchestrator loop has stopped stepping -- a lost
+// queue message, or a consumer killed before it could re-queue the next step. The hourly
+// trigger runs the same check on its own; this is the "don't make me wait for the top of
+// the hour" button. `force` skips the staleness check because the UI only offers this once
+// it already believes the run is stuck. Not gated on read-only mode: clearing a wedge is
+// cleanup, not a new scan.
+async function resumeSiteScan({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+  return recoverStalledScan(installationKey, { force: true });
+}
+
+// Stop a running full or quick scan outright. Writes the terminal "cancelled" state, which
+// is what frees the shared meta row for a fresh run -- a scan wedged in "running" otherwise
+// blocks every future scan, with no way out from the UI.
+async function cancelSiteScan({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+  return cancelScan(installationKey);
+}
+
 // Progress for the Scans tab: one row per stage, plus the catalog so the tab can render the
 // full list before a scan has ever run rather than an empty panel.
 async function getFullScanStatus({ context }) {
@@ -5044,6 +5067,8 @@ function withAdminGuard(functions) {
 const AUDITED_ADMIN_ACTIONS = new Set([
   "startFullSiteScan",
   "startQuickSiteScan",
+  "resumeSiteScan",
+  "cancelSiteScan",
   "startIssueScan",
   "resumeIssueScan",
   "cancelIssueScan",
@@ -5107,6 +5132,8 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   // Issue scan lifecycle â€” trigger and cancel full fieldÃ—issue scans
   startFullSiteScan,       // Mutating: queues the one scan that runs every pillar
   startQuickSiteScan,      // Mutating: queues the quick scan (full structural + delta issues)
+  resumeSiteScan,          // Mutating: re-kicks a stalled full/quick scan orchestrator
+  cancelSiteScan,          // Mutating: hard-stops a running full/quick scan, freeing the meta row
   getQuickScanStatus,      // Admin read: per-stage progress of the quick scan
   getFullScanStatus,       // Admin read: per-stage progress of the full scan
   startIssueScan,          // Mutating: queues a full issue scan job

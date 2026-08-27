@@ -23,6 +23,22 @@ Signs of a stuck scan:
 
 > The `"cancelled"` state is terminal — the scan will not auto-resume from it. You must explicitly restart.
 
+### Full / Quick Scan orchestrator — stall recovery
+
+The **Full Scan** and **Quick Scan** are driven by one orchestrator (`full-scan-runner.js`) that steps a stage machine by re-queueing itself between stages. If that self-re-queued message is lost — or a consumer is killed after starting a stage but before it re-queues the next step — the loop stops. The shared meta row (`readFullScanMeta`) stays `state: "running"` with a frozen `updatedAt`, and because `startScan` refuses to begin over a `"running"` row, **every subsequent full and quick scan silently no-ops** until it is cleared.
+
+**Detecting it:** the Scans tab shows "Scanning — last update *N* ago" with the timestamp no longer advancing. A live loop writes `updatedAt` on every step, so more than ~20 minutes of silence on a `running` scan means the loop is dead, not busy (a legitimately long issue crawl keeps `updatedAt` fresh via its poll).
+
+**Recovery, in order:**
+
+1. **Automatic.** The hourly `quick-scan-scheduler-trigger` runs `recoverStalledScan` *before* its schedule check — so it fires even when scheduled quick scans are disabled. It detects `now − updatedAt > FULL_SCAN_STALL_MS` (20 min) and re-queues the orchestrator from its last checkpoint (`FULL_SCAN_STALL_MS` / `MAX_SCAN_RECOVERIES` live in `full-scan.js`). After 3 consecutive kicks with no forward progress it fails the run out to `completed-with-failures` rather than leaving it wedged. Worst-case wait: ~1 hour.
+
+2. **Resume (stalled)** button — Scans tab, on either scan panel once the 20-minute stall notice appears. Calls `resumeSiteScan`, which force-recovers immediately without waiting for the trigger.
+
+3. **Abandon scan** button — same notice. Calls `cancelSiteScan`, which writes the terminal `"cancelled"` state and drops the job token, freeing the shared row. Start a fresh scan afterward from the same panel.
+
+`recoveryCount` on the meta row resets to 0 on every real stage transition, so it only climbs across *consecutive* stalls — a scan that recovers once and then runs normally is not penalised later.
+
 ---
 
 ## Section 2: Snapshot Build Recovery

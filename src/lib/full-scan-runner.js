@@ -24,6 +24,8 @@ import {
   FULL_SCAN_STAGES,
   QUICK_SCAN_STAGES,
   FULL_SCAN_POLL_DELAY_SECONDS,
+  FULL_SCAN_STALL_MS,
+  MAX_SCAN_RECOVERIES,
   initialStages,
   nextStage,
   markStage,
@@ -302,6 +304,9 @@ async function runScanStep(spec, installationKey, message = {}, { now = Date.now
     stages,
     currentStage: definition.mode === "handoff" ? definition.key : null,
     polls: 0,
+    // A stage just started -- the run is making progress, so any recovery credit spent on
+    // an earlier stall is cleared. The watchdog's budget only counts consecutive stalls.
+    recoveryCount: 0,
     updatedAt: new Date(now).toISOString(),
   });
 
@@ -341,6 +346,9 @@ async function advance(spec, installationKey, stages, jobToken, now) {
     stages,
     currentStage: null,
     polls: 0,
+    // A stage just resolved -- forward progress -- so the watchdog's consecutive-stall
+    // budget resets. See recoverStalledScan.
+    recoveryCount: 0,
     updatedAt: new Date(now).toISOString(),
   });
   await queueScanStep(spec, installationKey, null, jobToken);
@@ -386,6 +394,119 @@ export async function startQuickScan(installationKey, opts = {}) {
 
 export async function runQuickScanStep(installationKey, message = {}, opts = {}) {
   return runScanStep(QUICK_SCAN_SPEC, installationKey, message, opts);
+}
+
+/**
+ * Restart a run whose orchestrator loop has stopped stepping.
+ *
+ * The step machine above cannot recover from a lost queue message, because the thing that
+ * would notice -- runScanStep -- is exactly what stopped being called. This is invoked from
+ * outside that loop, on the hourly trigger, and re-enters it from the last checkpoint.
+ *
+ * A run is "stalled" only when it says it is running AND its own meta row has not been
+ * touched in FULL_SCAN_STALL_MS. A live loop writes updatedAt on every poll, so a
+ * legitimately long issue crawl is never mistaken for a wedge. `force` skips the time check
+ * for the operator-driven "Resume" button, which the UI only shows once it already believes
+ * the run is stuck.
+ *
+ * After MAX_SCAN_RECOVERIES consecutive kicks with no forward progress, the run is failed
+ * out -- any stage still marked "running" becomes "failed" and the scan finishes
+ * completed-with-failures. Left "running", it would block every future scan from starting.
+ */
+export async function recoverStalledScan(installationKey, { now = Date.now(), force = false } = {}) {
+  await ensureProjectStoreReady();
+  const meta = await readFullScanMeta(installationKey);
+
+  if (meta?.state !== "running") return { recovered: false, reason: "not-running" };
+
+  const spec = meta.scanType === "quick" ? QUICK_SCAN_SPEC : FULL_SCAN_SPEC;
+  const lastBeat = Date.parse(meta.updatedAt || meta.startedAt || "") || 0;
+  if (!force && now - lastBeat <= FULL_SCAN_STALL_MS) {
+    return { recovered: false, reason: "healthy" };
+  }
+
+  const recoveryCount = Number(meta.recoveryCount || 0);
+  let stages = meta.stages || initialStages(spec.stageDefs);
+
+  if (recoveryCount >= MAX_SCAN_RECOVERIES) {
+    const completedAt = new Date(now).toISOString();
+    stages = stages.map((stage) => {
+      if (stage.state === "running") {
+        return {
+          ...stage,
+          state: "failed",
+          completedAt,
+          error: "Stage stopped responding and was abandoned after repeated recovery attempts.",
+        };
+      }
+      if (stage.state === "pending") {
+        return { ...stage, state: "skipped", completedAt, error: "Scan abandoned before this stage ran." };
+      }
+      return stage;
+    });
+    logger.error(`${spec.scanType}-scan.recovery_exhausted`, { installationKey, recoveryCount });
+    return finish(spec, installationKey, stages, now);
+  }
+
+  // An inline stage killed mid-invocation is left marked "running" with nothing driving it;
+  // nextStage skips it and the scan would finish reporting a stage it never actually ran.
+  // Only reset those -- a handoff stage in flight is tracked by currentStage and resumes
+  // through its own poll rather than being re-run from scratch.
+  if (!meta.currentStage) {
+    stages = stages.map((stage) =>
+      stage.state === "running" ? { ...stage, state: "pending", startedAt: null } : stage
+    );
+  }
+
+  await writeFullScanMeta(installationKey, {
+    stages,
+    recoveryCount: recoveryCount + 1,
+    updatedAt: new Date(now).toISOString(),
+  });
+  await queueScanStep(spec, installationKey, meta.currentStage || null, meta.jobToken);
+  logger.warn(`${spec.scanType}-scan.recovered_stall`, {
+    installationKey,
+    stage: meta.currentStage || null,
+    recoveryCount: recoveryCount + 1,
+  });
+  return { recovered: true, stage: meta.currentStage || null, recoveryCount: recoveryCount + 1 };
+}
+
+/**
+ * Stop a running full or quick scan on request.
+ *
+ * Clears the job token so any step still in the queue is ignored as a stale message, marks
+ * whatever was in flight as failed and anything not yet reached as skipped, and writes the
+ * terminal "cancelled" state -- which is what lets startScan begin a fresh run afterwards.
+ */
+export async function cancelScan(installationKey, { now = Date.now() } = {}) {
+  await ensureProjectStoreReady();
+  const meta = await readFullScanMeta(installationKey);
+
+  if (meta?.state !== "running") return { cancelled: false, reason: "not-running" };
+
+  const completedAt = new Date(now).toISOString();
+  const stages = (meta.stages || []).map((stage) => {
+    if (stage.state === "running") {
+      return { ...stage, state: "failed", completedAt, error: "Scan cancelled while this stage was running." };
+    }
+    if (stage.state === "pending") {
+      return { ...stage, state: "skipped", completedAt, error: "Scan cancelled before this stage ran." };
+    }
+    return stage;
+  });
+
+  await writeFullScanMeta(installationKey, {
+    state: "cancelled",
+    stages,
+    currentStage: null,
+    jobToken: null,
+    completedAt,
+    updatedAt: completedAt,
+    lastError: "Scan cancelled by an administrator.",
+  });
+  logger.warn(`${meta.scanType || "full"}-scan.cancelled`, { installationKey });
+  return { cancelled: true, scanType: meta.scanType || "full" };
 }
 
 // Stage metadata for the UI, so the tab does not have to duplicate either list.
