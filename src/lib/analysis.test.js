@@ -23,6 +23,7 @@ import {
   hasMeaningfulDescription,
   isLikelyAppProvidedField,
   isJiraBuiltinField,
+  isPlatformProvidedField,
   classifyFieldUsageStatus,
   buildGovernanceFindings,
   mergeProjectUsageCounts,
@@ -32,6 +33,7 @@ import {
   applyFindingsFilter,
   sortInventoryFields,
   summarizeFindings,
+  summarizeFindingsByCode,
   buildInventoryRecord,
   daysSince,
 } from "./analysis.js";
@@ -551,6 +553,35 @@ describe("isJiraBuiltinField", () => {
   });
 });
 
+// ── isPlatformProvidedField ─────────────────────────────────────────────────
+
+describe("isPlatformProvidedField", () => {
+  test("returns false when no customType", () => {
+    expect(isPlatformProvidedField({ schema: {} })).toBe(false);
+  });
+
+  // The narrow cases: pseudo-fields a first-party Jira plugin manages outright.
+  test("returns true for Greenhopper (Agile) fields like Rank", () => {
+    expect(isPlatformProvidedField({ customType: "com.pyxis.greenhopper.jira:gh-lexo-rank" })).toBe(true);
+  });
+
+  test("returns true for Service Desk fields", () => {
+    expect(isPlatformProvidedField({ customType: "com.atlassian.servicedesk.approvals-plugin:sd-approvals" })).toBe(true);
+  });
+
+  // Deliberately false: this is the namespace ordinary admin-created fields (select lists,
+  // text fields, ...) use, and they stay fully actionable -- isJiraBuiltinField treats this
+  // prefix as "built-in" for the Origin filter, but that is a different question from
+  // "can an admin still do something about this field."
+  test("returns false for the native Jira field-type namespace", () => {
+    expect(isPlatformProvidedField({ customType: "com.atlassian.jira.plugin.system.customfieldtypes:select" })).toBe(false);
+  });
+
+  test("returns false for third-party app fields", () => {
+    expect(isPlatformProvidedField({ customType: "com.somevendor.plugin:custom" })).toBe(false);
+  });
+});
+
 // ── classifyFieldUsageStatus ──────────────────────────────────────────────────
 
 describe("classifyFieldUsageStatus", () => {
@@ -616,6 +647,40 @@ describe("buildGovernanceFindings — rule: high-impact broad usage", () => {
     const rule = result.reasons.find((r) => r.title.includes("High-impact"));
     expect(rule).toBeDefined();
     expect(rule.detail).toContain("Configured in 15 projects");
+  });
+
+  // Regression: this was the one rule in the whole function with no isSystemField guard,
+  // so Comment, Log Work and Status Category -- present on every issue in every project by
+  // definition -- were flagged "risky" and "admin attention" on every site, with no action
+  // an admin could take to de-risk them.
+  test("does not fire for a system field no matter how broad its usage is", () => {
+    const result = findings(systemField, { activeProjectCount: 500, totalIssueCount: 1_000_000, usageStatus: "ready", isSystemField: true });
+    expect(result.reasons.find((r) => r.title.includes("High-impact"))).toBeUndefined();
+    expect(result.adminAttention).toBe(false);
+  });
+
+  // Rank, Sprint, Epic Link and Service Desk's own fields use a customfield_ id, so
+  // isSystemField alone does not catch them -- they need the narrower platform-provided
+  // signal instead.
+  test("does not fire for a plugin-provided pseudo-field like Rank", () => {
+    const rank = { id: "customfield_10019", name: "Rank", customType: "com.pyxis.greenhopper.jira:gh-lexo-rank" };
+    const result = findings(rank, {
+      activeProjectCount: 500, totalIssueCount: 1_000_000, usageStatus: "ready",
+      isSystemField: false, isPlatformProvidedField: true,
+    });
+    expect(result.reasons.find((r) => r.title.includes("High-impact"))).toBeUndefined();
+  });
+
+  // The narrowness is the point: an ordinary admin-created select list also has a
+  // customType under the same "native Jira field type" namespace Rank's check would
+  // otherwise be tempted to reuse, and it stays fully actionable.
+  test("still fires for an ordinary custom field built from a native Jira field type", () => {
+    const selectField = { id: "customfield_99", name: "Priority Tier", customType: "com.atlassian.jira.plugin.system.customfieldtypes:select" };
+    const result = findings(selectField, {
+      activeProjectCount: 500, totalIssueCount: 1_000_000, usageStatus: "ready",
+      isSystemField: false, isPlatformProvidedField: false,
+    });
+    expect(result.reasons.find((r) => r.title.includes("High-impact"))).toBeDefined();
   });
 });
 
@@ -1303,6 +1368,48 @@ describe("applyFindingsFilter", () => {
 
   test("filters by standardize", () => {
     expect(applyFindingsFilter(fields, "standardize")).toHaveLength(1);
+  });
+
+  // A specific reason code, not one of the four categories -- how an Overview card that
+  // counted exactly "N fields with a dead-configuration ratio" sends a reader to exactly
+  // those N, not the whole cleanup bucket several unrelated rules also land in.
+  describe("filtering by a specific reason code", () => {
+    const coded = [
+      makeField({ id: "a", findings: { tags: { cleanup: true }, reasons: [{ code: "dead-configuration" }] } }),
+      makeField({ id: "b", findings: { tags: { cleanup: true }, reasons: [{ code: "stale" }] } }),
+      makeField({ id: "c", findings: { tags: { cleanup: true }, reasons: [{ code: "dead-configuration" }, { code: "stale" }] } }),
+    ];
+
+    test("matches only fields carrying that exact code, not the whole cleanup bucket", () => {
+      const result = applyFindingsFilter(coded, "dead-configuration");
+      expect(result.map((f) => f.id).sort()).toEqual(["a", "c"]);
+    });
+
+    test("matches any of several comma-joined codes, for a card that merged two close rules", () => {
+      const result = applyFindingsFilter(coded, "dead-configuration,stale");
+      expect(result).toHaveLength(3);
+    });
+
+    test("returns nothing for a code no field carries, rather than falling back to \"all\"", () => {
+      expect(applyFindingsFilter(coded, "context-sprawl")).toHaveLength(0);
+    });
+  });
+});
+
+// ── summarizeFindingsByCode ─────────────────────────────────────────────────
+
+describe("summarizeFindingsByCode", () => {
+  test("counts fields per reason code, not just the four coarse categories", () => {
+    const fields = [
+      makeField({ findings: { reasons: [{ code: "dead-configuration" }, { code: "stale" }] } }),
+      makeField({ findings: { reasons: [{ code: "stale" }] } }),
+      makeField({ findings: { reasons: [] } }),
+    ];
+    expect(summarizeFindingsByCode(fields)).toEqual({ "dead-configuration": 1, stale: 2 });
+  });
+
+  test("returns an empty object rather than throwing when no field has any reasons", () => {
+    expect(summarizeFindingsByCode([makeField({ findings: { reasons: [] } })])).toEqual({});
   });
 });
 

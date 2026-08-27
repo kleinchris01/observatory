@@ -3,7 +3,7 @@ import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { invoke } from "@forge/bridge";
-import { DashboardsTab, filterDashboards, sortDashboards, DASHBOARD_FINDINGS } from "./DashboardsTab";
+import { DashboardsTab, filterDashboards, sortDashboards, DASHBOARD_FINDINGS, gadgetTooltip } from "./DashboardsTab";
 
 // The things worth pinning are the ones that would go quiet: an empty state that reads as
 // good news, a partial build presenting itself as complete, and the missing gadget-to-filter
@@ -52,6 +52,29 @@ function route(map) {
 }
 
 beforeEach(() => invoke.mockReset());
+
+describe("gadgetTooltip", () => {
+  test("says nothing for a gadget with no filter to report", () => {
+    expect(gadgetTooltip({ id: "g1", filterId: null })).toBeUndefined();
+  });
+
+  test("names the filter and the fields it depends on", () => {
+    const tooltip = gadgetTooltip({ id: "g1", filterId: "500", filterName: "Open Bugs", fieldRefs: ["Story Points", "Status"] });
+    expect(tooltip).toBe("Filter: Open Bugs — depends on Story Points, Status");
+  });
+
+  test("says so rather than nothing when the filter's JQL names no fields", () => {
+    const tooltip = gadgetTooltip({ id: "g1", filterId: "500", filterName: "Everything", fieldRefs: [] });
+    expect(tooltip).toContain("depends on nothing this filter's JQL names");
+  });
+
+  // Tri-state: a gadget with a filterId but an unbuilt filter inventory has not been
+  // measured, which must read differently from a gadget confirmed to depend on nothing.
+  test("reports unmeasured, not unresolved, when no filter inventory exists yet", () => {
+    const tooltip = gadgetTooltip({ id: "g1", filterId: "500", filterName: null, fieldRefs: null });
+    expect(tooltip).toContain("build a saved filter inventory");
+  });
+});
 
 describe("filterDashboards", () => {
   const rows = [

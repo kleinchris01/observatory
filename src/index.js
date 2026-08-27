@@ -21,7 +21,7 @@ import {
 import { processProjectUsageReportJob } from "./lib/report-engine.js";
 import { buildWorkflowSnapshot, buildStatusHistorySnapshot } from "./lib/workflow-engine.js";
 import { buildScreenSnapshot } from "./lib/screen-engine.js";
-import { runFullScanStep } from "./lib/full-scan-runner.js";
+import { runFullScanStep, runQuickScanStep, startQuickScan } from "./lib/full-scan-runner.js";
 import { buildFilterSnapshot } from "./lib/filter-engine.js";
 import { buildDashboardSnapshot } from "./lib/dashboard-engine.js";
 import {
@@ -42,6 +42,7 @@ import {
   readAdminConfig,
   runDeltaIssueScanJob,
   DELTA_ISSUE_SCAN_DEFAULT_WINDOW_HOURS,
+  recordQuickScanScheduledRun,
   rovoSearchFields,
   rovoInspectField,
   rovoSearchAutomationRules,
@@ -133,6 +134,46 @@ export async function autoSnapshotCheck(_event, context) {
   await queueSnapshotBuild(installationKey);
   incrMetric(METRIC_NAMES.snapshotScheduler);
   return { queued: true };
+}
+
+// Fires roughly hourly (the finest interval Forge scheduled triggers offer) and checks the
+// stored schedule against the current hour -- Forge has no cron/day-of-week trigger, so "runs
+// Sunday at midnight" has to be implemented as "fires every hour, most of which do nothing."
+//
+// dayOfWeek and hourUtc are compared in UTC because that is what Date's own UTC accessors give
+// for free without a timezone library, and because a scheduled trigger's exact firing instant
+// already has Forge's own slop in it -- offering false minute-level precision on top of that
+// would be worse than being honest that this is accurate to the hour, in UTC.
+export async function quickScanScheduleCheck(_event, context) {
+  const config = await readAdminConfig();
+  const schedule = config.quickScanSchedule;
+  if (!schedule?.enabled) return { skipped: true, reason: "disabled" };
+
+  const now = new Date();
+  const due = schedule.frequency === "daily"
+    ? now.getUTCHours() === schedule.hourUtc
+    : now.getUTCDay() === schedule.dayOfWeek && now.getUTCHours() === schedule.hourUtc;
+
+  if (!due) return { skipped: true, reason: "not due yet" };
+
+  // The due WINDOW is a whole hour wide and this fires roughly hourly, so without this guard
+  // a trigger that fires twice in one hour -- Forge's delivery is at-least-once, not
+  // exactly-once -- would start the quick scan twice. 45 minutes is comfortably inside one
+  // hour and comfortably outside "the same firing running twice."
+  const lastRun = schedule.lastScheduledRunAt ? new Date(schedule.lastScheduledRunAt).getTime() : 0;
+  if (Date.now() - lastRun < 45 * 60 * 1000) {
+    return { skipped: true, reason: "already ran this hour" };
+  }
+
+  const installationKey = getInstallationKey(context);
+  const result = await startQuickScan(installationKey, { quickScanWindowHours: schedule.windowHours });
+
+  if (result?.started) {
+    await recordQuickScanScheduledRun(new Date().toISOString());
+    incrMetric(METRIC_NAMES.snapshotScheduler);
+  }
+
+  return result;
 }
 
 export async function runProjectStorageMigrations() {
@@ -298,6 +339,24 @@ export async function consumeSnapshot(event) {
               : result?.advanced
                 ? `run-full-scan: ${result.done}/${result.total} stages done`
                 : `run-full-scan: ${result?.reason || "no-op"}`
+      );
+      return;
+    }
+
+    // The quick scan's sibling step. Same engine, same shared meta row, different stage list --
+    // see full-scan-runner.js for why the two must never be allowed to run concurrently.
+    if (jobType === "run-quick-scan") {
+      const result = await runQuickScanStep(installationKey, event?.body || {});
+      console.log(
+        result?.completed
+          ? `run-quick-scan: complete - ${result.done}/${result.total} stages, ${result.failed} failed, ${result.skipped} skipped`
+          : result?.waiting
+            ? `run-quick-scan: waiting on ${result.stage} (poll ${result.polls})`
+            : result?.handedOff
+              ? `run-quick-scan: handed off to ${result.stage}`
+              : result?.advanced
+                ? `run-quick-scan: ${result.done}/${result.total} stages done`
+                : `run-quick-scan: ${result?.reason || "no-op"}`
       );
       return;
     }

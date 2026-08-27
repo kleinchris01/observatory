@@ -137,7 +137,7 @@ export async function readFullScanMeta(scopeKey) {
   const result = await withSqlRetry(() =>
     sql.prepare(`
       SELECT state, job_token, current_stage, stages_json, started_at, completed_at, last_error,
-             updated_at, polls
+             updated_at, polls, scan_type, quick_scan_window_hours
       FROM full_scan_meta WHERE scope_key = ?
     `).bindParams(scopeKey).execute()
   );
@@ -156,6 +156,17 @@ export async function readFullScanMeta(scopeKey) {
     // without writing a terminal state would otherwise hold the whole scan open forever.
     updatedAt: row.updated_at || null,
     polls: toNumber(row.polls),
+    // "full" | "quick" | null (a row that predates the quick-scan split, or has never run).
+    // Both scan types share this one row deliberately -- they must never run concurrently,
+    // since both would otherwise race the same handoff-stage builds -- so which one is
+    // currently running has to be recorded, not inferred from the stage list alone.
+    scanType: row.scan_type || null,
+    // The lookback window a quick scan was started with. Not a closure variable: orchestration
+    // is queue-driven across many invocations, so the issues-delta stage rereads this from the
+    // row at the moment it actually starts, however many steps into the scan that is.
+    quickScanWindowHours: row.quick_scan_window_hours === null || row.quick_scan_window_hours === undefined
+      ? null
+      : toNumber(row.quick_scan_window_hours),
   };
 }
 
@@ -170,8 +181,8 @@ export async function writeFullScanMeta(scopeKey, patch = {}) {
     sql.prepare(`
       INSERT INTO full_scan_meta
         (scope_key, state, job_token, current_stage, stages_json, started_at, completed_at,
-         last_error, updated_at, polls)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         last_error, updated_at, polls, scan_type, quick_scan_window_hours)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON DUPLICATE KEY UPDATE
         state = VALUES(state),
         job_token = VALUES(job_token),
@@ -181,7 +192,9 @@ export async function writeFullScanMeta(scopeKey, patch = {}) {
         completed_at = VALUES(completed_at),
         last_error = VALUES(last_error),
         updated_at = VALUES(updated_at),
-        polls = VALUES(polls)
+        polls = VALUES(polls),
+        scan_type = VALUES(scan_type),
+        quick_scan_window_hours = VALUES(quick_scan_window_hours)
     `).bindParams(
       scopeKey,
       next.state || "idle",
@@ -192,7 +205,11 @@ export async function writeFullScanMeta(scopeKey, patch = {}) {
       next.completedAt || null,
       next.lastError || null,
       next.updatedAt || null,
-      Number(next.polls) || 0
+      Number(next.polls) || 0,
+      next.scanType || null,
+      next.quickScanWindowHours === null || next.quickScanWindowHours === undefined
+        ? null
+        : Number(next.quickScanWindowHours)
     ).execute()
   );
   return next;

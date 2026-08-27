@@ -10,6 +10,10 @@ import {
   mergeFieldMetrics,
   buildFieldRovoPrompt,
   buildProjectRovoPrompt,
+  buildFilterUsageRovoPrompt,
+  buildDashboardUsageRovoPrompt,
+  buildScreenUsageRovoPrompt,
+  buildContextsRovoPrompt,
   openFieldExpertRovo,
   toDisplayName,
   formatTimestamp,
@@ -18,6 +22,56 @@ import {
 } from "../utils";
 import { Icon } from "./Icons";
 import { FieldOptionsModal } from "./FieldOptionsModal";
+
+// The one Rovo button, used everywhere a panel can ask the agent about what it is showing.
+//
+// Every usage panel used to grow its own "Ask Rovo" button -- same two words, five different
+// places on the card, no way to tell from the label which of them would fire the automation
+// prompt versus the filter one versus the screen one, and no way to tell it was the SAME agent
+// each time rather than five different integrations. `description` is the one piece of real
+// information each call site actually has and the generic label threw away: it becomes both
+// the tooltip and the reason a disabled button gives for being disabled, so "why can't I click
+// this" and "what would it ask" are answered in the same place instead of neither.
+function RovoAskButton({ enabled, description, onClick }) {
+  return (
+    <button
+      className="secondary-button secondary-button--small rovo-ask-button"
+      type="button"
+      onClick={(event) => { event.stopPropagation(); onClick(); }}
+      disabled={!enabled}
+      title={enabled ? description : "Rovo is not available on this site."}
+    >
+      <Icon name="zap" size={13} />
+      <span>Ask Field Expert</span>
+    </button>
+  );
+}
+
+// A one-line, client-side search box for a panel's own already-fetched list.
+//
+// Not a resolver call: Automation/Filter/Dashboard usage are scoped to ONE field, so even a
+// field referenced by every rule on the site is a few hundred rows already sitting in this
+// component's state, not the few-thousand-row estate the Filters and Field Browser tabs had
+// to move server-side. Filtering an array already in memory needs no debounce and no round
+// trip.
+function PanelSearch({ value, onChange, placeholder, matchCount, totalCount }) {
+  if (totalCount <= 1) return null;
+  return (
+    <div className="panel-search">
+      <Icon name="search" size={13} />
+      <input
+        type="text"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        onClick={(event) => event.stopPropagation()}
+      />
+      {value ? (
+        <span className="panel-search__count">{matchCount} of {totalCount}</span>
+      ) : null}
+    </div>
+  );
+}
 
 // A detail section that can be folded away.
 //
@@ -186,6 +240,109 @@ export function FilterUsageSection({ field, enabled = true, siteOrigin }) {
           {data.filters.length < total && (
             <div className="ui-truncation">
               Showing {formatNumber(data.filters.length)} of {formatNumber(total)} references.
+            </div>
+          )}
+        </>
+      )}
+    </CollapsibleSection>
+  );
+}
+
+// Which dashboards break if this field goes.
+//
+// The chain is field -> the filters whose JQL names it -> the gadgets configured to show those
+// filters -> the dashboards those gadgets sit on. Every leg is an exact join. The cheap version
+// of this feature would match gadget titles against filter names, which is right most of the
+// time -- and "most of the time" is not a basis for deleting a field, because the case it gets
+// wrong is the one where somebody's wall-screen goes blank on Monday.
+export function DashboardUsageSection({ field, enabled = true, siteOrigin }) {
+  const [state, setState] = React.useState({ loading: true, error: "", data: null });
+
+  React.useEffect(() => {
+    if (!enabled) return undefined;
+    let cancelled = false;
+    setState({ loading: true, error: "", data: null });
+    // By NAME, like the filter lookup: the join runs through JQL, and JQL names fields.
+    invoke("getDashboardUsage", { label: field.name || field.id })
+      .then((data) => { if (!cancelled) setState({ loading: false, error: "", data }); })
+      .catch((err) => { if (!cancelled) setState({ loading: false, error: err?.message || "Failed to load.", data: null }); });
+    return () => { cancelled = true; };
+  }, [enabled, field.id, field.name]);
+
+  const { loading, error, data } = state;
+  const total = data?.total ?? 0;
+
+  // Which half is missing changes what an admin has to do about it, so they are not collapsed
+  // into one "unavailable".
+  const missing = data?.reason === "no-dashboard-inventory"
+    ? "No dashboard inventory has been built, so dashboard usage is unknown for this field. Build one on the Dashboards tab."
+    : data?.reason === "no-filter-inventory"
+      ? "Dashboards reach fields through saved filters, and no filter inventory has been built. Build one on the Saved Filters tab."
+      : null;
+
+  return (
+    <CollapsibleSection
+      title="Dashboard Usage"
+      badge={data?.available && total > 0 ? `${formatNumber(total)} dashboard${total === 1 ? "" : "s"}` : null}
+    >
+      {loading ? (
+        <div className="empty-state empty-state--inline">Checking dashboards…</div>
+      ) : error ? (
+        <div className="empty-state empty-state--inline">Could not check dashboards. {error}</div>
+      ) : missing ? (
+        // Never "no dashboard uses this field". Nobody has looked, and that is not permission
+        // to delete anything.
+        <div className="empty-state empty-state--inline">{missing}</div>
+      ) : !data?.available ? (
+        <div className="empty-state empty-state--inline">Dashboard usage is unknown for this field.</div>
+      ) : total === 0 ? (
+        <div className="empty-state empty-state--inline">
+          {data.complete
+            ? "No dashboard gadget shows a filter that uses this field."
+            : "No dashboard found so far — but the gadget configuration walk has not finished, so this is not yet a complete answer."}
+        </div>
+      ) : (
+        <>
+          <p className="ui-note">
+            <Icon name="alertTriangle" size={13} />
+            <span>
+              These dashboards render through a filter that names this field. Delete the field
+              and the gadget keeps rendering — against a different set of issues.
+            </span>
+          </p>
+          <ul className="filter-usage__list">
+            {data.dashboards.map((dash) => {
+              const href = dash.viewUrl || (siteOrigin ? `${siteOrigin}/jira/dashboards/${dash.id}` : null);
+              return (
+                <li key={dash.id} className="filter-usage__item">
+                  {href ? (
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={(event) => handleJiraLinkClick(event, href)}
+                      title="Open this dashboard in Jira"
+                    >
+                      {dash.name || `Dashboard ${dash.id}`}
+                    </a>
+                  ) : (
+                    <span>{dash.name || `Dashboard ${dash.id}`}</span>
+                  )}
+                  {dash.ownerName && <span className="filter-usage__owner">{dash.ownerName}</span>}
+                  {/* WHERE on the dashboard, not just which dashboard. "Sprint Health" tells a
+                      reader what to look at in a way the dashboard name alone does not. */}
+                  <span className="filter-usage__subs">
+                    via {dash.via.map((v) => v.gadgetTitle || v.filterName || "a gadget").slice(0, 3).join(", ")}
+                    {dash.via.length > 3 ? ` +${dash.via.length - 3} more` : ""}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+          {!data.complete && (
+            <div className="ui-truncation">
+              The gadget configuration walk reached {formatNumber(data.coverage?.walked ?? 0)} of{" "}
+              {formatNumber(data.coverage?.total ?? 0)} gadgets, so there may be more.
             </div>
           )}
         </>
@@ -404,15 +561,19 @@ export function FindingBadge({ label, tone }) {
   );
 }
 
+// Always renders the strip, even with nothing to show in it -- a card with a finding and a
+// card with none must reserve the same row, or the two read as different heights in a list
+// purely because one of them had something to flag. .findings-strip's own min-height is what
+// does the reserving; this only has to make sure the element exists to receive it.
 export function FindingsStrip({ findings }) {
-  if (!findings?.tags) return null;
+  const tags = findings?.tags || {};
 
   return (
     <div className="findings-strip">
-      {findings.tags.adminAttention ? <FindingBadge label="Admin Attention" tone="danger" /> : null}
-      {findings.tags.risky ? <FindingBadge label="Risk" tone="danger" /> : null}
-      {findings.tags.cleanup ? <FindingBadge label="Cleanup" tone="warn" /> : null}
-      {findings.tags.standardize ? <FindingBadge label="Standardize" tone="info" /> : null}
+      {tags.adminAttention ? <FindingBadge label="Admin Attention" tone="danger" /> : null}
+      {tags.risky ? <FindingBadge label="Risk" tone="danger" /> : null}
+      {tags.cleanup ? <FindingBadge label="Cleanup" tone="warn" /> : null}
+      {tags.standardize ? <FindingBadge label="Standardize" tone="info" /> : null}
     </div>
   );
 }
@@ -563,6 +724,7 @@ export function FieldCard({
   automationCounts,
   screenCount,
   filterCount,
+  dashboardGadgetCount,
   screenSnapshot,
 }) {
   const displayField = React.useMemo(() => mergeFieldMetrics(field, details), [field, details]);
@@ -674,6 +836,16 @@ export function FieldCard({
             value={filterCount === null || filterCount === undefined ? "—" : filterCount}
             tone={filterCount > 0 ? "alert" : "neutral"}
           />
+          {/* Same tri-state as Filters, and for the same reason: a dashboard gadget pointing
+              at a filter that names this field breaks silently if the field goes -- nobody
+              sees an error, the gadget just renders against a different set of issues. This
+              also completes the grid to a clean 3x3 rather than leaving the last row one
+              tile short. */}
+          <MetricChip
+            label="Dashboard gadgets"
+            value={dashboardGadgetCount === null || dashboardGadgetCount === undefined ? "—" : dashboardGadgetCount}
+            tone={dashboardGadgetCount > 0 ? "alert" : "neutral"}
+          />
         </div>
         <span className="field-card__toggle-icon" aria-hidden="true" />
       </button>
@@ -771,6 +943,7 @@ export function FieldCard({
 
               {showGovernance ? <AutomationUsageSection field={field} enabled={expanded} siteOrigin={siteOrigin} rovoEnabled={rovoEnabled} /> : null}
               {showGovernance ? <FilterUsageSection field={field} enabled={expanded} siteOrigin={siteOrigin} /> : null}
+              {showGovernance ? <DashboardUsageSection field={field} enabled={expanded} siteOrigin={siteOrigin} /> : null}
 
               <CollapsibleSection
                 title="Contexts"

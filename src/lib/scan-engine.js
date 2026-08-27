@@ -27,6 +27,7 @@ import {
   writeIssueScanMeta,
   readIssueScanMeta,
   clearIssueScanBuffer,
+  clearIssueScanBufferForProjects,
   replaceIssueScanWorkers,
   readIssueScanWorker,
   updateIssueScanWorker,
@@ -61,6 +62,13 @@ import { syncFieldCatalog, refreshGovernanceFindingsForFields } from "./snapshot
 import { route } from "@forge/api";
 
 const ISSUE_SCAN_CHUNK_PAGES = 10;
+
+// How many times one slice may restart before the scan gives up on it alone.
+//
+// Bounded because a slice whose JQL Jira simply will not accept would otherwise restart
+// forever, and a scan that never finishes is worse than one that finishes and says which
+// projects it could not read.
+const MAX_SLICE_RESTARTS = 3;
 const ISSUE_SCAN_RATE_LIMIT_COOLDOWN_MS = 60 * 1000;
 const ISSUE_COUNT_TIMEOUT_MS = 8000;
 
@@ -438,8 +446,15 @@ export function normalizeWorkerSlices(worker) {
       jql: slice.jql,
       token: slice.token || null,
       done: Boolean(slice.done),
+      keys: Array.isArray(slice.keys) ? slice.keys : null,
       pages: Number(slice.pages) || 0,
       issues: Number(slice.issues) || 0,
+      // Restarts have to survive the trip through SQL. A slice restarts at most once per
+      // invocation, so a counter that reset each time could never reach its cap -- a slice
+      // whose JQL Jira simply will not accept would restart forever, one invocation apiece,
+      // and the scan would never finish or fail.
+      restarts: Number(slice.restarts) || 0,
+      abandoned: Boolean(slice.abandoned),
     }));
   }
 
@@ -447,10 +462,16 @@ export function normalizeWorkerSlices(worker) {
   return [{
     id: 0,
     jql: worker.jqlFilter,
+    // No key list on a pre-slice worker row, so a restart cannot delete its own contribution
+    // exactly. runSlice checks for this and declines to re-crawl rather than double-counting.
+    keys: null,
     token: worker.nextPageToken || null,
     done: false,
     pages: Number(worker.processedPages) || 0,
     issues: Number(worker.processedIssues) || 0,
+    // Same shape as a stored slice, so the crawl has one slice type and not two.
+    restarts: 0,
+    abandoned: false,
   }];
 }
 
@@ -479,6 +500,10 @@ export function sliceProjectKeys(keys, issueCountByKey, sliceCount) {
     .filter((bin) => bin.keys.length > 0)
     .map((bin, id) => ({
       id,
+      // Carried alongside the JQL, not parsed back out of it when needed. A restarting slice
+      // has to delete exactly what it contributed, and slices own disjoint projects, so the
+      // key list IS that contribution.
+      keys: bin.keys,
       jql: `project IN (${bin.keys.map((k) => `"${k}"`).join(", ")})`,
       token: null,
       done: false,
@@ -644,34 +669,77 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
           const errStr = String(searchErr?.message || searchErr || "");
           const is400 = errStr.includes("400") || searchErr?.statusCode === 400 || searchErr?.status === 400;
 
-          // A 400 with no cursor is not an expired token, so it falls through to the rethrow
-          // below and kills the worker -- and with it the whole scan. It has happened on this
-          // site repeatedly and was never diagnosable, because the only thing recorded was
-          // "400 Bad Request": no JQL, no field count, no indication of which of the two
-          // things a search can be rejected for was at fault. Record the shape of the request
-          // that was refused, so the next occurrence is a question with an answer.
-          if (is400 && !slice.token) {
-            logger.error("scan.search_rejected_on_first_page", {
+          // A 400 restarts this slice. It does not kill the worker, and it certainly does
+          // not kill the scan.
+          //
+          // Previously only a 400 WITH a cursor was treated as recoverable, on the theory that
+          // it meant an expired page token. A 400 without one fell through to the rethrow
+          // below, which failed the worker, which marked the entire scan failed -- so a single
+          // refused request threw away a crawl of 150,000 issues that was otherwise working.
+          // That is what has been happening on this site, repeatedly.
+          //
+          // Whatever the cause, the right response is the same: this slice restarts from its
+          // first page and the other slices, and the other four workers, carry on. Re-crawled
+          // pages are absorbed by the flush upserts, which are keyed by project and field.
+          if (is400) {
+            slice.restarts = Number(slice.restarts || 0) + 1;
+
+            logger.error("scan.search_rejected", {
               installationKey,
               workerId,
               sliceId: slice.id,
+              hadCursor: Boolean(slice.token),
+              restarts: slice.restarts,
               jqlLength: String(slice.jql || "").length,
               jqlPreview: String(slice.jql || "").slice(0, 300),
               fieldCount: Array.isArray(scanFields) ? scanFields.length : null,
               error: errStr.slice(0, 500),
             });
-          }
 
-          if (is400 && slice.token) {
-            // Cursor expired. Restart THIS slice only -- the others hold their own valid
-            // cursors and there is no reason to make them re-crawl. Buffered rows are keyed by
-            // project and re-counted on the retry, which the flush upserts absorb.
-            console.warn(`${tag}: 400 on paginated search for slice ${slice.id} — token expired; restarting that slice`);
+            if (slice.restarts > MAX_SLICE_RESTARTS) {
+              // Restarting is not working. Give up on this slice alone rather than looping on
+              // it forever -- the projects it covers go uncounted, and the scan says so, which
+              // is a better outcome than a scan that never finishes.
+              slice.done = true;
+              slice.abandoned = true;
+              await appendIssueScanLogEntry(
+                installationKey,
+                `Worker ${workerId} slice ${slice.id}: abandoned after ${slice.restarts} failed restarts — its projects are not counted in this scan`
+              ).catch(ignoreWith("scan.log_append_failed", { workerId }));
+              return;
+            }
+
+            // Re-crawling double-counts unless what this slice already contributed is
+            // removed first. The count flush is additive --
+            // `issue_count = issue_count + VALUES(issue_count)` -- so a page counted twice is
+            // counted twice, and the result is a project reporting more field values per issue
+            // than it has fields. Slices own disjoint projects, so deleting the buffer rows
+            // for this slice's keys removes exactly its contribution and nobody else's.
+            //
+            // Without a key list -- a worker row written before slices existed -- that
+            // subtraction cannot be made exact, so the slice stops here instead. Losing the
+            // rest of one slice's coverage is recoverable and visible. Silently inflated
+            // counts are neither.
+            if (!Array.isArray(slice.keys) || slice.keys.length === 0) {
+              slice.done = true;
+              slice.abandoned = true;
+              await appendIssueScanLogEntry(
+                installationKey,
+                `Worker ${workerId}: search rejected (400) and this worker predates per-slice tracking, so it cannot restart without double-counting — stopping it instead. Start a fresh scan to recrawl these projects.`
+              ).catch(ignoreWith("scan.log_append_failed", { workerId }));
+              return;
+            }
+
+            await clearIssueScanBufferForProjects(installationKey, slice.keys)
+              .catch(ignoreWith("scan.buffer_clear_failed", { workerId, sliceId: slice.id }));
+
             await appendIssueScanLogEntry(
               installationKey,
-              `Worker ${workerId} slice ${slice.id}: page token expired (400), restarting that slice from page 1`
+              `Worker ${workerId} slice ${slice.id}: search rejected (400)${slice.token ? ", page token likely expired" : ""} — cleared its counts and restarting from page 1 (attempt ${slice.restarts})`
             ).catch(ignoreWith("scan.log_append_failed", { workerId }));
             slice.token = null;
+            slice.pages = 0;
+            slice.issues = 0;
             return;
           }
           throw searchErr;
@@ -844,16 +912,39 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
       if (claimed) await completeIssueScanFinalization(installationKey, tag);
     }
   } catch (error) {
+    // One worker failing fails ONE WORKER.
+    //
+    // This used to write state:"failed" onto the scan itself, so a single refused request in
+    // one of five workers threw away everything the other four had crawled -- and the run
+    // showed as failed even though 120,000 of 150,000 issues had been counted and stored.
+    // The failure was real; making it fatal to the whole scan was the defect.
+    //
+    // The worker's slot is still counted as finished, because finalization fires when every
+    // slot reports in. Without that, four healthy workers would sit at "building" forever
+    // waiting on a fifth that is never coming back.
     const errMsg = error?.message || String(error);
     console.error(`${tag} failed:`, errMsg);
-    await updateIssueScanWorker(installationKey, workerId, { status: "failed", lastError: errMsg }).catch(ignoreWith("scan.worker_failure_write_failed", { workerId }));
-    await appendIssueScanLogEntry(installationKey, `Worker ${workerId} failed - ${errMsg}`).catch(ignoreWith("scan.log_append_failed", { workerId }));
+    await updateIssueScanWorker(installationKey, workerId, { status: "failed", lastError: errMsg })
+      .catch(ignoreWith("scan.worker_failure_write_failed", { workerId }));
+    await appendIssueScanLogEntry(
+      installationKey,
+      `Worker ${workerId} failed - ${errMsg}. The other workers continue; this worker's projects may be incompletely counted.`
+    ).catch(ignoreWith("scan.log_append_failed", { workerId }));
+
+    const updatedMeta = await atomicAccumulateIssueScanProgress(installationKey, 1, 0)
+      .catch(fallbackOn("scan.progress_accumulate_failed", null, { installationKey }));
+
+    // Record which worker fell over, without declaring the run dead. The scan finishes and
+    // reports partial coverage, which an admin can act on -- "failed" with no data cannot be.
     await writeIssueScanMeta(installationKey, {
-      state: "failed",
-      completedAt: new Date().toISOString(),
-      nextPageToken: null,
-      nextStartAt: 0,
       lastError: `Worker ${workerId} failed - ${errMsg}`,
     }).catch(ignoreWith("scan.worker_failure_meta_write_failed", { workerId }));
+
+    if ((updatedMeta?.processedPages ?? 0) >= (updatedMeta?.totalPages ?? 0) && (updatedMeta?.totalPages ?? 0) > 0) {
+      const claimToken = makeJobToken();
+      const claimed = await tryClaimIssueScanFinalization(installationKey, claimToken)
+        .catch(fallbackOn("scan.finalization_claim_failed", false, { installationKey }));
+      if (claimed) await completeIssueScanFinalization(installationKey, tag);
+    }
   }
 }

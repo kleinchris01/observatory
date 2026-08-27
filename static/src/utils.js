@@ -124,6 +124,99 @@ export function buildAutomationRovoPrompt(field, usage) {
   return lines.join("\n");
 }
 
+// Prompt for the saved-filter usage panel. Same shape as the automation prompt: seed the
+// agent with what Observatory already knows, so a stale count shows up as a disagreement
+// rather than two confident answers that quietly differ.
+export function buildFilterUsageRovoPrompt(field, usage) {
+  const name = field?.name || field?.id || "this field";
+  const lines = [
+    `Which saved Jira filters depend on the field "${name}" (${field?.id ?? "unknown id"}), and what breaks if it is deleted or renamed?`,
+    "",
+    "Use the saved-filter usage for this field, then answer:",
+    "1. Which filters would silently start returning the wrong issues.",
+    "2. Whether any of them are subscribed to, or shared with everyone -- that raises who notices and how loudly.",
+    "3. What you cannot see, so I know what is left to check myself.",
+  ];
+
+  if (usage?.available && usage?.total > 0) {
+    lines.push("", `Observatory currently records ${usage.total} filter${usage.total === 1 ? "" : "s"} referencing this field.`);
+  } else if (usage?.available) {
+    lines.push("", "Observatory records no saved filter referencing this field. Confirm that.");
+  }
+
+  return lines.join("\n");
+}
+
+// Prompt for the dashboard usage panel -- the second-order consequence of a filter breaking:
+// a dashboard gadget that renders through one of the filters above.
+export function buildDashboardUsageRovoPrompt(field, usage) {
+  const name = field?.name || field?.id || "this field";
+  const lines = [
+    `Which dashboards render a gadget through a filter that depends on the field "${name}" (${field?.id ?? "unknown id"})?`,
+    "",
+    "Use the dashboard usage for this field, then answer:",
+    "1. Which dashboards would start showing a gadget with the wrong issues, or a blank one, if this field is deleted or renamed.",
+    "2. Which of those dashboards are widely favourited -- that is the closest signal to how many people would notice.",
+    "3. What you cannot see, so I know what is left to check myself.",
+  ];
+
+  if (usage?.available && usage?.total > 0) {
+    lines.push("", `Observatory currently records ${usage.total} dashboard${usage.total === 1 ? "" : "s"} reached through ${usage.viaFilters} filter${usage.viaFilters === 1 ? "" : "s"}.`);
+    if (usage.complete === false) {
+      lines.push("The gadget configuration walk has not finished, so this may be an undercount.");
+    }
+  } else if (usage?.available) {
+    lines.push("", "Observatory records no dashboard reaching this field through a gadget. Confirm that.");
+  }
+
+  return lines.join("\n");
+}
+
+// Prompt for the screen usage panel: whether a person can even fill this field in through a
+// form, which is the strongest signal this app has for whether a field is genuinely alive.
+export function buildScreenUsageRovoPrompt(field, result) {
+  const name = field?.name || field?.id || "this field";
+  const rows = result?.screens || [];
+  const lines = [
+    `Which screens carry the field "${name}" (${field?.id ?? "unknown id"}), and does anyone actually see it?`,
+    "",
+    "Use the screen usage for this field, then answer:",
+    "1. Whether the screens that carry it are ones people actually work from, or leftover forms nobody opens.",
+    "2. If it is on no screen at all, whether automation or an integration could still be writing to it silently.",
+    "3. What you cannot see, so I know what is left to check myself.",
+  ];
+
+  if (result?.available) {
+    lines.push("", `Observatory currently records ${rows.length} screen${rows.length === 1 ? "" : "s"} carrying this field.`);
+    if (result.unresolvedScreens > 0) {
+      lines.push(`${result.unresolvedScreens} screen${result.unresolvedScreens === 1 ? "" : "s"} could not be read in the last build, so this may be incomplete.`);
+    }
+  }
+
+  return lines.join("\n");
+}
+
+// Prompt for the Contexts panel: where a field is configured, as distinct from where it is
+// used -- a field can be on every project's context and touched by none of them.
+export function buildContextsRovoPrompt(field, details) {
+  const name = field?.name || field?.id || "this field";
+  const contexts = details?.contexts || [];
+  const contextNames = contexts.map((c) => c.name).slice(0, 8);
+  const globalCount = contexts.filter((c) => c.isGlobalContext).length;
+
+  return [
+    `Review the configuration contexts for the Jira field "${name}" (${field?.id ?? "unknown id"}).`,
+    "",
+    "Use the field details for this field, then answer:",
+    "1. Whether the number of contexts suggests this was added project-by-project rather than deliberately scoped.",
+    "2. Whether a global context here is carrying its weight, or exposing the field to projects that never asked for it.",
+    "3. What you cannot see, so I know what is left to check myself.",
+    "",
+    `Observatory currently records ${contexts.length} context${contexts.length === 1 ? "" : "s"}${globalCount ? `, ${globalCount} of them global` : ""}.`,
+    contextNames.length ? `Sample context names: ${contextNames.join(", ")}.` : "",
+  ].filter(Boolean).join("\n");
+}
+
 export function buildAutomationRuleUrl(siteOrigin, ruleId) {
   if (!siteOrigin || ruleId === null || ruleId === undefined || ruleId === "") return null;
   return `${siteOrigin}/jira/settings/automation#/rule/${encodeURIComponent(ruleId)}`;

@@ -2,21 +2,24 @@ import React from "react";
 import { invoke, view } from "@forge/bridge";
 import { formatTimestamp, formatShortTime, formatRelativeTime } from "../utils";
 import { Icon, useLiveDuration } from "../components/Icons";
-import { SubNavLayout } from "../components/admin/primitives";
+import { SubNavLayout, Toggle, ConfigSection, ConfigRow } from "../components/admin/primitives";
 import { StatTile, StatRow, PageHeader, Panel, EmptyState } from "../components/ui";
 import { useVisiblePolling } from "../hooks";
-import { SnapshotLog, JobsPanel } from "../components/admin/JobsPanel";
 
 // Re-exported: this started here before three surfaces needed it, and the ScansTab tests
 // still import it from this module.
 export { useVisiblePolling };
 
-// Snapshot builds, the universe scan and delta scans -- the operator surface for the
-// pipeline.
+// The operator surface for the scan pipeline: a full scan (every pillar, in dependency
+// order) and a quick scan (the same estate, minus the four pillars Jira gives no
+// changed-since signal for -- those still run in full every time; only the issue crawl is
+// windowed). Snapshot builds and the issue crawl used to be their own standalone tabs here;
+// both are stages a scan runs now, so what is left of their old panels is folded into
+// whichever scan is driving them -- see IssueCrawlLiveView and SnapshotRecoveryNotice.
 //
-// The RQT index used to render here too, purely because the universe scan is what builds
-// it. That is a build dependency, not a reason to browse it from the operator's tab: this
-// tab runs and monitors jobs, every other tab reads what they produced. It now lives under
+// The RQT index used to render here too, purely because the issue crawl is what builds it.
+// That is a build dependency, not a reason to browse it from the operator's tab: this tab
+// runs and monitors scans, every other tab reads what they produced. It now lives under
 // Reports, which is where a cross-reference over field values belongs.
 
 
@@ -123,193 +126,6 @@ export function ClearSnapshotControl({ onCleared }) {
       )}
 
       {error && <div className="danger-zone__error" role="alert">{error}</div>}
-    </div>
-  );
-}
-
-export function SnapshotPanel({ snapshot, onBuildSnapshot, buildingSnapshot, onRefresh, refreshingOverview, onCleared }) {
-  if (!snapshot) {
-    return <div className="empty-state">Loading snapshot status…</div>;
-  }
-
-  const snapshotStateLabel = {
-    idle: "No snapshot",
-    queued: "Queued",
-    building: "Building…",
-    ready: "Ready",
-    failed: "Failed",
-  }[snapshot.state] || snapshot.state;
-
-  const isActive = snapshot.state === "building" || snapshot.state === "queued";
-  // A build stuck in "building" past the server's own stale threshold (see
-  // requeueStaleSnapshotBuild) would otherwise leave this button permanently disabled
-  // with no way to unstick it short of waiting for the next daily auto-check — mirror
-  // Universe Scan's "Force resume" affordance so an admin can force it immediately.
-  const STALE_BUILD_MS = 20 * 60 * 1000;
-  const isStaleBuild = isActive && snapshot.state === "building" && snapshot.startedAt
-    && (Date.now() - new Date(snapshot.startedAt).getTime() > STALE_BUILD_MS);
-  const chipVariant = { ready: "ready", building: "building", queued: "queued" }[snapshot.state] || "idle";
-
-  return (
-    <div className="admin-snapshot-card">
-      <div className="admin-snapshot-card__header">
-        <div className="admin-snapshot-card__meta">
-          <span className={`snapshot-chip snapshot-chip--${chipVariant}`}>
-            <span className="snapshot-chip__dot" />
-            {snapshotStateLabel}
-          </span>
-          {snapshot.refreshedAt && (
-            <span className="admin-snapshot-card__age">Last built {formatRelativeTime(snapshot.refreshedAt)} · {formatTimestamp(snapshot.refreshedAt)}</span>
-          )}
-          {snapshot.totalFields > 0 && (
-            <span className="admin-snapshot-card__count">{snapshot.totalFields.toLocaleString()} fields indexed</span>
-          )}
-          {snapshot.startedAt && isActive && (
-            <span className="admin-snapshot-card__age">Started {formatRelativeTime(snapshot.startedAt)}</span>
-          )}
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button
-            className="secondary-button"
-            type="button"
-            onClick={onRefresh}
-            disabled={refreshingOverview}
-            title="Refresh snapshot status"
-          >
-            <Icon name="refreshCw" size={13} />
-            {refreshingOverview ? "…" : "Refresh"}
-          </button>
-          <button
-            className="primary-button"
-            type="button"
-            onClick={onBuildSnapshot}
-            disabled={buildingSnapshot || (isActive && !isStaleBuild)}
-            title={isStaleBuild ? "This build has been stalled for over 20 minutes — click to force it to resume from checkpoint" : undefined}
-          >
-            <Icon name="refreshCw" size={14} />
-            {isStaleBuild ? "Force resume (stalled)" : isActive ? "Building…" : "Build new snapshot"}
-          </button>
-        </div>
-      </div>
-
-      {isActive && (
-        <div className="status-progress admin-snapshot-progress">
-          <div className="status-progress__meta">
-            <strong>{snapshot.percent}%</strong>
-            <span>{(snapshot.processedFields || 0).toLocaleString()} / {(snapshot.totalFields || 0).toLocaleString()} fields</span>
-          </div>
-          <div className="status-progress__bar">
-            <span style={{ width: `${snapshot.percent}%`, background: snapshot.state === "queued" ? "var(--warm)" : "var(--cool)" }} />
-          </div>
-        </div>
-      )}
-
-      {snapshot.lastError && (
-        <div className="admin-snapshot-error">
-          <Icon name="alertTriangle" size={13} /> {snapshot.lastError}
-        </div>
-      )}
-
-      <SnapshotLog entries={snapshot.progressLog} />
-
-      <ClearSnapshotControl onCleared={onCleared} />
-    </div>
-  );
-}
-
-// Quick Scan.
-//
-// This was a title, one sentence and a button on an otherwise empty page, which made a
-// working part of the pipeline read as unfinished. The scan itself was never the problem --
-// what was missing is that a top-up is only meaningful *relative to the full pass it is
-// topping up*. On its own "5,740 issues" answers nothing; next to "your last full scan was
-// 2 days ago" it is the whole story.
-//
-// So this panel states its own result, then states the gap it is covering.
-export function DeltaIssueScanPanel({ deltaIssueScan, issueScan, onStartDelta, issueScanDeltaStarting }) {
-  const deltaActive = deltaIssueScan?.state === "building" || deltaIssueScan?.state === "queued";
-  const deltaReady = deltaIssueScan?.state === "ready";
-  const deltaFailed = deltaIssueScan?.state === "failed";
-  const deltaPercent = deltaIssueScan?.totalIssues > 0
-    ? Math.min(100, Math.round((Number(deltaIssueScan.processedIssues || 0) / Number(deltaIssueScan.totalIssues)) * 100))
-    : 0;
-
-  // Whole days since the last completed full pass. This is the number the whole panel turns
-  // on: a quick scan is a patch over exactly this window, so its value rises as the number
-  // grows -- and past about a week it stops being a patch and starts being a wallpaper.
-  const fullScanAt = issueScan?.completedAt ? new Date(issueScan.completedAt).getTime() : null;
-  const daysSinceFull = fullScanAt ? Math.floor((Date.now() - fullScanAt) / 86400000) : null;
-  const staleFull = daysSinceFull !== null && daysSinceFull >= 7;
-
-  return (
-    <div className="delta-scan-panel">
-      <PageHeader
-        title="Quick Scan"
-        description="Re-reads only the issues created or updated in the last 24 hours and refreshes field usage for every field×project pair they touch. It runs automatically after each full scan and inventory snapshot; run it by hand when something changed and you do not want to pay for a full pass."
-        actions={
-          <button className="primary-button" type="button" onClick={onStartDelta} disabled={issueScanDeltaStarting || deltaActive}>
-            <Icon name="activity" size={14} />
-            {issueScanDeltaStarting || deltaActive ? "Running…" : "Run quick scan"}
-          </button>
-        }
-      />
-
-      <StatRow>
-        <StatTile
-          label="Last run"
-          value={deltaIssueScan?.completedAt ? formatRelativeTime(deltaIssueScan.completedAt) : "Never"}
-          hint={deltaIssueScan?.completedAt ? formatShortTime(deltaIssueScan.completedAt) : "no quick scan recorded"}
-          tone={deltaActive ? "active" : deltaReady ? "success" : "neutral"}
-          icon="clock"
-        />
-        <StatTile
-          label="Issues re-read"
-          value={(deltaIssueScan?.processedIssues || 0).toLocaleString()}
-          hint="changed in the last 24h"
-          icon="layers"
-        />
-        <StatTile
-          label="Usage pairs refreshed"
-          value={(deltaIssueScan?.fieldProjectPairsUpdated || 0).toLocaleString()}
-          hint="field × project counts corrected"
-          icon="barChart"
-        />
-        <StatTile
-          label="Full scan age"
-          value={daysSinceFull === null ? "—" : daysSinceFull === 0 ? "Today" : `${daysSinceFull}d`}
-          hint={daysSinceFull === null ? "no full scan recorded" : staleFull ? "quick scans only patch 24h" : "within the top-up window"}
-          tone={daysSinceFull === null ? "neutral" : staleFull ? "warning" : "success"}
-          icon="zap"
-        />
-      </StatRow>
-
-      {deltaActive && (
-        <div className="delta-scan-panel__progress">
-          <div className="issue-scan-panel__bar-track"><div className="issue-scan-panel__bar-fill" style={{ width: `${deltaPercent}%` }} /></div>
-          <div className="issue-scan-panel__status">
-            {deltaIssueScan?.state === "queued"
-              ? "Queued…"
-              : `${deltaPercent}% — ${(deltaIssueScan?.processedIssues || 0).toLocaleString()} of ${(deltaIssueScan?.totalIssues || 0).toLocaleString()} issues`}
-          </div>
-        </div>
-      )}
-
-      {deltaFailed && deltaIssueScan?.lastError && <div className="issue-scan-panel__error">{deltaIssueScan.lastError}</div>}
-
-      <Panel title="What a quick scan can and cannot fix" icon="info">
-        <ul className="delta-scan-panel__facts">
-          <li><strong>Covers</strong> issues touched in the last 24 hours, and only the field×project pairs those issues appear in.</li>
-          <li><strong>Does not cover</strong> a field that stopped being used — nothing changed on those issues, so nothing is re-read. Only a full pass notices absence.</li>
-          <li><strong>Does not populate</strong> the change timestamps the staleness finding reads. Those come from field usage jobs alone.</li>
-        </ul>
-        {staleFull && (
-          <EmptyState inline>
-            The last full scan was {daysSinceFull} days ago. Quick scans have patched each 24-hour
-            window since, but usage that decayed rather than changed will not have been noticed.
-            Run a Universe Scan to re-establish the baseline.
-          </EmptyState>
-        )}
-      </Panel>
     </div>
   );
 }
@@ -499,7 +315,16 @@ export function ScanThroughputChart({ data }) {
   );
 }
 
-export function UniverseScanPanel({ issueScan, onStart, onResume, onCancel, issueScanLoading, issueScanResuming, issueScanCancelling }) {
+// The issue crawl's own live view: stats, charts and the audit log, shared by whichever
+// scan is currently driving it. Full Scan and Quick Scan both hand this exact crawl off to
+// runIssueScanCoordinator against the same issue_scan_meta row (Quick Scan's issues-delta
+// stage is the one exception -- it writes a "::delta"-scoped row instead, read by
+// getDeltaIssueScanStatus, but the shape is identical so this same view renders either one).
+//
+// There is deliberately no button here to start a fresh crawl: a full re-crawl only happens
+// as a stage of Full Scan now, so the only actions this view offers are recovering one that
+// is already running or has stalled.
+export function IssueCrawlLiveView({ issueScan, onResume, onCancel, resuming, cancelling, title = "Issue crawl", readOnly = false }) {
   const [logSearch, setLogSearch] = React.useState("");
 
   const scanActive = issueScan?.state === "building" || issueScan?.state === "queued";
@@ -664,11 +489,15 @@ export function UniverseScanPanel({ issueScan, onStart, onResume, onCancel, issu
   const displayIssues = scanDone ? (issueScan.processedIssues || issueScan.totalIssues || 0) : processedIssues;
   const hasStats = scanDone || scanActive || processedIssues > 0;
 
+  // Nothing has ever crawled this row -- the parent scan's own stage table already says
+  // "Waiting", so a second, emptier statement of the same fact here would just be noise.
+  if (!issueScan?.startedAt && !(issueScan?.scanHistory?.length)) return null;
+
   return (
     <div className="universe-scan-panel">
       <div className="universe-scan-panel__head">
         <div className="universe-scan-panel__title-row">
-          <h3 className="universe-scan-panel__title">Universe Scan</h3>
+          <h3 className="universe-scan-panel__title">{title}</h3>
           <span className={`scan-status-pill ${stateClass}`}>{stateLabel}</span>
         </div>
         <p className="universe-scan-panel__desc">
@@ -752,25 +581,20 @@ export function UniverseScanPanel({ issueScan, onStart, onResume, onCancel, issu
             </div>
           )}
 
-          <div className="universe-scan-panel__action-row">
-            <button className="secondary-button secondary-button--small" type="button"
-              onClick={canResume ? onResume : onStart}
-              disabled={canResume ? issueScanResuming : issueScanLoading}>
-              {canResume
-                ? (issueScanResuming ? "Resuming…" : "Resume scan")
-                : (issueScanLoading ? "Starting…" : scanDone ? "Re-scan all issues" : "Scan all issues")}
-            </button>
-            {scanActive && canForceResume && (
-              <button className="secondary-button secondary-button--small" type="button" onClick={onResume} disabled={issueScanResuming}>
-                {issueScanResuming ? "Resuming…" : "Force resume"}
-              </button>
-            )}
-            {scanActive && (
-              <button className="secondary-button secondary-button--small" type="button" onClick={onCancel} disabled={issueScanCancelling}>
-                {issueScanCancelling ? "Cancelling…" : "Cancel scan"}
-              </button>
-            )}
-          </div>
+          {!readOnly && (canResume || scanActive) && (
+            <div className="universe-scan-panel__action-row">
+              {canResume && (
+                <button className="secondary-button secondary-button--small" type="button" onClick={onResume} disabled={resuming}>
+                  {resuming ? "Resuming…" : canForceResume ? "Force resume" : "Resume crawl"}
+                </button>
+              )}
+              {scanActive && (
+                <button className="secondary-button secondary-button--small" type="button" onClick={onCancel} disabled={cancelling}>
+                  {cancelling ? "Cancelling…" : "Cancel crawl"}
+                </button>
+              )}
+            </div>
+          )}
 
           {(scanFailed || scanCancelled) && issueScan?.lastError && (
             <div className="universe-scan-panel__error">{issueScan.lastError}</div>
@@ -782,18 +606,6 @@ export function UniverseScanPanel({ issueScan, onStart, onResume, onCancel, issu
               {issueScan.completedAt && <div><span className="scan-ts-label">Completed</span>{formatTimestamp(issueScan.completedAt)}</div>}
             </div>
           )}
-
-          <div className="universe-scan-panel__about">
-            <div className="universe-scan-panel__about-title">What this scan does</div>
-            <ul className="universe-scan-panel__about-list">
-              <li>Reads every issue across all Jira projects using parallel workers</li>
-              <li>Records which custom fields are populated on each issue</li>
-              <li>Computes unique issue counts per field × project pair</li>
-              <li>Detects <code>RQT-XXXXXX-XXXXXX</code> pattern values in custom fields</li>
-              <li>Updates field usage summaries and governance scores</li>
-              <li>Promotes completed usage counts into the active field snapshot</li>
-            </ul>
-          </div>
         </div>
 
         <div className="universe-scan-panel__log-col">
@@ -868,24 +680,102 @@ export function UniverseScanPanel({ issueScan, onStart, onResume, onCancel, issu
 // pressing them in the right order -- and getting the order wrong left the tabs disagreeing
 // with each other, with nothing to say so. The stages below are the same builds those buttons
 // always ran; the only thing that is new is that something sequences them.
-export function FullScanPanel({ status, onStart, starting }) {
-  const running = status?.state === "running";
+// A field snapshot build stuck past the server's own stale threshold (see
+// requeueStaleSnapshotBuild) needs a way to force it forward, even though a full scan's own
+// "fields" stage runs the exact same build inline and has no button of its own for it.
+const SNAPSHOT_STALE_MS = 20 * 60 * 1000;
+
+function SnapshotRecoveryNotice({ snapshot, onForceResume, forceResuming }) {
+  if (snapshot?.state !== "building" || !snapshot?.startedAt) return null;
+  if (Date.now() - new Date(snapshot.startedAt).getTime() <= SNAPSHOT_STALE_MS) return null;
+
+  return (
+    <div className="danger-zone__error" role="alert" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+      <span>The field snapshot build has been stalled for over 20 minutes.</span>
+      <button className="secondary-button secondary-button--small" type="button" onClick={onForceResume} disabled={forceResuming}>
+        {forceResuming ? "Resuming…" : "Force resume (stalled)"}
+      </button>
+    </div>
+  );
+}
+
+const STAGE_TONE = { done: "success", running: "active", failed: "critical", skipped: "warning", pending: "neutral" };
+const STAGE_LABEL = { done: "Done", running: "Running", failed: "Failed", skipped: "Skipped", pending: "Waiting" };
+
+// Shared by Full Scan and Quick Scan: both are the same stage-machine shape (a catalog plus
+// per-stage state), just driven by different stage lists.
+function ScanStageTable({ status }) {
   const catalog = status?.catalog || [];
   const byKey = new Map((status?.stages || []).map((stage) => [stage.key, stage]));
-
-  // The catalog renders even before a scan has ever run, so the list of what a scan covers is
-  // answerable without running one.
   const rows = catalog.map((definition) => ({
     ...definition,
     ...(byKey.get(definition.key) || { state: "pending" }),
   }));
-
   const done = rows.filter((r) => r.state === "done").length;
   const failed = rows.filter((r) => r.state === "failed").length;
   const skipped = rows.filter((r) => r.state === "skipped").length;
+  const running = status?.state === "running";
+  // A handoff stage runs on its own queue and reports back, so there is no real percentage
+  // to show -- inventing one would be worse than not having it. What proves the row is
+  // actually alive rather than wedged is this ticking straight off status.updatedAt, which
+  // only advances when a poll genuinely lands new data.
+  const updatedAgo = useLiveDuration(running ? status?.updatedAt : null);
 
-  const TONE = { done: "success", running: "active", failed: "critical", skipped: "warning", pending: "neutral" };
-  const LABEL = { done: "Done", running: "Running", failed: "Failed", skipped: "Skipped", pending: "Waiting" };
+  return (
+    <>
+      <StatRow>
+        <StatTile label="Stages complete" value={`${done} / ${rows.length}`} tone={done === rows.length && !failed ? "success" : "neutral"} />
+        <StatTile label="Failed" value={failed} tone={failed ? "critical" : "neutral"} />
+        <StatTile label="Skipped" value={skipped} tone={skipped ? "warning" : "neutral"} hint="A stage is skipped when something it depends on did not complete. Running it against stale inputs would produce a wrong answer rather than a partial one." />
+      </StatRow>
+
+      {running && (
+        <div className="scan-pulse-banner">
+          <span className="scan-pulse-dot" aria-hidden="true" />
+          <span>Scanning — last update {updatedAgo || "just now"} ago.</span>
+        </div>
+      )}
+
+      <Panel title="Stages" icon="layers">
+        <table className="admin-table">
+          <thead>
+            <tr><th>Stage</th><th>Status</th><th>Detail</th></tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => {
+              const isActive = row.state === "running" && status?.currentStage === row.key;
+              return (
+                <tr key={row.key} className={isActive ? "stage-row--active" : ""}>
+                  <td>{row.label}</td>
+                  <td><span className={`chip chip--${STAGE_TONE[row.state] || "neutral"}`}>{STAGE_LABEL[row.state] || row.state}</span></td>
+                  <td className="admin-table__muted">
+                    {row.error ? (
+                      row.error
+                    ) : isActive ? (
+                      <div className="stage-progress">
+                        <span className="stage-progress__track" aria-hidden="true"><span className="stage-progress__sweep" /></span>
+                        <span>In progress — this stage runs on its own and reports back.</span>
+                      </div>
+                    ) : row.completedAt ? (
+                      formatRelativeTime(row.completedAt)
+                    ) : ""}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </Panel>
+    </>
+  );
+}
+
+export function FullScanPanel({
+  status, onStart, starting,
+  issueScan, onResumeIssueScan, onCancelIssueScan, resumingIssueScan, cancellingIssueScan,
+  snapshot, onForceResumeSnapshot, forceResumingSnapshot, onSnapshotCleared,
+}) {
+  const running = status?.state === "running";
 
   return (
     <>
@@ -894,45 +784,39 @@ export function FullScanPanel({ status, onStart, starting }) {
         description="Every pillar in one pass, in dependency order. Each stage is the same build its own tab runs — this sequences them so the tabs cannot end up disagreeing about which snapshot they are describing."
         meta={status?.completedAt ? `Last run ${formatRelativeTime(status.completedAt)}` : undefined}
         actions={
-          <button type="button" className="primary-button" onClick={onStart} disabled={starting || running}>
+          <button type="button" className="primary-button" onClick={onStart} disabled={starting || running || status?.blockedByOtherScan}>
             {running ? "Scanning…" : starting ? "Starting…" : "Run full scan"}
           </button>
         }
       />
 
-      <StatRow>
-        <StatTile label="Stages complete" value={`${done} / ${rows.length}`} tone={done === rows.length && !failed ? "success" : "neutral"} />
-        <StatTile label="Failed" value={failed} tone={failed ? "critical" : "neutral"} />
-        <StatTile label="Skipped" value={skipped} tone={skipped ? "warning" : "neutral"} hint="A stage is skipped when something it depends on did not complete. Running it against stale inputs would produce a wrong answer rather than a partial one." />
-      </StatRow>
-
-      <Panel title="Stages" icon="layers">
-        <table className="admin-table">
-          <thead>
-            <tr><th>Stage</th><th>Status</th><th>Detail</th></tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.key}>
-                <td>{row.label}</td>
-                <td><span className={`chip chip--${TONE[row.state] || "neutral"}`}>{LABEL[row.state] || row.state}</span></td>
-                <td className="admin-table__muted">
-                  {row.error
-                    || (row.state === "running" && status?.currentStage === row.key
-                      ? "In progress — this stage runs on its own and reports back."
-                      : row.completedAt
-                        ? formatRelativeTime(row.completedAt)
-                        : "")}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <Panel title="What this scan does" icon="info">
+        <ul className="delta-scan-panel__facts">
+          <li>Rebuilds the workflow &amp; status, screen, saved filter, and dashboard inventories in full.</li>
+          <li>Rebuilds the field catalog, then crawls every issue across all Jira projects to compute per-project field usage counts and detect <code>RQT-XXXXXX-XXXXXX</code> pattern values.</li>
+          <li>Updates field usage summaries and governance scores from what the crawl found, then records status history and site health once everything else has landed.</li>
+        </ul>
       </Panel>
+
+      {status?.blockedByOtherScan && (
+        <EmptyState inline>A quick scan is running right now. Full scan will be available once it finishes.</EmptyState>
+      )}
+
+      <ScanStageTable status={status} />
 
       {status?.lastError && !running && (
         <div className="danger-zone__error" role="alert">{status.lastError}</div>
       )}
+
+      <SnapshotRecoveryNotice snapshot={snapshot} onForceResume={onForceResumeSnapshot} forceResuming={forceResumingSnapshot} />
+
+      <IssueCrawlLiveView
+        issueScan={issueScan}
+        onResume={onResumeIssueScan}
+        onCancel={onCancelIssueScan}
+        resuming={resumingIssueScan}
+        cancelling={cancellingIssueScan}
+      />
 
       <Panel title="What this does not cover" icon="alertTriangle">
         <p>
@@ -942,51 +826,177 @@ export function FullScanPanel({ status, onStart, starting }) {
           it does not have.
         </p>
       </Panel>
+
+      <ClearSnapshotControl onCleared={onSnapshotCleared} />
     </>
   );
 }
 
+const WEEKDAY_LABELS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const HOUR_OPTIONS = Array.from({ length: 24 }, (_, h) => h);
+
+// Every hour, not a cron -- Forge's scheduled trigger offers no finer interval than that, so
+// "runs Sunday at midnight" is really "checks every hour, most of which do nothing." The
+// admin picks a day/hour; quickScanScheduleCheck compares it against the clock each time it
+// fires. See manifest.yml's quick-scan-scheduler-trigger for the other half of this.
+function QuickScanSchedule({ schedule, onChange, onSave, saving, saved }) {
+  return (
+    <ConfigSection title="Automatic schedule" icon="clock">
+      <ConfigRow
+        label="Run automatically"
+        hint="An hourly check compares this schedule against the clock and starts a quick scan when it is due."
+      >
+        <Toggle checked={schedule.enabled} onChange={(v) => onChange({ ...schedule, enabled: v })} />
+      </ConfigRow>
+
+      {schedule.enabled && (
+        <>
+          <ConfigRow label="Frequency" hint="How often the scheduled run fires.">
+            <select value={schedule.frequency} onChange={(e) => onChange({ ...schedule, frequency: e.target.value })}>
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+            </select>
+          </ConfigRow>
+
+          {schedule.frequency === "weekly" && (
+            <ConfigRow label="Day of week" hint="Which day the weekly run fires on.">
+              <select value={schedule.dayOfWeek} onChange={(e) => onChange({ ...schedule, dayOfWeek: Number(e.target.value) })}>
+                {WEEKDAY_LABELS.map((label, i) => <option key={i} value={i}>{label}</option>)}
+              </select>
+            </ConfigRow>
+          )}
+
+          <ConfigRow label="Time (UTC)" hint="The hour the run fires in, in UTC.">
+            <select value={schedule.hourUtc} onChange={(e) => onChange({ ...schedule, hourUtc: Number(e.target.value) })}>
+              {HOUR_OPTIONS.map((h) => <option key={h} value={h}>{String(h).padStart(2, "0")}:00 UTC</option>)}
+            </select>
+          </ConfigRow>
+
+          <ConfigRow label="Window" hint="How far back to look for changes when the scheduled run fires.">
+            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <input
+                type="number"
+                min={1}
+                max={2160}
+                value={schedule.windowHours}
+                onChange={(e) => onChange({ ...schedule, windowHours: Number(e.target.value) })}
+                style={{ width: 90 }}
+              />
+              hours
+            </span>
+          </ConfigRow>
+        </>
+      )}
+
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12 }}>
+        <button className="primary-button" type="button" onClick={onSave} disabled={saving}>
+          {saving ? "Saving…" : "Save schedule"}
+        </button>
+        {saved && <span className="admin-snapshot-card__age">Saved.</span>}
+      </div>
+    </ConfigSection>
+  );
+}
+
+export function QuickScanPanel({
+  status, onStart, starting,
+  deltaIssueScan,
+  schedule, onChangeSchedule, onSaveSchedule, savingSchedule, scheduleSaved,
+}) {
+  const running = status?.state === "running";
+
+  return (
+    <>
+      <PageHeader
+        title="Quick scan"
+        description="The same estate as a full scan, minus what Jira genuinely cannot tell us has changed. Filters, dashboards, screens and workflows still run in full every time — there is no changed-since signal for them. The issue crawl is windowed to whatever you configure below."
+        meta={status?.completedAt ? `Last run ${formatRelativeTime(status.completedAt)}` : undefined}
+        actions={
+          <button type="button" className="primary-button" onClick={onStart} disabled={starting || running || status?.blockedByOtherScan}>
+            {running ? "Scanning…" : starting ? "Starting…" : "Run quick scan"}
+          </button>
+        }
+      />
+
+      <Panel title="What this scan does" icon="info">
+        <ul className="delta-scan-panel__facts">
+          <li>Refetches workflow &amp; status, screen, saved filter, and dashboard inventories in full — Jira gives no changed-since signal for any of them.</li>
+          <li>Re-reads only the issues created or updated within the configured window, refreshing field × project usage counts for what changed and detecting <code>RQT-XXXXXX-XXXXXX</code> pattern values in them.</li>
+          <li>Updates governance scores from what the crawl found, then records status history and site health once everything else has landed.</li>
+        </ul>
+      </Panel>
+
+      {status?.blockedByOtherScan && (
+        <EmptyState inline>A full scan is running right now. Quick scan will be available once it finishes.</EmptyState>
+      )}
+
+      {status?.windowHours != null && (
+        <EmptyState inline>Last run looked back {status.windowHours} hour{status.windowHours === 1 ? "" : "s"} for changed issues.</EmptyState>
+      )}
+
+      <ScanStageTable status={status} />
+
+      {status?.lastError && !running && (
+        <div className="danger-zone__error" role="alert">{status.lastError}</div>
+      )}
+
+      <IssueCrawlLiveView
+        issueScan={deltaIssueScan}
+        title="Issue crawl (changed since window)"
+        readOnly
+      />
+
+      <Panel title="What this does not cover" icon="alertTriangle">
+        <ul className="delta-scan-panel__facts">
+          <li><strong>New custom fields</strong> are not picked up — the field catalog itself only refreshes on a full scan. Usage counts for existing fields are current; a field created since the last full scan will not appear until the next one.</li>
+          <li><strong>Automation rules</strong> are never scanned. Jira publishes no API to enumerate them.</li>
+        </ul>
+      </Panel>
+
+      <QuickScanSchedule
+        schedule={schedule}
+        onChange={onChangeSchedule}
+        onSave={onSaveSchedule}
+        saving={savingSchedule}
+        saved={scheduleSaved}
+      />
+    </>
+  );
+}
+
+const DEFAULT_QUICK_SCAN_SCHEDULE = { enabled: false, frequency: "weekly", dayOfWeek: 0, hourUtc: 0, windowHours: 168 };
+
 export function ScansTab({ siteOrigin, initialSection }) {
-  const [activeSection, setActiveSection] = React.useState(initialSection || "universe");
+  const [activeSection, setActiveSection] = React.useState(initialSection || "full");
 
-  // Snapshot state (self-contained, same shape as the universe-scan state below;
-  // getAdminOverview also returns jobCounts, so this one fetch feeds both the
-  // Snapshot panel and the Field Usage Jobs stat row)
+  // Snapshot state -- kept purely to detect and recover a stalled field-catalog build (see
+  // SnapshotRecoveryNotice). Full Scan's own "fields" stage is the only thing that triggers
+  // this build now; there is no manual "build snapshot" button left in the UI.
   const [snapshotStatus, setSnapshotStatus] = React.useState(null);
-  const [jobCounts, setJobCounts] = React.useState(null);
-  const [buildingSnapshot, setBuildingSnapshot] = React.useState(false);
-  const [refreshingSnapshot, setRefreshingSnapshot] = React.useState(false);
+  const [forceResumingSnapshot, setForceResumingSnapshot] = React.useState(false);
 
-  // Universe scan state
   const [issueScanStatus, setIssueScanStatus] = React.useState(null);
   const [fullScanStatus, setFullScanStatus] = React.useState(null);
   const [fullScanStarting, setFullScanStarting] = React.useState(false);
-  const [deltaIssueScanStatus, setDeltaIssueScanStatus] = React.useState(null);
-  const [issueScanLoading, setIssueScanLoading] = React.useState(false);
   const [issueScanResuming, setIssueScanResuming] = React.useState(false);
   const [issueScanCancelling, setIssueScanCancelling] = React.useState(false);
-  const [issueScanDeltaStarting, setIssueScanDeltaStarting] = React.useState(false);
+
+  const [quickScanStatus, setQuickScanStatus] = React.useState(null);
+  const [quickScanStarting, setQuickScanStarting] = React.useState(false);
+  const [deltaIssueScanStatus, setDeltaIssueScanStatus] = React.useState(null);
+
+  const [schedule, setSchedule] = React.useState(DEFAULT_QUICK_SCAN_SCHEDULE);
+  const [savingSchedule, setSavingSchedule] = React.useState(false);
+  const [scheduleSaved, setScheduleSaved] = React.useState(false);
+
   const [error, setError] = React.useState("");
 
-  // Jobs state (moved from AdminApp)
-  const [jobs, setJobs] = React.useState([]);
-  const [loadingJobs, setLoadingJobs] = React.useState(false);
-  const [refreshingJobs, setRefreshingJobs] = React.useState(false);
-  const [expandedJobId, setExpandedJobId] = React.useState("");
-  const [cancellingId, setCancellingId] = React.useState("");
-  const [restartingId, setRestartingId] = React.useState("");
-  const [resumingId, setResumingId] = React.useState("");
-
-  const fetchSnapshotStatus = React.useCallback(async ({ quiet = false } = {}) => {
-    if (quiet) setRefreshingSnapshot(true);
+  const fetchSnapshotStatus = React.useCallback(async () => {
     try {
       const data = await invoke("getAdminOverview");
       setSnapshotStatus(data?.snapshot || null);
-      setJobCounts(data?.jobCounts || null);
     } catch (err) {
       setError(err.message || "Failed to load snapshot status.");
-    } finally {
-      if (quiet) setRefreshingSnapshot(false);
     }
   }, []);
 
@@ -994,53 +1004,90 @@ export function ScansTab({ siteOrigin, initialSection }) {
 
   useVisiblePolling(
     snapshotStatus?.state === "building" || snapshotStatus?.state === "queued",
-    () => fetchSnapshotStatus({ quiet: true }),
+    fetchSnapshotStatus,
     8000
   );
 
-  async function handleBuildSnapshot() {
-    setBuildingSnapshot(true);
+  async function forceResumeSnapshot() {
+    setForceResumingSnapshot(true);
     setError("");
     try {
       await invoke("getFieldInventory", { forceRefresh: true, page: 1, pageSize: 1 });
       await fetchSnapshotStatus();
     } catch (err) {
-      setError(err.message || "Failed to trigger snapshot.");
+      setError(err.message || "Failed to resume the snapshot build.");
     } finally {
-      setBuildingSnapshot(false);
+      setForceResumingSnapshot(false);
     }
   }
 
   const fetchIssueScanStatus = React.useCallback(async () => {
-    try { const r = await invoke("getIssueScanStatus"); setIssueScanStatus(r?.meta || null); } catch (err) { setError(err.message || "Failed to load universe scan status."); }
+    try { const r = await invoke("getIssueScanStatus"); setIssueScanStatus(r?.meta || null); } catch (err) { setError(err.message || "Failed to load issue crawl status."); }
   }, []);
 
   const fetchFullScanStatus = React.useCallback(async () => {
     try { setFullScanStatus(await invoke("getFullScanStatus")); } catch (err) { setError(err.message || "Failed to load full scan status."); }
   }, []);
 
+  const fetchQuickScanStatus = React.useCallback(async () => {
+    try { setQuickScanStatus(await invoke("getQuickScanStatus")); } catch (err) { setError(err.message || "Failed to load quick scan status."); }
+  }, []);
+
   const fetchDeltaStatus = React.useCallback(async () => {
     try { const r = await invoke("getDeltaIssueScanStatus"); setDeltaIssueScanStatus(r?.meta || null); } catch {}
   }, []);
 
-  React.useEffect(() => { fetchIssueScanStatus(); fetchDeltaStatus(); fetchFullScanStatus(); }, []);
+  const fetchSchedule = React.useCallback(async () => {
+    try {
+      const config = await invoke("getAdminConfig");
+      if (config?.quickScanSchedule) setSchedule(config.quickScanSchedule);
+    } catch (err) {
+      setError(err.message || "Failed to load quick scan schedule.");
+    }
+  }, []);
 
-  // Polls only while a scan is actually running, like the panels beside it -- a tab left open
-  // overnight should not be a standing request generator.
+  React.useEffect(() => {
+    fetchIssueScanStatus();
+    fetchDeltaStatus();
+    fetchFullScanStatus();
+    fetchQuickScanStatus();
+    fetchSchedule();
+  }, []);
+
+  // Each poll fires only while its own scan is actually running -- a tab left open overnight
+  // should not be a standing request generator.
   useVisiblePolling(fullScanStatus?.state === "running", fetchFullScanStatus, 5000);
+  useVisiblePolling(quickScanStatus?.state === "running", fetchQuickScanStatus, 5000);
 
-  // 15s, not 8s: a full scan runs for over an hour, so 8-second granularity was finer
-  // than anyone reads while costing two resolver invocations -- and their SQL reads --
-  // every 8 seconds for the whole run.
+  // 15s, not 8s: the issue crawl runs for over an hour on a large site, so 8-second
+  // granularity was finer than anyone reads while costing a resolver invocation -- and its
+  // SQL reads -- every 8 seconds for the whole run. Polls while a full scan is running too,
+  // so this picks up the crawl the moment its stage starts rather than waiting for its own
+  // meta row to already say "building".
   useVisiblePolling(
-    issueScanStatus?.state === "building" || issueScanStatus?.state === "queued",
-    () => { fetchIssueScanStatus(); fetchDeltaStatus(); },
+    issueScanStatus?.state === "building" || issueScanStatus?.state === "queued" || fullScanStatus?.state === "running",
+    fetchIssueScanStatus,
     15000
   );
 
-  async function startScan() {
-    setIssueScanLoading(true);
-    try { await invoke("startIssueScan"); await fetchIssueScanStatus(); } catch (err) { setError(err.message || "Failed to start universe scan."); } finally { setIssueScanLoading(false); }
+  useVisiblePolling(
+    deltaIssueScanStatus?.state === "building" || deltaIssueScanStatus?.state === "queued" || quickScanStatus?.state === "running",
+    fetchDeltaStatus,
+    15000
+  );
+
+  async function resumeScan() {
+    setIssueScanResuming(true);
+    try {
+      const result = await invoke("resumeIssueScan");
+      if (result?.resumed === false) setError({ "already-complete": "Issue crawl is already complete.", "no-scan": "No issue crawl exists to resume." }[result.reason] || "Issue crawl could not be resumed.");
+      await fetchIssueScanStatus();
+    } catch (err) { setError(err.message || "Failed to resume the issue crawl."); } finally { setIssueScanResuming(false); }
+  }
+
+  async function cancelScan() {
+    setIssueScanCancelling(true);
+    try { await invoke("cancelIssueScan"); await fetchIssueScanStatus(); } catch (err) { setError(err.message || "Failed to cancel the issue crawl."); } finally { setIssueScanCancelling(false); }
   }
 
   async function startFullScan() {
@@ -1056,65 +1103,37 @@ export function ScansTab({ siteOrigin, initialSection }) {
     }
   }
 
-  async function resumeScan() {
-    setIssueScanResuming(true);
+  async function startQuickScan() {
+    setQuickScanStarting(true);
     try {
-      const result = await invoke("resumeIssueScan");
-      if (result?.resumed === false) setError({ "already-complete": "Universe scan is already complete.", "no-scan": "No universe scan exists to resume." }[result.reason] || "Universe scan could not be resumed.");
-      await fetchIssueScanStatus();
-    } catch (err) { setError(err.message || "Failed to resume universe scan."); } finally { setIssueScanResuming(false); }
-  }
-
-  async function cancelScan() {
-    setIssueScanCancelling(true);
-    try { await invoke("cancelIssueScan"); await fetchIssueScanStatus(); } catch (err) { setError(err.message || "Failed to cancel scan."); } finally { setIssueScanCancelling(false); }
-  }
-
-  async function startDeltaScan() {
-    setIssueScanDeltaStarting(true);
-    try { await invoke("startDeltaIssueScan"); await fetchDeltaStatus(); } catch (err) { setError(err.message || "Failed to start quick scan."); } finally { setIssueScanDeltaStarting(false); }
-  }
-
-  async function loadJobs() {
-    setRefreshingJobs(true);
-    try {
-      const data = await invoke("getProjectUsageJobs");
-      setJobs(data.jobs || []);
+      const result = await invoke("startQuickSiteScan");
+      if (result?.error) setError(result.error);
+      await fetchQuickScanStatus();
     } catch (err) {
-      setError(err.message || "Failed to load jobs.");
+      setError(err.message || "Failed to start the quick scan.");
     } finally {
-      setRefreshingJobs(false);
+      setQuickScanStarting(false);
     }
   }
 
-  React.useEffect(() => {
-    if (activeSection === "jobs" && !jobs.length) {
-      setLoadingJobs(true);
-      loadJobs().finally(() => setLoadingJobs(false));
+  async function saveSchedule() {
+    setSavingSchedule(true);
+    setError("");
+    try {
+      const result = await invoke("saveAdminConfig", { quickScanSchedule: schedule });
+      if (result?.config?.quickScanSchedule) setSchedule(result.config.quickScanSchedule);
+      setScheduleSaved(true);
+      setTimeout(() => setScheduleSaved(false), 3000);
+    } catch (err) {
+      setError(err.message || "Failed to save the quick scan schedule.");
+    } finally {
+      setSavingSchedule(false);
     }
-  }, [activeSection]);
-
-  async function handleCancelJob(fieldId) {
-    setCancellingId(fieldId);
-    try { await invoke("cancelProjectUsageJob", { fieldId }); await loadJobs(); } catch (err) { setError(err.message || "Failed to cancel job."); } finally { setCancellingId(""); }
-  }
-
-  async function handleRestartJob(fieldId) {
-    setRestartingId(fieldId);
-    try { await invoke("restartProjectUsageJob", { fieldId }); await loadJobs(); } catch (err) { setError(err.message || "Failed to restart job."); } finally { setRestartingId(""); }
-  }
-
-  async function handleResumeJob(fieldId) {
-    setResumingId(fieldId);
-    try { await invoke("resumeProjectUsageJob", { fieldId }); await loadJobs(); } catch (err) { setError(err.message || "Failed to resume job."); } finally { setResumingId(""); }
   }
 
   const subNavItems = [
     { key: "full", label: "Full Scan", icon: "zap" },
-    { key: "snapshot", label: "Snapshot", icon: "layers" },
-    { key: "universe", label: "Universe Scan", icon: "zap" },
     { key: "quick", label: "Quick Scan", icon: "activity" },
-    { key: "jobs", label: "Field Usage Jobs", icon: "barChart" },
   ];
 
   return (
@@ -1122,69 +1141,33 @@ export function ScansTab({ siteOrigin, initialSection }) {
       {error && <div className="error-banner" style={{ margin: "0 0 12px 0" }}>{error}<button className="inline-text-button" type="button" onClick={() => setError("")} style={{ marginLeft: 10 }}>Dismiss</button></div>}
       <SubNavLayout items={subNavItems} activeKey={activeSection} onSelect={setActiveSection}>
         {activeSection === "full" && (
-          <FullScanPanel status={fullScanStatus} onStart={startFullScan} starting={fullScanStarting} />
-        )}
-        {activeSection === "snapshot" && (
-          <SnapshotPanel
-            snapshot={snapshotStatus}
-            onBuildSnapshot={handleBuildSnapshot}
-            buildingSnapshot={buildingSnapshot}
-            onRefresh={() => fetchSnapshotStatus({ quiet: true })}
-            refreshingOverview={refreshingSnapshot}
-            onCleared={() => fetchSnapshotStatus({ quiet: true })}
-          />
-        )}
-        {activeSection === "universe" && (
-          <UniverseScanPanel
+          <FullScanPanel
+            status={fullScanStatus}
+            onStart={startFullScan}
+            starting={fullScanStarting}
             issueScan={issueScanStatus}
-            onStart={startScan}
-            onResume={resumeScan}
-            onCancel={cancelScan}
-            issueScanLoading={issueScanLoading}
-            issueScanResuming={issueScanResuming}
-            issueScanCancelling={issueScanCancelling}
+            onResumeIssueScan={resumeScan}
+            onCancelIssueScan={cancelScan}
+            resumingIssueScan={issueScanResuming}
+            cancellingIssueScan={issueScanCancelling}
+            snapshot={snapshotStatus}
+            onForceResumeSnapshot={forceResumeSnapshot}
+            forceResumingSnapshot={forceResumingSnapshot}
+            onSnapshotCleared={fetchSnapshotStatus}
           />
         )}
         {activeSection === "quick" && (
-          <DeltaIssueScanPanel
+          <QuickScanPanel
+            status={quickScanStatus}
+            onStart={startQuickScan}
+            starting={quickScanStarting}
             deltaIssueScan={deltaIssueScanStatus}
-            issueScan={issueScanStatus}
-            onStartDelta={startDeltaScan}
-            issueScanDeltaStarting={issueScanDeltaStarting}
+            schedule={schedule}
+            onChangeSchedule={setSchedule}
+            onSaveSchedule={saveSchedule}
+            savingSchedule={savingSchedule}
+            scheduleSaved={scheduleSaved}
           />
-        )}
-        {activeSection === "jobs" && (
-          <>
-            <div style={{ marginBottom: 16 }}>
-              <StatRow>
-                <StatTile label="Ready" value={jobCounts?.ready ?? 0} icon="checkCircle" tone="success" />
-                <StatTile label="Building" value={jobCounts?.building ?? 0} icon="activity" tone={(jobCounts?.building ?? 0) > 0 ? "active" : "neutral"} />
-                <StatTile label="Queued" value={jobCounts?.queued ?? 0} icon="clock" tone="neutral" />
-                <StatTile label="Failed" value={jobCounts?.failed ?? 0} icon="x" tone={(jobCounts?.failed ?? 0) > 0 ? "critical" : "neutral"} />
-                <StatTile
-                  label="Not built"
-                  value={jobCounts?.unbuilt ?? 0}
-                  icon="layers"
-                  tone="neutral"
-                  hint={(jobCounts?.unbuilt ?? 0) > 0 ? "Staleness detection is blind on these" : undefined}
-                />
-              </StatRow>
-            </div>
-            <JobsPanel
-              jobs={jobs}
-              loading={loadingJobs}
-              expandedId={expandedJobId}
-              onToggle={(id) => setExpandedJobId((cur) => cur === id ? "" : id)}
-              onCancel={handleCancelJob}
-              onRestart={handleRestartJob}
-              onResume={handleResumeJob}
-              onRefresh={loadJobs}
-              cancellingId={cancellingId}
-              restartingId={restartingId}
-              resumingId={resumingId}
-              refreshing={refreshingJobs}
-            />
-          </>
         )}
       </SubNavLayout>
     </div>

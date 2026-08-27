@@ -72,6 +72,9 @@ import {
   getScreenTabFields,
   getWorkflowSchemesForProjects,
   getAllJiraProjectKeys,
+  getFilterPage,
+  getGadgetFilterId,
+  extractFilterId,
   BASE_JIRA_REQUEST_INTERVAL_MS,
   MAX_JIRA_REQUEST_INTERVAL_MS,
   BASE_JIRA_CONCURRENCY,
@@ -771,6 +774,18 @@ describe("getAllJiraProjectKeys", () => {
   });
 });
 
+describe("getFilterPage", () => {
+  // Regression: this expand list was documented as including approximateLastUsed without
+  // actually listing it, so lastUsedAt was null for every filter on every tenant and
+  // downstream code read that as "never opened" rather than "unknown" -- a saved-filter
+  // estate of any size rendered as 100% stale.
+  test("requests approximateLastUsed so 'unknown' and 'never opened' can be told apart", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: { values: [] } }));
+    await getFilterPage(0, 50);
+    expect(mockRequestJira.mock.calls[0][0]).toContain("approximateLastUsed");
+  });
+});
+
 describe("getAllStatuses", () => {
   // GET /rest/api/3/status returns a bare array, not the {values, isLast} envelope
   // every other paginated endpoint uses.
@@ -1151,5 +1166,51 @@ describe("callerHasJiraAdmin", () => {
   test("returns false for a malformed response body", async () => {
     mockRequestJiraAsUser.mockResolvedValue(jiraResponse({ body: { globalPermissions: "ADMINISTER" } }));
     await expect(callerHasJiraAdmin("acct-1")).resolves.toBe(false);
+  });
+});
+
+// ── getGadgetFilterId ────────────────────────────────────────────────────────
+//
+// Two calls, because Jira models gadget config as arbitrary item properties: one to list the
+// keys a gadget has, one to read the value of the one that might hold a filter. This is the
+// first leg of dashboard -> gadget -> filter -> field, and getting it wrong produces a quiet
+// hole in that dependency graph rather than a visible failure -- extractFilterId's own tests
+// cover the parsing; these cover the two-call shape around it.
+describe("getGadgetFilterId", () => {
+  test("finds the filter under the standard 'config' property key", async () => {
+    mockRequestJira
+      .mockResolvedValueOnce(jiraResponse({ body: { keys: [{ key: "config" }, { key: "color" }] } }))
+      .mockResolvedValueOnce(jiraResponse({ body: { value: { filterId: "10123" } } }));
+
+    await expect(getGadgetFilterId("9", "g1")).resolves.toBe("10123");
+    expect(mockRequestJira).toHaveBeenCalledTimes(2);
+  });
+
+  // Only the keys that could plausibly hold a filter are read. A gadget can carry half a
+  // dozen properties for column widths and refresh intervals, and fetching every one of them
+  // would double the cost of the walk for nothing.
+  test("does not fetch keys that could not hold a filter", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({
+      body: { keys: [{ key: "color" }, { key: "refreshInterval" }, { key: "columnWidths" }] },
+    }));
+
+    await expect(getGadgetFilterId("9", "g1")).resolves.toBeNull();
+    // Only the list call -- nothing looked plausible enough to fetch.
+    expect(mockRequestJira).toHaveBeenCalledTimes(1);
+  });
+
+  test("tries the next candidate key when the first holds no filter", async () => {
+    mockRequestJira
+      .mockResolvedValueOnce(jiraResponse({ body: { keys: [{ key: "filter" }, { key: "savedFilter" }] } }))
+      .mockResolvedValueOnce(jiraResponse({ body: { value: {} } }))
+      .mockResolvedValueOnce(jiraResponse({ body: { value: "10999" } }));
+
+    await expect(getGadgetFilterId("9", "g1")).resolves.toBe("10999");
+    expect(mockRequestJira).toHaveBeenCalledTimes(3);
+  });
+
+  test("returns null rather than throwing when the gadget has no matching property at all", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: { keys: [] } }));
+    await expect(getGadgetFilterId("9", "g1")).resolves.toBeNull();
   });
 });

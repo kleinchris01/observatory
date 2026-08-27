@@ -31,6 +31,8 @@ vi.mock("./lib/screen-engine.js", () => ({
 
 vi.mock("./lib/full-scan-runner.js", () => ({
   runFullScanStep: vi.fn().mockResolvedValue({ advanced: true, done: 2, total: 8 }),
+  runQuickScanStep: vi.fn().mockResolvedValue({ advanced: true, done: 1, total: 6 }),
+  startQuickScan: vi.fn().mockResolvedValue({ started: true, jobToken: "job-token" }),
 }));
 
 vi.mock("./lib/filter-engine.js", () => ({
@@ -75,9 +77,14 @@ vi.mock("./lib/project-store.js", () => ({
 }));
 
 vi.mock("./resolvers.js", () => ({
-  readAdminConfig: vi.fn().mockResolvedValue({ autoSnapshotEnabled: true, autoSnapshotFrequency: "daily" }),
+  readAdminConfig: vi.fn().mockResolvedValue({
+    autoSnapshotEnabled: true,
+    autoSnapshotFrequency: "daily",
+    quickScanSchedule: { enabled: false, frequency: "weekly", dayOfWeek: 0, hourUtc: 0, windowHours: 168, lastScheduledRunAt: null },
+  }),
   runDeltaIssueScanJob: vi.fn().mockResolvedValue(undefined),
   DELTA_ISSUE_SCAN_DEFAULT_WINDOW_HOURS: 24,
+  recordQuickScanScheduledRun: vi.fn().mockResolvedValue(undefined),
   rovoSearchFields: vi.fn(),
   rovoInspectField: vi.fn(),
   rovoSearchAutomationRules: vi.fn(),
@@ -99,6 +106,7 @@ vi.mock("@forge/resolver", () => ({ makeResolver: (fns) => ({ __registered: fns 
 import {
   runRetentionCleanup,
   autoSnapshotCheck,
+  quickScanScheduleCheck,
   runProjectStorageMigrations,
   consumeSnapshot,
   handler,
@@ -133,10 +141,10 @@ import {
 import { processProjectUsageReportJob } from "./lib/report-engine.js";
 import { buildWorkflowSnapshot, buildStatusHistorySnapshot } from "./lib/workflow-engine.js";
 import { buildScreenSnapshot } from "./lib/screen-engine.js";
-import { runFullScanStep } from "./lib/full-scan-runner.js";
+import { runFullScanStep, runQuickScanStep, startQuickScan } from "./lib/full-scan-runner.js";
 import { buildFilterSnapshot } from "./lib/filter-engine.js";
 import { buildDashboardSnapshot } from "./lib/dashboard-engine.js";
-import { readAdminConfig, runDeltaIssueScanJob, ADMIN_ONLY_FUNCTIONS, SHARED_RESOLVER_FUNCTIONS } from "./resolvers.js";
+import { readAdminConfig, runDeltaIssueScanJob, recordQuickScanScheduledRun, ADMIN_ONLY_FUNCTIONS, SHARED_RESOLVER_FUNCTIONS } from "./resolvers.js";
 
 const CONTEXT = { installContext: "ari:cloud:jira::site/UUID" };
 
@@ -271,6 +279,106 @@ describe("autoSnapshotCheck", () => {
 
     // Two days old is due under "daily" but not under "weekly".
     await expect(autoSnapshotCheck({}, CONTEXT)).resolves.toEqual({ skipped: true, reason: "not due yet" });
+  });
+});
+
+// Forge offers no cron and no day-of-week trigger -- only fixed named intervals, hourly at
+// the finest. "Runs Sunday at midnight" is implemented as "fires every hour, checks whether
+// this is the hour," which is what makes the due-time comparison here worth pinning directly:
+// get it wrong and either the schedule never fires, or it fires on the wrong day.
+describe("quickScanScheduleCheck", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function schedule(over = {}) {
+    return {
+      enabled: true,
+      frequency: "weekly",
+      dayOfWeek: 0, // Sunday
+      hourUtc: 0,
+      windowHours: 168,
+      lastScheduledRunAt: null,
+      ...over,
+    };
+  }
+
+  test("does nothing when disabled", async () => {
+    readAdminConfig.mockResolvedValue({ quickScanSchedule: schedule({ enabled: false }) });
+
+    await expect(quickScanScheduleCheck({}, CONTEXT)).resolves.toEqual({ skipped: true, reason: "disabled" });
+    expect(startQuickScan).not.toHaveBeenCalled();
+  });
+
+  test("weekly: fires only on the configured day AND hour, in UTC", async () => {
+    readAdminConfig.mockResolvedValue({ quickScanSchedule: schedule({ frequency: "weekly", dayOfWeek: 0, hourUtc: 0 }) });
+    vi.useFakeTimers();
+
+    // 2026-08-23 is a Sunday. Right day, wrong hour -- not due.
+    vi.setSystemTime(new Date("2026-08-23T14:00:00.000Z"));
+    await expect(quickScanScheduleCheck({}, CONTEXT)).resolves.toEqual({ skipped: true, reason: "not due yet" });
+
+    // Right hour, wrong day (Monday) -- not due.
+    vi.setSystemTime(new Date("2026-08-24T00:00:00.000Z"));
+    await expect(quickScanScheduleCheck({}, CONTEXT)).resolves.toEqual({ skipped: true, reason: "not due yet" });
+
+    // Sunday, hour 0 -- due.
+    vi.setSystemTime(new Date("2026-08-23T00:30:00.000Z"));
+    const result = await quickScanScheduleCheck({}, CONTEXT);
+    expect(startQuickScan).toHaveBeenCalledWith("scope-1", { quickScanWindowHours: 168 });
+    expect(result).toMatchObject({ started: true });
+  });
+
+  test("daily: fires at the configured hour regardless of day", async () => {
+    readAdminConfig.mockResolvedValue({ quickScanSchedule: schedule({ frequency: "daily", hourUtc: 6, windowHours: 24 }) });
+    vi.useFakeTimers();
+
+    vi.setSystemTime(new Date("2026-08-25T06:15:00.000Z"));
+    await quickScanScheduleCheck({}, CONTEXT);
+
+    expect(startQuickScan).toHaveBeenCalledWith("scope-1", { quickScanWindowHours: 24 });
+  });
+
+  // Forge delivers scheduled triggers at-least-once, not exactly-once. Without this guard a
+  // trigger firing twice inside the same due hour would start the quick scan twice.
+  test("does not double-fire within the same due hour", async () => {
+    readAdminConfig.mockResolvedValue({
+      quickScanSchedule: schedule({ lastScheduledRunAt: "2026-08-23T00:05:00.000Z" }),
+    });
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-23T00:20:00.000Z"));
+
+    const result = await quickScanScheduleCheck({}, CONTEXT);
+
+    expect(result).toEqual({ skipped: true, reason: "already ran this hour" });
+    expect(startQuickScan).not.toHaveBeenCalled();
+  });
+
+  test("fires again once comfortably outside the double-fire window", async () => {
+    readAdminConfig.mockResolvedValue({
+      quickScanSchedule: schedule({ lastScheduledRunAt: "2026-08-23T00:05:00.000Z" }),
+    });
+    vi.useFakeTimers();
+    // Same due hour, but 50 minutes after the recorded run -- outside the 45-minute guard.
+    vi.setSystemTime(new Date("2026-08-23T00:55:00.000Z"));
+
+    await quickScanScheduleCheck({}, CONTEXT);
+
+    expect(startQuickScan).toHaveBeenCalled();
+  });
+
+  test("records the run only when the scan actually started", async () => {
+    readAdminConfig.mockResolvedValue({ quickScanSchedule: schedule() });
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-23T00:00:00.000Z"));
+
+    startQuickScan.mockResolvedValueOnce({ started: false, reason: "already-running" });
+    await quickScanScheduleCheck({}, CONTEXT);
+    expect(recordQuickScanScheduledRun).not.toHaveBeenCalled();
+
+    startQuickScan.mockResolvedValueOnce({ started: true, jobToken: "t" });
+    await quickScanScheduleCheck({}, CONTEXT);
+    expect(recordQuickScanScheduledRun).toHaveBeenCalled();
   });
 });
 
@@ -437,6 +545,31 @@ describe("consumeSnapshot job routing", () => {
   test("a failing full-scan step does not rethrow, so Forge will not retry it forever", async () => {
     runFullScanStep.mockRejectedValueOnce(new Error("sql down"));
     await expect(consumeSnapshot(event({ jobType: "run-full-scan" }))).resolves.toBeUndefined();
+  });
+
+  // Quick scan's own step, routed to its own function -- not runFullScanStep, which would
+  // step the wrong stage list entirely.
+  test("routes run-quick-scan to its own orchestrator step, not the full-scan one", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await consumeSnapshot(event({ jobType: "run-quick-scan", jobToken: "t" }));
+    expect(runQuickScanStep).toHaveBeenCalledWith(
+      "scope-1",
+      expect.objectContaining({ jobType: "run-quick-scan", jobToken: "t" })
+    );
+    expect(runFullScanStep).not.toHaveBeenCalled();
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("run-quick-scan"));
+
+    runQuickScanStep.mockResolvedValueOnce({ completed: true, done: 5, total: 6, failed: 0, skipped: 1 });
+    await consumeSnapshot(event({ jobType: "run-quick-scan" }));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("complete - 5/6 stages, 0 failed"));
+
+    log.mockRestore();
+  });
+
+  test("a failing quick-scan step does not rethrow, so Forge will not retry it forever", async () => {
+    runQuickScanStep.mockRejectedValueOnce(new Error("sql down"));
+    await expect(consumeSnapshot(event({ jobType: "run-quick-scan" }))).resolves.toBeUndefined();
   });
 
   test("routes build-filter-snapshot to the filter engine, message and all", async () => {

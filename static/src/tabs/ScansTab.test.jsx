@@ -1,10 +1,10 @@
 import React from "react";
 import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { ScanDeltaChart, ScanThroughputChart, UniverseScanPanel, useVisiblePolling } from "./ScansTab";
+import { ScanDeltaChart, ScanThroughputChart, IssueCrawlLiveView, FullScanPanel, useVisiblePolling } from "./ScansTab";
 import { renderHook, act } from "@testing-library/react";
 
-// ScansTab had no tests. These cover the two charts added to make the Universe Scan panel
+// ScansTab had no tests. These cover the two charts added to make the issue crawl's live view
 // readable, and they test the arithmetic rather than the markup -- the SVG is presentational,
 // but a delta computed off the wrong neighbour or a rate divided by the wrong interval is a
 // chart that confidently states something false.
@@ -83,18 +83,16 @@ describe("ScanThroughputChart", () => {
   });
 });
 
-describe("UniverseScanPanel run-derived series", () => {
+describe("IssueCrawlLiveView run-derived series", () => {
   const noop = () => {};
   const panel = (issueScan) =>
     render(
-      <UniverseScanPanel
+      <IssueCrawlLiveView
         issueScan={issueScan}
-        onStart={noop}
         onResume={noop}
         onCancel={noop}
-        issueScanLoading={false}
-        issueScanResuming={false}
-        issueScanCancelling={false}
+        resuming={false}
+        cancelling={false}
       />
     );
 
@@ -126,6 +124,64 @@ describe("UniverseScanPanel run-derived series", () => {
       scanHistory: [run("2026-08-05T01:00:00Z", 328528, "2026-08-05T00:00:00Z")],
     });
     expect(screen.getByText(/duration & throughput/i)).toBeInTheDocument();
+  });
+});
+
+// A handoff stage runs on its own queue and reports back, so there is no real percentage to
+// show while it works. What proves the row is alive rather than wedged is the ticking "last
+// update" line and an indeterminate sweep on the active stage's own row -- not a number.
+describe("FullScanPanel — live progress while a stage is running", () => {
+  const noop = () => {};
+  const runningStatus = {
+    state: "running",
+    currentStage: "screens",
+    updatedAt: new Date().toISOString(),
+    catalog: [
+      { key: "workflows", label: "Workflow & status inventory" },
+      { key: "screens", label: "Screen & scheme inventory" },
+    ],
+    stages: [
+      { key: "workflows", state: "done" },
+      { key: "screens", state: "running" },
+    ],
+  };
+
+  function panel(status) {
+    return render(
+      <FullScanPanel
+        status={status}
+        onStart={noop}
+        starting={false}
+        issueScan={null}
+        onResumeIssueScan={noop}
+        onCancelIssueScan={noop}
+        resumingIssueScan={false}
+        cancellingIssueScan={false}
+        snapshot={null}
+        onForceResumeSnapshot={noop}
+        forceResumingSnapshot={false}
+        onSnapshotCleared={noop}
+      />
+    );
+  }
+
+  test("shows a ticking freshness banner while the scan is running", () => {
+    panel(runningStatus);
+    expect(screen.getByText(/Scanning — last update/i)).toBeInTheDocument();
+  });
+
+  test("marks only the currently active stage's row for the live sweep", () => {
+    const { container } = panel(runningStatus);
+    const rows = container.querySelectorAll(".admin-table tbody tr");
+    expect(rows[0]).not.toHaveClass("stage-row--active");
+    expect(rows[1]).toHaveClass("stage-row--active");
+    expect(rows[1].querySelector(".stage-progress__track")).toBeInTheDocument();
+  });
+
+  test("shows neither the banner nor any active-row sweep once the scan is idle", () => {
+    const { container } = panel({ ...runningStatus, state: "idle", currentStage: null });
+    expect(screen.queryByText(/Scanning — last update/i)).not.toBeInTheDocument();
+    expect(container.querySelector(".stage-row--active")).toBeNull();
   });
 });
 

@@ -665,3 +665,28 @@ export async function tryClaimIssueScanFinalization(scopeKey, claimToken) {
   const meta = await readIssueScanMeta(scopeKey);
   return meta?.state === "finalizing" && meta?.jobToken === claimToken;
 }
+
+// Remove one slice's contribution to the count buffer.
+//
+// The buffer accumulates -- `issue_count = issue_count + VALUES(issue_count)` -- so a slice
+// that re-crawls pages it already counted counts them twice, and the project ends up reporting
+// more field values per issue than it has fields. Slices own disjoint sets of projects, so a
+// slice's contribution is exactly the buffer rows for its project keys, and deleting them
+// before a restart makes the recrawl idempotent.
+//
+// Keyed on project_key rather than project_id because the slice carries keys: that is what its
+// JQL was built from, and the ids are not known until issues come back.
+export async function clearIssueScanBufferForProjects(scopeKey, projectKeys = []) {
+  await ensureProjectStoreReady();
+  const keys = [...new Set(projectKeys.filter(Boolean).map(String))];
+  if (!keys.length) return { cleared: 0 };
+
+  for (const batch of chunkArray(keys, 50)) {
+    const placeholders = batch.map(() => "?").join(", ");
+    await withSqlRetry(() =>
+      sql.prepare(`DELETE FROM issue_scan_buffer WHERE scope_key = ? AND project_key IN (${placeholders})`)
+        .bindParams(scopeKey, ...batch).execute()
+    );
+  }
+  return { cleared: keys.length };
+}

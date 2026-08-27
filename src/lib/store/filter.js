@@ -341,3 +341,86 @@ export async function pruneFilterSnapshots(scopeKey, keepVersion) {
     );
   }
 }
+
+// Field names referenced by a set of filters, keyed by filter id.
+//
+// The reverse of loadFilterReferencesFor: that resolves field -> filters, this resolves
+// filters -> fields. Needed so a dashboard, which only knows the filter ids its gadgets point
+// at, can say what it depends on without the caller re-deriving the join by hand.
+export async function loadFieldNamesForFilterIds(scopeKey, version, filterIds = []) {
+  await ensureProjectStoreReady();
+  const ids = [...new Set(filterIds.filter(Boolean).map(String))];
+  if (!ids.length) return new Map();
+
+  const byFilter = new Map();
+  for (const batch of chunkArray(ids, 100)) {
+    const placeholders = batch.map(() => "?").join(", ");
+    const result = await withSqlRetry(() =>
+      sql.prepare(`
+        SELECT filter_id, label FROM snapshot_filter_refs
+        WHERE scope_key = ? AND version = ? AND kind = 'field' AND filter_id IN (${placeholders})
+      `).bindParams(scopeKey, version, ...batch).execute()
+    );
+    for (const row of result.rows || []) {
+      const id = String(row.filter_id);
+      if (!byFilter.has(id)) byFilter.set(id, []);
+      byFilter.get(id).push(row.label);
+    }
+  }
+  return byFilter;
+}
+
+// Name and view URL for a set of filter ids, keyed by id.
+//
+// A gadget's config only ever carries the filter's id, never its name -- Jira has no reason
+// to duplicate it there. Without this join, "this gadget uses a filter" is all a dashboard
+// could ever say; with it, a dashboard can say which one, and link to it.
+export async function loadFilterNamesForIds(scopeKey, version, filterIds = []) {
+  await ensureProjectStoreReady();
+  const ids = [...new Set(filterIds.filter(Boolean).map(String))];
+  if (!ids.length) return new Map();
+
+  const byId = new Map();
+  for (const batch of chunkArray(ids, 100)) {
+    const placeholders = batch.map(() => "?").join(", ");
+    const result = await withSqlRetry(() =>
+      sql.prepare(`
+        SELECT filter_id, name, view_url FROM snapshot_filters
+        WHERE scope_key = ? AND version = ? AND filter_id IN (${placeholders})
+      `).bindParams(scopeKey, version, ...batch).execute()
+    );
+    for (const row of result.rows || []) {
+      byId.set(String(row.filter_id), { name: row.name || null, viewUrl: row.view_url || null });
+    }
+  }
+  return byId;
+}
+
+// Filter ids referenced by a set of labels, keyed by the (lowercased) label rather than
+// summed into a count. The bulk-count sibling of this, loadFilterReferenceCounts, throws the
+// ids away as soon as it has counted them -- which is fine for "how many filters mention this
+// field" but not enough to then join those filters onward to their gadgets, which is what a
+// dashboard-gadget count needs.
+export async function loadFilterIdsForLabels(scopeKey, version, kind, labels = []) {
+  await ensureProjectStoreReady();
+  const names = [...new Set((labels || []).map((l) => String(l || "").trim()).filter(Boolean))];
+  if (!names.length) return new Map();
+
+  const byLabel = new Map();
+  for (const batch of chunkArray(names, 100)) {
+    const placeholders = batch.map(() => "LOWER(?)").join(", ");
+    const result = await withSqlRetry(() =>
+      sql.prepare(`
+        SELECT LOWER(label) AS label, filter_id
+        FROM snapshot_filter_refs
+        WHERE scope_key = ? AND version = ? AND kind = ? AND LOWER(label) IN (${placeholders})
+      `).bindParams(scopeKey, version, kind, ...batch).execute()
+    );
+    for (const row of result.rows || []) {
+      const label = String(row.label);
+      if (!byLabel.has(label)) byLabel.set(label, []);
+      byLabel.get(label).push(String(row.filter_id));
+    }
+  }
+  return byLabel;
+}

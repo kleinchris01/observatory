@@ -304,27 +304,27 @@ export function GovernanceRow({
         {band !== "clear" && <span className={`ui-gov__band ui-gov__band--${band}`}>{BAND_LABELS[band] ?? band}</span>}
       </div>
 
-      {scored ? (
-        <>
-          <span className="ui-gov__track">
-            <span className={`ui-gov__bar ui-gov__bar--${band}`} style={{ width: `${score}%` }} />
-          </span>
-          <span className="ui-gov__score">{score}</span>
-        </>
-      ) : (
-        // A metric with no score still gets its columns, so a mixed list stays aligned and
-        // the reason sits where the evidence would.
-        <span className="ui-gov__track ui-gov__track--none" />
-      )}
+      <div className="ui-gov__meter">
+        {scored ? (
+          <>
+            <span className="ui-gov__track">
+              <span className={`ui-gov__bar ui-gov__bar--${band}`} style={{ width: `${score}%` }} />
+            </span>
+            <span className="ui-gov__score">{score}</span>
+          </>
+        ) : (
+          // A metric with no score still gets a track, so a mixed card grid does not read as
+          // one card quietly missing its bar.
+          <span className="ui-gov__track ui-gov__track--none" />
+        )}
 
-      {trend ? (
-        <span className="ui-gov__trend">
-          <Sparkline points={trend.points} title={trend.title} />
-          <TrendDelta delta={trend.delta} />
-        </span>
-      ) : (
-        <span className="ui-gov__trend" />
-      )}
+        {trend && (
+          <span className="ui-gov__trend">
+            <Sparkline points={trend.points} title={trend.title} />
+            <TrendDelta delta={trend.delta} />
+          </span>
+        )}
+      </div>
 
       <div className="ui-gov__body">
         {detail && <span className="ui-gov__detail">{detail}</span>}

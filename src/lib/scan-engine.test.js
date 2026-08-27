@@ -51,6 +51,7 @@ vi.mock("./project-store.js", () => ({
   writeIssueScanMeta: vi.fn().mockResolvedValue(undefined),
   readIssueScanMeta: vi.fn().mockResolvedValue(null),
   clearIssueScanBuffer: vi.fn().mockResolvedValue(undefined),
+  clearIssueScanBufferForProjects: vi.fn().mockResolvedValue({ cleared: 0 }),
   replaceIssueScanWorkers: vi.fn().mockResolvedValue(undefined),
   readIssueScanWorker: vi.fn().mockResolvedValue(null),
   updateIssueScanWorker: vi.fn().mockResolvedValue(undefined),
@@ -767,17 +768,25 @@ describe("runIssueScanWorkerV2", () => {
     expect(jiraApi.jiraRequest).not.toHaveBeenCalled();
   });
 
-  it("writes failed state when worker checkpoint is missing (throws)", async () => {
+  // This used to assert the SCAN was marked failed when one worker threw. That was the
+  // behaviour, and it was the reason no universe scan on a large site ever completed: a single
+  // refused request in one of five workers discarded a crawl in which the other four were
+  // healthy and most of the estate had already been counted and stored.
+  //
+  // The worker still fails, and still says so. The scan no longer dies with it.
+  it("records a worker failure without failing the whole scan", async () => {
     const store = await getProjectStoreMock();
     store.readIssueScanMeta.mockResolvedValue({ state: "building" });
     store.readIssueScanWorker.mockResolvedValue(null); // missing checkpoint → throws
 
     await runIssueScanWorkerV2(INSTALLATION_KEY, 0);
 
-    const failCalls = store.writeIssueScanMeta.mock.calls.filter(
-      (c) => c[1].state === "failed"
-    );
-    expect(failCalls.length).toBeGreaterThan(0);
+    const metaWrites = store.writeIssueScanMeta.mock.calls.map((c) => c[1]);
+    expect(metaWrites.some((m) => m.state === "failed")).toBe(false);
+    expect(metaWrites.some((m) => /Worker 0 failed/.test(m.lastError || ""))).toBe(true);
+
+    const workerWrites = store.updateIssueScanWorker.mock.calls.map((c) => c[2]);
+    expect(workerWrites.some((w) => w.status === "failed")).toBe(true);
   });
 
   it("processes a page of issues and calls jiraRequest", async () => {
@@ -865,7 +874,14 @@ describe("queueIssueScanChunk", () => {
     const store = await getProjectStoreMock();
     const jiraApi = await getJiraApiMock();
 
-    queues.inventorySnapshotQueue.push.mockRejectedValue(new Error("Queue full"));
+    // Every retry attempt, then restored -- mockRejectedValue without a reset leaks into every
+    // test that runs after this one, which is exactly what it did to the resilience tests below.
+    queues.inventorySnapshotQueue.push
+      .mockRejectedValueOnce(new Error("Queue full"))
+      .mockRejectedValueOnce(new Error("Queue full"))
+      .mockRejectedValueOnce(new Error("Queue full"))
+      .mockRejectedValueOnce(new Error("Queue full"))
+      .mockRejectedValueOnce(new Error("Queue full"));
 
     const result = await queueIssueScanChunk(INSTALLATION_KEY, [], 0);
 
@@ -959,7 +975,19 @@ describe("normalizeWorkerSlices", () => {
     });
 
     expect(slices).toEqual([
-      { id: 0, jql: 'project IN ("ALPHA")', token: "cursor-abc", done: false, pages: 7, issues: 700 },
+      {
+        id: 0,
+        jql: 'project IN ("ALPHA")',
+        // No key list: a pre-slice row cannot say which projects it contributed counts for,
+        // which is why a restart on one declines to re-crawl rather than double-counting.
+        keys: null,
+        token: "cursor-abc",
+        done: false,
+        pages: 7,
+        issues: 700,
+        restarts: 0,
+        abandoned: false,
+      },
     ]);
   });
 
@@ -978,5 +1006,111 @@ describe("normalizeWorkerSlices", () => {
 
   test("returns nothing for a worker with no projects at all", () => {
     expect(normalizeWorkerSlices({ jqlFilter: null })).toEqual([]);
+  });
+});
+
+// ── Resilience: a scan must survive a request Jira refuses ────────────────────────────
+//
+// On a real site, one worker hitting a 400 marked the ENTIRE scan failed -- throwing away a
+// crawl of 150,000 issues in which four of five workers were healthy and 120,000 issues had
+// already been counted and stored. The 400 was real. Making it fatal to the whole run was the
+// defect, and it is the reason no universe scan on that site has ever completed.
+describe("scan resilience", () => {
+  async function runWorkerWith({ workerRow, jiraImpl }) {
+    // Cleared per case, not per file. Without this the previous test's calls are still on the
+    // mocks and any "was not called" assertion reads the one before it -- the same bleed that
+    // "Queue full" caused, arriving from the other direction.
+    vi.clearAllMocks();
+    const store = await getProjectStoreMock();
+    const jiraApi = await getJiraApiMock();
+    store.readIssueScanMeta.mockResolvedValue({ state: "building" });
+    store.readIssueScanWorker.mockResolvedValue(workerRow);
+    store.atomicAccumulateIssueScanProgress.mockResolvedValue({ processedPages: 1, totalPages: 5 });
+    const queues = await getQueuesMock();
+    queues.inventorySnapshotQueue.push.mockReset().mockResolvedValue({ queued: true });
+    jiraApi.jiraRequest.mockImplementation(jiraImpl);
+    await runIssueScanWorkerV2(INSTALLATION_KEY, 0);
+    return { store, jiraApi };
+  }
+
+  const worker = (over = {}) => ({ status: "queued", jqlFilter: "project = ALPHA", fieldIds: null, ...over });
+
+  test("a 400 on the first page restarts the slice instead of killing the scan", async () => {
+    const { store } = await runWorkerWith({
+      workerRow: worker(),
+      jiraImpl: async () => { const e = new Error("400 Bad Request"); e.status = 400; throw e; },
+    });
+
+    // The scan is NOT marked failed. Previously this exact case did mark it failed, because
+    // only a 400 WITH a cursor was treated as recoverable.
+    const metaWrites = store.writeIssueScanMeta.mock.calls.map((c) => c[1]);
+    expect(metaWrites.some((m) => m.state === "failed")).toBe(false);
+
+    // And the worker is re-queued rather than abandoned.
+    const workerWrites = store.updateIssueScanWorker.mock.calls.map((c) => c[2]);
+    expect(workerWrites.some((w) => w.status === "failed")).toBe(false);
+  });
+
+  test("says which slice was refused, and clears its counts before recrawling", async () => {
+    const { store } = await runWorkerWith({
+      workerRow: worker({
+        slices: [{ id: 0, jql: 'project IN ("ALPHA")', keys: ["ALPHA"], token: "cursor-1", done: false }],
+      }),
+      jiraImpl: async () => { const e = new Error("400 Bad Request"); e.status = 400; throw e; },
+    });
+
+    const logged = store.appendIssueScanLogEntry.mock.calls.map((c) => c[1]).join(" | ");
+    // "400 Bad Request" alone is what this used to record, which is why it was never
+    // diagnosable. The entry now names the slice and the attempt.
+    expect(logged).toMatch(/search rejected \(400\)/);
+    expect(logged).toMatch(/attempt 1/);
+
+    // And the counts this slice already contributed are removed first. The flush is additive,
+    // so recrawling without this reports more field values per issue than a project has fields.
+    expect(store.clearIssueScanBufferForProjects).toHaveBeenCalledWith(INSTALLATION_KEY, ["ALPHA"]);
+  });
+
+  test("refuses to recrawl a worker that cannot say what it contributed", async () => {
+    const { store } = await runWorkerWith({
+      // A pre-slice worker row: one JQL, one cursor, no key list.
+      workerRow: worker({ nextPageToken: "cursor-1" }),
+      jiraImpl: async () => { const e = new Error("400 Bad Request"); e.status = 400; throw e; },
+    });
+
+    const logged = store.appendIssueScanLogEntry.mock.calls.map((c) => c[1]).join(" | ");
+    expect(logged).toMatch(/cannot restart without double-counting/);
+    expect(store.clearIssueScanBufferForProjects).not.toHaveBeenCalled();
+  });
+
+  test("gives up on one slice rather than looping on it forever", async () => {
+    const { store } = await runWorkerWith({
+      workerRow: worker({ slices: [{ id: 0, jql: "project = ALPHA", token: null, done: false, restarts: 99 }] }),
+      jiraImpl: async () => { const e = new Error("400 Bad Request"); e.status = 400; throw e; },
+    });
+
+    const logged = store.appendIssueScanLogEntry.mock.calls.map((c) => c[1]).join(" | ");
+    expect(logged).toMatch(/abandoned after/);
+    // Abandoning the slice completes the worker, so the remaining workers can finalize rather
+    // than waiting on a slot that is never coming back.
+    const workerWrites = store.updateIssueScanWorker.mock.calls.map((c) => c[2]);
+    expect(workerWrites.some((w) => w.status === "done")) .toBe(true);
+  });
+
+  test("a worker that dies outright still releases its slot so the others can finish", async () => {
+    const { store } = await runWorkerWith({
+      workerRow: worker(),
+      jiraImpl: async () => { throw new Error("connection reset"); },
+    });
+
+    // The worker is marked failed...
+    const workerWrites = store.updateIssueScanWorker.mock.calls.map((c) => c[2]);
+    expect(workerWrites.some((w) => w.status === "failed")).toBe(true);
+
+    // ...but the SCAN is not, and the slot is counted so finalization can still fire. Four
+    // healthy workers must not sit at "building" forever waiting on a fifth that is gone.
+    const metaWrites = store.writeIssueScanMeta.mock.calls.map((c) => c[1]);
+    expect(metaWrites.some((m) => m.state === "failed")).toBe(false);
+    expect(metaWrites.some((m) => /Worker 0 failed/.test(m.lastError || ""))).toBe(true);
+    expect(store.atomicAccumulateIssueScanProgress).toHaveBeenCalledWith(INSTALLATION_KEY, 1, 0);
   });
 });

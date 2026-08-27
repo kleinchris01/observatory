@@ -12,6 +12,8 @@ vi.mock("./logger.js", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: v
 import {
   FULL_SCAN_STAGES,
   FULL_SCAN_STAGE_KEYS,
+  QUICK_SCAN_STAGES,
+  QUICK_SCAN_STAGE_KEYS,
   initialStages,
   nextStage,
   summarizeStages,
@@ -42,6 +44,67 @@ describe("stage order", () => {
           .toBeLessThan(FULL_SCAN_STAGE_KEYS.indexOf(stage.key));
       }
     }
+  });
+});
+
+// Quick scan runs the same estate as full scan, minus the one thing Jira genuinely cannot
+// tell us has changed: whether a filter, dashboard, screen, or workflow scheme was edited.
+// There is no modified-since parameter on any of those APIs and no last-edited timestamp on
+// the objects they return, so those four stages have no cheaper version to run -- they run in
+// full, every time, exactly like full scan. Only the issue crawl is genuinely windowed.
+describe("quick scan stages", () => {
+  test("runs the same four structural stages as full scan, in full", () => {
+    for (const key of ["workflows", "screens", "filters", "dashboards"]) {
+      expect(QUICK_SCAN_STAGE_KEYS).toContain(key);
+    }
+  });
+
+  // Not two stages that happen to run back to back -- one stage. runDeltaIssueScanJob already
+  // updates field x project usage counts in the same pass it counts issues, so a separate
+  // field-catalog stage would have nothing left to do.
+  test("collapses fields and issues into one delta stage, not two", () => {
+    expect(QUICK_SCAN_STAGE_KEYS).not.toContain("fields");
+    expect(QUICK_SCAN_STAGE_KEYS).not.toContain("issues");
+    expect(QUICK_SCAN_STAGE_KEYS).toContain("issues-delta");
+  });
+
+  test("does not claim to cover automation either", () => {
+    expect(QUICK_SCAN_STAGE_KEYS).not.toContain("automation");
+  });
+
+  test("every quick-scan dependency resolves within the quick-scan stage list", () => {
+    for (const stage of QUICK_SCAN_STAGES) {
+      for (const need of stage.needs) {
+        expect(QUICK_SCAN_STAGE_KEYS, `${stage.key} needs ${need}`).toContain(need);
+        expect(QUICK_SCAN_STAGE_KEYS.indexOf(need)).toBeLessThan(QUICK_SCAN_STAGE_KEYS.indexOf(stage.key));
+      }
+    }
+  });
+
+  test("runs health last, after the delta crawl", () => {
+    expect(QUICK_SCAN_STAGE_KEYS.at(-1)).toBe("health");
+    expect(QUICK_SCAN_STAGE_KEYS.indexOf("issues-delta")).toBeLessThan(QUICK_SCAN_STAGE_KEYS.indexOf("health"));
+  });
+});
+
+describe("initialStages and nextStage over an arbitrary stage list", () => {
+  // Parameterized specifically so quick scan can reuse this instead of full-scan-runner.js
+  // needing a second copy of "what stage comes next."
+  test("initialStages seeds from whatever list it is given, not always the full-scan one", () => {
+    const stages = initialStages(QUICK_SCAN_STAGES);
+    expect(stages.map((s) => s.key)).toEqual(QUICK_SCAN_STAGE_KEYS);
+    expect(stages.every((s) => s.state === "pending")).toBe(true);
+  });
+
+  test("nextStage walks the list it is given, not always the full-scan one", () => {
+    const stages = initialStages(QUICK_SCAN_STAGES);
+    const next = nextStage(stages, QUICK_SCAN_STAGES);
+    expect(next.key).toBe(QUICK_SCAN_STAGES[0].key);
+  });
+
+  test("defaults to the full-scan list when no list is given, for backward compatibility", () => {
+    expect(initialStages().map((s) => s.key)).toEqual(FULL_SCAN_STAGE_KEYS);
+    expect(nextStage(initialStages()).key).toBe(FULL_SCAN_STAGES[0].key);
   });
 });
 

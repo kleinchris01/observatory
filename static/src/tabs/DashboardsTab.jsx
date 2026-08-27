@@ -81,6 +81,22 @@ export function filterDashboards(dashboards, { search = "", finding = "all" } = 
   });
 }
 
+// What a single gadget chip's hover reveals: the filter behind it (Jira never names it in
+// the gadget's own config, only its id, hence the join) and the fields that filter's JQL
+// touches. Tri-state like everywhere else this chain is read: a gadget with no filterId at
+// all has nothing to report, distinct from one whose filter exists but has not been
+// resolved yet because no saved-filter inventory has been built.
+export function gadgetTooltip(gadget) {
+  if (!gadget.filterId) return undefined;
+  if (gadget.filterName === null || gadget.fieldRefs === null) {
+    return "Uses a saved filter — build a saved filter inventory to see which one and what it depends on.";
+  }
+  const filterPart = gadget.filterName ? `Filter: ${gadget.filterName}` : "Filter: (name unavailable)";
+  const fields = gadget.fieldRefs || [];
+  const fieldsPart = fields.length ? ` — depends on ${fields.join(", ")}` : " — depends on nothing this filter's JQL names";
+  return `${filterPart}${fieldsPart}`;
+}
+
 function OwnerChip({ dashboard }) {
   if (!dashboard.owner) return <Chip tone="danger" title="The owning account no longer exists">owner deleted</Chip>;
   if (dashboard.ownerActive === false) return <Chip tone="warning" title="Owned by a deactivated account">{dashboard.ownerName} · inactive</Chip>;
@@ -121,13 +137,30 @@ function DashboardRow({ dashboard, siteOrigin }) {
       {dashboard.gadgets?.length > 0 && (
         <div className="dash-row__gadgets">
           {dashboard.gadgets.slice(0, 8).map((gadget) => (
-            <Chip key={gadget.id}>{gadget.title || gadget.moduleKey || "Untitled gadget"}</Chip>
+            <Chip key={gadget.id} title={gadgetTooltip(gadget)}>{gadget.title || gadget.moduleKey || "Untitled gadget"}</Chip>
           ))}
           {dashboard.gadgets.length > 8 && (
             <span className="dash-row__more">+{dashboard.gadgets.length - 8} more</span>
           )}
         </div>
       )}
+
+      {/* What this dashboard would take with it. Resolved through gadget -> filter -> field,
+          so this is the same chain the field card runs in reverse -- a field card asking
+          "which dashboards" and a dashboard asking "which fields" read from one join, not two
+          that could disagree. Tri-state: null means the filter inventory the join needs was
+          never built, distinct from a dashboard whose gadgets genuinely reference nothing. */}
+      {dashboard.fieldRefs === null ? (
+        <div className="dash-row__depends dash-row__depends--unmeasured">
+          depends on: unknown — build a saved filter inventory to find out
+        </div>
+      ) : dashboard.fieldRefs?.length > 0 ? (
+        <div className="filter-row__refs">
+          <span className="filter-row__refslabel">depends on</span>
+          {dashboard.fieldRefs.slice(0, 8).map((ref) => <Chip key={`f-${ref}`}>{ref}</Chip>)}
+          {dashboard.fieldRefs.length > 8 && <span className="filter-row__more">+{dashboard.fieldRefs.length - 8} more</span>}
+        </div>
+      ) : null}
 
       {dashboard.findings.length > 0 && (
         <ul className="dash-row__findings">

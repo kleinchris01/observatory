@@ -246,6 +246,22 @@ export function isJiraBuiltinField(field) {
   );
 }
 
+// A field nobody configured and nobody can reconfigure: a pseudo-field a first-party Jira
+// plugin manages outright -- Rank, Sprint, Epic Link, Service Desk's own fields. Deliberately
+// narrower than isJiraBuiltinField, which also matches every ordinary custom field built from
+// a native Jira field TYPE (select list, text field, ...) via the customfieldtypes: prefix --
+// those remain fully actionable (rename, rescope, document, delete), so folding them in here
+// would silence real findings on most of an ordinary custom field catalog.
+export function isPlatformProvidedField(field) {
+  const ct = String(field?.customType || field?.schema?.custom || "");
+  if (!ct) return false;
+  return (
+    ct.startsWith("com.pyxis.greenhopper.jira:") ||
+    ct.startsWith("com.atlassian.servicedesk.") ||
+    ct.startsWith("com.atlassian.jira.ext.")
+  );
+}
+
 export function classifyFieldUsageStatus(field, error) {
   if (!error) {
     return {
@@ -289,6 +305,11 @@ export function buildGovernanceFindings(field, metrics = {}, thresholds = {}) {
   const descriptionPresent = hasMeaningfulDescription(field.description);
   const appProvided = isLikelyAppProvidedField(field);
   const isSystemField = Boolean(metrics.isSystemField);
+  // Comment, Rank, Sprint and their kind are present on effectively every issue in every
+  // project by definition -- that is not a governance signal, it is what they are. Nothing
+  // below this point (usage rules, staleness, naming, documentation) has any admin action
+  // behind it for a field nobody configured and nobody can reconfigure.
+  const notActionable = isSystemField || Boolean(metrics.isPlatformProvidedField);
   const contextCount = metrics.contextCount ?? 0;
   const hasGlobalContext = Boolean(metrics.hasGlobalContext);
   const staleDays = daysSince(metrics.lastFieldChangeAt, metrics.now ?? Date.now());
@@ -296,8 +317,9 @@ export function buildGovernanceFindings(field, metrics = {}, thresholds = {}) {
   const reasons = [];
   let priorityScore = 0;
 
-  if (usageAvailable && breadthProjectCount >= t.highImpactMinProjects && totalIssueCount >= t.highImpactMinIssues) {
+  if (!notActionable && usageAvailable && breadthProjectCount >= t.highImpactMinProjects && totalIssueCount >= t.highImpactMinIssues) {
     reasons.push({
+      code: "high-impact",
       category: "risky", severity: "high",
       title: "High-impact field with broad live usage",
       detail: usesConfiguredScope
@@ -307,8 +329,9 @@ export function buildGovernanceFindings(field, metrics = {}, thresholds = {}) {
     priorityScore += 40;
   }
 
-  if (!isSystemField && usageAvailable && appProvided && totalIssueCount >= t.appFieldHeavyUsageMin) {
+  if (!notActionable && usageAvailable && appProvided && totalIssueCount >= t.appFieldHeavyUsageMin) {
     reasons.push({
+      code: "app-heavy-usage",
       category: "risky", severity: "medium",
       title: "App-provided field with heavy usage",
       detail: "App or plugin field with significant data — manage changes carefully.",
@@ -316,8 +339,9 @@ export function buildGovernanceFindings(field, metrics = {}, thresholds = {}) {
     priorityScore += 22;
   }
 
-  if (!isSystemField && usageAvailable && hasGlobalContext && totalIssueCount < t.globalContextMaxIssues) {
+  if (!notActionable && usageAvailable && hasGlobalContext && totalIssueCount < t.globalContextMaxIssues) {
     reasons.push({
+      code: "global-context-low-usage",
       category: "cleanup", severity: "medium",
       title: "Global context with very low usage",
       detail: `This field applies to all projects via a global context but only ${totalIssueCount.toLocaleString()} issues have a value. Consider scoping it to specific projects or removing it.`,
@@ -325,10 +349,11 @@ export function buildGovernanceFindings(field, metrics = {}, thresholds = {}) {
     priorityScore += 20;
   }
 
-  if (!isSystemField && usageAvailable && configuredProjectCount >= t.configuredActiveGapMinProjects) {
+  if (!notActionable && usageAvailable && configuredProjectCount >= t.configuredActiveGapMinProjects) {
     const inactiveRatio = configuredProjectCount > 0 ? (configuredProjectCount - activeProjectCount) / configuredProjectCount : 0;
     if (inactiveRatio >= t.configuredActiveGapMaxRatio) {
       reasons.push({
+        code: "dead-configuration",
         category: "cleanup", severity: "medium",
         title: "High dead-configuration ratio",
         detail: `Configured in ${configuredProjectCount} projects but only ${activeProjectCount} have any issue data — ${Math.round(inactiveRatio * 100)}% of configured scope is inactive.`,
@@ -337,8 +362,9 @@ export function buildGovernanceFindings(field, metrics = {}, thresholds = {}) {
     }
   }
 
-  if (!isSystemField && !appProvided && usageAvailable && configuredProjectCount === 0 && totalIssueCount === 0 && activeProjectCount === 0) {
+  if (!notActionable && !appProvided && usageAvailable && configuredProjectCount === 0 && totalIssueCount === 0 && activeProjectCount === 0) {
     reasons.push({
+      code: "orphaned",
       category: "cleanup", severity: "medium",
       title: "Orphaned field — not configured or used anywhere",
       detail: "No project contexts and no recorded issue usage. This field is a candidate for deletion.",
@@ -346,8 +372,9 @@ export function buildGovernanceFindings(field, metrics = {}, thresholds = {}) {
     priorityScore += 25;
   }
 
-  if (!isSystemField && configuredProjectCount >= t.broadScopeMinProjects && totalIssueCount === 0 && activeProjectCount === 0) {
+  if (!notActionable && configuredProjectCount >= t.broadScopeMinProjects && totalIssueCount === 0 && activeProjectCount === 0) {
     reasons.push({
+      code: "configured-no-issues",
       category: "cleanup", severity: "medium",
       title: "Configured field with no populated issues",
       detail: `Configured in ${configuredProjectCount} projects but no populated issues were found in the snapshot.`,
@@ -357,6 +384,7 @@ export function buildGovernanceFindings(field, metrics = {}, thresholds = {}) {
 
   if (isSystemField && usageAvailable && totalIssueCount === 0) {
     reasons.push({
+      code: "system-no-usage",
       category: "cleanup", severity: "low",
       title: "System field with no recorded usage",
       detail: "No issues with a value found in the snapshot. This field may not be actively used.",
@@ -364,8 +392,9 @@ export function buildGovernanceFindings(field, metrics = {}, thresholds = {}) {
     priorityScore += 8;
   }
 
-  if (!isSystemField && usageAvailable && breadthProjectCount >= t.lightUsageMinProjects && totalIssueCount > 0 && totalIssueCount <= t.lightUsageMaxIssues) {
+  if (!notActionable && usageAvailable && breadthProjectCount >= t.lightUsageMinProjects && totalIssueCount > 0 && totalIssueCount <= t.lightUsageMaxIssues) {
     reasons.push({
+      code: "light-usage",
       category: "cleanup", severity: "medium",
       title: "Broadly scoped field with very light usage",
       detail: usesConfiguredScope
@@ -379,9 +408,10 @@ export function buildGovernanceFindings(field, metrics = {}, thresholds = {}) {
   // covered by the orphaned / "configured but no populated issues" rules above, and
   // firing both would double-count it into Admin Attention on priority score alone.
   // This rule is specifically "it WAS used, and then everyone stopped".
-  if (!isSystemField && usageAvailable && totalIssueCount > 0 && staleDays !== null && staleDays >= t.staleFieldMaxAgeDays) {
+  if (!notActionable && usageAvailable && totalIssueCount > 0 && staleDays !== null && staleDays >= t.staleFieldMaxAgeDays) {
     const years = staleDays / 365;
     reasons.push({
+      code: "stale",
       category: "cleanup", severity: "medium",
       title: "No field activity in over a year",
       // The clause "or removing it from active screens" was dropped on 4 Aug 2026.
@@ -395,8 +425,9 @@ export function buildGovernanceFindings(field, metrics = {}, thresholds = {}) {
     priorityScore += 20;
   }
 
-  if (!isSystemField && contextCount >= t.contextSprawlMinContexts) {
+  if (!notActionable && contextCount >= t.contextSprawlMinContexts) {
     reasons.push({
+      code: "context-sprawl",
       category: "standardize", severity: "medium",
       title: "Context sprawl",
       detail: `${contextCount} separate contexts suggest the field was patched project-by-project over time. Consider consolidating into fewer, broader contexts.`,
@@ -404,9 +435,10 @@ export function buildGovernanceFindings(field, metrics = {}, thresholds = {}) {
     priorityScore += 15;
   }
 
-  if (!isSystemField && duplicateNameCount > 1) {
+  if (!notActionable && duplicateNameCount > 1) {
     const dupeScore = Math.min(50, 20 + Math.max(0, duplicateNameCount - 2) * 5);
     reasons.push({
+      code: "duplicate-naming",
       category: "standardize", severity: "medium",
       title: "Similar field naming detected",
       detail: `${duplicateNameCount} fields share the same normalized name — possible duplicates that could confuse users or produce reporting errors.`,
@@ -414,8 +446,9 @@ export function buildGovernanceFindings(field, metrics = {}, thresholds = {}) {
     priorityScore += dupeScore;
   }
 
-  if (!isSystemField && !descriptionPresent && (breadthProjectCount >= t.missingDescriptionMinProjects || totalIssueCount >= t.missingDescriptionMinIssues)) {
+  if (!notActionable && !descriptionPresent && (breadthProjectCount >= t.missingDescriptionMinProjects || totalIssueCount >= t.missingDescriptionMinIssues)) {
     reasons.push({
+      code: "missing-description",
       category: "standardize", severity: "medium",
       title: "Actively used field lacks a meaningful description",
       detail: totalIssueCount >= t.missingDescriptionMinIssues && breadthProjectCount < t.missingDescriptionMinProjects
@@ -429,6 +462,7 @@ export function buildGovernanceFindings(field, metrics = {}, thresholds = {}) {
 
   if (!usageAvailable) {
     reasons.push({
+      code: "usage-unavailable",
       category: "review",
       severity: "medium",
       title: "Per-project usage is unavailable",
@@ -569,6 +603,7 @@ export function filterInventoryFields(fields, query, type, projectUsageFilter = 
     maxContexts = "",
     duplicateNamesOnly = false,
     hasDescription = "all",
+    hideSystemFields = false,
   } = extra || {};
 
   const minActive = Number(minActiveProjects);
@@ -593,6 +628,16 @@ export function filterInventoryFields(fields, query, type, projectUsageFilter = 
     out = out.filter((f) => Number(f.duplicateNameCount || 0) > 1);
   }
 
+  // Independent of the origin filter, deliberately. "User-created" already excludes system
+  // fields, but it also excludes Jira-provided custom fields the reader may still want to
+  // see -- there was no way to ask for "everything except the ones on every issue type" while
+  // still seeing Jira-provided custom fields. isSystemField is Rank, Comment, Watches, and
+  // the rest of what ships on every issue regardless of project or scheme; it is never a
+  // customfield_ id, so it can never be part of a governance decision about a custom field.
+  if (hideSystemFields) {
+    out = out.filter((f) => !f.isSystemField);
+  }
+
   if (hasDescription === "yes") {
     out = out.filter((f) => String(f.description || "").trim() !== "");
   } else if (hasDescription === "no") {
@@ -607,16 +652,18 @@ export function isSelectFieldType(fieldType) {
   return SELECT_FIELD_TYPE_KEYWORDS.some((kw) => normalized.includes(kw));
 }
 
+// `findingsFilter` is either one of the four coarse categories, or a specific reason code
+// (optionally several, comma-joined) -- how an Overview card that counted "23 fields with a
+// dead-configuration ratio" sends a reader to exactly those 23, rather than the whole cleanup
+// bucket they sit inside alongside six unrelated rules.
 export function applyFindingsFilter(fields, findingsFilter) {
   if (!findingsFilter || findingsFilter === "all") return fields;
-  return fields.filter((f) => {
-    const tags = f.findings?.tags || {};
-    if (findingsFilter === "admin-attention") return Boolean(tags.adminAttention);
-    if (findingsFilter === "risky") return Boolean(tags.risky);
-    if (findingsFilter === "cleanup") return Boolean(tags.cleanup);
-    if (findingsFilter === "standardize") return Boolean(tags.standardize);
-    return true;
-  });
+  if (["admin-attention", "risky", "cleanup", "standardize"].includes(findingsFilter)) {
+    const tagKey = findingsFilter === "admin-attention" ? "adminAttention" : findingsFilter;
+    return fields.filter((f) => Boolean(f.findings?.tags?.[tagKey]));
+  }
+  const codes = findingsFilter.split(",").map((c) => c.trim()).filter(Boolean);
+  return fields.filter((f) => (f.findings?.reasons || []).some((r) => codes.includes(r.code)));
 }
 
 export function sortInventoryFields(fields, sortKey) {
@@ -632,6 +679,22 @@ export function summarizeFindings(fields) {
     if (tags.standardize) s.standardize++;
     return s;
   }, { adminAttention: 0, risky: 0, cleanup: 0, standardize: 0 });
+}
+
+// Per-code counts, not just the four coarse categories summarizeFindings tracks. The
+// Overview promotes several specific reasons to their own cards now (mirroring how filters
+// and dashboards already split "no live owner" from "shared with everyone" instead of
+// lumping them into one number), and each of those needs its own count or the card and what
+// clicking it shows would disagree.
+export function summarizeFindingsByCode(fields) {
+  const counts = {};
+  for (const f of fields) {
+    for (const reason of f.findings?.reasons || []) {
+      if (!reason.code) continue;
+      counts[reason.code] = (counts[reason.code] || 0) + 1;
+    }
+  }
+  return counts;
 }
 
 export function buildInventoryRecord(field, metrics = {}) {

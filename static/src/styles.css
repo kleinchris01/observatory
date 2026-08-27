@@ -304,6 +304,14 @@ select {
   overflow: hidden;
 }
 
+/* The clamp above caps the description at two lines but never reserved room for them --
+   a field with a short (or no) description rendered visibly shorter than one whose
+   description actually wrapped, so the same list read as a column of mismatched card
+   heights. min-height reserves the full two-line slot regardless of how much text fills it. */
+.field-card__title-wrap p {
+  min-height: calc(1.4em * 2);
+}
+
 /* ----- Snapshot status chip ----- */
 
 .snapshot-chip {
@@ -793,10 +801,16 @@ select {
   color: var(--danger);
 }
 
+/* min-height reserves one badge row's worth of space even when there are zero badges --
+   otherwise a flagged card and a clean card render at different heights purely because one
+   of them has something to show here, which is the same "cards don't line up" problem the
+   description clamp above has. */
 .findings-strip {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  align-content: flex-start;
+  min-height: 22px;
   margin-top: 10px;
 }
 
@@ -2028,12 +2042,16 @@ code {
   margin-top: 4px;
 }
 
-/* â”€â”€ Universe Scan Panel (full-width redesign) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* â”€â”€ Issue crawl live view (embedded in Full Scan / Quick Scan) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* Used to be the entire Universe Scan tab, so it was built to stretch and fill whatever
+   height was left in the sub-nav column (see the now-deleted `.sub-nav__panel
+   .universe-scan-panel` exception below). Now it's one section among several inside the
+   Full/Quick Scan panels -- it renders at its own natural content height like its siblings,
+   not a forced fraction of the viewport. */
 .universe-scan-panel {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  height: 100%;
   padding-bottom: 8px;
 }
 
@@ -2076,6 +2094,84 @@ code {
 .scan-status--failed  { background: rgba(220,100,100,0.12); color: #e07070; }
 .scan-status--idle    { background: rgba(255,255,255,0.06); color: var(--muted); }
 
+/* Proof of life for a running scan. A handoff stage runs on its own queue and reports back,
+   so there is no real percentage to show while it works -- inventing one would read as more
+   certain than the app actually is. This sweep is deliberately indeterminate: what it proves
+   is that the row is alive, and the ticking "last update" line beside it is the real
+   evidence -- it only advances when a poll genuinely lands fresh data, so a frozen number is
+   the honest signal that something is actually stuck. */
+.scan-pulse-banner {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin: 0 0 14px;
+}
+.scan-pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--cool);
+  box-shadow: 0 0 8px 2px rgba(121, 184, 255, 0.65);
+  animation: scan-pulse-dot 1.4s ease-in-out infinite;
+}
+@keyframes scan-pulse-dot {
+  0%, 100% { opacity: 0.45; transform: scale(0.8); }
+  50%      { opacity: 1;    transform: scale(1.2); }
+}
+
+.stage-row--active {
+  animation: stage-row-glow 2.4s ease-in-out infinite;
+}
+@keyframes stage-row-glow {
+  0%, 100% { background-color: transparent; }
+  50%      { background-color: rgba(121, 184, 255, 0.07); }
+}
+
+.stage-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.stage-progress__track {
+  position: relative;
+  display: block;
+  height: 4px;
+  width: 100%;
+  max-width: 220px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: rgba(121, 184, 255, 0.14);
+}
+.stage-progress__sweep {
+  position: absolute;
+  inset: 0;
+  left: 0;
+  width: 40%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, transparent, rgba(121, 184, 255, 0.85), rgba(210, 235, 255, 1), rgba(121, 184, 255, 0.85), transparent);
+  box-shadow: 0 0 8px 1px rgba(121, 184, 255, 0.75);
+  animation: stage-sweep 1.6s ease-in-out infinite;
+}
+@keyframes stage-sweep {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(350%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scan-pulse-dot,
+  .stage-row--active,
+  .stage-progress__sweep {
+    animation: none;
+  }
+  .stage-progress__sweep {
+    transform: none;
+    width: 100%;
+    opacity: 0.55;
+  }
+}
+
 
 .scan-stat-card {
   background: var(--bg-elevated);
@@ -2086,16 +2182,14 @@ code {
 }
 
 
-/* Two-column body */
-/* The floor was a flat 380px, which on a tall display left the audit log short with a
-   screen of dead space under it. Scaling with the viewport lets the log use the room it
-   actually has, while the min() keeps it from overshooting on a laptop. */
+/* Two-column body. No forced min-height here any more -- that floor existed to make this
+   box fill a whole standalone tab; embedded in Full/Quick Scan it should size to its own
+   content, same as every other section on the page (see .universe-scan-panel__log for
+   where the log's own scroll cap now lives instead). */
 .universe-scan-panel__body {
   display: grid;
   grid-template-columns: 260px 1fr;
   gap: 20px;
-  flex: 1;
-  min-height: min(620px, 62vh);
 }
 
 .universe-scan-panel__controls {
@@ -2181,33 +2275,6 @@ code {
   margin-right: 6px;
 }
 
-/* About section */
-.universe-scan-panel__about {
-  border: 1px solid var(--stroke);
-  border-radius: 8px;
-  padding: 12px;
-}
-
-.universe-scan-panel__about-title {
-  font-size: 0.67rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--muted);
-  margin-bottom: 8px;
-}
-
-.universe-scan-panel__about-list {
-  margin: 0;
-  padding: 0 0 0 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  font-size: 0.78rem;
-  color: var(--muted);
-  line-height: 1.4;
-}
-
 /* Log column */
 .universe-scan-panel__log-col {
   display: flex;
@@ -2241,16 +2308,17 @@ code {
 }
 
 /* This element carries both `universe-scan-panel__log` and `scan-log`. The latter caps
-   itself at 160px because it is also used as a compact inline log inside cards; here that
-   cap fought `flex: 1` and pinned the pane to a fixed box, so the audit log scrolled inside
-   ~200px while a full screen of space sat empty beneath it. Releasing the cap is the fix --
-   the pane is a panel of its own here, not an inline strip.
+   itself at 160px because it is also used as a compact inline log inside cards -- too
+   short for a run that can hold hundreds of entries. Embedded in Full/Quick Scan there is
+   no forced-tall parent box to size against any more, so the cap has to live here instead:
+   without one, a 275-entry run renders at full height and the page scrolls a screen-length
+   of log to reach whatever is below it.
 
    The bottom padding exists so the final row clears the border instead of being sheared in
    half by the scroll edge, which is what made it read as broken rather than scrollable. */
 .universe-scan-panel__log {
   flex: 1 1 auto;
-  max-height: none;
+  max-height: 420px;
   overflow-y: auto;
   font-family: var(--font-mono);
   min-height: 260px;
@@ -2275,10 +2343,6 @@ code {
    appearing to overlap, each showing a fraction of its content.
    The panel is the scroll container; its children are not. */
 .sub-nav__panel > * { flex-shrink: 0; }
-
-/* Still the exception: this one is meant to absorb the leftover height. Higher
-   specificity than the rule above, so it keeps winning. */
-.sub-nav__panel .universe-scan-panel { flex: 1 1 auto; min-height: 0; }
 
 /* Charts section */
 .universe-scan-panel__charts {
@@ -5420,64 +5484,73 @@ code {
 .ui-health__pillarempty { margin: 0; font-size: 0.74rem; opacity: 0.45; line-height: 1.4; }
 
 /* -- Governance ledger ------------------------------------------------------
-   One row per governance metric: the score, where it is going, the evidence, and the
+   One card per governance metric: the score, where it is going, the evidence, and the
    findings that act on it. Replaces the two panels that used to state the same facts in
    two vocabularies -- a scored bar in "Site health" and a counted row in "What needs
-   attention" -- with a single grid where the score and its consequence share a line.
+   attention" -- with a single card where the score and its consequence share a face.
 
-   The grid is deliberately explicit rather than flex: the bars, scores and sparklines have
-   to line up down the column across five pillars, and a flex row cannot promise that. */
-.ui-gov-pillars { display: flex; flex-direction: column; gap: 14px; margin-top: 6px; }
-.ui-gov-pillar { display: flex; flex-direction: column; gap: 8px; }
-.ui-gov-pillar + .ui-gov-pillar { border-top: 1px solid var(--stroke); padding-top: 14px; }
-.ui-gov-list { display: flex; flex-direction: column; gap: 10px; }
+   Used to be one full-width row per metric with the bar as a grid column stretching to
+   fill whatever was left of the row -- fine on a laptop, but on an ultra-wide monitor the
+   bar became a thin line spanning most of the screen with the actual content huddled at
+   each end. A card grid caps how wide any one metric gets regardless of viewport, and lets
+   several sit side by side instead of one stretched row at a time. */
+.ui-gov-pillars { display: flex; flex-direction: column; gap: 20px; margin-top: 6px; }
+.ui-gov-pillar { display: flex; flex-direction: column; gap: 10px; }
+.ui-gov-pillar + .ui-gov-pillar { border-top: 1px solid var(--stroke); padding-top: 18px; }
+.ui-gov-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
 
 .ui-gov {
-  display: grid;
-  grid-template-columns: minmax(7rem, 11rem) minmax(3rem, 1fr) 2.2rem auto;
-  grid-template-areas:
-    "head  track trend trend"
-    "body  body  body  act";
-  align-items: center;
-  gap: 5px 10px;
-  border-left: 2px solid transparent;
-  padding-left: 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--stroke);
+  border-left: 3px solid transparent;
+  border-radius: 10px;
+  padding: 12px 14px;
 }
-/* Urgency is carried on the rail, not on the text. At this density a coloured label per row
-   is noise; a 2px edge reads as structure and still scans top to bottom. */
+/* Urgency is carried on the rail, not on the text. At this density a coloured label per card
+   is noise; a 3px edge reads as structure and still scans at a glance across a grid. */
 .ui-gov--critical { border-left-color: #c9605a; }
 .ui-gov--warning { border-left-color: #c9860a; }
 .ui-gov--info { border-left-color: #4d8fd6; }
 .ui-gov--clear { border-left-color: rgba(111, 174, 129, 0.45); }
 
-.ui-gov__head { grid-area: head; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ui-gov__head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .ui-gov__label { font-size: 0.8rem; font-weight: 600; }
 .ui-gov__band {
   font-size: 0.62rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
-  opacity: 0.75;
+  opacity: 0.75; flex-shrink: 0;
 }
 .ui-gov__band--critical { color: #c9605a; }
 .ui-gov__band--warning { color: #c9860a; }
 .ui-gov__band--info { color: #4d8fd6; opacity: 0.6; }
 
+.ui-gov__meter { display: flex; align-items: center; gap: 8px; }
+
 .ui-gov__track {
-  grid-area: track; height: 7px; border-radius: 3px; overflow: hidden;
+  flex: 1 1 auto; min-width: 0; height: 7px; border-radius: 3px; overflow: hidden;
   background: rgba(255, 255, 255, 0.07);
 }
 :root[data-theme="light"] .ui-gov__track { background: rgba(0, 0, 0, 0.07); }
 .ui-gov__track--none { background: transparent; }
 .ui-gov__bar { display: block; height: 100%; border-radius: 3px; background: #4d8fd6; min-width: 2px; }
-/* The bar takes the row's urgency so a long bar can never read as good news on a row that
-   is flagged. A 41-scoring stability row with a blue two-fifths bar looked reassuring. */
+/* The bar takes the card's urgency so a long bar can never read as good news on a card that
+   is flagged. A 41-scoring stability card with a blue two-fifths bar looked reassuring. */
 .ui-gov__bar--critical { background: #c9605a; }
 .ui-gov__bar--warning { background: #c9860a; }
 .ui-gov__bar--clear { background: #6fae81; }
 .ui-gov__score {
-  grid-area: track; justify-self: end; margin-right: -2.7rem;
+  flex-shrink: 0;
   font-size: 0.78rem; font-variant-numeric: tabular-nums; opacity: 0.75;
 }
 
-.ui-gov__trend { grid-area: trend; display: flex; align-items: center; gap: 5px; justify-self: end; }
+.ui-gov__trend { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
 .ui-spark { display: block; overflow: visible; }
 .ui-spark--none { font-size: 0.7rem; opacity: 0.25; }
 .ui-spark polyline { stroke: var(--muted); }
@@ -5487,11 +5560,11 @@ code {
 .ui-trend--up { color: #6fae81; }
 .ui-trend--down { color: #e0796d; }
 
-.ui-gov__body { grid-area: body; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.ui-gov__body { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 .ui-gov__detail { font-size: 0.74rem; opacity: 0.6; line-height: 1.45; }
 .ui-gov__detail--muted { opacity: 0.4; font-style: italic; }
 .ui-gov__advice { font-size: 0.73rem; opacity: 0.5; line-height: 1.45; }
-.ui-gov__act { grid-area: act; display: flex; align-items: center; gap: 8px; }
+.ui-gov__act { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: auto; }
 .ui-gov__count { font-size: 0.78rem; font-weight: 600; font-variant-numeric: tabular-nums; }
 
 /* The findings under a metric. Buttons rather than links: they change the tab rather than
@@ -5519,17 +5592,6 @@ code {
 .ui-health__tallyitem--critical { color: #c9605a; opacity: 0.95; font-weight: 600; }
 .ui-health__tallyitem--warning { color: #c9860a; opacity: 0.9; }
 .ui-health__tallyitem--info { color: #4d8fd6; opacity: 0.8; }
-
-/* Below this the four columns stop fitting and the row stacks: label and band on one line,
-   bar and trend on the next, evidence beneath. */
-@media (max-width: 720px) {
-  .ui-gov {
-    grid-template-columns: 1fr auto;
-    grid-template-areas: "head trend" "track track" "body body" "act act";
-  }
-  .ui-gov__score { margin-right: 0; }
-  .ui-gov__act { justify-content: flex-start; }
-}
 
 /* â”€â”€ Severity bands in the findings list â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .ui-bands { display: flex; flex-direction: column; gap: 16px; }

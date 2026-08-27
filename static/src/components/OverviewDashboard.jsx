@@ -19,7 +19,7 @@ import { HEALTH_PILLARS } from "../../../src/lib/health-score";
 // omitted rather than rendered as zero, because "0 duplicate statuses" and "we have never
 // looked for duplicate statuses" are completely different statements.
 
-function buildFindings({ findingsSummary, dashboard, workflow, screens, automation, filters, dashboards, onNavigate }) {
+function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, screens, automation, filters, dashboards, onNavigate }) {
   const findings = [];
 
   if (findingsSummary?.adminAttention > 0) {
@@ -118,50 +118,180 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
     });
   }
 
+  // Three more, computed alongside the four above and never promoted to their own card --
+  // same shape as the field and screen pillars: a lump ("duplicate groups", "a structural
+  // flag") sitting next to the specific number it was hiding.
+  if (workflow?.available && workflow.reducibleStatusCount > 0) {
+    findings.push({
+      key: "reducible-statuses",
+      dimension: null,
+      pillar: "workflows",
+      tone: "info",
+      count: workflow.reducibleStatusCount,
+      title: "Statuses that would disappear if duplicates were merged",
+      detail: `Collapsing each of the ${formatNumber(workflow.duplicateGroupCount)} duplicate groups to one status removes this many from the site.`,
+      onOpen: () => onNavigate("workflows", { view: "insights", panel: "duplicates" }),
+      openLabel: "Workflows",
+    });
+  }
+
+  // The subset of "unreachable" that is not simply cleanup: still holding live issues, with
+  // no scheme and no rule able to move them anywhere. Distinct from "no evidence of use"
+  // above, which is specifically the statuses where that is NOT true.
+  if (workflow?.available && workflow.automationChecked && workflow.unreachableWithIssuesCount > 0) {
+    findings.push({
+      key: "unreachable-with-issues",
+      dimension: null,
+      pillar: "workflows",
+      tone: "critical",
+      count: workflow.unreachableWithIssuesCount,
+      title: "Unreachable statuses still holding live issues",
+      detail: "No scheme maps to them and no automation rule targets them, so nothing in Jira can move these issues out of this status.",
+      onOpen: () => onNavigate("workflows", { view: "insights", panel: "orphans" }),
+      openLabel: "Workflows",
+    });
+  }
+
+  if (workflow?.available && workflow.noDoneSchemeCount > 0) {
+    findings.push({
+      key: "scheme-no-done",
+      dimension: null,
+      pillar: "workflows",
+      tone: "critical",
+      count: workflow.noDoneSchemeCount,
+      title: "Workflow schemes with no Done status",
+      detail: "A scheme with nothing in the Done category cannot represent completion — a correctness problem, not a tidiness one.",
+      onOpen: () => onNavigate("workflows", { view: "insights", panel: "balance" }),
+      openLabel: "Workflows",
+    });
+  }
+
+  // dimension: "project-findings" on every one of these, deliberately not the three real
+  // scored keys they used to nest under as chips -- same promotion the field, screen and
+  // automation pillars already got. "Project consistency" states the rate; these are the
+  // lists behind it.
   if (dashboard?.projects?.overConfigured?.length > 0) {
     findings.push({
       key: "over-configured",
-      dimension: "project-consistency",
+      dimension: "project-findings",
       pillar: "projects",
       tone: "info",
       count: dashboard.projects.overConfiguredCount ?? dashboard.projects.overConfigured.length,
       title: "Projects configured well past the site norm",
-      // No longer claims light issue volume: that is the idle SUBSET, and asserting it of
-      // the whole list is what made this finding impossible to trip on an active site.
-      detail: dashboard.projects.idleOverConfiguredCount > 0
-        ? `Median project carries ${formatNumber(dashboard.projects.medianFieldCount)} fields. ${formatNumber(dashboard.projects.idleOverConfiguredCount)} of these carry little issue volume too.`
-        : `Median project carries ${formatNumber(dashboard.projects.medianFieldCount)} fields; these carry far more.`,
+      detail: `Median project carries ${formatNumber(dashboard.projects.medianFieldCount)} fields; these carry far more.`,
       onOpen: () => onNavigate("projects", { filter: "over-configured" }),
       openLabel: "Project Usage",
     });
   }
 
-  if (findingsSummary?.cleanup > 0) {
+  // The subset of the line above that used to be folded into its detail sentence rather
+  // than counted on its own: over-configured AND carrying little work, which is where a
+  // field-governance conversation actually starts.
+  if (dashboard?.projects?.idleOverConfiguredCount > 0) {
     findings.push({
-      key: "cleanup",
+      key: "idle-over-configured",
+      dimension: "project-findings",
+      pillar: "projects",
+      tone: "warning",
+      count: dashboard.projects.idleOverConfiguredCount,
+      title: "Over-configured projects with little work to show for it",
+      detail: `Median project carries ${formatNumber(dashboard.projects.medianFieldCount)} fields. These carry far more and have little issue volume to justify it.`,
+      onOpen: () => onNavigate("projects", { filter: "over-configured" }),
+      openLabel: "Project Usage",
+    });
+  }
+
+  // Six specific reasons, replacing what used to be two lump counts ("cleanup" and
+  // "standardize") that each folded several unrelated rules into one number -- clicking
+  // either one sent a reader to a mixed bucket that didn't match whatever detail sentence
+  // was on the card. Same split the filter and dashboard pillars already use for their own
+  // findings: one card, one reason code, one accurate count to click through to.
+  //
+  // dimension: null on all of them, deliberately: "Field naming" and "Field governance" are
+  // rates, these are the lists behind the rates, and nesting one inside the other would say
+  // the same thing twice.
+  const fieldCode = (code) => Number(findingsByCode?.[code]) || 0;
+
+  if (fieldCode("global-context-low-usage") > 0) {
+    findings.push({
+      key: "field-global-context-low-usage",
       dimension: null,
       pillar: "fields",
-      tone: "info",
-      count: findingsSummary.cleanup,
-      title: "Fields suggested for cleanup",
-      detail: "Unused, unpopulated, or superseded by another field.",
-      onOpen: () => onNavigate("fields", { findings: "cleanup" }),
+      tone: "warning",
+      count: fieldCode("global-context-low-usage"),
+      title: "Global-context fields with very low usage",
+      detail: "Applied to every project through a global context, but only a handful of issues carry a value.",
+      onOpen: () => onNavigate("fields", { findings: "global-context-low-usage" }),
       openLabel: "Field Browser",
     });
   }
 
-  // Was computed by summarizeFindings and then dropped on the floor here, so the one
-  // category that describes site-wide inconsistency never appeared on the site-wide page.
-  if (findingsSummary?.standardize > 0) {
+  if (fieldCode("dead-configuration") > 0) {
     findings.push({
-      key: "standardize",
-      dimension: "field-naming",
+      key: "field-dead-configuration",
+      dimension: null,
+      pillar: "fields",
+      tone: "warning",
+      count: fieldCode("dead-configuration"),
+      title: "Fields configured far past where they're used",
+      detail: "Configured across many projects; most of that scope has no issue data at all.",
+      onOpen: () => onNavigate("fields", { findings: "dead-configuration" }),
+      openLabel: "Field Browser",
+    });
+  }
+
+  if (fieldCode("orphaned") + fieldCode("configured-no-issues") > 0) {
+    findings.push({
+      key: "field-no-populated-issues",
+      dimension: null,
       pillar: "fields",
       tone: "info",
-      count: findingsSummary.standardize,
-      title: "Fields that could be standardised",
-      detail: "Close enough to another field that one definition would serve both.",
-      onOpen: () => onNavigate("fields", { findings: "standardize" }),
+      count: fieldCode("orphaned") + fieldCode("configured-no-issues"),
+      title: "Fields with no populated issues anywhere",
+      detail: "Nothing recorded a value in any project this build could see — a candidate for deletion.",
+      onOpen: () => onNavigate("fields", { findings: "orphaned,configured-no-issues" }),
+      openLabel: "Field Browser",
+    });
+  }
+
+  if (fieldCode("stale") > 0) {
+    findings.push({
+      key: "field-stale",
+      dimension: null,
+      pillar: "fields",
+      tone: "info",
+      count: fieldCode("stale"),
+      title: "Fields with no activity in over a year",
+      detail: "Carried values once; nothing has changed them recently. Different from never-used — this data is historical.",
+      onOpen: () => onNavigate("fields", { findings: "stale" }),
+      openLabel: "Field Browser",
+    });
+  }
+
+  if (fieldCode("context-sprawl") > 0) {
+    findings.push({
+      key: "field-context-sprawl",
+      dimension: null,
+      pillar: "fields",
+      tone: "info",
+      count: fieldCode("context-sprawl"),
+      title: "Fields patched project-by-project into context sprawl",
+      detail: "Enough separate contexts to suggest the field grew by patching rather than by design.",
+      onOpen: () => onNavigate("fields", { findings: "context-sprawl" }),
+      openLabel: "Field Browser",
+    });
+  }
+
+  if (fieldCode("missing-description") > 0) {
+    findings.push({
+      key: "field-missing-description",
+      dimension: null,
+      pillar: "fields",
+      tone: "info",
+      count: fieldCode("missing-description"),
+      title: "Actively used fields with no description",
+      detail: "Used broadly enough to warrant documentation an admin hasn't written yet.",
+      onOpen: () => onNavigate("fields", { findings: "missing-description" }),
       openLabel: "Field Browser",
     });
   }
@@ -171,11 +301,16 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
   // Every one of these was already computed by the automation analysis and scored in site
   // health, and none of them reached this list -- the page whose entire job is to say what
   // needs attention was silent about the pillar carrying the credential findings.
+  //
+  // dimension: "automation-findings" on all five, deliberately not the four real scored
+  // keys they used to nest under as chips -- promoted to their own cards, the same split
+  // filter-hygiene and dashboard-hygiene findings already get. "Automation security" states
+  // the rate; "Automation rules storing a credential in plaintext" is the list behind it.
 
   if (automation?.available && automation.credentialRuleCount > 0) {
     findings.push({
       key: "automation-credentials",
-      dimension: "automation-security",
+      dimension: "automation-findings",
       pillar: "automation",
       tone: "critical",
       count: automation.credentialRuleCount,
@@ -189,7 +324,7 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
   if (automation?.available && automation.selfTriggeringCount > 0) {
     findings.push({
       key: "automation-self-triggering",
-      dimension: "automation-stability",
+      dimension: "automation-findings",
       pillar: "automation",
       tone: "warning",
       count: automation.selfTriggeringCount,
@@ -203,7 +338,7 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
   if (automation?.available && automation.externalHttpCount > 0) {
     findings.push({
       key: "automation-external",
-      dimension: "automation-exposure",
+      dimension: "automation-findings",
       pillar: "automation",
       tone: "warning",
       count: automation.externalHttpCount,
@@ -217,7 +352,7 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
   if (automation?.available && automation.noActionCount > 0) {
     findings.push({
       key: "automation-inert",
-      dimension: "automation-hygiene",
+      dimension: "automation-findings",
       pillar: "automation",
       tone: "info",
       count: automation.noActionCount,
@@ -231,7 +366,7 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
   if (automation?.available && automation.disabledCount > 0) {
     findings.push({
       key: "automation-disabled",
-      dimension: "automation-hygiene",
+      dimension: "automation-findings",
       pillar: "automation",
       tone: "info",
       count: automation.disabledCount,
@@ -284,6 +419,23 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
       title: "Dashboards with no gadgets",
       detail: "Anyone opening these sees an empty grid.",
       onOpen: () => onNavigate("dashboards", { finding: "empty" }),
+      openLabel: "Dashboards",
+    });
+  }
+
+  // Computed by summarizeDashboards alongside the three findings above and never reached
+  // this list -- shared with everyone and favourited by nobody is exactly the "somebody
+  // published this and nobody wanted it" shape the Filters pillar already flags.
+  if (dashboards?.available && dashboards.publishedUnusedCount > 0) {
+    findings.push({
+      key: "dashboards-published-unused",
+      dimension: "dashboard-hygiene",
+      pillar: "dashboards",
+      tone: "info",
+      count: dashboards.publishedUnusedCount,
+      title: "Dashboards published, unwanted",
+      detail: "Shared with every logged-in user and favourited by nobody. Confirm it is still meant to be there.",
+      onOpen: () => onNavigate("dashboards", { finding: "published-unused" }),
       openLabel: "Dashboards",
     });
   }
@@ -368,7 +520,10 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
   if (screens?.available && screens.danglingOperations > 0) {
     findings.push({
       key: "screen-dangling",
-      dimension: "screen-integrity",
+      // "screen-findings" deliberately does not match a scored dimension key (screen-integrity
+      // is the score; this is the count). Same split as filter-hygiene/dashboard-hygiene: the
+      // scored card states the rate, this one states the actual list to act on.
+      dimension: "screen-findings",
       pillar: "screens",
       tone: "critical",
       count: screens.danglingOperations,
@@ -384,7 +539,7 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
   if (screens?.available && screens.unresolvedScreens > 0) {
     findings.push({
       key: "screen-unresolved",
-      dimension: "screen-hygiene",
+      dimension: "screen-findings",
       pillar: "screens",
       tone: "warning",
       count: screens.unresolvedScreens,
@@ -401,7 +556,7 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
   if (screens?.available && screens.unreachedScreens > 0) {
     findings.push({
       key: "screen-unreached",
-      dimension: "screen-hygiene",
+      dimension: "screen-findings",
       pillar: "screens",
       tone: "info",
       count: screens.unreachedScreens,
@@ -417,7 +572,7 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
   if (screens?.available && screens.transitionOnlyScreens > 0) {
     findings.push({
       key: "screen-transition-only",
-      dimension: "screen-hygiene",
+      dimension: "screen-findings",
       pillar: "screens",
       tone: "info",
       count: screens.transitionOnlyScreens,
@@ -431,7 +586,7 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
   if (screens?.available && screens.emptyScreens > 0) {
     findings.push({
       key: "screen-empty",
-      dimension: "screen-hygiene",
+      dimension: "screen-findings",
       pillar: "screens",
       tone: "info",
       count: screens.emptyScreens,
@@ -445,7 +600,7 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
   if (screens?.available && screens.unusedSchemes > 0) {
     findings.push({
       key: "screen-unused-schemes",
-      dimension: "screen-integrity",
+      dimension: "screen-findings",
       pillar: "screens",
       tone: "info",
       count: screens.unusedSchemes,
@@ -465,7 +620,7 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
     const worst = dashboard.adoption.fellOff?.[0];
     findings.push({
       key: "projects-fell-off",
-      dimension: "project-adoption",
+      dimension: "project-findings",
       pillar: "projects",
       tone: "warning",
       count: dashboard.adoption.fellOffCount,
@@ -481,7 +636,7 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
   if (dashboard?.adoption?.available && dashboard.adoption.neverAdoptedCount > 0) {
     findings.push({
       key: "projects-never-adopted",
-      dimension: "project-adoption",
+      dimension: "project-findings",
       pillar: "projects",
       tone: "info",
       count: dashboard.adoption.neverAdoptedCount,
@@ -495,7 +650,7 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
   if (dashboard?.projects?.unusedProjectCount > 0) {
     findings.push({
       key: "unused-projects",
-      dimension: "project-activity",
+      dimension: "project-findings",
       pillar: "projects",
       tone: "info",
       count: dashboard.projects.unusedProjectCount,
@@ -509,7 +664,7 @@ function buildFindings({ findingsSummary, dashboard, workflow, screens, automati
   if (dashboard?.projects?.staleProjects?.length > 0) {
     findings.push({
       key: "stale-projects",
-      dimension: "project-activity",
+      dimension: "project-findings",
       pillar: "projects",
       tone: "info",
       count: dashboard.projects.staleProjectCount ?? dashboard.projects.staleProjects.length,
@@ -1161,11 +1316,11 @@ function RqtPanel({ onOpenRqtIndex }) {
   );
 }
 
-export function OverviewDashboard({ dashboard, findingsSummary, workflow, screens, automation, filters, dashboards, health, history, onOpenRqtIndex, onNavigate }) {
+export function OverviewDashboard({ dashboard, findingsSummary, findingsByCode, workflow, screens, automation, filters, dashboards, health, history, onOpenRqtIndex, onNavigate }) {
   // onNavigate is optional so this stays renderable in isolation; without it the deep
   // links become inert rather than throwing.
   const navigate = onNavigate || (() => {});
-  const findings = buildFindings({ findingsSummary, dashboard, workflow, screens, automation, filters, dashboards, onNavigate: navigate });
+  const findings = buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, screens, automation, filters, dashboards, onNavigate: navigate });
   // A caller may pass history in -- tests do -- but nobody has to.
   const fetched = useHealthHistory();
   const series = history ?? fetched;

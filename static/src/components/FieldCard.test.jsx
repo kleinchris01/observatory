@@ -375,14 +375,21 @@ describe("FindingBadge", () => {
 // FindingsStrip
 // ---------------------------------------------------------------------------
 describe("FindingsStrip", () => {
-  it("renders nothing when findings is null", () => {
+  // Deliberately still renders the (empty) strip rather than nothing: a flagged card and a
+  // clean card have to reserve the same row in a card list, or the list reads as a column of
+  // mismatched heights purely because some cards had nothing to flag. See .findings-strip's
+  // min-height, which is what actually does the reserving.
+  it("renders an empty strip, not nothing, when findings is null", () => {
     const { container } = render(<FindingsStrip findings={null} />);
-    expect(container.firstChild).toBeNull();
+    expect(container.firstChild).not.toBeNull();
+    expect(container.querySelector(".findings-strip")).toBeInTheDocument();
+    expect(container.querySelector(".findings-strip").children).toHaveLength(0);
   });
 
-  it("renders nothing when findings has no tags", () => {
+  it("renders an empty strip, not nothing, when findings has no tags", () => {
     const { container } = render(<FindingsStrip findings={{}} />);
-    expect(container.firstChild).toBeNull();
+    expect(container.querySelector(".findings-strip")).toBeInTheDocument();
+    expect(container.querySelector(".findings-strip").children).toHaveLength(0);
   });
 
   it("renders Admin Attention badge when adminAttention tag is set", () => {
