@@ -267,9 +267,17 @@ export function summarizeWorkflowInsights({ duplicateGroups = [], orphans = [], 
     // Unreachable by anything we can see. The real cleanup target, and the number status
     // reachability should have been scored on all along.
     unreachableNoRuleCount: orphans.filter((o) => !o.ruleOnly).length,
+    // The subset of the line above that is not simply cleanup: unreachable AND still
+    // holding live issues. Nothing in the workflow admin can move those issues out --
+    // no scheme maps the status, no rule targets it -- so they are stuck, not just orphaned.
+    unreachableWithIssuesCount: orphans.filter((o) => !o.ruleOnly && (o.issueCount ?? 0) > 0).length,
     // Whether the rule question was asked at all. Without it the two counts above are
     // "0 rule-referenced" only in the sense that nobody looked.
     automationChecked: orphans.some((o) => o.automationRuleCount !== null),
     flaggedSchemeCount: balance.filter((entry) => entry.flags.length > 0).length,
+    // The one scheme flag serious enough to name on its own rather than folding into the
+    // lump count above: a scheme with no Done status cannot represent completion at all,
+    // which is a correctness problem rather than a tidiness one.
+    noDoneSchemeCount: balance.filter((entry) => entry.flags.some((f) => f.code === "no-done")).length,
   };
 }

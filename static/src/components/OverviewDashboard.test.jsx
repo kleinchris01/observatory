@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, test, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { invoke } from "@forge/bridge";
 import { OverviewDashboard } from "./OverviewDashboard";
@@ -127,7 +127,7 @@ describe("OverviewDashboard — findings", () => {
     render(<OverviewDashboard
       dashboard={{ projects: { totalProjects: 1, topByIssueVolume: [], topByFieldCount: [] }, fieldUsage: {} }}
       findingsSummary={{ adminAttention: 0, risky: 0, cleanup: 0, standardize: 0 }}
-      workflow={workflow({ duplicateGroupCount: 0, safeToRemoveCount: 0, flaggedSchemeCount: 0 })}
+      workflow={workflow({ duplicateGroupCount: 0, reducibleStatusCount: 0, safeToRemoveCount: 0, flaggedSchemeCount: 0 })}
       onNavigate={vi.fn()}
     />);
 
@@ -270,9 +270,130 @@ describe("OverviewDashboard — automation and screen findings", () => {
     expect(screen.getByText(/\d+ to clean up/)).toBeInTheDocument();
   });
 
-  test("finally reports the standardise count, which was computed and then dropped", () => {
-    renderAll();
-    expect(screen.getByText("Fields that could be standardised")).toBeInTheDocument();
+  // The old lump "Fields that could be standardised" (and its sibling "Fields suggested for
+  // cleanup") each folded several unrelated reason codes into one number, so clicking either
+  // sent a reader to a mixed bucket that did not match whatever detail sentence was on the
+  // card. Six specific cards replaced them -- one reason code, one accurate count each.
+  test("reports each specific field finding on its own card, not folded into one lump count", () => {
+    const findingsByCode = {
+      "global-context-low-usage": 4,
+      "dead-configuration": 9,
+      orphaned: 3,
+      "configured-no-issues": 2,
+      stale: 11,
+      "context-sprawl": 6,
+      "missing-description": 14,
+    };
+    renderAll({ findingsByCode });
+
+    expect(screen.getByText("Global-context fields with very low usage")).toBeInTheDocument();
+    expect(screen.getByText("Fields configured far past where they're used")).toBeInTheDocument();
+    expect(screen.getByText("Fields with no activity in over a year")).toBeInTheDocument();
+    expect(screen.getByText("Fields patched project-by-project into context sprawl")).toBeInTheDocument();
+    expect(screen.getByText("Actively used fields with no description")).toBeInTheDocument();
+
+    // orphaned and configured-no-issues are close enough (both mean "no populated issues
+    // anywhere") that they share one card -- its count is the sum, not either one alone.
+    const noIssuesCard = screen.getByText("Fields with no populated issues anywhere").closest(".ui-gov");
+    expect(within(noIssuesCard).getByText("5")).toBeInTheDocument();
+
+    expect(screen.queryByText("Fields suggested for cleanup")).not.toBeInTheDocument();
+    expect(screen.queryByText("Fields that could be standardised")).not.toBeInTheDocument();
+  });
+
+  test("omits a specific field-finding card entirely when its code has no fields", () => {
+    renderAll({ findingsByCode: { stale: 0 } });
+    expect(screen.queryByText("Fields with no activity in over a year")).not.toBeInTheDocument();
+  });
+});
+
+// Workflows, automation and projects all had the same shape as screens used to: real,
+// already-computed findings nested as chips under two or three scored dimensions instead of
+// standing on their own the way filter-hygiene and dashboard-hygiene findings do. This pins
+// the promotion for each, plus the three workflow findings that were computed and never
+// surfaced at all (reducible statuses, unreachable-with-issues, no-Done schemes).
+describe("OverviewDashboard — workflow, automation and project findings stand on their own", () => {
+  test("promotes reducible statuses, unreachable-with-issues and no-Done schemes as their own cards", () => {
+    render(<OverviewDashboard
+      dashboard={dashboard()}
+      findingsSummary={findingsSummary}
+      workflow={workflow({ automationChecked: true, unreachableWithIssuesCount: 6, noDoneSchemeCount: 2 })}
+      onNavigate={vi.fn()}
+    />);
+
+    const reducible = screen.getByText("Statuses that would disappear if duplicates were merged").closest(".ui-gov");
+    expect(within(reducible).getByText("20")).toBeInTheDocument();
+
+    const stuck = screen.getByText("Unreachable statuses still holding live issues").closest(".ui-gov");
+    expect(within(stuck).getByText("6")).toBeInTheDocument();
+    expect(stuck.className).toMatch(/ui-gov--critical/);
+
+    const noDone = screen.getByText("Workflow schemes with no Done status").closest(".ui-gov");
+    expect(within(noDone).getByText("2")).toBeInTheDocument();
+
+    // Not nested inside "Workflow schemes with a structural flag" -- a different card entirely.
+    const structuralFlag = screen.getByText("Workflow schemes with a structural flag").closest(".ui-gov");
+    expect(noDone).not.toBe(structuralFlag);
+  });
+
+  test("promotes every automation finding instead of nesting it under the four scored dimensions", () => {
+    const health = {
+      score: 70, grade: "C", dimensions: [], weakest: null,
+      pillars: [{
+        key: "automation", label: "Automation", score: 70, grade: "C", available: true, scored: 1, total: 1,
+        dimensions: [{ key: "automation-security", label: "Automation security", available: true, score: 70, detail: "3 rules with a credential." }],
+      }],
+    };
+    render(<OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} automation={automation()} health={health} onNavigate={vi.fn()} />);
+
+    const security = screen.getByText("Automation security").closest(".ui-gov");
+    const credentials = screen.getByText("Automation rules storing a credential in plaintext").closest(".ui-gov");
+    expect(credentials).not.toBe(security);
+    expect(within(credentials).getByText("3")).toBeInTheDocument();
+  });
+
+  test("promotes every project finding, including the idle-over-configured subset that used to be a detail sentence", () => {
+    const health = {
+      score: 60, grade: "D", dimensions: [], weakest: null,
+      pillars: [{
+        key: "projects", label: "Projects", score: 60, grade: "D", available: true, scored: 1, total: 1,
+        dimensions: [{ key: "project-consistency", label: "Project consistency", available: true, score: 60, detail: "5 over-configured." }],
+      }],
+    };
+    render(<OverviewDashboard
+      health={health}
+      dashboard={dashboard({
+        projects: {
+          totalProjects: 40, medianFieldCount: 12, overConfiguredCount: 5, idleOverConfiguredCount: 3,
+          unusedProjectCount: 4, staleProjectCount: 6, overConfigured: [{}], staleProjects: [{}],
+          topByIssueVolume: [], topByFieldCount: [],
+        },
+        adoption: { available: true, measuredProjects: 40, judgeableProjects: 38, fellOffCount: 2, neverAdoptedCount: 1, medianIssuesPerDay: 3, fellOff: [{ projectKey: "X" }] },
+      })}
+      findingsSummary={findingsSummary}
+      workflow={workflow()}
+      onNavigate={vi.fn()}
+    />);
+
+    const consistency = screen.getByText("Project consistency").closest(".ui-gov");
+    const overConfigured = screen.getByText("Projects configured well past the site norm").closest(".ui-gov");
+    expect(overConfigured).not.toBe(consistency);
+
+    const idle = screen.getByText("Over-configured projects with little work to show for it").closest(".ui-gov");
+    expect(within(idle).getByText("3")).toBeInTheDocument();
+  });
+
+  test("promotes 'Dashboards published, unwanted', a finding that was computed and never shown at all", () => {
+    render(<OverviewDashboard
+      dashboard={dashboard()}
+      findingsSummary={findingsSummary}
+      workflow={workflow()}
+      dashboards={{ available: true, total: 50, orphanedCount: 0, editableByEveryoneCount: 0, emptyCount: 0, publishedUnusedCount: 9, gadgetsKnown: true }}
+      onNavigate={vi.fn()}
+    />);
+
+    const card = screen.getByText("Dashboards published, unwanted").closest(".ui-gov");
+    expect(within(card).getByText("9")).toBeInTheDocument();
   });
 });
 
@@ -336,6 +457,48 @@ describe("OverviewDashboard — health pillars", () => {
     />);
 
     expect(screen.getByText("Field naming")).toBeInTheDocument();
+  });
+
+  // Screens used to have only its two scored dimensions to show, while filters and
+  // dashboards each had several extra cards -- not because screens has less to say, but
+  // because its findings were nested as chips inside "Screen scheme integrity" and "Screen
+  // hygiene" instead of standing on their own the way filter-hygiene and dashboard-hygiene
+  // findings do. Promoting them (dimension: "screen-findings", a key that deliberately
+  // matches no scored dimension) is what brings the pillar in line with the others.
+  test("promotes every screen finding to its own card instead of nesting it under the scored dimensions", () => {
+    const scoredScreens = {
+      key: "screens", label: "Screens", score: 61, grade: "D", available: true, scored: 2, total: 2,
+      dimensions: [
+        { key: "screen-integrity", label: "Screen scheme integrity", available: true, score: 70, detail: "5 dangling operations." },
+        { key: "screen-hygiene", label: "Screen hygiene", available: true, score: 52, detail: "58 screens flagged." },
+      ],
+    };
+    render(<OverviewDashboard
+      dashboard={dashboard()}
+      findingsSummary={findingsSummary}
+      workflow={workflow()}
+      screens={screens()}
+      health={{ ...health, pillars: [...health.pillars.filter((p) => p.key !== "screens"), scoredScreens] }}
+      onNavigate={vi.fn()}
+    />);
+
+    const pillarSection = screen.getByText("Screen scheme integrity").closest(".ui-gov-pillar");
+    const cardTitles = [
+      "Screen scheme integrity", "Screen hygiene",
+      "Scheme operations pointing at a missing screen", "Screens whose contents could not be read",
+      "Screens nothing reaches", "Screens used only by a workflow transition",
+      "Screens carrying no fields", "Screen schemes no issue type maps to",
+    ];
+    for (const title of cardTitles) {
+      expect(within(pillarSection).getByText(title)).toBeInTheDocument();
+    }
+    expect(pillarSection.querySelectorAll(".ui-gov")).toHaveLength(8);
+
+    // The promoted findings are not nested inside the scored dimension's own card -- each
+    // one closes to a DIFFERENT .ui-gov element than "Screen scheme integrity" does.
+    const integrityCard = screen.getByText("Screen scheme integrity").closest(".ui-gov");
+    const danglingCard = screen.getByText("Scheme operations pointing at a missing screen").closest(".ui-gov");
+    expect(danglingCard).not.toBe(integrityCard);
   });
 });
 

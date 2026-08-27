@@ -1129,7 +1129,12 @@ const projectStoreMigrations = migrationRunner
   // points at no filter", and without the flag the build hands the second kind back to itself
   // forever.
   .enqueue("v102_alter_dashboard_gadgets_add_filter_id", "ALTER TABLE snapshot_dashboard_gadgets ADD COLUMN IF NOT EXISTS filter_id VARCHAR(64) NULL")
-  .enqueue("v103_alter_dashboard_gadgets_add_config_walk_done", "ALTER TABLE snapshot_dashboard_gadgets ADD COLUMN IF NOT EXISTS config_walk_done TINYINT NOT NULL DEFAULT 0");
+  .enqueue("v103_alter_dashboard_gadgets_add_config_walk_done", "ALTER TABLE snapshot_dashboard_gadgets ADD COLUMN IF NOT EXISTS config_walk_done TINYINT NOT NULL DEFAULT 0")
+  // The quick scan. Both scan types share full_scan_meta and must never run concurrently --
+  // they would otherwise race each other over the same handoff-stage builds -- so which one
+  // is running has to be recorded on the shared row, not inferred from the stage list.
+  .enqueue("v104_alter_full_scan_meta_add_scan_type", "ALTER TABLE full_scan_meta ADD COLUMN IF NOT EXISTS scan_type VARCHAR(16) NULL")
+  .enqueue("v105_alter_full_scan_meta_add_quick_scan_window_hours", "ALTER TABLE full_scan_meta ADD COLUMN IF NOT EXISTS quick_scan_window_hours INTEGER NULL");
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history

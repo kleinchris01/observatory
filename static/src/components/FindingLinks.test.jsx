@@ -54,8 +54,12 @@ const dashboard = () => ({
 const EXPECTED = [
   ["Fields need admin attention", "fields", { findings: "admin-attention" }],
   ["Fields flagged as risky", "fields", { findings: "risky" }],
-  ["Fields suggested for cleanup", "fields", { findings: "cleanup" }],
-  ["Fields that could be standardised", "fields", { findings: "standardize" }],
+  ["Global-context fields with very low usage", "fields", { findings: "global-context-low-usage" }],
+  ["Fields configured far past where they're used", "fields", { findings: "dead-configuration" }],
+  ["Fields with no populated issues anywhere", "fields", { findings: "orphaned,configured-no-issues" }],
+  ["Fields with no activity in over a year", "fields", { findings: "stale" }],
+  ["Fields patched project-by-project into context sprawl", "fields", { findings: "context-sprawl" }],
+  ["Actively used fields with no description", "fields", { findings: "missing-description" }],
 
   ["Groups of duplicate statuses", "workflows", { view: "insights", panel: "duplicates" }],
   ["Statuses with no evidence of use", "workflows", { view: "insights", panel: "orphans", statuses: "safe-to-remove" }],
@@ -99,6 +103,11 @@ function renderAll(onNavigate) {
     dashboard={dashboard()}
     filters={filters()}
     findingsSummary={{ adminAttention: 123, risky: 88, cleanup: 364, standardize: 129 }}
+    findingsByCode={{
+      "global-context-low-usage": 4, "dead-configuration": 9,
+      orphaned: 3, "configured-no-issues": 2,
+      stale: 11, "context-sprawl": 6, "missing-description": 14,
+    }}
     workflow={workflow()}
     screens={screens()}
     automation={automation()}

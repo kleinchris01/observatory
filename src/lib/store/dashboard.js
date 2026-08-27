@@ -398,3 +398,30 @@ export async function pruneDashboardSnapshots(scopeKey, keepVersion) {
     );
   }
 }
+
+// Distinct gadget count per filter id, for a set of filter ids.
+//
+// The bulk-count half of the dashboard/field link: getDashboardUsage resolves one field to
+// its full list of dashboards and gadgets for the expanded card section; this resolves many
+// fields' worth of filter ids to a plain count each, for the header stat tile that has to
+// answer instantly for a whole page of fields without describing any of them.
+export async function loadGadgetCountsForFilterIds(scopeKey, version, filterIds = []) {
+  await ensureProjectStoreReady();
+  const ids = [...new Set(filterIds.filter(Boolean).map(String))];
+  if (!ids.length) return new Map();
+
+  const byFilter = new Map();
+  for (const batch of chunkArray(ids, 100)) {
+    const placeholders = batch.map(() => "?").join(", ");
+    const result = await withSqlRetry(() =>
+      sql.prepare(`
+        SELECT filter_id, COUNT(DISTINCT gadget_id) AS gadget_count
+        FROM snapshot_dashboard_gadgets
+        WHERE scope_key = ? AND version = ? AND filter_id IN (${placeholders})
+        GROUP BY filter_id
+      `).bindParams(scopeKey, version, ...batch).execute()
+    );
+    for (const row of result.rows || []) byFilter.set(String(row.filter_id), toNumber(row.gadget_count));
+  }
+  return byFilter;
+}

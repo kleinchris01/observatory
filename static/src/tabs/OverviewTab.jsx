@@ -14,7 +14,7 @@ export function OverviewTab({ overview, onMigrateNamespace, migratingNamespace, 
     return <EmptyState>Loading overview…</EmptyState>;
   }
 
-  const { findingsSummary } = overview;
+  const { findingsSummary, findingsByCode } = overview;
 
   return (
     <div className="admin-overview">
@@ -41,6 +41,7 @@ export function OverviewTab({ overview, onMigrateNamespace, migratingNamespace, 
         <OverviewDashboard
           dashboard={overview.dashboard}
           findingsSummary={findingsSummary}
+          findingsByCode={findingsByCode}
           workflow={overview.workflow}
           screens={overview.screens}
           automation={overview.automation}

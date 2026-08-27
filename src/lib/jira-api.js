@@ -910,7 +910,12 @@ export async function getAllJiraProjects() {
 // approximateLastUsed is requested but treated as optional: it is the newest field here and
 // the one most likely to be absent on a given tenant, and "we could not tell when this was
 // last opened" must never render as "never opened".
-const FILTER_EXPAND = "description,owner,jql,sharePermissions,subscriptions,viewUrl,favouritedCount";
+//
+// It was documented as requested here without actually being in the list below -- every
+// filter on every tenant came back with no lastUsedAt, which downstream code then read as
+// "never opened" rather than "unknown," and a saved-filter estate of any size rendered as
+// 100% stale. The field itself was never wrong; it was never asked for.
+const FILTER_EXPAND = "description,owner,jql,sharePermissions,subscriptions,viewUrl,favouritedCount,approximateLastUsed";
 
 // Every dashboard on the site, with the governance-relevant expansions.
 //

@@ -104,6 +104,7 @@ vi.mock("./analysis.js", () => ({
     ...metrics,
   })),
   isJiraBuiltinField: vi.fn().mockReturnValue(false),
+  isPlatformProvidedField: vi.fn().mockReturnValue(false),
   buildDuplicateNameCountMap: vi.fn().mockReturnValue(new Map()),
   isSelectFieldType: vi.fn().mockReturnValue(false),
 }));

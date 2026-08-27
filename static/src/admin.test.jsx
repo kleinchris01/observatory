@@ -205,30 +205,28 @@ describe("AdminApp tab navigation", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 2b. Scans tab -> Snapshot subnav -- stalled snapshot build recovery
+// 2b. Scans tab -> Full Scan -- stalled snapshot build recovery
 //
-// The Snapshot panel (and the Field Usage Jobs stat row) live under the Scans
-// tab now, not Overview -- see the Phase 1 scan/snapshot pipeline merge. Each
-// panel there self-fetches via getAdminOverview, matching every other
-// self-contained panel in ScansTab (UniverseScanPanel, JobsPanel, etc).
-//
-// Regression coverage: a build stuck in "building" used to leave the button
-// permanently disabled with no way to unstick it from the UI (see
-// requeueStaleSnapshotBuild in snapshot-engine.js, which the resolver behind
-// this button already knows how to call via getFieldInventory({forceRefresh:true})
-// -- the button just never let an admin reach it while active).
+// The Snapshot and Universe Scan tabs were retired once Full Scan started
+// sequencing the exact same builds as its own stages -- see the full/quick
+// scan consolidation. What survives from the old Snapshot panel is this one
+// recovery affordance, now embedded directly in the Full Scan panel: a field
+// snapshot build stuck in "building" past the server's own stale threshold
+// (see requeueStaleSnapshotBuild in snapshot-engine.js) would otherwise have
+// no way to unstick from the UI, even though the resolver behind it already
+// knows how to force it via getFieldInventory({forceRefresh:true}).
 // ---------------------------------------------------------------------------
 
-async function openScansSnapshotPanel(user) {
+async function openScansFullScanPanel(user) {
   const adminNav = document.querySelector(".admin-nav");
   await user.click(within(adminNav).getByText("Scans"));
   await waitFor(() => expect(document.querySelector(".admin-scans-tab")).toBeTruthy());
   const subNav = document.querySelector(".sub-nav");
-  await user.click(within(subNav).getByText("Snapshot"));
+  await user.click(within(subNav).getByText("Full Scan"));
 }
 
-describe("AdminApp Scans tab -> Snapshot subnav -- stalled snapshot build", () => {
-  it("keeps the build button disabled for a build that only just started", async () => {
+describe("AdminApp Scans tab -> Full Scan -- stalled snapshot build recovery", () => {
+  it("shows no recovery button for a build that only just started", async () => {
     const user = userEvent.setup();
     invoke.mockImplementation((fnName, payload) => {
       if (fnName === "getAdminOverview") {
@@ -250,10 +248,10 @@ describe("AdminApp Scans tab -> Snapshot subnav -- stalled snapshot build", () =
     });
 
     await renderAdminApp();
-    await openScansSnapshotPanel(user);
+    await openScansFullScanPanel(user);
 
-    const button = await screen.findByRole("button", { name: "Building…" });
-    expect(button).toBeDisabled();
+    await screen.findByText("Full site scan");
+    expect(screen.queryByRole("button", { name: "Force resume (stalled)" })).not.toBeInTheDocument();
   });
 
   it("enables a 'Force resume (stalled)' button once a build has been running past the stale threshold, and it re-triggers the build via forceRefresh", async () => {
@@ -278,7 +276,7 @@ describe("AdminApp Scans tab -> Snapshot subnav -- stalled snapshot build", () =
     });
 
     await renderAdminApp();
-    await openScansSnapshotPanel(user);
+    await openScansFullScanPanel(user);
 
     const button = await screen.findByRole("button", { name: "Force resume (stalled)" });
     expect(button).not.toBeDisabled();
@@ -298,36 +296,6 @@ describe("AdminApp Overview tab -- Snapshot and Field Usage Jobs moved out", () 
 
     expect(screen.queryByRole("heading", { name: "Snapshot" })).not.toBeInTheDocument();
     expect(screen.queryByText("Field usage jobs")).not.toBeInTheDocument();
-  });
-});
-
-describe("AdminApp Scans tab -> Field Usage Jobs subnav -- summary stat row", () => {
-  it("renders the Ready/Building/Queued/Failed/Not built stat row above the job list", async () => {
-    const user = userEvent.setup();
-    invoke.mockImplementation((fnName, payload) => {
-      if (fnName === "getAdminOverview") {
-        return Promise.resolve(makeOverview({
-          jobCounts: { queued: 1, building: 2, ready: 3, failed: 4, cancelled: 0, unbuilt: 5 },
-        }));
-      }
-      return defaultInvokeImpl(fnName, payload);
-    });
-
-    await renderAdminApp();
-    const adminNav = document.querySelector(".admin-nav");
-    await user.click(within(adminNav).getByText("Scans"));
-    await waitFor(() => expect(document.querySelector(".admin-scans-tab")).toBeTruthy());
-    const subNav = document.querySelector(".sub-nav");
-    await user.click(within(subNav).getByText("Field Usage Jobs"));
-
-    // .ui-stat-row since the admin StatCard was retired into the shared StatTile; the row
-    // is the same five counts, rendered by the one tile the whole product now uses.
-    await waitFor(() => expect(document.querySelector(".ui-stat-row")).toBeTruthy());
-    const statRow = document.querySelector(".ui-stat-row");
-    expect(within(statRow).getByText("Not built")).toBeInTheDocument();
-    expect(within(statRow).getByText("3")).toBeInTheDocument(); // Ready
-    expect(within(statRow).getByText("2")).toBeInTheDocument(); // Building
-    expect(within(statRow).getByText("4")).toBeInTheDocument(); // Failed
   });
 });
 

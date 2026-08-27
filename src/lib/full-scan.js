@@ -59,6 +59,47 @@ export const FULL_SCAN_STAGES = [
   { key: "health", label: "Record site health", needs: [], mode: "inline" },
 ];
 
+// The quick scan: the same estate, minus the one thing Jira cannot tell us has changed.
+//
+// Issues carry an `updated` timestamp and JQL can filter on it -- `updated >= "-7d"` is a real
+// query, and it is what the existing delta issue scan already runs. Filters, dashboards,
+// screens and workflow schemes carry no such thing: their list/search endpoints have no
+// modified-since parameter, and the objects Jira returns do not expose a last-edited
+// timestamp at all (a filter's only date field is when someone last RAN it, not edited it).
+// There is no query that means "just the ones that changed this week," because Jira does not
+// keep that fact anywhere this app can read.
+//
+// So those four stages run in FULL every time a quick scan runs. That is a deliberate choice,
+// not an oversight: a full walk of filters, dashboards, screens and workflow schemes is a few
+// hundred to a few thousand calls, nothing next to the issue crawl, and pretending it can be
+// windowed when it cannot would make "quick scan" a promise this app cannot keep for those
+// four stages. What "quick" actually bounds is the one stage that dominates a full scan's
+// wall-clock: the issue crawl, windowed to whatever the schedule configures.
+//
+// fields and issues collapse into ONE stage here, not two. The delta issue query already
+// updates field x project usage counts in the same pass it counts issues -- see
+// runDeltaIssueScanJob -- so a separate field-catalog stage has nothing left to do that the
+// delta crawl does not already cover.
+export const QUICK_SCAN_STAGES = [
+  { key: "workflows", label: "Workflow & status inventory (full)", needs: [], mode: "inline" },
+  { key: "screens", label: "Screen & scheme inventory (full)", needs: [], mode: "inline" },
+  { key: "filters", label: "Saved filter inventory (full)", needs: [], mode: "handoff" },
+  { key: "dashboards", label: "Dashboard inventory (full)", needs: [], mode: "handoff" },
+  {
+    key: "issues-delta",
+    label: "Issues & field usage (changed since window)",
+    needs: [],
+    // Handed off, like the full crawl: it is a multi-page walk with its own resumption
+    // bookkeeping, and wrapping it in this orchestrator would be a second implementation of
+    // something that already works.
+    mode: "handoff",
+  },
+  { key: "status-history", label: "Status history (full)", needs: ["workflows"], mode: "inline" },
+  { key: "health", label: "Record site health", needs: [], mode: "inline" },
+];
+
+export const QUICK_SCAN_STAGE_KEYS = QUICK_SCAN_STAGES.map((s) => s.key);
+
 // How long the orchestrator will wait on a handoff stage before calling it dead.
 //
 // Waiting is a delayed re-queue of the orchestrator itself, so this is a count of polls rather
@@ -67,7 +108,9 @@ export const FULL_SCAN_STAGES = [
 // site, and declaring it dead at the same threshold as a filter build would abort exactly the
 // scan people care most about.
 export const FULL_SCAN_POLL_DELAY_SECONDS = 30;
-export const FULL_SCAN_MAX_POLLS = { issues: 480, default: 60 };
+// issues-delta shares the issue crawl's generous ceiling: it is windowed, not unbounded, but a
+// large site with a long lookback window can still run for tens of minutes.
+export const FULL_SCAN_MAX_POLLS = { issues: 480, "issues-delta": 240, default: 60 };
 
 export function maxPollsFor(stageKey) {
   return FULL_SCAN_MAX_POLLS[stageKey] ?? FULL_SCAN_MAX_POLLS.default;
@@ -96,8 +139,8 @@ export const FULL_SCAN_STAGE_KEYS = FULL_SCAN_STAGES.map((s) => s.key);
 // minute so a stage finishing right at the limit is never declared stale out from under it.
 export const FULL_SCAN_STAGE_STALE_MS = 16 * 60 * 1000;
 
-export function initialStages() {
-  return FULL_SCAN_STAGES.map((stage) => ({
+export function initialStages(stageDefinitions = FULL_SCAN_STAGES) {
+  return stageDefinitions.map((stage) => ({
     key: stage.key,
     label: stage.label,
     state: "pending",
@@ -112,9 +155,9 @@ export function initialStages() {
 // Skips stages whose dependencies failed rather than running them against stale inputs: a
 // status history built from a workflow snapshot that did not refresh is not a partial
 // result, it is a wrong one.
-export function nextStage(stages = []) {
+export function nextStage(stages = [], stageDefinitions = FULL_SCAN_STAGES) {
   const byKey = new Map(stages.map((s) => [s.key, s]));
-  for (const definition of FULL_SCAN_STAGES) {
+  for (const definition of stageDefinitions) {
     const stage = byKey.get(definition.key);
     if (!stage || stage.state !== "pending") continue;
 

@@ -68,6 +68,7 @@ import {
   buildGovernanceFindings,
   buildInventoryRecord,
   isJiraBuiltinField,
+  isPlatformProvidedField,
   buildDuplicateNameCountMap,
   isSelectFieldType,
 } from "./analysis.js";
@@ -98,6 +99,7 @@ export function hydrateFieldForGovernance(field, summary, duplicateNameCount = 1
   const usageStatusDetail = field?.usageStatusDetail || null;
 
   const isSystemField = !String(field.id || "").startsWith("customfield_");
+  const platformProvided = isPlatformProvidedField(field);
   const contexts = Array.isArray(summary?.contexts) ? summary.contexts : [];
   const contextCount = contexts.length;
   const hasGlobalContext = Boolean(summary?.hasGlobalContext || contexts.some((c) => c.isGlobal));
@@ -117,6 +119,7 @@ export function hydrateFieldForGovernance(field, summary, duplicateNameCount = 1
       usageStatus,
       usageStatusDetail,
       isSystemField,
+      isPlatformProvidedField: platformProvided,
       contextCount,
       hasGlobalContext,
       lastFieldChangeAt: latestChangeAcrossProjects(summary?.activeProjects),
@@ -728,6 +731,7 @@ export async function syncFieldCatalog(installationKey, version) {
       usageStatus: USAGE_STATUS_UNAVAILABLE,
       usageStatusDetail,
       isSystemField: Boolean(field.isSystemField),
+      isPlatformProvidedField: isPlatformProvidedField(field),
     });
     return buildInventoryRecord(field, {
       configuredProjectCount,
@@ -781,6 +785,7 @@ export async function refreshGovernanceFindingsForFields(installationKey, versio
         usageStatus: USAGE_STATUS_READY,
         usageStatusDetail: null,
         isSystemField,
+        isPlatformProvidedField: isPlatformProvidedField(field),
         lastFieldChangeAt: lastChangeMap.get(field.id) ?? null,
       });
       return { id: field.id, findings };
@@ -1009,6 +1014,7 @@ export async function runSnapshot(installationKey) {
         usageStatus,
         usageStatusDetail,
         isSystemField: Boolean(field.isSystemField),
+        isPlatformProvidedField: isPlatformProvidedField(field),
       });
 
       const record = buildInventoryRecord(field, {

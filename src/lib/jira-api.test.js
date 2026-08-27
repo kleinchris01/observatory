@@ -72,6 +72,7 @@ import {
   getScreenTabFields,
   getWorkflowSchemesForProjects,
   getAllJiraProjectKeys,
+  getFilterPage,
   getGadgetFilterId,
   extractFilterId,
   BASE_JIRA_REQUEST_INTERVAL_MS,
@@ -770,6 +771,18 @@ describe("getAllJiraProjectKeys", () => {
   test("returns an empty list when the site has no projects", async () => {
     mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: { values: [], isLast: true } }));
     await expect(getAllJiraProjectKeys()).resolves.toEqual([]);
+  });
+});
+
+describe("getFilterPage", () => {
+  // Regression: this expand list was documented as including approximateLastUsed without
+  // actually listing it, so lastUsedAt was null for every filter on every tenant and
+  // downstream code read that as "never opened" rather than "unknown" -- a saved-filter
+  // estate of any size rendered as 100% stale.
+  test("requests approximateLastUsed so 'unknown' and 'never opened' can be told apart", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: { values: [] } }));
+    await getFilterPage(0, 50);
+    expect(mockRequestJira.mock.calls[0][0]).toContain("approximateLastUsed");
   });
 });
 

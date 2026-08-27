@@ -279,6 +279,27 @@ describe("summarizeWorkflowInsights", () => {
     expect(summary.unreachableNoRuleCount).toBe(1);
     expect(summary.automationChecked).toBe(true);
     expect(summary.flaggedSchemeCount).toBe(1);
+    expect(summary.noDoneSchemeCount).toBe(1);
+    // The lone orphan with no rule (orphans[0]) carries no issueCount in this fixture, so it
+    // is cleanup, not something stuck -- see the dedicated test below for the case where it is.
+    expect(summary.unreachableWithIssuesCount).toBe(0);
+  });
+
+  // The subset of "unreachable, no rule" that is not simply cleanup: it is also holding live
+  // issues, which nothing in the workflow admin -- no scheme, no rule -- can move anywhere.
+  test("counts unreachable statuses that are also holding live issues, separately from safe-to-remove ones", () => {
+    const summary = summarizeWorkflowInsights({
+      orphans: [
+        { safeToRemove: true, ruleOnly: false, issueCount: 0, automationRuleCount: 0 },
+        { safeToRemove: false, ruleOnly: false, issueCount: 40, automationRuleCount: 0 },
+        { safeToRemove: false, ruleOnly: true, issueCount: 12, automationRuleCount: 3 },
+      ],
+    });
+
+    expect(summary.unreachableNoRuleCount).toBe(2);
+    // Only the middle one: unreachable, no rule, AND carrying issues. The first is safe to
+    // remove precisely because it has none; the third is excluded by ruleOnly.
+    expect(summary.unreachableWithIssuesCount).toBe(1);
   });
 
   test("reports automationChecked false when no orphan carries a rule answer", () => {
@@ -292,6 +313,7 @@ describe("summarizeWorkflowInsights", () => {
   test("is all zeroes for a clean site", () => {
     expect(summarizeWorkflowInsights({})).toMatchObject({
       duplicateGroupCount: 0, reducibleStatusCount: 0, orphanCount: 0, flaggedSchemeCount: 0,
+      unreachableWithIssuesCount: 0, noDoneSchemeCount: 0,
     });
   });
 });

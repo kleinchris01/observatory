@@ -51,8 +51,10 @@ const mocks = vi.hoisted(() => ({
   loadFilters: vi.fn(async () => []),
   readFilterSnapshotMeta: vi.fn(async () => null),
   readFullScanMeta: vi.fn(async () => null),
+  writeFullScanMeta: vi.fn(async () => ({})),
   loadDashboardsForFilters: vi.fn(async () => []),
   loadFieldNamesForFilterIds: vi.fn(async () => new Map()),
+  loadFilterNamesForIds: vi.fn(async () => new Map()),
   countGadgetConfigCoverage: vi.fn(async () => ({ total: 0, walked: 0 })),
   pruneFilterSnapshots: vi.fn(),
   pruneDashboardSnapshots: vi.fn(),
@@ -63,6 +65,8 @@ const mocks = vi.hoisted(() => ({
   writeFilterSnapshotMeta: vi.fn(async () => ({})),
   loadFilterReferencesFor: vi.fn(async () => ({ total: 0, filters: [] })),
   loadFilterReferenceCounts: vi.fn(async () => ({})),
+  loadFilterIdsForLabels: vi.fn(async () => new Map()),
+  loadGadgetCountsForFilterIds: vi.fn(async () => new Map()),
   loadDashboards: vi.fn(async () => []),
   readDashboardSnapshotMeta: vi.fn(async () => null),
   writeDashboardSnapshotMeta: vi.fn(async () => ({})),
@@ -244,8 +248,10 @@ vi.mock("./lib/project-store.js", () => ({
   loadFilters: mocks.loadFilters,
   readFilterSnapshotMeta: mocks.readFilterSnapshotMeta,
   readFullScanMeta: mocks.readFullScanMeta,
+  writeFullScanMeta: mocks.writeFullScanMeta,
   loadDashboardsForFilters: mocks.loadDashboardsForFilters,
   loadFieldNamesForFilterIds: mocks.loadFieldNamesForFilterIds,
+  loadFilterNamesForIds: mocks.loadFilterNamesForIds,
   countGadgetConfigCoverage: mocks.countGadgetConfigCoverage,
   pruneFilterSnapshots: mocks.pruneFilterSnapshots,
   pruneDashboardSnapshots: mocks.pruneDashboardSnapshots,
@@ -256,6 +262,8 @@ vi.mock("./lib/project-store.js", () => ({
   writeFilterSnapshotMeta: mocks.writeFilterSnapshotMeta,
   loadFilterReferencesFor: mocks.loadFilterReferencesFor,
   loadFilterReferenceCounts: mocks.loadFilterReferenceCounts,
+  loadFilterIdsForLabels: mocks.loadFilterIdsForLabels,
+  loadGadgetCountsForFilterIds: mocks.loadGadgetCountsForFilterIds,
   loadDashboards: mocks.loadDashboards,
   readDashboardSnapshotMeta: mocks.readDashboardSnapshotMeta,
   writeDashboardSnapshotMeta: mocks.writeDashboardSnapshotMeta,
@@ -386,6 +394,7 @@ import {
   SHARED_RESOLVER_FUNCTIONS,
   ADMIN_ONLY_FUNCTIONS,
   readAdminConfig,
+  recordQuickScanScheduledRun,
   getAdminConfigResolver,
   saveAdminConfigResolver,
   getAdminOverview,
@@ -415,9 +424,12 @@ const {
   buildFilterInventory,
   startFullSiteScan,
   getFullScanStatus,
+  startQuickSiteScan,
+  getQuickScanStatus,
   getDashboardUsage,
   getFilterUsage,
   getFieldFilterCounts,
+  getFieldDashboardCounts,
   getDashboardInventory,
   buildDashboardInventory,
   getAutomationCascades,
@@ -1305,6 +1317,26 @@ describe("saveAdminConfigResolver", () => {
       .rejects.toThrow(/lowUsageIssueThreshold/);
   });
 
+  test("validates the quick-scan schedule's frequency, day, hour, and window", async () => {
+    await expect(saveAdminConfigResolver({ payload: { quickScanSchedule: { frequency: "hourly" } } }))
+      .rejects.toThrow(/quickScanSchedule\.frequency/);
+    await expect(saveAdminConfigResolver({ payload: { quickScanSchedule: { dayOfWeek: 9 } } }))
+      .rejects.toThrow(/quickScanSchedule\.dayOfWeek/);
+    await expect(saveAdminConfigResolver({ payload: { quickScanSchedule: { hourUtc: 24 } } }))
+      .rejects.toThrow(/quickScanSchedule\.hourUtc/);
+    await expect(saveAdminConfigResolver({ payload: { quickScanSchedule: { windowHours: 0 } } }))
+      .rejects.toThrow(/quickScanSchedule\.windowHours/);
+  });
+
+  test("merges a partial schedule update over the stored one, keeping the rest", async () => {
+    mocks.kvsGet.mockResolvedValue({ quickScanSchedule: { enabled: true, frequency: "weekly", dayOfWeek: 3, hourUtc: 6, windowHours: 168 } });
+
+    const result = await saveAdminConfigResolver({ payload: { quickScanSchedule: { hourUtc: 12 } } });
+
+    // Only hourUtc was sent; everything else the admin already configured must survive.
+    expect(result.config.quickScanSchedule).toMatchObject({ enabled: true, frequency: "weekly", dayOfWeek: 3, hourUtc: 12, windowHours: 168 });
+  });
+
   test("merges partial updates over the current stored config and persists via kvs.set", async () => {
     mocks.kvsGet.mockResolvedValue({ readOnlyMode: false, apiConcurrency: 4, macroAccess: { restrictAccess: false, allowedGroups: [] } });
 
@@ -1470,6 +1502,23 @@ describe("getAdminOverview", () => {
     expect(result.findingsSummary).toEqual(expect.objectContaining({
       adminAttention: expect.any(Number), risky: expect.any(Number), cleanup: expect.any(Number), standardize: expect.any(Number),
     }));
+  });
+
+  // The Overview promotes several specific reasons to their own cards now (mirroring how
+  // filters and dashboards already split "no live owner" from "shared with everyone"
+  // instead of lumping every reason into one number) -- each of those needs its own count,
+  // not just the four coarse categories findingsSummary already carries.
+  test("also returns a count per specific finding code, not just the four coarse categories", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "ready", version: 5 });
+    mocks.listFieldSummaries.mockResolvedValue([]);
+    mocks.kvsGet.mockResolvedValue(null);
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+    // No description, and used broadly enough to cross missing-description's threshold.
+    mocks.loadSnapshotFields.mockResolvedValue([snapshotField({ activeProjectCount: 6, totalIssueCount: 600 })]);
+
+    const result = await getAdminOverview({ context: {} });
+
+    expect(result.findingsByCode).toEqual(expect.objectContaining({ "missing-description": 1 }));
   });
 
 
@@ -4812,6 +4861,124 @@ describe("startFullSiteScan / getFullScanStatus", () => {
     expect(result.state).toBe("idle");
     expect(result.catalog.length).toBeGreaterThan(0);
   });
+
+  // Both scan types share one meta row. A quick scan running under it must not make the full
+  // scan panel look like an idle scan with no explanation for why its button is disabled.
+  test("says a quick scan is blocking it, rather than reporting plain idle", async () => {
+    mocks.readFullScanMeta.mockResolvedValue({ state: "running", scanType: "quick" });
+
+    const result = await getFullScanStatus({ context: ctxWithAccount() });
+
+    expect(result.state).toBe("idle");
+    expect(result.blockedByOtherScan).toBe(true);
+  });
+
+  test("a row with no scanType at all is treated as the full scan's own, for rows written before the split", async () => {
+    mocks.readFullScanMeta.mockResolvedValue({ state: "running", currentStage: "workflows", stages: [{ key: "workflows", state: "running" }] });
+
+    const result = await getFullScanStatus({ context: ctxWithAccount() });
+
+    expect(result.state).toBe("running");
+    expect(result.blockedByOtherScan).toBe(false);
+  });
+});
+
+// The quick scan's own manual trigger and status read, mirroring the full-scan pair above --
+// same shared row, same mutual exclusion, opposite direction for blockedByOtherScan.
+describe("startQuickSiteScan / getQuickScanStatus", () => {
+  beforeEach(() => {
+    mocks.kvsGet.mockResolvedValue(null);
+    mocks.readFullScanMeta.mockResolvedValue(null);
+  });
+
+  test("refuses in read-only mode, and says so", async () => {
+    mocks.kvsGet.mockResolvedValue({ readOnlyMode: true });
+
+    const result = await startQuickSiteScan({ payload: {}, context: ctxWithAccount() });
+
+    expect(result.started).toBe(false);
+    expect(result.error).toMatch(/Read-only/);
+  });
+
+  test("defaults the window to the stored schedule's, when none is given explicitly", async () => {
+    mocks.kvsGet.mockResolvedValue({ quickScanSchedule: { windowHours: 336 } });
+
+    await startQuickSiteScan({ payload: {}, context: ctxWithAccount() });
+
+    // "Run now" between scheduled runs should ask the same question the schedule would have,
+    // not an arbitrary different one.
+    expect(mocks.writeFullScanMeta).toHaveBeenCalledWith("test-install", expect.objectContaining({ quickScanWindowHours: 336 }));
+  });
+
+  test("an explicit window in the payload overrides the stored schedule", async () => {
+    mocks.kvsGet.mockResolvedValue({ quickScanSchedule: { windowHours: 336 } });
+
+    await startQuickSiteScan({ payload: { windowHours: 12 }, context: ctxWithAccount() });
+
+    expect(mocks.writeFullScanMeta).toHaveBeenCalledWith("test-install", expect.objectContaining({ quickScanWindowHours: 12 }));
+  });
+
+  test("returns the quick-scan catalog even when nothing has run", async () => {
+    const result = await getQuickScanStatus({ context: ctxWithAccount() });
+
+    expect(result.state).toBe("idle");
+    expect(result.catalog.map((s) => s.key)).toEqual(expect.arrayContaining(["workflows", "filters", "issues-delta"]));
+    expect(result.catalog.map((s) => s.key)).not.toContain("fields");
+  });
+
+  test("reports its own progress, and says which window it was run with", async () => {
+    mocks.readFullScanMeta.mockResolvedValue({
+      state: "running", scanType: "quick", currentStage: "issues-delta", quickScanWindowHours: 168,
+      stages: [{ key: "workflows", state: "done" }],
+    });
+
+    const result = await getQuickScanStatus({ context: ctxWithAccount() });
+
+    expect(result).toMatchObject({ state: "running", currentStage: "issues-delta", windowHours: 168 });
+  });
+
+  // The reverse of the full-scan panel's own check: a running FULL scan must not make the
+  // quick-scan panel render as idle with an unexplained disabled button.
+  test("says a full scan is blocking it, rather than reporting plain idle", async () => {
+    mocks.readFullScanMeta.mockResolvedValue({ state: "running", scanType: "full" });
+
+    const result = await getQuickScanStatus({ context: ctxWithAccount() });
+
+    expect(result.state).toBe("idle");
+    expect(result.blockedByOtherScan).toBe(true);
+  });
+
+  test("never shows the full scan's own stages on the quick-scan panel", async () => {
+    mocks.readFullScanMeta.mockResolvedValue({
+      state: "running", scanType: "full", currentStage: "issues",
+      stages: [{ key: "workflows", state: "done" }, { key: "issues", state: "running" }],
+    });
+
+    const result = await getQuickScanStatus({ context: ctxWithAccount() });
+
+    expect(result.stages).toBeNull();
+    expect(result.currentStage).toBeNull();
+  });
+});
+
+describe("recordQuickScanScheduledRun", () => {
+  test("writes only the schedule's lastScheduledRunAt, leaving the rest of the config untouched", async () => {
+    mocks.kvsGet.mockResolvedValue({ readOnlyMode: true, quickScanSchedule: { enabled: true, windowHours: 168 } });
+
+    await recordQuickScanScheduledRun("2026-08-27T00:00:00.000Z");
+
+    expect(mocks.kvsSet).toHaveBeenCalledWith(
+      "atlasiq-admin-config",
+      expect.objectContaining({
+        readOnlyMode: true,
+        quickScanSchedule: expect.objectContaining({
+          enabled: true,
+          windowHours: 168,
+          lastScheduledRunAt: "2026-08-27T00:00:00.000Z",
+        }),
+      })
+    );
+  });
 });
 
 describe("getFilterInventory", () => {
@@ -5270,6 +5437,94 @@ describe("getFieldFilterCounts", () => {
   });
 });
 
+// The bulk sibling of getDashboardUsage: a plain count per field for a whole page at once,
+// via the same field -> filter ids -> gadgets chain, without describing any one field's
+// dashboards in full the way the expanded card section needs to.
+describe("getFieldDashboardCounts", () => {
+  beforeEach(() => {
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "fv1" });
+    mocks.readDashboardSnapshotMeta.mockResolvedValue({ version: "dv1" });
+  });
+
+  test("looks a field up by name AND by id, because JQL uses both", async () => {
+    mocks.loadFilterIdsForLabels.mockResolvedValue(new Map([["story points", ["500"]]]));
+    mocks.loadGadgetCountsForFilterIds.mockResolvedValue(new Map([["500", 3]]));
+
+    const result = await getFieldDashboardCounts({
+      payload: { fields: [{ id: "customfield_10001", name: "Story Points" }] },
+      context: ctxWithAccount(),
+    });
+
+    const labels = mocks.loadFilterIdsForLabels.mock.calls[0][3];
+    expect(labels).toEqual(expect.arrayContaining(["Story Points", "customfield_10001"]));
+    expect(result.counts).toEqual({ customfield_10001: 3 });
+  });
+
+  // A gadget belongs to exactly one filter, so a field reached by several filters gets the
+  // SUM of their gadget counts -- but a filter found under both the field's name and its id
+  // must contribute only once, or its gadgets are counted twice.
+  test("unions filter ids across name and id, rather than summing the same filter twice", async () => {
+    mocks.loadFilterIdsForLabels.mockResolvedValue(new Map([
+      ["story points", ["500"]],
+      ["customfield_10001", ["500"]],
+    ]));
+    mocks.loadGadgetCountsForFilterIds.mockResolvedValue(new Map([["500", 4]]));
+
+    const result = await getFieldDashboardCounts({
+      payload: { fields: [{ id: "customfield_10001", name: "Story Points" }] },
+      context: ctxWithAccount(),
+    });
+
+    expect(result.counts.customfield_10001).toBe(4);
+    // The gadget-count lookup must only ever be asked about filter 500 once.
+    expect(mocks.loadGadgetCountsForFilterIds.mock.calls[0][2]).toEqual(["500"]);
+  });
+
+  test("sums gadgets across several DIFFERENT filters that name the same field", async () => {
+    mocks.loadFilterIdsForLabels.mockResolvedValue(new Map([["story points", ["500", "501"]]]));
+    mocks.loadGadgetCountsForFilterIds.mockResolvedValue(new Map([["500", 2], ["501", 5]]));
+
+    const result = await getFieldDashboardCounts({
+      payload: { fields: [{ id: "customfield_10001", name: "Story Points" }] },
+      context: ctxWithAccount(),
+    });
+
+    expect(result.counts.customfield_10001).toBe(7);
+  });
+
+  // Which half is missing changes what an admin builds next, so the two are reported apart.
+  test("says which inventory is missing, not just that one is", async () => {
+    mocks.readFilterSnapshotMeta.mockResolvedValue(null);
+    let result = await getFieldDashboardCounts({ payload: { fields: [{ id: "f", name: "F" }] }, context: ctxWithAccount() });
+    expect(result).toMatchObject({ available: false, reason: expect.stringContaining("filter") });
+
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "fv1" });
+    mocks.readDashboardSnapshotMeta.mockResolvedValue(null);
+    result = await getFieldDashboardCounts({ payload: { fields: [{ id: "f", name: "F" }] }, context: ctxWithAccount() });
+    expect(result).toMatchObject({ available: false, reason: expect.stringContaining("dashboard") });
+  });
+
+  test("reports zero for a field no filter names, rather than omitting it", async () => {
+    mocks.loadFilterIdsForLabels.mockResolvedValue(new Map());
+
+    const result = await getFieldDashboardCounts({
+      payload: { fields: [{ id: "customfield_99999", name: "Untouched" }] },
+      context: ctxWithAccount(),
+    });
+
+    // No filter references it, so the gadget lookup never runs at all -- there is nothing
+    // to look up.
+    expect(mocks.loadGadgetCountsForFilterIds).not.toHaveBeenCalled();
+    expect(result.available).toBe(true);
+  });
+
+  test("bounds how many fields one call can ask about", async () => {
+    const fields = Array.from({ length: 900 }, (_, i) => ({ id: `f${i}`, name: `F${i}` }));
+    await getFieldDashboardCounts({ payload: { fields }, context: ctxWithAccount() });
+    expect(mocks.loadFilterIdsForLabels.mock.calls[0][3]).toHaveLength(1000);
+  });
+});
+
 // A dashboard is the most visible thing in Jira and the least owned.
 describe("getDashboardInventory", () => {
   const row = (over = {}) => ({
@@ -5382,6 +5637,45 @@ describe("getDashboardInventory field dependencies", () => {
     expect(result.allDashboards[0].fieldRefs).toEqual([]);
     expect(result.fieldRefsAvailable).toBe(true);
     expect(mocks.loadFieldNamesForFilterIds).not.toHaveBeenCalled();
+  });
+
+  // Per-gadget, not just the dashboard-wide union -- "this dashboard depends on Story
+  // Points somewhere" and "this gadget depends on Story Points" are different claims, and
+  // only the second says which gadget breaks if the field goes.
+  test("attaches which filter each gadget uses, by name, alongside its own field refs", async () => {
+    mocks.readDashboardSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready" });
+    mocks.loadDashboards.mockResolvedValue([row({
+      gadgets: [{ id: "g1", title: "Open bugs", filterId: "500" }, { id: "g2", title: "No filter", filterId: null }],
+    })]);
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "f1", state: "ready" });
+    mocks.loadFieldNamesForFilterIds.mockResolvedValue(new Map([["500", ["Story Points", "Status"]]]));
+    mocks.loadFilterNamesForIds.mockResolvedValue(new Map([["500", { name: "Open Bugs", viewUrl: "https://x/issues/?filter=500" }]]));
+
+    const result = await getDashboardInventory({ context: ctxWithAccount() });
+
+    expect(mocks.loadFilterNamesForIds).toHaveBeenCalledWith("test-install", "f1", ["500"]);
+    const [g1, g2] = result.allDashboards[0].gadgets;
+    expect(g1.filterName).toBe("Open Bugs");
+    expect(g1.filterViewUrl).toBe("https://x/issues/?filter=500");
+    expect(g1.fieldRefs).toEqual(["Story Points", "Status"]);
+    // A gadget with no filter id has nothing to resolve, and stays untouched rather than
+    // gaining a filterName of null that would read as "resolved to nothing".
+    expect(g2.filterName).toBeUndefined();
+  });
+
+  // Tri-state at the gadget level too: a gadget that DOES have a filter id, on a dashboard
+  // read before any filter inventory exists, is unmeasured -- not "no filter", and not
+  // silently missing the property either.
+  test("reports a gadget's filter as unmeasured, not omitted, when no filter inventory exists", async () => {
+    mocks.readDashboardSnapshotMeta.mockResolvedValue({ version: "v1", state: "ready" });
+    mocks.loadDashboards.mockResolvedValue([row()]);
+    mocks.readFilterSnapshotMeta.mockResolvedValue(null);
+
+    const result = await getDashboardInventory({ context: ctxWithAccount() });
+
+    const [gadget] = result.allDashboards[0].gadgets;
+    expect(gadget.filterName).toBeNull();
+    expect(gadget.fieldRefs).toBeNull();
   });
 });
 

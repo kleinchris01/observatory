@@ -10,6 +10,10 @@ import {
   mergeFieldMetrics,
   buildFieldRovoPrompt,
   buildProjectRovoPrompt,
+  buildFilterUsageRovoPrompt,
+  buildDashboardUsageRovoPrompt,
+  buildScreenUsageRovoPrompt,
+  buildContextsRovoPrompt,
   openFieldExpertRovo,
   toDisplayName,
   formatTimestamp,
@@ -18,6 +22,56 @@ import {
 } from "../utils";
 import { Icon } from "./Icons";
 import { FieldOptionsModal } from "./FieldOptionsModal";
+
+// The one Rovo button, used everywhere a panel can ask the agent about what it is showing.
+//
+// Every usage panel used to grow its own "Ask Rovo" button -- same two words, five different
+// places on the card, no way to tell from the label which of them would fire the automation
+// prompt versus the filter one versus the screen one, and no way to tell it was the SAME agent
+// each time rather than five different integrations. `description` is the one piece of real
+// information each call site actually has and the generic label threw away: it becomes both
+// the tooltip and the reason a disabled button gives for being disabled, so "why can't I click
+// this" and "what would it ask" are answered in the same place instead of neither.
+function RovoAskButton({ enabled, description, onClick }) {
+  return (
+    <button
+      className="secondary-button secondary-button--small rovo-ask-button"
+      type="button"
+      onClick={(event) => { event.stopPropagation(); onClick(); }}
+      disabled={!enabled}
+      title={enabled ? description : "Rovo is not available on this site."}
+    >
+      <Icon name="zap" size={13} />
+      <span>Ask Field Expert</span>
+    </button>
+  );
+}
+
+// A one-line, client-side search box for a panel's own already-fetched list.
+//
+// Not a resolver call: Automation/Filter/Dashboard usage are scoped to ONE field, so even a
+// field referenced by every rule on the site is a few hundred rows already sitting in this
+// component's state, not the few-thousand-row estate the Filters and Field Browser tabs had
+// to move server-side. Filtering an array already in memory needs no debounce and no round
+// trip.
+function PanelSearch({ value, onChange, placeholder, matchCount, totalCount }) {
+  if (totalCount <= 1) return null;
+  return (
+    <div className="panel-search">
+      <Icon name="search" size={13} />
+      <input
+        type="text"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        onClick={(event) => event.stopPropagation()}
+      />
+      {value ? (
+        <span className="panel-search__count">{matchCount} of {totalCount}</span>
+      ) : null}
+    </div>
+  );
+}
 
 // A detail section that can be folded away.
 //
@@ -507,15 +561,19 @@ export function FindingBadge({ label, tone }) {
   );
 }
 
+// Always renders the strip, even with nothing to show in it -- a card with a finding and a
+// card with none must reserve the same row, or the two read as different heights in a list
+// purely because one of them had something to flag. .findings-strip's own min-height is what
+// does the reserving; this only has to make sure the element exists to receive it.
 export function FindingsStrip({ findings }) {
-  if (!findings?.tags) return null;
+  const tags = findings?.tags || {};
 
   return (
     <div className="findings-strip">
-      {findings.tags.adminAttention ? <FindingBadge label="Admin Attention" tone="danger" /> : null}
-      {findings.tags.risky ? <FindingBadge label="Risk" tone="danger" /> : null}
-      {findings.tags.cleanup ? <FindingBadge label="Cleanup" tone="warn" /> : null}
-      {findings.tags.standardize ? <FindingBadge label="Standardize" tone="info" /> : null}
+      {tags.adminAttention ? <FindingBadge label="Admin Attention" tone="danger" /> : null}
+      {tags.risky ? <FindingBadge label="Risk" tone="danger" /> : null}
+      {tags.cleanup ? <FindingBadge label="Cleanup" tone="warn" /> : null}
+      {tags.standardize ? <FindingBadge label="Standardize" tone="info" /> : null}
     </div>
   );
 }
@@ -666,6 +724,7 @@ export function FieldCard({
   automationCounts,
   screenCount,
   filterCount,
+  dashboardGadgetCount,
   screenSnapshot,
 }) {
   const displayField = React.useMemo(() => mergeFieldMetrics(field, details), [field, details]);
@@ -776,6 +835,16 @@ export function FieldCard({
             label="Filters"
             value={filterCount === null || filterCount === undefined ? "—" : filterCount}
             tone={filterCount > 0 ? "alert" : "neutral"}
+          />
+          {/* Same tri-state as Filters, and for the same reason: a dashboard gadget pointing
+              at a filter that names this field breaks silently if the field goes -- nobody
+              sees an error, the gadget just renders against a different set of issues. This
+              also completes the grid to a clean 3x3 rather than leaving the last row one
+              tile short. */}
+          <MetricChip
+            label="Dashboard gadgets"
+            value={dashboardGadgetCount === null || dashboardGadgetCount === undefined ? "—" : dashboardGadgetCount}
+            tone={dashboardGadgetCount > 0 ? "alert" : "neutral"}
           />
         </div>
         <span className="field-card__toggle-icon" aria-hidden="true" />

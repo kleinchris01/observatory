@@ -30,12 +30,28 @@ vi.mock("./snapshot-engine.js", () => ({ runSnapshot: vi.fn() }));
 vi.mock("./scan-engine.js", () => ({ runIssueScanCoordinator: vi.fn() }));
 vi.mock("./site-health.js", () => ({ captureSiteHealth: vi.fn() }));
 
-import { startFullScan, runFullScanStep, fullScanStageCatalog } from "./full-scan-runner.js";
-import { initialStages, markStage, FULL_SCAN_POLL_DELAY_SECONDS } from "./full-scan.js";
+// The quick-scan issues-delta stage reaches this with a DYNAMIC import, specifically to avoid
+// a module cycle -- resolvers.js already imports startQuickScan/runQuickScanStep from this
+// file. vi.mock intercepts the module regardless of which import form asks for it.
+vi.mock("../resolvers.js", () => ({
+  runDeltaIssueScanJob: vi.fn(),
+  DELTA_SCOPE_SUFFIX: "::delta",
+}));
+
+import {
+  startFullScan,
+  runFullScanStep,
+  fullScanStageCatalog,
+  startQuickScan,
+  runQuickScanStep,
+  quickScanStageCatalog,
+} from "./full-scan-runner.js";
+import { initialStages, markStage, FULL_SCAN_POLL_DELAY_SECONDS, QUICK_SCAN_STAGES } from "./full-scan.js";
 import { inventorySnapshotQueue } from "./queues.js";
-import { readFullScanMeta, writeFullScanMeta, readFilterSnapshotMeta } from "./project-store.js";
+import { readFullScanMeta, writeFullScanMeta, readFilterSnapshotMeta, readIssueScanMeta } from "./project-store.js";
 import { buildWorkflowSnapshot } from "./workflow-engine.js";
 import { queueFilterSnapshotBuild } from "./filter-engine.js";
+import { runDeltaIssueScanJob } from "../resolvers.js";
 
 const lastWrite = () => {
   const calls = writeFullScanMeta.mock.calls;
@@ -232,6 +248,116 @@ describe("coverage", () => {
     ]));
     // Automation is excluded deliberately: Jira publishes no API to enumerate rules, so a scan
     // that included it would be claiming coverage it does not have.
+    expect(keys).not.toContain("automation");
+  });
+});
+
+// Quick scan reuses the exact same engine above, parameterized by a different spec -- these
+// pin the two things unique to it: that it reaches the delta issue job through the dynamic
+// import rather than the full crawl, and that it can never run at the same time as a full
+// scan, because both would race the same handoff-stage builds otherwise.
+describe("quick scan", () => {
+  const withQuickDone = (keys) =>
+    keys.reduce((stages, key) => markStage(stages, key, { state: "done" }), initialStages(QUICK_SCAN_STAGES));
+
+  const runningQuick = (over = {}) => ({
+    state: "running",
+    scanType: "quick",
+    jobToken: "job-token",
+    currentStage: null,
+    stages: initialStages(QUICK_SCAN_STAGES),
+    polls: 0,
+    ...over,
+  });
+
+  test("seeds every quick-scan stage as pending and queues the run-quick-scan job", async () => {
+    readFullScanMeta.mockResolvedValue(null);
+
+    const result = await startQuickScan("inst", { quickScanWindowHours: 48 });
+
+    expect(result).toMatchObject({ started: true });
+    const patch = lastWrite();
+    expect(patch.scanType).toBe("quick");
+    expect(patch.stages.map((s) => s.key)).toEqual(QUICK_SCAN_STAGES.map((s) => s.key));
+    // Persisted on the row, not held in a closure -- the stage that needs it runs several
+    // invocations later, in a different process.
+    expect(patch.quickScanWindowHours).toBe(48);
+    expect(inventorySnapshotQueue.push).toHaveBeenCalledWith(
+      expect.objectContaining({ body: expect.objectContaining({ jobType: "run-quick-scan", installationKey: "inst" }) })
+    );
+  });
+
+  test("refuses to start over a FULL scan that is running", async () => {
+    readFullScanMeta.mockResolvedValue({ state: "running", scanType: "full" });
+
+    const result = await startQuickScan("inst");
+
+    // Both scan types share one meta row and one mutual-exclusion check on purpose: a quick
+    // scan starting mid-full-scan would race the same filter/dashboard builds the full scan
+    // is already running.
+    expect(result).toMatchObject({ started: false, reason: "already-running" });
+    expect(inventorySnapshotQueue.push).not.toHaveBeenCalled();
+  });
+
+  test("clears any window left over from a previous quick scan when a full scan starts", async () => {
+    readFullScanMeta.mockResolvedValue(null);
+
+    await startFullScan("inst");
+
+    // A full scan run after a quick scan must not silently inherit the quick scan's window
+    // from the shared row.
+    expect(lastWrite().quickScanWindowHours).toBeNull();
+    expect(lastWrite().scanType).toBe("full");
+  });
+
+  test("hands the issues-delta stage off to the delta job, with the stored window", async () => {
+    readFullScanMeta.mockResolvedValue(runningQuick({
+      stages: withQuickDone(["workflows", "screens", "filters", "dashboards"]),
+      quickScanWindowHours: 72,
+    }));
+
+    const result = await runQuickScanStep("inst", { jobToken: "job-token" });
+
+    expect(result).toMatchObject({ handedOff: true, stage: "issues-delta" });
+    expect(runDeltaIssueScanJob).toHaveBeenCalledWith("inst", 72);
+  });
+
+  test("polls the delta job's OWN meta row, under the delta scope suffix", async () => {
+    readFullScanMeta.mockResolvedValue(runningQuick({ currentStage: "issues-delta" }));
+    readIssueScanMeta.mockResolvedValue({ state: "building" });
+
+    await runQuickScanStep("inst", { jobToken: "job-token" });
+
+    // Not "inst" -- the delta job's state lives under "inst::delta", genuinely separate from
+    // the full crawl's own meta, which is why they can coexist without colliding.
+    expect(readIssueScanMeta).toHaveBeenCalledWith("inst::delta");
+  });
+
+  test("does not run the fields stage at all -- the delta job already covers it", async () => {
+    readFullScanMeta.mockResolvedValue(runningQuick());
+
+    await runQuickScanStep("inst", { jobToken: "job-token" });
+
+    // First stage is workflows, same as full scan; fields never appears in the quick list.
+    const stages = lastWrite().stages.map((s) => s.key);
+    expect(stages).not.toContain("fields");
+  });
+
+  test("ignores a step meant for the other scan type", async () => {
+    // A full scan is running under the shared row; a stray quick-scan message must not step
+    // its stage list as if it were a quick scan's own.
+    readFullScanMeta.mockResolvedValue({ state: "running", scanType: "full", jobToken: "job-token" });
+
+    const result = await runQuickScanStep("inst", { jobToken: "job-token" });
+
+    expect(result).toMatchObject({ ignored: true, reason: "wrong-scan-type" });
+  });
+
+  test("covers the four structural pillars, collapses fields+issues, and excludes automation", () => {
+    const keys = quickScanStageCatalog().map((s) => s.key);
+    expect(keys).toEqual(expect.arrayContaining(["workflows", "screens", "filters", "dashboards", "issues-delta", "health"]));
+    expect(keys).not.toContain("fields");
+    expect(keys).not.toContain("issues");
     expect(keys).not.toContain("automation");
   });
 });

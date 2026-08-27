@@ -109,7 +109,7 @@ export function AdminApp() {
   const [error, setError] = React.useState("");
   const [saveSuccess, setSaveSuccess] = React.useState(false);
   const [siteOrigin, setSiteOrigin] = React.useState("");
-  const [scansInitialSection, setScansInitialSection] = React.useState("universe");
+  const [scansInitialSection, setScansInitialSection] = React.useState("full");
   const [selectedFieldIds, setSelectedFieldIds] = React.useState([]);
   const [pendingReportGenerate, setPendingReportGenerate] = React.useState(false);
 

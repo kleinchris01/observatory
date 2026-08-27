@@ -56,6 +56,9 @@ import {
   loadFilterReferencesFor,
   loadDashboardsForFilters,
   loadFieldNamesForFilterIds,
+  loadFilterNamesForIds,
+  loadFilterIdsForLabels,
+  loadGadgetCountsForFilterIds,
   countGadgetConfigCoverage,
   loadFilterReferenceCounts,
   loadDashboards,
@@ -143,7 +146,7 @@ import { summarizeDashboards, summarizeDashboardHealth } from "./lib/dashboard-i
 import { isFilterBuildStale, queueFilterSnapshotBuild } from "./lib/filter-engine.js";
 import { filterRows, sortFilters, filterFindingCounts, FILTER_SORTS } from "./lib/filter-query.js";
 import { isDashboardBuildStale, queueDashboardSnapshotBuild } from "./lib/dashboard-engine.js";
-import { startFullScan, fullScanStageCatalog } from "./lib/full-scan-runner.js";
+import { startFullScan, fullScanStageCatalog, startQuickScan, quickScanStageCatalog } from "./lib/full-scan-runner.js";
 import { probeEndpoint, probeStargateEndpoint, getCloudId, getAllJiraProjects } from "./lib/jira-api.js";
 import {
   findDuplicateStatusGroups,
@@ -188,6 +191,7 @@ import {
   applyFindingsFilter,
   sortInventoryFields,
   summarizeFindings,
+  summarizeFindingsByCode,
   filterProjectUsageByBrowsable,
 } from "./lib/analysis.js";
 import {
@@ -248,6 +252,24 @@ const DEFAULT_MACRO_ACCESS = {
   allowedGroups: [],
 };
 
+// Quick scan's schedule. dayOfWeek only matters when frequency is "weekly" -- 0 is Sunday, to
+// match Date#getUTCDay() and the way most people say a day of the week.
+//
+// windowHours defaults to matching the interval (weekly -> 168h, daily -> 24h) but can be set
+// wider than the interval on purpose: a schedule that is sometimes late for reasons outside
+// this app's control (Forge's own scheduling looseness, a site down for maintenance) should
+// still catch everything that changed, not lose the gap in between. Narrower than the
+// interval would be the opposite mistake -- a quiet hole between two quick scans that nothing
+// ever re-checks.
+const DEFAULT_QUICK_SCAN_SCHEDULE = {
+  enabled: false,
+  frequency: "weekly",
+  dayOfWeek: 0,
+  hourUtc: 0,
+  windowHours: 168,
+  lastScheduledRunAt: null,
+};
+
 const DEFAULT_ADMIN_CONFIG = {
   readOnlyMode: false,
   apiConcurrency: BASE_JIRA_CONCURRENCY,
@@ -255,6 +277,7 @@ const DEFAULT_ADMIN_CONFIG = {
   autoSnapshotFrequency: "weekly",
   governanceThresholds: DEFAULT_GOVERNANCE_THRESHOLDS,
   macroAccess: DEFAULT_MACRO_ACCESS,
+  quickScanSchedule: DEFAULT_QUICK_SCAN_SCHEDULE,
 };
 
 export async function readAdminConfig() {
@@ -271,6 +294,10 @@ export async function readAdminConfig() {
       macroAccess: {
         ...DEFAULT_MACRO_ACCESS,
         ...(stored.macroAccess || {}),
+      },
+      quickScanSchedule: {
+        ...DEFAULT_QUICK_SCAN_SCHEDULE,
+        ...(stored.quickScanSchedule || {}),
       },
     };
   } catch {
@@ -314,6 +341,21 @@ export async function saveAdminConfigResolver({ payload }) {
       throw new Error(`healthTolerances.${key} must be a rate greater than 0 and at most 1`);
     }
   }
+  if (cfg.quickScanSchedule) {
+    const sched = cfg.quickScanSchedule;
+    if (sched.frequency !== undefined && sched.frequency !== null) {
+      optionalEnum(sched.frequency, "quickScanSchedule.frequency", ["daily", "weekly"], null);
+    }
+    if (sched.dayOfWeek !== undefined && sched.dayOfWeek !== null) {
+      requireBoundedInt(sched.dayOfWeek, "quickScanSchedule.dayOfWeek", 0, 6);
+    }
+    if (sched.hourUtc !== undefined && sched.hourUtc !== null) {
+      requireBoundedInt(sched.hourUtc, "quickScanSchedule.hourUtc", 0, 23);
+    }
+    if (sched.windowHours !== undefined && sched.windowHours !== null) {
+      requireBoundedInt(sched.windowHours, "quickScanSchedule.windowHours", 1, 24 * 90);
+    }
+  }
   const current = await readAdminConfig();
   const updated = {
     ...current,
@@ -329,6 +371,10 @@ export async function saveAdminConfigResolver({ payload }) {
     macroAccess: {
       ...current.macroAccess,
       ...(payload?.macroAccess || {}),
+    },
+    quickScanSchedule: {
+      ...current.quickScanSchedule,
+      ...(payload?.quickScanSchedule || {}),
     },
   };
   updated.apiConcurrency = Math.max(1, Math.min(10, Number(updated.apiConcurrency) || BASE_JIRA_CONCURRENCY));
@@ -417,6 +463,7 @@ async function getFieldInventory({ payload, context }) {
     const maxContexts = filters.maxContexts ?? "";
     const duplicateNamesOnly = Boolean(filters.duplicateNamesOnly);
     const hasDescription = filters.hasDescription || "all";
+    const hideSystemFields = Boolean(filters.hideSystemFields);
 
     const [meta_initial, adminConfig] = await Promise.all([
       readSnapshotMeta(installationKey),
@@ -536,7 +583,7 @@ async function getFieldInventory({ payload, context }) {
     const filteredFields = sortInventoryFields(
       applyFindingsFilter(
         filterInventoryFields(optionFilteredFields, query, type, projectUsageFilter, maxIssuesWithValue, fieldOrigin, minIssuesWithValue, {
-          minActiveProjects, maxActiveProjects, minContexts, maxContexts, duplicateNamesOnly, hasDescription,
+          minActiveProjects, maxActiveProjects, minContexts, maxContexts, duplicateNamesOnly, hasDescription, hideSystemFields,
         }),
         findingsFilter
       ),
@@ -1400,6 +1447,82 @@ async function getFieldFilterCounts({ payload, context }) {
   return { available: true, version: meta.version, refreshedAt: meta.refreshedAt, counts };
 }
 
+// How many dashboard gadgets reach each of a page of fields, in one bulk pass.
+//
+// The always-visible header stat tile needs an instant answer for a whole page of fields, so
+// it cannot afford getDashboardUsage's per-field chain -- that resolver is built to describe
+// ONE field's dashboards in full (names, owners, which gadget), not to answer a plain count for
+// fifty fields at once. This mirrors getFieldFilterCounts's shape instead: bulk in, bulk out,
+// counts only.
+//
+// Chain is field -> filter ids naming it -> gadgets configured to show one of those filters.
+// A field is counted through the UNION of filter ids across its name and id labels, not the
+// sum -- summing would double the count for a filter that happens to be found under both.
+async function getFieldDashboardCounts({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  const [filterMeta, dashboardMeta] = await Promise.all([
+    readFilterSnapshotMeta(installationKey),
+    readDashboardSnapshotMeta(installationKey),
+  ]);
+  // Both inventories are required, and which one is missing changes what an admin builds
+  // next, so the reason says which rather than collapsing to one "unavailable".
+  if (!filterMeta?.version) {
+    return { available: false, reason: "No saved filter inventory has been built yet.", counts: {} };
+  }
+  if (!dashboardMeta?.version) {
+    return { available: false, reason: "No dashboard inventory has been built yet.", counts: {} };
+  }
+
+  const fields = Array.isArray(payload?.fields) ? payload.fields.slice(0, 500) : [];
+  const labels = [];
+  const labelToFieldIds = new Map();
+  for (const field of fields) {
+    for (const label of [field?.name, field?.id].filter(Boolean)) {
+      const key = String(label).toLowerCase();
+      labels.push(String(label));
+      if (!labelToFieldIds.has(key)) labelToFieldIds.set(key, new Set());
+      labelToFieldIds.get(key).add(String(field.id));
+    }
+  }
+
+  const filterIdsByLabel = await loadFilterIdsForLabels(installationKey, filterMeta.version, "field", labels);
+
+  // Union first, so a filter found under both a field's name and its id is only ever counted
+  // once against that field.
+  const filterIdsByFieldId = new Map();
+  for (const [label, filterIds] of filterIdsByLabel) {
+    for (const fieldId of labelToFieldIds.get(label) || []) {
+      if (!filterIdsByFieldId.has(fieldId)) filterIdsByFieldId.set(fieldId, new Set());
+      for (const id of filterIds) filterIdsByFieldId.get(fieldId).add(id);
+    }
+  }
+
+  const allFilterIds = [...new Set([...filterIdsByFieldId.values()].flatMap((s) => [...s]))];
+  // Skipped rather than called with nothing to ask about: a page of fields none of which any
+  // filter names is the common case for a freshly opened Field Browser page, and there is no
+  // reason to round-trip to SQL to learn what is already known.
+  const gadgetCountsByFilterId = allFilterIds.length
+    ? await loadGadgetCountsForFilterIds(installationKey, dashboardMeta.version, allFilterIds)
+    : new Map();
+
+  const counts = {};
+  for (const [fieldId, filterIds] of filterIdsByFieldId) {
+    let total = 0;
+    for (const filterId of filterIds) total += gadgetCountsByFilterId.get(filterId) || 0;
+    counts[fieldId] = total;
+  }
+
+  return {
+    available: true,
+    filterVersion: filterMeta.version,
+    dashboardVersion: dashboardMeta.version,
+    counts,
+  };
+}
+
 // Which saved filters reference one field or status.
 //
 // The second half of the cross-pillar answer. The Field Browser already says which automation
@@ -1549,13 +1672,28 @@ async function getDashboardInventory({ context }) {
         dashboards.flatMap((d) => (d.gadgets || []).map((g) => g.filterId).filter(Boolean))
       )];
       if (filterIds.length) {
-        const fieldsByFilter = await loadFieldNamesForFilterIds(installationKey, filterMeta.version, filterIds)
-          .catch(fallbackOn("dashboard_inventory.field_join_failed", new Map(), { installationKey }));
+        // Two independent joins off the same filter id list: which fields a filter touches
+        // (already existed, rolled up per dashboard) and what the filter is actually called
+        // (new -- a gadget's config only ever carries the id). Neither failing should sink
+        // the other, so each gets its own fallback rather than one Promise.all rejecting both.
+        const [fieldsByFilter, filterNamesById] = await Promise.all([
+          loadFieldNamesForFilterIds(installationKey, filterMeta.version, filterIds)
+            .catch(fallbackOn("dashboard_inventory.field_join_failed", new Map(), { installationKey })),
+          loadFilterNamesForIds(installationKey, filterMeta.version, filterIds)
+            .catch(fallbackOn("dashboard_inventory.filter_name_join_failed", new Map(), { installationKey })),
+        ]);
         for (const dashboard of dashboards) {
           const names = new Set();
           for (const gadget of dashboard.gadgets || []) {
             if (!gadget.filterId) continue;
-            for (const name of fieldsByFilter.get(gadget.filterId) || []) names.add(name);
+            // Per-gadget, not just rolled into the dashboard total -- "this dashboard depends
+            // on Story Points somewhere" and "gadget X depends on Story Points" are different
+            // claims, and only the second one tells a reader which gadget breaks.
+            const gadgetFieldRefs = fieldsByFilter.get(gadget.filterId) || [];
+            gadget.fieldRefs = gadgetFieldRefs;
+            gadget.filterName = filterNamesById.get(gadget.filterId)?.name ?? null;
+            gadget.filterViewUrl = filterNamesById.get(gadget.filterId)?.viewUrl ?? null;
+            for (const name of gadgetFieldRefs) names.add(name);
           }
           dashboard.fieldRefs = [...names].sort();
         }
@@ -1565,8 +1703,14 @@ async function getDashboardInventory({ context }) {
       fieldRefsAvailable = true;
     } else {
       // Tri-state, like everywhere else this join is attempted: no filter inventory means
-      // "we have not looked", never "this dashboard depends on nothing".
-      for (const dashboard of dashboards) dashboard.fieldRefs = null;
+      // "we have not looked", never "this dashboard depends on nothing" -- at the gadget
+      // level too, for any gadget that does have a filter id waiting to be resolved.
+      for (const dashboard of dashboards) {
+        dashboard.fieldRefs = null;
+        for (const gadget of dashboard.gadgets || []) {
+          if (gadget.filterId) { gadget.fieldRefs = null; gadget.filterName = null; gadget.filterViewUrl = null; }
+        }
+      }
     }
 
     return {
@@ -3244,6 +3388,7 @@ async function getFilteredFieldIds({ payload, context }) {
   const maxContexts = payload?.maxContexts ?? "";
   const duplicateNamesOnly = Boolean(payload?.duplicateNamesOnly);
   const hasDescription = payload?.hasDescription || "all";
+  const hideSystemFields = Boolean(payload?.hideSystemFields);
   const snapshotFields = await loadSnapshotFields(installationKey, meta.version);
   const fieldSummaries = await listFieldSummaries(installationKey, 5000).catch(fallbackOn("resolver.summaries_load_failed", () => [], { installationKey }));
   const summaryByFieldId = new Map(fieldSummaries.map((summary) => [summary.fieldId, summary]));
@@ -3274,7 +3419,7 @@ async function getFilteredFieldIds({ payload, context }) {
   const filtered = sortInventoryFields(
     applyFindingsFilter(
       filterInventoryFields(optionFilteredFields, query, type, projectUsageFilter, maxIssuesWithValue, fieldOrigin, minIssuesWithValue, {
-        minActiveProjects, maxActiveProjects, minContexts, maxContexts, duplicateNamesOnly, hasDescription,
+        minActiveProjects, maxActiveProjects, minContexts, maxContexts, duplicateNamesOnly, hasDescription, hideSystemFields,
       }),
       findingsFilter
     ),
@@ -3338,16 +3483,81 @@ async function getFullScanStatus({ context }) {
     fallbackOn("full_scan.meta_read_failed", null, { installationKey })
   );
 
+  // A row with no scanType at all predates the quick-scan split and is treated as a full
+  // scan's own row, so a scan started just before this shipped still renders correctly.
+  const isFull = !meta?.scanType || meta.scanType === "full";
+
   return {
     catalog: fullScanStageCatalog(),
-    state: meta?.state || "idle",
-    stages: meta?.stages?.length ? meta.stages : null,
-    currentStage: meta?.currentStage || null,
-    startedAt: meta?.startedAt || null,
-    completedAt: meta?.completedAt || null,
-    updatedAt: meta?.updatedAt || null,
-    lastError: meta?.lastError || null,
+    state: isFull ? (meta?.state || "idle") : "idle",
+    stages: isFull && meta?.stages?.length ? meta.stages : null,
+    currentStage: isFull ? (meta?.currentStage || null) : null,
+    startedAt: isFull ? (meta?.startedAt || null) : null,
+    completedAt: isFull ? (meta?.completedAt || null) : null,
+    updatedAt: isFull ? (meta?.updatedAt || null) : null,
+    lastError: isFull ? (meta?.lastError || null) : null,
+    // So the panel can say "a quick scan is running" rather than rendering an idle full-scan
+    // panel with no explanation for why the button is disabled.
+    blockedByOtherScan: meta?.state === "running" && !isFull,
   };
+}
+
+// The quick scan's manual trigger. windowHours defaults to the stored schedule's, so a manual
+// "run now" between scheduled runs asks the same question the schedule would have -- "what
+// changed since the window" -- rather than an arbitrary different one.
+async function startQuickSiteScan({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  const adminConfig = await readAdminConfig();
+  if (adminConfig.readOnlyMode) {
+    return { started: false, error: "Read-only mode is enabled. Disable it before running a scan." };
+  }
+
+  const windowHours = Number(payload?.windowHours) || Number(adminConfig.quickScanSchedule?.windowHours) || DELTA_ISSUE_SCAN_DEFAULT_WINDOW_HOURS;
+  return startQuickScan(installationKey, { quickScanWindowHours: windowHours });
+}
+
+// Progress for the quick scan, same shape as getFullScanStatus so the tab can render both
+// with one component.
+async function getQuickScanStatus({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  const installationKey = getInstallationKey(context);
+  const meta = await readFullScanMeta(installationKey).catch(
+    fallbackOn("quick_scan.meta_read_failed", null, { installationKey })
+  );
+
+  return {
+    catalog: quickScanStageCatalog(),
+    // Only reported as belonging to THIS scan type when the shared meta row actually says so
+    // -- a full scan's stages must never render on the quick scan panel just because it is
+    // the most recent thing to have used the shared row.
+    state: meta?.scanType === "quick" ? (meta?.state || "idle") : "idle",
+    stages: meta?.scanType === "quick" && meta?.stages?.length ? meta.stages : null,
+    currentStage: meta?.scanType === "quick" ? (meta?.currentStage || null) : null,
+    startedAt: meta?.scanType === "quick" ? (meta?.startedAt || null) : null,
+    completedAt: meta?.scanType === "quick" ? (meta?.completedAt || null) : null,
+    updatedAt: meta?.scanType === "quick" ? (meta?.updatedAt || null) : null,
+    lastError: meta?.scanType === "quick" ? (meta?.lastError || null) : null,
+    windowHours: meta?.scanType === "quick" ? meta?.quickScanWindowHours : null,
+    // So the panel can say "a full scan is running" rather than rendering an idle quick-scan
+    // panel with no explanation for why the button is disabled.
+    blockedByOtherScan: meta?.state === "running" && meta?.scanType !== "quick",
+  };
+}
+
+// Bookkeeping for the scheduled trigger, not the save-config resolver: this writes one field
+// with no payload validation, because the caller is this app's own scheduler rather than user
+// input. Kept separate from saveAdminConfigResolver so a scheduled run can never accidentally
+// pass through the same path a person's config edit does and clobber a field they were mid-way
+// through changing.
+export async function recordQuickScanScheduledRun(at) {
+  const current = await readAdminConfig();
+  await kvs.set(ADMIN_CONFIG_KEY, {
+    ...current,
+    quickScanSchedule: { ...current.quickScanSchedule, lastScheduledRunAt: at },
+  });
 }
 
 async function startIssueScan({ context }) {
@@ -3906,6 +4116,7 @@ export async function getAdminOverview({ context }) {
     ?? { queued: 0, building: 0, ready: 0, failed: 0, cancelled: 0, unbuilt: 0 };
 
   let findingsSummary = { adminAttention: 0, risky: 0, cleanup: 0, standardize: 0 };
+  let findingsByCode = {};
   let dashboard = EMPTY_DASHBOARD;
   if (meta?.version) {
     try {
@@ -3919,6 +4130,10 @@ export async function getAdminOverview({ context }) {
         hydrateFieldForGovernance(f, null, dup.get(normalizeFieldName(f.name)) ?? 1, config.governanceThresholds)
       );
       findingsSummary = summarizeFindings(hydrated);
+      // The counts several new Overview cards each need -- "23 fields with a dead-
+      // configuration ratio" is a specific reason code, not one of the four coarse
+      // categories findingsSummary already tracks, and only this join knows the number.
+      findingsByCode = summarizeFindingsByCode(hydrated);
       // Adoption travels beside the shape insights rather than inside them: one asks how a
       // project is configured and the other asks whether anyone is using it, and folding
       // them together is what let a three-week-old project read as abandoned.
@@ -4004,6 +4219,7 @@ export async function getAdminOverview({ context }) {
     },
     jobCounts,
     findingsSummary,
+    findingsByCode,
     workflow,
     screens,
     // The counts the Overview's findings list needs, not just the score's rate. Same lesson
@@ -4285,7 +4501,13 @@ export async function migrateNamespaceKeys({ context }) {
 
 // ----- Delta issue scan -----
 
-const DELTA_SCOPE_SUFFIX = "::delta";
+// Exported so the quick-scan orchestrator (full-scan-runner.js) can read the same meta row
+// this file's own delta-scan resolvers read. Not imported there statically -- resolvers.js
+// already imports startQuickScan/runQuickScanStep from full-scan-runner.js, and a static
+// import back the other way would be a module cycle. full-scan-runner.js reaches this and
+// runDeltaIssueScanJob via a dynamic import instead, the same escape hatch scan-engine.js
+// already uses for the same reason.
+export const DELTA_SCOPE_SUFFIX = "::delta";
 const DELTA_ISSUE_SCAN_MAX_PAGES = 200; // cap at ~20,000 issues per delta run
 export const DELTA_ISSUE_SCAN_DEFAULT_WINDOW_HOURS = 24;
 
@@ -4821,6 +5043,7 @@ function withAdminGuard(functions) {
 // (polled during scans) and recording them would bury the events that matter.
 const AUDITED_ADMIN_ACTIONS = new Set([
   "startFullSiteScan",
+  "startQuickSiteScan",
   "startIssueScan",
   "resumeIssueScan",
   "cancelIssueScan",
@@ -4883,6 +5106,8 @@ function withAuditTrail(functions) {
 const RAW_ADMIN_ONLY_FUNCTIONS = {
   // Issue scan lifecycle â€” trigger and cancel full fieldÃ—issue scans
   startFullSiteScan,       // Mutating: queues the one scan that runs every pillar
+  startQuickSiteScan,      // Mutating: queues the quick scan (full structural + delta issues)
+  getQuickScanStatus,      // Admin read: per-stage progress of the quick scan
   getFullScanStatus,       // Admin read: per-stage progress of the full scan
   startIssueScan,          // Mutating: queues a full issue scan job
   resumeIssueScan,         // Mutating: re-queues incomplete issue scan workers
@@ -4939,6 +5164,7 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   getFilterUsage,
   getDashboardUsage,       // Admin read: which dashboards reach a field, via which gadget
   getFieldFilterCounts,    // Admin read: saved-filter counts for a page of fields
+  getFieldDashboardCounts, // Admin read: dashboard-gadget counts for a page of fields
   getHealthHistory,        // Admin read: the site health series and per-dimension deltas
   getPillarHealth,         // Admin read: one pillar of the score, for the tab it is about
   getProjectOverview,      // Admin read: every pillar that touches one project

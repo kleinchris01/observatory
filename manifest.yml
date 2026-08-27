@@ -22,6 +22,13 @@ modules:
       function: auto-snapshot
       events:
         - avi:scheduled:daily
+    # Hourly is the finest interval Forge offers -- there is no day-of-week or time-of-day
+    # trigger, so "runs Sunday at midnight" is implemented as "check every hour, most of
+    # which do nothing." See quickScanScheduleCheck for the actual due-time comparison.
+    - key: quick-scan-scheduler-trigger
+      function: quick-scan-scheduler
+      events:
+        - avi:scheduled:hourly
     # Weekly, not daily: the daily slot is taken by auto-snapshot, and retention only
     # deletes report_jobs completed more than 7 days ago -- running it more often than
     # the retention window buys nothing. Snapshot version pruning already runs inline
@@ -162,6 +169,8 @@ modules:
       handler: index.adminHandler
     - key: auto-snapshot
       handler: index.autoSnapshotCheck
+    - key: quick-scan-scheduler
+      handler: index.quickScanScheduleCheck
     - key: retention-cleanup
       handler: index.runRetentionCleanup
     - key: sql-migrate

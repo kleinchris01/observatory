@@ -15,6 +15,15 @@ const FINDINGS_FILTER_LABELS = {
   risky: "Risk",
   cleanup: "Cleanup",
   standardize: "Standardize",
+  // Specific reason codes the Overview's promoted findings deep-link with, alongside the
+  // four coarse categories above -- same map, since a chip does not care which kind of
+  // string produced it, only that it has a readable label instead of a raw code.
+  "global-context-low-usage": "Global context, low usage",
+  "dead-configuration": "Dead configuration",
+  "orphaned,configured-no-issues": "No populated issues",
+  stale: "Stale",
+  "context-sprawl": "Context sprawl",
+  "missing-description": "Missing description",
 };
 // The largest single tab, and the one most worth testing in isolation.
 
@@ -36,6 +45,10 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
   const [projectUsageFilter, setProjectUsageFilter] = React.useState("all");
   const [hasDescription, setHasDescription] = React.useState("all");
   const [duplicateNamesOnly, setDuplicateNamesOnly] = React.useState(false);
+  // Independent of the origin dropdown: "User-created" already excludes system fields, but
+  // also excludes Jira-provided custom fields the reader may still want visible. This asks
+  // for "hide the ones that ship on every issue" without also hiding everything else.
+  const [hideSystemFields, setHideSystemFields] = React.useState(false);
   const [minIssues, setMinIssues] = React.useState("");
   const [maxIssues, setMaxIssues] = React.useState("");
   const [minActiveProjects, setMinActiveProjects] = React.useState("");
@@ -61,6 +74,7 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
   // carries that. A bare {} would collapse both into an em dash with no explanation.
   const [screenCounts, setScreenCounts] = React.useState({ available: false, counts: {} });
   const [filterCounts, setFilterCounts] = React.useState({ available: false, counts: {} });
+  const [dashboardGadgetCounts, setDashboardGadgetCounts] = React.useState({ available: false, counts: {} });
 
   React.useEffect(() => {
     if (!filtersOpen) return;
@@ -127,6 +141,7 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
       projectUsageFilter,
       hasDescription,
       duplicateNamesOnly,
+      hideSystemFields,
       minIssuesWithValue: deferredMinIssues,
       maxIssuesWithValue: deferredMaxIssues,
       minActiveProjects: deferredMinActiveProjects,
@@ -152,6 +167,7 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
     projectUsageFilter,
     hasDescription,
     duplicateNamesOnly,
+    hideSystemFields,
     deferredMinIssues,
     deferredMaxIssues,
     deferredMinActiveProjects,
@@ -201,6 +217,7 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
         projectUsageFilter,
         hasDescription,
         duplicateNamesOnly,
+        hideSystemFields,
         minIssuesWithValue: deferredMinIssues,
         maxIssuesWithValue: deferredMaxIssues,
         minActiveProjects: deferredMinActiveProjects,
@@ -223,6 +240,7 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
     if (projectUsageFilter !== "all") count++;
     if (hasDescription !== "all") count++;
     if (duplicateNamesOnly === true) count++;
+    if (hideSystemFields === true) count++;
     if (minIssues !== "") count++;
     if (maxIssues !== "") count++;
     if (minActiveProjects !== "") count++;
@@ -250,6 +268,7 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
     setProjectUsageFilter("all");
     setHasDescription("all");
     setDuplicateNamesOnly(false);
+    setHideSystemFields(false);
     setMinIssues("");
     setMaxIssues("");
     setMinActiveProjects("");
@@ -305,6 +324,18 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
       // Silent, like the automation counts above: an unbuilt screen inventory is the normal
       // fresh-install state, and the chip already renders that as unknown rather than zero.
       .catch(() => { if (!cancelled) setScreenCounts({ available: false, counts: {} }); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageFieldKey]);
+
+  React.useEffect(() => {
+    if (!fields.length) return undefined;
+    let cancelled = false;
+    // Bulk, like the filter counts above: field -> filter ids -> gadgets, answered for a
+    // whole page at once rather than the per-field chain the expanded card section uses.
+    invoke("getFieldDashboardCounts", { fields: fields.map((f) => ({ id: f.id, name: f.name })) })
+      .then((result) => { if (!cancelled) setDashboardGadgetCounts(result || { available: false, counts: {} }); })
+      .catch(() => { if (!cancelled) setDashboardGadgetCounts({ available: false, counts: {} }); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageFieldKey]);
@@ -384,6 +415,9 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
     if (duplicateNamesOnly) {
       chips.push({ id: "duplicateNamesOnly", label: "Duplicate names only", clear: () => { setDuplicateNamesOnly(false); setPage(1); } });
     }
+    if (hideSystemFields) {
+      chips.push({ id: "hideSystemFields", label: "System fields hidden", clear: () => { setHideSystemFields(false); setPage(1); } });
+    }
     if (minIssues !== "" || maxIssues !== "") {
       const range = [minIssues || "0", maxIssues || "∞"].join("–");
       chips.push({ id: "issues", label: `Issues: ${range}`, clear: () => { setMinIssues(""); setMaxIssues(""); setPage(1); } });
@@ -403,7 +437,7 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
       chips.push({ id: "findingsFilter", label: `Findings: ${label}`, clear: () => { setFindingsFilter("all"); setPage(1); } });
     }
     return chips;
-  }, [fieldOrigin, projectUsageFilter, hasDescription, duplicateNamesOnly, minIssues, maxIssues, minActiveProjects, maxActiveProjects, minContexts, maxContexts, findingsFilter]);
+  }, [fieldOrigin, projectUsageFilter, hasDescription, duplicateNamesOnly, hideSystemFields, minIssues, maxIssues, minActiveProjects, maxActiveProjects, minContexts, maxContexts, findingsFilter]);
 
   return (
     <div className="admin-field-browser">
@@ -495,6 +529,14 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
                       onChange={(e) => { setDuplicateNamesOnly(e.target.checked); setPage(1); }}
                     />
                     Duplicate names only
+                  </label>
+                  <label className="admin-field-browser__checkbox-label" title="Rank, Comment, Watches, and the rest of what ships on every issue type regardless of project or scheme -- never a customfield_ id, and never something a governance decision about a custom field applies to.">
+                    <input
+                      type="checkbox"
+                      checked={hideSystemFields}
+                      onChange={(e) => { setHideSystemFields(e.target.checked); setPage(1); }}
+                    />
+                    Hide system fields
                   </label>
                 </div>
               </div>
@@ -685,6 +727,7 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
                 automationCounts={automationCounts[field.id]}
                 screenCount={screenCounts.available ? (screenCounts.counts[field.id] ?? 0) : null}
                 filterCount={filterCounts.available ? (filterCounts.counts[field.id] ?? 0) : null}
+                dashboardGadgetCount={dashboardGadgetCounts.available ? (dashboardGadgetCounts.counts[field.id] ?? 0) : null}
                 screenSnapshot={screenCounts}
               />
             );
