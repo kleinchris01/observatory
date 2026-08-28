@@ -73,6 +73,7 @@ import {
   getWorkflowSchemesForProjects,
   getAllJiraProjectKeys,
   getFilterPage,
+  getDashboardPage,
   getGadgetFilterId,
   extractFilterId,
   BASE_JIRA_REQUEST_INTERVAL_MS,
@@ -783,6 +784,29 @@ describe("getFilterPage", () => {
     mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: { values: [] } }));
     await getFilterPage(0, 50);
     expect(mockRequestJira.mock.calls[0][0]).toContain("approximateLastUsed");
+  });
+});
+
+describe("getDashboardPage", () => {
+  // Regression: DASHBOARD_EXPAND was modelled on FILTER_EXPAND and carried viewUrl with it.
+  // filter/search accepts viewUrl; dashboard/search returns a hard 400 Bad Request for it,
+  // which is why the dashboard stage of every scan failed on its very first request. The
+  // search response already includes `view`.
+  test("does not ask dashboard/search to expand viewUrl", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: { values: [] } }));
+    await getDashboardPage(0, 50);
+    const url = mockRequestJira.mock.calls[0][0];
+    expect(url).toContain("/rest/api/3/dashboard/search");
+    expect(url).not.toContain("viewUrl");
+  });
+
+  test("still expands the fields the governance view needs", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: { values: [] } }));
+    await getDashboardPage(0, 50);
+    const url = decodeURIComponent(mockRequestJira.mock.calls[0][0]);
+    for (const field of ["description", "owner", "favouritedCount", "sharePermissions", "editPermissions"]) {
+      expect(url).toContain(field);
+    }
   });
 });
 
