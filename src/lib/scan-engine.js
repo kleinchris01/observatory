@@ -34,6 +34,7 @@ import {
   replaceFieldOptionsCache,
   flushIssueScanCounts,
   flushIssueScanActivity,
+  promoteIssueScanActivity,
   flushIssueScanStatusCounts,
   clearStatusIssueCounts,
   finalizeIssueScan,
@@ -134,6 +135,14 @@ export async function completeIssueScanFinalization(installationKey, tag, worker
   try {
     console.log(`${tag}: finalizing scan...`);
     await finalizeIssueScan(installationKey);
+
+    // Promote the month histogram from its buffer, per project. Best-effort: a failure here
+    // leaves the last good series in place, which is the whole point of the buffer -- it is
+    // strictly better to keep last week's activity than to lose it because a promote query
+    // timed out.
+    const activityPromoted = await promoteIssueScanActivity(installationKey)
+      .catch(fallbackOn("scan.activity_promote_failed", { projectsPromoted: 0, rowsInserted: 0 }, { installationKey }));
+    console.log(`${tag}: promoted activity for ${activityPromoted.projectsPromoted} projects (${activityPromoted.rowsInserted} rows)`);
 
     const snapshotMeta = await readSnapshotMeta(installationKey);
     if (snapshotMeta?.version) {

@@ -3221,7 +3221,12 @@ async function getProjectsView({ payload, context }) {
     return {
       score: row.score, issuesPerDay: row.issuesPerDay, recentIssuesPerDay: row.recentIssuesPerDay,
       momentum: row.momentum, ageDays: row.ageDays, firstIssueCreatedAt: row.firstIssueCreatedAt,
-      fellOff: row.fellOff, neverAdopted: row.neverAdopted, declineFrom: row.declineFrom,
+      // Decline flags are held back site-wide while the activity histogram is stale -- the
+      // same suppression summarizeAdoption applies to the headline counts, carried to the
+      // rail so it does not paint every project with a "fell off" tag the data cannot support.
+      fellOff: adoption.dataStale ? false : row.fellOff,
+      neverAdopted: adoption.dataStale ? false : row.neverAdopted,
+      declineFrom: adoption.dataStale ? null : row.declineFrom,
     };
   };
 
@@ -3343,6 +3348,10 @@ async function getProjectsView({ payload, context }) {
       medianIssuesPerDay: adoption.medianIssuesPerDay,
       measuredProjects: adoption.measuredProjects,
       totalProjects: adoption.totalProjects,
+      // So the panel can say "activity data ends 2026-01, the last scan didn't finish"
+      // instead of presenting a stale recent rate as a measurement.
+      dataThroughMonth: adoption.dataThroughMonth,
+      dataStale: adoption.dataStale,
     },
     workflowScheme,
     fields,
@@ -4229,6 +4238,8 @@ export async function getAdminOverview({ context }) {
           fellOffCount: adoption.fellOffCount,
           neverAdoptedCount: adoption.neverAdoptedCount,
           medianIssuesPerDay: adoption.medianIssuesPerDay,
+          dataThroughMonth: adoption.dataThroughMonth,
+          dataStale: adoption.dataStale,
           // Most recent decline first: the ones somebody might still remember the reason for.
           fellOff: adoption.projects
             .filter((row) => row.fellOff)

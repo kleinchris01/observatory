@@ -125,12 +125,16 @@ export async function clearIssueScanBuffer(scopeKey) {
   );
 
   // The activity histogram accumulates the same way the buffer does -- one row per project
-  // per month, incremented as pages arrive -- so it has to be cleared for the same reason.
-  // Left behind, a re-scan would add a second lifetime of issues on top of the first and
-  // every rate derived from it would double.
+  // per month, incremented as pages arrive -- so its staging buffer is cleared for the same
+  // reason: left behind, a re-scan would add a second lifetime of issues on top of the first
+  // and every rate derived from it would double.
+  //
+  // Only the buffer. The live issue_scan_project_activity table is left alone here and
+  // rebuilt per project at finalization -- a crawl that dies partway must not be able to
+  // destroy the last good series, which is exactly what wiping the live table up front did.
   await withSqlRetry(() =>
     sql
-      .prepare("DELETE FROM issue_scan_project_activity WHERE scope_key = ?")
+      .prepare("DELETE FROM issue_scan_activity_buffer WHERE scope_key = ?")
       .bindParams(scopeKey)
       .execute()
   );
@@ -260,12 +264,14 @@ export async function updateIssueScanWorker(scopeKey, workerId, patch) {
   return next;
 }
 
-// One row per project per month, with the exact first and last issue seen inside it.
+// One buffer row per project per month, with the exact first and last issue seen inside it.
 //
-// The boundaries are stored per month rather than per project so this table needs no second
-// table beside it: the site's first issue is the first_created_at of a project's earliest
-// month, and its last is the last_created_at of the latest. Month granularity alone would
-// put a three-week-old project's age anywhere between one day and six weeks.
+// Writes land in issue_scan_activity_buffer, not the live table -- promoteIssueScanActivity
+// moves them across when the scan finalizes. The boundaries are stored per month rather than
+// per project so no second table is needed to date a project: the site's first issue is the
+// first_created_at of a project's earliest month, and its last is the last_created_at of the
+// latest. Month granularity alone would put a three-week-old project's age anywhere between
+// one day and six weeks.
 //
 // LEAST and GREATEST over ISO-8601 strings, which sort lexicographically -- and guarded with
 // COALESCE, because LEAST(NULL, x) is NULL in MySQL and the first flush for a month always
@@ -285,7 +291,7 @@ export async function flushIssueScanActivity(scopeKey, projectMonths) {
     await withSqlRetry(() =>
       sql
         .prepare(`
-          INSERT INTO issue_scan_project_activity
+          INSERT INTO issue_scan_activity_buffer
             (scope_key, project_id, month, issue_count, first_created_at, last_created_at)
           VALUES ${valuesSql}
           ON DUPLICATE KEY UPDATE
@@ -297,6 +303,65 @@ export async function flushIssueScanActivity(scopeKey, projectMonths) {
         .execute()
     );
   }
+}
+
+// Promote the crawl's month histogram from its buffer into the live table.
+//
+// Per project, never a global swap: a scan that only reached 50 of 200 projects must leave
+// the other 150 projects' last-good series exactly as it found them. A project the crawl did
+// cover is replaced wholesale -- delete its live rows, insert the buffer's -- because the
+// buffer holds that project's complete recount for this run.
+//
+// Runs once, at finalization. An empty buffer promotes nothing rather than deleting
+// everything: a crawl that counted no issues at all has nothing to say about any project.
+export async function promoteIssueScanActivity(scopeKey) {
+  await ensureProjectStoreReady();
+
+  const result = await withSqlRetry(() =>
+    sql
+      .prepare(`
+        SELECT project_id, month, issue_count, first_created_at, last_created_at
+        FROM issue_scan_activity_buffer
+        WHERE scope_key = ?
+      `)
+      .bindParams(scopeKey)
+      .execute()
+  );
+
+  const rows = result.rows || [];
+  if (!rows.length) return { projectsPromoted: 0, rowsInserted: 0 };
+
+  const projectIds = [...new Set(rows.map((row) => String(row.project_id)))];
+
+  for (const batch of chunkArray(projectIds, 50)) {
+    const placeholders = batch.map(() => "?").join(", ");
+    await withSqlRetry(() =>
+      sql
+        .prepare(`DELETE FROM issue_scan_project_activity WHERE scope_key = ? AND project_id IN (${placeholders})`)
+        .bindParams(scopeKey, ...batch)
+        .execute()
+    );
+  }
+
+  for (const batch of chunkArray(rows, 100)) {
+    const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?)").join(", ");
+    const params = batch.flatMap((row) => [
+      scopeKey, String(row.project_id), row.month, toNumber(row.issue_count),
+      row.first_created_at, row.last_created_at,
+    ]);
+    await withSqlRetry(() =>
+      sql
+        .prepare(`
+          INSERT INTO issue_scan_project_activity
+            (scope_key, project_id, month, issue_count, first_created_at, last_created_at)
+          VALUES ${valuesSql}
+        `)
+        .bindParams(...params)
+        .execute()
+    );
+  }
+
+  return { projectsPromoted: projectIds.length, rowsInserted: rows.length };
 }
 
 // Every project's activity, oldest month first.

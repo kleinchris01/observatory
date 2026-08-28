@@ -58,6 +58,7 @@ vi.mock("./project-store.js", () => ({
   replaceFieldOptionsCache: vi.fn().mockResolvedValue({ optionCount: 0 }),
   flushIssueScanCounts: vi.fn().mockResolvedValue(undefined),
   flushIssueScanActivity: vi.fn().mockResolvedValue(undefined),
+  promoteIssueScanActivity: vi.fn().mockResolvedValue({ projectsPromoted: 0, rowsInserted: 0 }),
   flushIssueScanStatusCounts: vi.fn().mockResolvedValue(undefined),
   clearStatusIssueCounts: vi.fn().mockResolvedValue(undefined),
   finalizeIssueScan: vi.fn().mockResolvedValue(undefined),
@@ -460,6 +461,41 @@ describe("completeIssueScanFinalization", () => {
     const call = store.writeIssueScanMeta.mock.calls[0][1];
     // slice(-14) keeps 14 of 15, then +1 new = 15
     expect(call.scanHistory).toHaveLength(15);
+  });
+
+  it("promotes the month histogram from its buffer at finalization", async () => {
+    const store = await getProjectStoreMock();
+    store.readSnapshotMeta.mockResolvedValue(null);
+    store.readIssueScanMeta.mockResolvedValue({
+      processedIssues: 100,
+      startedAt: "2026-01-01T00:00:00.000Z",
+      progressLog: [],
+      scanHistory: [],
+    });
+
+    await completeIssueScanFinalization(INSTALLATION_KEY, "test-tag");
+
+    expect(store.promoteIssueScanActivity).toHaveBeenCalledWith(INSTALLATION_KEY);
+  });
+
+  it("still marks the scan ready when the activity promote fails", async () => {
+    const store = await getProjectStoreMock();
+    store.readSnapshotMeta.mockResolvedValue(null);
+    store.readIssueScanMeta.mockResolvedValue({
+      processedIssues: 100,
+      startedAt: "2026-01-01T00:00:00.000Z",
+      progressLog: [],
+      scanHistory: [],
+    });
+    store.promoteIssueScanActivity.mockRejectedValueOnce(new Error("promote timed out"));
+
+    await completeIssueScanFinalization(INSTALLATION_KEY, "test-tag");
+
+    // Best-effort: losing this run's promote keeps last run's series, it does not fail the scan.
+    const readyCalls = store.writeIssueScanMeta.mock.calls.filter((c) => c[1].state === "ready");
+    expect(readyCalls).toHaveLength(1);
+    const failCalls = store.writeIssueScanMeta.mock.calls.filter((c) => c[1].state === "failed");
+    expect(failCalls).toHaveLength(0);
   });
 
   it("handles finalization error by writing failed state", async () => {
