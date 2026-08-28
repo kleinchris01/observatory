@@ -321,7 +321,20 @@ async function runScanStep(spec, installationKey, message = {}, { now = Date.now
 
   // ── Starting the next stage ─────────────────────────────────────────────────
   const definition = nextStage(stages, spec.stageDefs);
-  if (!definition) return advance(spec, installationKey, stages, meta.jobToken, now);
+  if (!definition) {
+    // nextStage returns null mid-scan only when the earliest unfinished stage is already
+    // running -- an inline stage whose invocation is still going, or one left running by a
+    // killed invocation. Its own step advances the scan when it lands, so this step yields
+    // rather than re-queueing (which would spin) or advancing (which would run a LATER
+    // stage out of order). A stage that is genuinely dead gets reset by the stall watchdog.
+    const summary = summarizeStages(stages);
+    if (!summary.complete) {
+      const inflight = stages.find((s) => s.state === "running");
+      logger.info(`${spec.scanType}-scan.step_yielded`, { installationKey, stage: inflight?.key ?? null });
+      return { yielded: true, stage: inflight?.key ?? null };
+    }
+    return advance(spec, installationKey, stages, meta.jobToken, now);
+  }
 
   if (definition.blockedBy) {
     // A dependency failed. Skipped rather than run against stale inputs: a status history
@@ -626,21 +639,30 @@ export async function recoverStalledScan(installationKey, { now = Date.now(), fo
   }
 
   // An inline stage killed mid-invocation is left marked "running" with nothing driving it;
-  // nextStage skips it and the scan would finish reporting a stage it never actually ran.
-  // Only reset those -- a handoff stage in flight is tracked by currentStage and resumes
-  // through its own poll rather than being re-run from scratch.
+  // nextStage yields at it and the scan would sit forever. Reset it so this recovery step
+  // re-runs it. A handoff stage in flight is tracked by currentStage and resumes through its
+  // own poll rather than being re-run from scratch, so leave those.
   if (!meta.currentStage) {
     stages = stages.map((stage) =>
       stage.state === "running" ? { ...stage, state: "pending", startedAt: null } : stage
     );
   }
 
+  // Rotate the job token. "Stalled" is an inference from a quiet heartbeat, and Forge queue
+  // delivery is at-least-once, not exactly-once -- the step we think is lost may just be
+  // slow. Without a fresh token, that delayed step arrives after this recovery has re-queued
+  // and both loops run, each calling nextStage against the same list: the out-of-order stage
+  // execution this whole recovery path is supposed to fix. The new token makes runScanStep
+  // reject the older message as stale.
+  const freshToken = makeJobToken();
+
   await writeFullScanMeta(installationKey, {
     stages,
+    jobToken: freshToken,
     recoveryCount: recoveryCount + 1,
     updatedAt: new Date(now).toISOString(),
   });
-  await queueScanStep(spec, installationKey, meta.currentStage || null, meta.jobToken);
+  await queueScanStep(spec, installationKey, meta.currentStage || null, freshToken);
   logger.warn(`${spec.scanType}-scan.recovered_stall`, {
     installationKey,
     stage: meta.currentStage || null,
