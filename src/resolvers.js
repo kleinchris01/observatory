@@ -149,6 +149,7 @@ import { isFilterBuildStale, queueFilterSnapshotBuild } from "./lib/filter-engin
 import { filterRows, sortFilters, filterFindingCounts, FILTER_SORTS } from "./lib/filter-query.js";
 import { isDashboardBuildStale, queueDashboardSnapshotBuild } from "./lib/dashboard-engine.js";
 import { startFullScan, fullScanStageCatalog, startQuickScan, quickScanStageCatalog, recoverStalledScan, cancelScan, readStageProducedCounts } from "./lib/full-scan-runner.js";
+import { FULL_SCAN_STALL_MS } from "./lib/full-scan.js";
 import { probeEndpoint, probeStargateEndpoint, getCloudId, getAllJiraProjects } from "./lib/jira-api.js";
 import {
   findDuplicateStatusGroups,
@@ -3567,6 +3568,25 @@ async function handoffStageProgress(installationKey, currentStage) {
   return null;
 }
 
+// Kick stall recovery from the status read itself, when the meta says a scan is running but
+// its heartbeat has gone quiet past the stall window.
+//
+// The hourly scheduled trigger is the backstop, but "up to an hour wedged" is not good
+// enough when an admin is sitting on the page watching it. The status resolver is polled
+// every few seconds while a scan runs, so this heals within one poll of the stall -- exactly
+// when someone is looking. recoverStalledScan self-gates (it re-reads the meta, no-ops a
+// healthy run, and is bounded by MAX_SCAN_RECOVERIES), so firing it here is safe. Fire and
+// forget: the kick's effect shows on the next poll, and the current response must not wait
+// on a queue push.
+function maybeRecoverStalledScan(installationKey, meta) {
+  if (meta?.state !== "running") return;
+  const lastBeat = Date.parse(meta.updatedAt || meta.startedAt || "") || 0;
+  if (!lastBeat || Date.now() - lastBeat <= FULL_SCAN_STALL_MS) return;
+  recoverStalledScan(installationKey).catch(
+    fallbackOn("scan.autorecover_failed", null, { installationKey })
+  );
+}
+
 // Recent runs for run-over-run deltas, plus the produced-counts of the run in flight.
 //
 // liveCounts is only worth reading mid-scan: once a run finishes it is in recentRuns[0] with
@@ -3598,6 +3618,7 @@ async function getFullScanStatus({ context }) {
   const isFull = !meta?.scanType || meta.scanType === "full";
   const currentStage = isFull ? (meta?.currentStage || null) : null;
   const running = isFull && meta?.state === "running";
+  if (isFull) maybeRecoverStalledScan(installationKey, meta);
   const { recentRuns, liveStageCounts } = await scanRunHistory(installationKey, "full", { live: running });
 
   return {
@@ -3650,6 +3671,7 @@ async function getQuickScanStatus({ context }) {
   const isQuick = meta?.scanType === "quick";
   const currentStage = isQuick ? (meta?.currentStage || null) : null;
   const running = isQuick && meta?.state === "running";
+  if (isQuick) maybeRecoverStalledScan(installationKey, meta);
   const { recentRuns, liveStageCounts } = await scanRunHistory(installationKey, "quick", { live: running });
 
   return {

@@ -53,6 +53,7 @@ const mocks = vi.hoisted(() => ({
   readFullScanMeta: vi.fn(async () => null),
   writeFullScanMeta: vi.fn(async () => ({})),
   readRecentFullScanRuns: vi.fn(async () => []),
+  recoverStalledScan: vi.fn(async () => ({ recovered: false, reason: "healthy" })),
   loadDashboardsForFilters: vi.fn(async () => []),
   loadFieldNamesForFilterIds: vi.fn(async () => new Map()),
   loadFilterNamesForIds: vi.fn(async () => new Map()),
@@ -376,6 +377,14 @@ vi.mock("./lib/jira-api.js", () => ({
   ISSUE_SCAN_WORKERS: 5,
   BASE_JIRA_CONCURRENCY: 4,
 }));
+
+vi.mock("./lib/full-scan-runner.js", async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual, // keeps the real, pure fullScanStageCatalog / quickScanStageCatalog
+    recoverStalledScan: mocks.recoverStalledScan,
+  };
+});
 
 vi.mock("./lib/snapshot-engine.js", async (importOriginal) => {
   const actual = await importOriginal();
@@ -4982,6 +4991,45 @@ describe("startFullSiteScan / getFullScanStatus", () => {
     expect(result.state).toBe("running");
     expect(result.blockedByOtherScan).toBe(false);
   });
+
+  // The hourly scheduled trigger is the backstop for a wedged orchestrator; the status read,
+  // polled every few seconds while an admin watches, is what heals it promptly.
+  test("kicks stall recovery when a running scan's heartbeat has gone quiet past the window", async () => {
+    mocks.readFullScanMeta.mockResolvedValue({
+      state: "running", scanType: "full", currentStage: "dashboards",
+      stages: [{ key: "dashboards", state: "running" }],
+      updatedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+    });
+
+    await getFullScanStatus({ context: ctxWithAccount() });
+
+    expect(mocks.recoverStalledScan).toHaveBeenCalledWith("test-install");
+  });
+
+  test("does not touch recovery for a scan whose heartbeat is fresh", async () => {
+    mocks.readFullScanMeta.mockResolvedValue({
+      state: "running", scanType: "full", currentStage: "dashboards",
+      stages: [{ key: "dashboards", state: "running" }],
+      updatedAt: new Date().toISOString(),
+    });
+
+    await getFullScanStatus({ context: ctxWithAccount() });
+
+    expect(mocks.recoverStalledScan).not.toHaveBeenCalled();
+  });
+
+  test("a recovery kick that rejects never breaks the status response", async () => {
+    mocks.recoverStalledScan.mockRejectedValueOnce(new Error("queue push failed"));
+    mocks.readFullScanMeta.mockResolvedValue({
+      state: "running", scanType: "full", currentStage: "dashboards",
+      stages: [{ key: "dashboards", state: "running" }],
+      updatedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+    });
+
+    const result = await getFullScanStatus({ context: ctxWithAccount() });
+
+    expect(result.state).toBe("running");
+  });
 });
 
 // The quick scan's own manual trigger and status read, mirroring the full-scan pair above --
@@ -5104,11 +5152,12 @@ describe("resumeSiteScan / cancelSiteScan", () => {
       updatedAt: new Date().toISOString(), // fresh -- force must override
       recoveryCount: 0,
     });
+    mocks.recoverStalledScan.mockResolvedValueOnce({ recovered: true, stage: "filters", recoveryCount: 1 });
 
     const result = await resumeSiteScan({ context: ctxWithAccount() });
 
+    expect(mocks.recoverStalledScan).toHaveBeenCalledWith("test-install", { force: true });
     expect(result).toMatchObject({ recovered: true, stage: "filters" });
-    expect(mocks.queuePush).toHaveBeenCalled();
   });
 
   test("both are registered as guarded admin-only functions", () => {
