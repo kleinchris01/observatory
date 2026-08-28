@@ -476,7 +476,14 @@ export async function captureSiteHealth(installationKey, deps) {
     readAdminConfig,
     readAutomationAnalysis,
     recordHealthSnapshot,
-  } = deps;
+  } = deps || {};
+
+  // Called with no deps once, from the scan orchestrator, and it crashed every scan's health
+  // stage. Degrade to a no-op rather than throw: a scan that reported failure because its
+  // bookkeeping row could not be written would be lying about the scan.
+  if (typeof readSnapshotMeta !== "function" || typeof recordHealthSnapshot !== "function") {
+    return { recorded: false, reason: "missing-deps" };
+  }
 
   try {
     const [meta, config, workflow, screens, automationAnalysis] = await Promise.all([

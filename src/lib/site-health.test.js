@@ -17,7 +17,18 @@ vi.mock("./store/automation.js", () => ({
   loadStatusAutomationReferences: vi.fn(async () => ({})),
 }));
 
-const { buildProjectInsights } = await import("./site-health.js");
+const { buildProjectInsights, captureSiteHealth } = await import("./site-health.js");
+
+// captureSiteHealth is dependency-injected. It was once called with no deps at all -- from
+// the scan orchestrator's health stage -- and crashed every scan with "Cannot destructure
+// property 'readSnapshotMeta' of 'deps'". It must degrade, not throw: a scan that reported
+// failure because a bookkeeping row could not be written would be lying about the scan.
+describe("captureSiteHealth — missing deps", () => {
+  test("no-ops instead of throwing when called without its dependencies", async () => {
+    await expect(captureSiteHealth("inst")).resolves.toEqual({ recorded: false, reason: "missing-deps" });
+    await expect(captureSiteHealth("inst", {})).resolves.toEqual({ recorded: false, reason: "missing-deps" });
+  });
+});
 
 // One project row as listSnapshotProjects returns it. `totalIssueCount` is field FILLS --
 // one row per field per project, summed -- which is the trap two of these tests are about.

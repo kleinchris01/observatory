@@ -109,8 +109,26 @@ export const QUICK_SCAN_STAGE_KEYS = QUICK_SCAN_STAGES.map((s) => s.key);
 // scan people care most about.
 export const FULL_SCAN_POLL_DELAY_SECONDS = 30;
 // issues-delta shares the issue crawl's generous ceiling: it is windowed, not unbounded, but a
-// large site with a long lookback window can still run for tens of minutes.
-export const FULL_SCAN_MAX_POLLS = { issues: 480, "issues-delta": 240, default: 60 };
+// large site with a long lookback window can still run for tens of minutes. The default now
+// only bounds a build that is genuinely FROZEN -- a handoff stage whose sub-build keeps
+// advancing its own progress resets this count (see runScanStep), so a slow-but-alive filter
+// or dashboard build is never abandoned for taking a while.
+export const FULL_SCAN_MAX_POLLS = { issues: 480, "issues-delta": 240, default: 90 };
+
+// How many times a single stage is retried before it is allowed to fail.
+//
+// A stage that throws, or a handoff whose sub-build reports failure, or one that freezes past
+// the poll ceiling -- all three go back to `pending` and run again rather than being marked
+// failed on the first bad outcome. Only after this many attempts does the stage actually fail.
+export const MAX_STAGE_ATTEMPTS = 3;
+export const STAGE_RETRY_DELAY_SECONDS = 20;
+
+// After every stage has resolved, if any FAILED or was SKIPPED, the whole set of them is
+// reset to pending and the scan sweeps again -- up to this many times. Combined with
+// MAX_STAGE_ATTEMPTS this is ~9 attempts at a flaky stage before the scan finally settles
+// for "completed-with-failures". A scan should exhaust every reasonable retry before it
+// tells someone a pillar did not build.
+export const MAX_SCAN_SWEEPS = 2;
 
 export function maxPollsFor(stageKey) {
   return FULL_SCAN_MAX_POLLS[stageKey] ?? FULL_SCAN_MAX_POLLS.default;
@@ -167,7 +185,41 @@ export function initialStages(stageDefinitions = FULL_SCAN_STAGES) {
     startedAt: null,
     completedAt: null,
     error: null,
+    attempts: 0,
   }));
+}
+
+// A stage had a bad outcome. If it has attempts left, put it back to pending so the next
+// step runs it again; only once the attempts are spent does it actually fail. Returns the
+// updated stage list plus whether a retry was scheduled.
+export function retryStageOrFail(stages, key, reason, { now = Date.now() } = {}) {
+  const stage = stages.find((s) => s.key === key);
+  const attempts = Number(stage?.attempts || 0) + 1;
+  const detail = String(reason || "unknown error").slice(0, 260);
+
+  if (attempts < MAX_STAGE_ATTEMPTS) {
+    return {
+      stages: markStage(stages, key, {
+        state: "pending",
+        startedAt: null,
+        completedAt: null,
+        attempts,
+        error: `Attempt ${attempts} failed (${detail}); retrying.`,
+      }),
+      retried: true,
+      attempts,
+    };
+  }
+  return {
+    stages: markStage(stages, key, {
+      state: "failed",
+      completedAt: new Date(now).toISOString(),
+      attempts,
+      error: `Failed after ${attempts} attempts. Last error: ${detail}`,
+    }),
+    retried: false,
+    attempts,
+  };
 }
 
 // The next stage to run, or null when the scan is done.

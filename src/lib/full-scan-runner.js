@@ -26,11 +26,14 @@ import {
   FULL_SCAN_POLL_DELAY_SECONDS,
   FULL_SCAN_STALL_MS,
   MAX_SCAN_RECOVERIES,
+  MAX_SCAN_SWEEPS,
+  STAGE_RETRY_DELAY_SECONDS,
   initialStages,
   nextStage,
   markStage,
   summarizeStages,
   handoffStageState,
+  retryStageOrFail,
   maxPollsFor,
 } from "./full-scan.js";
 import {
@@ -47,7 +50,6 @@ import { buildWorkflowSnapshot, buildStatusHistorySnapshot } from "./workflow-en
 import { buildScreenSnapshot } from "./screen-engine.js";
 import { runSnapshot } from "./snapshot-engine.js";
 import { runIssueScanCoordinator } from "./scan-engine.js";
-import { captureSiteHealth } from "./site-health.js";
 
 // The four structural stages, shared verbatim between full and quick scan.
 //
@@ -59,19 +61,38 @@ import { captureSiteHealth } from "./site-health.js";
 const workflows = { run: (key) => buildWorkflowSnapshot(key) };
 const screens = { run: (key) => buildScreenSnapshot(key) };
 const statusHistory = { run: (key) => buildStatusHistorySnapshot(key) };
-const health = { run: (key) => captureSiteHealth(key) };
+
+// captureSiteHealth is dependency-injected so site-health.js stays testable without the Forge
+// modules -- it takes a `deps` object it destructures with no default, and was being called
+// here with one argument, so EVERY scan's health stage crashed with "Cannot destructure
+// property 'readSnapshotMeta' of 'deps'". resolvers.js has every dep in scope; it is reached
+// by dynamic import to dodge the cycle (resolvers.js imports startQuickScan from this file),
+// exactly as issues-delta reaches runDeltaIssueScanJob.
+const health = {
+  run: async (key) => {
+    const { captureSiteHealthForScan } = await import("../resolvers.js");
+    await captureSiteHealthForScan(key);
+  },
+};
+
+// A cheap signature of a handoff sub-build's progress. When it changes between polls the
+// build is alive and working, however slowly, so the orchestrator resets its patience
+// counter rather than counting down to "abandoned".
+const buildSig = (meta) =>
+  meta ? `${meta.state ?? ""}|${meta.processed ?? ""}|${meta.updatedAt ?? ""}` : null;
+
 const filters = {
   start: (key) => queueFilterSnapshotBuild(key),
   poll: async (key) => {
     const meta = await readFilterSnapshotMeta(key);
-    return handoffStageState(meta, { stale: isFilterBuildStale(meta) });
+    return { state: handoffStageState(meta, { stale: isFilterBuildStale(meta) }), sig: buildSig(meta), lastError: meta?.lastError ?? null };
   },
 };
 const dashboards = {
   start: (key) => queueDashboardSnapshotBuild(key),
   poll: async (key) => {
     const meta = await readDashboardSnapshotMeta(key);
-    return handoffStageState(meta, { stale: isDashboardBuildStale(meta) });
+    return { state: handoffStageState(meta, { stale: isDashboardBuildStale(meta) }), sig: buildSig(meta), lastError: meta?.lastError ?? null };
   },
 };
 
@@ -99,7 +120,7 @@ export const STAGE_RUNNERS = {
       // "cancelled" that handoffStageState treats as failed -- a user who stopped the crawl
       // wanted it stopped, and carrying on to the next stage as if it had finished would
       // record a health score over data nobody agreed to collect.
-      return handoffStageState(meta);
+      return { state: handoffStageState(meta), sig: buildSig(meta), lastError: meta?.lastError ?? null };
     },
   },
   health,
@@ -131,7 +152,7 @@ export const QUICK_SCAN_RUNNERS = {
     poll: async (key) => {
       const { DELTA_SCOPE_SUFFIX } = await import("../resolvers.js");
       const meta = await readIssueScanMeta(`${key}${DELTA_SCOPE_SUFFIX}`);
-      return handoffStageState(meta);
+      return { state: handoffStageState(meta), sig: buildSig(meta), lastError: meta?.lastError ?? null };
     },
   },
   "status-history": statusHistory,
@@ -193,6 +214,9 @@ async function startScan(spec, installationKey, { now = Date.now(), quickScanWin
     updatedAt: startedAt,
     lastError: null,
     polls: 0,
+    recoveryCount: 0,
+    sweep: 0,
+    stageProgressSig: null,
     // Cleared on every start, not just quick-scan starts, so a full scan run after a quick
     // scan never accidentally inherits a stale window from the previous run's meta row.
     quickScanWindowHours: spec.scanType === "quick" ? Number(quickScanWindowHours) || null : null,
@@ -242,32 +266,50 @@ async function runScanStep(spec, installationKey, message = {}, { now = Date.now
   // ── Waiting on a handoff stage already in flight ────────────────────────────
   if (meta.currentStage) {
     const runner = spec.runners[meta.currentStage];
-    const polls = Number(meta.polls || 0) + 1;
-    const verdict = await runner.poll(installationKey, meta);
+    const polled = await runner.poll(installationKey, meta);
+    const verdict = typeof polled === "string" ? polled : polled.state;
+    const sig = typeof polled === "object" && polled ? polled.sig ?? null : null;
+    const subError = typeof polled === "object" && polled ? polled.lastError ?? null : null;
 
     if (verdict === "running") {
-      if (polls > maxPollsFor(meta.currentStage)) {
-        // The stage stopped reporting without ever writing a terminal state. Fail the stage,
-        // not the scan: whatever it was building is a separate pillar, and the stages that do
-        // not depend on it still have value.
-        stages = markStage(stages, meta.currentStage, {
-          state: "failed",
-          completedAt: new Date(now).toISOString(),
-          error: "Stage stopped reporting progress and was abandoned.",
-        });
-        logger.warn(`${spec.scanType}-scan.stage_abandoned`, { installationKey, stage: meta.currentStage, polls });
-        return advance(spec, installationKey, stages, meta.jobToken, now);
+      // The sub-build's own progress signature moved since the last poll -- it is alive and
+      // working, however slowly, so patience resets. Only a build that is genuinely FROZEN
+      // counts down to a retry.
+      const progressed = sig != null && sig !== (meta.stageProgressSig ?? null);
+      const polls = progressed ? 1 : Number(meta.polls || 0) + 1;
+
+      if (!progressed && polls > maxPollsFor(meta.currentStage)) {
+        const { stages: next, retried } = retryStageOrFail(
+          stages, meta.currentStage, subError || "the stage stopped reporting progress", { now }
+        );
+        logger.warn(`${spec.scanType}-scan.stage_${retried ? "retry_frozen" : "abandoned"}`, { installationKey, stage: meta.currentStage, polls });
+        return advance(spec, installationKey, next, meta.jobToken, now);
       }
 
-      await writeFullScanMeta(installationKey, { polls, updatedAt: new Date(now).toISOString() });
+      await writeFullScanMeta(installationKey, {
+        polls,
+        stageProgressSig: sig ?? meta.stageProgressSig ?? null,
+        updatedAt: new Date(now).toISOString(),
+      });
       await queueScanStep(spec, installationKey, meta.currentStage, meta.jobToken, FULL_SCAN_POLL_DELAY_SECONDS);
       return { waiting: true, stage: meta.currentStage, polls };
     }
 
+    if (verdict === "failed") {
+      // The pillar's own build reported failure. Retry the stage rather than marking it
+      // failed on the first bad run -- a scan should exhaust its retries before it tells
+      // anyone a pillar did not build.
+      const { stages: next, retried } = retryStageOrFail(
+        stages, meta.currentStage, subError || "the pillar build reported a failure", { now }
+      );
+      logger.warn(`${spec.scanType}-scan.stage_${retried ? "retry_failed" : "failed"}`, { installationKey, stage: meta.currentStage });
+      return advance(spec, installationKey, next, meta.jobToken, now);
+    }
+
     stages = markStage(stages, meta.currentStage, {
-      state: verdict,
+      state: "done",
       completedAt: new Date(now).toISOString(),
-      error: verdict === "failed" ? "The stage reported a failure. See that tab for details." : null,
+      error: null,
     });
     logger.info(`${spec.scanType}-scan.stage_finished`, { installationKey, stage: meta.currentStage, verdict });
     return advance(spec, installationKey, stages, meta.jobToken, now);
@@ -275,7 +317,7 @@ async function runScanStep(spec, installationKey, message = {}, { now = Date.now
 
   // ── Starting the next stage ─────────────────────────────────────────────────
   const definition = nextStage(stages, spec.stageDefs);
-  if (!definition) return finish(spec, installationKey, stages, now);
+  if (!definition) return advance(spec, installationKey, stages, meta.jobToken, now);
 
   if (definition.blockedBy) {
     // A dependency failed. Skipped rather than run against stale inputs: a status history
@@ -307,6 +349,9 @@ async function runScanStep(spec, installationKey, message = {}, { now = Date.now
     // A stage just started -- the run is making progress, so any recovery credit spent on
     // an earlier stall is cleared. The watchdog's budget only counts consecutive stalls.
     recoveryCount: 0,
+    // Fresh stage: forget the previous handoff sub-build's progress signature so this one's
+    // first real progress reads as movement, not as a match against a stale value.
+    stageProgressSig: null,
     updatedAt: new Date(now).toISOString(),
   });
 
@@ -314,45 +359,79 @@ async function runScanStep(spec, installationKey, message = {}, { now = Date.now
     if (definition.mode === "handoff") {
       await runner.start(installationKey, meta);
       await queueScanStep(spec, installationKey, definition.key, meta.jobToken, FULL_SCAN_POLL_DELAY_SECONDS);
-      logger.info(`${spec.scanType}-scan.stage_handed_off`, { installationKey, stage: definition.key });
+      logger.info(`${spec.scanType}-scan.stage_handed_off`, { installationKey, stage: definition.key, attempts: definition.attempts ?? 0 });
       return { handedOff: true, stage: definition.key };
     }
 
     await runner.run(installationKey);
-    stages = markStage(stages, definition.key, { state: "done", completedAt: new Date(now).toISOString() });
+    stages = markStage(stages, definition.key, { state: "done", completedAt: new Date(now).toISOString(), error: null });
     logger.info(`${spec.scanType}-scan.stage_done`, { installationKey, stage: definition.key });
   } catch (error) {
-    // One stage failing does not fail the scan. Most stages are independent, and an admin
-    // whose screen inventory 401s still wants the workflow and field data the same run would
-    // have produced.
+    // A stage that threw is retried rather than failed on the first bad run. Most stages are
+    // independent, and the scan should exhaust its retries before it tells anyone a pillar
+    // did not build -- see retryStageOrFail and the sweep in advance().
     const message_ = String(error?.message || error);
-    stages = markStage(stages, definition.key, {
-      state: "failed",
-      completedAt: new Date(now).toISOString(),
-      error: message_.slice(0, 300),
-    });
-    logger.error(`${spec.scanType}-scan.stage_failed`, { installationKey, stage: definition.key, error: message_ });
+    const { stages: next, retried } = retryStageOrFail(stages, definition.key, message_, { now });
+    stages = next;
+    logger[retried ? "warn" : "error"](
+      `${spec.scanType}-scan.stage_${retried ? "retry_threw" : "failed"}`,
+      { installationKey, stage: definition.key, error: message_ }
+    );
   }
 
   return advance(spec, installationKey, stages, meta.jobToken, now);
 }
 
-// Persist progress and take the next step, or finish.
+// Persist progress and take the next step, or -- once every stage has resolved -- sweep the
+// failures/skips back to pending for another whole pass before finally finishing.
 async function advance(spec, installationKey, stages, jobToken, now) {
   const summary = summarizeStages(stages);
-  if (summary.complete) return finish(spec, installationKey, stages, now);
 
-  await writeFullScanMeta(installationKey, {
-    stages,
-    currentStage: null,
-    polls: 0,
-    // A stage just resolved -- forward progress -- so the watchdog's consecutive-stall
-    // budget resets. See recoverStalledScan.
-    recoveryCount: 0,
-    updatedAt: new Date(now).toISOString(),
-  });
-  await queueScanStep(spec, installationKey, null, jobToken);
-  return { advanced: true, done: summary.done, total: summary.total };
+  if (!summary.complete) {
+    await writeFullScanMeta(installationKey, {
+      stages,
+      currentStage: null,
+      polls: 0,
+      // A stage just resolved -- forward progress -- so the watchdog's consecutive-stall
+      // budget resets. See recoverStalledScan.
+      recoveryCount: 0,
+      stageProgressSig: null,
+      updatedAt: new Date(now).toISOString(),
+    });
+    await queueScanStep(spec, installationKey, null, jobToken);
+    return { advanced: true, done: summary.done, total: summary.total };
+  }
+
+  // Every stage is in a terminal state. If any failed or was skipped, reset the whole set of
+  // them and sweep again -- a scan should try every reasonable time before it reports that a
+  // pillar did not build. Bounded by MAX_SCAN_SWEEPS so this can never loop forever.
+  if (summary.failed > 0 || summary.skipped > 0) {
+    const meta = await readFullScanMeta(installationKey);
+    const sweep = Number(meta?.sweep || 0);
+    if (sweep < MAX_SCAN_SWEEPS) {
+      const reset = stages.map((stage) =>
+        stage.state === "failed" || stage.state === "skipped"
+          ? { ...stage, state: "pending", startedAt: null, completedAt: null, attempts: 0, error: null }
+          : stage
+      );
+      await writeFullScanMeta(installationKey, {
+        stages: reset,
+        currentStage: null,
+        polls: 0,
+        recoveryCount: 0,
+        stageProgressSig: null,
+        sweep: sweep + 1,
+        updatedAt: new Date(now).toISOString(),
+      });
+      await queueScanStep(spec, installationKey, null, jobToken);
+      logger.warn(`${spec.scanType}-scan.retry_sweep`, {
+        installationKey, sweep: sweep + 1, failed: summary.failed, skipped: summary.skipped,
+      });
+      return { sweeping: true, sweep: sweep + 1, failed: summary.failed, skipped: summary.skipped };
+    }
+  }
+
+  return finish(spec, installationKey, stages, now);
 }
 
 async function finish(spec, installationKey, stages, now) {

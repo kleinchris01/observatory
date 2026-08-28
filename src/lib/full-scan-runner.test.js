@@ -36,6 +36,7 @@ vi.mock("./site-health.js", () => ({ captureSiteHealth: vi.fn() }));
 vi.mock("../resolvers.js", () => ({
   runDeltaIssueScanJob: vi.fn(),
   DELTA_SCOPE_SUFFIX: "::delta",
+  captureSiteHealthForScan: vi.fn().mockResolvedValue({ recorded: true }),
 }));
 
 import {
@@ -54,8 +55,11 @@ import {
   FULL_SCAN_POLL_DELAY_SECONDS,
   FULL_SCAN_STALL_MS,
   MAX_SCAN_RECOVERIES,
+  MAX_STAGE_ATTEMPTS,
+  MAX_SCAN_SWEEPS,
   QUICK_SCAN_STAGES,
 } from "./full-scan.js";
+import { captureSiteHealthForScan } from "../resolvers.js";
 import { inventorySnapshotQueue } from "./queues.js";
 import { readFullScanMeta, writeFullScanMeta, readFilterSnapshotMeta, readIssueScanMeta } from "./project-store.js";
 import { buildWorkflowSnapshot } from "./workflow-engine.js";
@@ -140,16 +144,31 @@ describe("running a stage", () => {
     );
   });
 
-  test("a stage that throws fails that stage, not the scan", async () => {
+  test("a stage that throws is retried, not failed on the first bad run", async () => {
     readFullScanMeta.mockResolvedValue(running());
     buildWorkflowSnapshot.mockRejectedValueOnce(new Error("401 scope does not match"));
 
     await runFullScanStep("inst", { jobToken: "job-token" });
 
-    const stages = lastWrite().stages;
-    expect(stages.find((s) => s.key === "workflows")).toMatchObject({ state: "failed", error: expect.stringContaining("401") });
-    // The scan carries on: four of the eight stages are independent, and an admin whose
-    // workflow build 401s still wants the field and screen data from the same run.
+    // Back to pending with the attempt recorded -- the scan should exhaust its retries
+    // before it tells anyone a pillar did not build.
+    expect(lastWrite().stages.find((s) => s.key === "workflows")).toMatchObject({
+      state: "pending", attempts: 1, error: expect.stringContaining("401"),
+    });
+    expect(inventorySnapshotQueue.push).toHaveBeenCalled();
+  });
+
+  test("a stage that keeps throwing eventually fails, after its attempts are spent", async () => {
+    const stages = markStage(initialStages(), "workflows", { attempts: MAX_STAGE_ATTEMPTS - 1 });
+    readFullScanMeta.mockResolvedValue(running({ stages }));
+    buildWorkflowSnapshot.mockRejectedValueOnce(new Error("still 401"));
+
+    await runFullScanStep("inst", { jobToken: "job-token" });
+
+    expect(lastWrite().stages.find((s) => s.key === "workflows")).toMatchObject({
+      state: "failed", attempts: MAX_STAGE_ATTEMPTS, error: expect.stringContaining("after"),
+    });
+    // Independent of the failed stage, the scan carries on with the rest.
     expect(inventorySnapshotQueue.push).toHaveBeenCalled();
   });
 
@@ -169,14 +188,31 @@ describe("running a stage", () => {
 });
 
 describe("waiting on a handoff stage", () => {
+  // "building" with the same processed/updatedAt gives a stable signature -- no progress.
+  const frozenFilterMeta = { state: "building", processed: 10, updatedAt: "t1" };
+  const frozenSig = "building|10|t1";
+
   test("keeps waiting while the pillar is still building", async () => {
-    readFullScanMeta.mockResolvedValue(running({ currentStage: "filters", polls: 3 }));
-    readFilterSnapshotMeta.mockResolvedValue({ state: "building" });
+    readFullScanMeta.mockResolvedValue(running({ currentStage: "filters", polls: 3, stageProgressSig: frozenSig }));
+    readFilterSnapshotMeta.mockResolvedValue(frozenFilterMeta);
 
     const result = await runFullScanStep("inst", { jobToken: "job-token" });
 
+    // Signature unchanged since last poll -> patience counter climbs.
     expect(result).toMatchObject({ waiting: true, stage: "filters", polls: 4 });
     expect(lastWrite()).toMatchObject({ polls: 4 });
+  });
+
+  test("resets patience when the sub-build advances, however slowly", async () => {
+    readFullScanMeta.mockResolvedValue(running({ currentStage: "filters", polls: 50, stageProgressSig: "building|10|t1" }));
+    readFilterSnapshotMeta.mockResolvedValue({ state: "building", processed: 900, updatedAt: "t2" });
+
+    const result = await runFullScanStep("inst", { jobToken: "job-token" });
+
+    // It moved -> it is alive, not wedged. polls goes back to 1 rather than counting toward
+    // an abandon. This is what stops a slow-but-working filter build being killed.
+    expect(result).toMatchObject({ waiting: true, polls: 1 });
+    expect(lastWrite()).toMatchObject({ polls: 1, stageProgressSig: "building|900|t2" });
   });
 
   test("marks the stage done once the pillar reports ready, and advances", async () => {
@@ -189,29 +225,77 @@ describe("waiting on a handoff stage", () => {
     expect(lastWrite().currentStage).toBeNull();
   });
 
-  test("abandons a stage that stops reporting instead of waiting forever", async () => {
-    readFullScanMeta.mockResolvedValue(running({ currentStage: "filters", polls: 10_000 }));
-    readFilterSnapshotMeta.mockResolvedValue({ state: "building" });
+  test("retries a frozen handoff stage rather than failing it on the first freeze", async () => {
+    readFullScanMeta.mockResolvedValue(running({ currentStage: "filters", polls: 10_000, stageProgressSig: frozenSig }));
+    readFilterSnapshotMeta.mockResolvedValue(frozenFilterMeta);
 
     await runFullScanStep("inst", { jobToken: "job-token" });
 
-    // A pillar can die without writing a terminal state -- a deploy mid-build, a lost queue
-    // message. Bounding the wait is what stops that holding the whole scan open forever.
+    expect(lastWrite().stages.find((s) => s.key === "filters")).toMatchObject({ state: "pending", attempts: 1 });
+  });
+
+  test("a handoff stage that stays frozen through its retries is finally abandoned, not left running", async () => {
+    const stages = markStage(initialStages(), "filters", { state: "running", attempts: MAX_STAGE_ATTEMPTS - 1 });
+    readFullScanMeta.mockResolvedValue(running({ currentStage: "filters", polls: 10_000, stageProgressSig: frozenSig, stages }));
+    readFilterSnapshotMeta.mockResolvedValue(frozenFilterMeta);
+
+    await runFullScanStep("inst", { jobToken: "job-token" });
+
     expect(lastWrite().stages.find((s) => s.key === "filters")).toMatchObject({
       state: "failed",
       error: expect.stringContaining("stopped reporting"),
     });
   });
+
+  test("a handoff whose pillar reports failure is retried, not failed", async () => {
+    readFullScanMeta.mockResolvedValue(running({ currentStage: "filters", stages: withDone(["workflows", "screens"]) }));
+    readFilterSnapshotMeta.mockResolvedValue({ state: "failed", lastError: "429 too many requests" });
+
+    await runFullScanStep("inst", { jobToken: "job-token" });
+
+    expect(lastWrite().stages.find((s) => s.key === "filters")).toMatchObject({
+      state: "pending", attempts: 1, error: expect.stringContaining("429"),
+    });
+  });
+});
+
+describe("the health stage", () => {
+  test("records site health through the dependency-injected wrapper, and completes", async () => {
+    // Every stage done except health, so the next step runs it.
+    const stages = withDone(fullScanStageCatalog().map((s) => s.key).filter((k) => k !== "health"));
+    readFullScanMeta.mockResolvedValue(running({ stages }));
+
+    await runFullScanStep("inst", { jobToken: "job-token" });
+
+    // The bug this replaces: captureSiteHealth was called with no deps and threw on every
+    // scan. It is now reached through captureSiteHealthForScan, which supplies them.
+    expect(captureSiteHealthForScan).toHaveBeenCalledWith("inst");
+    expect(lastWrite().stages.find((s) => s.key === "health").state).toBe("done");
+  });
 });
 
 describe("finishing", () => {
-  test("reports completed-with-failures rather than plain success when a stage failed", async () => {
-    const stages = markStage(
+  const allButHealthDone = () =>
+    markStage(
       withDone(fullScanStageCatalog().map((s) => s.key).filter((k) => k !== "health")),
       "health",
       { state: "failed" }
     );
-    readFullScanMeta.mockResolvedValue(running({ stages }));
+
+  test("sweeps the failed stages back to pending for another whole pass before giving up", async () => {
+    readFullScanMeta.mockResolvedValue(running({ stages: allButHealthDone(), sweep: 0 }));
+
+    const result = await runFullScanStep("inst", { jobToken: "job-token" });
+
+    // Every stage resolved but one failed -> reset it and run the scan again. A scan should
+    // exhaust its retries before it reports that a pillar did not build.
+    expect(result).toMatchObject({ sweeping: true, sweep: 1 });
+    expect(lastWrite().stages.find((s) => s.key === "health")).toMatchObject({ state: "pending", attempts: 0 });
+    expect(lastWrite().sweep).toBe(1);
+  });
+
+  test("reports completed-with-failures once the retry sweeps are spent", async () => {
+    readFullScanMeta.mockResolvedValue(running({ stages: allButHealthDone(), sweep: MAX_SCAN_SWEEPS }));
 
     const result = await runFullScanStep("inst", { jobToken: "job-token" });
 
