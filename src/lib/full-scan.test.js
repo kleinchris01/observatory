@@ -157,6 +157,37 @@ describe("nextStage", () => {
     expect(next).not.toBeNull();
     expect(next.key).not.toBe("screens");
   });
+
+  // The bug: a second orchestrator loop (a delayed queue message, or a recovery kick racing
+  // the original) would call nextStage while an earlier stage was still running, skip past it
+  // because it was not "pending", and return a LATER stage -- so status history and health
+  // ran and completed while the field snapshot they score was still in flight.
+  test("returns null rather than a later stage while an earlier one is still running", () => {
+    let stages = initialStages();
+    for (const key of ["workflows", "screens", "filters", "dashboards"]) stages = markStage(stages, key, { state: "done" });
+    stages = markStage(stages, "fields", { state: "running" });
+    // status-history and health are still pending and their listed deps are all satisfied --
+    // the ONLY thing that should stop them is that fields has not finished.
+    expect(nextStage(stages)).toBeNull();
+  });
+
+  test("resumes at the running stage's successor once it finishes, in order", () => {
+    let stages = initialStages();
+    for (const key of ["workflows", "screens", "filters", "dashboards", "fields"]) stages = markStage(stages, key, { state: "done" });
+    expect(nextStage(stages).key).toBe("status-history");
+  });
+
+  test("health is last, and only reachable once every stage before it has settled", () => {
+    let stages = initialStages();
+    const beforeHealth = FULL_SCAN_STAGES.map((s) => s.key).filter((k) => k !== "health");
+    // Every prior stage terminal (a mix of done and failed) -> health is next.
+    for (const key of beforeHealth) stages = markStage(stages, key, { state: key === "screens" ? "failed" : "done" });
+    expect(nextStage(stages).key).toBe("health");
+
+    // ...but flip one back to running and health is unreachable again.
+    stages = markStage(stages, "issues", { state: "running" });
+    expect(nextStage(stages)).toBeNull();
+  });
 });
 
 describe("summarizeStages", () => {

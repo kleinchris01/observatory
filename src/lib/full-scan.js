@@ -231,8 +231,21 @@ export function nextStage(stages = [], stageDefinitions = FULL_SCAN_STAGES) {
   const byKey = new Map(stages.map((s) => [s.key, s]));
   for (const definition of stageDefinitions) {
     const stage = byKey.get(definition.key);
-    if (!stage || stage.state !== "pending") continue;
+    if (!stage) continue;
 
+    // Terminal -- step past it.
+    if (stage.state === "done" || stage.state === "failed" || stage.state === "skipped") continue;
+
+    // The earliest stage that has not finished. If it is already running it is in flight and
+    // there is nothing to start -- returning a LATER pending stage here is exactly how a
+    // second orchestrator loop (a delayed-not-lost queue message, or a recovery kick racing
+    // the original) ends up running stages concurrently and out of order: status history and
+    // health completing while the field snapshot they depend on is still going.
+    if (stage.state === "running") return null;
+
+    // It is pending. It can only be blocked by a dependency that finished WITHOUT succeeding
+    // -- a dependency that simply has not run yet is an earlier stage, and the loop would
+    // have already returned (or yielded) at it.
     const blocked = definition.needs.find((need) => {
       const dependency = byKey.get(need);
       return dependency && (dependency.state === "failed" || dependency.state === "skipped");

@@ -5,7 +5,7 @@ import { vi, describe, test, expect, beforeEach } from "vitest";
 // that a handoff stage is waited on rather than assumed finished, and that the scan cannot
 // stall silently -- every path either queues the next step or writes a terminal state.
 
-vi.mock("./jira-api.js", () => ({ makeJobToken: () => "job-token" }));
+vi.mock("./jira-api.js", () => ({ makeJobToken: vi.fn(() => "job-token") }));
 vi.mock("./queues.js", () => ({ inventorySnapshotQueue: { push: vi.fn() } }));
 vi.mock("./logger.js", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -65,6 +65,7 @@ import {
 } from "./full-scan.js";
 import { captureSiteHealthForScan } from "../resolvers.js";
 import { inventorySnapshotQueue } from "./queues.js";
+import { makeJobToken } from "./jira-api.js";
 import { readFullScanMeta, writeFullScanMeta, readFilterSnapshotMeta, readIssueScanMeta, recordFullScanRun } from "./project-store.js";
 import { buildWorkflowSnapshot } from "./workflow-engine.js";
 import { queueFilterSnapshotBuild } from "./filter-engine.js";
@@ -188,6 +189,22 @@ describe("running a stage", () => {
       state: "skipped",
       error: expect.stringContaining("workflows"),
     });
+  });
+
+  // A second loop landing while an inline stage is genuinely mid-run must not run a LATER
+  // stage -- and it must not hot-loop re-queueing itself either. It yields; the running
+  // stage's own step advances the scan, and the stall watchdog covers a stage that died.
+  test("yields without re-queueing when the next unfinished stage is already running", async () => {
+    const stages = markStage(withDone(["workflows", "screens", "filters", "dashboards"]), "fields", { state: "running" });
+    readFullScanMeta.mockResolvedValue(running({ currentStage: null, stages }));
+
+    const result = await runFullScanStep("inst", { jobToken: "job-token" });
+
+    expect(result).toMatchObject({ yielded: true, stage: "fields" });
+    expect(writeFullScanMeta).not.toHaveBeenCalled();
+    expect(inventorySnapshotQueue.push).not.toHaveBeenCalled();
+    // Crucially, no later stage was started.
+    expect(lastWrite()).toBeNull();
   });
 });
 
@@ -593,6 +610,27 @@ describe("stall recovery", () => {
 
     // The advance write, after filters resolved.
     expect(lastWrite().recoveryCount).toBe(0);
+  });
+
+  // Forge queue delivery is at-least-once. The step this recovery thinks is lost may only be
+  // slow -- so recovery rotates the job token, and runScanStep then rejects the older message
+  // as stale rather than letting two loops run stages concurrently and out of order.
+  test("rotates the job token so a delayed original step is rejected", async () => {
+    makeJobToken.mockReturnValueOnce("recovered-token");
+    const stages = markStage(withDone(["workflows", "screens", "filters", "dashboards"]), "fields", { state: "running" });
+    readFullScanMeta.mockResolvedValue(running({ currentStage: null, stages, updatedAt: stalledBeat }));
+
+    await recoverStalledScan("inst", { now: NOW });
+
+    expect(lastWrite().jobToken).toBe("recovered-token");
+    expect(inventorySnapshotQueue.push).toHaveBeenCalledWith(
+      expect.objectContaining({ body: expect.objectContaining({ jobToken: "recovered-token" }) })
+    );
+
+    // The delayed original, carrying the old token, is now a stale message.
+    readFullScanMeta.mockResolvedValue(running({ jobToken: "recovered-token", stages }));
+    const stale = await runFullScanStep("inst", { jobToken: "job-token" });
+    expect(stale).toMatchObject({ ignored: true, reason: "stale-token" });
   });
 });
 
