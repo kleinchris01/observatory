@@ -798,6 +798,7 @@ function ScanNowBand({ status, stages, onCancel, cancelling }) {
   const { counted, processed, total, pct } = readStageProgress(status?.currentStageProgress);
   const sweep = Number(status?.sweep) || 0;
   const lastError = status?.currentStageProgress?.lastError || null;
+  const note = status?.currentStageProgress?.note || null;
 
   return (
     <div className="scan-now">
@@ -827,6 +828,7 @@ function ScanNowBand({ status, stages, onCancel, cancelling }) {
             : total > 0
               ? `${formatNumber(processed)} processed`
               : "This stage runs on its own queue and reports back — no percentage to show."}
+          {note && <span className="scan-now__note">{" — "}{note}</span>}
         </span>
         <span className="scan-now__beat">last update {updatedAgo || "just now"} ago</span>
       </div>

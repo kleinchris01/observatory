@@ -2247,6 +2247,9 @@ code {
 .scan-now__beat {
   font-variant-numeric: tabular-nums;
 }
+.scan-now__note {
+  color: var(--muted);
+}
 .scan-now__err {
   font-size: 0.78rem;
   color: #e07070;

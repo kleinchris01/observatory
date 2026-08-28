@@ -3544,7 +3544,22 @@ async function handoffStageProgress(installationKey, currentStage) {
     if (currentStage === "dashboards") {
       const m = await readDashboardSnapshotMeta(installationKey);
       if (!m) return null;
-      return { processed: Number(m.processed) || 0, total: Number(m.totalExpected) || 0, lastError: m.lastError || null };
+      // The dashboard build runs in three phases -- enumerate, walk gadgets, resolve gadget
+      // configs -- and the count means something different in each. Naming the phase is what
+      // turns "3,836 of 5,226" from a mystery into "resolving what each gadget points at".
+      const phaseLabels = {
+        list: "listing dashboards",
+        gadgets: "reading each dashboard's gadgets",
+        configs: "resolving what each gadget points at",
+      };
+      let phase = null;
+      try { phase = JSON.parse(m.buildCursor || "null")?.phase || null; } catch { phase = null; }
+      return {
+        processed: Number(m.processed) || 0,
+        total: Number(m.totalExpected) || 0,
+        lastError: m.lastError || null,
+        note: phase ? phaseLabels[phase] || null : null,
+      };
     }
   } catch {
     return null;

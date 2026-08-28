@@ -1,4 +1,4 @@
-import { describe, test, expect } from "vitest";
+import { describe, test, expect, vi, beforeEach } from "vitest";
 import { shapeDashboard, shapeGadget, isDashboardBuildStale, DASHBOARD_BUILD_STALE_MS } from "./dashboard-engine.js";
 
 // The shapes this has to survive are things a real tenant produces: a deleted owner, a view
@@ -120,5 +120,79 @@ describe("isDashboardBuildStale", () => {
   test("says nothing about a row that is not building", () => {
     expect(isDashboardBuildStale({ state: "ready" }, now)).toBe(false);
     expect(isDashboardBuildStale(null, now)).toBe(false);
+  });
+});
+
+// runChunk phase progression: the fix here is the totalExpected the later phases report.
+// Before it, gadget-walk and config-walk work was summed onto the phase-one count while the
+// denominator stayed at the dashboard total, so a real build showed "3,836 of 613 (100%)".
+vi.mock("./jira-api.js", () => ({
+  incrMetric: vi.fn(),
+  METRIC_NAMES: { jiraRequest: "jiraRequest" },
+  getDashboardPage: vi.fn(),
+  getDashboardGadgets: vi.fn(async () => []),
+  getGadgetFilterId: vi.fn(async () => null),
+  mapWithConcurrency: async (items, _n, fn) => Promise.all(items.map(fn)),
+}));
+vi.mock("./logger.js", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
+vi.mock("./queues.js", () => ({ inventorySnapshotQueue: { push: vi.fn() } }));
+vi.mock("./project-store.js", () => ({
+  ensureProjectStoreReady: vi.fn(),
+  readDashboardSnapshotMeta: vi.fn(),
+  writeDashboardSnapshotMeta: vi.fn(),
+  clearDashboardSnapshotVersion: vi.fn(),
+  appendDashboardSnapshot: vi.fn(),
+  loadDashboardIdsNeedingGadgets: vi.fn(),
+  loadGadgetsNeedingConfig: vi.fn(),
+  recordGadgetConfigs: vi.fn(),
+  countGadgetConfigCoverage: vi.fn(),
+  pruneDashboardSnapshots: vi.fn(),
+}));
+
+describe("dashboardBuildSpec.runChunk — phase-aware progress", () => {
+  let jira, store, spec;
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    jira = await import("./jira-api.js");
+    store = await import("./project-store.js");
+    ({ dashboardBuildSpec: spec } = await import("./dashboard-engine.js"));
+  });
+
+  test("the list phase reports the dashboard total and hands listTotal forward", async () => {
+    jira.getDashboardPage.mockResolvedValue({ values: [], total: 613, isLast: true });
+    const r = await spec.runChunk({ installationKey: "i", version: "v", cursor: { phase: "list" } });
+    expect(r.totalExpected).toBe(613);
+    expect(r.cursor).toEqual({ phase: "gadgets", listTotal: 613 });
+  });
+
+  test("the gadget phase doubles the denominator — one walk per dashboard on top of listing", async () => {
+    store.loadDashboardIdsNeedingGadgets.mockResolvedValue(["1", "2"]);
+    jira.getDashboardGadgets.mockResolvedValue([]);
+    const r = await spec.runChunk({ installationKey: "i", version: "v", cursor: { phase: "gadgets", listTotal: 613, walked: 0 } });
+    expect(r.totalExpected).toBe(1226);
+    expect(r.cursor).toMatchObject({ phase: "gadgets", listTotal: 613 });
+  });
+
+  test("entering the config phase adds the real gadget count to the denominator", async () => {
+    store.loadDashboardIdsNeedingGadgets.mockResolvedValue([]);
+    store.countGadgetConfigCoverage.mockResolvedValue({ total: 4000, walked: 0 });
+    const r = await spec.runChunk({ installationKey: "i", version: "v", cursor: { phase: "gadgets", listTotal: 613 } });
+    expect(r.totalExpected).toBe(613 * 2 + 4000);
+    expect(r.cursor).toEqual({ phase: "configs", walked: 0, listTotal: 613, gadgetTotal: 4000 });
+  });
+
+  test("the config phase keeps the cumulative denominator steady across its chunks", async () => {
+    store.loadGadgetsNeedingConfig.mockResolvedValue([{ dashboardId: "1", gadgetId: "g1" }]);
+    store.recordGadgetConfigs.mockResolvedValue({ recorded: 1 });
+    const r = await spec.runChunk({ installationKey: "i", version: "v", cursor: { phase: "configs", walked: 0, listTotal: 613, gadgetTotal: 4000 } });
+    expect(r.totalExpected).toBe(5226);
+    expect(r.done).toBe(false);
+  });
+
+  test("a config chunk resumed from a pre-fix cursor leaves the meta's total alone", async () => {
+    store.loadGadgetsNeedingConfig.mockResolvedValue([]);
+    const r = await spec.runChunk({ installationKey: "i", version: "v", cursor: { phase: "configs", walked: 0 } });
+    expect(r.done).toBe(true);
+    expect(r.totalExpected).toBeUndefined();
   });
 });
