@@ -48,7 +48,7 @@ function OwnerChip({ filter }) {
   return <span className="filter-row__owner">{filter.ownerName ?? "—"}</span>;
 }
 
-function FilterRow({ filter, siteOrigin }) {
+function FilterRow({ filter, siteOrigin, lastUsedTracked = true }) {
   const href = siteOrigin ? `${siteOrigin}/issues/?filter=${filter.id}` : null;
 
   return (
@@ -76,7 +76,11 @@ function FilterRow({ filter, siteOrigin }) {
         )}
         {filter.sharedWithEveryone && <Chip tone="warning">everyone</Chip>}
         <span className="filter-row__used">
-          {filter.lastUsedAt ? `opened ${formatRelativeTime(filter.lastUsedAt)}` : "never opened"}
+          {filter.lastUsedAt
+            ? `opened ${formatRelativeTime(filter.lastUsedAt)}`
+            : lastUsedTracked
+              ? "never opened"
+              : "last-opened not tracked"}
         </span>
       </div>
 
@@ -233,8 +237,15 @@ export function FiltersTab({ siteOrigin = "", intent = null }) {
   const sections = [
     { key: "filters", label: "Filters", icon: "search", badge: formatNumber(data.total) },
     { key: "duplicates", label: "Duplicates", icon: "copy", badge: formatNumber(data.duplicateGroupCount) },
-    { key: "broken", label: "Broken scope", icon: "alertTriangle", badge: formatNumber(data.brokenProjectCount) },
+    { key: "broken", label: "Deleted project", icon: "alertTriangle", badge: formatNumber(data.brokenProjectCount) },
   ];
+
+  // Jira does not populate last-used on every instance. When it populates it for nothing,
+  // the "not opened in a year" finding and its sort are noise -- drop them rather than show
+  // a 0 for a thing we could not measure.
+  const lastUsedTracked = data.lastUsedTracked !== false;
+  const findingOptions = lastUsedTracked ? FILTER_FINDINGS : FILTER_FINDINGS.filter((o) => o.key !== "stale");
+  const sortOptions = lastUsedTracked ? SORTS : SORTS.filter((o) => o.value !== "stale");
 
   return (
     <>
@@ -295,7 +306,7 @@ export function FiltersTab({ siteOrigin = "", intent = null }) {
               searchPlaceholder="Name, owner, or anything in the query…"
               sort={sort}
               onSortChange={setSort}
-              sortOptions={SORTS}
+              sortOptions={sortOptions}
               resultCount={matchedTotal}
               totalCount={data.total}
               onClear={() => { setSearch(""); setDeferredSearch(""); setFinding("all"); setSort("findings"); }}
@@ -306,7 +317,7 @@ export function FiltersTab({ siteOrigin = "", intent = null }) {
                 Re-deriving them from pageRows would report "0 orphaned" on a page that
                 happens not to contain one, on a site that has hundreds. */}
             <div className="findings-filter-bar">
-              {FILTER_FINDINGS.map((option) => (
+              {findingOptions.map((option) => (
                 <button
                   key={option.key}
                   type="button"
@@ -324,7 +335,7 @@ export function FiltersTab({ siteOrigin = "", intent = null }) {
               <EmptyState inline>No filter matches these filters.</EmptyState>
             ) : (
               <div className="filter-list">
-                {pageRows.map((row) => <FilterRow key={row.id} filter={row} siteOrigin={siteOrigin} />)}
+                {pageRows.map((row) => <FilterRow key={row.id} filter={row} siteOrigin={siteOrigin} lastUsedTracked={data.lastUsedTracked !== false} />)}
               </div>
             )}
 
