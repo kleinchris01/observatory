@@ -229,3 +229,123 @@ export async function writeFullScanMeta(scopeKey, patch = {}) {
   );
   return next;
 }
+
+// ── Per-run scan history ───────────────────────────────────────────────────
+//
+// full_scan_meta is overwritten by the next run, so the only place a run-over-run comparison
+// can come from is a table that keeps one row per completed run. Written once, from the
+// orchestrator's terminal path; never updated.
+
+const FULL_SCAN_RUNS_KEEP = 40;
+
+// Record a finished run and prune the tail in the same call. Best-effort at the caller: a
+// scan that reported failure because its history row could not be written would be lying
+// about the scan, exactly like recordHealthSnapshot.
+export async function recordFullScanRun(scopeKey, run = {}) {
+  if (!scopeKey || !run.runId) return { recorded: false, reason: "nothing to record" };
+  await ensureProjectStoreReady();
+
+  try {
+    await withSqlRetry(() =>
+      sql.prepare(`
+        INSERT INTO full_scan_runs
+          (scope_key, run_id, scan_type, state, started_at, completed_at, duration_ms,
+           failed_count, skipped_count, total_stages, sweep, stages_json, summary_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+          state = VALUES(state),
+          started_at = VALUES(started_at),
+          completed_at = VALUES(completed_at),
+          duration_ms = VALUES(duration_ms),
+          failed_count = VALUES(failed_count),
+          skipped_count = VALUES(skipped_count),
+          total_stages = VALUES(total_stages),
+          sweep = VALUES(sweep),
+          stages_json = VALUES(stages_json),
+          summary_json = VALUES(summary_json)
+      `).bindParams(
+        scopeKey,
+        String(run.runId),
+        run.scanType === "quick" ? "quick" : "full",
+        run.state || "ready",
+        run.startedAt || null,
+        run.completedAt || null,
+        Number(run.durationMs) || 0,
+        Number(run.failedCount) || 0,
+        Number(run.skippedCount) || 0,
+        Number(run.totalStages) || 0,
+        Number(run.sweep) || 0,
+        JSON.stringify(run.stages || []),
+        JSON.stringify(run.summary || {})
+      ).execute()
+    );
+
+    await pruneFullScanRuns(scopeKey);
+    return { recorded: true };
+  } catch (error) {
+    console.warn("recordFullScanRun: failed to write run row", error?.message || error);
+    return { recorded: false };
+  }
+}
+
+// The most recent runs, newest first. Optionally narrowed to one scan type -- the scan page
+// shows full and quick separately, and a full run's deltas should never be read against a
+// quick run's counts.
+export async function readRecentFullScanRuns(scopeKey, { scanType = null, limit = 10 } = {}) {
+  await ensureProjectStoreReady();
+  const capped = Math.max(1, Math.min(50, Math.trunc(Number(limit)) || 10));
+
+  const typeClause = scanType === "full" || scanType === "quick" ? "AND scan_type = ?" : "";
+  const params = typeClause ? [scopeKey, scanType] : [scopeKey];
+
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT run_id, scan_type, state, started_at, completed_at, duration_ms,
+             failed_count, skipped_count, total_stages, sweep, stages_json, summary_json
+      FROM full_scan_runs
+      WHERE scope_key = ? ${typeClause}
+      ORDER BY completed_at DESC
+      LIMIT ${capped}
+    `).bindParams(...params).execute()
+  );
+
+  return (result.rows || []).map((row) => ({
+    runId: row.run_id,
+    scanType: row.scan_type || "full",
+    state: row.state || "ready",
+    startedAt: row.started_at || null,
+    completedAt: row.completed_at || null,
+    durationMs: toNumber(row.duration_ms),
+    failedCount: toNumber(row.failed_count),
+    skippedCount: toNumber(row.skipped_count),
+    totalStages: toNumber(row.total_stages),
+    sweep: toNumber(row.sweep),
+    stages: safeParseJson(row.stages_json, []) || [],
+    summary: safeParseJson(row.summary_json, {}) || {},
+  }));
+}
+
+// Keep the newest FULL_SCAN_RUNS_KEEP rows per scope, drop the rest. Interpolated OFFSET for
+// the same reason every LIMIT in this layer is interpolated -- Forge SQL rejects a bound one.
+export async function pruneFullScanRuns(scopeKey, keep = FULL_SCAN_RUNS_KEEP) {
+  await ensureProjectStoreReady();
+  const capped = Math.max(1, Math.min(500, Math.trunc(Number(keep)) || FULL_SCAN_RUNS_KEEP));
+
+  const survivors = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT run_id FROM full_scan_runs
+      WHERE scope_key = ?
+      ORDER BY completed_at DESC
+      LIMIT ${capped}
+    `).bindParams(scopeKey).execute()
+  );
+  const keepIds = (survivors.rows || []).map((r) => r.run_id);
+  if (keepIds.length < capped) return { deleted: 0 };
+
+  const placeholders = keepIds.map(() => "?").join(", ");
+  const result = await withSqlRetry(() =>
+    sql.prepare(`DELETE FROM full_scan_runs WHERE scope_key = ? AND run_id NOT IN (${placeholders})`)
+      .bindParams(scopeKey, ...keepIds).execute()
+  );
+  return { deleted: toNumber(result?.affectedRows ?? result?.rowsAffected, 0) };
+}

@@ -27,6 +27,9 @@ import {
   loadHealthHistory,
   pruneHealthHistory,
   measurementDay,
+  recordFullScanRun,
+  readRecentFullScanRuns,
+  pruneFullScanRuns,
 } from "./health.js";
 
 let issued = [];
@@ -150,5 +153,96 @@ describe("pruneHealthHistory", () => {
     expect(issued[0].params[0]).toBe("scope-1");
     const cutoff = Date.parse(issued[0].params[1]);
     expect(Date.now() - cutoff).toBeGreaterThan(365 * 24 * 60 * 60 * 1000);
+  });
+});
+
+describe("recordFullScanRun", () => {
+  test("inserts one row per run, with the stage breakdown and produced counts as JSON", async () => {
+    const res = await recordFullScanRun("scope-1", {
+      runId: "job-abc",
+      scanType: "full",
+      state: "ready",
+      startedAt: "2026-08-27T10:00:00.000Z",
+      completedAt: "2026-08-27T10:47:00.000Z",
+      durationMs: 2_820_000,
+      failedCount: 0,
+      skippedCount: 0,
+      totalStages: 8,
+      sweep: 1,
+      stages: [{ key: "filters", state: "done", durationMs: 64000, attempts: 2, count: 4115 }],
+      summary: { filters: 4115, dashboards: 512 },
+    });
+
+    expect(res).toEqual({ recorded: true });
+    const insert = issued.find((e) => e.statement.includes("INSERT INTO full_scan_runs"));
+    expect(insert).toBeTruthy();
+    expect(insert.params.slice(0, 4)).toEqual(["scope-1", "job-abc", "full", "ready"]);
+    expect(insert.params[11]).toContain('"key":"filters"');
+    expect(insert.params[12]).toBe(JSON.stringify({ filters: 4115, dashboards: 512 }));
+    // Prunes in the same call.
+    expect(issued.some((e) => e.statement.includes("SELECT run_id FROM full_scan_runs"))).toBe(true);
+  });
+
+  test("records nothing when there is no run id to key on", async () => {
+    expect(await recordFullScanRun("scope-1", { scanType: "full" })).toEqual({ recorded: false, reason: "nothing to record" });
+    expect(issued.filter((e) => /INSERT/.test(e.statement))).toHaveLength(0);
+  });
+
+  test("a write failure degrades to recorded:false rather than throwing", async () => {
+    sql.prepare.mockImplementationOnce(() => ({ bindParams: () => ({ execute: () => Promise.reject(new Error("no table")) }) }));
+    expect(await recordFullScanRun("scope-1", { runId: "x" })).toEqual({ recorded: false });
+  });
+});
+
+describe("readRecentFullScanRuns", () => {
+  test("maps the rows and parses the JSON columns, newest first as queried", async () => {
+    nextRows = [
+      { run_id: "r2", scan_type: "full", state: "ready", completed_at: "t2", duration_ms: 100, stages_json: '[{"key":"filters"}]', summary_json: '{"filters":10}' },
+      { run_id: "r1", scan_type: "full", state: "completed-with-failures", completed_at: "t1", duration_ms: 90, stages_json: "[]", summary_json: "{}" },
+    ];
+
+    const runs = await readRecentFullScanRuns("scope-1", { scanType: "full", limit: 5 });
+
+    expect(runs.map((r) => r.runId)).toEqual(["r2", "r1"]);
+    expect(runs[0].stages).toEqual([{ key: "filters" }]);
+    expect(runs[0].summary).toEqual({ filters: 10 });
+    expect(issued[0].statement).toContain("AND scan_type = ?");
+    expect(issued[0].statement).toContain("LIMIT 5");
+    expect(issued[0].params).toEqual(["scope-1", "full"]);
+  });
+
+  test("omits the scan-type clause when no type is given and clamps a silly limit", async () => {
+    await readRecentFullScanRuns("scope-1", { limit: 9999 });
+    expect(issued[0].statement).not.toContain("scan_type = ?");
+    expect(issued[0].statement).toContain("LIMIT 50");
+    expect(issued[0].params).toEqual(["scope-1"]);
+  });
+
+  test("an unparseable JSON column falls back to an empty shape", async () => {
+    nextRows = [{ run_id: "r1", stages_json: "[broken", summary_json: "{broken" }];
+    const runs = await readRecentFullScanRuns("scope-1");
+    expect(runs[0].stages).toEqual([]);
+    expect(runs[0].summary).toEqual({});
+  });
+});
+
+describe("pruneFullScanRuns", () => {
+  test("keeps the newest N and deletes the rest, scoped to the site", async () => {
+    nextRows = Array.from({ length: 40 }, (_, i) => ({ run_id: `r${i}` }));
+
+    await pruneFullScanRuns("scope-1", 40);
+
+    const del = issued.find((e) => e.statement.startsWith("DELETE FROM full_scan_runs"));
+    expect(del).toBeTruthy();
+    expect(del.statement).toContain("run_id NOT IN (");
+    expect(del.params[0]).toBe("scope-1");
+    expect(del.params).toHaveLength(41);
+  });
+
+  test("does nothing while the table is still under the cap", async () => {
+    nextRows = [{ run_id: "r0" }, { run_id: "r1" }];
+    const res = await pruneFullScanRuns("scope-1", 40);
+    expect(res).toEqual({ deleted: 0 });
+    expect(issued.some((e) => e.statement.startsWith("DELETE"))).toBe(false);
   });
 });

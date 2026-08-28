@@ -3,7 +3,7 @@ import { invoke, view } from "@forge/bridge";
 import { formatTimestamp, formatShortTime, formatRelativeTime, formatNumber } from "../utils";
 import { Icon, useLiveDuration } from "../components/Icons";
 import { SubNavLayout, Toggle, ConfigSection, ConfigRow } from "../components/admin/primitives";
-import { StatTile, StatRow, PageHeader, Panel, EmptyState } from "../components/ui";
+import { StatTile, StatRow, PageHeader, Panel, EmptyState, StageRail, LinkButton, formatDurationMs } from "../components/ui";
 import { useVisiblePolling } from "../hooks";
 
 // Re-exported: this started here before three surfaces needed it, and the ScansTab tests
@@ -727,86 +727,274 @@ function ScanStallRecoveryNotice({ status, onResume, onAbandon, resuming, abando
 const STAGE_TONE = { done: "success", running: "active", failed: "critical", skipped: "warning", pending: "neutral" };
 const STAGE_LABEL = { done: "Done", running: "Running", failed: "Failed", skipped: "Skipped", pending: "Waiting" };
 
-// Shared by Full Scan and Quick Scan: both are the same stage-machine shape (a catalog plus
-// per-stage state), just driven by different stage lists.
-function ScanStageTable({ status }) {
+function durationBetween(a, b) {
+  const s = Date.parse(a || ""), e = Date.parse(b || "");
+  return Number.isFinite(s) && Number.isFinite(e) && e >= s ? e - s : null;
+}
+
+// A handoff sub-build reports { processed, total } while it works. Trust the pair as a real
+// percentage only when it actually is one -- the dashboard build has been seen reporting
+// "1,886 of 613", processed past total, which clamps to a meaningless 100%. When the numbers
+// disagree, show the count alone and keep the bar indeterminate.
+function readStageProgress(p) {
+  if (!p) return { counted: false, processed: 0, total: 0, pct: null };
+  const processed = Number(p.processed) || 0;
+  const total = Number(p.total) || 0;
+  const counted = total > 0 && processed <= total;
+  return { counted, processed, total, pct: counted ? Math.round((processed / total) * 100) : null };
+}
+
+// One shape the rail and the detail card both read: every stage in run order, each carrying
+// its state, timing, attempt count and what it produced -- plus the same figures from the
+// previous run, for the deltas.
+//
+// While a scan runs, the live meta and liveStageCounts are the truth and the last completed
+// run is only there for comparison. Once it is over, the recorded run (recentRuns[0]) wins,
+// because those are the numbers that were actually promoted.
+function mergeStageData(status) {
   const catalog = status?.catalog || [];
-  const byKey = new Map((status?.stages || []).map((stage) => [stage.key, stage]));
-  const rows = catalog.map((definition) => ({
-    ...definition,
-    ...(byKey.get(definition.key) || { state: "pending" }),
-  }));
-  const done = rows.filter((r) => r.state === "done").length;
-  const failed = rows.filter((r) => r.state === "failed").length;
-  const skipped = rows.filter((r) => r.state === "skipped").length;
   const running = status?.state === "running";
-  // A handoff stage runs on its own queue and reports back, so there is no real percentage
-  // to show -- inventing one would be worse than not having it. What proves the row is
-  // actually alive rather than wedged is this ticking straight off status.updatedAt, which
-  // only advances when a poll genuinely lands new data.
-  const updatedAgo = useLiveDuration(running ? status?.updatedAt : null);
+  const liveByKey = new Map((status?.stages || []).map((s) => [s.key, s]));
+  const runs = status?.recentRuns || [];
+  const thisRun = running ? null : runs[0];
+  const prevRun = running ? runs[0] : runs[1];
+  const thisByKey = new Map((thisRun?.stages || []).map((s) => [s.key, s]));
+  const prevByKey = new Map((prevRun?.stages || []).map((s) => [s.key, s]));
+  const liveCounts = status?.liveStageCounts || {};
+
+  return catalog.map((def) => {
+    const live = liveByKey.get(def.key) || {};
+    const recorded = thisByKey.get(def.key) || {};
+    const prev = prevByKey.get(def.key) || {};
+    const source = !running && recorded.state ? recorded : live;
+    return {
+      key: def.key,
+      label: def.label,
+      mode: def.mode,
+      state: source.state || "pending",
+      startedAt: source.startedAt || null,
+      completedAt: source.completedAt || null,
+      durationMs: recorded.durationMs ?? durationBetween(source.startedAt, source.completedAt),
+      attempts: Number(source.attempts) || 0,
+      error: source.error || live.error || null,
+      count: running ? (liveCounts[def.key] ?? null) : (recorded.count ?? null),
+      prevCount: prev.count ?? null,
+      prevDurationMs: prev.durationMs ?? null,
+    };
+  });
+}
+
+// The running scan, up top: which stage, how long it has been going, a real bar when the
+// sub-build reports a usable count and an honest sweep when it does not, plus the one action
+// that matters mid-run. The ticking "last update" is the real proof of life -- it only moves
+// when a poll lands fresh data, so a frozen number is the honest signal something is stuck.
+function ScanNowBand({ status, stages, onCancel, cancelling }) {
+  const current = stages.find((s) => s.key === status?.currentStage)
+    || stages.find((s) => s.state === "running")
+    || null;
+  const idx = current ? stages.findIndex((s) => s.key === current.key) : -1;
+  const elapsed = useLiveDuration(current?.startedAt || status?.startedAt || null);
+  const updatedAgo = useLiveDuration(status?.updatedAt || null);
+  const { counted, processed, total, pct } = readStageProgress(status?.currentStageProgress);
+  const sweep = Number(status?.sweep) || 0;
+  const lastError = status?.currentStageProgress?.lastError || null;
+
+  return (
+    <div className="scan-now">
+      <div className="scan-now__head">
+        <span className="scan-now__dot" aria-hidden="true" />
+        <div className="scan-now__headings">
+          <strong>{current ? current.label : "Starting…"}</strong>
+          <span className="scan-now__sub">
+            {idx >= 0 ? `stage ${idx + 1} of ${stages.length}` : "queued"}
+            {" · elapsed "}{elapsed || "0s"}
+            {sweep > 0 && <span className="scan-now__sweeptag">{" · retry pass "}{sweep}</span>}
+          </span>
+        </div>
+        <button type="button" className="secondary-button" onClick={onCancel} disabled={cancelling}>
+          {cancelling ? "Cancelling…" : "Cancel scan"}
+        </button>
+      </div>
+      <div className="scan-now__track" aria-hidden="true">
+        {counted
+          ? <span className="stage-progress__fill" style={{ width: `${pct}%` }} />
+          : <span className="stage-progress__sweep" />}
+      </div>
+      <div className="scan-now__foot">
+        <span>
+          {counted
+            ? `${formatNumber(processed)} of ${formatNumber(total)} (${pct}%)`
+            : total > 0
+              ? `${formatNumber(processed)} processed`
+              : "This stage runs on its own queue and reports back — no percentage to show."}
+        </span>
+        <span className="scan-now__beat">last update {updatedAgo || "just now"} ago</span>
+      </div>
+      {lastError && <div className="scan-now__err">Last error: {lastError}</div>}
+    </div>
+  );
+}
+
+// A signed change against the previous run. Neutral by default -- more filters or fewer is
+// not good or bad, it is just what changed. `goodDown` flips it for duration, where up is
+// the regression worth colouring.
+function RunDelta({ from, to, unit = "", goodDown = false }) {
+  if (from == null || to == null) return null;
+  const d = to - from;
+  if (d === 0) return <span className="run-delta run-delta--flat">no change vs last run</span>;
+  const worse = goodDown && d > 0;
+  return (
+    <span className={`run-delta run-delta--${worse ? "warn" : "neutral"}`}>
+      {d > 0 ? "+" : "−"}{formatNumber(Math.abs(d))}{unit} vs last run
+    </span>
+  );
+}
+
+// The selected stage, in the four terms an operator actually asks about it: what it produced,
+// how long it took, whether it had to retry, and when it finished -- each against last run.
+function StageDetailCard({ stage, onOpenCrawl }) {
+  if (!stage) return null;
+  const durS = stage.durationMs != null ? Math.round(stage.durationMs / 1000) : null;
+  const prevDurS = stage.prevDurationMs != null ? Math.round(stage.prevDurationMs / 1000) : null;
+
+  return (
+    <Panel
+      title={stage.label}
+      icon="layers"
+      description={<span className={`chip chip--${STAGE_TONE[stage.state] || "neutral"}`}>{STAGE_LABEL[stage.state] || stage.state}</span>}
+    >
+      <StatRow>
+        <StatTile label="Produced" value={stage.count == null ? "—" : formatNumber(stage.count)} hint={stage.count == null ? "no headline count for this stage" : undefined}>
+          <RunDelta from={stage.prevCount} to={stage.count} />
+        </StatTile>
+        <StatTile label="Duration" value={formatDurationMs(stage.durationMs) || "—"}>
+          <RunDelta from={prevDurS} to={durS} unit="s" goodDown />
+        </StatTile>
+        <StatTile
+          label="Attempts"
+          value={stage.attempts || (stage.state === "pending" ? "—" : 1)}
+          tone={stage.attempts > 1 ? "warning" : "neutral"}
+          hint={stage.attempts > 1 ? "retried before it resolved" : undefined}
+        />
+        <StatTile
+          label={stage.state === "done" ? "Finished" : "Last update"}
+          value={stage.completedAt ? formatRelativeTime(stage.completedAt) : "—"}
+        />
+      </StatRow>
+      {stage.error && <div className="stage-detail__err">{stage.error}</div>}
+      {(stage.key === "issues" || stage.key === "issues-delta") && onOpenCrawl && (
+        <LinkButton onClick={onOpenCrawl}>See the full issue-crawl log</LinkButton>
+      )}
+    </Panel>
+  );
+}
+
+// The last few runs, so "is this normal" has an answer. Each row: when, whether it finished
+// clean, how long, what it produced most of, and a bar per stage so a slow run shows which
+// stage ate the time.
+function RecentRunsPanel({ runs }) {
+  if (!runs?.length) return null;
+  const maxDur = Math.max(...runs.map((r) => Number(r.durationMs) || 0), 1);
+
+  return (
+    <Panel title="Recent runs" icon="clock">
+      <div className="recent-runs">
+        {runs.map((run) => {
+          const headline = run.summary?.issues ?? run.summary?.["issues-delta"] ?? null;
+          const incomplete = (run.failedCount || 0) + (run.skippedCount || 0);
+          return (
+            <div key={run.runId} className="recent-runs__row">
+              <span className="recent-runs__when">{run.completedAt ? formatRelativeTime(run.completedAt) : "—"}</span>
+              <span className={`chip chip--${incomplete ? "warning" : "success"}`}>
+                {incomplete ? `${incomplete} incomplete` : "clean"}
+              </span>
+              <span className="recent-runs__dur">{formatDurationMs(run.durationMs) || "—"}</span>
+              <span className="recent-runs__count">
+                {headline != null ? `${formatNumber(headline)} issues` : `${run.totalStages || 0} stages`}
+              </span>
+              <span className="recent-runs__bars" aria-hidden="true">
+                {(run.stages || [])
+                  .filter((s) => Number(s.durationMs) > 0)
+                  .map((s) => (
+                    <span
+                      key={s.key}
+                      className={`recent-runs__bar recent-runs__bar--${s.state === "failed" ? "failed" : s.state === "skipped" ? "skipped" : "ok"}`}
+                      title={`${s.key}: ${formatDurationMs(s.durationMs)}`}
+                      style={{ width: `${Math.max(2, (Number(s.durationMs) / maxDur) * 100)}%` }}
+                    />
+                  ))}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </Panel>
+  );
+}
+
+// The pipeline: summary tiles, the running band, a clickable stage rail with a detail card
+// for whichever node is selected, and the recent-runs history. Shared by Full Scan and Quick
+// Scan -- both are the same stage-machine shape, driven by different stage lists.
+function ScanPipeline({ status, onAbandonScan, abandoningScan, onOpenCrawl }) {
+  const stages = React.useMemo(() => mergeStageData(status), [status]);
+  const running = status?.state === "running";
+  const done = stages.filter((s) => s.state === "done").length;
+  const failed = stages.filter((s) => s.state === "failed").length;
+  const skipped = stages.filter((s) => s.state === "skipped").length;
+
+  const [selectedKey, setSelectedKey] = React.useState(null);
+  const [userPicked, setUserPicked] = React.useState(false);
+
+  // Follow the running stage automatically -- until the operator clicks a node themselves,
+  // after which their selection sticks.
+  React.useEffect(() => {
+    if (userPicked) return;
+    const follow =
+      status?.currentStage ||
+      stages.find((s) => s.state === "running")?.key ||
+      [...stages].reverse().find((s) => s.state !== "pending")?.key ||
+      null;
+    setSelectedKey(follow);
+  }, [status?.currentStage, status?.state, userPicked, stages]);
+
+  // A fresh scan run clears the operator's manual pick so the view follows again.
+  React.useEffect(() => {
+    if (running) setUserPicked(false);
+  }, [status?.startedAt]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const selectStage = (key) => { setUserPicked(true); setSelectedKey(key); };
+  const selected = stages.find((s) => s.key === selectedKey) || null;
+  const everRun = stages.some((s) => s.state !== "pending") || (status?.recentRuns?.length > 0);
 
   return (
     <>
       <StatRow>
-        <StatTile label="Stages complete" value={`${done} / ${rows.length}`} tone={done === rows.length && !failed ? "success" : "neutral"} />
+        <StatTile label="Stages complete" value={`${done} / ${stages.length}`} tone={done === stages.length && !failed ? "success" : "neutral"} />
         <StatTile label="Failed" value={failed} tone={failed ? "critical" : "neutral"} />
         <StatTile label="Skipped" value={skipped} tone={skipped ? "warning" : "neutral"} hint="A stage is skipped when something it depends on did not complete. Running it against stale inputs would produce a wrong answer rather than a partial one." />
       </StatRow>
 
       {running && (
-        <div className="scan-pulse-banner">
-          <span className="scan-pulse-dot" aria-hidden="true" />
-          <span>Scanning — last update {updatedAgo || "just now"} ago.</span>
-        </div>
+        <ScanNowBand status={status} stages={stages} onCancel={onAbandonScan} cancelling={abandoningScan} />
       )}
 
       <Panel title="Stages" icon="layers">
-        <table className="admin-table">
-          <thead>
-            <tr><th>Stage</th><th>Status</th><th>Detail</th></tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => {
-              const isActive = row.state === "running" && status?.currentStage === row.key;
-              return (
-                <tr key={row.key} className={isActive ? "stage-row--active" : ""}>
-                  <td>{row.label}</td>
-                  <td><span className={`chip chip--${STAGE_TONE[row.state] || "neutral"}`}>{STAGE_LABEL[row.state] || row.state}</span></td>
-                  <td className="admin-table__muted">
-                    {row.error ? (
-                      row.error
-                    ) : isActive ? (
-                      (() => {
-                        const p = status?.currentStageProgress;
-                        const counted = p && Number(p.total) > 0;
-                        const pct = counted ? Math.min(100, Math.round((p.processed / p.total) * 100)) : null;
-                        return (
-                          <div className="stage-progress">
-                            <span className="stage-progress__track" aria-hidden="true">
-                              {counted
-                                ? <span className="stage-progress__fill" style={{ width: `${pct}%` }} />
-                                : <span className="stage-progress__sweep" />}
-                            </span>
-                            <span>
-                              {counted
-                                ? `${formatNumber(p.processed)} of ${formatNumber(p.total)} (${pct}%)`
-                                : "In progress — this stage runs on its own and reports back."}
-                              {p?.lastError ? ` — last error: ${p.lastError}` : ""}
-                            </span>
-                          </div>
-                        );
-                      })()
-                    ) : row.completedAt ? (
-                      formatRelativeTime(row.completedAt)
-                    ) : ""}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        {everRun ? (
+          <>
+            <StageRail
+              stages={stages}
+              currentStage={running ? status?.currentStage : null}
+              selectedKey={selectedKey}
+              onSelect={selectStage}
+            />
+            <StageDetailCard stage={selected} onOpenCrawl={onOpenCrawl} />
+          </>
+        ) : (
+          <EmptyState inline>No scan has run yet. Start one above to populate the pipeline.</EmptyState>
+        )}
       </Panel>
+
+      <RecentRunsPanel runs={status?.recentRuns} />
     </>
   );
 }
@@ -818,6 +1006,8 @@ export function FullScanPanel({
   snapshot, onForceResumeSnapshot, forceResumingSnapshot, onSnapshotCleared,
 }) {
   const running = status?.state === "running";
+  const crawlRef = React.useRef(null);
+  const scrollToCrawl = () => crawlRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   return (
     <>
@@ -826,16 +1016,9 @@ export function FullScanPanel({
         description="Every pillar in one pass, in dependency order. Each stage is the same build its own tab runs — this sequences them so the tabs cannot end up disagreeing about which snapshot they are describing."
         meta={status?.completedAt ? `Last run ${formatRelativeTime(status.completedAt)}` : undefined}
         actions={
-          <span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button type="button" className="primary-button" onClick={onStart} disabled={starting || running || status?.blockedByOtherScan}>
-              {running ? "Scanning…" : starting ? "Starting…" : "Run full scan"}
-            </button>
-            {running && (
-              <button type="button" className="secondary-button" onClick={onAbandonScan} disabled={abandoningScan}>
-                {abandoningScan ? "Cancelling…" : "Cancel scan"}
-              </button>
-            )}
-          </span>
+          <button type="button" className="primary-button" onClick={onStart} disabled={starting || running || status?.blockedByOtherScan}>
+            {running ? "Scanning…" : starting ? "Starting…" : "Run full scan"}
+          </button>
         }
       />
 
@@ -851,7 +1034,12 @@ export function FullScanPanel({
         <EmptyState inline>A quick scan is running right now. Full scan will be available once it finishes.</EmptyState>
       )}
 
-      <ScanStageTable status={status} />
+      <ScanPipeline
+        status={status}
+        onAbandonScan={onAbandonScan}
+        abandoningScan={abandoningScan}
+        onOpenCrawl={scrollToCrawl}
+      />
 
       <ScanStallRecoveryNotice
         status={status}
@@ -867,13 +1055,15 @@ export function FullScanPanel({
 
       <SnapshotRecoveryNotice snapshot={snapshot} onForceResume={onForceResumeSnapshot} forceResuming={forceResumingSnapshot} />
 
-      <IssueCrawlLiveView
-        issueScan={issueScan}
-        onResume={onResumeIssueScan}
-        onCancel={onCancelIssueScan}
-        resuming={resumingIssueScan}
-        cancelling={cancellingIssueScan}
-      />
+      <div ref={crawlRef}>
+        <IssueCrawlLiveView
+          issueScan={issueScan}
+          onResume={onResumeIssueScan}
+          onCancel={onCancelIssueScan}
+          resuming={resumingIssueScan}
+          cancelling={cancellingIssueScan}
+        />
+      </div>
 
       <Panel title="What this does not cover" icon="alertTriangle">
         <p>
@@ -966,6 +1156,8 @@ export function QuickScanPanel({
   schedule, onChangeSchedule, onToggleScheduleEnabled, onSaveSchedule, savingSchedule, scheduleSaved, scheduleDirty,
 }) {
   const running = status?.state === "running";
+  const crawlRef = React.useRef(null);
+  const scrollToCrawl = () => crawlRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   return (
     <>
@@ -974,16 +1166,9 @@ export function QuickScanPanel({
         description="The same estate as a full scan, minus what Jira genuinely cannot tell us has changed. Filters, dashboards, screens and workflows still run in full every time — there is no changed-since signal for them. The issue crawl is windowed to whatever you configure below."
         meta={status?.completedAt ? `Last run ${formatRelativeTime(status.completedAt)}` : undefined}
         actions={
-          <span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button type="button" className="primary-button" onClick={onStart} disabled={starting || running || status?.blockedByOtherScan}>
-              {running ? "Scanning…" : starting ? "Starting…" : "Run quick scan"}
-            </button>
-            {running && (
-              <button type="button" className="secondary-button" onClick={onAbandonScan} disabled={abandoningScan}>
-                {abandoningScan ? "Cancelling…" : "Cancel scan"}
-              </button>
-            )}
-          </span>
+          <button type="button" className="primary-button" onClick={onStart} disabled={starting || running || status?.blockedByOtherScan}>
+            {running ? "Scanning…" : starting ? "Starting…" : "Run quick scan"}
+          </button>
         }
       />
 
@@ -1003,7 +1188,12 @@ export function QuickScanPanel({
         <EmptyState inline>Last run looked back {status.windowHours} hour{status.windowHours === 1 ? "" : "s"} for changed issues.</EmptyState>
       )}
 
-      <ScanStageTable status={status} />
+      <ScanPipeline
+        status={status}
+        onAbandonScan={onAbandonScan}
+        abandoningScan={abandoningScan}
+        onOpenCrawl={scrollToCrawl}
+      />
 
       <ScanStallRecoveryNotice
         status={status}
@@ -1017,11 +1207,13 @@ export function QuickScanPanel({
         <div className="danger-zone__error" role="alert">{status.lastError}</div>
       )}
 
-      <IssueCrawlLiveView
-        issueScan={deltaIssueScan}
-        title="Issue crawl (changed since window)"
-        readOnly
-      />
+      <div ref={crawlRef}>
+        <IssueCrawlLiveView
+          issueScan={deltaIssueScan}
+          title="Issue crawl (changed since window)"
+          readOnly
+        />
+      </div>
 
       <Panel title="What this does not cover" icon="alertTriangle">
         <ul className="delta-scan-panel__facts">

@@ -101,6 +101,7 @@ import {
   loadRqtFieldIssueIndex,
   loadIssueRqtValues,
   readWorkflowSnapshotMeta,
+  readRecentFullScanRuns,
   loadWorkflowSchemes,
   loadWorkflowSchemeProjects,
   loadWorkflowSchemeForProject,
@@ -147,7 +148,7 @@ import { summarizeDashboards, summarizeDashboardHealth } from "./lib/dashboard-i
 import { isFilterBuildStale, queueFilterSnapshotBuild } from "./lib/filter-engine.js";
 import { filterRows, sortFilters, filterFindingCounts, FILTER_SORTS } from "./lib/filter-query.js";
 import { isDashboardBuildStale, queueDashboardSnapshotBuild } from "./lib/dashboard-engine.js";
-import { startFullScan, fullScanStageCatalog, startQuickScan, quickScanStageCatalog, recoverStalledScan, cancelScan } from "./lib/full-scan-runner.js";
+import { startFullScan, fullScanStageCatalog, startQuickScan, quickScanStageCatalog, recoverStalledScan, cancelScan, readStageProducedCounts } from "./lib/full-scan-runner.js";
 import { probeEndpoint, probeStargateEndpoint, getCloudId, getAllJiraProjects } from "./lib/jira-api.js";
 import {
   findDuplicateStatusGroups,
@@ -3551,6 +3552,23 @@ async function handoffStageProgress(installationKey, currentStage) {
   return null;
 }
 
+// Recent runs for run-over-run deltas, plus the produced-counts of the run in flight.
+//
+// liveCounts is only worth reading mid-scan: once a run finishes it is in recentRuns[0] with
+// the same numbers. Both are best-effort -- the scan page degrades to "no comparison yet"
+// rather than erroring if either read fails.
+async function scanRunHistory(installationKey, scanType, { live }) {
+  const [recentRuns, liveCounts] = await Promise.all([
+    readRecentFullScanRuns(installationKey, { scanType, limit: 8 })
+      .catch(fallbackOn("scan.recent_runs_read_failed", [], { installationKey })),
+    live
+      ? readStageProducedCounts(installationKey, scanType)
+          .catch(fallbackOn("scan.live_counts_read_failed", {}, { installationKey }))
+      : Promise.resolve(null),
+  ]);
+  return { recentRuns, liveStageCounts: liveCounts };
+}
+
 // Progress for the Scans tab: one row per stage, plus the catalog so the tab can render the
 // full list before a scan has ever run rather than an empty panel.
 async function getFullScanStatus({ context }) {
@@ -3564,6 +3582,8 @@ async function getFullScanStatus({ context }) {
   // scan's own row, so a scan started just before this shipped still renders correctly.
   const isFull = !meta?.scanType || meta.scanType === "full";
   const currentStage = isFull ? (meta?.currentStage || null) : null;
+  const running = isFull && meta?.state === "running";
+  const { recentRuns, liveStageCounts } = await scanRunHistory(installationKey, "full", { live: running });
 
   return {
     catalog: fullScanStageCatalog(),
@@ -3575,6 +3595,11 @@ async function getFullScanStatus({ context }) {
     completedAt: isFull ? (meta?.completedAt || null) : null,
     updatedAt: isFull ? (meta?.updatedAt || null) : null,
     lastError: isFull ? (meta?.lastError || null) : null,
+    // How many full retry passes over the stage list this run has taken. Surfaced so the
+    // page can show "sweep 2 of 2" rather than the rail silently resetting.
+    sweep: isFull ? (Number(meta?.sweep) || 0) : 0,
+    recentRuns,
+    liveStageCounts,
     // So the panel can say "a quick scan is running" rather than rendering an idle full-scan
     // panel with no explanation for why the button is disabled.
     blockedByOtherScan: meta?.state === "running" && !isFull,
@@ -3609,6 +3634,8 @@ async function getQuickScanStatus({ context }) {
 
   const isQuick = meta?.scanType === "quick";
   const currentStage = isQuick ? (meta?.currentStage || null) : null;
+  const running = isQuick && meta?.state === "running";
+  const { recentRuns, liveStageCounts } = await scanRunHistory(installationKey, "quick", { live: running });
 
   return {
     catalog: quickScanStageCatalog(),
@@ -3623,6 +3650,9 @@ async function getQuickScanStatus({ context }) {
     completedAt: meta?.scanType === "quick" ? (meta?.completedAt || null) : null,
     updatedAt: meta?.scanType === "quick" ? (meta?.updatedAt || null) : null,
     lastError: meta?.scanType === "quick" ? (meta?.lastError || null) : null,
+    sweep: isQuick ? (Number(meta?.sweep) || 0) : 0,
+    recentRuns,
+    liveStageCounts,
     windowHours: meta?.scanType === "quick" ? meta?.quickScanWindowHours : null,
     // So the panel can say "a full scan is running" rather than rendering an idle quick-scan
     // panel with no explanation for why the button is disabled.

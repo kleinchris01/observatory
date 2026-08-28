@@ -1,5 +1,5 @@
 import React from "react";
-import { Icon } from "./Icons";
+import { Icon, useLiveDuration } from "./Icons";
 import { buildAutomationRuleUrl, handleJiraLinkClick } from "../utils";
 
 // Shared presentation primitives.
@@ -548,5 +548,87 @@ export function LinkButton({ children, onClick }) {
       {children}
       <span aria-hidden="true" className="ui-linkbutton__arrow">→</span>
     </button>
+  );
+}
+
+const STAGE_RAIL_TONE = {
+  done: "done",
+  running: "active",
+  failed: "failed",
+  skipped: "skipped",
+  pending: "pending",
+};
+
+// mm:ss / h m for a millisecond span. Shared by the rail and its callers so a duration reads
+// the same everywhere on the scan page.
+export function formatDurationMs(ms) {
+  if (ms == null || !Number.isFinite(Number(ms)) || Number(ms) < 0) return null;
+  const total = Math.round(Number(ms) / 1000);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
+// One node in the pipeline. Its own component so useLiveDuration -- a hook -- can run per
+// node without breaking the rules of hooks inside a map.
+function StageRailNode({ stage, index, total, isCurrent, isSelected, onSelect }) {
+  const live = useLiveDuration(stage.state === "running" ? stage.startedAt : null);
+  const tone = STAGE_RAIL_TONE[stage.state] || "pending";
+
+  const meta = stage.state === "running"
+    ? (live || "running")
+    : stage.state === "pending"
+      ? "queued"
+      : formatDurationMs(stage.durationMs) || (stage.state === "skipped" ? "skipped" : "done");
+
+  return (
+    <button
+      type="button"
+      className={`stage-rail__node stage-rail__node--${tone}${isCurrent ? " stage-rail__node--current" : ""}${isSelected ? " stage-rail__node--selected" : ""}`}
+      aria-pressed={isSelected}
+      aria-label={`${stage.label} — ${stage.state}. Stage ${index + 1} of ${total}.`}
+      onClick={() => onSelect(stage.key)}
+    >
+      <span className="stage-rail__marker" aria-hidden="true">
+        {stage.state === "done" ? "✓" : stage.state === "failed" ? "!" : stage.state === "skipped" ? "–" : index + 1}
+      </span>
+      <span className="stage-rail__label">{stage.label}</span>
+      <span className="stage-rail__meta">
+        {meta}
+        {Number(stage.attempts) > 1 && (
+          <span className="stage-rail__retry" title={`${stage.attempts} attempts`}>⟳{stage.attempts}</span>
+        )}
+      </span>
+    </button>
+  );
+}
+
+// The scan as a sequence you can point at, replacing the three-column status table.
+//
+// `stages` is the merged catalog+live list: every stage in run order, each carrying its own
+// state, timing and attempt count. Clicking a node selects it; the caller renders the detail.
+export function StageRail({ stages = [], currentStage = null, selectedKey = null, onSelect = () => {} }) {
+  if (!stages.length) return null;
+  return (
+    <div className="stage-rail" role="list">
+      {stages.map((stage, i) => (
+        <React.Fragment key={stage.key}>
+          {i > 0 && <span className="stage-rail__link" aria-hidden="true" />}
+          <div role="listitem" className="stage-rail__step">
+            <StageRailNode
+              stage={stage}
+              index={i}
+              total={stages.length}
+              isCurrent={stage.key === currentStage}
+              isSelected={stage.key === selectedKey}
+              onSelect={onSelect}
+            />
+          </div>
+        </React.Fragment>
+      ))}
+    </div>
   );
 }
