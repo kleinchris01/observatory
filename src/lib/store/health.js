@@ -137,7 +137,8 @@ export async function readFullScanMeta(scopeKey) {
   const result = await withSqlRetry(() =>
     sql.prepare(`
       SELECT state, job_token, current_stage, stages_json, started_at, completed_at, last_error,
-             updated_at, polls, scan_type, quick_scan_window_hours
+             updated_at, polls, scan_type, quick_scan_window_hours,
+             recovery_count, sweep, stage_progress_sig
       FROM full_scan_meta WHERE scope_key = ?
     `).bindParams(scopeKey).execute()
   );
@@ -167,6 +168,13 @@ export async function readFullScanMeta(scopeKey) {
     quickScanWindowHours: row.quick_scan_window_hours === null || row.quick_scan_window_hours === undefined
       ? null
       : toNumber(row.quick_scan_window_hours),
+    // Resilience bookkeeping -- how many times the stall watchdog has re-kicked this run
+    // without progress, how many full retry sweeps over the stage list it has taken, and the
+    // last-seen progress signature of the handoff sub-build in flight (so a slow build is
+    // told apart from a frozen one).
+    recoveryCount: toNumber(row.recovery_count),
+    sweep: toNumber(row.sweep),
+    stageProgressSig: row.stage_progress_sig || null,
   };
 }
 
@@ -181,8 +189,9 @@ export async function writeFullScanMeta(scopeKey, patch = {}) {
     sql.prepare(`
       INSERT INTO full_scan_meta
         (scope_key, state, job_token, current_stage, stages_json, started_at, completed_at,
-         last_error, updated_at, polls, scan_type, quick_scan_window_hours)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         last_error, updated_at, polls, scan_type, quick_scan_window_hours,
+         recovery_count, sweep, stage_progress_sig)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON DUPLICATE KEY UPDATE
         state = VALUES(state),
         job_token = VALUES(job_token),
@@ -194,7 +203,10 @@ export async function writeFullScanMeta(scopeKey, patch = {}) {
         updated_at = VALUES(updated_at),
         polls = VALUES(polls),
         scan_type = VALUES(scan_type),
-        quick_scan_window_hours = VALUES(quick_scan_window_hours)
+        quick_scan_window_hours = VALUES(quick_scan_window_hours),
+        recovery_count = VALUES(recovery_count),
+        sweep = VALUES(sweep),
+        stage_progress_sig = VALUES(stage_progress_sig)
     `).bindParams(
       scopeKey,
       next.state || "idle",
@@ -209,7 +221,10 @@ export async function writeFullScanMeta(scopeKey, patch = {}) {
       next.scanType || null,
       next.quickScanWindowHours === null || next.quickScanWindowHours === undefined
         ? null
-        : Number(next.quickScanWindowHours)
+        : Number(next.quickScanWindowHours),
+      Number(next.recoveryCount) || 0,
+      Number(next.sweep) || 0,
+      next.stageProgressSig || null
     ).execute()
   );
   return next;

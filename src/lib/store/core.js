@@ -1134,7 +1134,16 @@ const projectStoreMigrations = migrationRunner
   // they would otherwise race each other over the same handoff-stage builds -- so which one
   // is running has to be recorded on the shared row, not inferred from the stage list.
   .enqueue("v104_alter_full_scan_meta_add_scan_type", "ALTER TABLE full_scan_meta ADD COLUMN IF NOT EXISTS scan_type VARCHAR(16) NULL")
-  .enqueue("v105_alter_full_scan_meta_add_quick_scan_window_hours", "ALTER TABLE full_scan_meta ADD COLUMN IF NOT EXISTS quick_scan_window_hours INTEGER NULL");
+  .enqueue("v105_alter_full_scan_meta_add_quick_scan_window_hours", "ALTER TABLE full_scan_meta ADD COLUMN IF NOT EXISTS quick_scan_window_hours INTEGER NULL")
+  // Resilience bookkeeping. `recovery_count` was written by the stall watchdog since it
+  // shipped but had no column to land in, so it always read back as 0 -- the "give up after
+  // 3 kicks" bound never engaged. `sweep` counts full retry passes over the stage list;
+  // `stage_progress_sig` is the last-seen progress signature of the handoff sub-build in
+  // flight, so a slow-but-advancing build resets its patience counter instead of being
+  // abandoned. All three are on the shared row because both scan types read them.
+  .enqueue("v106_alter_full_scan_meta_add_recovery_count", "ALTER TABLE full_scan_meta ADD COLUMN IF NOT EXISTS recovery_count INTEGER NOT NULL DEFAULT 0")
+  .enqueue("v107_alter_full_scan_meta_add_sweep", "ALTER TABLE full_scan_meta ADD COLUMN IF NOT EXISTS sweep INTEGER NOT NULL DEFAULT 0")
+  .enqueue("v108_alter_full_scan_meta_add_stage_progress_sig", "ALTER TABLE full_scan_meta ADD COLUMN IF NOT EXISTS stage_progress_sig VARCHAR(255) NULL");
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history

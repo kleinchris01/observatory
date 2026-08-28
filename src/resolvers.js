@@ -139,6 +139,7 @@ import {
   buildFilterOverview,
   buildDashboardOverview,
   attachUniqueIssueCounts,
+  captureSiteHealth,
 } from "./lib/site-health.js";
 import { summarizeAdoption, computeProjectAdoption } from "./lib/project-adoption.js";
 import { summarizeFilters, summarizeFilterHealth } from "./lib/filter-insights.js";
@@ -3495,6 +3496,28 @@ async function cancelSiteScan({ context }) {
   await ensureProjectStoreReady();
   const installationKey = getInstallationKey(context);
   return cancelScan(installationKey);
+}
+
+// The full/quick scan's "Record site health" stage, wired to its dependencies here.
+//
+// captureSiteHealth is dependency-injected on purpose -- site-health.js stays testable
+// without the Forge modules -- and full-scan-runner.js cannot supply the deps itself without
+// importing this file, which would be a module cycle. So the orchestrator dynamic-imports
+// this wrapper, the same way it reaches runDeltaIssueScanJob for the issues-delta stage.
+// captureSiteHealth never throws; a missing dep would fail the scan, which is exactly the
+// bug this replaces.
+export async function captureSiteHealthForScan(installationKey) {
+  return captureSiteHealth(installationKey, {
+    readSnapshotMeta,
+    loadSnapshotFields,
+    listSnapshotProjects,
+    attachUniqueIssueCounts,
+    buildDuplicateNameCountMap,
+    hydrateFieldForGovernance,
+    readAdminConfig,
+    readAutomationAnalysis,
+    recordHealthSnapshot,
+  });
 }
 
 // Progress for the Scans tab: one row per stage, plus the catalog so the tab can render the
