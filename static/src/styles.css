@@ -2154,6 +2154,16 @@ code {
   box-shadow: 0 0 8px 1px rgba(121, 184, 255, 0.75);
   animation: stage-sweep 1.6s ease-in-out infinite;
 }
+/* Determinate variant: the handoff sub-build reported a real count. */
+.stage-progress__fill {
+  position: absolute;
+  inset: 0;
+  left: 0;
+  border-radius: 3px;
+  background: rgba(121, 184, 255, 0.85);
+  box-shadow: 0 0 8px 1px rgba(121, 184, 255, 0.5);
+  transition: width 0.4s ease;
+}
 @keyframes stage-sweep {
   0%   { transform: translateX(-100%); }
   100% { transform: translateX(350%); }
