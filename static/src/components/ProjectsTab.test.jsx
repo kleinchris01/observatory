@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { TopFieldsChart, FieldTypeDonut, ProjectsTabView,
   ProjectOverview, buildProjectFilters, projectFilterCount, ProjectAdoptionPanel, ActivitySparkbars,
+  ProjectHealthPanel, ProjectFiltersPanel,
 } from "./ProjectsTab";
 
 // ---------------------------------------------------------------------------
@@ -730,6 +731,64 @@ describe("ProjectAdoptionPanel", () => {
       expect(screen.queryByText(/Dropped below half/)).not.toBeInTheDocument();
       expect(screen.queryByText(/Running far below/)).not.toBeInTheDocument();
     });
+  });
+});
+
+describe("ProjectHealthPanel", () => {
+  const health = (over = {}) => ({
+    band: "warning",
+    headline: "Worth a look",
+    signals: [
+      { key: "adoption", label: "Adoption", value: 38, detail: "busier than 60% of projects here", tone: "neutral" },
+      { key: "configuration", label: "Configuration weight", value: "64.6 fields/issue", detail: "site median 12.0 — 5.4× heavier", tone: "warning" },
+    ],
+    ...over,
+  });
+
+  it("shows the band headline and one tile per signal with its detail", () => {
+    render(<ProjectHealthPanel health={health()} />);
+    expect(screen.getByText("Worth a look")).toBeInTheDocument();
+    expect(screen.getByText("Configuration weight")).toBeInTheDocument();
+    expect(screen.getByText(/5.4× heavier/)).toBeInTheDocument();
+  });
+
+  it("carries a critical signal's tone into the tile", () => {
+    const { container } = render(<ProjectHealthPanel health={health({ band: "critical", signals: [
+      { key: "adoption", label: "Adoption", value: "—", detail: "running far below its own historical rate", tone: "critical" },
+    ] })} />);
+    expect(container.querySelector(".ui-stat--critical")).not.toBeNull();
+  });
+
+  it("says so rather than inventing a score when nothing has been scanned", () => {
+    render(<ProjectHealthPanel health={{ band: "healthy", headline: "Looks healthy", signals: [] }} />);
+    expect(screen.getByText(/Not enough has been scanned/)).toBeInTheDocument();
+  });
+});
+
+describe("ProjectFiltersPanel", () => {
+  const filters = (over = {}) => ({
+    available: true,
+    total: 2,
+    filters: [
+      { id: "5", name: "PT2 open bugs", ownerName: "Bo", ownerActive: true, subscriptionCount: 3, lastUsedAt: "2026-08-01T00:00:00Z" },
+      { id: "6", name: "PT2 backlog", ownerName: "Al", ownerActive: false, subscriptionCount: 0, lastUsedAt: null },
+    ],
+    ...over,
+  });
+
+  it("links each filter to Jira and shows owner + subscription detail", () => {
+    render(<ProjectFiltersPanel filters={filters()} siteOrigin="https://x.atlassian.net" />);
+    const link = screen.getByRole("link", { name: "PT2 open bugs" });
+    expect(link).toHaveAttribute("href", "https://x.atlassian.net/issues/?filter=5");
+    expect(screen.getByText(/Bo · 3 subscriptions/)).toBeInTheDocument();
+    expect(screen.getByText(/Al · inactive/)).toBeInTheDocument();
+  });
+
+  it("distinguishes 'no filter targets this' from 'no inventory built'", () => {
+    const { rerender } = render(<ProjectFiltersPanel filters={filters({ filters: [], total: 0 })} siteOrigin="" />);
+    expect(screen.getByText(/No saved filter scopes its JQL/)).toBeInTheDocument();
+    rerender(<ProjectFiltersPanel filters={{ available: false, reason: "No saved-filter inventory has been built yet." }} siteOrigin="" />);
+    expect(screen.getByText(/No saved-filter inventory/)).toBeInTheDocument();
   });
 });
 

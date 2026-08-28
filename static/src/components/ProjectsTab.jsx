@@ -9,6 +9,7 @@ import {
   buildProjectRovoPrompt,
   toDisplayName,
   formatTimestamp,
+  formatRelativeTime,
   formatNumber,
   isCustomField,
 } from "../utils";
@@ -344,7 +345,100 @@ export function ProjectAdoptionPanel({ adoption, context }) {
   );
 }
 
-export function ProjectOverview({ project, overview, loading, fields = [], adoption = null, adoptionContext = null }) {
+// The project's overall health, as the roll-up the resolver assembled: a coarse band, then
+// one tile per pillar signal carrying the rate it was judged on. No single invented score --
+// the same rule the adoption panel follows.
+export function ProjectHealthPanel({ health }) {
+  if (!health?.signals?.length) {
+    return (
+      <Panel title="Overall health" icon="activity">
+        <EmptyState inline>Not enough has been scanned to roll up a health read for this project.</EmptyState>
+      </Panel>
+    );
+  }
+
+  const bandChip = health.band === "critical" ? <Chip tone="critical">{health.headline}</Chip>
+    : health.band === "warning" ? <Chip tone="warning">{health.headline}</Chip>
+    : <Chip tone="success">{health.headline}</Chip>;
+
+  return (
+    <Panel title="Overall health" icon="activity" description={bandChip}>
+      <StatRow>
+        {health.signals.map((signal) => (
+          <StatTile
+            key={signal.key}
+            label={signal.label}
+            value={signal.value}
+            hint={signal.detail}
+            tone={signal.tone === "success" ? "success" : signal.tone === "critical" ? "critical" : signal.tone === "warning" ? "warning" : "neutral"}
+          />
+        ))}
+      </StatRow>
+    </Panel>
+  );
+}
+
+// Saved filters whose JQL names this project -- the ones that narrow, or break, if it is
+// renamed or archived. Tri-state: an unbuilt filter inventory is not "no filters".
+export function ProjectFiltersPanel({ filters, siteOrigin }) {
+  if (!filters?.available) {
+    return (
+      <Panel title="Filters targeting this project" icon="search">
+        <EmptyState inline>{filters?.reason || "No saved-filter inventory has been built yet."}</EmptyState>
+      </Panel>
+    );
+  }
+
+  if (!filters.filters.length) {
+    return (
+      <Panel title="Filters targeting this project" icon="search">
+        <EmptyState inline>No saved filter scopes its JQL to this project.</EmptyState>
+      </Panel>
+    );
+  }
+
+  return (
+    <Panel
+      title="Filters targeting this project"
+      icon="search"
+      description={`${formatNumber(filters.total)} ${filters.total === 1 ? "filter names" : "filters name"} this project in their JQL.`}
+    >
+      <ul className="project-rules project-rules--scroll">
+        {filters.filters.map((filter) => {
+          const href = siteOrigin ? `${siteOrigin}/issues/?filter=${filter.id}` : null;
+          return (
+            <li key={filter.id} className="project-rules__item">
+              {href ? (
+                <a
+                  className="project-rules__name"
+                  href={href}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={(event) => handleJiraLinkClick(event, href)}
+                  title="Open this filter in Jira"
+                >
+                  {filter.name}
+                </a>
+              ) : (
+                <span className="project-rules__name">{filter.name}</span>
+              )}
+              <span className="project-rules__trigger">
+                {filter.ownerName || "owner unknown"}
+                {filter.ownerActive === false ? " · inactive" : ""}
+                {filter.subscriptionCount > 0 ? ` · ${formatNumber(filter.subscriptionCount)} ${filter.subscriptionCount === 1 ? "subscription" : "subscriptions"}` : ""}
+              </span>
+              {filter.lastUsedAt
+                ? <Chip tone="neutral" title={`Last opened ${formatTimestamp(filter.lastUsedAt)}`}>{formatRelativeTime(filter.lastUsedAt)}</Chip>
+                : <Chip tone="neutral">last-opened not tracked</Chip>}
+            </li>
+          );
+        })}
+      </ul>
+    </Panel>
+  );
+}
+
+export function ProjectOverview({ project, overview, loading, fields = [], siteOrigin = "", adoption = null, adoptionContext = null }) {
   if (loading) return <EmptyState inline>Loading everything that touches this project…</EmptyState>;
   if (!overview?.available) {
     return <EmptyState inline>{overview?.reason || "This project could not be loaded."}</EmptyState>;
@@ -363,8 +457,13 @@ export function ProjectOverview({ project, overview, loading, fields = [], adopt
 
   return (
     <PanelGrid>
-      {/* Adoption leads, because "is anyone using this" comes before "how is it configured".
-          A project nobody works in does not have a field problem worth solving. */}
+      {/* The rolled-up read first: which pillars need a look, before the detail of any one.
+          Then adoption, because "is anyone using this" comes before "how is it configured". */}
+      {overview.health && (
+        <GridSpan wide>
+          <ProjectHealthPanel health={overview.health} />
+        </GridSpan>
+      )}
       <GridSpan wide>
         <ProjectAdoptionPanel adoption={adoption} context={adoptionContext} />
       </GridSpan>
@@ -520,6 +619,10 @@ export function ProjectOverview({ project, overview, loading, fields = [], adopt
             </>
           )}
         </Panel>
+      </GridSpan>
+
+      <GridSpan>
+        <ProjectFiltersPanel filters={overview.filters} siteOrigin={siteOrigin} />
       </GridSpan>
 
       <GridSpan>
@@ -854,6 +957,7 @@ export function ProjectsTabView({
                     overview={overview}
                     loading={overviewLoading}
                     fields={fields}
+                    siteOrigin={siteOrigin}
                     adoption={data?.selectedAdoption ?? null}
                     adoptionContext={data?.adoptionContext ?? null}
                   />

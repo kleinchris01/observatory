@@ -71,16 +71,20 @@ export function ProjectUsageTab({ siteOrigin, intent = null }) {
   // every keystroke of the field search, and none of those re-runs change the pillars.
   const [overview, setOverview] = React.useState(null);
   const [overviewLoading, setOverviewLoading] = React.useState(false);
+  const selectedProjectKey = data?.selectedProject?.projectId === selectedProjectId
+    ? data?.selectedProject?.projectKey
+    : null;
+
   React.useEffect(() => {
     if (!selectedProjectId) return undefined;
     let cancelled = false;
     setOverviewLoading(true);
-    invoke("getProjectOverview", { projectId: selectedProjectId })
+    invoke("getProjectOverview", { projectId: selectedProjectId, projectKey: selectedProjectKey || undefined })
       .then((result) => { if (!cancelled) setOverview(result); })
       .catch(() => { if (!cancelled) setOverview(null); })
       .finally(() => { if (!cancelled) setOverviewLoading(false); });
     return () => { cancelled = true; };
-  }, [selectedProjectId]);
+  }, [selectedProjectId, selectedProjectKey]);
 
   function handleSelectProject(projectId) {
     setSelectedProjectId(projectId);

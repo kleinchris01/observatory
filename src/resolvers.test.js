@@ -46,7 +46,7 @@ const mocks = vi.hoisted(() => ({
   loadSnapshotProjectUsage: vi.fn(),
   loadAllSnapshotProjectUsage: vi.fn(),
   loadAnySnapshotProjectUsage: vi.fn(),
-  listSnapshotProjects: vi.fn(),
+  listSnapshotProjects: vi.fn(async () => []),
   loadProjectActivity: vi.fn(async () => new Map()),
   loadFilters: vi.fn(async () => []),
   readFilterSnapshotMeta: vi.fn(async () => null),
@@ -4500,6 +4500,63 @@ describe("getProjectOverview", () => {
     expect(mocks.loadGlobalRulesAffectingProject).not.toHaveBeenCalled();
     expect(result.automation.globalRulesAvailable).toBe(false);
     expect(result.automation.globalRulesReason).toMatch(/field snapshot/i);
+  });
+
+  test("lists the saved filters whose JQL scopes to this project", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: "f1" });
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "flt1" });
+    mocks.listSnapshotProjects.mockResolvedValue([
+      { projectId: "10000", projectKey: "PT2", projectName: "Prototype & Test", fieldCount: 216, totalIssueCount: 1_066_714 },
+    ]);
+    mocks.loadFilterReferencesFor.mockResolvedValue({
+      total: 3,
+      filters: [{ id: "5", name: "PT2 open bugs", ownerName: "Bo", ownerActive: true, subscriptionCount: 2, lastUsedAt: "2026-08-01" }],
+    });
+
+    const result = await getProjectOverview({ payload: { projectId: "10000", projectKey: "PT2" }, ...ctx });
+
+    expect(mocks.loadFilterReferencesFor).toHaveBeenCalledWith("test-install", "flt1", "project", "PT2");
+    expect(result.filters).toMatchObject({ available: true, total: 3 });
+    expect(result.filters.filters[0].name).toBe("PT2 open bugs");
+  });
+
+  test("reports filters unavailable rather than empty when no filter snapshot exists", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue(null);
+    mocks.readFilterSnapshotMeta.mockResolvedValue(null);
+    mocks.loadRulesForProject.mockResolvedValue([]);
+
+    const result = await getProjectOverview({ payload: { projectId: "10000", projectKey: "PT2" }, ...ctx });
+
+    expect(result.filters).toMatchObject({ available: false });
+    expect(mocks.loadFilterReferencesFor).not.toHaveBeenCalled();
+  });
+
+  test("rolls up a health band from the pillar signals, flagging a form-heavy project", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: "f1" });
+    mocks.readScreenSnapshotMeta.mockResolvedValue({ version: "s1", unresolvedScreens: 14 });
+    mocks.loadScreensForProject.mockResolvedValue([{ screenId: "1", name: "S", tabsResolved: "resolved" }]);
+    mocks.loadRulesForProject.mockResolvedValue([{ ruleId: "1", name: "R", enabled: true }]);
+    mocks.listSnapshotProjects.mockResolvedValue([
+      // This project asks ~90 fields per issue; the rest sit at 12, so the site median is 12
+      // and this one reads as ~7.5x heavier -- past the 6x "critical" line.
+      { projectId: "10000", projectKey: "PT2", projectName: "PT2", fieldCount: 216, totalIssueCount: 900_000 },
+      { projectId: "2", projectKey: "B", projectName: "B", fieldCount: 20, totalIssueCount: 120_000 },
+      { projectId: "3", projectKey: "C", projectName: "C", fieldCount: 20, totalIssueCount: 130_000 },
+    ]);
+    // Universe-scan issue totals, so fills-per-issue is computable: PT2 ~90, the others ~12.
+    mocks.loadIssueScanProjectTotals.mockResolvedValue([
+      { projectId: "10000", uniqueIssueCount: 10_000 },
+      { projectId: "2", uniqueIssueCount: 10_000 },
+      { projectId: "3", uniqueIssueCount: 10_833 },
+    ]);
+
+    const result = await getProjectOverview({ payload: { projectId: "10000", projectKey: "PT2" }, ...ctx });
+
+    expect(result.health.band).toBe("critical");
+    const config = result.health.signals.find((s) => s.key === "configuration");
+    expect(config.tone).toBe("critical");
+    const forms = result.health.signals.find((s) => s.key === "forms");
+    expect(forms.tone).toBe("warning"); // 14 unreadable screens
   });
 
   test("rejects a missing project id", async () => {
