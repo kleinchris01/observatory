@@ -1,7 +1,7 @@
 import React from "react";
 import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { ScanDeltaChart, ScanThroughputChart, IssueCrawlLiveView, FullScanPanel, useVisiblePolling } from "./ScansTab";
+import { ScanDeltaChart, ScanThroughputChart, IssueCrawlLiveView, FullScanPanel, QuickScanPanel, useVisiblePolling } from "./ScansTab";
 import userEvent from "@testing-library/user-event";
 import { renderHook, act } from "@testing-library/react";
 
@@ -311,5 +311,61 @@ describe("useVisiblePolling", () => {
     fn.mockClear();
     act(() => { vi.advanceTimersByTime(5000); });
     expect(fn).not.toHaveBeenCalled();
+  });
+});
+
+// "Run automatically" used to only mutate local state, so a toggle-off silently reverted on
+// the next page load. It now persists the instant it is flipped, and a dirty indicator
+// covers the detail fields that still batch under Save schedule.
+describe("QuickScanPanel — schedule persistence", () => {
+  const noop = () => {};
+  const base = {
+    status: { state: "idle", catalog: [], stages: null },
+    onStart: noop, starting: false,
+    onResumeStalledScan: noop, onAbandonScan: noop, recoveringScan: false, abandoningScan: false,
+    deltaIssueScan: null,
+    onChangeSchedule: noop, onSaveSchedule: noop, savingSchedule: false, scheduleSaved: false,
+  };
+
+  test("flipping Run automatically calls the immediate-save handler, not just onChange", async () => {
+    const onToggleScheduleEnabled = vi.fn();
+    const onChangeSchedule = vi.fn();
+    render(
+      <QuickScanPanel
+        {...base}
+        schedule={{ enabled: false, frequency: "weekly", dayOfWeek: 0, hourUtc: 0, windowHours: 168 }}
+        onChangeSchedule={onChangeSchedule}
+        onToggleScheduleEnabled={onToggleScheduleEnabled}
+        scheduleDirty={false}
+      />
+    );
+
+    await userEvent.click(screen.getByRole("switch"));
+    expect(onToggleScheduleEnabled).toHaveBeenCalledWith(true);
+    expect(onChangeSchedule).not.toHaveBeenCalled();
+  });
+
+  test("shows Unsaved changes and enables Save only while the detail fields differ from the server", () => {
+    const { rerender } = render(
+      <QuickScanPanel
+        {...base}
+        schedule={{ enabled: true, frequency: "weekly", dayOfWeek: 0, hourUtc: 0, windowHours: 168 }}
+        onToggleScheduleEnabled={noop}
+        scheduleDirty={false}
+      />
+    );
+    expect(screen.queryByText(/Unsaved changes/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Save schedule/i })).toBeDisabled();
+
+    rerender(
+      <QuickScanPanel
+        {...base}
+        schedule={{ enabled: true, frequency: "daily", dayOfWeek: 0, hourUtc: 0, windowHours: 168 }}
+        onToggleScheduleEnabled={noop}
+        scheduleDirty={true}
+      />
+    );
+    expect(screen.getByText(/Unsaved changes/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Save schedule/i })).toBeEnabled();
   });
 });

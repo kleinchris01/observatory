@@ -896,14 +896,14 @@ const HOUR_OPTIONS = Array.from({ length: 24 }, (_, h) => h);
 // "runs Sunday at midnight" is really "checks every hour, most of which do nothing." The
 // admin picks a day/hour; quickScanScheduleCheck compares it against the clock each time it
 // fires. See manifest.yml's quick-scan-scheduler-trigger for the other half of this.
-function QuickScanSchedule({ schedule, onChange, onSave, saving, saved }) {
+function QuickScanSchedule({ schedule, onChange, onToggleEnabled, onSave, saving, saved, dirty }) {
   return (
     <ConfigSection title="Automatic schedule" icon="clock">
       <ConfigRow
         label="Run automatically"
-        hint="An hourly check compares this schedule against the clock and starts a quick scan when it is due."
+        hint="An hourly check compares this schedule against the clock and starts a quick scan when it is due. This toggle saves the moment you flip it."
       >
-        <Toggle checked={schedule.enabled} onChange={(v) => onChange({ ...schedule, enabled: v })} />
+        <Toggle checked={schedule.enabled} onChange={(v) => onToggleEnabled(v)} />
       </ConfigRow>
 
       {schedule.enabled && (
@@ -945,12 +945,16 @@ function QuickScanSchedule({ schedule, onChange, onSave, saving, saved }) {
         </>
       )}
 
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12 }}>
-        <button className="primary-button" type="button" onClick={onSave} disabled={saving}>
-          {saving ? "Saving…" : "Save schedule"}
-        </button>
-        {saved && <span className="admin-snapshot-card__age">Saved.</span>}
-      </div>
+      {schedule.enabled && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12 }}>
+          <button className="primary-button" type="button" onClick={onSave} disabled={saving || !dirty}>
+            {saving ? "Saving…" : "Save schedule"}
+          </button>
+          {dirty
+            ? <span className="status-banner status-banner--warning" style={{ padding: "2px 8px" }}>Unsaved changes</span>
+            : saved && <span className="admin-snapshot-card__age">Saved.</span>}
+        </div>
+      )}
     </ConfigSection>
   );
 }
@@ -959,7 +963,7 @@ export function QuickScanPanel({
   status, onStart, starting,
   onResumeStalledScan, onAbandonScan, recoveringScan, abandoningScan,
   deltaIssueScan,
-  schedule, onChangeSchedule, onSaveSchedule, savingSchedule, scheduleSaved,
+  schedule, onChangeSchedule, onToggleScheduleEnabled, onSaveSchedule, savingSchedule, scheduleSaved, scheduleDirty,
 }) {
   const running = status?.state === "running";
 
@@ -1029,9 +1033,11 @@ export function QuickScanPanel({
       <QuickScanSchedule
         schedule={schedule}
         onChange={onChangeSchedule}
+        onToggleEnabled={onToggleScheduleEnabled}
         onSave={onSaveSchedule}
         saving={savingSchedule}
         saved={scheduleSaved}
+        dirty={scheduleDirty}
       />
     </>
   );
@@ -1064,6 +1070,10 @@ export function ScansTab({ siteOrigin, initialSection }) {
   const [scanAbandoning, setScanAbandoning] = React.useState(false);
 
   const [schedule, setSchedule] = React.useState(DEFAULT_QUICK_SCAN_SCHEDULE);
+  // The last value the server confirmed. `schedule` is the editable copy; the gap between
+  // the two is what "Unsaved changes" reports, and what stopped a toggled-off "Run
+  // automatically" from silently reverting on the next page load -- see toggleScheduleEnabled.
+  const [savedSchedule, setSavedSchedule] = React.useState(DEFAULT_QUICK_SCAN_SCHEDULE);
   const [savingSchedule, setSavingSchedule] = React.useState(false);
   const [scheduleSaved, setScheduleSaved] = React.useState(false);
 
@@ -1118,7 +1128,10 @@ export function ScansTab({ siteOrigin, initialSection }) {
   const fetchSchedule = React.useCallback(async () => {
     try {
       const config = await invoke("getAdminConfig");
-      if (config?.quickScanSchedule) setSchedule(config.quickScanSchedule);
+      if (config?.quickScanSchedule) {
+        setSchedule(config.quickScanSchedule);
+        setSavedSchedule(config.quickScanSchedule);
+      }
     } catch (err) {
       setError(err.message || "Failed to load quick scan schedule.");
     }
@@ -1228,13 +1241,35 @@ export function ScansTab({ siteOrigin, initialSection }) {
     setError("");
     try {
       const result = await invoke("saveAdminConfig", { quickScanSchedule: schedule });
-      if (result?.config?.quickScanSchedule) setSchedule(result.config.quickScanSchedule);
+      const next = result?.config?.quickScanSchedule || schedule;
+      setSchedule(next);
+      setSavedSchedule(next);
       setScheduleSaved(true);
       setTimeout(() => setScheduleSaved(false), 3000);
     } catch (err) {
       setError(err.message || "Failed to save the quick scan schedule.");
     } finally {
       setSavingSchedule(false);
+    }
+  }
+
+  // "Run automatically" is a single meaningful setting, so it persists the instant it is
+  // toggled -- it does not wait for the Save button, which is what made it look like it
+  // "reverted" on refresh. It commits only the toggle against the last saved value; any
+  // half-finished edits to frequency/day/hour/window stay pending and unsaved.
+  async function toggleScheduleEnabled(enabled) {
+    const next = { ...savedSchedule, enabled };
+    setSchedule((s) => ({ ...s, enabled }));
+    setSavedSchedule(next);
+    setError("");
+    try {
+      await invoke("saveAdminConfig", { quickScanSchedule: next });
+      setScheduleSaved(true);
+      setTimeout(() => setScheduleSaved(false), 3000);
+    } catch (err) {
+      setError(err.message || "Failed to update the schedule.");
+      setSchedule((s) => ({ ...s, enabled: !enabled }));
+      setSavedSchedule((s) => ({ ...s, enabled: !enabled }));
     }
   }
 
@@ -1279,9 +1314,11 @@ export function ScansTab({ siteOrigin, initialSection }) {
             deltaIssueScan={deltaIssueScanStatus}
             schedule={schedule}
             onChangeSchedule={setSchedule}
+            onToggleScheduleEnabled={toggleScheduleEnabled}
             onSaveSchedule={saveSchedule}
             savingSchedule={savingSchedule}
             scheduleSaved={scheduleSaved}
+            scheduleDirty={JSON.stringify(schedule) !== JSON.stringify(savedSchedule)}
           />
         )}
       </SubNavLayout>

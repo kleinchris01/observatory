@@ -92,6 +92,17 @@ describe("analyzeFilter", () => {
     expect(codes(filter())).toEqual([]);
   });
 
+  // On a tenant where Jira never populates approximateLastUsed, every filter comes back
+  // null -- and "we could not tell" is not "never opened" (CONNECT-4091).
+  test("suppresses every last-used finding when the tenant does not track last-used", () => {
+    const opts = { now: NOW, lastUsedTracked: false };
+    expect(analyzeFilter(filter({ lastUsedAt: null }), opts).map((x) => x.code)).not.toContain("never-used");
+    expect(analyzeFilter(filter({ lastUsedAt: null, subscriptionCount: 3 }), opts).map((x) => x.code)).not.toContain("subscribed-but-unused");
+    expect(analyzeFilter(filter({ lastUsedAt: daysAgo(500) }), opts).map((x) => x.code)).not.toContain("stale");
+    // Owner / share findings are unaffected -- those do not depend on last-used.
+    expect(analyzeFilter(filter({ lastUsedAt: null, owner: null }), opts).map((x) => x.code)).toContain("orphaned-owner");
+  });
+
   test("survives a filter shaped nothing like a filter", () => {
     expect(() => analyzeFilter(null, { now: NOW })).not.toThrow();
     expect(() => analyzeFilter({}, { now: NOW })).not.toThrow();
@@ -187,6 +198,24 @@ describe("summarizeFilters", () => {
 
   test("reports unavailable rather than clean on an empty estate", () => {
     expect(summarizeFilters([], { now: NOW })).toMatchObject({ available: false, total: 0 });
+  });
+
+  test("reports lastUsedTracked, and stops counting stale/never-used, when no filter carries a date", () => {
+    const untracked = summarizeFilters(
+      [filter({ id: "a", lastUsedAt: null }), filter({ id: "b", lastUsedAt: null, subscriptionCount: 2 })],
+      { now: NOW }
+    );
+    expect(untracked.lastUsedTracked).toBe(false);
+    expect(untracked.neverUsedCount).toBe(0);
+    expect(untracked.staleCount).toBe(0);
+    expect(untracked.subscribedButUnusedCount).toBe(0);
+
+    const tracked = summarizeFilters(
+      [filter({ id: "a", lastUsedAt: null }), filter({ id: "b", lastUsedAt: daysAgo(3) })],
+      { now: NOW }
+    );
+    expect(tracked.lastUsedTracked).toBe(true);
+    expect(tracked.neverUsedCount).toBe(1);
   });
 });
 
