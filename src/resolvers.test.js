@@ -4922,6 +4922,19 @@ describe("startFullSiteScan / getFullScanStatus", () => {
     expect(result.stages).toHaveLength(2);
   });
 
+  // A cancelled scan, or one that finished before run history existed, has no full_scan_runs
+  // row -- so the produced counts have to come from the pillar metas on every read, or the
+  // page shows "Produced —" for every stage.
+  test("attaches what each pillar currently holds even for an idle scan", async () => {
+    mocks.readFullScanMeta.mockResolvedValue({ state: "cancelled", scanType: "full", stages: [{ key: "workflows", state: "done" }] });
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "w1", totalSchemes: 14 });
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "flt1", totalFilters: 4115 });
+
+    const result = await getFullScanStatus({ context: ctxWithAccount() });
+
+    expect(result.liveStageCounts).toMatchObject({ workflows: 14, filters: 4115 });
+  });
+
   test("reaches into the filter sub-build for a real count while the filters stage is in flight", async () => {
     mocks.readFullScanMeta.mockResolvedValue({
       state: "running", currentStage: "filters",

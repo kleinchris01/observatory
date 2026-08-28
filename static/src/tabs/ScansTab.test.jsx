@@ -311,6 +311,24 @@ describe("FullScanPanel — stage detail and run history", () => {
     panel({ state: "idle", catalog: idleStatus.catalog, stages: null, recentRuns: [] });
     expect(screen.getByText(/No scan has run yet/i)).toBeInTheDocument();
   });
+
+  // A cancelled scan has no recorded run, so the produced count has to fall back to what the
+  // pillar currently holds -- otherwise every stage reads "Produced —".
+  test("shows a stage's produced count from liveStageCounts when there is no recorded run", async () => {
+    const { container } = panel({
+      state: "cancelled",
+      catalog: idleStatus.catalog,
+      stages: [
+        { key: "filters", state: "done", startedAt: "2026-08-27T10:00:00Z", completedAt: "2026-08-27T10:02:00Z", attempts: 1 },
+        { key: "issues", state: "skipped", attempts: 0 },
+      ],
+      recentRuns: [],
+      liveStageCounts: { filters: 4115, issues: 326528 },
+    });
+    const filtersNode = [...container.querySelectorAll(".stage-rail__node")].find((n) => n.textContent.includes("Saved filter inventory"));
+    await userEvent.click(filtersNode);
+    expect(screen.getByText("4,115")).toBeInTheDocument();
+  });
 });
 
 // A wedged scan plus a forgotten browser tab was an overnight of SQL for no work. The

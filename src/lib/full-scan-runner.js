@@ -358,6 +358,7 @@ async function runScanStep(spec, installationKey, message = {}, { now = Date.now
     return advance(spec, installationKey, stages, meta.jobToken, now);
   }
 
+  const stageStartMs = Date.now();
   stages = markStage(stages, definition.key, { state: "running", startedAt: new Date(now).toISOString() });
   await writeFullScanMeta(installationKey, {
     stages,
@@ -381,7 +382,12 @@ async function runScanStep(spec, installationKey, message = {}, { now = Date.now
     }
 
     await runner.run(installationKey);
-    stages = markStage(stages, definition.key, { state: "done", completedAt: new Date(now).toISOString(), error: null });
+    // Anchored on `now` (so a test's injected clock still controls the timestamp) but
+    // carrying the REAL elapsed of the inline run. Without this, startedAt and completedAt
+    // are both `new Date(now)` -- one frozen clock per invocation -- so every inline stage
+    // recorded a 0s duration while only the polled handoff stages got real ones.
+    const completedAt = new Date(now + Math.max(0, Date.now() - stageStartMs)).toISOString();
+    stages = markStage(stages, definition.key, { state: "done", completedAt, error: null });
     logger.info(`${spec.scanType}-scan.stage_done`, { installationKey, stage: definition.key });
   } catch (error) {
     // A stage that threw is retried rather than failed on the first bad run. Most stages are

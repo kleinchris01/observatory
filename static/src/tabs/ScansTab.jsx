@@ -748,9 +748,10 @@ function readStageProgress(p) {
 // its state, timing, attempt count and what it produced -- plus the same figures from the
 // previous run, for the deltas.
 //
-// While a scan runs, the live meta and liveStageCounts are the truth and the last completed
-// run is only there for comparison. Once it is over, the recorded run (recentRuns[0]) wins,
-// because those are the numbers that were actually promoted.
+// Counts: prefer the recorded run's number when there is one, fall back to what the pillar
+// currently holds (liveStageCounts, read every status poll). A cancelled scan, or one that
+// finished before run history existed, has no recorded run -- without the fallback every
+// stage would read "Produced —".
 function mergeStageData(status) {
   const catalog = status?.catalog || [];
   const running = status?.state === "running";
@@ -777,7 +778,9 @@ function mergeStageData(status) {
       durationMs: recorded.durationMs ?? durationBetween(source.startedAt, source.completedAt),
       attempts: Number(source.attempts) || 0,
       error: source.error || live.error || null,
-      count: running ? (liveCounts[def.key] ?? null) : (recorded.count ?? null),
+      count: running
+        ? (liveCounts[def.key] ?? recorded.count ?? null)
+        : (recorded.count ?? liveCounts[def.key] ?? null),
       prevCount: prev.count ?? null,
       prevDurationMs: prev.durationMs ?? null,
     };

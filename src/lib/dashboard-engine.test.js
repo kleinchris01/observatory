@@ -195,4 +195,11 @@ describe("dashboardBuildSpec.runChunk — phase-aware progress", () => {
     expect(r.done).toBe(true);
     expect(r.totalExpected).toBeUndefined();
   });
+
+  test("the finished build records how many dashboards it found, so the scan page can show it", async () => {
+    store.loadGadgetsNeedingConfig.mockResolvedValue([]);
+    const done = await spec.runChunk({ installationKey: "i", version: "v", cursor: { phase: "configs", walked: 7, listTotal: 613, gadgetTotal: 4000 } });
+    expect(done.done).toBe(true);
+    expect(spec.finalize({ result: done })).toMatchObject({ totalDashboards: 613, gadgetsWalked: 7 });
+  });
 });
