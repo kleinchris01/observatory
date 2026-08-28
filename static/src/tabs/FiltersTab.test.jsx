@@ -390,3 +390,45 @@ describe("a build that is no longer running", () => {
     );
   });
 });
+
+describe("clearer labels and honest last-used", () => {
+  test("the deleted-project section is not called 'Broken scope'", async () => {
+    route({ getFilterInventory: inventory() });
+    render(<FiltersTab />);
+    await screen.findByText("Open bugs");
+    expect(screen.getByRole("button", { name: /Deleted project/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Broken scope/i })).not.toBeInTheDocument();
+  });
+
+  test("when Jira does not track last-used, cards say so instead of 'never opened', and the finding is dropped", async () => {
+    route({
+      getFilterInventory: inventory({
+        lastUsedTracked: false,
+        filters: [
+          { ...filter({ id: "1", name: "Untracked one", lastUsedAt: null }), findings: [] },
+        ],
+        findingCounts: { all: 1, "orphaned-owner": 0, "shared-with-everyone": 0, "subscribed-but-unused": 0, stale: 0 },
+      }),
+    });
+    render(<FiltersTab />);
+    await screen.findByText("Untracked one");
+
+    expect(screen.getByText("last-opened not tracked")).toBeInTheDocument();
+    expect(screen.queryByText("never opened")).not.toBeInTheDocument();
+    // The "Not opened in a year" chip is gone rather than showing a 0 for an unmeasured thing.
+    expect(screen.queryByRole("button", { name: /Not opened in a year/i })).not.toBeInTheDocument();
+  });
+
+  test("keeps 'never opened' and the finding when last-used IS tracked", async () => {
+    route({
+      getFilterInventory: inventory({
+        lastUsedTracked: true,
+        filters: [{ ...filter({ id: "1", name: "Real never", lastUsedAt: null }), findings: [] }],
+      }),
+    });
+    render(<FiltersTab />);
+    await screen.findByText("Real never");
+    expect(screen.getByText("never opened")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Not opened in a year/i })).toBeInTheDocument();
+  });
+});

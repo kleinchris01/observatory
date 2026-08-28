@@ -65,7 +65,12 @@ export function classifyOwner(filter) {
 // Each carries the evidence rather than a verdict, the same shape analyzeRuleRisks uses:
 // "this filter is risky" is not actionable and "owned by a deactivated account and feeding
 // 3 subscriptions" is.
-export function analyzeFilter(filter, { now = Date.now(), staleDays = STALE_FILTER_DAYS } = {}) {
+// `lastUsedTracked` is the tenant-level answer to "does Jira populate approximateLastUsed
+// here at all". On instances where it does not, EVERY filter comes back with lastUsedAt
+// null -- and "we could not tell" must not be rendered as "never opened", the same rule the
+// status pillar follows for its counts (CONNECT-4091). When it is false, the three
+// last-used findings are suppressed entirely rather than fired on every filter.
+export function analyzeFilter(filter, { now = Date.now(), staleDays = STALE_FILTER_DAYS, lastUsedTracked = true } = {}) {
   const findings = [];
   const ownerState = classifyOwner(filter);
   const subscriptions = Number(filter?.subscriptionCount) || 0;
@@ -89,10 +94,11 @@ export function analyzeFilter(filter, { now = Date.now(), staleDays = STALE_FILT
   }
 
   // A subscription is a recurring email. One on a filter nobody opens is the definition of
-  // noise somebody eventually filters to trash, taking the useful ones with it.
+  // noise somebody eventually filters to trash, taking the useful ones with it. Only a claim
+  // this app can make when Jira actually tracks last-used on this tenant.
   const lastUsedDays = daysSince(filter?.lastUsedAt, now);
-  const neverUsed = filter?.lastUsedAt == null;
-  if (subscriptions > 0 && (neverUsed || (lastUsedDays !== null && lastUsedDays > staleDays))) {
+  const neverUsed = lastUsedTracked && filter?.lastUsedAt == null;
+  if (lastUsedTracked && subscriptions > 0 && (neverUsed || (lastUsedDays !== null && lastUsedDays > staleDays))) {
     findings.push({
       code: "subscribed-but-unused",
       severity: "medium",
@@ -100,7 +106,7 @@ export function analyzeFilter(filter, { now = Date.now(), staleDays = STALE_FILT
     });
   }
 
-  if (!neverUsed && lastUsedDays !== null && lastUsedDays > staleDays && subscriptions === 0) {
+  if (lastUsedTracked && !neverUsed && lastUsedDays !== null && lastUsedDays > staleDays && subscriptions === 0) {
     findings.push({
       code: "stale",
       severity: "low",
@@ -109,7 +115,8 @@ export function analyzeFilter(filter, { now = Date.now(), staleDays = STALE_FILT
   }
 
   // Distinct from stale: Jira has never recorded a view at all. On a filter that has existed
-  // for years that is stronger evidence than an old timestamp.
+  // for years that is stronger evidence than an old timestamp -- but only if Jira records
+  // views on this instance in the first place.
   if (neverUsed && subscriptions === 0) {
     findings.push({
       code: "never-used",
@@ -176,9 +183,13 @@ const SEVERITY_ORDER = { high: 0, medium: 1, low: 2 };
 // Same rule the health score follows: a site with 4,000 filters and 50 orphans is tidier
 // than one with 80 filters and 50 orphans, and scoring counts would rank them the other way.
 export function summarizeFilters(filters = [], { now = Date.now(), projectKeys = null, staleDays = STALE_FILTER_DAYS } = {}) {
+  // If not one filter on the whole site carries a last-used date, Jira does not track it
+  // here -- so the "stale" / "never opened" findings are all noise, and the tab should say
+  // "not tracked" rather than assert every filter is dead.
+  const lastUsedTracked = filters.some((f) => f?.lastUsedAt != null);
   const analyzed = filters.map((filter) => ({
     ...filter,
-    findings: analyzeFilter(filter, { now, staleDays }),
+    findings: analyzeFilter(filter, { now, staleDays, lastUsedTracked }),
   }));
 
   const has = (filter, code) => filter.findings.some((f) => f.code === code);
@@ -194,6 +205,10 @@ export function summarizeFilters(filters = [], { now = Date.now(), projectKeys =
   return {
     // Tri-state, like every other pillar: no snapshot is "not measured", never "no filters".
     available: filters.length > 0,
+    // Whether Jira populates last-used on this instance at all. When false the UI drops the
+    // "not opened in a year" filter and shows "last-opened not tracked" instead of "never
+    // opened" -- unknown is not the same as never.
+    lastUsedTracked,
     total: filters.length,
     orphanedCount: analyzed.filter((f) => has(f, "orphaned-owner")).length,
     sharedWithEveryoneCount: analyzed.filter((f) => has(f, "shared-with-everyone")).length,
