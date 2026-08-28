@@ -927,7 +927,12 @@ const FILTER_EXPAND = "description,owner,jql,sharePermissions,subscriptions,view
 // Jira gives to "is anyone using this". It is not a view count: a dashboard somebody checks
 // daily without favouriting reads as zero, so it bounds a claim about NEGLECT rather than
 // proving one.
-const DASHBOARD_EXPAND = "description,owner,viewUrl,favouritedCount,sharePermissions,editPermissions";
+//
+// NOT viewUrl. filter/search accepts it and this list was modelled on FILTER_EXPAND, but
+// dashboard/search does not -- `expand=viewUrl` there is a hard 400 Bad Request, which is
+// why the dashboard stage of every scan was failing on its first request. The search
+// response already carries `view` unconditionally, and shapeDashboard reads that.
+const DASHBOARD_EXPAND = "description,owner,favouritedCount,sharePermissions,editPermissions";
 
 // One page of dashboards. Exposed alongside the full walk for the same reason as
 // getFilterPage: the dashboard build is resumable and drives its own pagination.
