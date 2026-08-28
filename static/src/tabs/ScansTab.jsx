@@ -1,6 +1,6 @@
 import React from "react";
 import { invoke, view } from "@forge/bridge";
-import { formatTimestamp, formatShortTime, formatRelativeTime } from "../utils";
+import { formatTimestamp, formatShortTime, formatRelativeTime, formatNumber } from "../utils";
 import { Icon, useLiveDuration } from "../components/Icons";
 import { SubNavLayout, Toggle, ConfigSection, ConfigRow } from "../components/admin/primitives";
 import { StatTile, StatRow, PageHeader, Panel, EmptyState } from "../components/ui";
@@ -777,10 +777,26 @@ function ScanStageTable({ status }) {
                     {row.error ? (
                       row.error
                     ) : isActive ? (
-                      <div className="stage-progress">
-                        <span className="stage-progress__track" aria-hidden="true"><span className="stage-progress__sweep" /></span>
-                        <span>In progress — this stage runs on its own and reports back.</span>
-                      </div>
+                      (() => {
+                        const p = status?.currentStageProgress;
+                        const counted = p && Number(p.total) > 0;
+                        const pct = counted ? Math.min(100, Math.round((p.processed / p.total) * 100)) : null;
+                        return (
+                          <div className="stage-progress">
+                            <span className="stage-progress__track" aria-hidden="true">
+                              {counted
+                                ? <span className="stage-progress__fill" style={{ width: `${pct}%` }} />
+                                : <span className="stage-progress__sweep" />}
+                            </span>
+                            <span>
+                              {counted
+                                ? `${formatNumber(p.processed)} of ${formatNumber(p.total)} (${pct}%)`
+                                : "In progress — this stage runs on its own and reports back."}
+                              {p?.lastError ? ` — last error: ${p.lastError}` : ""}
+                            </span>
+                          </div>
+                        );
+                      })()
                     ) : row.completedAt ? (
                       formatRelativeTime(row.completedAt)
                     ) : ""}
@@ -810,9 +826,16 @@ export function FullScanPanel({
         description="Every pillar in one pass, in dependency order. Each stage is the same build its own tab runs — this sequences them so the tabs cannot end up disagreeing about which snapshot they are describing."
         meta={status?.completedAt ? `Last run ${formatRelativeTime(status.completedAt)}` : undefined}
         actions={
-          <button type="button" className="primary-button" onClick={onStart} disabled={starting || running || status?.blockedByOtherScan}>
-            {running ? "Scanning…" : starting ? "Starting…" : "Run full scan"}
-          </button>
+          <span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button type="button" className="primary-button" onClick={onStart} disabled={starting || running || status?.blockedByOtherScan}>
+              {running ? "Scanning…" : starting ? "Starting…" : "Run full scan"}
+            </button>
+            {running && (
+              <button type="button" className="secondary-button" onClick={onAbandonScan} disabled={abandoningScan}>
+                {abandoningScan ? "Cancelling…" : "Cancel scan"}
+              </button>
+            )}
+          </span>
         }
       />
 
@@ -947,9 +970,16 @@ export function QuickScanPanel({
         description="The same estate as a full scan, minus what Jira genuinely cannot tell us has changed. Filters, dashboards, screens and workflows still run in full every time — there is no changed-since signal for them. The issue crawl is windowed to whatever you configure below."
         meta={status?.completedAt ? `Last run ${formatRelativeTime(status.completedAt)}` : undefined}
         actions={
-          <button type="button" className="primary-button" onClick={onStart} disabled={starting || running || status?.blockedByOtherScan}>
-            {running ? "Scanning…" : starting ? "Starting…" : "Run quick scan"}
-          </button>
+          <span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button type="button" className="primary-button" onClick={onStart} disabled={starting || running || status?.blockedByOtherScan}>
+              {running ? "Scanning…" : starting ? "Starting…" : "Run quick scan"}
+            </button>
+            {running && (
+              <button type="button" className="secondary-button" onClick={onAbandonScan} disabled={abandoningScan}>
+                {abandoningScan ? "Cancelling…" : "Cancel scan"}
+              </button>
+            )}
+          </span>
         }
       />
 

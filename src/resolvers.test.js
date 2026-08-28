@@ -4854,6 +4854,29 @@ describe("startFullSiteScan / getFullScanStatus", () => {
     expect(result.stages).toHaveLength(2);
   });
 
+  test("reaches into the filter sub-build for a real count while the filters stage is in flight", async () => {
+    mocks.readFullScanMeta.mockResolvedValue({
+      state: "running", currentStage: "filters",
+      stages: [{ key: "filters", state: "running" }],
+    });
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ processed: 1200, totalExpected: 4115, lastError: null });
+
+    const result = await getFullScanStatus({ context: ctxWithAccount() });
+
+    // The orchestrator only knows "running"; the sub-build's own meta row is where the
+    // count lives, so the stage row can show 1,200 / 4,115 instead of an endless sweep.
+    expect(result.currentStageProgress).toMatchObject({ processed: 1200, total: 4115 });
+  });
+
+  test("leaves currentStageProgress null when the active stage keeps no sub-build count", async () => {
+    mocks.readFullScanMeta.mockResolvedValue({
+      state: "running", currentStage: "workflows",
+      stages: [{ key: "workflows", state: "running" }],
+    });
+    const result = await getFullScanStatus({ context: ctxWithAccount() });
+    expect(result.currentStageProgress).toBeNull();
+  });
+
   test("survives a meta read failure rather than taking the tab down", async () => {
     mocks.readFullScanMeta.mockRejectedValueOnce(new Error("sql down"));
 

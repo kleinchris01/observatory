@@ -3497,6 +3497,28 @@ async function cancelSiteScan({ context }) {
   return cancelScan(installationKey);
 }
 
+// The two structural handoff stages -- filters and dashboards -- run on their own queue and
+// checkpoint their progress into their own meta row. The orchestrator only knows "running"
+// vs "done"; this reaches past it to the sub-build so the stage row can show a real count
+// rather than an indeterminate sweep. The issue crawl has its own live view already.
+async function handoffStageProgress(installationKey, currentStage) {
+  try {
+    if (currentStage === "filters") {
+      const m = await readFilterSnapshotMeta(installationKey);
+      if (!m) return null;
+      return { processed: Number(m.processed) || 0, total: Number(m.totalExpected) || 0, lastError: m.lastError || null };
+    }
+    if (currentStage === "dashboards") {
+      const m = await readDashboardSnapshotMeta(installationKey);
+      if (!m) return null;
+      return { processed: Number(m.processed) || 0, total: Number(m.totalExpected) || 0, lastError: m.lastError || null };
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 // Progress for the Scans tab: one row per stage, plus the catalog so the tab can render the
 // full list before a scan has ever run rather than an empty panel.
 async function getFullScanStatus({ context }) {
@@ -3509,12 +3531,14 @@ async function getFullScanStatus({ context }) {
   // A row with no scanType at all predates the quick-scan split and is treated as a full
   // scan's own row, so a scan started just before this shipped still renders correctly.
   const isFull = !meta?.scanType || meta.scanType === "full";
+  const currentStage = isFull ? (meta?.currentStage || null) : null;
 
   return {
     catalog: fullScanStageCatalog(),
     state: isFull ? (meta?.state || "idle") : "idle",
     stages: isFull && meta?.stages?.length ? meta.stages : null,
-    currentStage: isFull ? (meta?.currentStage || null) : null,
+    currentStage,
+    currentStageProgress: currentStage ? await handoffStageProgress(installationKey, currentStage) : null,
     startedAt: isFull ? (meta?.startedAt || null) : null,
     completedAt: isFull ? (meta?.completedAt || null) : null,
     updatedAt: isFull ? (meta?.updatedAt || null) : null,
@@ -3551,14 +3575,18 @@ async function getQuickScanStatus({ context }) {
     fallbackOn("quick_scan.meta_read_failed", null, { installationKey })
   );
 
+  const isQuick = meta?.scanType === "quick";
+  const currentStage = isQuick ? (meta?.currentStage || null) : null;
+
   return {
     catalog: quickScanStageCatalog(),
     // Only reported as belonging to THIS scan type when the shared meta row actually says so
     // -- a full scan's stages must never render on the quick scan panel just because it is
     // the most recent thing to have used the shared row.
-    state: meta?.scanType === "quick" ? (meta?.state || "idle") : "idle",
-    stages: meta?.scanType === "quick" && meta?.stages?.length ? meta.stages : null,
-    currentStage: meta?.scanType === "quick" ? (meta?.currentStage || null) : null,
+    state: isQuick ? (meta?.state || "idle") : "idle",
+    stages: isQuick && meta?.stages?.length ? meta.stages : null,
+    currentStage,
+    currentStageProgress: currentStage ? await handoffStageProgress(installationKey, currentStage) : null,
     startedAt: meta?.scanType === "quick" ? (meta?.startedAt || null) : null,
     completedAt: meta?.scanType === "quick" ? (meta?.completedAt || null) : null,
     updatedAt: meta?.scanType === "quick" ? (meta?.updatedAt || null) : null,

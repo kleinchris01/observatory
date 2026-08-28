@@ -215,6 +215,44 @@ describe("FullScanPanel — live progress while a stage is running", () => {
     panel(runningStatus); // updatedAt is now()
     expect(screen.queryByText(/has not reported progress/i)).not.toBeInTheDocument();
   });
+
+  // The stall notice only appears after 20 minutes of silence -- but a scan you want to
+  // stop is not always stalled. Cancel has to be reachable the whole time a scan runs.
+  test("keeps a Cancel scan button in the header for the entire time a scan is running", async () => {
+    const onAbandonScan = vi.fn();
+    render(
+      <FullScanPanel
+        status={runningStatus}
+        onStart={noop} starting={false}
+        onResumeStalledScan={noop} onAbandonScan={onAbandonScan}
+        recoveringScan={false} abandoningScan={false}
+        issueScan={null} onResumeIssueScan={noop} onCancelIssueScan={noop}
+        resumingIssueScan={false} cancellingIssueScan={false}
+        snapshot={null} onForceResumeSnapshot={noop} forceResumingSnapshot={false} onSnapshotCleared={noop}
+      />
+    );
+
+    // updatedAt is fresh -- the stall notice is NOT shown, but Cancel still is.
+    expect(screen.queryByText(/has not reported progress/i)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /Cancel scan/i }));
+    expect(onAbandonScan).toHaveBeenCalledTimes(1);
+  });
+
+  test("no Cancel button once the scan is idle", () => {
+    panel({ ...runningStatus, state: "idle", currentStage: null });
+    expect(screen.queryByRole("button", { name: /Cancel scan/i })).not.toBeInTheDocument();
+  });
+
+  // A handoff stage used to show only an indeterminate sweep. When the sub-build reports a
+  // real count, the stage row shows it.
+  test("shows a real count on the active handoff stage when the sub-build reports one", () => {
+    panel({
+      ...runningStatus,
+      currentStage: "screens",
+      currentStageProgress: { processed: 1200, total: 4115, lastError: null },
+    });
+    expect(screen.getByText(/1,200 of 4,115 \(29%\)/)).toBeInTheDocument();
+  });
 });
 
 // A wedged scan plus a forgotten browser tab was an overnight of SQL for no work. The
