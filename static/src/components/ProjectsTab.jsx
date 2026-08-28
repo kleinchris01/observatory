@@ -251,10 +251,17 @@ export function ProjectAdoptionPanel({ adoption, context }) {
     );
   }
 
-  const trend = adoption.momentum === null ? null
+  // Site-wide: the activity histogram has stopped near a fixed month because the last
+  // Universal Scan never finished. Every recent-rate figure on this panel is then a
+  // measurement of a gap in the data, not of the project, so the panel says so and stops
+  // short of calling anything a decline.
+  const staleData = Boolean(context?.dataStale);
+
+  const trend = staleData || adoption.momentum === null ? null
     : adoption.momentum >= 1.15 ? "up"
       : adoption.momentum <= 0.85 ? "down" : "flat";
-  const tone = adoption.fellOff ? "critical" : adoption.neverAdopted ? "warning" : "neutral";
+  const tone = staleData ? "neutral"
+    : adoption.fellOff ? "critical" : adoption.neverAdopted ? "warning" : "neutral";
 
   return (
     <Panel
@@ -262,6 +269,13 @@ export function ProjectAdoptionPanel({ adoption, context }) {
       icon="activity"
       description={`First issue ${adoption.firstIssueCreatedAt?.slice(0, 10)} · ${formatAge(adoption.ageDays)} old`}
     >
+      {staleData && (
+        <div className="status-banner status-banner--warning">
+          Activity data ends {context.dataThroughMonth || "an old month"}. The last Universal
+          Scan didn't finish, so the recent rate and momentum below understate current work —
+          run a scan from the Scans tab to refresh them.
+        </div>
+      )}
       <StatRow>
         <StatTile
           label="Adoption score"
@@ -279,9 +293,11 @@ export function ProjectAdoptionPanel({ adoption, context }) {
         />
         <StatTile
           label="Recent rate"
-          value={formatRate(adoption.recentIssuesPerDay)}
-          hint={adoption.momentum === null ? "last 90 days" : `${adoption.momentum.toFixed(2)}× its lifetime rate`}
-          tone={trend === "down" ? "warning" : trend === "up" ? "success" : "neutral"}
+          value={staleData ? "—" : formatRate(adoption.recentIssuesPerDay)}
+          hint={staleData
+            ? `data ends ${context.dataThroughMonth || "—"}`
+            : adoption.momentum === null ? "last 90 days" : `${adoption.momentum.toFixed(2)}× its lifetime rate`}
+          tone={staleData ? "warning" : trend === "down" ? "warning" : trend === "up" ? "success" : "neutral"}
         />
         <StatTile
           label="Fills per issue"
@@ -303,18 +319,19 @@ export function ProjectAdoptionPanel({ adoption, context }) {
           </span>
         )}
         {/* The question this whole feature was built to answer: not just that a project fell
-            off, but when -- while somebody still remembers why. */}
-        {adoption.declineFrom && (
+            off, but when -- while somebody still remembers why. Held back entirely while the
+            activity data is stale: a decline the data cannot actually see is not a finding. */}
+        {!staleData && adoption.declineFrom && (
           <span className="adoption-story__decline">
             Dropped below half that from <strong>{adoption.declineFrom}</strong>.
           </span>
         )}
-        {adoption.fellOff && !adoption.declineFrom && (
+        {!staleData && adoption.fellOff && !adoption.declineFrom && (
           <span className="adoption-story__decline">
             Running far below its own historical rate.
           </span>
         )}
-        {adoption.neverAdopted && (
+        {!staleData && adoption.neverAdopted && (
           <span className="adoption-story__decline">
             Never picked up: under an issue a month across its whole life.
           </span>

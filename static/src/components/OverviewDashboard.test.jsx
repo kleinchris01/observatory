@@ -383,6 +383,24 @@ describe("OverviewDashboard — workflow, automation and project findings stand 
     expect(within(idle).getByText("3")).toBeInTheDocument();
   });
 
+  test("surfaces stale project-activity data as its own finding, since it silences the decline findings", () => {
+    render(<OverviewDashboard
+      dashboard={dashboard({
+        adoption: {
+          available: true, measuredProjects: 40, judgeableProjects: 38,
+          fellOffCount: 0, neverAdoptedCount: 0, medianIssuesPerDay: 3,
+          dataStale: true, dataThroughMonth: "2026-01", fellOff: [],
+        },
+      })}
+      findingsSummary={findingsSummary}
+      workflow={workflow()}
+      onNavigate={vi.fn()}
+    />);
+
+    const stale = screen.getByText("Project activity data is out of date").closest(".ui-gov");
+    expect(within(stale).getByText(/histogram ends at 2026-01/)).toBeInTheDocument();
+  });
+
   test("promotes 'Dashboards published, unwanted', a finding that was computed and never shown at all", () => {
     render(<OverviewDashboard
       dashboard={dashboard()}

@@ -708,6 +708,29 @@ describe("ProjectAdoptionPanel", () => {
     render(<ProjectAdoptionPanel adoption={adoption({ fellOff: false, declineFrom: null, neverAdopted: true })} context={{}} />);
     expect(screen.getByText(/Never picked up/)).toBeInTheDocument();
   });
+
+  // When the activity histogram everywhere stops near a fixed month, the recent rate is a
+  // measurement of the gap in the data, not of the project.
+  describe("when the site's activity data is stale", () => {
+    const ctx = { dataStale: true, dataThroughMonth: "2026-01" };
+
+    it("warns that the recent figures are stale and names the month", () => {
+      render(<ProjectAdoptionPanel adoption={adoption()} context={ctx} />);
+      expect(screen.getByText(/Activity data ends 2026-01/)).toBeInTheDocument();
+    });
+
+    it("shows the recent rate as unknown rather than a stale zero", () => {
+      render(<ProjectAdoptionPanel adoption={adoption({ recentIssuesPerDay: 0, momentum: 0 })} context={ctx} />);
+      expect(screen.getByText("data ends 2026-01")).toBeInTheDocument();
+      expect(screen.queryByText(/its lifetime rate/)).not.toBeInTheDocument();
+    });
+
+    it("holds back the decline story the stale data cannot support", () => {
+      render(<ProjectAdoptionPanel adoption={adoption()} context={ctx} />);
+      expect(screen.queryByText(/Dropped below half/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Running far below/)).not.toBeInTheDocument();
+    });
+  });
 });
 
 describe("ActivitySparkbars", () => {

@@ -269,4 +269,44 @@ describe("summarizeAdoption", () => {
   test("survives an empty site", () => {
     expect(summarizeAdoption([], new Map(), { now: NOW })).toMatchObject({ available: false, totalProjects: 0 });
   });
+
+  // The bug the whole PR is about: a Universal Scan that never finished leaves every
+  // project's histogram stopped near the same old month. Read literally that says the entire
+  // estate went dark at once, which is a broken scan, not a finding.
+  describe("stale activity data", () => {
+    test("flags the data stale and names the month it stops at", () => {
+      const out = build([
+        { id: "A", counts: Array(24).fill(80), options: { endingMonthsAgo: 8 } },
+        { id: "B", counts: Array(24).fill(120), options: { endingMonthsAgo: 8 } },
+      ]);
+      expect(out.dataStale).toBe(true);
+      expect(out.dataThroughMonth).toBe("2025-12");
+    });
+
+    test("holds back the decline counts while the data is stale", () => {
+      const out = build([
+        { id: "LEFT", counts: [...Array(24).fill(400), 0, 0, 0, 0], options: { endingMonthsAgo: 8 } },
+        { id: "NEVER", counts: Array(36).fill(0), options: { endingMonthsAgo: 8 } },
+        { id: "FINE", counts: Array(24).fill(100), options: { endingMonthsAgo: 8 } },
+      ]);
+      // The per-project flag still carries the raw judgement; the headline count does not.
+      expect(out.fellOffCount).toBe(0);
+      expect(out.neverAdoptedCount).toBe(0);
+    });
+
+    test("one month behind is normal, not stale", () => {
+      const out = build([{ id: "A", counts: Array(12).fill(50), options: { endingMonthsAgo: 1 } }]);
+      expect(out.dataStale).toBe(false);
+      expect(out.dataThroughMonth).toBe("2026-07");
+    });
+
+    test("the freshest project sets the site's data-through month", () => {
+      const out = build([
+        { id: "STALE", counts: Array(12).fill(50), options: { endingMonthsAgo: 8 } },
+        { id: "FRESH", counts: Array(12).fill(50), options: { endingMonthsAgo: 0 } },
+      ]);
+      expect(out.dataThroughMonth).toBe("2026-08");
+      expect(out.dataStale).toBe(false);
+    });
+  });
 });

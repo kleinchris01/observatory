@@ -527,11 +527,28 @@ export const CREATE_FILTER_SNAPSHOT_META_TABLE = `
 // answers "when did this fall off"; the timestamps answer "how old is it", which month
 // granularity would get badly wrong on a project three weeks old.
 //
-// Accumulated during the crawl like issue_scan_buffer, and cleared with it: this is the
-// final shape rather than something promoted later, because unlike field counts there is
-// nothing to reconcile against a catalogue.
+// The live month histogram: the last good series, promoted from the buffer below only when
+// a scan finalizes. It is NOT cleared at scan start -- a crawl that dies partway (the normal
+// failure mode on a large site) must never be able to leave this table holding nothing but
+// the oldest months it happened to reach before it stopped.
 export const CREATE_ISSUE_SCAN_PROJECT_ACTIVITY_TABLE = `
   CREATE TABLE IF NOT EXISTS issue_scan_project_activity (
+    scope_key VARCHAR(191) NOT NULL,
+    project_id VARCHAR(191) NOT NULL,
+    month CHAR(7) NOT NULL,
+    issue_count BIGINT NOT NULL DEFAULT 0,
+    first_created_at VARCHAR(64) NULL,
+    last_created_at VARCHAR(64) NULL,
+    PRIMARY KEY (scope_key, project_id, month)
+  )
+`;
+
+// Where the crawl accumulates the histogram, one row per project per month, exactly like
+// issue_scan_buffer accumulates field counts. Cleared at scan start and promoted -- per
+// project, so a partial run leaves untouched projects alone -- into the live table above at
+// finalization. Same shape as the live table on purpose: promotion is a straight copy.
+export const CREATE_ISSUE_SCAN_ACTIVITY_BUFFER_TABLE = `
+  CREATE TABLE IF NOT EXISTS issue_scan_activity_buffer (
     scope_key VARCHAR(191) NOT NULL,
     project_id VARCHAR(191) NOT NULL,
     month CHAR(7) NOT NULL,
@@ -1143,7 +1160,10 @@ const projectStoreMigrations = migrationRunner
   // abandoned. All three are on the shared row because both scan types read them.
   .enqueue("v106_alter_full_scan_meta_add_recovery_count", "ALTER TABLE full_scan_meta ADD COLUMN IF NOT EXISTS recovery_count INTEGER NOT NULL DEFAULT 0")
   .enqueue("v107_alter_full_scan_meta_add_sweep", "ALTER TABLE full_scan_meta ADD COLUMN IF NOT EXISTS sweep INTEGER NOT NULL DEFAULT 0")
-  .enqueue("v108_alter_full_scan_meta_add_stage_progress_sig", "ALTER TABLE full_scan_meta ADD COLUMN IF NOT EXISTS stage_progress_sig VARCHAR(255) NULL");
+  .enqueue("v108_alter_full_scan_meta_add_stage_progress_sig", "ALTER TABLE full_scan_meta ADD COLUMN IF NOT EXISTS stage_progress_sig VARCHAR(255) NULL")
+  // The month histogram gets a staging buffer so a half-finished crawl can no longer wipe
+  // the live series -- the same buffer/promote shape issue_scan_buffer already has.
+  .enqueue("v109_create_issue_scan_activity_buffer_table", CREATE_ISSUE_SCAN_ACTIVITY_BUFFER_TABLE);
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history

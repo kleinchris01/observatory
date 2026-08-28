@@ -613,6 +613,25 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
 
   // ── Projects ────────────────────────────────────────────────────────────
 
+  // The month histogram behind every adoption figure has stopped near a fixed month -- a
+  // Universal Scan that never reached the end. Surfaced ahead of the adoption findings
+  // because it is why they are quiet: fell-off and never-adopted are both suppressed while
+  // the data is this stale, so without this the section would just look clean.
+  if (dashboard?.adoption?.available && dashboard.adoption.dataStale) {
+    findings.push({
+      key: "adoption-data-stale",
+      dimension: "project-findings",
+      pillar: "projects",
+      tone: "warning",
+      title: "Project activity data is out of date",
+      detail: dashboard.adoption.dataThroughMonth
+        ? `The issue histogram ends at ${dashboard.adoption.dataThroughMonth}. The last Universal Scan didn't finish, so adoption rates are stale and decline findings are held back until a scan completes.`
+        : "The last Universal Scan didn't finish, so adoption rates are stale and decline findings are held back until a scan completes.",
+      onOpen: () => onNavigate("scans"),
+      openLabel: "Scans",
+    });
+  }
+
   // A project people LEFT, which no lifetime total can show: it looks busy right up until
   // you divide by time. Ordered most-recent-decline-first by the resolver, because those are
   // the ones somebody might still remember the reason for.

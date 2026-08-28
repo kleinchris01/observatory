@@ -52,6 +52,21 @@ function monthKey(ms) {
   return new Date(ms).toISOString().slice(0, 7);
 }
 
+// Whole months between two "YYYY-MM" keys, `to` minus `from`. Negative if `from` is later.
+// Used only to ask how far behind the newest activity month the current month is.
+function monthsBetween(fromKey, toKey) {
+  const [fy, fm] = String(fromKey).split("-").map(Number);
+  const [ty, tm] = String(toKey).split("-").map(Number);
+  if (!fy || !fm || !ty || !tm) return null;
+  return (ty - fy) * 12 + (tm - fm);
+}
+
+// How stale a histogram has to be before it stops meaning "this project went quiet" and
+// starts meaning "the scan that fills this never finished". Two whole months: month buckets
+// trail the current month by construction, and a mid-month scan legitimately shows last
+// month as the newest complete bucket, so one month behind is normal and two is not.
+export const STALE_ACTIVITY_MONTHS = 2;
+
 // Issues created inside the recent window, from the monthly histogram.
 //
 // Month granularity means the window is approximate at its trailing edge: a 90-day window
@@ -263,6 +278,21 @@ export function summarizeAdoption(projects = [], activityByProject = new Map(), 
   const measured = rows.filter((r) => r.adoption.measured);
   const sortedRates = measured.map((r) => r.adoption.issuesPerDay).sort((a, b) => a - b);
 
+  // The newest month any project has activity in, and whether that is far enough behind the
+  // current month to distrust every recent-rate figure below. This is a site-level signal on
+  // purpose: one project going quiet is the finding this pillar exists to surface, but every
+  // project's series ending in the same old month is a broken scan, not an estate that
+  // stopped all at once. When it trips, the UI says so instead of reporting a wall of
+  // "0.0/wk" as if the projects had been measured and found dead.
+  const currentMonth = monthKey(now);
+  const dataThroughMonth = measured.reduce((newest, r) => {
+    const ms = r.adoption.months;
+    const last = ms.length ? ms[ms.length - 1].month : null;
+    return last && (!newest || last > newest) ? last : newest;
+  }, null);
+  const monthsBehind = dataThroughMonth ? monthsBetween(dataThroughMonth, currentMonth) : null;
+  const dataStale = Boolean(monthsBehind != null && monthsBehind >= STALE_ACTIVITY_MONTHS);
+
   const scored = rows.map(({ project, adoption }) => ({
     ...adoption,
     projectKey: project.projectKey,
@@ -282,8 +312,16 @@ export function summarizeAdoption(projects = [], activityByProject = new Map(), 
     measuredProjects: measured.length,
     totalProjects: projects.length,
     judgeableProjects: judgeable.length,
-    fellOffCount: judgeable.filter((row) => row.fellOff).length,
-    neverAdoptedCount: judgeable.filter((row) => row.neverAdopted).length,
+    // Suppressed when the histogram is stale everywhere: "fell off" leans on the recent
+    // window having data, and a scan that never filled it would turn every busy project into
+    // a false positive. The per-project rows still carry their raw flags for a caller that
+    // wants them; these headline counts do not.
+    fellOffCount: dataStale ? 0 : judgeable.filter((row) => row.fellOff).length,
+    neverAdoptedCount: dataStale ? 0 : judgeable.filter((row) => row.neverAdopted).length,
+    // Activity-data freshness, so a reader is told "the scan behind this is stale" rather
+    // than being shown zeroes that look like measurements.
+    dataThroughMonth,
+    dataStale,
     // The site's own middle, so a reader can tell what normal looks like here.
     medianIssuesPerDay: sortedRates.length ? sortedRates[Math.floor(sortedRates.length / 2)] : null,
     projects: scored,
