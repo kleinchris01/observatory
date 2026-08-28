@@ -719,6 +719,35 @@ export const CREATE_FULL_SCAN_META_TABLE = `
   )
 `;
 
+// One row per finished scan run -- full_scan_meta only ever holds the LATEST run, so without
+// this there is nothing to compare a run against. Written once by the orchestrator's finish()
+// path (which is also where a recovered-then-abandoned scan lands), pruned to the most recent
+// few dozen per site. stages_json is the per-stage timing/attempt breakdown; summary_json is
+// what each stage produced (filters counted, dashboards counted, issues crawled, ...), so the
+// scan page can show "4,115 filters, +38 vs last run" without re-reading every pillar.
+export const CREATE_FULL_SCAN_RUNS_TABLE = `
+  CREATE TABLE IF NOT EXISTS full_scan_runs (
+    scope_key VARCHAR(191) NOT NULL,
+    run_id VARCHAR(96) NOT NULL,
+    scan_type VARCHAR(16) NOT NULL DEFAULT 'full',
+    state VARCHAR(32) NOT NULL DEFAULT 'ready',
+    started_at VARCHAR(64) NULL,
+    completed_at VARCHAR(64) NULL,
+    duration_ms BIGINT NOT NULL DEFAULT 0,
+    failed_count INT NOT NULL DEFAULT 0,
+    skipped_count INT NOT NULL DEFAULT 0,
+    total_stages INT NOT NULL DEFAULT 0,
+    sweep INT NOT NULL DEFAULT 0,
+    stages_json LONGTEXT NULL,
+    summary_json LONGTEXT NULL,
+    PRIMARY KEY (scope_key, run_id)
+  )
+`;
+
+export const CREATE_FULL_SCAN_RUNS_BY_COMPLETED_INDEX = `
+  CREATE INDEX IF NOT EXISTS full_scan_runs_by_completed ON full_scan_runs (scope_key, scan_type, completed_at)
+`;
+
 // Which transitions open which screen.
 //
 // The second way a screen reaches a user, and the one that was missing. A screen attached
@@ -1163,7 +1192,11 @@ const projectStoreMigrations = migrationRunner
   .enqueue("v108_alter_full_scan_meta_add_stage_progress_sig", "ALTER TABLE full_scan_meta ADD COLUMN IF NOT EXISTS stage_progress_sig VARCHAR(255) NULL")
   // The month histogram gets a staging buffer so a half-finished crawl can no longer wipe
   // the live series -- the same buffer/promote shape issue_scan_buffer already has.
-  .enqueue("v109_create_issue_scan_activity_buffer_table", CREATE_ISSUE_SCAN_ACTIVITY_BUFFER_TABLE);
+  .enqueue("v109_create_issue_scan_activity_buffer_table", CREATE_ISSUE_SCAN_ACTIVITY_BUFFER_TABLE)
+  // Per-run scan history. full_scan_meta holds only the latest run, so run-over-run deltas
+  // and a "recent runs" list had nothing to read.
+  .enqueue("v110_create_full_scan_runs_table", CREATE_FULL_SCAN_RUNS_TABLE)
+  .enqueue("v111_create_full_scan_runs_by_completed_index", CREATE_FULL_SCAN_RUNS_BY_COMPLETED_INDEX);
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history

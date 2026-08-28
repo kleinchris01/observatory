@@ -3,7 +3,7 @@ import { describe, test, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { router } from "@forge/bridge";
-import { StatTile, StatRow, Panel, Chip, EmptyState, BarList, FindingRow, LinkButton, PageHeader, RuleLink, SortFilterBar } from "./ui";
+import { StatTile, StatRow, Panel, Chip, EmptyState, BarList, FindingRow, LinkButton, PageHeader, RuleLink, SortFilterBar, StageRail, formatDurationMs } from "./ui";
 
 // These are the shared vocabulary that replaced four separate stat-card idioms. They are
 // small, but they now render on every tab, so a regression here is a regression
@@ -306,5 +306,57 @@ describe("RuleLink", () => {
     await user.click(screen.getByRole("link", { name: "Any rule" }));
 
     expect(router.open).toHaveBeenCalledWith("https://example.atlassian.net/jira/settings/automation#/rule/5");
+  });
+});
+
+describe("formatDurationMs", () => {
+  test("reads as m/s under an hour and h/m over", () => {
+    expect(formatDurationMs(45000)).toBe("45s");
+    expect(formatDurationMs(64000)).toBe("1m 4s");
+    expect(formatDurationMs(3_600_000 + 120_000)).toBe("1h 2m");
+  });
+  test("null for a missing or negative span, so callers can fall back to a dash", () => {
+    expect(formatDurationMs(null)).toBeNull();
+    expect(formatDurationMs(-5)).toBeNull();
+    expect(formatDurationMs(undefined)).toBeNull();
+  });
+});
+
+describe("StageRail", () => {
+  const stages = [
+    { key: "workflows", label: "Workflows", state: "done", durationMs: 12000, attempts: 1 },
+    { key: "filters", label: "Filters", state: "running", startedAt: new Date().toISOString(), attempts: 2 },
+    { key: "issues", label: "Issues", state: "pending", attempts: 0 },
+  ];
+
+  test("renders one node per stage, in order", () => {
+    const { container } = render(<StageRail stages={stages} />);
+    const nodes = [...container.querySelectorAll(".stage-rail__node")];
+    expect(nodes.map((n) => n.querySelector(".stage-rail__label").textContent)).toEqual(["Workflows", "Filters", "Issues"]);
+  });
+
+  test("marks the current node and the selected node independently", () => {
+    const { container } = render(<StageRail stages={stages} currentStage="filters" selectedKey="workflows" />);
+    expect(container.querySelector(".stage-rail__node--current")).toHaveTextContent("Filters");
+    expect(container.querySelector(".stage-rail__node--selected")).toHaveTextContent("Workflows");
+  });
+
+  test("shows a retry badge only when a stage was attempted more than once", () => {
+    const { container } = render(<StageRail stages={stages} />);
+    const badges = container.querySelectorAll(".stage-rail__retry");
+    expect(badges).toHaveLength(1);
+    expect(badges[0]).toHaveTextContent("⟳2");
+  });
+
+  test("clicking a node reports its key", async () => {
+    const onSelect = vi.fn();
+    render(<StageRail stages={stages} onSelect={onSelect} />);
+    await userEvent.click(screen.getByRole("button", { name: /Issues — pending/ }));
+    expect(onSelect).toHaveBeenCalledWith("issues");
+  });
+
+  test("renders nothing without stages", () => {
+    const { container } = render(<StageRail stages={[]} />);
+    expect(container.querySelector(".stage-rail")).toBeNull();
   });
 });

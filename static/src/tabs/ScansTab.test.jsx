@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { ScanDeltaChart, ScanThroughputChart, IssueCrawlLiveView, FullScanPanel, QuickScanPanel, useVisiblePolling } from "./ScansTab";
 import userEvent from "@testing-library/user-event";
 import { renderHook, act } from "@testing-library/react";
@@ -131,28 +131,37 @@ describe("IssueCrawlLiveView run-derived series", () => {
 // A handoff stage runs on its own queue and reports back, so there is no real percentage to
 // show while it works. What proves the row is alive rather than wedged is the ticking "last
 // update" line and an indeterminate sweep on the active stage's own row -- not a number.
-describe("FullScanPanel — live progress while a stage is running", () => {
+describe("FullScanPanel — the live pipeline", () => {
   const noop = () => {};
   const runningStatus = {
     state: "running",
     currentStage: "screens",
     updatedAt: new Date().toISOString(),
+    startedAt: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+    sweep: 0,
     catalog: [
-      { key: "workflows", label: "Workflow & status inventory" },
-      { key: "screens", label: "Screen & scheme inventory" },
+      { key: "workflows", label: "Workflow & status inventory", mode: "inline" },
+      { key: "screens", label: "Screen & scheme inventory", mode: "inline" },
+      { key: "filters", label: "Saved filter inventory", mode: "handoff" },
     ],
     stages: [
-      { key: "workflows", state: "done" },
-      { key: "screens", state: "running" },
+      { key: "workflows", state: "done", startedAt: "2026-08-27T10:00:00Z", completedAt: "2026-08-27T10:00:12Z", attempts: 1 },
+      { key: "screens", state: "running", startedAt: "2026-08-27T10:00:12Z", attempts: 1 },
+      { key: "filters", state: "pending", attempts: 0 },
     ],
+    recentRuns: [],
   };
 
-  function panel(status) {
+  function panel(status, extra = {}) {
     return render(
       <FullScanPanel
         status={status}
         onStart={noop}
         starting={false}
+        onResumeStalledScan={noop}
+        onAbandonScan={noop}
+        recoveringScan={false}
+        abandoningScan={false}
         issueScan={null}
         onResumeIssueScan={noop}
         onCancelIssueScan={noop}
@@ -162,96 +171,145 @@ describe("FullScanPanel — live progress while a stage is running", () => {
         onForceResumeSnapshot={noop}
         forceResumingSnapshot={false}
         onSnapshotCleared={noop}
+        {...extra}
       />
     );
   }
 
-  test("shows a ticking freshness banner while the scan is running", () => {
-    panel(runningStatus);
-    expect(screen.getByText(/Scanning — last update/i)).toBeInTheDocument();
-  });
-
-  test("marks only the currently active stage's row for the live sweep", () => {
+  test("shows the running band with the current stage, its position and a ticking beat", () => {
     const { container } = panel(runningStatus);
-    const rows = container.querySelectorAll(".admin-table tbody tr");
-    expect(rows[0]).not.toHaveClass("stage-row--active");
-    expect(rows[1]).toHaveClass("stage-row--active");
-    expect(rows[1].querySelector(".stage-progress__track")).toBeInTheDocument();
+    const band = container.querySelector(".scan-now");
+    expect(within(band).getByText("Screen & scheme inventory")).toBeInTheDocument();
+    expect(within(band).getByText(/stage 2 of 3/)).toBeInTheDocument();
+    expect(within(band).getByText(/last update .* ago/)).toBeInTheDocument();
   });
 
-  test("shows neither the banner nor any active-row sweep once the scan is idle", () => {
-    const { container } = panel({ ...runningStatus, state: "idle", currentStage: null });
-    expect(screen.queryByText(/Scanning — last update/i)).not.toBeInTheDocument();
-    expect(container.querySelector(".stage-row--active")).toBeNull();
+  test("renders one rail node per catalog stage, marking the running one", () => {
+    const { container } = panel(runningStatus);
+    const nodes = container.querySelectorAll(".stage-rail__node");
+    expect(nodes).toHaveLength(3);
+    expect(container.querySelector(".stage-rail__node--current")).toHaveTextContent("Screen & scheme inventory");
   });
 
-  // The orchestrator writes updatedAt on every step, so a running scan that has gone silent
-  // for 20+ minutes is one whose loop stopped. The panel offers a way out that does not
-  // require waiting for the hourly trigger.
-  test("offers Resume and Abandon once a running scan has been silent past the stall window", async () => {
-    const onResumeStalledScan = vi.fn();
+  test("no running band once the scan is idle", () => {
+    panel({ ...runningStatus, state: "idle", currentStage: null });
+    expect(document.querySelector(".scan-now")).toBeNull();
+  });
+
+  test("the Cancel button in the band is wired the whole time a scan runs", async () => {
     const onAbandonScan = vi.fn();
-    const stale = new Date(Date.now() - 25 * 60 * 1000).toISOString();
-    render(
-      <FullScanPanel
-        status={{ ...runningStatus, updatedAt: stale }}
-        onStart={noop} starting={false}
-        onResumeStalledScan={onResumeStalledScan} onAbandonScan={onAbandonScan}
-        recoveringScan={false} abandoningScan={false}
-        issueScan={null} onResumeIssueScan={noop} onCancelIssueScan={noop}
-        resumingIssueScan={false} cancellingIssueScan={false}
-        snapshot={null} onForceResumeSnapshot={noop} forceResumingSnapshot={false} onSnapshotCleared={noop}
-      />
-    );
-
-    expect(screen.getByText(/has not reported progress for over 20 minutes/i)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: /Resume \(stalled\)/i }));
-    await userEvent.click(screen.getByRole("button", { name: /Abandon scan/i }));
-    expect(onResumeStalledScan).toHaveBeenCalledTimes(1);
-    expect(onAbandonScan).toHaveBeenCalledTimes(1);
-  });
-
-  test("does not show the stall notice while the scan is still reporting progress", () => {
-    panel(runningStatus); // updatedAt is now()
-    expect(screen.queryByText(/has not reported progress/i)).not.toBeInTheDocument();
-  });
-
-  // The stall notice only appears after 20 minutes of silence -- but a scan you want to
-  // stop is not always stalled. Cancel has to be reachable the whole time a scan runs.
-  test("keeps a Cancel scan button in the header for the entire time a scan is running", async () => {
-    const onAbandonScan = vi.fn();
-    render(
-      <FullScanPanel
-        status={runningStatus}
-        onStart={noop} starting={false}
-        onResumeStalledScan={noop} onAbandonScan={onAbandonScan}
-        recoveringScan={false} abandoningScan={false}
-        issueScan={null} onResumeIssueScan={noop} onCancelIssueScan={noop}
-        resumingIssueScan={false} cancellingIssueScan={false}
-        snapshot={null} onForceResumeSnapshot={noop} forceResumingSnapshot={false} onSnapshotCleared={noop}
-      />
-    );
-
-    // updatedAt is fresh -- the stall notice is NOT shown, but Cancel still is.
+    panel(runningStatus, { onAbandonScan });
+    // Stall notice is NOT shown (updatedAt is fresh), but Cancel still is.
     expect(screen.queryByText(/has not reported progress/i)).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /Cancel scan/i }));
     expect(onAbandonScan).toHaveBeenCalledTimes(1);
   });
 
-  test("no Cancel button once the scan is idle", () => {
-    panel({ ...runningStatus, state: "idle", currentStage: null });
-    expect(screen.queryByRole("button", { name: /Cancel scan/i })).not.toBeInTheDocument();
+  test("shows a real percentage on a counted handoff stage", () => {
+    panel({ ...runningStatus, currentStage: "filters", currentStageProgress: { processed: 1200, total: 4115, lastError: null } });
+    expect(screen.getByText(/1,200 of 4,115 \(29%\)/)).toBeInTheDocument();
   });
 
-  // A handoff stage used to show only an indeterminate sweep. When the sub-build reports a
-  // real count, the stage row shows it.
-  test("shows a real count on the active handoff stage when the sub-build reports one", () => {
-    panel({
-      ...runningStatus,
-      currentStage: "screens",
-      currentStageProgress: { processed: 1200, total: 4115, lastError: null },
-    });
-    expect(screen.getByText(/1,200 of 4,115 \(29%\)/)).toBeInTheDocument();
+  // The bug from the screenshot: processed past total clamps to a meaningless 100%.
+  test("refuses to show 'X of Y' when processed has run past total", () => {
+    panel({ ...runningStatus, currentStage: "filters", currentStageProgress: { processed: 1886, total: 613, lastError: null } });
+    expect(screen.queryByText(/1,886 of 613/)).not.toBeInTheDocument();
+    expect(screen.getByText(/1,886 processed/)).toBeInTheDocument();
+  });
+
+  test("surfaces the sub-build's last error in the band", () => {
+    panel({ ...runningStatus, currentStageProgress: { processed: 0, total: 0, lastError: "Jira returned 429" } });
+    expect(screen.getByText(/Last error: Jira returned 429/)).toBeInTheDocument();
+  });
+
+  test("still offers Resume and Abandon once a running scan has been silent past the stall window", async () => {
+    const onResumeStalledScan = vi.fn();
+    const onAbandonScan = vi.fn();
+    const stale = new Date(Date.now() - 25 * 60 * 1000).toISOString();
+    panel({ ...runningStatus, updatedAt: stale }, { onResumeStalledScan, onAbandonScan });
+
+    expect(screen.getByText(/has not reported progress for over 20 minutes/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /Resume \(stalled\)/i }));
+    expect(onResumeStalledScan).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("FullScanPanel — stage detail and run history", () => {
+  const noop = () => {};
+  const idleStatus = {
+    state: "ready",
+    currentStage: null,
+    completedAt: "2026-08-27T10:47:00Z",
+    catalog: [
+      { key: "filters", label: "Saved filter inventory", mode: "handoff" },
+      { key: "issues", label: "Issues & field usage", mode: "handoff" },
+    ],
+    stages: [
+      { key: "filters", state: "done", startedAt: "2026-08-27T10:00:00Z", completedAt: "2026-08-27T10:01:04Z", attempts: 2 },
+      { key: "issues", state: "done", startedAt: "2026-08-27T10:01:04Z", completedAt: "2026-08-27T10:47:00Z", attempts: 1 },
+    ],
+    recentRuns: [
+      {
+        runId: "r2", scanType: "full", state: "ready", completedAt: "2026-08-27T10:47:00Z",
+        durationMs: 2_820_000, failedCount: 0, skippedCount: 0, totalStages: 2,
+        summary: { filters: 4115, issues: 326528 },
+        stages: [
+          { key: "filters", state: "done", durationMs: 64000, attempts: 2, count: 4115 },
+          { key: "issues", state: "done", durationMs: 2_756_000, attempts: 1, count: 326528 },
+        ],
+      },
+      {
+        runId: "r1", scanType: "full", state: "ready", completedAt: "2026-08-24T09:30:00Z",
+        durationMs: 2_460_000, failedCount: 0, skippedCount: 0, totalStages: 2,
+        summary: { filters: 4077, issues: 324425 },
+        stages: [
+          { key: "filters", state: "done", durationMs: 53000, attempts: 1, count: 4077 },
+          { key: "issues", state: "done", durationMs: 2_407_000, attempts: 1, count: 324425 },
+        ],
+      },
+    ],
+  };
+
+  function panel(status) {
+    return render(
+      <FullScanPanel
+        status={status} onStart={noop} starting={false}
+        onResumeStalledScan={noop} onAbandonScan={noop} recoveringScan={false} abandoningScan={false}
+        issueScan={null} onResumeIssueScan={noop} onCancelIssueScan={noop}
+        resumingIssueScan={false} cancellingIssueScan={false}
+        snapshot={null} onForceResumeSnapshot={noop} forceResumingSnapshot={false} onSnapshotCleared={noop}
+      />
+    );
+  }
+
+  test("the last stage is selected by default and shows what it produced with a run-over-run delta", () => {
+    panel(idleStatus);
+    // 'issues' is last, non-pending -> auto-selected.
+    expect(screen.getByText("326,528")).toBeInTheDocument();
+    expect(screen.getByText(/\+2,103 vs last run/)).toBeInTheDocument();
+  });
+
+  test("clicking a rail node selects it and shows its retry count", async () => {
+    const { container } = panel(idleStatus);
+    const filtersNode = [...container.querySelectorAll(".stage-rail__node")].find((n) => n.textContent.includes("Saved filter inventory"));
+    await userEvent.click(filtersNode);
+    expect(screen.getByText("4,115")).toBeInTheDocument();
+    expect(screen.getByText(/\+38 vs last run/)).toBeInTheDocument();
+    // attempts: 2 -> the retry badge and the Attempts tile
+    expect(container.querySelector(".stage-rail__retry")).toHaveTextContent("⟳2");
+  });
+
+  test("lists recent runs with a clean/incomplete marker and a duration", () => {
+    panel(idleStatus);
+    const rows = document.querySelectorAll(".recent-runs__row");
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent("clean");
+    expect(rows[0]).toHaveTextContent("326,528 issues");
+  });
+
+  test("the empty pipeline invites a first run rather than rendering a bare table", () => {
+    panel({ state: "idle", catalog: idleStatus.catalog, stages: null, recentRuns: [] });
+    expect(screen.getByText(/No scan has run yet/i)).toBeInTheDocument();
   });
 });
 

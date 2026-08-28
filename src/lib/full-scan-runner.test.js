@@ -20,6 +20,10 @@ vi.mock("./project-store.js", () => ({
   readFilterSnapshotMeta: vi.fn(),
   readDashboardSnapshotMeta: vi.fn(),
   readIssueScanMeta: vi.fn(),
+  readWorkflowSnapshotMeta: vi.fn(async () => null),
+  readScreenSnapshotMeta: vi.fn(async () => null),
+  readSnapshotMeta: vi.fn(async () => null),
+  recordFullScanRun: vi.fn(async () => ({ recorded: true })),
 }));
 
 vi.mock("./filter-engine.js", () => ({ isFilterBuildStale: vi.fn(() => false), queueFilterSnapshotBuild: vi.fn() }));
@@ -61,7 +65,7 @@ import {
 } from "./full-scan.js";
 import { captureSiteHealthForScan } from "../resolvers.js";
 import { inventorySnapshotQueue } from "./queues.js";
-import { readFullScanMeta, writeFullScanMeta, readFilterSnapshotMeta, readIssueScanMeta } from "./project-store.js";
+import { readFullScanMeta, writeFullScanMeta, readFilterSnapshotMeta, readIssueScanMeta, recordFullScanRun } from "./project-store.js";
 import { buildWorkflowSnapshot } from "./workflow-engine.js";
 import { queueFilterSnapshotBuild } from "./filter-engine.js";
 import { runDeltaIssueScanJob } from "../resolvers.js";
@@ -310,6 +314,32 @@ describe("finishing", () => {
 
     await runFullScanStep("inst", { jobToken: "job-token" });
 
+    expect(lastWrite().state).toBe("ready");
+  });
+
+  test("records the finished run for run-over-run comparison", async () => {
+    readFullScanMeta.mockResolvedValue(running({
+      stages: withDone(fullScanStageCatalog().map((s) => s.key)),
+      startedAt: "2026-08-27T10:00:00.000Z",
+      sweep: 1,
+    }));
+
+    await runFullScanStep("inst", { jobToken: "job-token" });
+
+    expect(recordFullScanRun).toHaveBeenCalledTimes(1);
+    const [scope, run] = recordFullScanRun.mock.calls[0];
+    expect(scope).toBe("inst");
+    expect(run).toMatchObject({ runId: "job-token", scanType: "full", state: "ready", sweep: 1, startedAt: "2026-08-27T10:00:00.000Z" });
+    expect(run.stages.map((s) => s.key)).toEqual(fullScanStageCatalog().map((s) => s.key));
+  });
+
+  test("a failed run-history write never fails the scan", async () => {
+    readFullScanMeta.mockResolvedValue(running({ stages: withDone(fullScanStageCatalog().map((s) => s.key)) }));
+    recordFullScanRun.mockRejectedValueOnce(new Error("history table gone"));
+
+    const result = await runFullScanStep("inst", { jobToken: "job-token" });
+
+    expect(result).toMatchObject({ completed: true });
     expect(lastWrite().state).toBe("ready");
   });
 });

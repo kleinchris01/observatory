@@ -43,6 +43,10 @@ import {
   readFilterSnapshotMeta,
   readDashboardSnapshotMeta,
   readIssueScanMeta,
+  readWorkflowSnapshotMeta,
+  readScreenSnapshotMeta,
+  readSnapshotMeta,
+  recordFullScanRun,
 } from "./project-store.js";
 import { isFilterBuildStale, queueFilterSnapshotBuild } from "./filter-engine.js";
 import { isDashboardBuildStale, queueDashboardSnapshotBuild } from "./dashboard-engine.js";
@@ -434,9 +438,76 @@ async function advance(spec, installationKey, stages, jobToken, now) {
   return finish(spec, installationKey, stages, now);
 }
 
+// What each stage produced, read back from the pillar it drives.
+//
+// Best-effort and defensive: this feeds the scan page's "4,115 filters, +38 vs last run"
+// line, and a meta read that throws must not be allowed to turn a finished scan into a
+// failed one. Every source is wrapped, every miss is just an absent key. Exported so the
+// status resolver can show the same counts live, before the run has finished and been
+// recorded.
+export async function readStageProducedCounts(installationKey, scanType) {
+  const out = {};
+  const put = async (key, read, pick) => {
+    try {
+      const meta = await read(installationKey);
+      const value = meta ? pick(meta) : null;
+      if (value != null && Number.isFinite(Number(value))) out[key] = Number(value);
+    } catch {
+      /* absent key, not a failure */
+    }
+  };
+
+  await Promise.all([
+    put("workflows", readWorkflowSnapshotMeta, (m) => m.totalSchemes),
+    put("screens", readScreenSnapshotMeta, (m) => m.totalScreens),
+    put("filters", readFilterSnapshotMeta, (m) => m.totalFilters),
+    put("dashboards", readDashboardSnapshotMeta, (m) => m.totalDashboards),
+    put("fields", readSnapshotMeta, (m) => m.totalFields),
+    put("issues", readIssueScanMeta, (m) => m.processedIssues || m.totalIssues),
+  ]);
+
+  if (scanType === "quick") {
+    try {
+      const { DELTA_SCOPE_SUFFIX } = await import("../resolvers.js");
+      const delta = await readIssueScanMeta(`${installationKey}${DELTA_SCOPE_SUFFIX}`);
+      if (delta?.processedIssues != null) out["issues-delta"] = Number(delta.processedIssues);
+    } catch {
+      /* absent key */
+    }
+  }
+
+  return out;
+}
+
+// Fold the run's stage list and its produced-counts into the shape full_scan_runs stores:
+// one entry per stage with its own timing, retry count and headline number.
+function buildStageRecords(stages, summary) {
+  return (stages || []).map((stage) => {
+    const startMs = Date.parse(stage.startedAt || "");
+    const endMs = Date.parse(stage.completedAt || "");
+    const durationMs = Number.isFinite(startMs) && Number.isFinite(endMs) && endMs >= startMs
+      ? endMs - startMs
+      : null;
+    return {
+      key: stage.key,
+      state: stage.state,
+      startedAt: stage.startedAt || null,
+      completedAt: stage.completedAt || null,
+      durationMs,
+      attempts: Number(stage.attempts) || 0,
+      error: stage.error || null,
+      count: Object.prototype.hasOwnProperty.call(summary, stage.key) ? summary[stage.key] : null,
+    };
+  });
+}
+
 async function finish(spec, installationKey, stages, now) {
   const summary = summarizeStages(stages);
   const completedAt = new Date(now).toISOString();
+
+  // Read the meta BEFORE the terminal write clears jobToken -- the run id and the sweep count
+  // both live on it and the history row needs them.
+  const priorMeta = await readFullScanMeta(installationKey).catch(() => null);
 
   await writeFullScanMeta(installationKey, {
     // "completed-with-failures" rather than plain success whenever anything failed or was
@@ -452,6 +523,33 @@ async function finish(spec, installationKey, stages, now) {
       ? `${summary.failed} failed, ${summary.skipped} skipped of ${summary.total} stages.`
       : null,
   });
+
+  // Record the run for run-over-run comparison. After the terminal write, and swallowing its
+  // own errors: the scan is already finished and marked: a failed history insert is a missing
+  // chart point, not a failed scan.
+  try {
+    const runSummary = await readStageProducedCounts(installationKey, spec.scanType);
+    const startedAt = priorMeta?.startedAt || null;
+    const startMs = Date.parse(startedAt || "");
+    await recordFullScanRun(installationKey, {
+      runId: priorMeta?.jobToken || `${spec.scanType}-${completedAt}`,
+      scanType: spec.scanType,
+      state: summary.state,
+      startedAt,
+      completedAt,
+      durationMs: Number.isFinite(startMs) ? Date.parse(completedAt) - startMs : 0,
+      failedCount: summary.failed,
+      skippedCount: summary.skipped,
+      totalStages: summary.total,
+      sweep: Number(priorMeta?.sweep) || 0,
+      stages: buildStageRecords(stages, runSummary),
+      summary: runSummary,
+    });
+  } catch (error) {
+    logger.warn(`${spec.scanType}-scan.run_history_write_failed`, {
+      installationKey, error: String(error?.message || error),
+    });
+  }
 
   logger.info(`${spec.scanType}-scan.completed`, { installationKey, ...summary });
   return { completed: true, ...summary };
