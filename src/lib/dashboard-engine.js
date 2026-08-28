@@ -293,7 +293,12 @@ export const dashboardBuildSpec = {
     const pendingConfigs = await loadGadgetsNeedingConfig(installationKey, version, DASHBOARD_CONFIG_CHUNK);
 
     if (!pendingConfigs.length) {
-      return { done: true, processed: 0, totalExpected: cumulativeTotal, extra: { walked: Number(cursor?.walked) || 0 } };
+      return {
+        done: true,
+        processed: 0,
+        totalExpected: cumulativeTotal,
+        extra: { walked: Number(cursor?.walked) || 0, listTotal },
+      };
     }
 
     const configs = await mapWithConcurrency(pendingConfigs, DASHBOARD_FETCH_CONCURRENCY, async (g) => {
@@ -323,7 +328,13 @@ export const dashboardBuildSpec = {
     };
   },
 
-  finalize: ({ result }) => ({ gadgetsWalked: Number(result?.extra?.walked) || 0 }),
+  finalize: ({ result }) => ({
+    gadgetsWalked: Number(result?.extra?.walked) || 0,
+    // The dashboard build never recorded how many dashboards it found, so the scan page's
+    // "Produced" for this stage always read 0. listTotal is the count from the search API,
+    // carried through the cursor to here.
+    totalDashboards: Number(result?.extra?.listTotal) || 0,
+  }),
 };
 
 // Queue a resumable build of the dashboard inventory.

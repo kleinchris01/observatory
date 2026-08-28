@@ -3587,21 +3587,21 @@ function maybeRecoverStalledScan(installationKey, meta) {
   );
 }
 
-// Recent runs for run-over-run deltas, plus the produced-counts of the run in flight.
+// Recent runs for run-over-run deltas, plus what each pillar currently holds.
 //
-// liveCounts is only worth reading mid-scan: once a run finishes it is in recentRuns[0] with
-// the same numbers. Both are best-effort -- the scan page degrades to "no comparison yet"
-// rather than erroring if either read fails.
-async function scanRunHistory(installationKey, scanType, { live }) {
-  const [recentRuns, liveCounts] = await Promise.all([
+// liveStageCounts is read from the pillar metas EVERY time, not just mid-scan: a run that was
+// cancelled, or finished before this bookkeeping existed, has no full_scan_runs row, and
+// without the live read every stage on the page shows "Produced —". The pillar metas are the
+// source of truth and always readable. Both are best-effort -- the page degrades rather than
+// erroring if either read fails.
+async function scanRunHistory(installationKey, scanType) {
+  const [recentRuns, liveStageCounts] = await Promise.all([
     readRecentFullScanRuns(installationKey, { scanType, limit: 8 })
       .catch(fallbackOn("scan.recent_runs_read_failed", [], { installationKey })),
-    live
-      ? readStageProducedCounts(installationKey, scanType)
-          .catch(fallbackOn("scan.live_counts_read_failed", {}, { installationKey }))
-      : Promise.resolve(null),
+    readStageProducedCounts(installationKey, scanType)
+      .catch(fallbackOn("scan.live_counts_read_failed", {}, { installationKey })),
   ]);
-  return { recentRuns, liveStageCounts: liveCounts };
+  return { recentRuns, liveStageCounts };
 }
 
 // Progress for the Scans tab: one row per stage, plus the catalog so the tab can render the
@@ -3617,9 +3617,8 @@ async function getFullScanStatus({ context }) {
   // scan's own row, so a scan started just before this shipped still renders correctly.
   const isFull = !meta?.scanType || meta.scanType === "full";
   const currentStage = isFull ? (meta?.currentStage || null) : null;
-  const running = isFull && meta?.state === "running";
   if (isFull) maybeRecoverStalledScan(installationKey, meta);
-  const { recentRuns, liveStageCounts } = await scanRunHistory(installationKey, "full", { live: running });
+  const { recentRuns, liveStageCounts } = await scanRunHistory(installationKey, "full");
 
   return {
     catalog: fullScanStageCatalog(),
@@ -3670,9 +3669,8 @@ async function getQuickScanStatus({ context }) {
 
   const isQuick = meta?.scanType === "quick";
   const currentStage = isQuick ? (meta?.currentStage || null) : null;
-  const running = isQuick && meta?.state === "running";
   if (isQuick) maybeRecoverStalledScan(installationKey, meta);
-  const { recentRuns, liveStageCounts } = await scanRunHistory(installationKey, "quick", { live: running });
+  const { recentRuns, liveStageCounts } = await scanRunHistory(installationKey, "quick");
 
   return {
     catalog: quickScanStageCatalog(),

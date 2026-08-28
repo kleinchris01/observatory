@@ -132,6 +132,19 @@ describe("running a stage", () => {
     expect(inventorySnapshotQueue.push).toHaveBeenCalled();
   });
 
+  test("an inline stage records a real elapsed, not a 0s duration", async () => {
+    readFullScanMeta.mockResolvedValue(running());
+    // The step captures ONE `now` for the whole invocation; the stage's completedAt has to
+    // carry the actual elapsed of runner.run(), or every inline stage reports 0s.
+    buildWorkflowSnapshot.mockImplementationOnce(() => new Promise((r) => setTimeout(r, 25)));
+
+    await runFullScanStep("inst", { jobToken: "job-token" }, { now: 1_000_000 });
+
+    const wf = lastWrite().stages.find((s) => s.key === "workflows");
+    expect(new Date(wf.startedAt).getTime()).toBe(1_000_000);
+    expect(new Date(wf.completedAt).getTime()).toBeGreaterThan(1_000_000);
+  });
+
   test("hands off a resumable stage instead of running it inline", async () => {
     readFullScanMeta.mockResolvedValue(running({ stages: withDone(["workflows", "screens"]) }));
 
