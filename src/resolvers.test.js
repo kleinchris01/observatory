@@ -4879,6 +4879,23 @@ describe("startFullSiteScan / getFullScanStatus", () => {
     expect(result.currentStageProgress).toBeNull();
   });
 
+  test("names the dashboard build's current phase, so its count is not a mystery", async () => {
+    mocks.readFullScanMeta.mockResolvedValue({
+      state: "running", currentStage: "dashboards",
+      stages: [{ key: "dashboards", state: "running" }],
+    });
+    mocks.readDashboardSnapshotMeta.mockResolvedValue({
+      processed: 3836, totalExpected: 5226, lastError: null,
+      buildCursor: JSON.stringify({ phase: "configs", walked: 10, listTotal: 613, gadgetTotal: 4000 }),
+    });
+
+    const result = await getFullScanStatus({ context: ctxWithAccount() });
+
+    expect(result.currentStageProgress).toMatchObject({
+      processed: 3836, total: 5226, note: "resolving what each gadget points at",
+    });
+  });
+
   test("survives a meta read failure rather than taking the tab down", async () => {
     mocks.readFullScanMeta.mockRejectedValueOnce(new Error("sql down"));
 

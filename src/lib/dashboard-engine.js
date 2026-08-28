@@ -44,6 +44,7 @@ import {
   loadDashboardIdsNeedingGadgets,
   loadGadgetsNeedingConfig,
   recordGadgetConfigs,
+  countGadgetConfigCoverage,
   pruneDashboardSnapshots,
 } from "./project-store.js";
 
@@ -205,11 +206,14 @@ export const dashboardBuildSpec = {
       }
 
       // Enumeration finished only moves to the next phase -- it is not the build finishing.
+      // listTotal is carried forward so the later phases can report a cumulative
+      // totalExpected: without it, progress reads as "3,836 of 613" -- work summed across
+      // three phases against a denominator that only counted the first.
       return {
         done: false,
         processed: fetched,
         totalExpected: total,
-        cursor: listDone ? { phase: "gadgets" } : { phase: "list", startAt, total },
+        cursor: listDone ? { phase: "gadgets", listTotal: total } : { phase: "list", startAt, total },
       };
     }
 
@@ -219,14 +223,18 @@ export const dashboardBuildSpec = {
     // carried across invocations in a TEXT cursor -- and so a redelivered message re-reads
     // what is actually still missing rather than trusting a stale list.
     if (phase === "gadgets") {
+      const listTotal = Number(cursor?.listTotal) || Number(meta?.totalExpected) || 0;
       const pending = await loadDashboardIdsNeedingGadgets(installationKey, version, DASHBOARD_GADGET_CHUNK);
 
       if (!pending.length) {
-        // Gadgets are all walked; now read what each one points at.
+        // Gadgets are all walked; now read what each one points at. Take a one-off count of
+        // the gadgets so phase three has a real denominator instead of borrowing phase one's.
+        const { total: gadgetTotal } = await countGadgetConfigCoverage(installationKey, version);
         return {
           done: false,
           processed: 0,
-          cursor: { phase: "configs", walked: Number(cursor?.walked) || 0 },
+          totalExpected: listTotal * 2 + gadgetTotal,
+          cursor: { phase: "configs", walked: Number(cursor?.walked) || 0, listTotal, gadgetTotal },
           extra: { walked: Number(cursor?.walked) || 0 },
         };
       }
@@ -263,7 +271,8 @@ export const dashboardBuildSpec = {
       return {
         done: false,
         processed: pending.length,
-        cursor: { phase: "gadgets", walked },
+        totalExpected: listTotal ? listTotal * 2 : undefined,
+        cursor: { phase: "gadgets", walked, listTotal },
         extra: { walked },
       };
     }
@@ -275,10 +284,16 @@ export const dashboardBuildSpec = {
     // Bugs" is a string, and matching it against filter names would produce a dependency graph
     // that is right most of the time -- which is the worst kind, because every claim this app
     // makes about what depends on what is load-bearing for a deletion decision.
+    const listTotal = Number(cursor?.listTotal) || 0;
+    const gadgetTotal = Number(cursor?.gadgetTotal) || 0;
+    // undefined, not 0, when a pre-change cursor is resumed with neither figure -- the build
+    // runner then keeps whatever totalExpected the meta already has rather than zeroing it.
+    const cumulativeTotal = listTotal || gadgetTotal ? listTotal * 2 + gadgetTotal : undefined;
+
     const pendingConfigs = await loadGadgetsNeedingConfig(installationKey, version, DASHBOARD_CONFIG_CHUNK);
 
     if (!pendingConfigs.length) {
-      return { done: true, processed: 0, extra: { walked: Number(cursor?.walked) || 0 } };
+      return { done: true, processed: 0, totalExpected: cumulativeTotal, extra: { walked: Number(cursor?.walked) || 0 } };
     }
 
     const configs = await mapWithConcurrency(pendingConfigs, DASHBOARD_FETCH_CONCURRENCY, async (g) => {
@@ -302,7 +317,8 @@ export const dashboardBuildSpec = {
     return {
       done: false,
       processed: configs.length,
-      cursor: { phase: "configs", walked: Number(cursor?.walked) || 0 },
+      totalExpected: cumulativeTotal,
+      cursor: { phase: "configs", walked: Number(cursor?.walked) || 0, listTotal, gadgetTotal },
       extra: { walked: Number(cursor?.walked) || 0 },
     };
   },
