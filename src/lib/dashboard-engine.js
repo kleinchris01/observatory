@@ -72,6 +72,17 @@ export const DASHBOARD_GADGET_CHUNK = 60;
 // a list call and then a get.
 export const DASHBOARD_CONFIG_CHUNK = 30;
 
+// How many times one chunk may fail before it takes the whole build down with it.
+//
+// The gadget walk and config walk already catch per-item errors -- one 403 gadget does not
+// stop the phase. But the dashboard/search page fetch in phase one is a single call with no
+// per-item to fall back to, and a transient 4xx on one page (or an intermittent 400 the
+// endpoint returns under load) would throw the whole build out and make the orchestrator
+// re-run the stage from phase one. Instead the chunk re-queues itself a few times, keeping
+// every phase already finished; only a chunk that fails this many times running fails the
+// build.
+export const MAX_DASHBOARD_CHUNK_ERRORS = 4;
+
 // True when a build was started but can no longer be running.
 //
 // A Forge invocation timeout is a hard kill: state is marked "building" before the first API
@@ -167,7 +178,9 @@ export const dashboardBuildSpec = {
   async runChunk({ installationKey, version, cursor }) {
     await ensureProjectStoreReady();
     const phase = cursor?.phase || "list";
+    const chunkErrors = Number(cursor?.chunkErrors) || 0;
 
+    try {
     if (phase === "list") {
       let startAt = Number(cursor?.startAt) || 0;
       let total = Number(cursor?.total) || 0;
@@ -326,6 +339,24 @@ export const dashboardBuildSpec = {
       cursor: { phase: "configs", walked: Number(cursor?.walked) || 0, listTotal, gadgetTotal },
       extra: { walked: Number(cursor?.walked) || 0 },
     };
+    } catch (error) {
+      const message = String(error?.message || error);
+      if (chunkErrors + 1 < MAX_DASHBOARD_CHUNK_ERRORS) {
+        logger.warn("dashboard-snapshot.chunk_retry", {
+          installationKey, phase, attempt: chunkErrors + 1, error: message,
+        });
+        // Re-queue the SAME chunk, carrying the phase's cursor forward untouched (plus the
+        // bumped counter) so nothing already done is lost. A successful chunk returns a
+        // cursor without chunkErrors, so the count resets on any recovery.
+        return {
+          done: false,
+          processed: 0,
+          cursor: { ...(cursor || { phase: "list" }), phase, chunkErrors: chunkErrors + 1 },
+        };
+      }
+      // Budget spent -- let it fail the build. The orchestrator's stage retry takes over.
+      throw error;
+    }
   },
 
   finalize: ({ result }) => ({

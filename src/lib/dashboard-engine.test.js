@@ -203,3 +203,49 @@ describe("dashboardBuildSpec.runChunk — phase-aware progress", () => {
     expect(spec.finalize({ result: done })).toMatchObject({ totalDashboards: 613, gadgetsWalked: 7 });
   });
 });
+
+describe("dashboardBuildSpec.runChunk — a failing chunk retries before it fails the build", () => {
+  let jira, store, spec;
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    jira = await import("./jira-api.js");
+    store = await import("./project-store.js");
+    ({ dashboardBuildSpec: spec } = await import("./dashboard-engine.js"));
+  });
+
+  // The bug: phase one's dashboard/search page fetch is a single unguarded call. A transient
+  // 400 there used to throw the whole build out and make the orchestrator re-run the stage
+  // from scratch -- so it kept re-hitting the same bad page.
+  test("a 400 on the search page re-queues the same chunk instead of throwing", async () => {
+    jira.getDashboardPage.mockRejectedValue(new Error("400 Bad Request"));
+
+    const r = await spec.runChunk({ installationKey: "i", version: "v", cursor: { phase: "list", startAt: 50, total: 613 } });
+
+    expect(r.done).toBe(false);
+    // Same cursor, carried forward untouched, plus the error counter.
+    expect(r.cursor).toMatchObject({ phase: "list", startAt: 50, total: 613, chunkErrors: 1 });
+  });
+
+  test("keeps carrying the count, then lets the build fail once the budget is spent", async () => {
+    jira.getDashboardPage.mockRejectedValue(new Error("400 Bad Request"));
+
+    // One below the ceiling: still retries.
+    const near = await spec.runChunk({ installationKey: "i", version: "v", cursor: { phase: "list", chunkErrors: 2 } });
+    expect(near.done).toBe(false);
+    expect(near.cursor.chunkErrors).toBe(3);
+
+    // At the ceiling: the error propagates so the build fails and the orchestrator retries the stage.
+    await expect(
+      spec.runChunk({ installationKey: "i", version: "v", cursor: { phase: "list", chunkErrors: 3 } })
+    ).rejects.toThrow(/400/);
+  });
+
+  test("a good chunk after a bad one drops the counter", async () => {
+    jira.getDashboardPage.mockResolvedValue({ values: [], total: 0, isLast: true });
+
+    const r = await spec.runChunk({ installationKey: "i", version: "v", cursor: { phase: "list", chunkErrors: 2 } });
+
+    expect(r.done).toBe(false);
+    expect(r.cursor).not.toHaveProperty("chunkErrors"); // moved to the gadgets phase, clean cursor
+  });
+});
