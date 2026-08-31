@@ -190,7 +190,11 @@ export function App() {
     setCurrentPage(1);
   }
 
-  const fetchInventory = React.useCallback(async ({ forceRefresh = false, page = 1, silent = false } = {}) => {
+  // Read-only fetch. The macro never triggers a build -- forceRefresh (which queues a
+  // site-wide snapshot rebuild) is an admin action, and passing it from a Confluence viewer
+  // is how a page reader could kick off an expensive scan. The macro shows whatever the last
+  // admin scan produced; a page reload re-pulls it.
+  const fetchInventory = React.useCallback(async ({ page = 1, silent = false } = {}) => {
     const requestId = latestInventoryRequestRef.current + 1;
     latestInventoryRequestRef.current = requestId;
 
@@ -199,7 +203,6 @@ export function App() {
 
     try {
       const result = await invoke("getFieldInventory", {
-        forceRefresh,
         page,
         pageSize,
         query: debouncedQuery,
@@ -228,10 +231,6 @@ export function App() {
       setTotalFields(result.total || 0);
       setTotalPages(result.totalPages || 1);
       setCurrentPage(result.page || page);
-      if (forceRefresh) {
-        setExpandedFieldId(null);
-        setDetailsByFieldId({});
-      }
     } catch (err) {
       if (latestInventoryRequestRef.current !== requestId) {
         return;
@@ -602,7 +601,7 @@ export function App() {
 
   const showOnboarding = !loadingInventory && !refreshedAt;
   const snapshotChipState = refreshedAt ? "ready" : "idle";
-  const snapshotChipLabel = refreshedAt ? `Synced ${formatRelativeTime(refreshedAt)}` : "No snapshot";
+  const snapshotChipLabel = refreshedAt ? `Synced ${formatRelativeTime(refreshedAt)}` : "No scan yet";
   const SNAPSHOT_STALE_DAYS = 7;
   const snapshotAgeMs = refreshedAt ? Date.now() - new Date(refreshedAt).getTime() : null;
   const isSnapshotStale = !loadingInventory && snapshotAgeMs != null && snapshotAgeMs > SNAPSHOT_STALE_DAYS * 24 * 60 * 60 * 1000;
@@ -686,14 +685,6 @@ export function App() {
           >
             {theme === "dark" ? "☀" : "☽"}
           </button>
-          <button
-            className="primary-button"
-            onClick={() => fetchInventory({ forceRefresh: true, page: 1 })}
-            type="button"
-            disabled={loadingInventory}
-          >
-            {loadingInventory ? "Refreshing..." : "Refresh data"}
-          </button>
         </div>
       </section>
 
@@ -755,7 +746,7 @@ export function App() {
             <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
             <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
           </svg>
-          Field data was last synced {formatRelativeTime(refreshedAt)} — data may be outdated. Ask your Jira admin to run a snapshot refresh.
+          Field data was last synced {formatRelativeTime(refreshedAt)} — data may be outdated. Ask your Jira admin to run a scan.
         </div>
       )}
 
@@ -810,7 +801,7 @@ export function App() {
           {showOnboarding ? (
             <div className="empty-state">
               <p>No field data available yet.</p>
-              <p>Visit the <strong>Admin page</strong> to run a snapshot and populate field data.</p>
+              <p>A Jira admin needs to run a scan from the <strong>Observatory admin page</strong> to populate it. This macro is read-only — it shows whatever the last scan produced.</p>
             </div>
           ) : (
           <>

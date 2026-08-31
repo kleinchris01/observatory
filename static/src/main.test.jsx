@@ -114,7 +114,7 @@ describe("App smoke test", () => {
 // ---------------------------------------------------------------------------
 
 describe("App empty state", () => {
-  it("shows the 'Visit the Admin page' message when there is no snapshot", async () => {
+  it("points a viewer at the admin page to run a scan when there is no data", async () => {
     invoke.mockImplementation((fnName, payload) => {
       if (fnName === "getFieldInventory") return Promise.resolve(emptyFieldInventory());
       return defaultInvokeImpl(fnName, payload);
@@ -125,8 +125,8 @@ describe("App empty state", () => {
     await waitFor(() => {
       expect(screen.getByText("No field data available yet.")).toBeInTheDocument();
     });
-    expect(screen.getByText(/Visit the/)).toBeInTheDocument();
-    expect(screen.getByText("Admin page")).toBeInTheDocument();
+    expect(screen.getByText(/run a scan from the/i)).toBeInTheDocument();
+    expect(screen.getByText("Observatory admin page")).toBeInTheDocument();
   });
 });
 
