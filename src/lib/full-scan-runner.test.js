@@ -51,6 +51,7 @@ import {
   runQuickScanStep,
   quickScanStageCatalog,
   recoverStalledScan,
+  resumeScanRun,
   cancelScan,
 } from "./full-scan-runner.js";
 import {
@@ -175,6 +176,27 @@ describe("running a stage", () => {
       state: "pending", attempts: 1, error: expect.stringContaining("401"),
     });
     expect(inventorySnapshotQueue.push).toHaveBeenCalled();
+  });
+
+  test("a stage retry re-queues with exponential backoff, not instantly", async () => {
+    readFullScanMeta.mockResolvedValue(running());
+    buildWorkflowSnapshot.mockRejectedValueOnce(new Error("400 Bad Request"));
+
+    await runFullScanStep("inst", { jobToken: "job-token" });
+
+    // First retry: ~20s (20 * 2^0 + jitter), never 0 -- a transient 400 must not be hammered.
+    const push = inventorySnapshotQueue.push.mock.calls.at(-1)[0];
+    expect(push.delayInSeconds).toBeGreaterThanOrEqual(20);
+    expect(push.delayInSeconds).toBeLessThan(30);
+  });
+
+  test("a normal advance still re-queues with no delay", async () => {
+    readFullScanMeta.mockResolvedValue(running({ stages: withDone(["workflows"]) }));
+
+    await runFullScanStep("inst", { jobToken: "job-token" });
+
+    const push = inventorySnapshotQueue.push.mock.calls.at(-1)[0];
+    expect(push.delayInSeconds ?? 0).toBe(0);
   });
 
   test("a stage that keeps throwing eventually fails, after its attempts are spent", async () => {
@@ -679,6 +701,48 @@ describe("stall recovery", () => {
     readFullScanMeta.mockResolvedValue(running({ jobToken: "recovered-token", stages }));
     const stale = await runFullScanStep("inst", { jobToken: "job-token" });
     expect(stale).toMatchObject({ ignored: true, reason: "stale-token" });
+  });
+});
+
+describe("resumeScanRun", () => {
+  const NOW = 20_000_000;
+
+  test("only acts on a run that finished with failures", async () => {
+    readFullScanMeta.mockResolvedValue({ state: "ready", stages: [] });
+    expect(await resumeScanRun("inst", { now: NOW })).toMatchObject({ resumed: false, reason: "nothing-to-resume" });
+    readFullScanMeta.mockResolvedValue(running());
+    expect(await resumeScanRun("inst", { now: NOW })).toMatchObject({ resumed: false });
+  });
+
+  test("re-opens only the failed and skipped stages, leaving the built ones alone", async () => {
+    let stages = withDone(["workflows", "screens", "filters"]);
+    stages = markStage(stages, "dashboards", { state: "failed", attempts: 3, error: "400 Bad Request" });
+    stages = markStage(stages, "fields", { state: "skipped" });
+    readFullScanMeta.mockResolvedValue({
+      state: "completed-with-failures", scanType: "full", stages,
+      startedAt: new Date(NOW - 5 * 60 * 60 * 1000).toISOString(),
+    });
+
+    const result = await resumeScanRun("inst", { now: NOW });
+
+    expect(result).toMatchObject({ resumed: true, retrying: ["dashboards", "fields"] });
+    const w = lastWrite();
+    expect(w.state).toBe("running");
+    expect(w.jobToken).toBeTruthy();
+    // Fresh startedAt so the 8-hour ceiling measures the resumed leg.
+    expect(new Date(w.startedAt).getTime()).toBe(NOW);
+    expect(w.stages.find((s) => s.key === "workflows").state).toBe("done");
+    expect(w.stages.find((s) => s.key === "dashboards")).toMatchObject({ state: "pending", attempts: 0, error: null });
+    expect(w.stages.find((s) => s.key === "fields").state).toBe("pending");
+    expect(inventorySnapshotQueue.push).toHaveBeenCalled();
+  });
+
+  test("nothing-to-resume when the finished run has no failed or skipped stages", async () => {
+    readFullScanMeta.mockResolvedValue({
+      state: "completed-with-failures",
+      stages: withDone(fullScanStageCatalog().map((s) => s.key)),
+    });
+    expect(await resumeScanRun("inst", { now: NOW })).toMatchObject({ resumed: false, reason: "nothing-to-resume" });
   });
 });
 

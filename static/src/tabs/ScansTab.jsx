@@ -724,6 +724,28 @@ function ScanStallRecoveryNotice({ status, onResume, onAbandon, resuming, abando
   );
 }
 
+// The scan finished, but some pillars did not build (a persistent 4xx, a sub-build that kept
+// failing). Rather than a full re-run that redoes every pillar that succeeded, "Resume"
+// retries just the failed/skipped stages -- the same resumeSiteScan endpoint the stall
+// notice uses, which routes a completed-with-failures run to the resume path.
+function ScanIncompleteNotice({ status, onResume, resuming }) {
+  if (status?.state !== "completed-with-failures") return null;
+  const incomplete = (status.stages || []).filter((s) => s.state === "failed" || s.state === "skipped");
+  if (!incomplete.length) return null;
+
+  return (
+    <div className="status-banner status-banner--warning" role="alert" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+      <span>
+        {incomplete.length} {incomplete.length === 1 ? "stage" : "stages"} did not build
+        ({incomplete.map((s) => s.label || s.key).join(", ")}). The rest are current — resume to retry only those.
+      </span>
+      <button className="secondary-button secondary-button--small" type="button" onClick={onResume} disabled={resuming}>
+        {resuming ? "Resuming…" : `Resume — retry ${incomplete.length} ${incomplete.length === 1 ? "stage" : "stages"}`}
+      </button>
+    </div>
+  );
+}
+
 const STAGE_TONE = { done: "success", running: "active", failed: "critical", skipped: "warning", pending: "neutral" };
 const STAGE_LABEL = { done: "Done", running: "Running", failed: "Failed", skipped: "Skipped", pending: "Waiting" };
 
@@ -1058,6 +1080,8 @@ export function FullScanPanel({
         <div className="danger-zone__error" role="alert">{status.lastError}</div>
       )}
 
+      <ScanIncompleteNotice status={status} onResume={onResumeStalledScan} resuming={recoveringScan} />
+
       <SnapshotRecoveryNotice snapshot={snapshot} onForceResume={onForceResumeSnapshot} forceResuming={forceResumingSnapshot} />
 
       <div ref={crawlRef}>
@@ -1211,6 +1235,8 @@ export function QuickScanPanel({
       {status?.lastError && !running && (
         <div className="danger-zone__error" role="alert">{status.lastError}</div>
       )}
+
+      <ScanIncompleteNotice status={status} onResume={onResumeStalledScan} resuming={recoveringScan} />
 
       <div ref={crawlRef}>
         <IssueCrawlLiveView

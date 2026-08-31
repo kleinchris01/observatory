@@ -18,6 +18,7 @@ import {
   nextStage,
   summarizeStages,
   markStage,
+  scanRetryDelaySeconds,
 } from "./full-scan.js";
 
 describe("stage order", () => {
@@ -220,6 +221,28 @@ describe("summarizeStages", () => {
     stages = markStage(stages, "workflows", { state: "running" });
 
     expect(summarizeStages(stages).complete).toBe(false);
+  });
+});
+
+describe("scanRetryDelaySeconds", () => {
+  test("backs off exponentially, capped, with jitter -- same shape as the HTTP retry", () => {
+    // 20 * 2^(n-1) + [0,10) jitter
+    expect(scanRetryDelaySeconds(1)).toBeGreaterThanOrEqual(20);
+    expect(scanRetryDelaySeconds(1)).toBeLessThan(30);
+    expect(scanRetryDelaySeconds(2)).toBeGreaterThanOrEqual(40);
+    expect(scanRetryDelaySeconds(2)).toBeLessThan(50);
+    expect(scanRetryDelaySeconds(3)).toBeGreaterThanOrEqual(80);
+    expect(scanRetryDelaySeconds(3)).toBeLessThan(90);
+  });
+
+  test("never exceeds the 300s cap however many attempts", () => {
+    expect(scanRetryDelaySeconds(50)).toBeLessThan(311);
+    expect(scanRetryDelaySeconds(50)).toBeGreaterThanOrEqual(300);
+  });
+
+  test("a missing or bad attempt count is treated as the first retry", () => {
+    expect(scanRetryDelaySeconds()).toBeGreaterThanOrEqual(20);
+    expect(scanRetryDelaySeconds(0)).toBeLessThan(30);
   });
 });
 

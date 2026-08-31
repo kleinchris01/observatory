@@ -54,6 +54,7 @@ const mocks = vi.hoisted(() => ({
   writeFullScanMeta: vi.fn(async () => ({})),
   readRecentFullScanRuns: vi.fn(async () => []),
   recoverStalledScan: vi.fn(async () => ({ recovered: false, reason: "healthy" })),
+  resumeScanRun: vi.fn(async () => ({ resumed: true, retrying: ["dashboards"] })),
   loadDashboardsForFilters: vi.fn(async () => []),
   loadFieldNamesForFilterIds: vi.fn(async () => new Map()),
   loadFilterNamesForIds: vi.fn(async () => new Map()),
@@ -391,6 +392,7 @@ vi.mock("./lib/full-scan-runner.js", async (importOriginal) => {
   return {
     ...actual, // keeps the real, pure fullScanStageCatalog / quickScanStageCatalog
     recoverStalledScan: mocks.recoverStalledScan,
+    resumeScanRun: mocks.resumeScanRun,
   };
 });
 
@@ -5412,6 +5414,19 @@ describe("resumeSiteScan / cancelSiteScan", () => {
 
     expect(mocks.recoverStalledScan).toHaveBeenCalledWith("test-install", { force: true });
     expect(result).toMatchObject({ recovered: true, stage: "filters" });
+  });
+
+  test("resumeSiteScan routes a completed-with-failures run to the resume path, not recovery", async () => {
+    mocks.readFullScanMeta.mockResolvedValue({
+      state: "completed-with-failures", scanType: "full",
+      stages: [{ key: "dashboards", state: "failed" }, { key: "workflows", state: "done" }],
+    });
+
+    const result = await resumeSiteScan({ context: ctxWithAccount() });
+
+    expect(mocks.resumeScanRun).toHaveBeenCalledWith("test-install");
+    expect(mocks.recoverStalledScan).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ resumed: true });
   });
 
   test("both are registered as guarded admin-only functions", () => {
