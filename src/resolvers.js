@@ -104,6 +104,7 @@ import {
   readRecentFullScanRuns,
   loadWorkflowSchemes,
   loadWorkflowSchemeProjects,
+  loadProjectWorkflowSchemeMap,
   loadWorkflowSchemeForProject,
   loadStatusesCatalog,
   loadWorkflowSchemeStatuses,
@@ -899,6 +900,232 @@ async function getWorkflowInsights({ context }) {
     console.error("getWorkflowInsights failed:", error);
     throw error;
   }
+}
+
+// ── Macro viewer pillars ──────────────────────────────────────────────────────────────────
+//
+// The Confluence macro shows a viewer the projects they can Browse and the filters,
+// dashboards and workflows attached to those projects -- nothing about a project they cannot
+// already see in Jira. Every one of these SHARED resolvers starts from the same browsable
+// set, exactly as the macro's Projects tab already does. They carry no governance findings:
+// a macro viewer browses, an admin governs.
+
+const MACRO_PILLAR_PAGE_SIZE = 20;
+
+function macroPaginate(rows, page, pageSize = MACRO_PILLAR_PAGE_SIZE) {
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const current = Math.min(Math.max(1, Number(page) || 1), totalPages);
+  const start = (current - 1) * pageSize;
+  return { slice: rows.slice(start, start + pageSize), page: current, pageSize, totalPages };
+}
+
+// The viewer's browsable projects, with both id and key -- filters reference a project by
+// KEY (from JQL), dashboard shares and the workflow map by ID.
+async function viewerProjects(installationKey, context) {
+  const fieldMeta = await readSnapshotMeta(installationKey).catch(() => null);
+  if (!fieldMeta?.version) return { available: false, projectIds: new Set(), projectKeys: new Set(), projects: [] };
+
+  const all = await listSnapshotProjects(installationKey, fieldMeta.version).catch(() => []);
+  const browsable = await getBrowsableProjectIds(context?.accountId, all.map((p) => p.projectId));
+  const projects = all
+    .filter((p) => browsable.has(String(p.projectId)))
+    .map((p) => ({ projectId: String(p.projectId), projectKey: p.projectKey, projectName: p.projectName }));
+
+  return {
+    available: true,
+    projectIds: new Set(projects.map((p) => p.projectId)),
+    projectKeys: new Set(projects.map((p) => String(p.projectKey || "").toLowerCase())),
+    projects,
+  };
+}
+
+async function getMacroFilters({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+  const query = String(payload?.query || "").trim().toLowerCase();
+
+  const meta = await readFilterSnapshotMeta(installationKey).catch(
+    fallbackOn("macro_filters.meta_read_failed", null, { installationKey })
+  );
+  const scope = await viewerProjects(installationKey, context);
+  if (!meta?.version || !scope.available) {
+    return { available: false, reason: "no-inventory", filters: [], projectCount: scope.projects.length, page: 1, pageSize: MACRO_PILLAR_PAGE_SIZE, totalPages: 0, total: 0, matchedTotal: 0 };
+  }
+
+  const all = await loadFilters(installationKey, meta.version).catch(() => []);
+  const browsableIds = scope.projectIds;
+
+  const mine = all
+    .map((f) => {
+      // A filter is "in scope" if its JQL names a browsable project, or it is shared to one.
+      const refProjects = (f.projectRefs || []).filter((k) => scope.projectKeys.has(String(k).toLowerCase()));
+      const sharedToProject = (f.shares || []).some((s) => s.type === "project" && browsableIds.has(String(s.targetId)));
+      if (!refProjects.length && !sharedToProject) return null;
+      return {
+        id: f.id,
+        name: f.name,
+        jql: f.jql || "",
+        owner: f.ownerName || null,
+        projects: refProjects,
+        fields: f.fieldRefs || [],
+        viewUrl: f.viewUrl || null,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const matched = query
+    ? mine.filter((f) => f.name.toLowerCase().includes(query) || f.jql.toLowerCase().includes(query))
+    : mine;
+  const { slice, page, pageSize, totalPages } = macroPaginate(matched, payload?.page);
+
+  return {
+    available: true,
+    filters: slice,
+    projectCount: scope.projects.length,
+    page, pageSize, totalPages,
+    total: mine.length,
+    matchedTotal: matched.length,
+    snapshotRefreshedAt: meta.refreshedAt || meta.completedAt || null,
+  };
+}
+
+async function getMacroDashboards({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+  const query = String(payload?.query || "").trim().toLowerCase();
+
+  const dashMeta = await readDashboardSnapshotMeta(installationKey).catch(
+    fallbackOn("macro_dashboards.meta_read_failed", null, { installationKey })
+  );
+  const scope = await viewerProjects(installationKey, context);
+  if (!dashMeta?.version || !scope.available) {
+    return { available: false, reason: "no-inventory", dashboards: [], projectCount: scope.projects.length, page: 1, pageSize: MACRO_PILLAR_PAGE_SIZE, totalPages: 0, total: 0, matchedTotal: 0 };
+  }
+
+  const filterMeta = await readFilterSnapshotMeta(installationKey).catch(() => null);
+  const [all, allFilters] = await Promise.all([
+    loadDashboards(installationKey, dashMeta.version).catch(() => []),
+    filterMeta?.version ? loadFilters(installationKey, filterMeta.version).catch(() => []) : Promise.resolve([]),
+  ]);
+
+  // Filter ids whose JQL names a browsable project -- so a dashboard is in scope if a gadget
+  // points at one, not only if the dashboard itself is shared to the project.
+  const inScopeFilterIds = new Set(
+    allFilters
+      .filter((f) => (f.projectRefs || []).some((k) => scope.projectKeys.has(String(k).toLowerCase())))
+      .map((f) => String(f.id))
+  );
+  const fieldsByFilterId = new Map(allFilters.map((f) => [String(f.id), f.fieldRefs || []]));
+
+  const mine = all
+    .map((d) => {
+      const gadgets = d.gadgets || [];
+      const gadgetFilterIds = [...new Set(gadgets.map((g) => g.filterId).filter(Boolean).map(String))];
+      const sharedToProject = (d.shares || []).some((s) => s.type === "project" && scope.projectIds.has(String(s.targetId)));
+      const backedByScopedFilter = gadgetFilterIds.some((id) => inScopeFilterIds.has(id));
+      if (!sharedToProject && !backedByScopedFilter) return null;
+      const fields = [...new Set(gadgetFilterIds.flatMap((id) => fieldsByFilterId.get(id) || []))].sort();
+      return {
+        id: d.id,
+        name: d.name,
+        owner: d.ownerName || null,
+        gadgetCount: d.gadgetCount ?? gadgets.length,
+        fields,
+        sharedToProject,
+        viewUrl: d.viewUrl || null,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const matched = query
+    ? mine.filter((d) => d.name.toLowerCase().includes(query) || d.fields.some((x) => x.toLowerCase().includes(query)))
+    : mine;
+  const { slice, page, pageSize, totalPages } = macroPaginate(matched, payload?.page);
+
+  return {
+    available: true,
+    dashboards: slice,
+    projectCount: scope.projects.length,
+    fieldsResolved: Boolean(filterMeta?.version),
+    page, pageSize, totalPages,
+    total: mine.length,
+    matchedTotal: matched.length,
+    snapshotRefreshedAt: dashMeta.refreshedAt || dashMeta.completedAt || null,
+  };
+}
+
+async function getMacroWorkflows({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  const meta = await readWorkflowSnapshotMeta(installationKey).catch(
+    fallbackOn("macro_workflows.meta_read_failed", null, { installationKey })
+  );
+  const scope = await viewerProjects(installationKey, context);
+  if (!meta?.version || !scope.available) {
+    return { available: false, reason: "no-inventory", schemes: [], statuses: [], projectCount: scope.projects.length };
+  }
+
+  const [schemeMap, schemeStatuses, catalog] = await Promise.all([
+    loadProjectWorkflowSchemeMap(installationKey, meta.version).catch(() => new Map()),
+    loadWorkflowSchemeStatuses(installationKey, meta.version).catch(() => []),
+    loadStatusesCatalog(installationKey, meta.version).catch(() => []),
+  ]);
+
+  // scheme id -> its statuses
+  const statusIdsByScheme = new Map();
+  for (const { schemeId, statusId } of schemeStatuses) {
+    if (!statusIdsByScheme.has(schemeId)) statusIdsByScheme.set(schemeId, new Set());
+    statusIdsByScheme.get(schemeId).add(String(statusId));
+  }
+  const statusName = new Map(catalog.map((s) => [String(s.id), s]));
+
+  // The browsable projects, grouped by the workflow scheme they run.
+  const bySchemeId = new Map();
+  for (const project of scope.projects) {
+    const mapped = schemeMap.get(String(project.projectId));
+    if (!mapped) continue;
+    const key = String(mapped.schemeId);
+    if (!bySchemeId.has(key)) {
+      bySchemeId.set(key, { schemeId: key, name: mapped.name || key, projects: [], statuses: [] });
+    }
+    bySchemeId.get(key).projects.push(project.projectKey);
+  }
+
+  const usedStatusIds = new Set();
+  const schemes = [...bySchemeId.values()].map((s) => {
+    const ids = [...(statusIdsByScheme.get(s.schemeId) || [])];
+    ids.forEach((id) => usedStatusIds.add(id));
+    return {
+      ...s,
+      projects: s.projects.sort(),
+      statuses: ids
+        .map((id) => statusName.get(id))
+        .filter(Boolean)
+        .map((st) => ({ id: String(st.id), name: st.name, category: st.statusCategory || "Uncategorised" }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    };
+  }).sort((a, b) => b.projects.length - a.projects.length || a.name.localeCompare(b.name));
+
+  // The de-duplicated status list across every scheme the viewer's projects run.
+  const statuses = [...usedStatusIds]
+    .map((id) => statusName.get(id))
+    .filter(Boolean)
+    .map((st) => ({ id: String(st.id), name: st.name, category: st.statusCategory || "Uncategorised" }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  return {
+    available: true,
+    schemes,
+    statuses,
+    projectCount: scope.projects.length,
+    snapshotRefreshedAt: meta.refreshedAt || meta.completedAt || null,
+  };
 }
 
 
@@ -5455,6 +5682,9 @@ export const SHARED_RESOLVER_FUNCTIONS = {
   getSavedReports,         // Read-only: lists saved report definitions
   getProjectUsageReportJob, // Read-only: polls async report job status
   getProjectUsageReport,   // Read-only: returns project usage data for given fields
+  getMacroFilters,         // Read-only: saved filters attached to the viewer's browsable projects
+  getMacroDashboards,      // Read-only: dashboards attached to the viewer's browsable projects
+  getMacroWorkflows,       // Read-only: workflow schemes + statuses for the viewer's browsable projects
 };
 
 // â”€â”€ Admin authorization â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

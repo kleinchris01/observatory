@@ -125,6 +125,7 @@ const mocks = vi.hoisted(() => ({
   loadAutomationReferencesFor: vi.fn(),
   loadWorkflowSchemes: vi.fn(),
   loadWorkflowSchemeProjects: vi.fn(),
+  loadProjectWorkflowSchemeMap: vi.fn(async () => new Map()),
   loadWorkflowSchemeForProject: vi.fn().mockResolvedValue(null),
   loadStatusesCatalog: vi.fn(),
   loadWorkflowSchemeStatuses: vi.fn(),
@@ -331,6 +332,7 @@ vi.mock("./lib/project-store.js", () => ({
   SCREEN_SORT_KEYS: ["fields-desc", "fields-asc", "name-asc", "name-desc", "tabs-desc", "id-asc", "unresolved-first"],
   loadWorkflowSchemes: mocks.loadWorkflowSchemes,
   loadWorkflowSchemeProjects: mocks.loadWorkflowSchemeProjects,
+  loadProjectWorkflowSchemeMap: mocks.loadProjectWorkflowSchemeMap,
   loadWorkflowSchemeForProject: mocks.loadWorkflowSchemeForProject,
   loadStatusesCatalog: mocks.loadStatusesCatalog,
   loadWorkflowSchemeStatuses: mocks.loadWorkflowSchemeStatuses,
@@ -494,6 +496,9 @@ const {
   getProjectUsageReport,
   getScreenFieldReportInputs,
   getProjectScreenReportInputs,
+  getMacroFilters,
+  getMacroDashboards,
+  getMacroWorkflows,
   getProjectUsageReportJob,
   getRqtIndex,
   searchRqtValue,
@@ -4693,6 +4698,105 @@ describe("getProjectScreenReportInputs", () => {
     mocks.getBrowsableProjectIds.mockResolvedValue(new Set());
     const result = await getProjectScreenReportInputs({ payload: { projectId: "10000" }, ...ctx });
     expect(result.available).toBe(false);
+  });
+});
+
+describe("macro viewer pillars", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x", accountId: "viewer-1" } };
+
+  beforeEach(() => {
+    // The viewer can browse SOLVE (id 10) only.
+    mocks.readSnapshotMeta.mockResolvedValue({ version: "f1" });
+    mocks.listSnapshotProjects.mockResolvedValue([
+      { projectId: "10", projectKey: "SOLVE", projectName: "Solve" },
+      { projectId: "20", projectKey: "OTHER", projectName: "Other" },
+    ]);
+    mocks.getBrowsableProjectIds.mockImplementation(async () => new Set(["10"]));
+  });
+
+  describe("getMacroFilters", () => {
+    test("keeps only filters that name a browsable project in JQL or are shared to one", async () => {
+      mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "flt1" });
+      mocks.loadFilters.mockResolvedValue([
+        { id: "1", name: "Solve open", jql: 'project = SOLVE', ownerName: "A", projectRefs: ["SOLVE"], fieldRefs: ["Priority"], shares: [] },
+        { id: "2", name: "Other backlog", jql: 'project = OTHER', ownerName: "B", projectRefs: ["OTHER"], fieldRefs: [], shares: [] },
+        { id: "3", name: "Shared to Solve", jql: 'status = Done', ownerName: "C", projectRefs: [], fieldRefs: [], shares: [{ type: "project", targetId: "10" }] },
+        { id: "4", name: "Global", jql: 'assignee = currentUser()', ownerName: "D", projectRefs: [], fieldRefs: [], shares: [{ type: "authenticated" }] },
+      ]);
+
+      const result = await getMacroFilters({ payload: {}, ...ctx });
+
+      expect(result.available).toBe(true);
+      expect(result.filters.map((f) => f.id).sort()).toEqual(["1", "3"]);
+      expect(result.projectCount).toBe(1);
+    });
+
+    test("degrades, not throws, when no filter inventory exists", async () => {
+      mocks.readFilterSnapshotMeta.mockResolvedValue(null);
+      const result = await getMacroFilters({ payload: {}, ...ctx });
+      expect(result).toMatchObject({ available: false, reason: "no-inventory" });
+    });
+
+    test("searches name and jql, and paginates", async () => {
+      mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "flt1" });
+      mocks.loadFilters.mockResolvedValue(
+        Array.from({ length: 25 }, (_, i) => ({ id: String(i), name: `Solve ${i}`, jql: "project = SOLVE", ownerName: "A", projectRefs: ["SOLVE"], fieldRefs: [], shares: [] }))
+      );
+
+      const page1 = await getMacroFilters({ payload: { page: 1 }, ...ctx });
+      expect(page1.filters).toHaveLength(20);
+      expect(page1.totalPages).toBe(2);
+
+      const searched = await getMacroFilters({ payload: { query: "solve 7" }, ...ctx });
+      expect(searched.matchedTotal).toBe(1);
+    });
+  });
+
+  describe("getMacroDashboards", () => {
+    test("keeps dashboards shared to a browsable project or backed by one of its filters", async () => {
+      mocks.readDashboardSnapshotMeta.mockResolvedValue({ version: "d1" });
+      mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "flt1" });
+      mocks.loadFilters.mockResolvedValue([
+        { id: "F_SOLVE", projectRefs: ["SOLVE"], fieldRefs: ["Priority"] },
+        { id: "F_OTHER", projectRefs: ["OTHER"], fieldRefs: [] },
+      ]);
+      mocks.loadDashboards.mockResolvedValue([
+        { id: "D1", name: "Solve board", ownerName: "A", gadgetCount: 2, shares: [{ type: "project", targetId: "10" }], gadgets: [] },
+        { id: "D2", name: "Via filter", ownerName: "B", gadgetCount: 1, shares: [], gadgets: [{ filterId: "F_SOLVE" }] },
+        { id: "D3", name: "Unrelated", ownerName: "C", gadgetCount: 1, shares: [{ type: "project", targetId: "20" }], gadgets: [{ filterId: "F_OTHER" }] },
+      ]);
+
+      const result = await getMacroDashboards({ payload: {}, ...ctx });
+
+      expect(result.dashboards.map((d) => d.id).sort()).toEqual(["D1", "D2"]);
+      expect(result.dashboards.find((d) => d.id === "D2").fields).toEqual(["Priority"]);
+    });
+  });
+
+  describe("getMacroWorkflows", () => {
+    test("groups the viewer's projects by workflow scheme and lists each scheme's statuses", async () => {
+      mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "w1" });
+      mocks.loadProjectWorkflowSchemeMap.mockResolvedValue(new Map([
+        ["10", { schemeId: "WS1", name: "Solve workflow" }],
+        ["20", { schemeId: "WS2", name: "Other workflow" }],
+      ]));
+      mocks.loadWorkflowSchemeStatuses.mockResolvedValue([
+        { schemeId: "WS1", statusId: "s1" }, { schemeId: "WS1", statusId: "s2" }, { schemeId: "WS2", statusId: "s3" },
+      ]);
+      mocks.loadStatusesCatalog.mockResolvedValue([
+        { id: "s1", name: "Open", statusCategory: "To Do" },
+        { id: "s2", name: "Done", statusCategory: "Done" },
+        { id: "s3", name: "Elsewhere", statusCategory: "To Do" },
+      ]);
+
+      const result = await getMacroWorkflows({ ...ctx });
+
+      expect(result.schemes).toHaveLength(1);
+      expect(result.schemes[0]).toMatchObject({ schemeId: "WS1", projects: ["SOLVE"] });
+      expect(result.statuses.map((s) => s.name)).toEqual(["Done", "Open"]);
+      // A status from a scheme the viewer's projects do not run never appears.
+      expect(result.statuses.some((s) => s.name === "Elsewhere")).toBe(false);
+    });
   });
 });
 

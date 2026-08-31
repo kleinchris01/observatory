@@ -1565,6 +1565,42 @@ code {
   50% { opacity: 0.35; }
 }
 
+/* ── Macro viewer pillars (Filters / Dashboards / Workflows) ─────────────────── */
+.macro-pillar__scope {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 0.78rem; color: var(--muted); margin: 0 0 12px;
+}
+.macro-pillar__search { max-width: 380px; margin-bottom: 14px; }
+.macro-pillar__count { font-size: 0.78rem; color: var(--muted); margin: 0 0 10px; }
+.macro-pillar__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.macro-pillar__row {
+  display: flex; flex-direction: column; gap: 5px;
+  padding: 11px 4px; border-bottom: 1px solid var(--stroke);
+}
+.macro-pillar__row:last-child { border-bottom: none; }
+.macro-pillar__row-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.macro-pillar__name { font-weight: 600; font-size: 0.88rem; color: var(--text); text-decoration: none; }
+a.macro-pillar__name:hover { color: var(--cool); text-decoration: underline; }
+.macro-pillar__owner { font-size: 0.76rem; color: var(--muted); }
+.macro-pillar__jql {
+  font-family: var(--mono, ui-monospace, monospace); font-size: 0.76rem;
+  color: var(--muted); background: rgba(255, 255, 255, 0.04);
+  padding: 4px 7px; border-radius: 5px; overflow-x: auto; white-space: pre;
+}
+.macro-pillar__fields { font-size: 0.76rem; color: var(--muted); margin: 0; }
+
+.macro-workflows__schemes { display: flex; flex-direction: column; gap: 14px; }
+.macro-workflows__scheme { padding: 12px; border: 1px solid var(--stroke); border-radius: var(--radius-lg, 10px); }
+.macro-workflows__scheme-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.macro-workflows__statuses { display: flex; flex-wrap: wrap; gap: 6px; }
+.macro-status {
+  font-size: 0.74rem; padding: 2px 9px; border-radius: 20px;
+  background: rgba(255, 255, 255, 0.06); color: var(--muted);
+}
+.macro-status--to-do { background: rgba(121, 184, 255, 0.14); color: #9dc7ff; }
+.macro-status--in-progress { background: rgba(203, 149, 66, 0.16); color: #d3a24e; }
+.macro-status--done { background: rgba(126, 200, 164, 0.16); color: var(--success); }
+
 @keyframes skeleton-shimmer {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(250%); }

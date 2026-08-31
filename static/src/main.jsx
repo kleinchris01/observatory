@@ -6,6 +6,7 @@ import { formatNumber, formatRelativeTime, normalizeSiteOrigin, buildJiraSearchU
 import { Icon } from "./components/Icons";
 import { ReportErrorBoundary, ProjectUsageReportView } from "./components/ReportView";
 import { SkeletonFieldCard, FieldCard } from "./components/FieldCard";
+import { MacroFiltersView, MacroDashboardsView, MacroWorkflowsView } from "./components/MacroViewerPillars";
 
 // Lazy: ProjectsTab pulls in recharts, which nearly doubles this macro's JS
 // payload (measured: +122KB gzip). The macro defaults to the "inventory" tab,
@@ -714,6 +715,30 @@ export function App() {
           Projects
         </button>
         <button
+          className={`tab-bar__tab ${activeTab === "filters" ? "tab-bar__tab--active" : ""}`}
+          type="button"
+          onClick={() => setActiveTab("filters")}
+        >
+          <Icon name="search" size={15} />
+          Filters
+        </button>
+        <button
+          className={`tab-bar__tab ${activeTab === "dashboards" ? "tab-bar__tab--active" : ""}`}
+          type="button"
+          onClick={() => setActiveTab("dashboards")}
+        >
+          <Icon name="barChart" size={15} />
+          Dashboards
+        </button>
+        <button
+          className={`tab-bar__tab ${activeTab === "workflows" ? "tab-bar__tab--active" : ""}`}
+          type="button"
+          onClick={() => setActiveTab("workflows")}
+        >
+          <Icon name="activity" size={15} />
+          Workflows
+        </button>
+        <button
           className={`tab-bar__tab ${activeTab === "report" ? "tab-bar__tab--active" : ""}`}
           type="button"
           onClick={() => setActiveTab("report")}
@@ -734,7 +759,13 @@ export function App() {
         </div>
       )}
 
-      {activeTab === "projects" ? (
+      {activeTab === "filters" ? (
+        <MacroFiltersView siteOrigin={siteOrigin} />
+      ) : activeTab === "dashboards" ? (
+        <MacroDashboardsView siteOrigin={siteOrigin} />
+      ) : activeTab === "workflows" ? (
+        <MacroWorkflowsView />
+      ) : activeTab === "projects" ? (
         <React.Suspense fallback={<div className="empty-state">Loading…</div>}>
           <ProjectsTabView
             data={projectsViewData}
