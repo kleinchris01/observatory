@@ -38,6 +38,9 @@ const FiltersTab = React.lazy(() => import("./tabs/FiltersTab").then((m) => ({ d
 const AutomationTab = React.lazy(() =>
   import("./tabs/AutomationTab").then((m) => ({ default: m.AutomationTab }))
 );
+const IssueTypesTab = React.lazy(() =>
+  import("./tabs/IssueTypesTab").then((m) => ({ default: m.IssueTypesTab }))
+);
 const ScreensTab = React.lazy(() =>
   import("./tabs/ScreensTab").then((m) => ({ default: m.ScreensTab }))
 );
@@ -208,6 +211,7 @@ export function AdminApp() {
     { key: "fields", label: "Field Browser", icon: "layers" },
     { key: "projects", label: "Project Usage", icon: "folder" },
     { key: "workflows", label: "Workflows", icon: "activity" },
+    { key: "issueTypes", label: "Issue Types", icon: "layers" },
     { key: "screens", label: "Screens", icon: "copy" },
     { key: "filters", label: "Saved Filters", icon: "search" },
     { key: "dashboards", label: "Dashboards", icon: "barChart" },
@@ -305,6 +309,8 @@ export function AdminApp() {
             <ProjectUsageTab siteOrigin={siteOrigin} intent={navIntent} onBuildFieldReport={buildFieldReport} />
           ) : activeTab === "workflows" ? (
             <WorkflowTab intent={navIntent} siteOrigin={siteOrigin} />
+          ) : activeTab === "issueTypes" ? (
+            <IssueTypesTab intent={navIntent} />
           ) : activeTab === "screens" ? (
             <ScreensTab intent={navIntent} onBuildFieldReport={buildFieldReport} />
           ) : activeTab === "filters" ? (

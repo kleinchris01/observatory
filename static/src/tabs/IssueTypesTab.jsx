@@ -1,0 +1,449 @@
+import React from "react";
+import { invoke } from "@forge/bridge";
+import { formatNumber, formatRelativeTime } from "../utils";
+import { Icon } from "../components/Icons";
+import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, PanelGrid, GridSpan, BarList } from "../components/ui";
+import { SubNavLayout } from "../components/admin/primitives";
+import { useNavIntent, useVisiblePolling } from "../hooks";
+
+// Issue type inventory.
+//
+// The issue-type -> screen layer shipped with the Screens pillar. This is the tier above
+// it: the type catalog with Jira's hierarchy level, and the issue type schemes that gate
+// which types a project may use. Read-only, like the rest of Observatory -- it reports what
+// is configured; changing a scheme stays a considered action in Jira's own admin UI.
+
+const BUILD_POLL_MS = 3000;
+
+// Third application of the same threshold the macro warning and the Screens tab use. A
+// reader who has learned what "stale" means elsewhere should not relearn it here.
+const STALE_AFTER_DAYS = 7;
+
+function daysSince(iso) {
+  const at = Date.parse(iso || "");
+  if (!Number.isFinite(at)) return null;
+  return (Date.now() - at) / (24 * 60 * 60 * 1000);
+}
+
+// A type's chips: what makes it notable at a glance. Order matters -- the finding-shaped
+// ones (project-scoped, sub-task) come before the identifier.
+function TypeChips({ type }) {
+  return (
+    <>
+      {type.subtask && (
+        <Chip tone="neutral" title="A sub-task type: it lives under another issue, never on its own">
+          Sub-task
+        </Chip>
+      )}
+      {type.scopeProjectId && (
+        <Chip tone="warning" title="Belongs to one team-managed project. Classic projects cannot use it.">
+          Project-scoped
+        </Chip>
+      )}
+      <Chip tone="neutral" title="Issue type id">#{type.id}</Chip>
+    </>
+  );
+}
+
+export function HierarchyLevelPanel({ level, search }) {
+  const term = search.trim().toLowerCase();
+  const types = term
+    ? level.types.filter((t) => t.name.toLowerCase().includes(term) || String(t.id) === term)
+    : level.types;
+
+  if (!types.length) return null;
+
+  return (
+    <Panel
+      title={level.label}
+      icon={level.level < 0 ? "layers" : level.level >= 1 ? "barChart" : "copy"}
+      description={`Hierarchy level ${level.level} — ${formatNumber(level.types.length)} ${level.types.length === 1 ? "type" : "types"}`}
+    >
+      <div className="issue-type-list">
+        {types.map((type) => (
+          <div className="issue-type-row" key={type.id}>
+            <div className="issue-type-row__identity">
+              <span className="issue-type-row__name">{type.name}</span>
+              {type.description && <span className="issue-type-row__desc">{type.description}</span>}
+            </div>
+            <div className="issue-type-row__meta">
+              <TypeChips type={type} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </Panel>
+  );
+}
+
+export function SchemeCard({ scheme }) {
+  return (
+    <div className="issue-type-scheme">
+      <div className="issue-type-scheme__head">
+        <span className="issue-type-scheme__name">{scheme.name}</span>
+        {scheme.isDefault && (
+          <Chip tone="neutral" title="The site-wide fallback every classic project starts on">Default scheme</Chip>
+        )}
+        <Chip
+          tone={scheme.projectCount === 0 ? "warning" : "neutral"}
+          title={scheme.projectCount === 0 ? "No project uses this scheme" : undefined}
+        >
+          {formatNumber(scheme.projectCount)} {scheme.projectCount === 1 ? "project" : "projects"}
+        </Chip>
+      </div>
+
+      {scheme.description && <p className="issue-type-scheme__desc">{scheme.description}</p>}
+
+      {/* Membership in the order an admin arranged it -- that order is what shows on the
+          create dialog, so it is preserved rather than sorted. A member the catalog no
+          longer contains is kept and flagged: a scheme allowing a type that was deleted is
+          a finding, not noise. */}
+      <div className="issue-type-scheme__members">
+        {scheme.issueTypes.length === 0 ? (
+          <span className="issue-type-scheme__empty">No issue types — projects on this scheme can create nothing.</span>
+        ) : (
+          scheme.issueTypes.map((t) => (
+            <Chip
+              key={t.id}
+              tone={t.missing ? "critical" : "neutral"}
+              title={
+                t.missing
+                  ? "This type is no longer in the catalog, but the scheme still allows it"
+                  : t.id === scheme.defaultIssueTypeId
+                    ? "Pre-selected on the create screen"
+                    : undefined
+              }
+            >
+              {t.missing ? `#${t.id} (missing)` : t.name}
+              {t.id === scheme.defaultIssueTypeId && !t.missing ? " ·default" : ""}
+            </Chip>
+          ))
+        )}
+      </div>
+
+      {scheme.projects.length > 0 && (
+        <div className="issue-type-scheme__projects">
+          {scheme.projects.slice(0, 12).map((p) => (
+            <span className="issue-type-scheme__project" key={p.projectId} title={p.projectName}>{p.projectKey}</span>
+          ))}
+          {scheme.projects.length > 12 && (
+            <span className="issue-type-scheme__project issue-type-scheme__project--more">
+              +{formatNumber(scheme.projects.length - 12)} more
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function IssueTypesTab({ intent }) {
+  const [view, setView] = React.useState("overview");
+  const [data, setData] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState("");
+  const [notice, setNotice] = React.useState("");
+  const [building, setBuilding] = React.useState(false);
+  const [search, setSearch] = React.useState("");
+
+  useNavIntent(intent, (nav) => {
+    if (nav.view) setView(nav.view);
+    setSearch("");
+  });
+
+  const load = React.useCallback(async () => {
+    try {
+      const result = await invoke("getIssueTypeInventory", {});
+      setData(result);
+      setError("");
+    } catch (err) {
+      // A transient poll failure keeps the last good state rather than blanking the page.
+      setError(err?.message || "Could not load the issue type inventory.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => { load(); }, [load]);
+
+  // "queued" counts as in flight, not just "building" -- the row is marked building at queue
+  // time, but a consumer that has not picked the job up can leave either value on the meta.
+  const isBuilding = ["building", "queued"].includes(data?.state) && !data?.staleBuild;
+  useVisiblePolling(isBuilding, load, BUILD_POLL_MS);
+
+  async function startBuild() {
+    setBuilding(true);
+    setError("");
+    setNotice("");
+    try {
+      const result = await invoke("buildIssueTypeInventory", {});
+      await load();
+      if (result?.error) {
+        setError(result.error);
+      } else if (result?.queued === false && result?.reason === "already-building") {
+        setNotice("A build is already running. This page refreshes itself while it does.");
+      } else {
+        setNotice("Build queued. This page refreshes itself while it runs.");
+      }
+    } catch (err) {
+      setError(err?.message || "Could not start the build.");
+    } finally {
+      setBuilding(false);
+    }
+  }
+
+  const buildAction = (
+    <button type="button" className="secondary-button" onClick={startBuild} disabled={building || isBuilding}>
+      <Icon name="refreshCw" size={13} />
+      {isBuilding ? "Building…" : data?.neverBuilt ? "Build inventory" : "Rebuild"}
+    </button>
+  );
+
+  if (loading && !data) {
+    return <div className="empty-state">Loading issue type inventory…</div>;
+  }
+
+  if (data?.neverBuilt) {
+    return (
+      <div className="admin-issue-types">
+        <PageHeader
+          title="Issue Types"
+          description="The issue type catalog by hierarchy level, and the schemes that decide which types each project may use."
+          actions={buildAction}
+        />
+        {error && <div className="danger-zone__error" role="alert">{error}</div>}
+        {notice && !error && <p className="admin-config-row__hint" role="status">{notice}</p>}
+        {data?.lastError && !isBuilding && (
+          <div className="danger-zone__error" role="alert">Last build failed: {data.lastError}</div>
+        )}
+        {data?.staleBuild && (
+          <p className="admin-config-row__hint">A build was started but is no longer running. Rebuild to recover it.</p>
+        )}
+
+        {isBuilding ? (
+          <Panel title="Building the first inventory" icon="refreshCw">
+            <p>
+              Reading every issue type, every issue type scheme, its ordered membership and its
+              project assignments. This is a small structural build — under a minute on most
+              sites. This page refreshes itself; you can leave it.
+            </p>
+            {data?.startedAt && <p className="admin-config-row__hint">Started {formatRelativeTime(data.startedAt)}.</p>}
+          </Panel>
+        ) : (
+          <EmptyState action={buildAction}>
+            No issue type inventory has been built yet. It is also produced by every full and
+            quick scan — or build it on its own here.
+          </EmptyState>
+        )}
+      </div>
+    );
+  }
+
+  const g = data?.governance || null;
+  const buildAgeDays = daysSince(data?.refreshedAt);
+  const isStale = buildAgeDays != null && buildAgeDays > STALE_AFTER_DAYS;
+
+  const items = [
+    { key: "overview", label: "Overview", icon: "barChart" },
+    { key: "hierarchy", label: "Types", icon: "layers", badge: formatNumber(data?.totalTypes ?? 0) },
+    { key: "schemes", label: "Schemes", icon: "folder", badge: formatNumber(data?.totalSchemes ?? 0) },
+    { key: "screen-schemes", label: "Screen schemes", icon: "copy", badge: formatNumber(data?.issueTypeScreenSchemes?.length ?? 0) },
+  ];
+
+  const filteredSchemes = (() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return data?.schemes || [];
+    return (data?.schemes || []).filter((s) =>
+      s.name.toLowerCase().includes(term) ||
+      s.issueTypes.some((t) => (t.name || "").toLowerCase().includes(term)) ||
+      s.projects.some((p) => p.projectKey.toLowerCase().includes(term)));
+  })();
+
+  return (
+    <div className="admin-issue-types">
+      <PageHeader
+        title="Issue Types"
+        description="Issue types by hierarchy level, and the schemes that gate which types each project may use. Read-only — changes stay in Jira's admin UI."
+        meta={data?.refreshedAt ? `Built ${formatRelativeTime(data.refreshedAt)}` : "Never built"}
+        actions={buildAction}
+      />
+
+      {error && <div className="danger-zone__error" role="alert">{error}</div>}
+      {notice && !error && <p className="admin-config-row__hint" role="status">{notice}</p>}
+      {isBuilding && <p className="admin-config-row__hint">Building the inventory… this page refreshes itself.</p>}
+      {data?.staleBuild && (
+        <p className="admin-config-row__hint">A build was started but is no longer running. Rebuild to recover it.</p>
+      )}
+      {data?.lastError && !isBuilding && (
+        <div className="danger-zone__error" role="alert">Last build failed: {data.lastError}</div>
+      )}
+
+      <StatRow>
+        <StatTile label="Issue types" value={formatNumber(data?.totalTypes ?? 0)} hint="Defined across the site" icon="layers" />
+        <StatTile label="Issue type schemes" value={formatNumber(data?.totalSchemes ?? 0)} hint="Gate which types a project can use" icon="folder" />
+        <StatTile
+          label="Unused schemes"
+          value={formatNumber(g?.unusedSchemes ?? 0)}
+          hint={(g?.unusedSchemes ?? 0) > 0 ? "No project is assigned to them" : "Every scheme is in use"}
+          tone={(g?.unusedSchemes ?? 0) > 0 ? "warning" : "success"}
+          icon="alertTriangle"
+        />
+        <StatTile
+          label="Orphan types"
+          value={formatNumber(g?.orphanTypes ?? 0)}
+          hint={(g?.orphanTypes ?? 0) > 0 ? "On no scheme — no project can create one" : "Every type is on a scheme"}
+          tone={(g?.orphanTypes ?? 0) > 0 ? "warning" : "success"}
+          icon="alertTriangle"
+        />
+      </StatRow>
+
+      {isStale && (
+        <Panel title="This inventory is stale" icon="alertTriangle">
+          <p>
+            It was built {Math.floor(buildAgeDays)} days ago. Every full and quick scan
+            refreshes it — run one, or rebuild here. A scheme changed since the last build is
+            not reflected above.
+          </p>
+        </Panel>
+      )}
+
+      <SubNavLayout items={items} activeKey={view} onSelect={setView}>
+        {view === "overview" && (
+          <PanelGrid>
+            <GridSpan>
+              <Panel title="Types by hierarchy level" icon="layers" description="Jira's level: −1 sub-task, 0 base, 1 Epic, 2+ custom hierarchy above Epic.">
+                <BarList
+                  items={(data?.hierarchy || []).map((h) => ({ label: h.label, count: h.types.length }))}
+                  labelKey="label"
+                  valueKey="count"
+                  formatValue={formatNumber}
+                  emptyMessage="No issue types in this snapshot"
+                />
+              </Panel>
+            </GridSpan>
+
+            <GridSpan>
+              <Panel title="Widest-reaching schemes" icon="folder" description="How many projects each issue type scheme governs. A scheme on hundreds of projects is not a local edit.">
+                <BarList
+                  items={(data?.schemes || []).slice(0, 10).map((s) => ({ label: s.name, count: s.projectCount }))}
+                  labelKey="label"
+                  valueKey="count"
+                  formatValue={formatNumber}
+                  tone="warn"
+                  emptyMessage="No schemes in this snapshot"
+                />
+              </Panel>
+            </GridSpan>
+
+            <GridSpan>
+              <Panel title="Coverage" icon="info" description="What this snapshot holds.">
+                <StatRow>
+                  <StatTile label="Sub-task types" value={formatNumber(g?.subtaskTypes ?? 0)} hint="Live under another issue" />
+                  <StatTile
+                    label="Project-scoped types"
+                    value={formatNumber(g?.projectScopedTypes ?? 0)}
+                    hint="Belong to one team-managed project"
+                  />
+                  <StatTile label="Hierarchy levels" value={formatNumber(g?.hierarchyLevels ?? 0)} hint="Distinct levels in use" />
+                </StatRow>
+              </Panel>
+            </GridSpan>
+          </PanelGrid>
+        )}
+
+        {view === "hierarchy" && (
+          <div className="issue-type-hierarchy">
+            <div className="admin-field-browser__search">
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Filter types by name or id…"
+                aria-label="Filter issue types"
+                className="admin-input"
+              />
+            </div>
+            {(data?.hierarchy || []).length === 0 ? (
+              <EmptyState inline>No issue types in this snapshot.</EmptyState>
+            ) : (
+              (data.hierarchy).map((level) => (
+                <HierarchyLevelPanel key={level.level} level={level} search={search} />
+              ))
+            )}
+          </div>
+        )}
+
+        {view === "schemes" && (
+          <Panel
+            title="Issue type schemes"
+            icon="folder"
+            description="Which set of types each project is allowed to use, in the order they appear on the create dialog."
+          >
+            <div className="admin-field-browser__search">
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Filter schemes by name, type or project key…"
+                aria-label="Filter issue type schemes"
+                className="admin-input"
+              />
+            </div>
+            {filteredSchemes.length === 0 ? (
+              <EmptyState inline>{search ? "No schemes match that search." : "No issue type schemes in this snapshot."}</EmptyState>
+            ) : (
+              <div className="issue-type-scheme-list">
+                {filteredSchemes.map((scheme) => (
+                  <SchemeCard key={scheme.schemeId} scheme={scheme} />
+                ))}
+              </div>
+            )}
+          </Panel>
+        )}
+
+        {view === "screen-schemes" && (
+          <Panel
+            title="Issue type screen schemes"
+            icon="copy"
+            description="The tier below: which screen scheme each issue type resolves to. Read from the Screens snapshot — build that from the Screens tab if it is missing."
+          >
+            {(data?.issueTypeScreenSchemes || []).length === 0 ? (
+              <EmptyState inline>
+                No issue type screen schemes are available. They come from the Screens snapshot;
+                build it from the Screens tab.
+              </EmptyState>
+            ) : (
+              <div className="issue-type-scheme-list">
+                {data.issueTypeScreenSchemes.map((itss) => (
+                  <div className="issue-type-scheme" key={itss.itssId}>
+                    <div className="issue-type-scheme__head">
+                      <span className="issue-type-scheme__name">{itss.name}</span>
+                      <Chip tone="neutral">
+                        {formatNumber(itss.projectCount ?? 0)} {itss.projectCount === 1 ? "project" : "projects"}
+                      </Chip>
+                    </div>
+                    <div className="issue-type-scheme__members">
+                      {itss.mappings.length === 0 ? (
+                        <span className="issue-type-scheme__empty">No mappings recorded.</span>
+                      ) : (
+                        itss.mappings.map((m, i) => (
+                          <Chip
+                            key={`${m.issueTypeId}-${i}`}
+                            tone="neutral"
+                            title={m.screenSchemeId ? `Screen scheme #${m.screenSchemeId}` : "Maps to no screen scheme"}
+                          >
+                            {m.issueTypeName || `#${m.issueTypeId}`} → {m.screenSchemeId ? `#${m.screenSchemeId}` : "none"}
+                          </Chip>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Panel>
+        )}
+      </SubNavLayout>
+    </div>
+  );
+}
