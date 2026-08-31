@@ -223,6 +223,62 @@ describe("ScreensTab", () => {
   });
 });
 
+describe("ScreensTab — build a field report from screens", () => {
+  const twoScreens = inventory({
+    screens: { total: 2, rows: [
+      { screenId: "100", name: "Create Screen", tabCount: 1, fieldCount: 12, tabsResolved: "resolved" },
+      { screenId: "200", name: "Edit Screen", tabCount: 1, fieldCount: 8, tabsResolved: "resolved" },
+    ] },
+  });
+
+  test("no checkboxes and no action bar without the onBuildFieldReport hook", async () => {
+    invoke.mockResolvedValue(twoScreens);
+    render(<ScreensTab />);
+    await screen.findByText("Create Screen");
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  });
+
+  test("ticking screens and clicking build resolves inputs and hands them up", async () => {
+    const onBuildFieldReport = vi.fn();
+    invoke.mockImplementation((name) => {
+      if (name === "getScreenInventory") return Promise.resolve(twoScreens);
+      if (name === "getScreenFieldReportInputs") return Promise.resolve({
+        available: true, fieldIds: ["cf_1", "cf_2", "cf_3"], projectIds: ["10", "11"], unresolvedScreens: [],
+      });
+      return Promise.resolve({});
+    });
+    render(<ScreensTab onBuildFieldReport={onBuildFieldReport} />);
+
+    await screen.findByText("Create Screen");
+    const boxes = screen.getAllByRole("checkbox");
+    await userEvent.click(boxes[0]);
+    await userEvent.click(boxes[1]);
+    await userEvent.click(screen.getByRole("button", { name: /Build field report/i }));
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith("getScreenFieldReportInputs", { screenIds: ["100", "200"] });
+      expect(onBuildFieldReport).toHaveBeenCalledWith(["cf_1", "cf_2", "cf_3"], ["10", "11"]);
+    });
+  });
+
+  test("surfaces an 'incomplete field list' notice when some screens could not be read", async () => {
+    invoke.mockImplementation((name) => {
+      if (name === "getScreenInventory") return Promise.resolve(twoScreens);
+      if (name === "getScreenFieldReportInputs") return Promise.resolve({
+        available: true, fieldIds: ["cf_1"], projectIds: ["10"], unresolvedScreens: ["Edit Screen"],
+      });
+      return Promise.resolve({});
+    });
+    render(<ScreensTab onBuildFieldReport={vi.fn()} />);
+
+    await screen.findByText("Create Screen");
+    await userEvent.click(screen.getAllByRole("checkbox")[0]);
+    await userEvent.click(screen.getByRole("button", { name: /Build field report/i }));
+
+    expect(await screen.findByText(/field list may be incomplete/i)).toBeInTheDocument();
+  });
+});
+
 // The bug this guards: getScreenInventory reports neverBuilt whenever no build has
 // COMPLETED, which stays true for the several minutes the first build runs. Branching on
 // it before checking state rendered the same "nothing here yet" screen throughout, so a

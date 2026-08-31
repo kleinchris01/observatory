@@ -115,6 +115,9 @@ import {
   loadScreenSchemes,
   loadScreenSchemeOperations,
   loadIssueTypeScreenSchemes,
+  loadItssMappings,
+  loadItssProjects,
+  loadScreensWithFieldsByIds,
   loadScreenGovernanceSummary,
   loadScreenCountsForFields,
   loadScreenDistributions,
@@ -2911,6 +2914,14 @@ async function getProjectUsageReport({ payload, context }) {
     return { fields: [], projects: [] };
   }
 
+  // Optional project scope. When a report is built from a set of screens, the only projects
+  // worth showing are the ones those screens are actually applied to -- every other column
+  // would be a field this report has nothing to say about. An empty/absent list means "no
+  // scope", the report's original site-wide behaviour.
+  const scopeProjectIds = new Set(
+    (payload?.projectIds || []).map((value) => String(value || "").trim()).filter(Boolean)
+  );
+
   const installationKey = getInstallationKey(context);
   const meta = await readSnapshotMeta(installationKey);
   if (!meta?.version) {
@@ -3053,8 +3064,44 @@ async function getProjectUsageReport({ payload, context }) {
     });
   }
 
-  const fields = rows.filter(Boolean);
+  let fields = rows.filter(Boolean);
+
+  // Narrow every field to the scoped projects, and recompute the two per-field totals from
+  // what is left so the row does not show a site-wide count beside scoped cells. A field with
+  // no usage in scope stays in the report as a zero row -- it IS on one of the chosen
+  // screens, and "on the form, never filled" is exactly the finding this view exists for.
+  if (scopeProjectIds.size) {
+    fields = fields.map((field) => {
+      const scoped = field.projects.filter((p) => scopeProjectIds.has(String(p.projectId)));
+      return {
+        ...field,
+        projects: scoped,
+        activeProjectCount: scoped.length,
+        totalIssueCount: scoped.reduce((sum, p) => sum + (p.issueCount || 0), 0),
+      };
+    });
+  }
+
   const projectMap = new Map();
+
+  // Under a scope, seed the columns from the scope itself, not just from projects that
+  // happened to have a usage row -- otherwise a scoped project where none of these fields
+  // are filled drops out of the matrix, which is the opposite of what the report is for.
+  if (scopeProjectIds.size && meta?.version) {
+    const scoped = await listSnapshotProjects(installationKey, meta.version).catch(
+      fallbackOn("report.scope_projects_load_failed", () => [], { installationKey })
+    );
+    for (const project of scoped) {
+      if (scopeProjectIds.has(String(project.projectId))) {
+        projectMap.set(String(project.projectId), {
+          projectId: String(project.projectId),
+          projectKey: project.projectKey,
+          projectName: project.projectName,
+        });
+      }
+    }
+  }
+
   for (const field of fields) {
     for (const project of field.projects) {
       if (!projectMap.has(project.projectId)) {
@@ -3082,6 +3129,154 @@ async function getProjectUsageReport({ payload, context }) {
   const filtered = filterProjectUsageByBrowsable({ fields, projects, pendingFields, uniqueIssueCount }, browsableProjectIds);
 
   return filtered;
+}
+
+// The projects a set of screens is actually applied to, walking the screen -> screen scheme
+// -> ITSS -> project chain (the reverse of loadScreensForProject). A screen only reaches a
+// project if a screen scheme's operation points at it, an issue type screen scheme maps that
+// scheme, and a project uses that ITSS.
+async function screensToProjects(installationKey, version, screenIds) {
+  const screenSet = new Set(screenIds.map(String));
+  const [ops, mappings, itssProjects] = await Promise.all([
+    loadScreenSchemeOperations(installationKey, version).catch(() => []),
+    loadItssMappings(installationKey, version).catch(() => []),
+    loadItssProjects(installationKey, version).catch(() => []),
+  ]);
+
+  const schemeIds = new Set(ops.filter((o) => screenSet.has(String(o.screenId))).map((o) => String(o.schemeId)));
+  const itssIds = new Set(
+    mappings.filter((m) => m.screenSchemeId && schemeIds.has(String(m.screenSchemeId))).map((m) => String(m.itssId))
+  );
+
+  const byProject = new Map();
+  for (const row of itssProjects) {
+    if (!itssIds.has(String(row.itssId))) continue;
+    byProject.set(String(row.projectId), {
+      projectId: String(row.projectId),
+      projectKey: row.projectKey || "",
+      projectName: row.projectName || "",
+    });
+  }
+  return [...byProject.values()];
+}
+
+// "Build a field report from these screens." Returns the field union across the chosen
+// screens and the projects those screens reach, so the Reports tab can pre-fill the field
+// selection and scope the matrix to just the projects the report has something to say about.
+async function getScreenFieldReportInputs({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+  const screenIds = Array.from(new Set(requireArray(payload?.screenIds, "screenIds").map((v) => String(v || "").trim()).filter(Boolean)));
+  if (!screenIds.length) throw new Error("Select at least one screen.");
+
+  const meta = await readScreenSnapshotMeta(installationKey);
+  if (!meta?.version) return { available: false, reason: "No screen inventory has been built yet." };
+
+  const screens = await loadScreensWithFieldsByIds(installationKey, meta.version, screenIds);
+  const fieldMap = new Map();
+  for (const screen of screens) {
+    for (const field of screen.fields) {
+      if (!fieldMap.has(field.fieldId)) fieldMap.set(field.fieldId, field.fieldName);
+    }
+  }
+
+  const projects = await screensToProjects(installationKey, meta.version, screenIds);
+  // Only projects the caller may browse, for the same reason getProjectUsageReport filters:
+  // the report must never be the one place a project's existence leaks.
+  const browsable = await getBrowsableProjectIds(context?.accountId, projects.map((p) => p.projectId));
+  const scopedProjects = projects.filter((p) => browsable.has(String(p.projectId)));
+
+  return {
+    available: true,
+    fieldIds: [...fieldMap.keys()],
+    fields: [...fieldMap.entries()].map(([fieldId, fieldName]) => ({ fieldId, fieldName })),
+    projectIds: scopedProjects.map((p) => p.projectId),
+    projects: scopedProjects,
+    screens: screens.map((s) => ({ screenId: s.screenId, name: s.name, fieldCount: s.fields.length, tabsResolved: s.tabsResolved })),
+    // Screens the caller asked for that the catalog does not have, or whose tabs the build
+    // could not read -- so the tab can say the field list may be incomplete.
+    unresolvedScreens: screens.filter((s) => s.tabsResolved !== "resolved").map((s) => s.name),
+    missingScreenIds: screenIds.filter((id) => !screens.some((s) => s.screenId === id)),
+  };
+}
+
+// "Build a field report from this project's screens, organised by screen scheme." The
+// project has one issue type screen scheme; that ITSS maps issue types to screen schemes,
+// each of which routes create/edit/view operations to screens. Grouped by screen scheme so
+// the caller can pick which parts of the process to report on.
+async function getProjectScreenReportInputs({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+  const projectId = requireNonEmptyString(payload?.projectId, "projectId");
+
+  const browsable = await getBrowsableProjectIds(context?.accountId, [projectId]);
+  if (!browsable.has(String(projectId))) {
+    return { available: false, reason: "You do not have Browse Projects on this project." };
+  }
+
+  const meta = await readScreenSnapshotMeta(installationKey);
+  if (!meta?.version) return { available: false, reason: "No screen inventory has been built yet." };
+
+  const [itssProjects, mappings, ops, schemes] = await Promise.all([
+    loadItssProjects(installationKey, meta.version).catch(() => []),
+    loadItssMappings(installationKey, meta.version).catch(() => []),
+    loadScreenSchemeOperations(installationKey, meta.version).catch(() => []),
+    loadScreenSchemes(installationKey, meta.version).catch(() => []),
+  ]);
+
+  const itssIds = new Set(itssProjects.filter((p) => String(p.projectId) === String(projectId)).map((p) => String(p.itssId)));
+  if (!itssIds.size) {
+    return { available: true, projectId, itss: [], reason: "This project's screens could not be resolved through an issue type screen scheme." };
+  }
+
+  const schemeName = new Map(schemes.map((s) => [String(s.schemeId), s.name]));
+  const projectMappings = mappings.filter((m) => itssIds.has(String(m.itssId)) && m.screenSchemeId);
+
+  // scheme id -> { issueTypeCount, isDefault, screenIds }
+  const bySchemeId = new Map();
+  for (const m of projectMappings) {
+    const key = String(m.screenSchemeId);
+    if (!bySchemeId.has(key)) bySchemeId.set(key, { schemeId: key, issueTypeCount: 0, isDefault: false, screenIds: new Set() });
+    const entry = bySchemeId.get(key);
+    entry.issueTypeCount += 1;
+    if (m.isDefault) entry.isDefault = true;
+  }
+  for (const o of ops) {
+    const entry = bySchemeId.get(String(o.schemeId));
+    if (entry && o.screenId) entry.screenIds.add(String(o.screenId));
+  }
+
+  const allScreenIds = [...new Set([...bySchemeId.values()].flatMap((e) => [...e.screenIds]))];
+  const screens = await loadScreensWithFieldsByIds(installationKey, meta.version, allScreenIds);
+  const screenById = new Map(screens.map((s) => [s.screenId, s]));
+
+  const schemeGroups = [...bySchemeId.values()]
+    .map((entry) => {
+      const groupScreens = [...entry.screenIds]
+        .map((id) => screenById.get(id))
+        .filter(Boolean)
+        .map((s) => ({ screenId: s.screenId, name: s.name, fieldIds: s.fields.map((f) => f.fieldId), fieldCount: s.fields.length }));
+      const fieldIds = [...new Set(groupScreens.flatMap((s) => s.fieldIds))];
+      return {
+        schemeId: entry.schemeId,
+        schemeName: schemeName.get(entry.schemeId) || entry.schemeId,
+        issueTypeCount: entry.issueTypeCount,
+        isDefault: entry.isDefault,
+        screens: groupScreens,
+        fieldIds,
+      };
+    })
+    .sort((a, b) => Number(b.isDefault) - Number(a.isDefault) || b.fieldIds.length - a.fieldIds.length || a.schemeName.localeCompare(b.schemeName));
+
+  return {
+    available: true,
+    projectId,
+    scopeProjectIds: [String(projectId)],
+    schemes: schemeGroups,
+    allFieldIds: [...new Set(schemeGroups.flatMap((g) => g.fieldIds))],
+  };
 }
 
 async function startProjectUsageReportJob({ payload, context }) {
@@ -5473,6 +5668,8 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   getHealthHistory,        // Admin read: the site health series and per-dimension deltas
   getPillarHealth,         // Admin read: one pillar of the score, for the tab it is about
   getProjectOverview,      // Admin read: every pillar that touches one project
+  getScreenFieldReportInputs,   // Admin read: field union + project scope for a set of screens
+  getProjectScreenReportInputs, // Admin read: a project's screens grouped by screen scheme
   getAuditLog,             // Admin read: returns recent privileged-action records
 
   // Admin page surface. These were previously registered directly onto adminHandler in

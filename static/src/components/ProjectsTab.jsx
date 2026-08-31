@@ -13,6 +13,7 @@ import {
   formatNumber,
   isCustomField,
 } from "../utils";
+import { invoke } from "@forge/bridge";
 import { Icon, useChartPalette } from "./Icons";
 import { SkeletonProjectItem, FindingsStrip, MetricChip } from "./FieldCard";
 import { SubNavLayout } from "./admin/primitives";
@@ -438,7 +439,108 @@ export function ProjectFiltersPanel({ filters, siteOrigin }) {
   );
 }
 
-export function ProjectOverview({ project, overview, loading, fields = [], siteOrigin = "", adoption = null, adoptionContext = null }) {
+// Build a field report from this project's screens, organised by the screen schemes its
+// issue type screen scheme maps. Tick the schemes to include, build one scoped report.
+export function ProjectScreenReportPanel({ projectId, onBuildFieldReport }) {
+  const [data, setData] = React.useState(null);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState("");
+  const [checked, setChecked] = React.useState(() => new Set());
+  const [busy, setBusy] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!projectId) return undefined;
+    let cancelled = false;
+    setLoading(true); setError(""); setData(null); setChecked(new Set());
+    invoke("getProjectScreenReportInputs", { projectId })
+      .then((result) => {
+        if (cancelled) return;
+        setData(result);
+        // Default: everything ticked -- the common case is "report on all of it".
+        if (result?.schemes?.length) setChecked(new Set(result.schemes.map((s) => s.schemeId)));
+      })
+      .catch((err) => { if (!cancelled) setError(err?.message || "Could not load this project's screen schemes."); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [projectId]);
+
+  const schemes = data?.schemes || [];
+  const selectedFieldIds = React.useMemo(() => {
+    const ids = new Set();
+    for (const scheme of schemes) {
+      if (checked.has(scheme.schemeId)) scheme.fieldIds.forEach((id) => ids.add(id));
+    }
+    return [...ids];
+  }, [schemes, checked]);
+
+  function toggle(schemeId) {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(schemeId)) next.delete(schemeId); else next.add(schemeId);
+      return next;
+    });
+  }
+
+  async function build() {
+    if (!selectedFieldIds.length || !onBuildFieldReport) return;
+    setBusy(true);
+    try {
+      onBuildFieldReport(selectedFieldIds, data?.scopeProjectIds || [projectId]);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Panel
+      title="Field report from screens"
+      icon="barChart"
+      description="Grouped by the screen schemes this project's issue type screen scheme maps. Tick the ones to include and build a report scoped to this project."
+    >
+      {loading ? (
+        <EmptyState inline>Resolving this project's screen schemes…</EmptyState>
+      ) : error ? (
+        <EmptyState inline>{error}</EmptyState>
+      ) : !data?.available ? (
+        <EmptyState inline>{data?.reason || "No screen inventory has been built yet."}</EmptyState>
+      ) : !schemes.length ? (
+        <EmptyState inline>{data?.reason || "This project's screens could not be resolved through an issue type screen scheme."}</EmptyState>
+      ) : (
+        <>
+          <ul className="screen-scheme-picker">
+            {schemes.map((scheme) => (
+              <li key={scheme.schemeId} className="screen-scheme-picker__row">
+                <label className="screen-scheme-picker__head">
+                  <input type="checkbox" checked={checked.has(scheme.schemeId)} onChange={() => toggle(scheme.schemeId)} />
+                  <span className="screen-scheme-picker__name">{scheme.schemeName}</span>
+                  {scheme.isDefault && <Chip tone="neutral">default</Chip>}
+                  <Chip tone="neutral">{formatNumber(scheme.issueTypeCount)} {scheme.issueTypeCount === 1 ? "issue type" : "issue types"}</Chip>
+                  <Chip tone="neutral">{formatNumber(scheme.fieldIds.length)} {scheme.fieldIds.length === 1 ? "field" : "fields"}</Chip>
+                </label>
+                <span className="screen-scheme-picker__screens">
+                  {scheme.screens.map((s) => s.name).join(" · ") || "no screens resolved"}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <div className="screen-scheme-picker__actions">
+            <button
+              type="button"
+              className="primary-button"
+              onClick={build}
+              disabled={busy || !selectedFieldIds.length}
+            >
+              <Icon name="barChart" size={14} />
+              {busy ? "Building…" : `Build report (${selectedFieldIds.length} ${selectedFieldIds.length === 1 ? "field" : "fields"})`}
+            </button>
+          </div>
+        </>
+      )}
+    </Panel>
+  );
+}
+
+export function ProjectOverview({ project, overview, loading, fields = [], siteOrigin = "", adoption = null, adoptionContext = null, onBuildFieldReport }) {
   if (loading) return <EmptyState inline>Loading everything that touches this project…</EmptyState>;
   if (!overview?.available) {
     return <EmptyState inline>{overview?.reason || "This project could not be loaded."}</EmptyState>;
@@ -625,6 +727,12 @@ export function ProjectOverview({ project, overview, loading, fields = [], siteO
         <ProjectFiltersPanel filters={overview.filters} siteOrigin={siteOrigin} />
       </GridSpan>
 
+      {onBuildFieldReport && (
+        <GridSpan wide>
+          <ProjectScreenReportPanel projectId={overview.projectId ?? project?.projectId} onBuildFieldReport={onBuildFieldReport} />
+        </GridSpan>
+      )}
+
       <GridSpan>
         {/* Was "Form shape": a stacked colour bar with no legend and no explanation of what
             it stacked. It was field TYPE mix, which the label never said. */}
@@ -748,6 +856,7 @@ export function ProjectsTabView({
   overviewLoading,
   projectFilter = "all",
   onProjectFilterChange,
+  onBuildFieldReport,
 }) {
   // Overview first: on a project you have never looked at, what runs it matters before
   // which 170 fields it carries.
@@ -960,6 +1069,7 @@ export function ProjectsTabView({
                     siteOrigin={siteOrigin}
                     adoption={data?.selectedAdoption ?? null}
                     adoptionContext={data?.adoptionContext ?? null}
+                    onBuildFieldReport={onBuildFieldReport}
                   />
                   <SchemePeerBars
                     scheme={data?.workflowScheme}

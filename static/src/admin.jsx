@@ -112,6 +112,19 @@ export function AdminApp() {
   const [scansInitialSection, setScansInitialSection] = React.useState("full");
   const [selectedFieldIds, setSelectedFieldIds] = React.useState([]);
   const [pendingReportGenerate, setPendingReportGenerate] = React.useState(false);
+  // Project scope for the next report build -- set when a report is launched from a screen
+  // set or a project's screens, so the matrix only shows the projects those screens reach.
+  const [reportProjectScope, setReportProjectScope] = React.useState([]);
+
+  // The one entry point every "build a field report from X" affordance calls: seed the field
+  // selection and (optionally) the project scope, then jump to Reports and generate.
+  const buildFieldReport = React.useCallback((fieldIds, projectIds = []) => {
+    setSelectedFieldIds(Array.from(new Set((fieldIds || []).map(String))));
+    setReportProjectScope(Array.from(new Set((projectIds || []).map(String))));
+    setReportsInitialSection("usage");
+    setActiveTab("reports");
+    setPendingReportGenerate(true);
+  }, []);
 
   React.useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -289,11 +302,11 @@ export function AdminApp() {
               siteOrigin={siteOrigin}
             />
           ) : activeTab === "projects" ? (
-            <ProjectUsageTab siteOrigin={siteOrigin} intent={navIntent} />
+            <ProjectUsageTab siteOrigin={siteOrigin} intent={navIntent} onBuildFieldReport={buildFieldReport} />
           ) : activeTab === "workflows" ? (
             <WorkflowTab intent={navIntent} siteOrigin={siteOrigin} />
           ) : activeTab === "screens" ? (
-            <ScreensTab intent={navIntent} />
+            <ScreensTab intent={navIntent} onBuildFieldReport={buildFieldReport} />
           ) : activeTab === "filters" ? (
             <FiltersTab siteOrigin={siteOrigin} intent={navIntent} />
           ) : activeTab === "dashboards" ? (
@@ -301,7 +314,7 @@ export function AdminApp() {
           ) : activeTab === "automation" ? (
             <AutomationTab siteOrigin={siteOrigin} intent={navIntent} />
           ) : activeTab === "reports" ? (
-            <ReportsTab siteOrigin={siteOrigin} selectedFieldIds={selectedFieldIds} onSetSelectedFieldIds={setSelectedFieldIds} autoGenerate={pendingReportGenerate} onAutoGenerateConsumed={() => setPendingReportGenerate(false)} initialSection={reportsInitialSection} />
+            <ReportsTab siteOrigin={siteOrigin} selectedFieldIds={selectedFieldIds} onSetSelectedFieldIds={setSelectedFieldIds} autoGenerate={pendingReportGenerate} onAutoGenerateConsumed={() => setPendingReportGenerate(false)} initialSection={reportsInitialSection} projectScope={reportProjectScope} onSetProjectScope={setReportProjectScope} />
           ) : activeTab === "scans" ? (
             <ScansTab siteOrigin={siteOrigin} initialSection={scansInitialSection} />
           ) : (
