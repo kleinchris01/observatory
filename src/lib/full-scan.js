@@ -121,7 +121,15 @@ export const FULL_SCAN_MAX_POLLS = { issues: 480, "issues-delta": 240, default: 
 // the poll ceiling -- all three go back to `pending` and run again rather than being marked
 // failed on the first bad outcome. Only after this many attempts does the stage actually fail.
 export const MAX_STAGE_ATTEMPTS = 3;
-export const STAGE_RETRY_DELAY_SECONDS = 20;
+
+// Capped exponential backoff before a stage retry runs, in SECONDS. Same shape as the HTTP
+// retry in analysis.js -- min(cap, base * 2^n) + jitter -- so a stage failing on a transient
+// 4xx/5xx (a 400 the endpoint throws under load, a rate-limit storm) is not hammered on a
+// fixed 20s loop but backs off: ~20s, ~40s, ~80s. `attempt` is 1-based.
+export function scanRetryDelaySeconds(attempt = 1) {
+  const n = Math.max(0, (Number(attempt) || 1) - 1);
+  return Math.min(300, 20 * (2 ** n)) + Math.floor(Math.random() * 10);
+}
 
 // After every stage has resolved, if any FAILED or was SKIPPED, the whole set of them is
 // reset to pending and the scan sweeps again -- up to this many times. Combined with

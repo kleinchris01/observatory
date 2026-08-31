@@ -312,6 +312,34 @@ describe("FullScanPanel — stage detail and run history", () => {
     expect(screen.getByText(/No scan has run yet/i)).toBeInTheDocument();
   });
 
+  // A scan that finished with a failed pillar: offer to retry just that one, not a full re-run.
+  test("offers a Resume that retries only the stages that did not build", async () => {
+    const onResumeStalledScan = vi.fn();
+    render(
+      <FullScanPanel
+        status={{
+          state: "completed-with-failures",
+          catalog: idleStatus.catalog,
+          lastError: "1 failed, 0 skipped of 8 stages.",
+          stages: [
+            { key: "filters", state: "done", label: "Saved filter inventory" },
+            { key: "dashboards", state: "failed", label: "Dashboard inventory", error: "400 Bad Request" },
+          ],
+          recentRuns: [],
+        }}
+        onStart={noop} starting={false}
+        onResumeStalledScan={onResumeStalledScan} onAbandonScan={noop} recoveringScan={false} abandoningScan={false}
+        issueScan={null} onResumeIssueScan={noop} onCancelIssueScan={noop}
+        resumingIssueScan={false} cancellingIssueScan={false}
+        snapshot={null} onForceResumeSnapshot={noop} forceResumingSnapshot={false} onSnapshotCleared={noop}
+      />
+    );
+
+    expect(screen.getByText(/1 stage did not build \(Dashboard inventory\)/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /Resume — retry 1 stage/i }));
+    expect(onResumeStalledScan).toHaveBeenCalledTimes(1);
+  });
+
   // A cancelled scan has no recorded run, so the produced count has to fall back to what the
   // pillar currently holds -- otherwise every stage reads "Produced —".
   test("shows a stage's produced count from liveStageCounts when there is no recorded run", async () => {

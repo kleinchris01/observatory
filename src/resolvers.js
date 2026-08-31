@@ -152,7 +152,7 @@ import { summarizeDashboards, summarizeDashboardHealth } from "./lib/dashboard-i
 import { isFilterBuildStale, queueFilterSnapshotBuild } from "./lib/filter-engine.js";
 import { filterRows, sortFilters, filterFindingCounts, FILTER_SORTS } from "./lib/filter-query.js";
 import { isDashboardBuildStale, queueDashboardSnapshotBuild } from "./lib/dashboard-engine.js";
-import { startFullScan, fullScanStageCatalog, startQuickScan, quickScanStageCatalog, recoverStalledScan, cancelScan, readStageProducedCounts } from "./lib/full-scan-runner.js";
+import { startFullScan, fullScanStageCatalog, startQuickScan, quickScanStageCatalog, recoverStalledScan, resumeScanRun, cancelScan, readStageProducedCounts } from "./lib/full-scan-runner.js";
 import { FULL_SCAN_STALL_MS, MAX_SCAN_TOTAL_MS } from "./lib/full-scan.js";
 import { probeEndpoint, probeStargateEndpoint, getCloudId, getAllJiraProjects } from "./lib/jira-api.js";
 import {
@@ -3908,16 +3908,24 @@ async function startFullSiteScan({ context }) {
   return startFullScan(installationKey);
 }
 
-// Recovery for a full or quick scan whose orchestrator loop has stopped stepping -- a lost
-// queue message, or a consumer killed before it could re-queue the next step. The hourly
-// trigger runs the same check on its own; this is the "don't make me wait for the top of
-// the hour" button. `force` skips the staleness check because the UI only offers this once
-// it already believes the run is stuck. Not gated on read-only mode: clearing a wedge is
+// The one "Resume" button, context-aware:
+//
+//  - a scan that FINISHED with failed pillars  -> resumeScanRun: put the failed/skipped
+//    stages back to pending and walk them again, leaving the ones that built alone.
+//  - a scan still "running" but wedged          -> recoverStalledScan(force): re-kick the
+//    orchestrator loop from its last checkpoint.
+//
+// Neither is gated on read-only mode: finishing or unwedging a scan that already started is
 // cleanup, not a new scan.
 async function resumeSiteScan({ context }) {
   incrMetric(METRIC_NAMES.resolver);
   await ensureProjectStoreReady();
   const installationKey = getInstallationKey(context);
+
+  const meta = await readFullScanMeta(installationKey).catch(() => null);
+  if (meta?.state === "completed-with-failures") {
+    return resumeScanRun(installationKey);
+  }
   return recoverStalledScan(installationKey, { force: true });
 }
 

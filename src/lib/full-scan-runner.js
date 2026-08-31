@@ -28,7 +28,7 @@ import {
   MAX_SCAN_RECOVERIES,
   MAX_SCAN_TOTAL_MS,
   MAX_SCAN_SWEEPS,
-  STAGE_RETRY_DELAY_SECONDS,
+  scanRetryDelaySeconds,
   initialStages,
   nextStage,
   markStage,
@@ -284,11 +284,11 @@ async function runScanStep(spec, installationKey, message = {}, { now = Date.now
       const polls = progressed ? 1 : Number(meta.polls || 0) + 1;
 
       if (!progressed && polls > maxPollsFor(meta.currentStage)) {
-        const { stages: next, retried } = retryStageOrFail(
+        const { stages: next, retried, attempts } = retryStageOrFail(
           stages, meta.currentStage, subError || "the stage stopped reporting progress", { now }
         );
         logger.warn(`${spec.scanType}-scan.stage_${retried ? "retry_frozen" : "abandoned"}`, { installationKey, stage: meta.currentStage, polls });
-        return advance(spec, installationKey, next, meta.jobToken, now);
+        return advance(spec, installationKey, next, meta.jobToken, now, { delaySeconds: retried ? scanRetryDelaySeconds(attempts) : 0 });
       }
 
       await writeFullScanMeta(installationKey, {
@@ -304,11 +304,11 @@ async function runScanStep(spec, installationKey, message = {}, { now = Date.now
       // The pillar's own build reported failure. Retry the stage rather than marking it
       // failed on the first bad run -- a scan should exhaust its retries before it tells
       // anyone a pillar did not build.
-      const { stages: next, retried } = retryStageOrFail(
+      const { stages: next, retried, attempts } = retryStageOrFail(
         stages, meta.currentStage, subError || "the pillar build reported a failure", { now }
       );
       logger.warn(`${spec.scanType}-scan.stage_${retried ? "retry_failed" : "failed"}`, { installationKey, stage: meta.currentStage });
-      return advance(spec, installationKey, next, meta.jobToken, now);
+      return advance(spec, installationKey, next, meta.jobToken, now, { delaySeconds: retried ? scanRetryDelaySeconds(attempts) : 0 });
     }
 
     stages = markStage(stages, meta.currentStage, {
@@ -374,6 +374,7 @@ async function runScanStep(spec, installationKey, message = {}, { now = Date.now
     updatedAt: new Date(now).toISOString(),
   });
 
+  let retryDelaySeconds = 0;
   try {
     if (definition.mode === "handoff") {
       await runner.start(installationKey, meta);
@@ -395,20 +396,25 @@ async function runScanStep(spec, installationKey, message = {}, { now = Date.now
     // independent, and the scan should exhaust its retries before it tells anyone a pillar
     // did not build -- see retryStageOrFail and the sweep in advance().
     const message_ = String(error?.message || error);
-    const { stages: next, retried } = retryStageOrFail(stages, definition.key, message_, { now });
+    const { stages: next, retried, attempts } = retryStageOrFail(stages, definition.key, message_, { now });
     stages = next;
+    retryDelaySeconds = retried ? scanRetryDelaySeconds(attempts) : 0;
     logger[retried ? "warn" : "error"](
       `${spec.scanType}-scan.stage_${retried ? "retry_threw" : "failed"}`,
       { installationKey, stage: definition.key, error: message_ }
     );
   }
 
-  return advance(spec, installationKey, stages, meta.jobToken, now);
+  return advance(spec, installationKey, stages, meta.jobToken, now, { delaySeconds: retryDelaySeconds });
 }
 
 // Persist progress and take the next step, or -- once every stage has resolved -- sweep the
 // failures/skips back to pending for another whole pass before finally finishing.
-async function advance(spec, installationKey, stages, jobToken, now) {
+//
+// `delaySeconds` backs off the next step: 0 for a normal advance (a stage just finished),
+// but scanRetryDelaySeconds(attempt) when this advance follows a retry, so a stage failing
+// on a transient error is not re-run instantly.
+async function advance(spec, installationKey, stages, jobToken, now, { delaySeconds = 0 } = {}) {
   const summary = summarizeStages(stages);
 
   if (!summary.complete) {
@@ -422,7 +428,7 @@ async function advance(spec, installationKey, stages, jobToken, now) {
       stageProgressSig: null,
       updatedAt: new Date(now).toISOString(),
     });
-    await queueScanStep(spec, installationKey, null, jobToken);
+    await queueScanStep(spec, installationKey, null, jobToken, delaySeconds);
     return { advanced: true, done: summary.done, total: summary.total };
   }
 
@@ -703,6 +709,59 @@ export async function recoverStalledScan(installationKey, { now = Date.now(), fo
     recoveryCount: recoveryCount + 1,
   });
   return { recovered: true, stage: meta.currentStage || null, recoveryCount: recoveryCount + 1 };
+}
+
+/**
+ * Pick a finished-with-failures run back up, retrying only the stages that did not build.
+ *
+ * A persistent 4xx from one pillar used to end the whole scan at "completed-with-failures"
+ * with no way forward but a full re-run -- redoing every pillar that succeeded. This resets
+ * the failed and skipped stages to pending (attempts cleared), leaves the done ones alone,
+ * and puts the run back to "running" with a fresh token and a fresh startedAt (so the
+ * 8-hour ceiling measures the resumed leg, not the original). The orchestrator then walks
+ * the remaining stages in order, exactly as it would a fresh scan.
+ *
+ * Not gated on read-only mode: finishing a scan that already ran is not a new scan.
+ */
+export async function resumeScanRun(installationKey, { now = Date.now() } = {}) {
+  await ensureProjectStoreReady();
+  const meta = await readFullScanMeta(installationKey);
+
+  if (meta?.state !== "completed-with-failures") {
+    return { resumed: false, reason: "nothing-to-resume", state: meta?.state ?? null };
+  }
+
+  const spec = meta.scanType === "quick" ? QUICK_SCAN_SPEC : FULL_SCAN_SPEC;
+  const toRetry = (meta.stages || []).filter((s) => s.state === "failed" || s.state === "skipped");
+  if (!toRetry.length) {
+    return { resumed: false, reason: "nothing-to-resume", state: meta.state };
+  }
+
+  const stages = (meta.stages || []).map((stage) =>
+    stage.state === "failed" || stage.state === "skipped"
+      ? { ...stage, state: "pending", startedAt: null, completedAt: null, attempts: 0, error: null }
+      : stage
+  );
+  const freshToken = makeJobToken();
+  const startedAt = new Date(now).toISOString();
+
+  await writeFullScanMeta(installationKey, {
+    state: "running",
+    jobToken: freshToken,
+    currentStage: null,
+    stages,
+    startedAt,
+    completedAt: null,
+    updatedAt: startedAt,
+    lastError: null,
+    polls: 0,
+    recoveryCount: 0,
+    sweep: 0,
+    stageProgressSig: null,
+  });
+  await queueScanStep(spec, installationKey, null, freshToken);
+  logger.info(`${spec.scanType}-scan.resumed`, { installationKey, retrying: toRetry.map((s) => s.key) });
+  return { resumed: true, retrying: toRetry.map((s) => s.key) };
 }
 
 /**
