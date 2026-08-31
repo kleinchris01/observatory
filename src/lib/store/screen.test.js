@@ -32,6 +32,7 @@ import {
   loadIssueTypeScreenSchemes,
   loadItssMappings,
   loadItssProjects,
+  loadScreensWithFieldsByIds,
   loadScreenGovernanceSummary,
   loadScreenCountsForFields,
   SCREEN_SORT_KEYS,
@@ -328,6 +329,40 @@ describe("reads", () => {
 
     mockRows([{ itss_id: "9", project_id: "10000", project_key: "OBS", project_name: "Observatory" }]);
     expect((await loadItssProjects("scope-1", "v1"))[0]).toMatchObject({ projectKey: "OBS" });
+  });
+});
+
+describe("loadScreensWithFieldsByIds", () => {
+  test("returns nothing for an empty id list without querying", async () => {
+    expect(await loadScreensWithFieldsByIds("scope-1", "v1", [])).toEqual([]);
+    expect(sql.prepare).not.toHaveBeenCalled();
+  });
+
+  test("joins each screen to its fields, preserves caller order, drops unknown ids", async () => {
+    // Two SELECTs per batch: screen meta, then screen fields. Answer them by statement.
+    sql.prepare.mockImplementation((statement) => {
+      const s = String(statement);
+      const rows = s.includes("FROM snapshot_screens")
+        ? [
+          { screen_id: "200", name: "Edit", field_count: 2, tabs_resolved: "resolved" },
+          { screen_id: "100", name: "Create", field_count: 1, tabs_resolved: "unresolved" },
+        ]
+        : s.includes("FROM snapshot_screen_fields")
+          ? [
+            { screen_id: "100", field_id: "cf_1", field_name: "A", tab_index: 0, field_index: 0 },
+            { screen_id: "200", field_id: "cf_2", field_name: "B", tab_index: 0, field_index: 0 },
+            { screen_id: "200", field_id: "cf_3", field_name: "C", tab_index: 0, field_index: 1 },
+          ]
+          : [];
+      return { bindParams: () => ({ execute: () => Promise.resolve({ rows }) }) };
+    });
+
+    const result = await loadScreensWithFieldsByIds("scope-1", "v1", ["100", "200", "999"]);
+
+    expect(result.map((s) => s.screenId)).toEqual(["100", "200"]); // caller order, 999 dropped
+    expect(result[0]).toMatchObject({ name: "Create", tabsResolved: "unresolved" });
+    expect(result[0].fields.map((f) => f.fieldId)).toEqual(["cf_1"]);
+    expect(result[1].fields.map((f) => f.fieldId)).toEqual(["cf_2", "cf_3"]);
   });
 });
 

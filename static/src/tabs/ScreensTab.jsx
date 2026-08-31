@@ -2,7 +2,7 @@ import React from "react";
 import { invoke } from "@forge/bridge";
 import { formatNumber, formatRelativeTime } from "../utils";
 import { Icon } from "../components/Icons";
-import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, SortFilterBar, PanelGrid, GridSpan, PillarHealthPanel, BarList } from "../components/ui";
+import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, SortFilterBar, PanelGrid, GridSpan, PillarHealthPanel, BarList, StickyActions } from "../components/ui";
 import { SubNavLayout } from "../components/admin/primitives";
 import { useNavIntent, useVisiblePolling } from "../hooks";
 
@@ -48,11 +48,21 @@ const SCREEN_SORT_OPTIONS = [
   { value: "unresolved-first", label: "Unreadable first" },
 ];
 
-export function ScreenRow({ screen, transitions = [] }) {
+export function ScreenRow({ screen, transitions = [], selectable = false, selected = false, onToggleSelect }) {
   const unresolved = screen.tabsResolved !== "resolved";
 
   return (
-    <div className="screen-row">
+    <div className={`screen-row${selected ? " screen-row--selected" : ""}`}>
+      {selectable && (
+        <label className="screen-row__select" title="Include this screen in a field report">
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={() => onToggleSelect?.(screen.screenId)}
+            aria-label={`Include ${screen.name} in a field report`}
+          />
+        </label>
+      )}
       <div className="screen-row__identity">
         <span className="screen-row__name">{screen.name}</span>
         {screen.description && <span className="screen-row__desc">{screen.description}</span>}
@@ -170,8 +180,45 @@ const SCHEME_FILTERS = [
   { key: "dangling", label: "Points at a missing screen", match: (_scheme, operations) => operations.some((op) => op.dangling) },
 ];
 
-export function ScreensTab({ intent = null }) {
+export function ScreensTab({ intent = null, onBuildFieldReport }) {
   const [view, setView] = React.useState("screens");
+  // Screens ticked for a field report. Keyed by id and kept across pages -- the picker spans
+  // the whole catalogue, not just the 25 rows on screen.
+  const [selectedScreenIds, setSelectedScreenIds] = React.useState(() => new Set());
+  const [reportBusy, setReportBusy] = React.useState(false);
+  const toggleScreenSelect = React.useCallback((screenId) => {
+    setSelectedScreenIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(screenId)) next.delete(screenId); else next.add(screenId);
+      return next;
+    });
+  }, []);
+
+  async function buildScreenReport() {
+    const screenIds = [...selectedScreenIds];
+    if (!screenIds.length || !onBuildFieldReport) return;
+    setReportBusy(true);
+    setError("");
+    try {
+      const result = await invoke("getScreenFieldReportInputs", { screenIds });
+      if (!result?.available) {
+        setError(result?.reason || "Could not resolve fields for those screens.");
+        return;
+      }
+      if (!result.fieldIds.length) {
+        setError("None of the selected screens carry any fields the report can use.");
+        return;
+      }
+      if (result.unresolvedScreens?.length) {
+        setNotice(`${result.unresolvedScreens.length} of the selected screens could not be read, so the report's field list may be incomplete.`);
+      }
+      onBuildFieldReport(result.fieldIds, result.projectIds);
+    } catch (err) {
+      setError(err?.message || "Could not build the field report.");
+    } finally {
+      setReportBusy(false);
+    }
+  }
   // Which finding the reader arrived from, if any.
   //
   // The screen filter is applied in SQL rather than here: the tab shows 25 of ~760 screens,
@@ -548,6 +595,9 @@ export function ScreensTab({ intent = null }) {
                     key={screen.screenId}
                     screen={screen}
                     transitions={transitionsByScreen.get(screen.screenId) || []}
+                    selectable={Boolean(onBuildFieldReport)}
+                    selected={selectedScreenIds.has(screen.screenId)}
+                    onToggleSelect={toggleScreenSelect}
                   />
                 ))}
               </div>
@@ -567,6 +617,21 @@ export function ScreensTab({ intent = null }) {
               </div>
             )}
           </Panel>
+        )}
+
+        {view === "screens" && onBuildFieldReport && selectedScreenIds.size > 0 && (
+          <StickyActions
+            status={`${selectedScreenIds.size} ${selectedScreenIds.size === 1 ? "screen" : "screens"} selected`}
+            tone="active"
+          >
+            <button type="button" className="secondary-button" onClick={() => setSelectedScreenIds(new Set())}>
+              Clear
+            </button>
+            <button type="button" className="primary-button" onClick={buildScreenReport} disabled={reportBusy}>
+              <Icon name="barChart" size={14} />
+              {reportBusy ? "Building…" : "Build field report"}
+            </button>
+          </StickyActions>
         )}
 
         {view === "schemes" && (

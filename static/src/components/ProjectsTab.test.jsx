@@ -1,8 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+
+vi.mock("@forge/bridge", () => ({
+  invoke: vi.fn(() => Promise.resolve({})),
+  view: { getContext: vi.fn().mockResolvedValue({}) },
+  router: { open: vi.fn() },
+}));
+
+import { invoke } from "@forge/bridge";
 import { TopFieldsChart, FieldTypeDonut, ProjectsTabView,
   ProjectOverview, buildProjectFilters, projectFilterCount, ProjectAdoptionPanel, ActivitySparkbars,
-  ProjectHealthPanel, ProjectFiltersPanel,
+  ProjectHealthPanel, ProjectFiltersPanel, ProjectScreenReportPanel,
 } from "./ProjectsTab";
 
 // ---------------------------------------------------------------------------
@@ -731,6 +740,51 @@ describe("ProjectAdoptionPanel", () => {
       expect(screen.queryByText(/Dropped below half/)).not.toBeInTheDocument();
       expect(screen.queryByText(/Running far below/)).not.toBeInTheDocument();
     });
+  });
+});
+
+describe("ProjectScreenReportPanel", () => {
+  beforeEach(() => { invoke.mockReset(); });
+
+  const inputs = {
+    available: true,
+    projectId: "10000",
+    scopeProjectIds: ["10000"],
+    schemes: [
+      { schemeId: "SS_STORY", schemeName: "Story screens", issueTypeCount: 1, isDefault: true, fieldIds: ["cf_1", "cf_2"], screens: [{ screenId: "S1", name: "Story", fieldIds: ["cf_1", "cf_2"] }] },
+      { schemeId: "SS_BUG", schemeName: "Bug screens", issueTypeCount: 2, isDefault: false, fieldIds: ["cf_3"], screens: [{ screenId: "S2", name: "Bug", fieldIds: ["cf_3"] }] },
+    ],
+    allFieldIds: ["cf_1", "cf_2", "cf_3"],
+  };
+
+  it("lists the project's screen schemes and builds a scoped report from the ticked ones", async () => {
+    invoke.mockResolvedValue(inputs);
+    const onBuildFieldReport = vi.fn();
+    render(<ProjectScreenReportPanel projectId="10000" onBuildFieldReport={onBuildFieldReport} />);
+
+    expect(await screen.findByText("Story screens")).toBeInTheDocument();
+    expect(screen.getByText("Bug screens")).toBeInTheDocument();
+    // Everything is ticked by default -> the build carries every field, scoped to the project.
+    await userEvent.click(screen.getByRole("button", { name: /Build report/i }));
+    expect(onBuildFieldReport).toHaveBeenCalledWith(["cf_1", "cf_2", "cf_3"], ["10000"]);
+  });
+
+  it("drops a scheme's fields from the build when it is unticked", async () => {
+    invoke.mockResolvedValue(inputs);
+    const onBuildFieldReport = vi.fn();
+    render(<ProjectScreenReportPanel projectId="10000" onBuildFieldReport={onBuildFieldReport} />);
+
+    await screen.findByText("Bug screens");
+    // Untick "Bug screens" (second checkbox).
+    await userEvent.click(screen.getAllByRole("checkbox")[1]);
+    await userEvent.click(screen.getByRole("button", { name: /Build report/i }));
+    expect(onBuildFieldReport).toHaveBeenCalledWith(["cf_1", "cf_2"], ["10000"]);
+  });
+
+  it("says so when the project's screens do not resolve through an ITSS", async () => {
+    invoke.mockResolvedValue({ available: true, projectId: "10000", schemes: [], reason: "This project's screens could not be resolved through an issue type screen scheme." });
+    render(<ProjectScreenReportPanel projectId="10000" onBuildFieldReport={vi.fn()} />);
+    expect(await screen.findByText(/could not be resolved through an issue type screen scheme/i)).toBeInTheDocument();
   });
 });
 

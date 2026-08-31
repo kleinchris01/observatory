@@ -2,7 +2,7 @@ import React from "react";
 import { invoke, view } from "@forge/bridge";
 import { buildJiraSearchUrl, downloadCsv, slugifyFilenamePart, groupReportFieldsByType, openFieldExpertRovo, buildReportRovoPrompt } from "../utils";
 import { Icon } from "../components/Icons";
-import { PageHeader } from "../components/ui";
+import { PageHeader, Chip } from "../components/ui";
 import { SubNavLayout } from "../components/admin/primitives";
 import { ReportErrorBoundary, ProjectUsageReportView } from "../components/ReportView";
 
@@ -19,7 +19,7 @@ import { ReportErrorBoundary, ProjectUsageReportView } from "../components/Repor
 
 const RqtIndexView = React.lazy(() => import("./RqtTab").then((m) => ({ default: m.RqtIndexView })));
 
-export function ReportsTab({ siteOrigin, selectedFieldIds, onSetSelectedFieldIds, autoGenerate, onAutoGenerateConsumed, initialSection }) {
+export function ReportsTab({ siteOrigin, selectedFieldIds, onSetSelectedFieldIds, autoGenerate, onAutoGenerateConsumed, initialSection, projectScope = [], onSetProjectScope }) {
   const [activeSection, setActiveSection] = React.useState(initialSection || "usage");
   const [reportData, setReportData] = React.useState(null);
   const [loadingReport, setLoadingReport] = React.useState(false);
@@ -43,15 +43,16 @@ export function ReportsTab({ siteOrigin, selectedFieldIds, onSetSelectedFieldIds
     }
   }, [autoGenerate]);
 
-  async function generateReport(fieldIdsOverride = null, nameOverride = "") {
+  async function generateReport(fieldIdsOverride = null, nameOverride = "", scopeOverride = undefined) {
     const fieldIds = fieldIdsOverride?.length ? fieldIdsOverride : selectedFieldIds;
     if (!fieldIds.length) { setError("Select at least one field in the Field Browser to generate a report."); return; }
+    const projectIds = scopeOverride === undefined ? projectScope : scopeOverride;
     setLoadingReport(true);
     setReportData(null);
     try {
       const nextName = nameOverride || reportNameInput.trim() || "Project Usage Report";
       setActiveReportName(nextName);
-      const result = await invoke("getProjectUsageReport", { fieldIds });
+      const result = await invoke("getProjectUsageReport", { fieldIds, projectIds });
       setReportData(result);
     } catch (err) {
       setError(err.message || "Failed to generate report.");
@@ -78,7 +79,9 @@ export function ReportsTab({ siteOrigin, selectedFieldIds, onSetSelectedFieldIds
   async function loadSavedReport(report) {
     onSetSelectedFieldIds(report.fieldIds || []);
     setReportNameInput(report.name || "");
-    await generateReport(report.fieldIds || [], report.name || "");
+    // Saved reports are site-wide; loading one drops any screen-driven project scope.
+    onSetProjectScope?.([]);
+    await generateReport(report.fieldIds || [], report.name || "", []);
   }
 
   async function removeSavedReport(reportId) {
@@ -151,7 +154,9 @@ export function ReportsTab({ siteOrigin, selectedFieldIds, onSetSelectedFieldIds
           why this tab used to read as a different product. */}
       <PageHeader
         title="Reports"
-        description="Select fields in the Field Browser tab to build a cross-project usage report."
+        description={projectScope.length
+          ? `Scoped to ${projectScope.length} ${projectScope.length === 1 ? "project" : "projects"} — the field data below is limited to where the chosen screens are applied.`
+          : "Select fields in the Field Browser tab to build a cross-project usage report."}
         actions={
           <button
             className="primary-button"
@@ -164,6 +169,17 @@ export function ReportsTab({ siteOrigin, selectedFieldIds, onSetSelectedFieldIds
           </button>
         }
       />
+      {projectScope.length > 0 && (
+        <div className="admin-field-browser__active-filters" style={{ marginBottom: 12 }}>
+          <Chip
+            tone="active"
+            onRemove={() => { onSetProjectScope?.([]); generateReport(null, "", []); }}
+            removeLabel="Clear the project scope and report across every project"
+          >
+            Project scope: {projectScope.length} {projectScope.length === 1 ? "project" : "projects"}
+          </Chip>
+        </div>
+      )}
       <ReportErrorBoundary resetKey={`${activeReportName}-${selectedFieldIds.join(",")}`}>
         <ProjectUsageReportView
           reportData={reportData}

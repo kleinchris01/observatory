@@ -7,7 +7,7 @@ import { useNavIntent } from "../hooks";
 
 const ProjectsTabView = React.lazy(() => import("../components/ProjectsTab").then((m) => ({ default: m.ProjectsTabView })));
 
-export function ProjectUsageTab({ siteOrigin, intent = null }) {
+export function ProjectUsageTab({ siteOrigin, intent = null, onBuildFieldReport }) {
   const [projectQuery, setProjectQuery] = React.useState("");
   const [deferredProjectQuery, setDeferredProjectQuery] = React.useState("");
   const [fieldQuery, setFieldQuery] = React.useState("");
@@ -114,6 +114,7 @@ export function ProjectUsageTab({ siteOrigin, intent = null }) {
           overviewLoading={overviewLoading}
           projectFilter={projectFilter}
           onProjectFilterChange={setProjectFilter}
+          onBuildFieldReport={onBuildFieldReport}
         />
       </React.Suspense>
     </>

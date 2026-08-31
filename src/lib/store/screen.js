@@ -379,6 +379,56 @@ export async function loadScreensForField(scopeKey, version, fieldId) {
   }));
 }
 
+// A handful of named screens, with the field list on each -- one query, not one per screen.
+//
+// The "build a field report from these screens" flow needs both the field union and enough
+// per-screen metadata to tell a caller which of its chosen screens the build could not read
+// (tabs_resolved) so the report can say the list may be incomplete rather than silently
+// dropping them.
+export async function loadScreensWithFieldsByIds(scopeKey, version, screenIds = []) {
+  await ensureProjectStoreReady();
+  const ids = [...new Set((screenIds || []).map((v) => String(v || "").trim()).filter(Boolean))];
+  if (!ids.length) return [];
+
+  const byId = new Map();
+  for (const batch of chunkArray(ids, 100)) {
+    const placeholders = batch.map(() => "?").join(", ");
+    const metaRows = await withSqlRetry(() =>
+      sql.prepare(`
+        SELECT screen_id, name, field_count, tabs_resolved
+        FROM snapshot_screens
+        WHERE scope_key = ? AND version = ? AND screen_id IN (${placeholders})
+      `).bindParams(scopeKey, version, ...batch).execute()
+    );
+    for (const row of metaRows.rows || []) {
+      byId.set(String(row.screen_id), {
+        screenId: String(row.screen_id),
+        name: row.name || String(row.screen_id),
+        fieldCount: toNumber(row.field_count),
+        tabsResolved: row.tabs_resolved || "resolved",
+        fields: [],
+      });
+    }
+
+    const fieldRows = await withSqlRetry(() =>
+      sql.prepare(`
+        SELECT screen_id, field_id, field_name, tab_index, field_index
+        FROM snapshot_screen_fields
+        WHERE scope_key = ? AND version = ? AND screen_id IN (${placeholders})
+        ORDER BY tab_index ASC, field_index ASC
+      `).bindParams(scopeKey, version, ...batch).execute()
+    );
+    for (const row of fieldRows.rows || []) {
+      const screen = byId.get(String(row.screen_id));
+      if (!screen) continue;
+      screen.fields.push({ fieldId: row.field_id, fieldName: row.field_name || row.field_id });
+    }
+  }
+
+  // Preserve the caller's order, drop ids that resolved to nothing.
+  return ids.map((id) => byId.get(id)).filter(Boolean);
+}
+
 // Screen counts for a page of fields, in one pass rather than one query per card.
 //
 // The Field Browser renders 25-50 cards at a time and each wants "how many screens carry

@@ -465,8 +465,9 @@ describe("AdminApp field browser -> reports auto-generate flow", () => {
     });
 
     // Auto-generate should have fired getProjectUsageReport with the selected field ids
+    // (and an empty project scope, since this launch came from the Field Browser).
     await waitFor(() => {
-      expect(invoke).toHaveBeenCalledWith("getProjectUsageReport", { fieldIds: ["customfield_10001", "customfield_10002"] });
+      expect(invoke).toHaveBeenCalledWith("getProjectUsageReport", { fieldIds: ["customfield_10001", "customfield_10002"], projectIds: [] });
     });
 
     const callCountAfterAuto = invoke.mock.calls.filter((c) => c[0] === "getProjectUsageReport").length;

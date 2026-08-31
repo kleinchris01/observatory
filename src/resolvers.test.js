@@ -138,6 +138,9 @@ const mocks = vi.hoisted(() => ({
   loadScreenSchemes: vi.fn(),
   loadScreenSchemeOperations: vi.fn(),
   loadIssueTypeScreenSchemes: vi.fn(),
+  loadItssMappings: vi.fn(async () => []),
+  loadItssProjects: vi.fn(async () => []),
+  loadScreensWithFieldsByIds: vi.fn(async () => []),
   loadScreenGovernanceSummary: vi.fn(),
   loadScreenCountsForFields: vi.fn(),
   loadScreenDistributions: vi.fn(),
@@ -313,6 +316,9 @@ vi.mock("./lib/project-store.js", () => ({
   loadScreenSchemes: mocks.loadScreenSchemes,
   loadScreenSchemeOperations: mocks.loadScreenSchemeOperations,
   loadIssueTypeScreenSchemes: mocks.loadIssueTypeScreenSchemes,
+  loadItssMappings: mocks.loadItssMappings,
+  loadItssProjects: mocks.loadItssProjects,
+  loadScreensWithFieldsByIds: mocks.loadScreensWithFieldsByIds,
   loadScreenGovernanceSummary: mocks.loadScreenGovernanceSummary,
   loadScreenCountsForFields: mocks.loadScreenCountsForFields,
   loadScreenDistributions: mocks.loadScreenDistributions,
@@ -486,6 +492,8 @@ const {
   getSavedReports,
   deleteReportDefinition,
   getProjectUsageReport,
+  getScreenFieldReportInputs,
+  getProjectScreenReportInputs,
   getProjectUsageReportJob,
   getRqtIndex,
   searchRqtValue,
@@ -2465,6 +2473,32 @@ describe("getProjectUsageReport", () => {
 
     expect(result.fields[0].projects).toHaveLength(1);
     expect(mocks.loadAnySnapshotProjectUsage).not.toHaveBeenCalled(); // didn't need the fallback
+  });
+
+  test("narrows the matrix to a project scope, keeping scoped projects with no usage as zero columns", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: 1 });
+    mocks.listFieldSummaries.mockResolvedValue([]);
+    mocks.loadSnapshotField.mockResolvedValue(snapshotField({ id: "customfield_1" }));
+    mocks.loadAllSnapshotProjectUsage.mockResolvedValue([
+      { projectId: "10", projectKey: "ABC", projectName: "Alpha", issueCount: 5 },
+      { projectId: "99", projectKey: "ZZZ", projectName: "Zeta", issueCount: 40 }, // out of scope
+    ]);
+    mocks.loadFieldSummary.mockResolvedValue(null);
+    mocks.getDistinctIssueCountForFields.mockResolvedValue(5);
+    // Scope is {10, 11}; project 11 has no usage row but must still be a column.
+    mocks.listSnapshotProjects.mockResolvedValue([
+      { projectId: "10", projectKey: "ABC", projectName: "Alpha" },
+      { projectId: "11", projectKey: "BBB", projectName: "Bravo" },
+      { projectId: "99", projectKey: "ZZZ", projectName: "Zeta" },
+    ]);
+
+    const result = await getProjectUsageReport({ payload: { fieldIds: ["customfield_1"], projectIds: ["10", "11"] }, context: {} });
+
+    expect(result.projects.map((p) => p.projectId).sort()).toEqual(["10", "11"]);
+    expect(result.fields[0].projects.map((p) => p.projectId)).toEqual(["10"]);
+    // The per-field total is recomputed from what is left, not the site-wide sum.
+    expect(result.fields[0].totalIssueCount).toBe(5);
+    expect(result.fields[0].activeProjectCount).toBe(1);
   });
 
   test("falls back to any-version usage when the current version has none", async () => {
@@ -4570,6 +4604,95 @@ describe("getProjectOverview", () => {
 
   test("rejects a missing project id", async () => {
     await expect(getProjectOverview({ payload: {}, ...ctx })).rejects.toThrow(/projectId/);
+  });
+});
+
+describe("getScreenFieldReportInputs", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x", accountId: "acc-1" } };
+
+  test("returns the field union and the projects the screens reach", async () => {
+    mocks.readScreenSnapshotMeta.mockResolvedValue({ version: "s1" });
+    mocks.loadScreensWithFieldsByIds.mockResolvedValue([
+      { screenId: "100", name: "Create", tabsResolved: "resolved", fields: [{ fieldId: "cf_1", fieldName: "A" }, { fieldId: "cf_2", fieldName: "B" }] },
+      { screenId: "200", name: "Edit", tabsResolved: "resolved", fields: [{ fieldId: "cf_2", fieldName: "B" }, { fieldId: "cf_3", fieldName: "C" }] },
+    ]);
+    // screen 100 -> scheme SS1 -> itss I1 -> project 10 and 11
+    mocks.loadScreenSchemeOperations.mockResolvedValue([{ schemeId: "SS1", screenId: "100" }, { schemeId: "SS9", screenId: "999" }]);
+    mocks.loadItssMappings.mockResolvedValue([{ itssId: "I1", screenSchemeId: "SS1" }]);
+    mocks.loadItssProjects.mockResolvedValue([
+      { itssId: "I1", projectId: "10", projectKey: "AAA", projectName: "Alpha" },
+      { itssId: "I1", projectId: "11", projectKey: "BBB", projectName: "Bravo" },
+      { itssId: "I2", projectId: "12", projectKey: "CCC", projectName: "Charlie" },
+    ]);
+
+    const result = await getScreenFieldReportInputs({ payload: { screenIds: ["100", "200"] }, ...ctx });
+
+    expect(result.available).toBe(true);
+    expect(result.fieldIds.sort()).toEqual(["cf_1", "cf_2", "cf_3"]);
+    expect(result.projectIds.sort()).toEqual(["10", "11"]);
+  });
+
+  test("flags screens whose contents could not be read", async () => {
+    mocks.readScreenSnapshotMeta.mockResolvedValue({ version: "s1" });
+    mocks.loadScreensWithFieldsByIds.mockResolvedValue([
+      { screenId: "100", name: "Create", tabsResolved: "resolved", fields: [{ fieldId: "cf_1", fieldName: "A" }] },
+      { screenId: "300", name: "Legacy", tabsResolved: "unreadable", fields: [] },
+    ]);
+
+    const result = await getScreenFieldReportInputs({ payload: { screenIds: ["100", "300", "404"] }, ...ctx });
+
+    expect(result.unresolvedScreens).toEqual(["Legacy"]);
+    expect(result.missingScreenIds).toEqual(["404"]);
+  });
+
+  test("rejects an empty screen list", async () => {
+    await expect(getScreenFieldReportInputs({ payload: { screenIds: [] }, ...ctx })).rejects.toThrow();
+  });
+});
+
+describe("getProjectScreenReportInputs", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x", accountId: "acc-1" } };
+
+  test("groups the project's screens by screen scheme, default first, and scopes to the project", async () => {
+    mocks.readScreenSnapshotMeta.mockResolvedValue({ version: "s1" });
+    mocks.loadItssProjects.mockResolvedValue([{ itssId: "I1", projectId: "10000" }]);
+    mocks.loadItssMappings.mockResolvedValue([
+      { itssId: "I1", issueTypeId: "1", screenSchemeId: "SS_STORY", isDefault: true },
+      { itssId: "I1", issueTypeId: "2", screenSchemeId: "SS_BUG", isDefault: false },
+      { itssId: "I1", issueTypeId: "3", screenSchemeId: "SS_BUG", isDefault: false },
+    ]);
+    mocks.loadScreenSchemeOperations.mockResolvedValue([
+      { schemeId: "SS_STORY", screenId: "S1" },
+      { schemeId: "SS_BUG", screenId: "S2" },
+      { schemeId: "SS_BUG", screenId: "S3" },
+    ]);
+    mocks.loadScreenSchemes.mockResolvedValue([
+      { schemeId: "SS_STORY", name: "Story screens" },
+      { schemeId: "SS_BUG", name: "Bug screens" },
+    ]);
+    mocks.loadScreensWithFieldsByIds.mockResolvedValue([
+      { screenId: "S1", name: "Story", fields: [{ fieldId: "cf_1" }] },
+      { screenId: "S2", name: "Bug create", fields: [{ fieldId: "cf_2" }, { fieldId: "cf_3" }] },
+      { screenId: "S3", name: "Bug edit", fields: [{ fieldId: "cf_3" }] },
+    ]);
+
+    const result = await getProjectScreenReportInputs({ payload: { projectId: "10000" }, ...ctx });
+
+    expect(result.available).toBe(true);
+    expect(result.scopeProjectIds).toEqual(["10000"]);
+    // Default scheme sorts first.
+    expect(result.schemes[0].schemeId).toBe("SS_STORY");
+    expect(result.schemes[0].isDefault).toBe(true);
+    const bug = result.schemes.find((s) => s.schemeId === "SS_BUG");
+    expect(bug.issueTypeCount).toBe(2);
+    expect(bug.fieldIds.sort()).toEqual(["cf_2", "cf_3"]);
+    expect(result.allFieldIds.sort()).toEqual(["cf_1", "cf_2", "cf_3"]);
+  });
+
+  test("refuses a project the caller cannot browse", async () => {
+    mocks.getBrowsableProjectIds.mockResolvedValue(new Set());
+    const result = await getProjectScreenReportInputs({ payload: { projectId: "10000" }, ...ctx });
+    expect(result.available).toBe(false);
   });
 });
 
