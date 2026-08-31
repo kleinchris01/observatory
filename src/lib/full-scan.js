@@ -47,6 +47,13 @@ export const FULL_SCAN_STAGES = [
   { key: "dashboards", label: "Dashboard inventory", needs: [], mode: "handoff" },
   { key: "fields", label: "Field snapshot", needs: [], mode: "inline" },
   { key: "status-history", label: "Status history", needs: ["workflows"], mode: "inline" },
+  // The issue type catalog and the schemes that gate which types a project may use. A
+  // structural inventory like screens and workflows, and cheap -- a few hundred types, low
+  // hundreds of schemes, one paginated call each. Ordered here rather than up with the other
+  // structural stages only so it lands before the multi-hour issue crawl below without
+  // disturbing the dependency-blocking cases the earlier stages exercise; it needs nothing,
+  // so its position is a scheduling choice, not a correctness one.
+  { key: "issue-types", label: "Issue type inventory", needs: [], mode: "inline" },
   {
     key: "issues",
     label: "Issue crawl",
@@ -95,6 +102,10 @@ export const QUICK_SCAN_STAGES = [
     mode: "handoff",
   },
   { key: "status-history", label: "Status history (full)", needs: ["workflows"], mode: "inline" },
+  // Same full-refetch structural stage as in a full scan -- Jira has no changed-since signal
+  // for issue types or their schemes either, so quick scan runs it in full like the other
+  // four. Ordered after the delta crawl for the same reason it sits late in the full list.
+  { key: "issue-types", label: "Issue type inventory (full)", needs: [], mode: "inline" },
   { key: "health", label: "Record site health", needs: [], mode: "inline" },
 ];
 

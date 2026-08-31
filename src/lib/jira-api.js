@@ -115,6 +115,9 @@ export const METRIC_NAMES = {
   screenSnapshotStarted: "screen-snapshot-started",
   screenSnapshotCompleted: "screen-snapshot-completed",
   screenSnapshotFailed: "screen-snapshot-failed",
+  issueTypeSnapshotStarted: "issue-type-snapshot-started",
+  issueTypeSnapshotCompleted: "issue-type-snapshot-completed",
+  issueTypeSnapshotFailed: "issue-type-snapshot-failed",
 };
 
 // ----- Module-level rate limiter state -----
@@ -1125,6 +1128,54 @@ export async function getIssueTypeScreenSchemeProjects(projectIds = []) {
 
     const page = await paginate((startAt) =>
       route([`/rest/api/3/issuetypescreenscheme/project?maxResults=100&startAt=${Number(startAt) || 0}&${query}`])
+    );
+    rows.push(...page);
+  }
+  return rows;
+}
+
+// ── Issue type pillar ────────────────────────────────────────────────────────
+
+// GET /rest/api/3/issuetype returns a flat array, like /status -- every issue type on the
+// site, global and project-scoped alike. hierarchyLevel is the raw integer (-1 sub-task,
+// 0 base, 1 Epic, 2+ custom); `scope` is present only on team-managed types and names the
+// one project they belong to.
+export async function getAllIssueTypes() {
+  const data = await jiraRequest(route`/rest/api/3/issuetype`);
+  return Array.isArray(data) ? data : [];
+}
+
+// The issue type schemes: which set of types a project is allowed to use. Paginated the
+// usual way. Each value carries { id, name, description, defaultIssueTypeId, isDefault } --
+// isDefault marks the one every classic project starts on.
+export async function getAllIssueTypeSchemes() {
+  return paginate((startAt) => route`/rest/api/3/issuetypescheme?maxResults=100&startAt=${startAt}`);
+}
+
+// Scheme -> ordered issue type membership. Jira returns one row per (scheme, type) with the
+// types already in the order an admin arranged them; the caller preserves that order rather
+// than sorting, because it is what shows on the create dialog.
+export async function getIssueTypeSchemeItems() {
+  return paginate((startAt) => route`/rest/api/3/issuetypescheme/mapping?maxResults=100&startAt=${startAt}`);
+}
+
+// ITS -> projects. Same shape and same constraint as getIssueTypeScreenSchemeProjects:
+// projectId is REQUIRED and repeatable, so the ids are batched and the path assembled as a
+// plain string because the repeated parameter cannot be a single route interpolation.
+// Returns { issueTypeScheme: { id, name }, projectIds: [] } per row.
+export async function getIssueTypeSchemeProjects(projectIds = []) {
+  const ids = [...new Set((projectIds || []).map((id) => String(id).trim()).filter(Boolean))];
+  if (!ids.length) return [];
+
+  const rows = [];
+  for (let i = 0; i < ids.length; i += ITSS_PROJECT_QUERY_BATCH) {
+    const query = ids
+      .slice(i, i + ITSS_PROJECT_QUERY_BATCH)
+      .map((id) => `projectId=${encodeURIComponent(id)}`)
+      .join("&");
+
+    const page = await paginate((startAt) =>
+      route([`/rest/api/3/issuetypescheme/project?maxResults=100&startAt=${Number(startAt) || 0}&${query}`])
     );
     rows.push(...page);
   }

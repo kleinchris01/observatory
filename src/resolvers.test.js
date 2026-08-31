@@ -147,6 +147,18 @@ const mocks = vi.hoisted(() => ({
   loadScreenCountsForFields: vi.fn(),
   loadScreenDistributions: vi.fn(),
   loadScreensForProject: vi.fn(),
+
+  // issue-type store + issuetype-engine.js
+  readIssueTypeSnapshotMeta: vi.fn(),
+  loadIssueTypes: vi.fn(async () => []),
+  loadIssueTypeSchemes: vi.fn(async () => []),
+  loadIssueTypeSchemeItems: vi.fn(async () => []),
+  loadIssueTypeSchemeProjects: vi.fn(async () => []),
+  loadIssueTypeSchemeForProject: vi.fn(async () => null),
+  loadIssueTypeGovernanceSummary: vi.fn(async () => null),
+  queueIssueTypeSnapshotBuild: vi.fn(),
+  isIssueTypeBuildStale: vi.fn(() => false),
+
   loadRulesForProject: vi.fn(),
   loadStatusAutomationReferences: vi.fn(),
   loadGlobalRulesAffectingProject: vi.fn(),
@@ -325,6 +337,13 @@ vi.mock("./lib/project-store.js", () => ({
   loadScreenCountsForFields: mocks.loadScreenCountsForFields,
   loadScreenDistributions: mocks.loadScreenDistributions,
   loadScreensForProject: mocks.loadScreensForProject,
+  readIssueTypeSnapshotMeta: mocks.readIssueTypeSnapshotMeta,
+  loadIssueTypes: mocks.loadIssueTypes,
+  loadIssueTypeSchemes: mocks.loadIssueTypeSchemes,
+  loadIssueTypeSchemeItems: mocks.loadIssueTypeSchemeItems,
+  loadIssueTypeSchemeProjects: mocks.loadIssueTypeSchemeProjects,
+  loadIssueTypeSchemeForProject: mocks.loadIssueTypeSchemeForProject,
+  loadIssueTypeGovernanceSummary: mocks.loadIssueTypeGovernanceSummary,
   recordHealthSnapshot: mocks.recordHealthSnapshot,
   loadHealthHistory: mocks.loadHealthHistory,
   // Real values, not mocks: the resolver whitelists the sort token against these, so a
@@ -344,6 +363,11 @@ vi.mock("./lib/project-store.js", () => ({
 vi.mock("./lib/screen-engine.js", () => ({
   queueScreenSnapshotBuild: mocks.queueScreenSnapshotBuild,
   isScreenBuildStale: mocks.isScreenBuildStale,
+}));
+
+vi.mock("./lib/issuetype-engine.js", () => ({
+  queueIssueTypeSnapshotBuild: mocks.queueIssueTypeSnapshotBuild,
+  isIssueTypeBuildStale: mocks.isIssueTypeBuildStale,
 }));
 
 vi.mock("./lib/workflow-engine.js", () => ({
@@ -467,6 +491,8 @@ const {
   getProjectOverview,
   getPillarHealth,
   buildScreenInventory,
+  getIssueTypeInventory,
+  buildIssueTypeInventory,
 } = __RAW_ADMIN_ONLY_FUNCTIONS;
 
 const {
@@ -4879,6 +4905,133 @@ describe("buildScreenInventory", () => {
 
     expect(result.queued).toBe(true);
     expect(mocks.queueScreenSnapshotBuild).toHaveBeenCalled();
+  });
+});
+
+describe("getIssueTypeInventory", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x" } };
+
+  test("reports never-built rather than returning empty lists", async () => {
+    mocks.readIssueTypeSnapshotMeta.mockResolvedValue(null);
+
+    const result = await getIssueTypeInventory(ctx);
+
+    expect(result.neverBuilt).toBe(true);
+    expect(result.issueTypes).toEqual([]);
+    expect(result.hierarchy).toEqual([]);
+    expect(mocks.loadIssueTypes).not.toHaveBeenCalled();
+  });
+
+  test("groups the catalog by hierarchy level, highest first, with a label per level", async () => {
+    mocks.readIssueTypeSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1", totalTypes: 3, totalSchemes: 1 });
+    mocks.loadIssueTypes.mockResolvedValue([
+      { id: "1", name: "Epic", hierarchyLevel: 1, subtask: false, scopeProjectId: null },
+      { id: "2", name: "Story", hierarchyLevel: 0, subtask: false, scopeProjectId: null },
+      { id: "3", name: "Sub-task", hierarchyLevel: -1, subtask: true, scopeProjectId: null },
+    ]);
+    mocks.loadIssueTypeSchemes.mockResolvedValue([]);
+    mocks.readScreenSnapshotMeta.mockResolvedValue(null);
+
+    const result = await getIssueTypeInventory(ctx);
+
+    expect(result.hierarchy.map((h) => h.level)).toEqual([1, 0, -1]);
+    expect(result.hierarchy[0]).toMatchObject({ label: "Epic" });
+    expect(result.hierarchy[2]).toMatchObject({ label: "Sub-task" });
+    expect(result.hierarchy[2].types[0].id).toBe("3");
+  });
+
+  test("resolves each scheme's ordered membership and default type against the catalog", async () => {
+    mocks.readIssueTypeSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
+    mocks.loadIssueTypes.mockResolvedValue([
+      { id: "1", name: "Epic", hierarchyLevel: 1 },
+      { id: "2", name: "Story", hierarchyLevel: 0 },
+    ]);
+    mocks.loadIssueTypeSchemes.mockResolvedValue([
+      { schemeId: "5", name: "Default", defaultIssueTypeId: "2", isDefault: true, projectCount: 1 },
+    ]);
+    mocks.loadIssueTypeSchemeItems.mockResolvedValue([
+      { schemeId: "5", issueTypeId: "1", itemIndex: 0 },
+      { schemeId: "5", issueTypeId: "2", itemIndex: 1 },
+      { schemeId: "5", issueTypeId: "999", itemIndex: 2 },
+    ]);
+    mocks.loadIssueTypeSchemeProjects.mockResolvedValue([
+      { schemeId: "5", projectId: "10000", projectKey: "OBS", projectName: "Observatory" },
+    ]);
+    mocks.readScreenSnapshotMeta.mockResolvedValue(null);
+
+    const result = await getIssueTypeInventory(ctx);
+
+    const scheme = result.schemes[0];
+    expect(scheme.defaultIssueTypeName).toBe("Story");
+    expect(scheme.issueTypes.map((t) => t.name)).toEqual(["Epic", "Story", null]);
+    // A member the catalog does not contain is kept and flagged, not dropped -- a scheme
+    // allowing a type that no longer exists is a finding.
+    expect(scheme.issueTypes[2]).toMatchObject({ id: "999", missing: true });
+    expect(scheme.projects).toEqual([{ projectId: "10000", projectKey: "OBS", projectName: "Observatory" }]);
+  });
+
+  test("attaches the issue-type -> screen-scheme layer when the screen snapshot exists", async () => {
+    mocks.readIssueTypeSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
+    mocks.loadIssueTypes.mockResolvedValue([{ id: "1", name: "Bug", hierarchyLevel: 0 }]);
+    mocks.loadIssueTypeSchemes.mockResolvedValue([]);
+    mocks.readScreenSnapshotMeta.mockResolvedValue({ version: "s1" });
+    mocks.loadIssueTypeScreenSchemes.mockResolvedValue([{ itssId: "9", name: "ITSS" }]);
+    mocks.loadItssMappings.mockResolvedValue([
+      { itssId: "9", issueTypeId: "1", screenSchemeId: "5", isDefault: false },
+      { itssId: "9", issueTypeId: "default", screenSchemeId: "6", isDefault: true },
+    ]);
+
+    const result = await getIssueTypeInventory(ctx);
+
+    expect(result.issueTypeScreenSchemes[0].mappings).toHaveLength(2);
+    expect(result.issueTypeScreenSchemes[0].mappings[0].issueTypeName).toBe("Bug");
+    expect(result.issueTypeScreenSchemes[0].mappings[1].issueTypeName).toBe("All unmapped types");
+  });
+
+  test("a screen-snapshot read failure does not take the tab down", async () => {
+    mocks.readIssueTypeSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
+    mocks.loadIssueTypes.mockResolvedValue([]);
+    mocks.loadIssueTypeSchemes.mockResolvedValue([]);
+    mocks.readScreenSnapshotMeta.mockRejectedValueOnce(new Error("screen meta gone"));
+
+    const result = await getIssueTypeInventory(ctx);
+
+    expect(result.neverBuilt).toBe(false);
+    expect(result.issueTypeScreenSchemes).toEqual([]);
+  });
+});
+
+describe("buildIssueTypeInventory", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x" } };
+
+  test("queues a build when nothing is running", async () => {
+    mocks.readIssueTypeSnapshotMeta.mockResolvedValue({ state: "idle" });
+    mocks.readAdminConfig?.mockResolvedValue?.({ readOnlyMode: false });
+
+    const result = await buildIssueTypeInventory(ctx);
+
+    expect(result.queued).toBe(true);
+    expect(mocks.queueIssueTypeSnapshotBuild).toHaveBeenCalledWith("test-install");
+  });
+
+  test("refuses while a live build is running", async () => {
+    mocks.readIssueTypeSnapshotMeta.mockResolvedValue({ state: "building" });
+    mocks.isIssueTypeBuildStale.mockReturnValue(false);
+
+    const result = await buildIssueTypeInventory(ctx);
+
+    expect(result).toMatchObject({ queued: false, reason: "already-building" });
+    expect(mocks.queueIssueTypeSnapshotBuild).not.toHaveBeenCalled();
+  });
+
+  test("rebuilds over a wedged build rather than being blocked by it", async () => {
+    mocks.readIssueTypeSnapshotMeta.mockResolvedValue({ state: "building" });
+    mocks.isIssueTypeBuildStale.mockReturnValue(true);
+
+    const result = await buildIssueTypeInventory(ctx);
+
+    expect(result.queued).toBe(true);
+    expect(mocks.queueIssueTypeSnapshotBuild).toHaveBeenCalled();
   });
 });
 

@@ -38,6 +38,12 @@ describe("stage order", () => {
     expect(FULL_SCAN_STAGE_KEYS).not.toContain("automation");
   });
 
+  // A structural inventory like screens and workflows -- part of what "run everything" covers.
+  test("includes the issue type inventory, before the long issue crawl", () => {
+    expect(FULL_SCAN_STAGE_KEYS).toContain("issue-types");
+    expect(FULL_SCAN_STAGE_KEYS.indexOf("issue-types")).toBeLessThan(FULL_SCAN_STAGE_KEYS.indexOf("issues"));
+  });
+
   test("every stage declaring a dependency has it earlier in the order", () => {
     for (const stage of FULL_SCAN_STAGES) {
       for (const need of stage.needs) {
@@ -54,8 +60,8 @@ describe("stage order", () => {
 // the objects they return, so those four stages have no cheaper version to run -- they run in
 // full, every time, exactly like full scan. Only the issue crawl is genuinely windowed.
 describe("quick scan stages", () => {
-  test("runs the same four structural stages as full scan, in full", () => {
-    for (const key of ["workflows", "screens", "filters", "dashboards"]) {
+  test("runs the same structural stages as full scan, in full", () => {
+    for (const key of ["workflows", "screens", "filters", "dashboards", "issue-types"]) {
       expect(QUICK_SCAN_STAGE_KEYS).toContain(key);
     }
   });

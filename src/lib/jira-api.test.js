@@ -68,6 +68,10 @@ import {
   getAllIssueTypeScreenSchemes,
   getIssueTypeScreenSchemeMappings,
   getIssueTypeScreenSchemeProjects,
+  getAllIssueTypes,
+  getAllIssueTypeSchemes,
+  getIssueTypeSchemeItems,
+  getIssueTypeSchemeProjects,
   getScreenTabs,
   getScreenTabFields,
   getWorkflowSchemesForProjects,
@@ -1078,6 +1082,76 @@ describe("screen fetchers", () => {
     mockRequestJira.mockResolvedValue(jiraResponse({ body: { values: [] } }));
     await expect(getScreenTabs("1")).resolves.toEqual([]);
     await expect(getScreenTabFields("1", "10")).resolves.toEqual([]);
+  });
+});
+
+describe("issue type fetchers", () => {
+  // Like /status, /issuetype comes back as a bare array rather than the usual envelope.
+  test("getAllIssueTypes returns the flat array", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({
+      body: [{ id: "1", name: "Epic", hierarchyLevel: 1 }, { id: "2", name: "Sub-task", hierarchyLevel: -1 }],
+    }));
+    await expect(getAllIssueTypes()).resolves.toEqual([
+      { id: "1", name: "Epic", hierarchyLevel: 1 },
+      { id: "2", name: "Sub-task", hierarchyLevel: -1 },
+    ]);
+    expect(String(mockRequestJira.mock.calls[0][0])).toContain("/rest/api/3/issuetype");
+  });
+
+  test("getAllIssueTypes degrades to an empty array if Jira sends an envelope", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: { values: [] } }));
+    await expect(getAllIssueTypes()).resolves.toEqual([]);
+  });
+
+  test("getAllIssueTypeSchemes paginates", async () => {
+    mockRequestJira
+      .mockResolvedValueOnce(jiraResponse({ body: { values: [{ id: "5" }], total: 2 } }))
+      .mockResolvedValueOnce(jiraResponse({ body: { values: [{ id: "6" }], total: 2 } }));
+
+    await expect(getAllIssueTypeSchemes()).resolves.toEqual([{ id: "5" }, { id: "6" }]);
+    expect(String(mockRequestJira.mock.calls[0][0])).toContain("/rest/api/3/issuetypescheme");
+  });
+
+  test("getIssueTypeSchemeItems paginates the ordered membership", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({
+      body: {
+        values: [
+          { issueTypeSchemeId: "5", issueTypeId: "1" },
+          { issueTypeSchemeId: "5", issueTypeId: "2" },
+        ],
+        isLast: true,
+      },
+    }));
+
+    const items = await getIssueTypeSchemeItems();
+    expect(items).toHaveLength(2);
+    expect(String(mockRequestJira.mock.calls[0][0])).toContain("/issuetypescheme/mapping");
+  });
+
+  // Same required-and-repeatable projectId constraint as the screen-scheme /project endpoint.
+  test("getIssueTypeSchemeProjects sends the required projectId parameters", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({
+      body: { values: [{ issueTypeScheme: { id: "5" }, projectIds: ["10000"] }], isLast: true },
+    }));
+
+    const rows = await getIssueTypeSchemeProjects(["10000", "10001"]);
+
+    expect(rows[0].projectIds).toEqual(["10000"]);
+    const path = String(mockRequestJira.mock.calls[0][0]);
+    expect(path).toContain("/rest/api/3/issuetypescheme/project");
+    expect(path).toContain("projectId=10000");
+    expect(path).toContain("projectId=10001");
+  });
+
+  test("getIssueTypeSchemeProjects makes no request when given no projects", async () => {
+    await expect(getIssueTypeSchemeProjects([])).resolves.toEqual([]);
+    expect(mockRequestJira).not.toHaveBeenCalled();
+  });
+
+  test("getIssueTypeSchemeProjects batches large project lists at 50 per request", async () => {
+    mockRequestJira.mockResolvedValue(jiraResponse({ body: { values: [], isLast: true } }));
+    await getIssueTypeSchemeProjects(Array.from({ length: 120 }, (_, i) => 10000 + i));
+    expect(mockRequestJira).toHaveBeenCalledTimes(3);
   });
 });
 
