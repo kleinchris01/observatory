@@ -5251,11 +5251,25 @@ describe("startFullSiteScan / getFullScanStatus", () => {
       state: "running", scanType: "full", currentStage: "dashboards",
       stages: [{ key: "dashboards", state: "running" }],
       updatedAt: new Date().toISOString(),
+      startedAt: new Date().toISOString(),
     });
 
     await getFullScanStatus({ context: ctxWithAccount() });
 
     expect(mocks.recoverStalledScan).not.toHaveBeenCalled();
+  });
+
+  test("kicks recovery for a scan past its total-duration ceiling even with a fresh heartbeat", async () => {
+    mocks.readFullScanMeta.mockResolvedValue({
+      state: "running", scanType: "full", currentStage: "issues",
+      stages: [{ key: "issues", state: "running" }],
+      updatedAt: new Date().toISOString(), // ticking right now
+      startedAt: new Date(Date.now() - 90 * 60 * 60 * 1000).toISOString(), // 90 hours ago
+    });
+
+    await getFullScanStatus({ context: ctxWithAccount() });
+
+    expect(mocks.recoverStalledScan).toHaveBeenCalledWith("test-install");
   });
 
   test("a recovery kick that rejects never breaks the status response", async () => {

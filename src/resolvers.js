@@ -153,7 +153,7 @@ import { isFilterBuildStale, queueFilterSnapshotBuild } from "./lib/filter-engin
 import { filterRows, sortFilters, filterFindingCounts, FILTER_SORTS } from "./lib/filter-query.js";
 import { isDashboardBuildStale, queueDashboardSnapshotBuild } from "./lib/dashboard-engine.js";
 import { startFullScan, fullScanStageCatalog, startQuickScan, quickScanStageCatalog, recoverStalledScan, cancelScan, readStageProducedCounts } from "./lib/full-scan-runner.js";
-import { FULL_SCAN_STALL_MS } from "./lib/full-scan.js";
+import { FULL_SCAN_STALL_MS, MAX_SCAN_TOTAL_MS } from "./lib/full-scan.js";
 import { probeEndpoint, probeStargateEndpoint, getCloudId, getAllJiraProjects } from "./lib/jira-api.js";
 import {
   findDuplicateStatusGroups,
@@ -4002,8 +4002,18 @@ async function handoffStageProgress(installationKey, currentStage) {
 // on a queue push.
 function maybeRecoverStalledScan(installationKey, meta) {
   if (meta?.state !== "running") return;
+  const now = Date.now();
   const lastBeat = Date.parse(meta.updatedAt || meta.startedAt || "") || 0;
-  if (!lastBeat || Date.now() - lastBeat <= FULL_SCAN_STALL_MS) return;
+  const startedMs = Date.parse(meta.startedAt || "") || 0;
+
+  // Two triggers: a heartbeat that has gone quiet past the stall window (a wedged loop), or
+  // a run that has been going past its absolute wall-clock ceiling (a zombie whose loop
+  // still ticks but never finishes). recoverStalledScan handles both -- it fails the run out
+  // on the second. Fire and forget: the effect shows on the next poll.
+  const stalled = lastBeat && now - lastBeat > FULL_SCAN_STALL_MS;
+  const overLimit = startedMs && now - startedMs > MAX_SCAN_TOTAL_MS;
+  if (!stalled && !overLimit) return;
+
   recoverStalledScan(installationKey).catch(
     fallbackOn("scan.autorecover_failed", null, { installationKey })
   );
