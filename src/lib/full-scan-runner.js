@@ -26,6 +26,7 @@ import {
   FULL_SCAN_POLL_DELAY_SECONDS,
   FULL_SCAN_STALL_MS,
   MAX_SCAN_RECOVERIES,
+  MAX_SCAN_TOTAL_MS,
   MAX_SCAN_SWEEPS,
   STAGE_RETRY_DELAY_SECONDS,
   initialStages,
@@ -616,13 +617,40 @@ export async function recoverStalledScan(installationKey, { now = Date.now(), fo
   if (meta?.state !== "running") return { recovered: false, reason: "not-running" };
 
   const spec = meta.scanType === "quick" ? QUICK_SCAN_SPEC : FULL_SCAN_SPEC;
+  let stages = meta.stages || initialStages(spec.stageDefs);
+
+  // Absolute wall-clock ceiling, checked BEFORE the heartbeat. A scan whose loop keeps
+  // ticking -- writing updatedAt every poll -- but never reaches finish() is a zombie:
+  // stages retry, sweeps run, recoveries reset the counter, and it can stay "running" for
+  // days (seen at 86 hours). Nothing else catches that, because every per-stage and
+  // per-stall guard resets on the smallest sign of progress. Past the ceiling the run is
+  // failed out regardless of how healthy its heartbeat looks.
+  const startedMs = Date.parse(meta.startedAt || "") || 0;
+  if (startedMs && now - startedMs > MAX_SCAN_TOTAL_MS) {
+    const completedAt = new Date(now).toISOString();
+    stages = stages.map((stage) => {
+      if (stage.state === "running" || stage.state === "pending") {
+        return {
+          ...stage,
+          state: stage.state === "running" ? "failed" : "skipped",
+          completedAt,
+          error: `Scan exceeded its ${Math.round(MAX_SCAN_TOTAL_MS / 3_600_000)}-hour limit and was stopped.`,
+        };
+      }
+      return stage;
+    });
+    logger.error(`${spec.scanType}-scan.total_duration_exceeded`, {
+      installationKey, hours: ((now - startedMs) / 3_600_000).toFixed(1),
+    });
+    return finish(spec, installationKey, stages, now);
+  }
+
   const lastBeat = Date.parse(meta.updatedAt || meta.startedAt || "") || 0;
   if (!force && now - lastBeat <= FULL_SCAN_STALL_MS) {
     return { recovered: false, reason: "healthy" };
   }
 
   const recoveryCount = Number(meta.recoveryCount || 0);
-  let stages = meta.stages || initialStages(spec.stageDefs);
 
   if (recoveryCount >= MAX_SCAN_RECOVERIES) {
     const completedAt = new Date(now).toISOString();

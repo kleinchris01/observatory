@@ -177,6 +177,17 @@ export const FULL_SCAN_STALL_MS = 20 * 60 * 1000;
 // "running" forever, which is the state that blocks every future scan from starting.
 export const MAX_SCAN_RECOVERIES = 3;
 
+// The hard wall on a single run's wall-clock, checked ahead of every progress-based guard.
+//
+// Every other limit here -- stage attempts, retry sweeps, consecutive-stall recoveries --
+// resets on the smallest sign of progress, so a run that keeps limping forward (a stage
+// retries, a recovery re-kicks, the loop writes updatedAt) can stay "running" indefinitely
+// without any of them tripping. One was seen at 86 hours. Past this ceiling the run is
+// failed out regardless of how healthy it looks: 8 hours is longer than the issue crawl
+// takes on the largest sites measured, and a scan still going after that is not going to
+// finish.
+export const MAX_SCAN_TOTAL_MS = 8 * 60 * 60 * 1000;
+
 export function initialStages(stageDefinitions = FULL_SCAN_STAGES) {
   return stageDefinitions.map((stage) => ({
     key: stage.key,

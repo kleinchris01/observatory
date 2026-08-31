@@ -59,6 +59,7 @@ import {
   FULL_SCAN_POLL_DELAY_SECONDS,
   FULL_SCAN_STALL_MS,
   MAX_SCAN_RECOVERIES,
+  MAX_SCAN_TOTAL_MS,
   MAX_STAGE_ATTEMPTS,
   MAX_SCAN_SWEEPS,
   QUICK_SCAN_STAGES,
@@ -593,6 +594,40 @@ describe("stall recovery", () => {
 
     expect(result).toMatchObject({ recovered: true, stage: "filters" });
     expect(inventorySnapshotQueue.push).toHaveBeenCalled();
+  });
+
+  // A zombie: the loop keeps writing updatedAt, so the heartbeat is fresh and every
+  // progress-based guard resets -- but it started days ago and will never finish.
+  test("fails a run out once it passes the total-duration ceiling, fresh heartbeat and all", async () => {
+    const stages = markStage(withDone(["workflows", "screens", "filters", "dashboards"]), "fields", { state: "running" });
+    readFullScanMeta.mockResolvedValue(running({
+      currentStage: null,
+      stages,
+      updatedAt: freshBeat, // loop is alive right now
+      startedAt: new Date(NOW - (MAX_SCAN_TOTAL_MS + 60_000)).toISOString(),
+      recoveryCount: 0, // budget untouched -- progress kept resetting it
+    }));
+
+    const result = await recoverStalledScan("inst", { now: NOW });
+
+    expect(result).toMatchObject({ completed: true });
+    expect(lastWrite().state).toBe("completed-with-failures");
+    expect(lastWrite().jobToken).toBeNull();
+    expect(lastWrite().stages.find((s) => s.key === "fields")).toMatchObject({ state: "failed" });
+    expect(lastWrite().stages.find((s) => s.key === "issues")).toMatchObject({ state: "skipped" });
+    expect(inventorySnapshotQueue.push).not.toHaveBeenCalled();
+  });
+
+  test("leaves a long-but-under-the-ceiling run alone", async () => {
+    readFullScanMeta.mockResolvedValue(running({
+      currentStage: "issues",
+      updatedAt: freshBeat,
+      startedAt: new Date(NOW - (MAX_SCAN_TOTAL_MS - 60 * 60 * 1000)).toISOString(), // an hour short
+    }));
+
+    const result = await recoverStalledScan("inst", { now: NOW });
+
+    expect(result).toMatchObject({ recovered: false, reason: "healthy" });
   });
 
   test("re-kicks a stalled quick scan onto the quick-scan job, not the full one", async () => {
