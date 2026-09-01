@@ -929,9 +929,13 @@ function RunDelta({ from, to, unit = "", goodDown = false }) {
 
 // The selected stage, in the four terms an operator actually asks about it: what it produced,
 // how long it took, whether it had to retry, and when it finished -- each against last run.
-// A running stage also gets the same progress line the band up top shows, so clicking a node
-// mid-scan is not a step down from watching it.
-function StageDetailCard({ stage, onOpenCrawl, recentRuns, liveProgress }) {
+//
+// No progress bar here on purpose. For the stage that is currently running, the band up top
+// already shows the bar, the percentage and the heartbeat; repeating them a few hundred
+// pixels lower under the same "Field snapshot" heading read as two separate things happening.
+// The band owns live progress; this card owns the after-the-fact detail on whichever node
+// you click.
+function StageDetailCard({ stage, onOpenCrawl }) {
   if (!stage) return null;
   const durS = stage.durationMs != null ? Math.round(stage.durationMs / 1000) : null;
   const prevDurS = stage.prevDurationMs != null ? Math.round(stage.prevDurationMs / 1000) : null;
@@ -942,9 +946,6 @@ function StageDetailCard({ stage, onOpenCrawl, recentRuns, liveProgress }) {
       icon="layers"
       description={<span className={`chip chip--${STAGE_TONE[stage.state] || "neutral"}`}>{STAGE_LABEL[stage.state] || stage.state}</span>}
     >
-      {stage.state === "running" && (
-        <StageDetailProgress stage={stage} recentRuns={recentRuns} liveProgress={liveProgress} />
-      )}
       <StatRow>
         <StatTile label="Produced" value={stage.count == null ? "—" : formatNumber(stage.count)} hint={stage.count == null ? "no headline count for this stage" : undefined}>
           <RunDelta from={stage.prevCount} to={stage.count} />
@@ -968,31 +969,6 @@ function StageDetailCard({ stage, onOpenCrawl, recentRuns, liveProgress }) {
         <LinkButton onClick={onOpenCrawl}>See the full issue-crawl log</LinkButton>
       )}
     </Panel>
-  );
-}
-
-// The progress line inside the detail card for a running stage. Its own component so
-// useRunningStageProgress -- which calls a hook -- runs unconditionally, never behind the
-// `stage.state === "running"` guard in the parent.
-function StageDetailProgress({ stage, recentRuns, liveProgress }) {
-  const progress = useRunningStageProgress({
-    startedAt: stage.startedAt,
-    recentRuns,
-    stageKey: stage.key,
-    realProgress: liveProgress,
-  });
-  return (
-    <div className="stage-detail__progress">
-      <div className="scan-now__track" aria-hidden="true">
-        {progress.indeterminate
-          ? <span className="stage-progress__sweep" />
-          : <span
-              className={`stage-progress__fill${progress.estimated ? " stage-progress__fill--estimated" : ""}`}
-              style={{ width: `${progress.pct}%` }}
-            />}
-      </div>
-      <span className="stage-detail__progress-text">{progress.text}</span>
-    </div>
   );
 }
 
@@ -1094,12 +1070,7 @@ function ScanPipeline({ status, onAbandonScan, abandoningScan, onOpenCrawl }) {
               selectedKey={selectedKey}
               onSelect={selectStage}
             />
-            <StageDetailCard
-              stage={selected}
-              onOpenCrawl={onOpenCrawl}
-              recentRuns={status?.recentRuns}
-              liveProgress={running && selected?.key === status?.currentStage ? status?.currentStageProgress : null}
-            />
+            <StageDetailCard stage={selected} onOpenCrawl={onOpenCrawl} />
           </>
         ) : (
           <EmptyState inline>No scan has run yet. Start one above to populate the pipeline.</EmptyState>
