@@ -24,27 +24,34 @@
   --font-display: "Aptos Display", "Segoe UI Variable Display", "Georgia", serif;
   --font-body: "Aptos", "Segoe UI Variable", "Segoe UI", sans-serif;
   --font-mono: "Cascadia Code", "Consolas", monospace;
+  --bg-elevated: #ffffff;
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #141414;
-  --bg-accent: radial-gradient(circle at top left, rgba(228, 153, 58, 0.18), transparent 28rem),
-    radial-gradient(circle at top right, rgba(59, 130, 246, 0.18), transparent 22rem),
-    linear-gradient(180deg, #111315 0%, #1b1d20 100%);
-  --panel: rgba(25, 27, 31, 0.92);
-  --panel-strong: rgba(30, 32, 37, 0.96);
-  --stroke: rgba(239, 231, 220, 0.1);
-  --text: #f4efe7;
-  --muted: #b9afa4;
-  --warm: #f2b367;
-  --cool: #79b8ff;
-  --success: #58d68d;
-  --danger: #f0736a;
-  --danger-bg: rgba(240, 115, 106, 0.09);
-  --danger-stroke: rgba(240, 115, 106, 0.3);
-  --shadow: 0 18px 50px rgba(0, 0, 0, 0.34);
+  /* Observatory night sky: a blue-violet-biased near-black, not a flat neutral grey. The
+     ambient glows are dialled back so the starfield behind the app reads against them
+     rather than being washed out. */
+  --bg: #0a0d15;
+  --bg-accent: radial-gradient(1200px 720px at 82% -12%, rgba(109, 185, 255, 0.10), transparent 60%),
+    radial-gradient(900px 620px at 6% 4%, rgba(240, 179, 87, 0.05), transparent 55%),
+    linear-gradient(180deg, #0a0d15 0%, #10131f 100%);
+  --panel: rgba(18, 23, 36, 0.92);
+  --panel-strong: rgba(23, 29, 44, 0.96);
+  --stroke: rgba(150, 170, 220, 0.13);
+  --text: #e9edf7;
+  --muted: #8b96b4;
+  --warm: #f0b357;
+  --cool: #6db9ff;
+  --success: #5fce9b;
+  --danger: #ef7a6a;
+  --danger-bg: rgba(239, 122, 106, 0.09);
+  --danger-stroke: rgba(239, 122, 106, 0.3);
+  --shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
   --control-scheme: dark;
+  /* Referenced in a dozen places and never defined -- it had been silently falling back to
+     the hardcoded second argument. Pinned now, on the blue-black scale. */
+  --bg-elevated: #171d2c;
 }
 
 :root[data-theme="light"] {
@@ -3077,6 +3084,24 @@ a.macro-pillar__name:hover { color: var(--cool); text-decoration: underline; }
 
 .admin-shell {
   padding-bottom: 60px;
+  /* The starfield sits at z-index 0, fixed behind everything; every real surface has to
+     stack above it. One positioned ancestor is enough -- children inherit the context. */
+  position: relative;
+  z-index: 1;
+}
+
+/* The night sky. Fixed, full-viewport, inert. Only mounted in dark mode (admin.jsx gates
+   it), and it draws nothing at all under prefers-reduced-motion beyond one static frame. */
+.observatory-starfield {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+  /* Behind the app's own ambient glows (--bg-accent on body) but in front of the flat
+     ground colour, so the stars read against the gradient rather than washing it out. */
+  opacity: 0.9;
 }
 
 /* â”€â”€ Admin two-column layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
