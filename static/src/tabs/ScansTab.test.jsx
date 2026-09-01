@@ -262,8 +262,9 @@ describe("FullScanPanel — the live pipeline", () => {
     expect(within(band).getByText(/no previous run to estimate from yet/)).toBeInTheDocument();
   });
 
-  // Clicking the running node mid-scan should not be a step down from watching the band.
-  test("the detail card for the running stage carries the same progress line", () => {
+  // The band already shows the running stage's bar, % and heartbeat. The detail card below
+  // must not repeat them under a second "Field snapshot" heading -- it reads as two things.
+  test("the running-stage detail card does not duplicate the band's progress bar", () => {
     const startedAt = new Date(Date.now() - 60 * 1000).toISOString();
     const { container } = panel({
       ...runningStatus,
@@ -273,9 +274,13 @@ describe("FullScanPanel — the live pipeline", () => {
         { runId: "r1", stages: [{ key: "screens", state: "done", durationMs: 600000 }] },
       ],
     });
-    const detail = container.querySelector(".stage-detail__progress");
-    expect(detail).toBeInTheDocument();
-    expect(within(detail).getByText(/~\d+% · estimated from previous runs/)).toBeInTheDocument();
+    // The bar and its "~% estimated" caption appear exactly once, in the band.
+    const band = container.querySelector(".scan-now");
+    expect(within(band).getByText(/~\d+% · estimated from previous runs/)).toBeInTheDocument();
+    expect(screen.getAllByText(/~\d+% · estimated from previous runs/)).toHaveLength(1);
+    expect(container.querySelectorAll(".stage-progress__fill--estimated")).toHaveLength(1);
+    // The detail card still renders -- with its tiles, not a bar.
+    expect(screen.getByText("Produced")).toBeInTheDocument();
   });
 
   test("still offers Resume and Abandon once a running scan has been silent past the stall window", async () => {

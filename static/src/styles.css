@@ -2304,20 +2304,6 @@ a.macro-pillar__name:hover { color: var(--cool); text-decoration: underline; }
   color: #e07070;
 }
 
-/* The running-stage progress line inside the detail card -- the same track and fill the
-   band up top uses, so the two never disagree about how far along a stage is. */
-.stage-detail__progress {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-bottom: 14px;
-}
-.stage-detail__progress-text {
-  font-size: 0.78rem;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-
 .stage-rail {
   display: flex;
   align-items: stretch;
