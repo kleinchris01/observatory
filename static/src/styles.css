@@ -2200,6 +2200,19 @@ a.macro-pillar__name:hover { color: var(--cool); text-decoration: underline; }
   box-shadow: 0 0 8px 1px rgba(121, 184, 255, 0.5);
   transition: width 0.4s ease;
 }
+/* Estimated variant: no real count, so the width is a projection from how this stage timed
+   in previous runs. Hatched rather than solid so it never gets mistaken for a measurement. */
+.stage-progress__fill--estimated {
+  background-color: rgba(121, 184, 255, 0.5);
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(210, 235, 255, 0.5) 0,
+    rgba(210, 235, 255, 0.5) 5px,
+    transparent 5px,
+    transparent 10px
+  );
+  box-shadow: 0 0 6px 1px rgba(121, 184, 255, 0.3);
+}
 @keyframes stage-sweep {
   0%   { transform: translateX(-100%); }
   100% { transform: translateX(350%); }
@@ -2289,6 +2302,20 @@ a.macro-pillar__name:hover { color: var(--cool); text-decoration: underline; }
 .scan-now__err {
   font-size: 0.78rem;
   color: #e07070;
+}
+
+/* The running-stage progress line inside the detail card -- the same track and fill the
+   band up top uses, so the two never disagree about how far along a stage is. */
+.stage-detail__progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.stage-detail__progress-text {
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .stage-rail {

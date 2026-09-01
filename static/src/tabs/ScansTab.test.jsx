@@ -128,9 +128,10 @@ describe("IssueCrawlLiveView run-derived series", () => {
   });
 });
 
-// A handoff stage runs on its own queue and reports back, so there is no real percentage to
-// show while it works. What proves the row is alive rather than wedged is the ticking "last
-// update" line and an indeterminate sweep on the active stage's own row -- not a number.
+// Every running stage shows a percentage. A handoff sub-build reporting a real count gets a
+// measured one; every other stage gets a timing estimate against how it ran in previous
+// runs, shown with a hatched bar and a "~" so it never reads as a measurement. Only the
+// first-ever run, with no history to project from, falls back to an indeterminate sweep.
 describe("FullScanPanel — the live pipeline", () => {
   const noop = () => {};
   const runningStatus = {
@@ -220,6 +221,61 @@ describe("FullScanPanel — the live pipeline", () => {
   test("surfaces the sub-build's last error in the band", () => {
     panel({ ...runningStatus, currentStageProgress: { processed: 0, total: 0, lastError: "Jira returned 429" } });
     expect(screen.getByText(/Last error: Jira returned 429/)).toBeInTheDocument();
+  });
+
+  // The complaint this addresses: an inline stage that reports no count used to show a bare
+  // "no percentage to show". Now it projects one from how the stage timed in past runs.
+  test("estimates a percentage from previous runs for a stage with no count of its own", () => {
+    const startedAt = new Date(Date.now() - 60 * 1000).toISOString();
+    const { container } = panel({
+      ...runningStatus,
+      currentStage: "screens",
+      stages: runningStatus.stages.map((s) => (s.key === "screens" ? { ...s, startedAt } : s)),
+      recentRuns: [
+        { runId: "r1", stages: [{ key: "screens", state: "done", durationMs: 600000, count: 700 }] },
+      ],
+    });
+    const band = container.querySelector(".scan-now");
+    expect(within(band).getByText(/~\d+% · estimated from previous runs/)).toBeInTheDocument();
+    expect(band.querySelector(".stage-progress__fill--estimated")).toBeInTheDocument();
+    expect(within(band).queryByText(/no percentage to show/)).not.toBeInTheDocument();
+  });
+
+  test("holds the estimate at 99% and says so when a stage runs longer than before", () => {
+    const startedAt = new Date(Date.now() - 20 * 60 * 1000).toISOString();
+    const { container } = panel({
+      ...runningStatus,
+      currentStage: "screens",
+      stages: runningStatus.stages.map((s) => (s.key === "screens" ? { ...s, startedAt } : s)),
+      recentRuns: [
+        { runId: "r1", stages: [{ key: "screens", state: "done", durationMs: 60000 }] },
+      ],
+    });
+    expect(within(container.querySelector(".scan-now")).getByText(/~99% · running longer than last time/)).toBeInTheDocument();
+  });
+
+  // The one case where an honest answer is "we cannot say yet".
+  test("falls back to an indeterminate sweep on the first ever run", () => {
+    const { container } = panel({ ...runningStatus, currentStage: "screens", recentRuns: [] });
+    const band = container.querySelector(".scan-now");
+    expect(band.querySelector(".stage-progress__sweep")).toBeInTheDocument();
+    expect(within(band).getByText(/no previous run to estimate from yet/)).toBeInTheDocument();
+  });
+
+  // Clicking the running node mid-scan should not be a step down from watching the band.
+  test("the detail card for the running stage carries the same progress line", () => {
+    const startedAt = new Date(Date.now() - 60 * 1000).toISOString();
+    const { container } = panel({
+      ...runningStatus,
+      currentStage: "screens",
+      stages: runningStatus.stages.map((s) => (s.key === "screens" ? { ...s, startedAt } : s)),
+      recentRuns: [
+        { runId: "r1", stages: [{ key: "screens", state: "done", durationMs: 600000 }] },
+      ],
+    });
+    const detail = container.querySelector(".stage-detail__progress");
+    expect(detail).toBeInTheDocument();
+    expect(within(detail).getByText(/~\d+% · estimated from previous runs/)).toBeInTheDocument();
   });
 
   test("still offers Resume and Abandon once a running scan has been silent past the stall window", async () => {
