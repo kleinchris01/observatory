@@ -473,6 +473,23 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
     });
   }
 
+  // Cross-pillar: the filter's JQL names an issue type the site does not define, so the
+  // clause can never match and the search silently returns fewer issues than its author
+  // meant. Surfaced, not scored -- the same call the duplicate count makes.
+  if (filters?.available && filters.unknownTypeRefCount > 0) {
+    findings.push({
+      key: "filters-unknown-type",
+      dimension: "filter-hygiene",
+      pillar: "filters",
+      tone: "info",
+      count: filters.unknownTypeRefCount,
+      title: "Filters naming an issue type nothing defines",
+      detail: "The JQL references a type no scheme allows, so that clause matches nothing and the filter returns less than expected — with no error to say why.",
+      onOpen: () => onNavigate("filters", { view: "broken" }),
+      openLabel: "Filters",
+    });
+  }
+
   if (filters?.available && filters.subscribedButUnusedCount > 0) {
     findings.push({
       key: "filters-zombie-subscriptions",

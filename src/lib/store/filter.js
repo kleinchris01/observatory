@@ -224,17 +224,18 @@ export async function loadFilters(scopeKey, version) {
     });
   }
 
+  const emptyRefs = () => ({ field: [], project: [], status: [], issuetype: [] });
   const refsByFilter = new Map();
   for (const row of refRows.rows || []) {
     const id = String(row.filter_id);
-    if (!refsByFilter.has(id)) refsByFilter.set(id, { field: [], project: [], status: [] });
+    if (!refsByFilter.has(id)) refsByFilter.set(id, emptyRefs());
     const bucket = refsByFilter.get(id);
     if (bucket[row.kind]) bucket[row.kind].push(row.label);
   }
 
   return (filterRows.rows || []).map((row) => {
     const id = String(row.filter_id);
-    const refs = refsByFilter.get(id) || { field: [], project: [], status: [] };
+    const refs = refsByFilter.get(id) || emptyRefs();
     return {
       id,
       name: row.name || id,
@@ -259,6 +260,7 @@ export async function loadFilters(scopeKey, version) {
       fieldRefs: refs.field,
       projectRefs: refs.project,
       statusRefs: refs.status,
+      typeRefs: refs.issuetype,
     };
   });
 }

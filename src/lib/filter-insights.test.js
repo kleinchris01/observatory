@@ -3,6 +3,7 @@ import {
   analyzeFilter,
   classifyOwner,
   findBrokenProjectRefs,
+  findUnknownTypeRefs,
   findDuplicateFilters,
   isSharedWithEveryone,
   summarizeFilters,
@@ -165,6 +166,24 @@ describe("findBrokenProjectRefs", () => {
     // "No broken references" and "nobody looked" are different claims.
     expect(findBrokenProjectRefs([filter({ projectRefs: ["GHOST"] })], null)).toEqual([]);
     expect(findBrokenProjectRefs([filter({ projectRefs: ["GHOST"] })], new Set())).toEqual([]);
+  });
+});
+
+describe("findUnknownTypeRefs", () => {
+  const names = new Set(["bug", "story", "epic"]);
+
+  test("finds a filter naming an issue type the site does not define", () => {
+    const found = findUnknownTypeRefs([filter({ id: "9", name: "Ghost", typeRefs: ["Sub-bug"] })], names);
+    expect(found).toEqual([{ id: "9", name: "Ghost", ownerName: "Bob", missing: ["Sub-bug"] }]);
+  });
+
+  test("matches a defined type case-insensitively and does not judge a numeric id", () => {
+    expect(findUnknownTypeRefs([filter({ typeRefs: ["BUG", "10001"] })], names)).toEqual([]);
+  });
+
+  test("checks nothing when the type catalog is unknown", () => {
+    expect(findUnknownTypeRefs([filter({ typeRefs: ["Nope"] })], null)).toEqual([]);
+    expect(findUnknownTypeRefs([filter({ typeRefs: ["Nope"] })], new Set())).toEqual([]);
   });
 });
 

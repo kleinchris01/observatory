@@ -111,6 +111,7 @@ export function shapeFilter(raw) {
       ...refs.fields.map((label) => ({ filterId: id, kind: "field", label })),
       ...refs.projects.map((label) => ({ filterId: id, kind: "project", label })),
       ...refs.statuses.map((label) => ({ filterId: id, kind: "status", label })),
+      ...refs.issueTypes.map((label) => ({ filterId: id, kind: "issuetype", label })),
     ],
     shares: shares.map((share, index) => ({
       filterId: id,

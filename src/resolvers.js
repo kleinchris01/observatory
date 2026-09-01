@@ -1729,7 +1729,17 @@ async function getFilterInventory({ payload, context }) {
       if (projects.length) projectKeys = new Set(projects.map((p) => p.projectKey).filter(Boolean));
     }
 
-    const summary = summarizeFilters(filters, { projectKeys });
+    // The issue type catalog, for the "JQL names a type nothing defines" join. Same
+    // best-effort posture: skipped and flagged rather than reported as zero.
+    let typeNames = null;
+    const itMeta = await readIssueTypeSnapshotMeta(installationKey).catch(() => null);
+    if (itMeta?.version) {
+      const types = await loadIssueTypes(installationKey, itMeta.version)
+        .catch(fallbackOn("filters.type_names_load_failed", () => [], { installationKey }));
+      if (types.length) typeNames = new Set(types.map((t) => String(t.name || "").toLowerCase()).filter(Boolean));
+    }
+
+    const summary = summarizeFilters(filters, { projectKeys, typeNames });
     // `summary.filters` is analyzeFilter's own output -- every filter with findings attached,
     // unbounded, sorted worst-first. It exists so buildFilterOverview (the Overview's "worst"
     // list) can slice(0, 8) from it. Spreading the whole summary into this response used to

@@ -368,13 +368,13 @@ export async function buildWorkflowOverview(installationKey) {
 // project list and loading it twice to answer one join would double the cost of the page.
 // Without it the broken-project check is skipped and says so -- "no broken references" and
 // "nobody looked" are different claims.
-export async function buildFilterOverview(installationKey, { projectKeys = null } = {}) {
+export async function buildFilterOverview(installationKey, { projectKeys = null, typeNames = null } = {}) {
   try {
     const meta = await readFilterSnapshotMeta(installationKey);
     if (!meta?.version) return { available: false, state: meta?.state || "idle", lastError: meta?.lastError || null };
 
     const filters = await loadFilters(installationKey, meta.version);
-    const summary = summarizeFilters(filters, { projectKeys });
+    const summary = summarizeFilters(filters, { projectKeys, typeNames });
 
     return {
       available: summary.available,
@@ -387,6 +387,7 @@ export async function buildFilterOverview(installationKey, { projectKeys = null 
       filters: undefined,
       duplicateGroups: undefined,
       brokenProjects: undefined,
+      unknownTypeRefs: undefined,
       worst: summary.filters.slice(0, 8).map((f) => ({
         id: f.id, name: f.name, ownerName: f.ownerName,
         subscriptionCount: f.subscriptionCount,
@@ -497,6 +498,9 @@ export async function buildIssueTypeOverview(installationKey) {
       duplicateGroups: summary.duplicateGroups,
       orphanTypes: summary.orphanTypes,
       flaggedSchemes: summary.flaggedSchemes,
+      // The set of defined type names, lowercased -- the filter pillar joins its JQL type
+      // references against this to find saved searches that name a type nothing defines.
+      typeNames: new Set(types.map((t) => String(t.name || "").toLowerCase()).filter(Boolean)),
       health: summarizeIssueTypeHealth(summary),
     };
   } catch (error) {
@@ -570,9 +574,10 @@ export async function captureSiteHealth(installationKey, deps) {
       adoption = summarizeAdoption(withCounts, activity);
 
       // The project keys the filter pillar needs for its broken-reference join, taken from
-      // the rows already loaded rather than fetched again.
+      // the rows already loaded rather than fetched again. `typeNames` is the same idea for
+      // the JQL issue-type join, reusing what the issue-type overview already loaded.
       const projectKeys = new Set(withCounts.map((p) => p.projectKey).filter(Boolean));
-      filters = (await buildFilterOverview(installationKey, { projectKeys })).health ?? null;
+      filters = (await buildFilterOverview(installationKey, { projectKeys, typeNames: issueTypeOverview?.typeNames ?? null })).health ?? null;
       dashboards = (await buildDashboardOverview(installationKey)).health ?? null;
     }
 
