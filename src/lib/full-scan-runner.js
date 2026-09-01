@@ -44,6 +44,7 @@ import {
   readFilterSnapshotMeta,
   readDashboardSnapshotMeta,
   readIssueScanMeta,
+  writeIssueScanMeta,
   readWorkflowSnapshotMeta,
   readScreenSnapshotMeta,
   readIssueTypeSnapshotMeta,
@@ -122,7 +123,23 @@ export const STAGE_RUNNERS = {
   "status-history": statusHistory,
   "issue-types": issueTypes,
   issues: {
-    start: (key) => runIssueScanCoordinator(key),
+    // Move the crawl's own meta into "queued" BEFORE handing off. runIssueScanCoordinator
+    // refuses to run from any other state -- so without this it reads the previous run's
+    // "ready" row, logs "not in queued state, skipping", and the very next poll reads that
+    // same stale "ready" and marks the stage done one poll interval later: a whole-site
+    // crawl "finishing" in ~31 seconds over data nobody re-collected. The coordinator does
+    // its own full counter/worker reset once it is in "queued", so nothing else is cleared
+    // here. Mirrors the standalone startIssueScan resolver, minus the queue push -- the
+    // orchestrator polls the meta itself rather than routing through the run-issue-scan job.
+    start: async (key) => {
+      await writeIssueScanMeta(key, {
+        state: "queued",
+        jobToken: makeJobToken(),
+        lastError: null,
+        progressLog: [{ t: new Date().toISOString(), msg: "Issue crawl queued by full scan" }],
+      });
+      await runIssueScanCoordinator(key);
+    },
     poll: async (key) => {
       const meta = await readIssueScanMeta(key);
       // The issue crawl spells its running state "building" like the rest, but it also has a

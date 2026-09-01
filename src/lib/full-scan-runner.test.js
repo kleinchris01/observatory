@@ -20,6 +20,7 @@ vi.mock("./project-store.js", () => ({
   readFilterSnapshotMeta: vi.fn(),
   readDashboardSnapshotMeta: vi.fn(),
   readIssueScanMeta: vi.fn(),
+  writeIssueScanMeta: vi.fn(async () => ({})),
   readWorkflowSnapshotMeta: vi.fn(async () => null),
   readScreenSnapshotMeta: vi.fn(async () => null),
   readIssueTypeSnapshotMeta: vi.fn(async () => null),
@@ -70,7 +71,8 @@ import {
 import { captureSiteHealthForScan } from "../resolvers.js";
 import { inventorySnapshotQueue } from "./queues.js";
 import { makeJobToken } from "./jira-api.js";
-import { readFullScanMeta, writeFullScanMeta, readFilterSnapshotMeta, readIssueScanMeta, recordFullScanRun } from "./project-store.js";
+import { readFullScanMeta, writeFullScanMeta, readFilterSnapshotMeta, readIssueScanMeta, writeIssueScanMeta, recordFullScanRun } from "./project-store.js";
+import { runIssueScanCoordinator } from "./scan-engine.js";
 import { buildWorkflowSnapshot } from "./workflow-engine.js";
 import { buildIssueTypeSnapshot } from "./issuetype-engine.js";
 import { queueFilterSnapshotBuild } from "./filter-engine.js";
@@ -176,6 +178,26 @@ describe("running a stage", () => {
     expect(inventorySnapshotQueue.push).toHaveBeenCalledWith(
       expect.objectContaining({ delayInSeconds: FULL_SCAN_POLL_DELAY_SECONDS })
     );
+  });
+
+  // The bug: runIssueScanCoordinator refuses to run unless the crawl's meta says "queued".
+  // The orchestrator handed off by calling it directly, so it read the PREVIOUS run's "ready"
+  // row, skipped, and the next poll read that same stale "ready" and marked the stage done
+  // one poll interval later -- a whole-site crawl "finishing" in ~31 seconds.
+  test("the issue-crawl handoff flips the crawl meta to queued before starting the coordinator", async () => {
+    readFullScanMeta.mockResolvedValue(running({
+      stages: withDone(["workflows", "screens", "filters", "dashboards", "fields", "status-history", "issue-types"]),
+    }));
+
+    const result = await runFullScanStep("inst", { jobToken: "job-token" });
+
+    expect(result).toMatchObject({ handedOff: true, stage: "issues" });
+    expect(writeIssueScanMeta).toHaveBeenCalledWith("inst", expect.objectContaining({ state: "queued" }));
+    expect(runIssueScanCoordinator).toHaveBeenCalledWith("inst");
+    // Order matters: the coordinator reads the meta on entry, so the "queued" write has to
+    // land first.
+    expect(writeIssueScanMeta.mock.invocationCallOrder[0])
+      .toBeLessThan(runIssueScanCoordinator.mock.invocationCallOrder[0]);
   });
 
   test("a stage that throws is retried, not failed on the first bad run", async () => {
