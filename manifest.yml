@@ -230,6 +230,14 @@ permissions:
     - read:screen-field:jira
     - read:screen-scheme:jira
     - read:issue-type-screen-scheme:jira
+    # Issue type pillar: the type catalog and the schemes that gate which types a project may
+    # use. /rest/api/3/issuetype needs read:issue-type:jira; the three issuetypescheme
+    # endpoints (list, /mapping, /project) each need read:issue-type-scheme:jira and are
+    # gated on Jira admin, which manage:jira-configuration above already carries. Granular
+    # scopes are conjunctive -- read:jira-work alone does not authorise the granular path --
+    # so both are declared explicitly, exactly as the screen chain had to.
+    - read:issue-type:jira
+    - read:issue-type-scheme:jira
     # Granular scopes are CONJUNCTIVE. An endpoint needs every scope in its list, not any
     # one of them, and GET /rest/api/3/screens lists four: read:project:jira,
     # read:screen:jira, read:avatar:jira, read:project-category:jira. Two of the four were

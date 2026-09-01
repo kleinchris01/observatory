@@ -46,6 +46,7 @@ import {
   readIssueScanMeta,
   readWorkflowSnapshotMeta,
   readScreenSnapshotMeta,
+  readIssueTypeSnapshotMeta,
   readSnapshotMeta,
   recordFullScanRun,
 } from "./project-store.js";
@@ -53,6 +54,7 @@ import { isFilterBuildStale, queueFilterSnapshotBuild } from "./filter-engine.js
 import { isDashboardBuildStale, queueDashboardSnapshotBuild } from "./dashboard-engine.js";
 import { buildWorkflowSnapshot, buildStatusHistorySnapshot } from "./workflow-engine.js";
 import { buildScreenSnapshot } from "./screen-engine.js";
+import { buildIssueTypeSnapshot } from "./issuetype-engine.js";
 import { runSnapshot } from "./snapshot-engine.js";
 import { runIssueScanCoordinator } from "./scan-engine.js";
 
@@ -65,6 +67,7 @@ import { runIssueScanCoordinator } from "./scan-engine.js";
 // them exactly like full scan does: in full, every time.
 const workflows = { run: (key) => buildWorkflowSnapshot(key) };
 const screens = { run: (key) => buildScreenSnapshot(key) };
+const issueTypes = { run: (key) => buildIssueTypeSnapshot(key) };
 const statusHistory = { run: (key) => buildStatusHistorySnapshot(key) };
 
 // captureSiteHealth is dependency-injected so site-health.js stays testable without the Forge
@@ -117,6 +120,7 @@ export const STAGE_RUNNERS = {
   dashboards,
   fields: { run: (key) => runSnapshot(key) },
   "status-history": statusHistory,
+  "issue-types": issueTypes,
   issues: {
     start: (key) => runIssueScanCoordinator(key),
     poll: async (key) => {
@@ -161,6 +165,7 @@ export const QUICK_SCAN_RUNNERS = {
     },
   },
   "status-history": statusHistory,
+  "issue-types": issueTypes,
   health,
 };
 
@@ -486,6 +491,7 @@ export async function readStageProducedCounts(installationKey, scanType) {
   await Promise.all([
     put("workflows", readWorkflowSnapshotMeta, (m) => m.totalSchemes),
     put("screens", readScreenSnapshotMeta, (m) => m.totalScreens),
+    put("issue-types", readIssueTypeSnapshotMeta, (m) => m.totalTypes),
     put("filters", readFilterSnapshotMeta, (m) => m.totalFilters),
     put("dashboards", readDashboardSnapshotMeta, (m) => m.totalDashboards),
     put("fields", readSnapshotMeta, (m) => m.totalFields),

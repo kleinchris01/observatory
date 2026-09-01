@@ -125,6 +125,13 @@ import {
   loadScreensForProject,
   DEFAULT_SCREEN_SORT,
   SCREEN_SORT_KEYS,
+  readIssueTypeSnapshotMeta,
+  loadIssueTypes,
+  loadIssueTypeSchemes,
+  loadIssueTypeSchemeItems,
+  loadIssueTypeSchemeProjects,
+  loadIssueTypeSchemeForProject,
+  loadIssueTypeGovernanceSummary,
   recordHealthSnapshot,
   readFullScanMeta,
   loadHealthHistory,
@@ -133,6 +140,7 @@ import {
 import { queueWorkflowSnapshotBuild, isWorkflowBuildStale, queueStatusHistoryBuild } from "./lib/workflow-engine.js";
 import { measureScreenFetchCost, probeScreenEndpoints, DEFAULT_SAMPLE_SIZE } from "./lib/screen-probe.js";
 import { queueScreenSnapshotBuild, isScreenBuildStale } from "./lib/screen-engine.js";
+import { queueIssueTypeSnapshotBuild, isIssueTypeBuildStale } from "./lib/issuetype-engine.js";
 import { computeSiteHealth, DEFAULT_HEALTH_TOLERANCES } from "./lib/health-score.js";
 // Moved out of this file so a scan can record a measurement without importing the
 // resolver layer. Same implementation, both callers.
@@ -438,6 +446,15 @@ async function checkMacroAccess({ context }) {
 // ----- Inventory UI helpers -----
 
 const OPTION_SEARCH_FIELD_BATCH_SIZE = 10;
+
+// Labels for Jira's issue-type hierarchy levels. Only -1, 0 and 1 are standard; a site with
+// custom hierarchy above Epic has levels 2+, which the caller labels "Level N" rather than
+// inventing a name. Keyed by the raw integer Jira returns, not by an ordinal.
+const HIERARCHY_LEVEL_LABELS = {
+  "-1": "Sub-task",
+  0: "Base (Story, Task, Bug)",
+  1: "Epic",
+};
 
 // ----- Resolvers -----
 
@@ -1315,6 +1332,165 @@ async function buildScreenInventory({ context }) {
   }
 
   await queueScreenSnapshotBuild(installationKey);
+  return { queued: true };
+}
+
+// Read path for the Issue Types surface. Mirrors getScreenInventory: one call returns the
+// meta, the type catalog grouped by hierarchy level, the schemes with their ordered
+// membership resolved, and -- best-effort from the screen snapshot -- the issue-type ->
+// screen-scheme routing layer, so the tab renders from a single round trip.
+async function getIssueTypeInventory({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  const meta = await readIssueTypeSnapshotMeta(installationKey);
+  const staleBuild = isIssueTypeBuildStale(meta);
+
+  // No snapshot has ever completed. Report that plainly rather than empty lists that read
+  // as "this site has no issue types" -- the opposite claim.
+  if (!meta?.version) {
+    return {
+      state: meta?.state || "idle",
+      staleBuild,
+      startedAt: meta?.startedAt || null,
+      version: null,
+      issueTypes: [],
+      hierarchy: [],
+      schemes: [],
+      governance: null,
+      issueTypeScreenSchemes: [],
+      lastError: meta?.lastError || null,
+      neverBuilt: true,
+    };
+  }
+
+  const [issueTypes, schemes, schemeItems, schemeProjects, governance] = await Promise.all([
+    loadIssueTypes(installationKey, meta.version),
+    loadIssueTypeSchemes(installationKey, meta.version),
+    loadIssueTypeSchemeItems(installationKey, meta.version),
+    loadIssueTypeSchemeProjects(installationKey, meta.version),
+    loadIssueTypeGovernanceSummary(installationKey, meta.version),
+  ]);
+
+  const typeById = new Map(issueTypes.map((t) => [String(t.id), t]));
+
+  // Group the catalog by Jira's hierarchy level, highest first (Epic and any custom levels
+  // above it, then base, then sub-task at -1). The level number is carried alongside the
+  // label so the tab does not have to hard-code a mapping that a custom hierarchy breaks.
+  const byLevel = new Map();
+  for (const type of issueTypes) {
+    const level = Number(type.hierarchyLevel) || 0;
+    if (!byLevel.has(level)) byLevel.set(level, []);
+    byLevel.get(level).push(type);
+  }
+  const hierarchy = [...byLevel.keys()]
+    .sort((a, b) => b - a)
+    .map((level) => ({
+      level,
+      label: HIERARCHY_LEVEL_LABELS[level] || (level < 0 ? "Sub-task" : `Level ${level}`),
+      types: byLevel.get(level),
+    }));
+
+  // Resolve each scheme's ordered membership against the catalog. A member id the catalog
+  // does not contain is kept with a null name rather than dropped: a scheme allowing a type
+  // that no longer exists is a finding, not noise.
+  const membersByScheme = new Map();
+  for (const item of schemeItems) {
+    if (!membersByScheme.has(item.schemeId)) membersByScheme.set(item.schemeId, []);
+    const type = typeById.get(String(item.issueTypeId));
+    membersByScheme.get(item.schemeId).push({
+      id: item.issueTypeId,
+      name: type?.name || null,
+      hierarchyLevel: type?.hierarchyLevel ?? null,
+      subtask: type?.subtask ?? null,
+      missing: !type,
+    });
+  }
+  const projectsByScheme = new Map();
+  for (const row of schemeProjects) {
+    if (!projectsByScheme.has(row.schemeId)) projectsByScheme.set(row.schemeId, []);
+    projectsByScheme.get(row.schemeId).push({
+      projectId: row.projectId,
+      projectKey: row.projectKey,
+      projectName: row.projectName,
+    });
+  }
+  const schemesResolved = schemes.map((s) => ({
+    ...s,
+    defaultIssueTypeName: s.defaultIssueTypeId ? (typeById.get(String(s.defaultIssueTypeId))?.name || null) : null,
+    issueTypes: membersByScheme.get(s.schemeId) || [],
+    projects: (projectsByScheme.get(s.schemeId) || []).sort((a, b) => a.projectKey.localeCompare(b.projectKey)),
+  }));
+
+  // The tier below: issue-type -> screen-scheme routing, from the screen snapshot. Sent so
+  // the tab can show, per issue type screen scheme, which screen scheme each type resolves
+  // to. Best-effort -- the screen pillar refreshes on its own cadence and may not have run.
+  let issueTypeScreenSchemes = [];
+  try {
+    const screenMeta = await readScreenSnapshotMeta(installationKey);
+    if (screenMeta?.version) {
+      const [itss, itssMappings] = await Promise.all([
+        loadIssueTypeScreenSchemes(installationKey, screenMeta.version),
+        loadItssMappings(installationKey, screenMeta.version),
+      ]);
+      const mappingsByItss = new Map();
+      for (const m of itssMappings) {
+        if (!mappingsByItss.has(m.itssId)) mappingsByItss.set(m.itssId, []);
+        mappingsByItss.get(m.itssId).push({
+          issueTypeId: m.issueTypeId,
+          issueTypeName: m.issueTypeId === "default" ? "All unmapped types" : (typeById.get(String(m.issueTypeId))?.name || null),
+          screenSchemeId: m.screenSchemeId,
+          isDefault: m.isDefault,
+        });
+      }
+      issueTypeScreenSchemes = itss.map((s) => ({
+        ...s,
+        mappings: mappingsByItss.get(s.itssId) || [],
+      }));
+    }
+  } catch (error) {
+    // A screen-snapshot read failing must not take the issue-type tab down with it.
+    console.error("getIssueTypeInventory: screen-scheme layer unavailable:", error?.message || error);
+  }
+
+  return {
+    state: meta.state,
+    staleBuild,
+    startedAt: meta.startedAt || null,
+    version: meta.version,
+    refreshedAt: meta.refreshedAt,
+    completedAt: meta.completedAt,
+    totalTypes: meta.totalTypes,
+    totalSchemes: meta.totalSchemes,
+    lastError: meta.lastError || null,
+    issueTypes,
+    hierarchy,
+    schemes: schemesResolved,
+    governance,
+    issueTypeScreenSchemes,
+    neverBuilt: false,
+  };
+}
+
+async function buildIssueTypeInventory({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  const meta = await readIssueTypeSnapshotMeta(installationKey);
+  // Suppress only a build that is both building AND not stale, matching buildScreenInventory:
+  // a wedged row must never block every future rebuild with no way out of the UI.
+  if (meta?.state === "building" && !isIssueTypeBuildStale(meta)) {
+    return { queued: false, reason: "already-building", meta };
+  }
+
+  const adminConfig = await readAdminConfig();
+  if (adminConfig.readOnlyMode) {
+    return { queued: false, error: "Read-only mode is enabled. Disable it before building the issue type inventory." };
+  }
+
+  await queueIssueTypeSnapshotBuild(installationKey);
   return { queued: true };
 }
 
@@ -5806,6 +5982,7 @@ const AUDITED_ADMIN_ACTIONS = new Set([
   "saveAdminConfig",
   "migrateNamespaceKeys",
   "buildScreenInventory",
+  "buildIssueTypeInventory",
 ]);
 
 function withAuditTrail(functions) {
@@ -5901,6 +6078,10 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   getFieldScreenCounts,    // Admin read: screen counts for a page of fields
   getFieldScreenReachability, // Admin read: which screens carry one field
   buildScreenInventory,    // Mutating: queues a full screen and scheme snapshot build
+
+  // Issue type inventory
+  getIssueTypeInventory,   // Admin read: issue types by hierarchy, schemes and their routing
+  buildIssueTypeInventory, // Mutating: queues a full issue type and scheme snapshot build
 
   getAutomationCascades,   // Admin read: one filtered page of cascade relationships
   getCascadeGraph,         // Admin read: loops and multi-rule chains across every edge

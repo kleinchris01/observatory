@@ -21,6 +21,7 @@ import {
 import { processProjectUsageReportJob } from "./lib/report-engine.js";
 import { buildWorkflowSnapshot, buildStatusHistorySnapshot } from "./lib/workflow-engine.js";
 import { buildScreenSnapshot } from "./lib/screen-engine.js";
+import { buildIssueTypeSnapshot } from "./lib/issuetype-engine.js";
 import { runFullScanStep, runQuickScanStep, startQuickScan, recoverStalledScan } from "./lib/full-scan-runner.js";
 import { buildFilterSnapshot } from "./lib/filter-engine.js";
 import { buildDashboardSnapshot } from "./lib/dashboard-engine.js";
@@ -395,6 +396,14 @@ export async function consumeSnapshot(event) {
       // all of it, and the log is where that gets noticed first.
       console.log(
         `build-screen-snapshot: ${result?.screens ?? 0} screens, ${result?.fields ?? 0} field placements, ${result?.unresolvedScreens ?? 0} unresolved`
+      );
+      return;
+    }
+
+    if (jobType === "build-issue-type-snapshot") {
+      const result = await buildIssueTypeSnapshot(installationKey);
+      console.log(
+        `build-issue-type-snapshot: ${result?.issueTypes ?? 0} issue types, ${result?.schemes ?? 0} schemes`
       );
       return;
     }

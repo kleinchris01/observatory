@@ -137,10 +137,12 @@ describe("AdminApp smoke test", () => {
     await renderAdminApp();
     expect(screen.getByText("Observatory")).toBeInTheDocument();
     expect(screen.getByText("Admin")).toBeInTheDocument();
-    // Overview tab is the default active tab
+    // Overview tab is the default active tab. Generous timeout: this boots the whole app
+    // with every lazy tab in the graph, and under coverage instrumentation that first
+    // paint runs well past the 1s default -- the same reason line ~172 already waits 5s.
     await waitFor(() => {
       expect(screen.getByText("Governance")).toBeInTheDocument();
-    });
+    }, { timeout: 5000 });
   });
 });
 

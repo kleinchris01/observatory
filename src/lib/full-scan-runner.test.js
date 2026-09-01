@@ -22,6 +22,7 @@ vi.mock("./project-store.js", () => ({
   readIssueScanMeta: vi.fn(),
   readWorkflowSnapshotMeta: vi.fn(async () => null),
   readScreenSnapshotMeta: vi.fn(async () => null),
+  readIssueTypeSnapshotMeta: vi.fn(async () => null),
   readSnapshotMeta: vi.fn(async () => null),
   recordFullScanRun: vi.fn(async () => ({ recorded: true })),
 }));
@@ -30,6 +31,7 @@ vi.mock("./filter-engine.js", () => ({ isFilterBuildStale: vi.fn(() => false), q
 vi.mock("./dashboard-engine.js", () => ({ isDashboardBuildStale: vi.fn(() => false), queueDashboardSnapshotBuild: vi.fn() }));
 vi.mock("./workflow-engine.js", () => ({ buildWorkflowSnapshot: vi.fn(), buildStatusHistorySnapshot: vi.fn() }));
 vi.mock("./screen-engine.js", () => ({ buildScreenSnapshot: vi.fn() }));
+vi.mock("./issuetype-engine.js", () => ({ buildIssueTypeSnapshot: vi.fn() }));
 vi.mock("./snapshot-engine.js", () => ({ runSnapshot: vi.fn() }));
 vi.mock("./scan-engine.js", () => ({ runIssueScanCoordinator: vi.fn() }));
 vi.mock("./site-health.js", () => ({ captureSiteHealth: vi.fn() }));
@@ -70,6 +72,7 @@ import { inventorySnapshotQueue } from "./queues.js";
 import { makeJobToken } from "./jira-api.js";
 import { readFullScanMeta, writeFullScanMeta, readFilterSnapshotMeta, readIssueScanMeta, recordFullScanRun } from "./project-store.js";
 import { buildWorkflowSnapshot } from "./workflow-engine.js";
+import { buildIssueTypeSnapshot } from "./issuetype-engine.js";
 import { queueFilterSnapshotBuild } from "./filter-engine.js";
 import { runDeltaIssueScanJob } from "../resolvers.js";
 
@@ -145,6 +148,17 @@ describe("running a stage", () => {
     const wf = lastWrite().stages.find((s) => s.key === "workflows");
     expect(new Date(wf.startedAt).getTime()).toBe(1_000_000);
     expect(new Date(wf.completedAt).getTime()).toBeGreaterThan(1_000_000);
+  });
+
+  test("runs the issue-types stage inline through its engine", async () => {
+    readFullScanMeta.mockResolvedValue(running({
+      stages: withDone(["workflows", "screens", "filters", "dashboards", "fields", "status-history"]),
+    }));
+
+    await runFullScanStep("inst", { jobToken: "job-token" });
+
+    expect(buildIssueTypeSnapshot).toHaveBeenCalledWith("inst");
+    expect(lastWrite().stages.find((s) => s.key === "issue-types").state).toBe("done");
   });
 
   test("hands off a resumable stage instead of running it inline", async () => {
@@ -420,7 +434,7 @@ describe("coverage", () => {
     const keys = fullScanStageCatalog().map((s) => s.key);
 
     expect(keys).toEqual(expect.arrayContaining([
-      "workflows", "screens", "filters", "dashboards", "fields", "status-history", "issues", "health",
+      "workflows", "screens", "filters", "dashboards", "fields", "status-history", "issue-types", "issues", "health",
     ]));
     // Automation is excluded deliberately: Jira publishes no API to enumerate rules, so a scan
     // that included it would be claiming coverage it does not have.
@@ -531,7 +545,7 @@ describe("quick scan", () => {
 
   test("covers the four structural pillars, collapses fields+issues, and excludes automation", () => {
     const keys = quickScanStageCatalog().map((s) => s.key);
-    expect(keys).toEqual(expect.arrayContaining(["workflows", "screens", "filters", "dashboards", "issues-delta", "health"]));
+    expect(keys).toEqual(expect.arrayContaining(["workflows", "screens", "filters", "dashboards", "issue-types", "issues-delta", "health"]));
     expect(keys).not.toContain("fields");
     expect(keys).not.toContain("issues");
     expect(keys).not.toContain("automation");

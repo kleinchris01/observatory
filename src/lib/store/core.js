@@ -992,6 +992,106 @@ export const CREATE_SCREEN_SNAPSHOT_META_TABLE = `
   )
 `;
 
+// ── Issue type pillar ────────────────────────────────────────────────────────
+//
+// Distinct from the screen pillar's snapshot_issue_type_SCREEN_schemes: that layer routes
+// issue-type -> screen, this one is the issue-type catalog and the schemes that decide which
+// types a project may use. They refresh together (one scan stage) but are versioned on their
+// own meta row so a rebuild of one does not make the other look refreshed.
+
+// The issue-type catalog. hierarchy_level is Jira's own integer: -1 sub-task, 0 base
+// (Story/Task/Bug), 1 Epic, and 2+ only on sites with custom hierarchy above Epic. Kept as
+// the raw number rather than a label so the tab can group by it without a lookup table that
+// would rot the moment someone adds a level.
+//
+// scope_project_id is set only for project-scoped ("next-gen"/team-managed) types; a NULL
+// there means the type is global and available to classic projects. The two are opposite
+// facts about where a type can be used, so the column is nullable rather than defaulted.
+export const CREATE_SNAPSHOT_ISSUE_TYPES_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_issue_types (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    issue_type_id VARCHAR(64) NOT NULL,
+    name VARCHAR(255) NULL,
+    description TEXT NULL,
+    subtask TINYINT NOT NULL DEFAULT 0,
+    hierarchy_level INTEGER NOT NULL DEFAULT 0,
+    scope_project_id VARCHAR(64) NULL,
+    PRIMARY KEY (scope_key, version, issue_type_id)
+  )
+`;
+
+// One row per issue type scheme. default_issue_type_id is the type Jira pre-selects on the
+// create screen; is_default marks the site-wide fallback scheme every classic project starts
+// on. project_count is denormalised at build time so the tab can sort by reach without a
+// join against the assignments table.
+export const CREATE_SNAPSHOT_ISSUE_TYPE_SCHEMES_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_issue_type_schemes (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    scheme_id VARCHAR(64) NOT NULL,
+    name VARCHAR(255) NULL,
+    description TEXT NULL,
+    default_issue_type_id VARCHAR(64) NULL,
+    is_default TINYINT NOT NULL DEFAULT 0,
+    project_count INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (scope_key, version, scheme_id)
+  )
+`;
+
+// Ordered membership: which issue types a scheme allows, and in what order they appear on
+// the create dialog. item_index preserves that order -- Jira returns it and admins arrange
+// it deliberately, so dropping it would lose information the tab is meant to show.
+export const CREATE_SNAPSHOT_ISSUE_TYPE_SCHEME_ITEMS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_issue_type_scheme_items (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    scheme_id VARCHAR(64) NOT NULL,
+    issue_type_id VARCHAR(64) NOT NULL,
+    item_index INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (scope_key, version, scheme_id, issue_type_id)
+  )
+`;
+
+// Which projects each issue type scheme is assigned to. project_key/project_name are
+// resolved at build time so the inventory reads without a second lookup; the row is kept
+// even when the project is not in the catalog rather than dropped, matching the ITSS
+// projects table.
+export const CREATE_SNAPSHOT_ISSUE_TYPE_SCHEME_PROJECTS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_issue_type_scheme_projects (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    scheme_id VARCHAR(64) NOT NULL,
+    project_id VARCHAR(64) NOT NULL,
+    project_key VARCHAR(64) NULL,
+    project_name VARCHAR(255) NULL,
+    PRIMARY KEY (scope_key, version, scheme_id, project_id)
+  )
+`;
+
+export const CREATE_SNAPSHOT_ISSUE_TYPE_SCHEME_PROJECTS_BY_PROJECT_INDEX = `
+  CREATE INDEX IF NOT EXISTS idx_snapshot_its_projects_by_project
+    ON snapshot_issue_type_scheme_projects (scope_key, version, project_id)
+`;
+
+// Versioned separately from the screen pillar for the same reason screen_snapshot_meta is
+// versioned separately from fields and workflows: a shared meta row would make any one
+// rebuild look like all of them.
+export const CREATE_ISSUE_TYPE_SNAPSHOT_META_TABLE = `
+  CREATE TABLE IF NOT EXISTS issue_type_snapshot_meta (
+    scope_key VARCHAR(191) NOT NULL,
+    state VARCHAR(32) NOT NULL DEFAULT 'idle',
+    version VARCHAR(64) NULL,
+    started_at VARCHAR(64) NULL,
+    completed_at VARCHAR(64) NULL,
+    refreshed_at VARCHAR(64) NULL,
+    total_types INTEGER NOT NULL DEFAULT 0,
+    total_schemes INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT NULL,
+    PRIMARY KEY (scope_key)
+  )
+`;
+
 // Append-only record of privileged actions: who did what, when, and whether it was
 // allowed. Deliberately not versioned by snapshot and deliberately NOT wiped by
 // clearAllSnapshotData -- an audit trail that a privileged action can erase is not an
@@ -1196,7 +1296,17 @@ const projectStoreMigrations = migrationRunner
   // Per-run scan history. full_scan_meta holds only the latest run, so run-over-run deltas
   // and a "recent runs" list had nothing to read.
   .enqueue("v110_create_full_scan_runs_table", CREATE_FULL_SCAN_RUNS_TABLE)
-  .enqueue("v111_create_full_scan_runs_by_completed_index", CREATE_FULL_SCAN_RUNS_BY_COMPLETED_INDEX);
+  .enqueue("v111_create_full_scan_runs_by_completed_index", CREATE_FULL_SCAN_RUNS_BY_COMPLETED_INDEX)
+  // The issue type pillar: the type catalog, the schemes that gate which types a project may
+  // use, their ordered membership and project assignments, plus a meta row versioned on its
+  // own cadence. The issue-type -> screen layer (snapshot_issue_type_screen_schemes) already
+  // shipped with the screen pillar at v061-v064; this is the tier above it.
+  .enqueue("v112_create_snapshot_issue_types_table", CREATE_SNAPSHOT_ISSUE_TYPES_TABLE)
+  .enqueue("v113_create_snapshot_issue_type_schemes_table", CREATE_SNAPSHOT_ISSUE_TYPE_SCHEMES_TABLE)
+  .enqueue("v114_create_snapshot_issue_type_scheme_items_table", CREATE_SNAPSHOT_ISSUE_TYPE_SCHEME_ITEMS_TABLE)
+  .enqueue("v115_create_snapshot_issue_type_scheme_projects_table", CREATE_SNAPSHOT_ISSUE_TYPE_SCHEME_PROJECTS_TABLE)
+  .enqueue("v116_create_snapshot_its_projects_by_project_index", CREATE_SNAPSHOT_ISSUE_TYPE_SCHEME_PROJECTS_BY_PROJECT_INDEX)
+  .enqueue("v117_create_issue_type_snapshot_meta_table", CREATE_ISSUE_TYPE_SNAPSHOT_META_TABLE);
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history

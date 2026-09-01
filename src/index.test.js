@@ -29,6 +29,10 @@ vi.mock("./lib/screen-engine.js", () => ({
   buildScreenSnapshot: vi.fn().mockResolvedValue({ screens: 760, fields: 21888, unresolvedScreens: 1 }),
 }));
 
+vi.mock("./lib/issuetype-engine.js", () => ({
+  buildIssueTypeSnapshot: vi.fn().mockResolvedValue({ issueTypes: 42, schemes: 7 }),
+}));
+
 vi.mock("./lib/full-scan-runner.js", () => ({
   runFullScanStep: vi.fn().mockResolvedValue({ advanced: true, done: 2, total: 8 }),
   runQuickScanStep: vi.fn().mockResolvedValue({ advanced: true, done: 1, total: 6 }),
@@ -142,6 +146,7 @@ import {
 import { processProjectUsageReportJob } from "./lib/report-engine.js";
 import { buildWorkflowSnapshot, buildStatusHistorySnapshot } from "./lib/workflow-engine.js";
 import { buildScreenSnapshot } from "./lib/screen-engine.js";
+import { buildIssueTypeSnapshot } from "./lib/issuetype-engine.js";
 import { runFullScanStep, runQuickScanStep, startQuickScan, recoverStalledScan } from "./lib/full-scan-runner.js";
 import { buildFilterSnapshot } from "./lib/filter-engine.js";
 import { buildDashboardSnapshot } from "./lib/dashboard-engine.js";
@@ -527,6 +532,19 @@ describe("consumeSnapshot job routing", () => {
   test("routes build-screen-snapshot to the screen engine", async () => {
     await consumeSnapshot(event({ jobType: "build-screen-snapshot" }));
     expect(buildScreenSnapshot).toHaveBeenCalledWith("scope-1");
+  });
+
+  // Small structural build -- a few hundred types and low hundreds of schemes -- but it runs
+  // on the queue for the same reason the others do: one paginated call each plus a /project
+  // call that cannot be issued until the project list is in hand.
+  test("routes build-issue-type-snapshot to the issue type engine", async () => {
+    await consumeSnapshot(event({ jobType: "build-issue-type-snapshot" }));
+    expect(buildIssueTypeSnapshot).toHaveBeenCalledWith("scope-1");
+  });
+
+  test("logs a build-issue-type-snapshot that returned nothing without throwing", async () => {
+    buildIssueTypeSnapshot.mockResolvedValueOnce(undefined);
+    await expect(consumeSnapshot(event({ jobType: "build-issue-type-snapshot" }))).resolves.toBeUndefined();
   });
 
   // The cheapest structural build here: one paginated endpoint with everything expanded, so
