@@ -10,6 +10,7 @@ import {
   runIssueScanCoordinator,
   runIssueScanWorkerV2,
   cacheFieldOptionsForField,
+  isForgeBackpressureError,
 } from "./lib/scan-engine.js";
 import {
   runSnapshot,
@@ -418,10 +419,7 @@ export async function consumeSnapshot(event) {
       const existing = fieldId ? await loadFieldSummary(installationKey, fieldId).catch(fallbackOn("consumer.summary_load_failed", null, { fieldId })) : null;
       if (existing) {
         const message = String(error?.message || "Unknown error");
-        const isRecoverableQueuePressure =
-          message.toLowerCase().includes("too many requests")
-          || message.toLowerCase().includes("cyclic invocation")
-          || message.toLowerCase().includes("limits for the current installation have been exceeded");
+        const isRecoverableQueuePressure = isForgeBackpressureError(error);
         await replaceFieldSummary(installationKey, fieldId, {
           ...existing,
           refreshedAt: new Date().toISOString(),

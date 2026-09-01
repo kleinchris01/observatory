@@ -52,6 +52,15 @@ vi.mock("./lib/scan-engine.js", () => ({
   runIssueScanCoordinator: vi.fn().mockResolvedValue(undefined),
   runIssueScanWorkerV2: vi.fn().mockResolvedValue(undefined),
   cacheFieldOptionsForField: vi.fn().mockResolvedValue({ optionCount: 3 }),
+  // Pure classifier; the consumer's backpressure branch calls it. Kept faithful to the real
+  // one so the "leaves the job queued" cases still exercise the right phrases.
+  isForgeBackpressureError: (error) => {
+    if (error?.code === "RATE_LIMIT_EXCEEDED") return true;
+    const m = String(error?.message || error || "").toLowerCase();
+    return m.includes("too many requests") || m.includes("rate limit")
+      || m.includes("cyclic invocation")
+      || m.includes("limits for the current installation have been exceeded");
+  },
 }));
 
 vi.mock("./lib/snapshot-engine.js", () => ({
