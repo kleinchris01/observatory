@@ -90,6 +90,18 @@ const automation = (overrides = {}) => ({
   ...overrides,
 });
 
+const issueTypes = (overrides = {}) => ({
+  available: true,
+  totalTypes: 63,
+  totalSchemes: 24,
+  orphanTypeCount: 7,
+  hierarchyFlaggedSchemeCount: 2,
+  reducibleTypeCount: 4,
+  duplicateTypeGroupCount: 2,
+  unusedSchemeCount: 3,
+  ...overrides,
+});
+
 beforeEach(() => vi.clearAllMocks());
 
 describe("OverviewDashboard — findings", () => {
@@ -176,6 +188,7 @@ describe("OverviewDashboard — automation and screen findings", () => {
     findingsSummary={findingsSummary}
     workflow={workflow()}
     screens={screens()}
+    issueTypes={issueTypes()}
     automation={automation()}
     onNavigate={vi.fn()}
     {...over}
@@ -215,6 +228,24 @@ describe("OverviewDashboard — automation and screen findings", () => {
 
     await userEvent.click(screen.getAllByRole("button", { name: /^Screens$/ })[0]);
     expect(onNavigate).toHaveBeenCalledWith("screens", expect.objectContaining({ view: expect.any(String) }));
+  });
+
+  test("surfaces the issue type findings and routes them to the Issue Types tab", async () => {
+    const onNavigate = vi.fn();
+    renderAll({ onNavigate });
+
+    expect(screen.getByText("Issue types on no scheme")).toBeInTheDocument();
+    expect(screen.getByText("Schemes that cannot start an issue")).toBeInTheDocument();
+    expect(screen.getByText("Near-duplicate issue type names")).toBeInTheDocument();
+    expect(screen.getByText("Issue type schemes assigned to no project")).toBeInTheDocument();
+
+    await userEvent.click(screen.getAllByRole("button", { name: /^Issue Types$/ })[0]);
+    expect(onNavigate).toHaveBeenCalledWith("issueTypes", expect.objectContaining({ view: expect.any(String) }));
+  });
+
+  test("omits the issue type findings entirely when the pillar has not been built", () => {
+    renderAll({ issueTypes: { available: false } });
+    expect(screen.queryByText("Issue types on no scheme")).not.toBeInTheDocument();
   });
 
   // The same rule the workflow findings already follow, now enforced for the two pillars

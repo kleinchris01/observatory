@@ -79,6 +79,15 @@ export const DEFAULT_HEALTH_TOLERANCES = {
   editableDashboards: 0.25,
   unusedDashboards: 0.35,
   emptyDashboards: 0.15,
+  // Issue types. A type on no scheme cannot be created anywhere -- a broken state rather than
+  // an untidy one, so it is tighter; a scheme assigned to no project is clutter, so it is the
+  // most forgiving of the four. Near-duplicate type names sit where duplicate statuses do.
+  orphanIssueTypes: 0.12,
+  unusedTypeSchemes: 0.40,
+  duplicateIssueTypeNames: 0.15,
+  // Schemes whose type set does not hang together: sub-tasks enabled with no standalone
+  // type to hang them off, or a default type that cannot be created on its own.
+  brokenTypeHierarchy: 0.25,
 };
 
 // rate 0 -> 100, rate >= tolerance -> 0, linear between. Deliberately linear: a curve
@@ -124,6 +133,8 @@ export const PILLAR_WEIGHTS = {
   // somebody opens it. Equal here because the pillar's own dimensions grade that difference.
   filters: 1,
   dashboards: 1,
+  // Structural like screens: it decides what an issue can be, not how it behaves after.
+  issueTypes: 1,
 };
 
 export const HEALTH_PILLARS = [
@@ -132,6 +143,7 @@ export const HEALTH_PILLARS = [
   { key: "dashboards", label: "Dashboards" },
   { key: "workflows", label: "Workflows and statuses" },
   { key: "screens", label: "Screens" },
+  { key: "issueTypes", label: "Issue types" },
   { key: "automation", label: "Automation" },
   { key: "projects", label: "Projects" },
 ];
@@ -158,7 +170,7 @@ export function resolveHealthTolerances(overrides = {}) {
   return out;
 }
 
-export function computeSiteHealth({ fieldUsage, workflow, projects, automation, screens, adoption, filters, dashboards, tolerances } = {}) {
+export function computeSiteHealth({ fieldUsage, workflow, projects, automation, screens, adoption, filters, dashboards, issueTypes, tolerances } = {}) {
   const TOLERANCE = resolveHealthTolerances(tolerances);
   const dimensions = [];
 
@@ -794,6 +806,103 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
   } else {
     dimensions.push(unavailable("screen-hygiene", "Screen hygiene", "screens",
       screens?.available ? "No screen contents could be read." : "No screen inventory yet."));
+  }
+
+  // ── Issue type reach ──────────────────────────────────────────────────────
+  // Types the site defines that no scheme allows. A type on no scheme cannot be created in
+  // any project -- it is inventory that does nothing, and every one is a line an admin
+  // scrolls past looking for the ones that matter. Sub-tasks are still counted: a sub-task
+  // type on no scheme is exactly as unreachable as a standard one.
+  const totalIssueTypes = Number(issueTypes?.totalTypes) || 0;
+  if (issueTypes?.available && totalIssueTypes > 0) {
+    const orphans = Number(issueTypes.orphanTypeCount) || 0;
+    dimensions.push({
+      key: "issue-type-reach",
+      label: "Issue type reach",
+      pillar: "issueTypes",
+      available: true,
+      weight: 1.5,
+      score: scoreFromRate(orphans / totalIssueTypes, TOLERANCE.orphanIssueTypes),
+      detail: orphans === 0
+        ? `All ${totalIssueTypes} issue types are allowed by at least one scheme.`
+        : `${orphans} of ${totalIssueTypes} issue types are on no scheme — no project can create one.`,
+      action: orphans > 0
+        ? "Add each to the scheme that should own it, or delete it. An issue type nothing can use is pure clutter in every type picker."
+        : null,
+    });
+  } else {
+    dimensions.push(unavailable("issue-type-reach", "Issue type reach", "issueTypes", "No issue type inventory yet."));
+  }
+
+  // ── Issue type scheme usage ───────────────────────────────────────────────
+  const totalTypeSchemes = Number(issueTypes?.totalSchemes) || 0;
+  if (issueTypes?.available && totalTypeSchemes > 0) {
+    const unused = Number(issueTypes.unusedSchemeCount) || 0;
+    dimensions.push({
+      key: "issue-type-scheme-usage",
+      label: "Issue type scheme usage",
+      pillar: "issueTypes",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(unused / totalTypeSchemes, TOLERANCE.unusedTypeSchemes),
+      detail: unused === 0
+        ? `Every one of the ${totalTypeSchemes} issue type schemes is assigned to a project.`
+        : `${unused} of ${totalTypeSchemes} issue type schemes are assigned to no project.`,
+      action: unused > 0
+        ? "A scheme no project uses is a decision nobody made. Delete it, or find the project it was built for."
+        : null,
+    });
+  } else {
+    dimensions.push(unavailable("issue-type-scheme-usage", "Issue type scheme usage", "issueTypes", "No issue type inventory yet."));
+  }
+
+  // ── Issue type naming ─────────────────────────────────────────────────────
+  // "Bug" and "Defect", "Task" and "Task " -- the same thing named twice, so a report that
+  // groups by type splits its own data and nobody can tell which one to use. Scored where
+  // duplicate statuses are.
+  if (issueTypes?.available && totalIssueTypes > 0) {
+    const removable = Number(issueTypes.reducibleTypeCount) || 0;
+    dimensions.push({
+      key: "issue-type-naming",
+      label: "Issue type naming",
+      pillar: "issueTypes",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(removable / totalIssueTypes, TOLERANCE.duplicateIssueTypeNames),
+      detail: removable === 0
+        ? "No near-duplicate issue type names."
+        : `${removable} of ${totalIssueTypes} issue types duplicate another's name across ${issueTypes.duplicateTypeGroupCount} groups.`,
+      action: removable > 0
+        ? "Consolidate them in Jira's issue type admin — a split like Bug / Defect makes every by-type report wrong by however many issues sit on the wrong one."
+        : null,
+    });
+  } else {
+    dimensions.push(unavailable("issue-type-naming", "Issue type naming", "issueTypes", "No issue type inventory yet."));
+  }
+
+  // ── Issue type hierarchy ──────────────────────────────────────────────────
+  // Schemes whose type set does not hold together: sub-tasks enabled with no standalone type
+  // to attach them to, or a default type that is a sub-task (which cannot be created on its
+  // own, so the create dialog opens on an option nobody can pick). A correctness problem,
+  // like a workflow with no Done status.
+  if (issueTypes?.available && totalTypeSchemes > 0) {
+    const flagged = Number(issueTypes.hierarchyFlaggedSchemeCount) || 0;
+    dimensions.push({
+      key: "issue-type-hierarchy",
+      label: "Issue type hierarchy",
+      pillar: "issueTypes",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(flagged / totalTypeSchemes, TOLERANCE.brokenTypeHierarchy),
+      detail: flagged === 0
+        ? "Every scheme's type set hangs together."
+        : `${flagged} of ${totalTypeSchemes} schemes have a broken type set — sub-tasks with no parent-level type, or an uncreatable default.`,
+      action: flagged > 0
+        ? "Add a standalone type, or change the default. A scheme with only sub-tasks cannot start an issue at all."
+        : null,
+    });
+  } else {
+    dimensions.push(unavailable("issue-type-hierarchy", "Issue type hierarchy", "issueTypes", "No issue type inventory yet."));
   }
 
   // ── Roll-up ───────────────────────────────────────────────────────────────

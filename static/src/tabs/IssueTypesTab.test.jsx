@@ -3,7 +3,7 @@ import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { invoke } from "@forge/bridge";
-import { IssueTypesTab, HierarchyLevelPanel, SchemeCard } from "./IssueTypesTab";
+import { IssueTypesTab, HierarchyLevelPanel, SchemeCard, IssueTypeFindings } from "./IssueTypesTab";
 
 vi.mock("@forge/bridge", () => ({
   invoke: vi.fn(),
@@ -106,9 +106,40 @@ describe("SchemeCard", () => {
   });
 });
 
+describe("IssueTypeFindings", () => {
+  test("renders nothing-to-report when every count is clean", () => {
+    render(<IssueTypeFindings findings={{ available: true, orphanTypeCount: 0, hierarchyFlaggedSchemeCount: 0, reducibleTypeCount: 0, unusedSchemeCount: 0 }} />);
+    expect(screen.getByText(/No issue type governance findings/i)).toBeInTheDocument();
+  });
+
+  test("ranks orphan types and broken schemes above naming and unused", () => {
+    render(<IssueTypeFindings findings={{
+      available: true,
+      orphanTypeCount: 3, orphanSubtaskCount: 1, orphanTypes: [{ name: "Spike" }, { name: "Old Bug" }],
+      hierarchyFlaggedSchemeCount: 1, flaggedSchemes: [{ name: "Subs only" }],
+      reducibleTypeCount: 4, duplicateTypeGroupCount: 2,
+      unusedSchemeCount: 2,
+    }} />);
+
+    const titles = [...document.querySelectorAll(".ui-finding__title")].map((n) => n.textContent);
+    expect(titles[0]).toMatch(/on no scheme/);
+    expect(titles[1]).toMatch(/cannot start an issue/);
+    expect(titles).toEqual(expect.arrayContaining([expect.stringMatching(/Near-duplicate/), expect.stringMatching(/assigned to no project/)]));
+    expect(screen.getByText(/1 are sub-tasks/)).toBeInTheDocument();
+  });
+
+  test("says never-built when the pillar has no snapshot", () => {
+    render(<IssueTypeFindings findings={{ available: false }} />);
+    expect(screen.getByText(/No issue type inventory has been built yet/i)).toBeInTheDocument();
+  });
+});
+
 describe("IssueTypesTab", () => {
   test("reports never-built rather than an empty catalog", async () => {
-    invoke.mockResolvedValueOnce({ neverBuilt: true, state: "idle" });
+    invoke.mockImplementation((fn) =>
+      fn === "getIssueTypeInventory"
+        ? Promise.resolve({ neverBuilt: true, state: "idle" })
+        : Promise.resolve({}));
     render(<IssueTypesTab />);
     expect(await screen.findByText(/No issue type inventory has been built yet/i)).toBeInTheDocument();
   });

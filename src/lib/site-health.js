@@ -33,6 +33,10 @@ import {
   loadWorkflowSchemes,
   readScreenSnapshotMeta,
   readWorkflowSnapshotMeta,
+  readIssueTypeSnapshotMeta,
+  loadIssueTypes,
+  loadIssueTypeSchemes,
+  loadIssueTypeSchemeItems,
 } from "./project-store.js";
 // Imported from the automation store directly: project-store.js re-exports the other eight
 // store modules but not this one, because the automation pillar is written by an import
@@ -41,6 +45,7 @@ import { loadStatusAutomationReferences } from "./store/automation.js";
 import { summarizeAdoption } from "./project-adoption.js";
 import { summarizeFilters, summarizeFilterHealth } from "./filter-insights.js";
 import { summarizeDashboards, summarizeDashboardHealth } from "./dashboard-insights.js";
+import { summarizeIssueTypeInsights, summarizeIssueTypeHealth } from "./issuetype-insights.js";
 
 // Top finding-type/field-type breakdowns are capped -- Overview is a glance-level
 // summary, not the full Field Browser, and shipping ~1500 hydrated fields' worth of
@@ -464,6 +469,42 @@ export async function buildScreenOverview(installationKey) {
 }
 
 
+// Issue type health for the Overview.
+//
+// Mirrors buildScreenOverview, including its failure posture: a pillar that cannot be built
+// reports unavailable and the score excludes it, rather than 500ing an overview that has
+// seven other pillars to show. `.health` is what feeds computeSiteHealth; the rest is for
+// the tab.
+export async function buildIssueTypeOverview(installationKey) {
+  try {
+    const meta = await readIssueTypeSnapshotMeta(installationKey);
+    if (!meta?.version) return { available: false, state: meta?.state || "idle", lastError: meta?.lastError || null };
+
+    const [types, schemes, schemeItems] = await Promise.all([
+      loadIssueTypes(installationKey, meta.version),
+      loadIssueTypeSchemes(installationKey, meta.version),
+      loadIssueTypeSchemeItems(installationKey, meta.version),
+    ]);
+    const summary = summarizeIssueTypeInsights({ types, schemes, schemeItems });
+
+    return {
+      available: summary.available,
+      state: meta.state || "idle",
+      refreshedAt: meta.refreshedAt || null,
+      lastError: meta.lastError || null,
+      ...summary,
+      // The full catalog stays on the tab.
+      duplicateGroups: summary.duplicateGroups,
+      orphanTypes: summary.orphanTypes,
+      flaggedSchemes: summary.flaggedSchemes,
+      health: summarizeIssueTypeHealth(summary),
+    };
+  } catch (error) {
+    console.warn("buildIssueTypeOverview failed:", error?.message || error);
+    return { available: false, state: "error" };
+  }
+}
+
 // Compute the score from scratch and record it.
 //
 // The one entry point anything outside the Overview should use. It gathers the same five
@@ -493,11 +534,12 @@ export async function captureSiteHealth(installationKey, deps) {
   }
 
   try {
-    const [meta, config, workflow, screens, automationAnalysis] = await Promise.all([
+    const [meta, config, workflow, screens, issueTypeOverview, automationAnalysis] = await Promise.all([
       readSnapshotMeta(installationKey),
       readAdminConfig(),
       buildWorkflowOverview(installationKey),
       buildScreenOverview(installationKey),
+      buildIssueTypeOverview(installationKey),
       readAutomationAnalysis(installationKey).catch(() => null),
     ]);
     let filters = null;
@@ -543,6 +585,7 @@ export async function captureSiteHealth(installationKey, deps) {
       adoption,
       filters,
       dashboards,
+      issueTypes: issueTypeOverview?.health ?? null,
       tolerances: config?.healthTolerances,
     });
 
