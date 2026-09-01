@@ -728,7 +728,7 @@ function RulesArea({ t, setThreshold, pct, setTolerancePercent }) {
           <ToleranceRule tone="standardize" badge="Project" name="Irregular projects" pct={pct} set={setTolerancePercent} k="irregularProjects"
             tail="of projects carrying far more fields than the site median." />
           <ToleranceRule tone="cleanup" badge="Project" name="Inactive projects" pct={pct} set={setTolerancePercent} k="inactiveProjects"
-            tail="of projects with no activity in six months, or fields but no work at all." />
+            tail="of projects that carry fields but no recorded work at all." />
           <ToleranceRule tone="standardize" badge="Project" name="Unadopted projects" pct={pct} set={setTolerancePercent} k="unadoptedProjects"
             tail="of projects running well below their own historical rate, or that never took off." />
         </div>

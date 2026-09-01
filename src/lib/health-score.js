@@ -563,13 +563,19 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
   }
 
   // ── Project activity ──────────────────────────────────────────────────────
-  // Configuration outliving the work it was built for. Distinct from consistency: a
-  // project can be perfectly ordinary in shape and have had nothing touched in a year,
-  // and that is the cheapest field cleanup on the site.
+  // Configuration standing over a project that carries NO work at all -- fields
+  // configured, not one issue recorded. Either abandoned before it started or never
+  // started, and the cheapest field cleanup on the site because there is nothing to lose.
+  //
+  // Staleness ("nothing touched in six months") used to be scored here too. It is not any
+  // more: the project-adoption dimension below already grades a project that went quiet,
+  // age-relative and with the decline month named, and a stale project is always old enough
+  // for adoption to judge. Scoring both charged one abandoned project twice into the same
+  // pillar. The stale-projects LIST still lives on the Projects tab; it is just not a
+  // second score.
   if (totalProjects > 0) {
     const unused = Number(projects.unusedProjectCount) || 0;
-    const stale = Number(projects.staleProjectCount) || 0;
-    const rate = (unused + stale) / totalProjects;
+    const rate = unused / totalProjects;
     dimensions.push({
       key: "project-activity",
       label: "Project activity",
@@ -577,11 +583,11 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1,
       score: scoreFromRate(rate, TOLERANCE.inactiveProjects),
-      detail: unused + stale === 0
-        ? `All ${totalProjects} projects carry work and have been touched in the last six months.`
-        : `${stale} projects have had no activity in six months and ${unused} carry fields but no work at all.`,
-      action: unused + stale > 0
-        ? "Retiring fields from a project nobody is using costs nothing and is not reversible by accident."
+      detail: unused === 0
+        ? `Every one of the ${totalProjects} projects carries at least some work.`
+        : `${unused} of ${totalProjects} projects carry fields but no recorded work at all.`,
+      action: unused > 0
+        ? "Retiring fields from a project nobody has ever used costs nothing and is not reversible by accident."
         : null,
     });
   } else {

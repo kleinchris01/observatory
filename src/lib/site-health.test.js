@@ -17,7 +17,34 @@ vi.mock("./store/automation.js", () => ({
   loadStatusAutomationReferences: vi.fn(async () => ({})),
 }));
 
-const { buildProjectInsights, captureSiteHealth } = await import("./site-health.js");
+const { buildProjectInsights, buildFieldUsageInsights, captureSiteHealth } = await import("./site-health.js");
+
+// The fields pillar scores duplicate naming once, through the dedicated field-naming
+// dimension (built from duplicateClusters). The per-field "duplicate-naming" finding must
+// stay out of findingsBySeverity, which the separate field-governance dimension scores --
+// otherwise one duplicated name is charged twice inside the same pillar.
+describe("buildFieldUsageInsights — duplicate naming is not double-counted", () => {
+  const field = (name, reasons) => ({ name, type: "text", findings: { reasons } });
+
+  test("a duplicate-naming reason is excluded from findingsBySeverity", () => {
+    const insights = buildFieldUsageInsights([
+      field("Story Points", [{ code: "duplicate-naming", severity: "medium", title: "Similar field naming detected" }]),
+      field("Story Points ", [{ code: "duplicate-naming", severity: "medium", title: "Similar field naming detected" }]),
+    ]);
+    expect(insights.findingsBySeverity.medium).toBe(0);
+    // The cluster is still counted where it IS scored, and still shown on the tab breakdown.
+    expect(insights.duplicateClusters).toBe(1);
+    expect(insights.findingsByType).toContainEqual({ title: "Similar field naming detected", count: 2 });
+  });
+
+  test("other findings of the same severity are still counted", () => {
+    const insights = buildFieldUsageInsights([
+      field("A", [{ code: "duplicate-naming", severity: "medium", title: "Similar field naming detected" }]),
+      field("B", [{ code: "orphaned", severity: "medium", title: "Orphaned field" }]),
+    ]);
+    expect(insights.findingsBySeverity.medium).toBe(1);
+  });
+});
 
 // captureSiteHealth is dependency-injected. It was once called with no deps at all -- from
 // the scan orchestrator's health stage -- and crashed every scan with "Cannot destructure

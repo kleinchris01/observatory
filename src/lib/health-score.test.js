@@ -278,13 +278,17 @@ describe("computeSiteHealth — scoring", () => {
       expect(dim(idle, "project-consistency").action).toMatch(/6 of them carry little issue volume/);
     });
 
-    test("scores activity separately from shape", () => {
+    // Activity scores ONLY projects that carry no work at all. Staleness ("nothing in six
+    // months") is no longer scored here -- project-adoption grades a project that went quiet
+    // age-relative, and a stale project is always old enough for it to judge, so scoring both
+    // charged one abandoned project twice into the projects pillar.
+    test("scores never-used projects, not stale ones", () => {
       const health = computeSiteHealth({
         projects: projects({ totalProjects: 200, staleProjectCount: 31, unusedProjectCount: 12 }),
       });
-      // 43/200 against a 30% tolerance.
-      expect(dim(health, "project-activity").score).toBe(28);
-      expect(dim(health, "project-activity").detail).toMatch(/31 projects.*no activity.*12 carry fields/);
+      // 12/200 against a 30% tolerance -- staleProjectCount does not enter.
+      expect(dim(health, "project-activity").score).toBe(80);
+      expect(dim(health, "project-activity").detail).toMatch(/12 of 200 projects carry fields but no recorded work/);
     });
 
     test("both are unavailable without project usage data", () => {

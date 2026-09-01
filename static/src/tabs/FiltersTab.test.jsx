@@ -63,7 +63,7 @@ const inventory = (over = {}) => ({
   pageSize: 25,
   totalPages: 1,
   filters: allThreeFilters,
-  health: { available: true, defectRate: 0.1 },
+  health: { available: true },
   ...over,
 });
 

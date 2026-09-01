@@ -139,28 +139,20 @@ export function summarizeDashboards(dashboards = []) {
   };
 }
 
-// The one number the site health score takes from this pillar.
+// The counts the site health score takes from this pillar.
 //
-// One dimension, not four -- the same call the filter pillar made and for the same reason.
-// Every dimension added makes every existing one quieter, and at eighteen dimensions the
-// credential finding can already move the headline by under ten points. The breakdown belongs
-// on the Dashboards tab, where a reader is already asking about dashboards.
-//
-// Weighted by consequence: an orphaned owner is a dashboard with an unwritten deletion date,
-// and an empty one is a grid nobody finished.
+// computeSiteHealth scores four separate dashboard dimensions -- ownership, exposure,
+// adoption, content -- straight from these raw counts against their own tolerances, and
+// reads the content dimension's tri-state off `emptyCount` being null. The combined
+// `defectRate` this used to compute was a leftover from when dashboards were one dimension;
+// nothing read it after the split, so it is gone rather than left as a number with no
+// consumer and a weighting comment for a trade-off that no longer applies.
 export function summarizeDashboardHealth(summary) {
   if (!summary?.available) return { available: false };
-
-  const weighted = summary.orphanedCount * 2
-    + summary.editableByEveryoneCount
-    + (summary.emptyCount ?? 0) * 0.5;
 
   return {
     available: true,
     total: summary.total,
-    // Divided by 2x the total, matching the heaviest weight, so the rate stays inside 0..1
-    // however the weights are tuned.
-    defectRate: summary.total > 0 ? weighted / (summary.total * 2) : 0,
     orphanedCount: summary.orphanedCount,
     editableByEveryoneCount: summary.editableByEveryoneCount,
     emptyCount: summary.emptyCount,

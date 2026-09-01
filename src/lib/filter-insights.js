@@ -229,45 +229,30 @@ export function summarizeFilters(filters = [], { now = Date.now(), projectKeys =
   };
 }
 
-// The one number the site health score takes from this pillar.
+// The counts the site health score takes from this pillar.
 //
-// Deliberately one dimension rather than three. Every dimension added to the score makes
-// every existing one quieter -- at sixteen dimensions the credential finding, weighted double
-// precisely because it is the most serious thing this app can find, can already only move the
-// headline by ten points. The breakdown belongs on the tab, where a reader is asking about
-// filters; the headline needs to stay sensitive to the things that matter most.
+// computeSiteHealth scores four separate filter dimensions -- ownership, exposure,
+// subscriptions, scope -- straight from these raw counts against their own tolerances. It
+// does NOT read a combined rate. There used to be a `defectRate` computed here from a
+// hand-weighted sum; it was a leftover from when filters were one combined dimension, no
+// caller ever read it once the split landed, and its weighting comment described a trade-off
+// that no longer exists. Removed rather than left as a number nothing consumes.
 //
-// Weighted by consequence rather than counted flat: an orphaned owner is a filter that will
-// vanish, and a stale one is a filter nobody opens.
+// Duplicates are deliberately absent from every filter score: six people keeping six copies
+// of one search is untidy, not broken, and it is the most numerous filter finding by a wide
+// margin. The duplicate count is real and lives on the Filters tab, where a reader is
+// already asking about filters.
 export function summarizeFilterHealth(summary) {
   if (!summary?.available) return { available: false };
-  // Duplicates are deliberately NOT in this rate.
-  //
-  // They are the most numerous finding by a wide margin and the least consequential: six
-  // people keeping six copies of one search is untidy, not broken. Included at any weight
-  // they dominated the number -- at parity they were 70% of it -- which would have made a
-  // dimension called "filter hygiene" into a duplicate counter wearing a governance label,
-  // and tuning the weight down until the total looked right is fitting the constant to the
-  // answer rather than deciding what the dimension means.
-  //
-  // What it means: filters that are broken, or exposed, or emailing people from a filter
-  // nobody reads. The duplicate count is a real finding and it lives on the tab, where a
-  // reader is already asking about filters.
-  const weighted = summary.orphanedCount * 2
-    + summary.sharedWithEveryoneCount
-    + summary.subscribedButUnusedCount * 2
-    + summary.brokenProjectCount * 2;
 
   return {
     available: true,
     total: summary.total,
-    // Divided by 2x the total, matching the weighting's ceiling, so the rate stays in 0..1
-    // however the weights are tuned.
-    defectRate: summary.total > 0 ? weighted / (summary.total * 2) : 0,
     orphanedCount: summary.orphanedCount,
     sharedWithEveryoneCount: summary.sharedWithEveryoneCount,
     subscribedButUnusedCount: summary.subscribedButUnusedCount,
     brokenProjectCount: summary.brokenProjectCount,
+    projectsChecked: summary.projectsChecked,
     reducibleCount: summary.reducibleCount,
   };
 }

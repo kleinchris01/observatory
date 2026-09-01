@@ -56,7 +56,14 @@ export function buildFieldUsageInsights(hydratedFields) {
 
   for (const f of hydratedFields) {
     for (const reason of f.findings?.reasons || []) {
-      if (reason.severity in findingsBySeverity) findingsBySeverity[reason.severity]++;
+      // "duplicate-naming" is deliberately kept OUT of the severity roll-up. It has its own
+      // scored dimension (field-naming, built from duplicateClusters below), and folding it
+      // into findingsBySeverity too would charge the same defect twice inside the fields
+      // pillar -- once per cluster and again per field in the cluster. It still appears in
+      // findingsByType, which is the tab's informational breakdown, not a score input.
+      if (reason.code !== "duplicate-naming" && reason.severity in findingsBySeverity) {
+        findingsBySeverity[reason.severity]++;
+      }
       findingsByTitle.set(reason.title, (findingsByTitle.get(reason.title) || 0) + 1);
     }
 
