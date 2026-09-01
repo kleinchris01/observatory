@@ -2,7 +2,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   isJiraRateLimitError,
   isExpiredPageTokenError,
+  isForgeBackpressureError,
   queueIssueScanChunk,
+  queueIssueScanWorker,
   runIssueScanCoordinator,
   completeIssueScanFinalization,
   runIssueScanWorkerV2,
@@ -132,6 +134,81 @@ describe("isJiraRateLimitError", () => {
     expect(isJiraRateLimitError({ status: 500 })).toBe(false);
     expect(isJiraRateLimitError(null)).toBe(false);
     expect(isJiraRateLimitError(undefined)).toBe(false);
+  });
+});
+
+// ── isForgeBackpressureError ─────────────────────────────────────────────────
+
+describe("isForgeBackpressureError", () => {
+  it("recognises the Forge queue-limit phrasings and the rate-limit code", () => {
+    expect(isForgeBackpressureError({ code: "RATE_LIMIT_EXCEEDED" })).toBe(true);
+    expect(isForgeBackpressureError(new Error("Limits for the current installation have been exceeded"))).toBe(true);
+    expect(isForgeBackpressureError(new Error("429 Too Many Requests"))).toBe(true);
+    expect(isForgeBackpressureError(new Error("Cyclic invocation detected"))).toBe(true);
+    expect(isForgeBackpressureError("rate limit reached")).toBe(true);
+  });
+
+  it("does not classify an unrelated failure as backpressure", () => {
+    expect(isForgeBackpressureError(new Error("connection reset"))).toBe(false);
+    expect(isForgeBackpressureError({ status: 400, message: "Bad Request" })).toBe(false);
+    expect(isForgeBackpressureError(null)).toBe(false);
+  });
+});
+
+// ── queueIssueScanWorker: rides out a transient queue limit ──────────────────
+
+describe("queueIssueScanWorker", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("retries a backpressure rejection and succeeds once the queue drains", async () => {
+    const queues = await getQueuesMock();
+    const jiraApi = await getJiraApiMock();
+    queues.inventorySnapshotQueue.push
+      .mockReset()
+      .mockRejectedValueOnce(new Error("Limits for the current installation have been exceeded"))
+      .mockRejectedValueOnce(new Error("Limits for the current installation have been exceeded"))
+      .mockResolvedValueOnce({ queued: true });
+
+    await expect(queueIssueScanWorker(INSTALLATION_KEY, 1)).resolves.toBeUndefined();
+    expect(queues.inventorySnapshotQueue.push).toHaveBeenCalledTimes(3);
+    expect(jiraApi.sleep).toHaveBeenCalled(); // backed off between attempts
+  });
+
+  it("retries a bare '400 Bad Request' from the push -- the events API's way of rate-limiting", async () => {
+    const queues = await getQueuesMock();
+    queues.inventorySnapshotQueue.push
+      .mockReset()
+      .mockRejectedValueOnce(new Error("400 Bad Request"))
+      .mockResolvedValueOnce({ queued: true });
+
+    await expect(queueIssueScanWorker(INSTALLATION_KEY, 1)).resolves.toBeUndefined();
+    expect(queues.inventorySnapshotQueue.push).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not retry a non-backpressure error -- it throws at once", async () => {
+    const queues = await getQueuesMock();
+    queues.inventorySnapshotQueue.push.mockReset().mockRejectedValue(new Error("malformed event body"));
+
+    await expect(queueIssueScanWorker(INSTALLATION_KEY, 0)).rejects.toThrow("malformed event body");
+    expect(queues.inventorySnapshotQueue.push).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives up after its attempts are spent when backpressure never clears", async () => {
+    const queues = await getQueuesMock();
+    queues.inventorySnapshotQueue.push.mockReset().mockRejectedValue(new Error("429 too many requests"));
+
+    await expect(queueIssueScanWorker(INSTALLATION_KEY, 2)).rejects.toThrow(/too many requests/);
+    expect(queues.inventorySnapshotQueue.push).toHaveBeenCalledTimes(5);
+  });
+
+  it("staggers the re-queue with a delay when asked", async () => {
+    const queues = await getQueuesMock();
+    queues.inventorySnapshotQueue.push.mockReset().mockResolvedValue({ queued: true });
+
+    await queueIssueScanWorker(INSTALLATION_KEY, 3, { delaySeconds: 8 });
+    expect(queues.inventorySnapshotQueue.push).toHaveBeenCalledWith(
+      expect.objectContaining({ delayInSeconds: 8 })
+    );
   });
 });
 
@@ -1147,6 +1224,46 @@ describe("scan resilience", () => {
     const metaWrites = store.writeIssueScanMeta.mock.calls.map((c) => c[1]);
     expect(metaWrites.some((m) => m.state === "failed")).toBe(false);
     expect(metaWrites.some((m) => /Worker 0 failed/.test(m.lastError || ""))).toBe(true);
+    expect(store.atomicAccumulateIssueScanProgress).toHaveBeenCalledWith(INSTALLATION_KEY, 1, 0);
+  });
+
+  // The user's report: a worker checkpointed fine, then its re-queue hit the Forge async-
+  // queue limit and it was dropped with a vague "may be incompletely counted".
+  test("a re-queue that stays throttled through every retry closes the slot with a message that names the cause", async () => {
+    vi.clearAllMocks();
+    const store = await getProjectStoreMock();
+    const jiraApi = await getJiraApiMock();
+    const queues = await getQueuesMock();
+
+    store.readIssueScanMeta.mockResolvedValue({ state: "building" });
+    // A slice that is never "done" -- every page has a next token -- so the worker checkpoints
+    // and re-queues rather than finishing.
+    store.readIssueScanWorker.mockResolvedValue(
+      worker({ slices: [{ id: 0, jql: 'project IN ("ALPHA")', keys: ["ALPHA"], token: null, done: false }] })
+    );
+    store.atomicAccumulateIssueScanProgress.mockResolvedValue({ processedPages: 5, totalPages: 5 });
+    jiraApi.jiraRequest.mockResolvedValue({
+      issues: [{ key: "ALPHA-1", fields: { project: { id: "10", key: "ALPHA", name: "ALPHA" } } }],
+      nextPageToken: "always-more",
+    });
+    queues.inventorySnapshotQueue.push.mockReset()
+      .mockRejectedValue(new Error("Limits for the current installation have been exceeded"));
+
+    await runIssueScanWorkerV2(INSTALLATION_KEY, 0);
+
+    // Re-queue was attempted the full number of times, then given up on.
+    expect(queues.inventorySnapshotQueue.push).toHaveBeenCalledTimes(5);
+
+    const logged = store.appendIssueScanLogEntry.mock.calls.map((c) => c[1]).join(" | ");
+    expect(logged).toMatch(/Forge async-queue limit/);
+    expect(logged).toMatch(/re-run the scan/i);
+
+    // The slot is released (so the other workers can finalize) and the SCAN is not failed.
+    const workerWrites = store.updateIssueScanWorker.mock.calls.map((c) => c[2]);
+    expect(workerWrites.some((w) => w.status === "failed")).toBe(true);
+    const metaWrites = store.writeIssueScanMeta.mock.calls.map((c) => c[1]);
+    expect(metaWrites.some((m) => m.state === "failed")).toBe(false);
+    expect(metaWrites.some((m) => /Forge queue limit/.test(m.lastError || ""))).toBe(true);
     expect(store.atomicAccumulateIssueScanProgress).toHaveBeenCalledWith(INSTALLATION_KEY, 1, 0);
   });
 });

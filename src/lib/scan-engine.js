@@ -62,7 +62,15 @@ import {
 import { syncFieldCatalog, refreshGovernanceFindingsForFields } from "./snapshot-engine.js";
 import { route } from "@forge/api";
 
-const ISSUE_SCAN_CHUNK_PAGES = 10;
+// Pages one slice crawls per invocation before it checkpoints and re-queues the worker.
+//
+// Raised from 10 to 25: the re-queue is a Forge async-event push, and five workers x three
+// slices re-queuing every 10 pages is what was bursting the installation's event rate limit
+// on a large site (seen as "400 Bad Request" / "Limits ... exceeded" on the push). At 25 the
+// worker re-queues ~2.5x less often. Memory is still bounded -- maybeFlush drains every
+// ISSUE_SCAN_FLUSH_EVERY_PAGES regardless -- and 25 pages x 3 concurrent slices is a few
+// minutes of wall-clock even under heavy 429 backoff, well inside the 900s consumer budget.
+const ISSUE_SCAN_CHUNK_PAGES = 25;
 
 // How many times one slice may restart before the scan gives up on it alone.
 //
@@ -76,6 +84,39 @@ const ISSUE_COUNT_TIMEOUT_MS = 8000;
 export function isJiraRateLimitError(error) {
   return Number(error?.status) === 429;
 }
+
+// A Forge PLATFORM limit, not a Jira one. The async-events queue caps how many jobs one
+// installation may have in flight; past that, push() is rejected with one of these. It is
+// transient -- the ceiling clears within seconds as running jobs drain -- so a push that
+// hits it is worth retrying rather than treating as a hard failure. Same phrases the
+// consumer's last-resort catch in index.js already keys off.
+export function isForgeBackpressureError(error) {
+  if (error?.code === "RATE_LIMIT_EXCEEDED") return true;
+  const message = String(error?.message || error || "").toLowerCase();
+  return (
+    message.includes("too many requests") ||
+    message.includes("rate limit") ||
+    message.includes("cyclic invocation") ||
+    message.includes("limits for the current installation have been exceeded")
+  );
+}
+
+// Whether a FAILED queue push is the platform pushing back rather than a real bug. The
+// events API rejects a burst with any of the backpressure phrases above OR, seen live, a
+// bare "400 Bad Request" -- and in a push the body is a fixed {jobType, installationKey,
+// workerId}, so a 400 here is never a malformed payload, it is "you are pushing too fast".
+// Scoped to the push path deliberately: a Jira 400 (bad JQL, expired page token) is a
+// different animal and is handled by the slice-restart logic.
+function isQueuePushRejection(error) {
+  if (isForgeBackpressureError(error)) return true;
+  if (Number(error?.status) === 400 || Number(error?.statusCode) === 400) return true;
+  return /\b400\b/.test(String(error?.message || error || ""));
+}
+
+// How many times a worker re-queue is retried before the push is allowed to fail. Five
+// attempts back off ~2s, 4s, 8s, 16s -- about half a minute, comfortably longer than a
+// transient queue-depth spike while several workers re-queue in the same window.
+const ISSUE_SCAN_WORKER_PUSH_ATTEMPTS = 5;
 
 export function isExpiredPageTokenError(error) {
   return Number(error?.status) === 400 && String(error?.message || "").toLowerCase().includes("next page token");
@@ -112,10 +153,37 @@ export async function queueIssueScanChunk(installationKey, progressLog = [], nex
   return false;
 }
 
-export async function queueIssueScanWorker(installationKey, workerId) {
-  await inventorySnapshotQueue.push({
-    body: { jobType: "run-issue-scan-worker", installationKey, workerId },
-  });
+// Re-queue one worker, riding out a transient Forge queue rejection rather than letting it
+// kill the worker.
+//
+// The worker's crawl state (slice cursors, counts) is already checkpointed to its own row
+// before this is called, so a failed push loses no progress -- but nothing else re-queues a
+// worker mid-scan, so a push that never lands means that worker's projects silently keep
+// last scan's numbers. A queue-limit rejection (see isQueuePushRejection) is transient;
+// retry it. A genuinely different error is rethrown at once -- retrying that just delays the
+// real failure.
+//
+// `delaySeconds` staggers the workers off each other: without it five of them re-queue in
+// the same instant every chunk, and that lockstep burst is what pushes the installation's
+// event rate over its limit in the first place.
+export async function queueIssueScanWorker(installationKey, workerId, { delaySeconds = 0 } = {}) {
+  const body = { jobType: "run-issue-scan-worker", installationKey, workerId };
+  for (let attempt = 1; attempt <= ISSUE_SCAN_WORKER_PUSH_ATTEMPTS; attempt++) {
+    try {
+      await inventorySnapshotQueue.push({
+        body,
+        ...(delaySeconds > 0 ? { delayInSeconds: Math.min(900, Math.round(delaySeconds)) } : {}),
+      });
+      return;
+    } catch (error) {
+      if (!isQueuePushRejection(error) || attempt === ISSUE_SCAN_WORKER_PUSH_ATTEMPTS) {
+        throw error;
+      }
+      const backoffMs = Math.min(20000, 2000 * (2 ** (attempt - 1))) + Math.floor(Math.random() * 1000);
+      logger.warn("scan.worker_requeue_backpressure", { installationKey, workerId, attempt, backoffMs });
+      await sleep(backoffMs);
+    }
+  }
 }
 
 export async function queueFieldOptionsCache(installationKey, fieldId) {
@@ -425,7 +493,9 @@ export async function runIssueScanCoordinator(installationKey) {
     );
 
     for (let i = 0; i < ISSUE_SCAN_WORKERS; i++) {
-      await queueIssueScanWorker(installationKey, i);
+      // Fan the workers out a couple of seconds apart rather than all in one instant -- same
+      // reason the mid-crawl re-queue is staggered.
+      await queueIssueScanWorker(installationKey, i, { delaySeconds: i * 2 });
     }
 
     log(`All ${ISSUE_SCAN_WORKERS} workers queued`);
@@ -909,7 +979,12 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
     pendingIssues = 0;
 
     if (!isDone) {
-      await queueIssueScanWorker(installationKey, workerId);
+      // Stagger the re-queue by a few seconds, keyed off the worker id plus jitter. Four
+      // workers checkpointing every ~10 pages otherwise re-queue in the same instant, and
+      // that lockstep burst is what trips the installation's queue limit.
+      await queueIssueScanWorker(installationKey, workerId, {
+        delaySeconds: 2 + workerId * 2 + Math.floor(Math.random() * 6),
+      });
       console.log(`${tag}: checkpointed - ${processedIssues} issues, ${processedPages} pages; requeued`);
       return;
     }
@@ -933,12 +1008,25 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
     // waiting on a fifth that is never coming back.
     const errMsg = error?.message || String(error);
     console.error(`${tag} failed:`, errMsg);
-    await updateIssueScanWorker(installationKey, workerId, { status: "failed", lastError: errMsg })
+
+    // A Forge queue limit that survived every re-queue retry is still transient in nature --
+    // the ceiling clears on its own -- but nothing re-picks up a mid-scan worker, so the
+    // slot is closed here rather than left hanging every other worker for hours. The message
+    // says WHY and what to do, because "may be incompletely counted" alone sent people
+    // hunting for a Jira problem that does not exist. The projects keep last scan's numbers
+    // (the partial-coverage gate in completeIssueScanFinalization), so nothing is corrupted.
+    // A Jira 400 (bad JQL, expired page token) is handled inside runSlice and never reaches
+    // here -- so a rejection that looks like a queue-limit at this point is one: the worker
+    // re-queue push that could not land after every retry.
+    const backpressure = isQueuePushRejection(error);
+    const workerNote = backpressure
+      ? `Worker ${workerId} stopped: the Forge async-queue limit for this installation held through every retry. Its projects keep their previous counts — re-run the scan once platform limits reset.`
+      : `Worker ${workerId} failed - ${errMsg}. The other workers continue; this worker's projects may be incompletely counted.`;
+
+    await updateIssueScanWorker(installationKey, workerId, { status: "failed", lastError: backpressure ? "Forge queue limit persisted through retries" : errMsg })
       .catch(ignoreWith("scan.worker_failure_write_failed", { workerId }));
-    await appendIssueScanLogEntry(
-      installationKey,
-      `Worker ${workerId} failed - ${errMsg}. The other workers continue; this worker's projects may be incompletely counted.`
-    ).catch(ignoreWith("scan.log_append_failed", { workerId }));
+    await appendIssueScanLogEntry(installationKey, workerNote)
+      .catch(ignoreWith("scan.log_append_failed", { workerId }));
 
     const updatedMeta = await atomicAccumulateIssueScanProgress(installationKey, 1, 0)
       .catch(fallbackOn("scan.progress_accumulate_failed", null, { installationKey }));
@@ -946,7 +1034,9 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
     // Record which worker fell over, without declaring the run dead. The scan finishes and
     // reports partial coverage, which an admin can act on -- "failed" with no data cannot be.
     await writeIssueScanMeta(installationKey, {
-      lastError: `Worker ${workerId} failed - ${errMsg}`,
+      lastError: backpressure
+        ? `Worker ${workerId} stopped on a Forge queue limit — re-run the scan to finish its projects.`
+        : `Worker ${workerId} failed - ${errMsg}`,
     }).catch(ignoreWith("scan.worker_failure_meta_write_failed", { workerId }));
 
     if ((updatedMeta?.processedPages ?? 0) >= (updatedMeta?.totalPages ?? 0) && (updatedMeta?.totalPages ?? 0) > 0) {
