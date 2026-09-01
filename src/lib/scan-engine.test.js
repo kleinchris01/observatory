@@ -174,6 +174,17 @@ describe("queueIssueScanWorker", () => {
     expect(jiraApi.sleep).toHaveBeenCalled(); // backed off between attempts
   });
 
+  it("retries a bare '400 Bad Request' from the push -- the events API's way of rate-limiting", async () => {
+    const queues = await getQueuesMock();
+    queues.inventorySnapshotQueue.push
+      .mockReset()
+      .mockRejectedValueOnce(new Error("400 Bad Request"))
+      .mockResolvedValueOnce({ queued: true });
+
+    await expect(queueIssueScanWorker(INSTALLATION_KEY, 1)).resolves.toBeUndefined();
+    expect(queues.inventorySnapshotQueue.push).toHaveBeenCalledTimes(2);
+  });
+
   it("does not retry a non-backpressure error -- it throws at once", async () => {
     const queues = await getQueuesMock();
     queues.inventorySnapshotQueue.push.mockReset().mockRejectedValue(new Error("malformed event body"));
@@ -187,7 +198,7 @@ describe("queueIssueScanWorker", () => {
     queues.inventorySnapshotQueue.push.mockReset().mockRejectedValue(new Error("429 too many requests"));
 
     await expect(queueIssueScanWorker(INSTALLATION_KEY, 2)).rejects.toThrow(/too many requests/);
-    expect(queues.inventorySnapshotQueue.push).toHaveBeenCalledTimes(4);
+    expect(queues.inventorySnapshotQueue.push).toHaveBeenCalledTimes(5);
   });
 
   it("staggers the re-queue with a delay when asked", async () => {
@@ -1241,7 +1252,7 @@ describe("scan resilience", () => {
     await runIssueScanWorkerV2(INSTALLATION_KEY, 0);
 
     // Re-queue was attempted the full number of times, then given up on.
-    expect(queues.inventorySnapshotQueue.push).toHaveBeenCalledTimes(4);
+    expect(queues.inventorySnapshotQueue.push).toHaveBeenCalledTimes(5);
 
     const logged = store.appendIssueScanLogEntry.mock.calls.map((c) => c[1]).join(" | ");
     expect(logged).toMatch(/Forge async-queue limit/);

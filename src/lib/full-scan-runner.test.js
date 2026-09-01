@@ -318,6 +318,24 @@ describe("waiting on a handoff stage", () => {
     expect(lastWrite().currentStage).toBeNull();
   });
 
+  // A pillar that finishes "ready" but reports a caveat -- the issue crawl finalises even
+  // when a worker fell over -- is still done, but the caveat rides along so the Scans tab
+  // shows it instead of a clean tick over a partial result.
+  test("carries a finished handoff stage's caveat onto the done stage", async () => {
+    readFullScanMeta.mockResolvedValue(running({ currentStage: "filters", stages: withDone(["workflows", "screens"]) }));
+    readFilterSnapshotMeta.mockResolvedValue({
+      state: "ready",
+      version: "v1",
+      lastError: "Worker 3 stopped on a Forge queue limit — re-run the scan to finish its projects.",
+    });
+
+    await runFullScanStep("inst", { jobToken: "job-token" });
+
+    const filters = lastWrite().stages.find((s) => s.key === "filters");
+    expect(filters.state).toBe("done");
+    expect(filters.error).toMatch(/Forge queue limit/);
+  });
+
   test("retries a frozen handoff stage rather than failing it on the first freeze", async () => {
     readFullScanMeta.mockResolvedValue(running({ currentStage: "filters", polls: 10_000, stageProgressSig: frozenSig }));
     readFilterSnapshotMeta.mockResolvedValue(frozenFilterMeta);

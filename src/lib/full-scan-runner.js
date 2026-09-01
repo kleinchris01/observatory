@@ -333,12 +333,17 @@ async function runScanStep(spec, installationKey, message = {}, { now = Date.now
       return advance(spec, installationKey, next, meta.jobToken, now, { delaySeconds: retried ? scanRetryDelaySeconds(attempts) : 0 });
     }
 
+    // A handoff pillar can finish "ready" while still carrying a caveat -- the issue crawl
+    // reports ready even when a worker fell over and its projects kept last run's counts.
+    // The stage is genuinely done (there is nothing left to wait on), but the caveat rides
+    // along on `error` so the Scans tab shows it rather than a clean green tick over a
+    // partial result.
     stages = markStage(stages, meta.currentStage, {
       state: "done",
       completedAt: new Date(now).toISOString(),
-      error: null,
+      error: subError || null,
     });
-    logger.info(`${spec.scanType}-scan.stage_finished`, { installationKey, stage: meta.currentStage, verdict });
+    logger.info(`${spec.scanType}-scan.stage_finished`, { installationKey, stage: meta.currentStage, verdict, caveat: subError || undefined });
     return advance(spec, installationKey, stages, meta.jobToken, now);
   }
 
