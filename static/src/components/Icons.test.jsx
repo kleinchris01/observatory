@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen, act } from "@testing-library/react";
 import { renderHook } from "@testing-library/react";
-import { Icon, ICON_COMPONENTS, CHART_PALETTE, useColorTheme, useChartPalette, useLiveDuration } from "./Icons";
+import { Icon, ICON_COMPONENTS, CHART_PALETTE, useColorTheme, useChartPalette, useLiveDuration, useLiveElapsedMs } from "./Icons";
 
 describe("ICON_COMPONENTS", () => {
   it("has an entry for every icon name actually used in the app", () => {
@@ -146,5 +146,23 @@ describe("useLiveDuration", () => {
     const mediumAgo = new Date(Date.now() - 3 * 60 * 1000).toISOString(); // 3 minutes ago
     const { result } = renderHook(() => useLiveDuration(mediumAgo));
     expect(result.current).toMatch(/\d+m \d+s/);
+  });
+});
+
+describe("useLiveElapsedMs", () => {
+  it("returns 0 when startedAt is null", () => {
+    const { result } = renderHook(() => useLiveElapsedMs(null));
+    expect(result.current).toBe(0);
+  });
+
+  it("returns roughly the elapsed milliseconds since startedAt", () => {
+    const { result } = renderHook(() => useLiveElapsedMs(new Date(Date.now() - 5000).toISOString()));
+    expect(result.current).toBeGreaterThanOrEqual(4500);
+    expect(result.current).toBeLessThan(7000);
+  });
+
+  it("never goes negative for a start time in the future", () => {
+    const { result } = renderHook(() => useLiveElapsedMs(new Date(Date.now() + 60000).toISOString()));
+    expect(result.current).toBe(0);
   });
 });

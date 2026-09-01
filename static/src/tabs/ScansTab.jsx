@@ -1,7 +1,7 @@
 import React from "react";
 import { invoke, view } from "@forge/bridge";
 import { formatTimestamp, formatShortTime, formatRelativeTime, formatNumber } from "../utils";
-import { Icon, useLiveDuration } from "../components/Icons";
+import { Icon, useLiveDuration, useLiveElapsedMs } from "../components/Icons";
 import { SubNavLayout, Toggle, ConfigSection, ConfigRow } from "../components/admin/primitives";
 import { StatTile, StatRow, PageHeader, Panel, EmptyState, StageRail, LinkButton, formatDurationMs } from "../components/ui";
 import { useVisiblePolling } from "../hooks";
@@ -766,6 +766,50 @@ function readStageProgress(p) {
   return { counted, processed, total, pct: counted ? Math.round((processed / total) * 100) : null };
 }
 
+// The typical wall-clock for one stage, taken from the runs already recorded. Median rather
+// than mean so a single slow run does not drag the estimate up; only finite positive
+// durations count. null when this stage has no history yet.
+function medianStageMs(recentRuns, key) {
+  const xs = (recentRuns || [])
+    .flatMap((r) => r.stages || [])
+    .filter((s) => s.key === key && Number(s.durationMs) > 0)
+    .map((s) => Number(s.durationMs))
+    .sort((a, b) => a - b);
+  if (!xs.length) return null;
+  const mid = Math.floor(xs.length / 2);
+  return xs.length % 2 ? xs[mid] : Math.round((xs[mid - 1] + xs[mid]) / 2);
+}
+
+// A time-based progress estimate for a stage that reports no count of its own: how far
+// through its usual duration this run is. Held at 99% once it runs past that -- the stage is
+// not done until the orchestrator says so, and a premature 100% is the one number that
+// reads as a lie. Returns null when there is nothing to estimate against.
+function estimateStagePct(elapsedMs, expectedMs) {
+  if (!expectedMs || expectedMs <= 0) return null;
+  return Math.min(99, Math.max(1, Math.round((elapsedMs / expectedMs) * 100)));
+}
+
+// The progress figure for whichever stage is currently running: a real count from a handoff
+// sub-build when there is one, otherwise a timing estimate against previous runs. Every
+// stage gets a bar and a percentage this way -- the inline ones that run start-to-finish in
+// one invocation included.
+function useRunningStageProgress({ startedAt, recentRuns, stageKey, realProgress }) {
+  const elapsedMs = useLiveElapsedMs(startedAt);
+  const real = readStageProgress(realProgress);
+  const expectedMs = stageKey ? medianStageMs(recentRuns, stageKey) : null;
+  const estPct = real.counted ? null : estimateStagePct(elapsedMs, expectedMs);
+  const overRun = estPct != null && expectedMs != null && elapsedMs > expectedMs;
+  const pct = real.counted ? real.pct : estPct;
+
+  let text;
+  if (real.counted) text = `${formatNumber(real.processed)} of ${formatNumber(real.total)} (${real.pct}%)`;
+  else if (real.total > 0) text = `${formatNumber(real.processed)} processed`;
+  else if (estPct != null) text = overRun ? "~99% · running longer than last time" : `~${estPct}% · estimated from previous runs`;
+  else text = "no previous run to estimate from yet";
+
+  return { pct, text, estimated: !real.counted && pct != null, indeterminate: pct == null };
+}
+
 // One shape the rail and the detail card both read: every stage in run order, each carrying
 // its state, timing, attempt count and what it produced -- plus the same figures from the
 // previous run, for the deltas.
@@ -818,12 +862,19 @@ function ScanNowBand({ status, stages, onCancel, cancelling }) {
     || stages.find((s) => s.state === "running")
     || null;
   const idx = current ? stages.findIndex((s) => s.key === current.key) : -1;
-  const elapsed = useLiveDuration(current?.startedAt || status?.startedAt || null);
+  const startedAt = current?.startedAt || status?.startedAt || null;
+  const elapsed = useLiveDuration(startedAt);
   const updatedAgo = useLiveDuration(status?.updatedAt || null);
-  const { counted, processed, total, pct } = readStageProgress(status?.currentStageProgress);
   const sweep = Number(status?.sweep) || 0;
   const lastError = status?.currentStageProgress?.lastError || null;
   const note = status?.currentStageProgress?.note || null;
+
+  const progress = useRunningStageProgress({
+    startedAt,
+    recentRuns: status?.recentRuns,
+    stageKey: current?.key || null,
+    realProgress: status?.currentStageProgress,
+  });
 
   return (
     <div className="scan-now">
@@ -842,17 +893,16 @@ function ScanNowBand({ status, stages, onCancel, cancelling }) {
         </button>
       </div>
       <div className="scan-now__track" aria-hidden="true">
-        {counted
-          ? <span className="stage-progress__fill" style={{ width: `${pct}%` }} />
-          : <span className="stage-progress__sweep" />}
+        {progress.indeterminate
+          ? <span className="stage-progress__sweep" />
+          : <span
+              className={`stage-progress__fill${progress.estimated ? " stage-progress__fill--estimated" : ""}`}
+              style={{ width: `${progress.pct}%` }}
+            />}
       </div>
       <div className="scan-now__foot">
         <span>
-          {counted
-            ? `${formatNumber(processed)} of ${formatNumber(total)} (${pct}%)`
-            : total > 0
-              ? `${formatNumber(processed)} processed`
-              : "This stage runs on its own queue and reports back — no percentage to show."}
+          {progress.text}
           {note && <span className="scan-now__note">{" — "}{note}</span>}
         </span>
         <span className="scan-now__beat">last update {updatedAgo || "just now"} ago</span>
@@ -879,7 +929,9 @@ function RunDelta({ from, to, unit = "", goodDown = false }) {
 
 // The selected stage, in the four terms an operator actually asks about it: what it produced,
 // how long it took, whether it had to retry, and when it finished -- each against last run.
-function StageDetailCard({ stage, onOpenCrawl }) {
+// A running stage also gets the same progress line the band up top shows, so clicking a node
+// mid-scan is not a step down from watching it.
+function StageDetailCard({ stage, onOpenCrawl, recentRuns, liveProgress }) {
   if (!stage) return null;
   const durS = stage.durationMs != null ? Math.round(stage.durationMs / 1000) : null;
   const prevDurS = stage.prevDurationMs != null ? Math.round(stage.prevDurationMs / 1000) : null;
@@ -890,6 +942,9 @@ function StageDetailCard({ stage, onOpenCrawl }) {
       icon="layers"
       description={<span className={`chip chip--${STAGE_TONE[stage.state] || "neutral"}`}>{STAGE_LABEL[stage.state] || stage.state}</span>}
     >
+      {stage.state === "running" && (
+        <StageDetailProgress stage={stage} recentRuns={recentRuns} liveProgress={liveProgress} />
+      )}
       <StatRow>
         <StatTile label="Produced" value={stage.count == null ? "—" : formatNumber(stage.count)} hint={stage.count == null ? "no headline count for this stage" : undefined}>
           <RunDelta from={stage.prevCount} to={stage.count} />
@@ -913,6 +968,31 @@ function StageDetailCard({ stage, onOpenCrawl }) {
         <LinkButton onClick={onOpenCrawl}>See the full issue-crawl log</LinkButton>
       )}
     </Panel>
+  );
+}
+
+// The progress line inside the detail card for a running stage. Its own component so
+// useRunningStageProgress -- which calls a hook -- runs unconditionally, never behind the
+// `stage.state === "running"` guard in the parent.
+function StageDetailProgress({ stage, recentRuns, liveProgress }) {
+  const progress = useRunningStageProgress({
+    startedAt: stage.startedAt,
+    recentRuns,
+    stageKey: stage.key,
+    realProgress: liveProgress,
+  });
+  return (
+    <div className="stage-detail__progress">
+      <div className="scan-now__track" aria-hidden="true">
+        {progress.indeterminate
+          ? <span className="stage-progress__sweep" />
+          : <span
+              className={`stage-progress__fill${progress.estimated ? " stage-progress__fill--estimated" : ""}`}
+              style={{ width: `${progress.pct}%` }}
+            />}
+      </div>
+      <span className="stage-detail__progress-text">{progress.text}</span>
+    </div>
   );
 }
 
@@ -1014,7 +1094,12 @@ function ScanPipeline({ status, onAbandonScan, abandoningScan, onOpenCrawl }) {
               selectedKey={selectedKey}
               onSelect={selectStage}
             />
-            <StageDetailCard stage={selected} onOpenCrawl={onOpenCrawl} />
+            <StageDetailCard
+              stage={selected}
+              onOpenCrawl={onOpenCrawl}
+              recentRuns={status?.recentRuns}
+              liveProgress={running && selected?.key === status?.currentStage ? status?.currentStageProgress : null}
+            />
           </>
         ) : (
           <EmptyState inline>No scan has run yet. Start one above to populate the pipeline.</EmptyState>

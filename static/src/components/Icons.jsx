@@ -22,18 +22,26 @@ import {
 } from "@phosphor-icons/react";
 
 export function useLiveDuration(startedAt) {
-  const [elapsed, setElapsed] = React.useState(0);
-  React.useEffect(() => {
-    if (!startedAt) { setElapsed(0); return; }
-    const update = () => setElapsed(Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000));
-    update();
-    const handle = setInterval(update, 1000);
-    return () => clearInterval(handle);
-  }, [startedAt]);
+  const elapsed = Math.floor(useLiveElapsedMs(startedAt) / 1000);
   const h = Math.floor(elapsed / 3600), m = Math.floor((elapsed % 3600) / 60), s = elapsed % 60;
   if (h > 0) return `${h}h ${m}m ${s}s`;
   if (m > 0) return `${m}m ${s}s`;
   return `${s}s`;
+}
+
+// The same 1s tick as useLiveDuration, but the raw milliseconds. For progress estimates
+// that do arithmetic against an expected duration rather than just printing a clock.
+export function useLiveElapsedMs(startedAt) {
+  const [ms, setMs] = React.useState(0);
+  React.useEffect(() => {
+    if (!startedAt) { setMs(0); return; }
+    const base = new Date(startedAt).getTime();
+    const update = () => setMs(Math.max(0, Date.now() - base));
+    update();
+    const handle = setInterval(update, 1000);
+    return () => clearInterval(handle);
+  }, [startedAt]);
+  return ms;
 }
 
 // name -> Phosphor icon component. Only names actually referenced anywhere in the
