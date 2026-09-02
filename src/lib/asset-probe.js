@@ -21,6 +21,22 @@ function assetsBase(workspaceId) {
   return `https://api.atlassian.com/jsm/assets/workspace/${workspaceId}/v1`;
 }
 
+// A 401 "scope does not match" means a missing scope, not a missing licence. A 403 or 404 is
+// the real "Assets is not on this site" case. Keeping these apart is the whole point of the
+// probe -- the first version collapsed both into "needs JSM Premium" and sent someone
+// checking their subscription when the fix was a manifest scope.
+export function workspaceReason(probe) {
+  const scopeGap = probe.status === 401 || /scope does not match/i.test(probe.sample || "");
+  if (scopeGap) {
+    return "The workspace endpoint returned 401 (scope does not match) — the app is missing "
+      + "the scope for /rest/servicedeskapi/assets/workspace. Redeploy with it and upgrade the install.";
+  }
+  if (probe.ok) {
+    return "The workspace endpoint answered but named no workspace — Assets may not be provisioned on this site.";
+  }
+  return `The workspace endpoint returned ${probe.status ?? "no response"} — Assets is not enabled here (it needs JSM Premium/Enterprise).`;
+}
+
 // Pull the first workspace id out of whatever shape the endpoint returned. It is normally
 // { values: [{ workspaceId }] }, but a bare array and a single object have both been seen.
 export function firstWorkspaceId(sample) {
@@ -73,9 +89,7 @@ export async function probeAssetsApi() {
     return {
       assetsEnabled: false,
       workspaceId: null,
-      reason: workspaceProbe.ok
-        ? "The workspace endpoint answered but named no workspace — Assets may not be provisioned."
-        : "The workspace endpoint did not answer — Assets needs JSM Premium/Enterprise.",
+      reason: workspaceReason(workspaceProbe),
       results,
       reachable: [],
       ms: Date.now() - started,
