@@ -320,24 +320,17 @@ describe("AdminApp Overview tab -- Developer Console links", () => {
 // ---------------------------------------------------------------------------
 
 describe("AdminApp Overview tab -- dashboard", () => {
-  it("renders the Field usage, Projects, Workflows and RQT panels from getAdminOverview", async () => {
+  // The per-pillar stat blocks (Field usage / Projects / Workflows) were removed from the
+  // Overview -- each duplicated its own tab's Overview sub-view. What stays is the
+  // cross-pillar findings ledger and the RQT launcher.
+  it("renders the governance ledger and the RQT panel, not the per-pillar stat blocks", async () => {
     invoke.mockImplementation((fnName, payload) => {
       if (fnName === "getAdminOverview") {
         return Promise.resolve(makeOverview({
+          findingsSummary: { adminAttention: 3, risky: 0 },
           dashboard: {
-            fieldUsage: {
-              totalFields: 42,
-              findingsBySeverity: { high: 3, medium: 5, low: 1 },
-              findingsByType: [{ title: "High-impact field with broad live usage", count: 3 }],
-              fieldTypeBreakdown: [{ type: "text", count: 20 }, { type: "number", count: 22 }],
-              origin: { builtin: 10, appProvided: 2, custom: 30 },
-              duplicateClusters: 4,
-            },
-            projects: {
-              totalProjects: 2,
-              topByIssueVolume: [{ projectKey: "AAA", projectName: "Alpha", totalIssueCount: 100 }],
-              topByFieldCount: [{ projectKey: "BBB", projectName: "Beta", fieldCount: 10 }],
-            },
+            fieldUsage: { totalFields: 42, findingsBySeverity: { high: 3, medium: 5, low: 1 } },
+            projects: { totalProjects: 2 },
           },
         }));
       }
@@ -349,15 +342,16 @@ describe("AdminApp Overview tab -- dashboard", () => {
 
     await renderAdminApp();
 
-    expect(await screen.findByRole("heading", { name: /Field usage/ })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /Projects/ })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /RQT values/ })).toBeInTheDocument();
+    // The ledger and its findings still route into the pillars.
+    expect(await screen.findByText("Governance")).toBeInTheDocument();
+    expect(screen.getByText("Fields need admin attention")).toBeInTheDocument();
 
-    // Severity KPI tiles
-    expect(screen.getByText("High severity")).toBeInTheDocument();
-    expect(screen.getByText("Duplicate-name clusters")).toBeInTheDocument();
+    // The removed panels' headings are gone.
+    expect(screen.queryByRole("heading", { name: /Field usage/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Projects" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /Workflows and statuses/ })).not.toBeInTheDocument();
 
-    // RQT summary card fetched and rendered its own data
+    // RQT summary card fetched and rendered its own data.
     await waitFor(() => expect(screen.getByText("250")).toBeInTheDocument());
     expect(screen.getByText("6")).toBeInTheDocument();
   });
@@ -390,20 +384,14 @@ describe("AdminApp Overview tab -- dashboard", () => {
     expect(within(subNav).queryByText("RQT Index")).toBeNull();
   });
 
-  it("shows empty-state messaging for charts when there is no data yet", async () => {
+  it("renders the ledger without crashing when there is no findings data yet", async () => {
     invoke.mockImplementation((fnName, payload) => {
       if (fnName === "getAdminOverview") {
         return Promise.resolve(makeOverview({
+          findingsSummary: { adminAttention: 0, risky: 0 },
           dashboard: {
-            fieldUsage: {
-              totalFields: 0,
-              findingsBySeverity: { high: 0, medium: 0, low: 0 },
-              findingsByType: [],
-              fieldTypeBreakdown: [],
-              origin: { builtin: 0, appProvided: 0, custom: 0 },
-              duplicateClusters: 0,
-            },
-            projects: { totalProjects: 0, topByIssueVolume: [], topByFieldCount: [] },
+            fieldUsage: { totalFields: 0, findingsBySeverity: { high: 0, medium: 0, low: 0 } },
+            projects: { totalProjects: 0 },
           },
         }));
       }
@@ -412,8 +400,7 @@ describe("AdminApp Overview tab -- dashboard", () => {
 
     await renderAdminApp();
 
-    expect(await screen.findByText("No governance findings yet")).toBeInTheDocument();
-    expect(screen.getAllByText(/No project usage data yet|No issue data yet/).length).toBeGreaterThan(0);
+    expect(await screen.findByText("Governance")).toBeInTheDocument();
   });
 });
 
