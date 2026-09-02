@@ -511,6 +511,7 @@ const {
   getIssueTypeInventory,
   buildIssueTypeInventory,
   getUserInventory,
+  getUserDetails,
   buildUserInventory,
 } = __RAW_ADMIN_ONLY_FUNCTIONS;
 
@@ -5154,6 +5155,54 @@ describe("getUserInventory", () => {
       applicationSummary: [{ key: "jira-software" }],
       governance: { totalUsers: 1 },
     });
+  });
+
+  test("attaches per-user ownership counts and an estate orphan count", async () => {
+    mocks.readUserSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
+    mocks.loadUsers.mockResolvedValue([{ accountId: "a1", displayName: "Ann", applications: [], groups: [] }]);
+    mocks.loadUserGovernanceSummary.mockResolvedValue({ totalUsers: 1 });
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "f1" });
+    mocks.readDashboardSnapshotMeta.mockResolvedValue({ version: "d1" });
+    mocks.loadFilters.mockResolvedValue([
+      { id: "10", name: "Ann filter", ownerAccountId: "a1" },
+      { id: "11", name: "Ghost filter", ownerAccountId: "gone" },
+    ]);
+    mocks.loadDashboards.mockResolvedValue([{ dashboardId: "20", name: "Ann dash", ownerAccountId: "a1" }]);
+    mocks.readAutomationPart.mockResolvedValue(null);
+
+    const result = await getUserInventory(ctx);
+
+    expect(result.users[0]).toMatchObject({ ownedFilters: 1, ownedDashboards: 1, authoredRules: 0 });
+    // The filter owned by "gone" (not in the roster) is an orphan.
+    expect(result.governance).toMatchObject({ orphanedFilters: 1, orphanedOwners: 1 });
+  });
+});
+
+describe("getUserDetails", () => {
+  const ctx = { payload: { accountId: "a1" }, context: { installContext: "ari:cloud:jira::site/x" } };
+
+  test("returns the user's owned filters and dashboards as lists", async () => {
+    mocks.readUserSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
+    mocks.loadUsers.mockResolvedValue([{ accountId: "a1", displayName: "Ann", applications: [], groups: [] }]);
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "f1" });
+    mocks.readDashboardSnapshotMeta.mockResolvedValue({ version: "d1" });
+    mocks.loadFilters.mockResolvedValue([{ id: "10", name: "Ann filter", ownerAccountId: "a1", viewUrl: "u" }]);
+    mocks.loadDashboards.mockResolvedValue([{ dashboardId: "20", name: "Ann dash", ownerAccountId: "a1" }]);
+    mocks.readAutomationPart.mockResolvedValue(null);
+
+    const result = await getUserDetails(ctx);
+
+    expect(result).toMatchObject({
+      available: true, inRoster: true,
+      ownedFilters: [{ id: "10", name: "Ann filter" }],
+      ownedDashboards: [{ id: "20", name: "Ann dash" }],
+      authoredRules: [],
+    });
+  });
+
+  test("reports no-roster when nothing has been built", async () => {
+    mocks.readUserSnapshotMeta.mockResolvedValue(null);
+    expect(await getUserDetails(ctx)).toMatchObject({ available: false });
   });
 });
 
