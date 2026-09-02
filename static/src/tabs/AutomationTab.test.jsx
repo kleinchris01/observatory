@@ -463,6 +463,31 @@ describe("AutomationTab", () => {
     });
   });
 
+  describe("issue type explorer", () => {
+    it("heads the column 'Issue type', not 'Status', and shows the resolved names", async () => {
+      const user = userEvent.setup();
+      routeInvoke({
+        getAutomationInsights: analysis(),
+        "getAutomationIndex:issueTypes": {
+          available: true, part: "issueTypes", total: 2,
+          entries: [
+            { label: "Incident", writeCount: 30, readCount: 0, triggerCount: 0, write: [10], read: [], trigger: [] },
+            { label: "Bug", writeCount: 0, readCount: 12, triggerCount: 0, write: [], read: [11], trigger: [] },
+          ],
+        },
+        "getAutomationIndex:directory": DIRECTORY,
+      });
+      const { container } = render(<AutomationTab />);
+      await screen.findByText("1,477");
+      await user.click(within(container.querySelector(".sub-nav")).getByText("Issue types"));
+
+      expect(await screen.findByText("Incident")).toBeInTheDocument();
+      const head = container.querySelector(".ref-head");
+      expect(head).toHaveTextContent("Issue type");
+      expect(head).not.toHaveTextContent("Status");
+    });
+  });
+
   describe("cascades", () => {
     // Every cascade now comes from automation_cascades through a paged resolver, rather than
     // from whatever fitted in the analysis document. The tab renders what it is given and
