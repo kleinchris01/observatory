@@ -40,7 +40,7 @@ const inventory = (over = {}) => ({
     dashboard({ id: "2", name: "Orphan", owner: null, ownerActive: null }),
     dashboard({ id: "3", name: "Open edit", editableByEveryone: true }),
   ],
-  health: { available: true, defectRate: 0.1 },
+  health: { available: true },
   ...over,
 });
 

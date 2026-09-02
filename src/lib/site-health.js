@@ -33,6 +33,10 @@ import {
   loadWorkflowSchemes,
   readScreenSnapshotMeta,
   readWorkflowSnapshotMeta,
+  readIssueTypeSnapshotMeta,
+  loadIssueTypes,
+  loadIssueTypeSchemes,
+  loadIssueTypeSchemeItems,
 } from "./project-store.js";
 // Imported from the automation store directly: project-store.js re-exports the other eight
 // store modules but not this one, because the automation pillar is written by an import
@@ -41,6 +45,7 @@ import { loadStatusAutomationReferences } from "./store/automation.js";
 import { summarizeAdoption } from "./project-adoption.js";
 import { summarizeFilters, summarizeFilterHealth } from "./filter-insights.js";
 import { summarizeDashboards, summarizeDashboardHealth } from "./dashboard-insights.js";
+import { summarizeIssueTypeInsights, summarizeIssueTypeHealth } from "./issuetype-insights.js";
 
 // Top finding-type/field-type breakdowns are capped -- Overview is a glance-level
 // summary, not the full Field Browser, and shipping ~1500 hydrated fields' worth of
@@ -56,7 +61,14 @@ export function buildFieldUsageInsights(hydratedFields) {
 
   for (const f of hydratedFields) {
     for (const reason of f.findings?.reasons || []) {
-      if (reason.severity in findingsBySeverity) findingsBySeverity[reason.severity]++;
+      // "duplicate-naming" is deliberately kept OUT of the severity roll-up. It has its own
+      // scored dimension (field-naming, built from duplicateClusters below), and folding it
+      // into findingsBySeverity too would charge the same defect twice inside the fields
+      // pillar -- once per cluster and again per field in the cluster. It still appears in
+      // findingsByType, which is the tab's informational breakdown, not a score input.
+      if (reason.code !== "duplicate-naming" && reason.severity in findingsBySeverity) {
+        findingsBySeverity[reason.severity]++;
+      }
       findingsByTitle.set(reason.title, (findingsByTitle.get(reason.title) || 0) + 1);
     }
 
@@ -356,13 +368,13 @@ export async function buildWorkflowOverview(installationKey) {
 // project list and loading it twice to answer one join would double the cost of the page.
 // Without it the broken-project check is skipped and says so -- "no broken references" and
 // "nobody looked" are different claims.
-export async function buildFilterOverview(installationKey, { projectKeys = null } = {}) {
+export async function buildFilterOverview(installationKey, { projectKeys = null, typeNames = null } = {}) {
   try {
     const meta = await readFilterSnapshotMeta(installationKey);
     if (!meta?.version) return { available: false, state: meta?.state || "idle", lastError: meta?.lastError || null };
 
     const filters = await loadFilters(installationKey, meta.version);
-    const summary = summarizeFilters(filters, { projectKeys });
+    const summary = summarizeFilters(filters, { projectKeys, typeNames });
 
     return {
       available: summary.available,
@@ -375,6 +387,7 @@ export async function buildFilterOverview(installationKey, { projectKeys = null 
       filters: undefined,
       duplicateGroups: undefined,
       brokenProjects: undefined,
+      unknownTypeRefs: undefined,
       worst: summary.filters.slice(0, 8).map((f) => ({
         id: f.id, name: f.name, ownerName: f.ownerName,
         subscriptionCount: f.subscriptionCount,
@@ -457,6 +470,45 @@ export async function buildScreenOverview(installationKey) {
 }
 
 
+// Issue type health for the Overview.
+//
+// Mirrors buildScreenOverview, including its failure posture: a pillar that cannot be built
+// reports unavailable and the score excludes it, rather than 500ing an overview that has
+// seven other pillars to show. `.health` is what feeds computeSiteHealth; the rest is for
+// the tab.
+export async function buildIssueTypeOverview(installationKey) {
+  try {
+    const meta = await readIssueTypeSnapshotMeta(installationKey);
+    if (!meta?.version) return { available: false, state: meta?.state || "idle", lastError: meta?.lastError || null };
+
+    const [types, schemes, schemeItems] = await Promise.all([
+      loadIssueTypes(installationKey, meta.version),
+      loadIssueTypeSchemes(installationKey, meta.version),
+      loadIssueTypeSchemeItems(installationKey, meta.version),
+    ]);
+    const summary = summarizeIssueTypeInsights({ types, schemes, schemeItems });
+
+    return {
+      available: summary.available,
+      state: meta.state || "idle",
+      refreshedAt: meta.refreshedAt || null,
+      lastError: meta.lastError || null,
+      ...summary,
+      // The full catalog stays on the tab.
+      duplicateGroups: summary.duplicateGroups,
+      orphanTypes: summary.orphanTypes,
+      flaggedSchemes: summary.flaggedSchemes,
+      // The set of defined type names, lowercased -- the filter pillar joins its JQL type
+      // references against this to find saved searches that name a type nothing defines.
+      typeNames: new Set(types.map((t) => String(t.name || "").toLowerCase()).filter(Boolean)),
+      health: summarizeIssueTypeHealth(summary),
+    };
+  } catch (error) {
+    console.warn("buildIssueTypeOverview failed:", error?.message || error);
+    return { available: false, state: "error" };
+  }
+}
+
 // Compute the score from scratch and record it.
 //
 // The one entry point anything outside the Overview should use. It gathers the same five
@@ -486,11 +538,12 @@ export async function captureSiteHealth(installationKey, deps) {
   }
 
   try {
-    const [meta, config, workflow, screens, automationAnalysis] = await Promise.all([
+    const [meta, config, workflow, screens, issueTypeOverview, automationAnalysis] = await Promise.all([
       readSnapshotMeta(installationKey),
       readAdminConfig(),
       buildWorkflowOverview(installationKey),
       buildScreenOverview(installationKey),
+      buildIssueTypeOverview(installationKey),
       readAutomationAnalysis(installationKey).catch(() => null),
     ]);
     let filters = null;
@@ -521,9 +574,10 @@ export async function captureSiteHealth(installationKey, deps) {
       adoption = summarizeAdoption(withCounts, activity);
 
       // The project keys the filter pillar needs for its broken-reference join, taken from
-      // the rows already loaded rather than fetched again.
+      // the rows already loaded rather than fetched again. `typeNames` is the same idea for
+      // the JQL issue-type join, reusing what the issue-type overview already loaded.
       const projectKeys = new Set(withCounts.map((p) => p.projectKey).filter(Boolean));
-      filters = (await buildFilterOverview(installationKey, { projectKeys })).health ?? null;
+      filters = (await buildFilterOverview(installationKey, { projectKeys, typeNames: issueTypeOverview?.typeNames ?? null })).health ?? null;
       dashboards = (await buildDashboardOverview(installationKey)).health ?? null;
     }
 
@@ -536,6 +590,7 @@ export async function captureSiteHealth(installationKey, deps) {
       adoption,
       filters,
       dashboards,
+      issueTypes: issueTypeOverview?.health ?? null,
       tolerances: config?.healthTolerances,
     });
 

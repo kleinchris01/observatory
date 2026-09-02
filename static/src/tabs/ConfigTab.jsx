@@ -99,6 +99,10 @@ const DEFAULT_TOLERANCES = {
   credentialRules: 0.02,
   selfTriggeringRules: 0.10,
   disabledRules: 0.50,
+  orphanIssueTypes: 0.12,
+  unusedTypeSchemes: 0.40,
+  duplicateIssueTypeNames: 0.15,
+  brokenTypeHierarchy: 0.25,
 };
 
   const [local, setLocal] = React.useState(() => {
@@ -702,6 +706,23 @@ function RulesArea({ t, setThreshold, pct, setTolerancePercent }) {
         </div>
       </ConfigSection>
 
+      <ConfigSection title="Issue types" icon="layers">
+        <p className="admin-config-section__desc">
+          What an issue can be, and which projects can create it. A type on no scheme cannot be
+          created anywhere; a scheme on no project is a decision nobody made.
+        </p>
+        <div className="admin-threshold-rules">
+          <ToleranceRule tone="risk" badge="Issue type" name="Orphan issue types" pct={pct} set={setTolerancePercent} k="orphanIssueTypes"
+            tail="of issue types on no scheme — nothing can create one, so every one is clutter in every type picker." />
+          <ToleranceRule tone="cleanup" badge="Issue type" name="Unassigned type schemes" pct={pct} set={setTolerancePercent} k="unusedTypeSchemes"
+            tail="of issue type schemes assigned to no project." />
+          <ToleranceRule tone="standardize" badge="Issue type" name="Duplicate type names" pct={pct} set={setTolerancePercent} k="duplicateIssueTypeNames"
+            tail="of issue types duplicating another's name. A Bug / Defect split makes every by-type report wrong." />
+          <ToleranceRule tone="risk" badge="Issue type" name="Broken type hierarchy" pct={pct} set={setTolerancePercent} k="brokenTypeHierarchy"
+            tail="of schemes with only sub-tasks, or an uncreatable default type — an issue cannot be started." />
+        </div>
+      </ConfigSection>
+
       <ConfigSection title="Automation" icon="refreshCw">
         <p className="admin-config-section__desc">
           Fed by a rule export rather than a scan &mdash; Jira publishes no API to enumerate automation
@@ -728,7 +749,7 @@ function RulesArea({ t, setThreshold, pct, setTolerancePercent }) {
           <ToleranceRule tone="standardize" badge="Project" name="Irregular projects" pct={pct} set={setTolerancePercent} k="irregularProjects"
             tail="of projects carrying far more fields than the site median." />
           <ToleranceRule tone="cleanup" badge="Project" name="Inactive projects" pct={pct} set={setTolerancePercent} k="inactiveProjects"
-            tail="of projects with no activity in six months, or fields but no work at all." />
+            tail="of projects that carry fields but no recorded work at all." />
           <ToleranceRule tone="standardize" badge="Project" name="Unadopted projects" pct={pct} set={setTolerancePercent} k="unadoptedProjects"
             tail="of projects running well below their own historical rate, or that never took off." />
         </div>

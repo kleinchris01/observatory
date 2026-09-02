@@ -19,7 +19,7 @@ import { HEALTH_PILLARS } from "../../../src/lib/health-score";
 // omitted rather than rendered as zero, because "0 duplicate statuses" and "we have never
 // looked for duplicate statuses" are completely different statements.
 
-function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, screens, automation, filters, dashboards, onNavigate }) {
+function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, screens, issueTypes, automation, filters, dashboards, onNavigate }) {
   const findings = [];
 
   if (findingsSummary?.adminAttention > 0) {
@@ -473,6 +473,23 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
     });
   }
 
+  // Cross-pillar: the filter's JQL names an issue type the site does not define, so the
+  // clause can never match and the search silently returns fewer issues than its author
+  // meant. Surfaced, not scored -- the same call the duplicate count makes.
+  if (filters?.available && filters.unknownTypeRefCount > 0) {
+    findings.push({
+      key: "filters-unknown-type",
+      dimension: "filter-hygiene",
+      pillar: "filters",
+      tone: "info",
+      count: filters.unknownTypeRefCount,
+      title: "Filters naming an issue type nothing defines",
+      detail: "The JQL references a type no scheme allows, so that clause matches nothing and the filter returns less than expected — with no error to say why.",
+      onOpen: () => onNavigate("filters", { view: "broken" }),
+      openLabel: "Filters",
+    });
+  }
+
   if (filters?.available && filters.subscribedButUnusedCount > 0) {
     findings.push({
       key: "filters-zombie-subscriptions",
@@ -608,6 +625,66 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
       detail: "They cannot route anything to a project until an issue type screen scheme references them.",
       onOpen: () => onNavigate("screens", { view: "schemes", schemes: "unused" }),
       openLabel: "Screens",
+    });
+  }
+
+  // ── Issue types ─────────────────────────────────────────────────────────
+  // "issue-type-findings" deliberately does not match a scored dimension key -- the scored
+  // cards state the rate, these state the list to act on, same split as screens.
+
+  if (issueTypes?.available && issueTypes.orphanTypeCount > 0) {
+    findings.push({
+      key: "issue-type-orphans",
+      dimension: "issue-type-findings",
+      pillar: "issueTypes",
+      tone: "critical",
+      count: issueTypes.orphanTypeCount,
+      title: "Issue types on no scheme",
+      detail: "No project can create these, so every one is clutter in every type picker.",
+      onOpen: () => onNavigate("issueTypes", { view: "hierarchy" }),
+      openLabel: "Issue Types",
+    });
+  }
+
+  if (issueTypes?.available && issueTypes.hierarchyFlaggedSchemeCount > 0) {
+    findings.push({
+      key: "issue-type-hierarchy",
+      dimension: "issue-type-findings",
+      pillar: "issueTypes",
+      tone: "critical",
+      count: issueTypes.hierarchyFlaggedSchemeCount,
+      title: "Schemes that cannot start an issue",
+      detail: "Sub-tasks with no standalone type, or a default type that cannot be created on its own.",
+      onOpen: () => onNavigate("issueTypes", { view: "schemes" }),
+      openLabel: "Issue Types",
+    });
+  }
+
+  if (issueTypes?.available && issueTypes.reducibleTypeCount > 0) {
+    findings.push({
+      key: "issue-type-duplicates",
+      dimension: "issue-type-findings",
+      pillar: "issueTypes",
+      tone: "warning",
+      count: issueTypes.reducibleTypeCount,
+      title: "Near-duplicate issue type names",
+      detail: `${issueTypes.duplicateTypeGroupCount} group${issueTypes.duplicateTypeGroupCount === 1 ? "" : "s"} — a Bug / Defect split makes every by-type report wrong.`,
+      onOpen: () => onNavigate("issueTypes", { view: "hierarchy" }),
+      openLabel: "Issue Types",
+    });
+  }
+
+  if (issueTypes?.available && issueTypes.unusedSchemeCount > 0) {
+    findings.push({
+      key: "issue-type-unused-schemes",
+      dimension: "issue-type-findings",
+      pillar: "issueTypes",
+      tone: "info",
+      count: issueTypes.unusedSchemeCount,
+      title: "Issue type schemes assigned to no project",
+      detail: "A scheme no project uses is a decision nobody made.",
+      onOpen: () => onNavigate("issueTypes", { view: "schemes" }),
+      openLabel: "Issue Types",
     });
   }
 
@@ -1335,11 +1412,11 @@ function RqtPanel({ onOpenRqtIndex }) {
   );
 }
 
-export function OverviewDashboard({ dashboard, findingsSummary, findingsByCode, workflow, screens, automation, filters, dashboards, health, history, onOpenRqtIndex, onNavigate }) {
+export function OverviewDashboard({ dashboard, findingsSummary, findingsByCode, workflow, screens, issueTypes, automation, filters, dashboards, health, history, onOpenRqtIndex, onNavigate }) {
   // onNavigate is optional so this stays renderable in isolation; without it the deep
   // links become inert rather than throwing.
   const navigate = onNavigate || (() => {});
-  const findings = buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, screens, automation, filters, dashboards, onNavigate: navigate });
+  const findings = buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, screens, issueTypes, automation, filters, dashboards, onNavigate: navigate });
   // A caller may pass history in -- tests do -- but nobody has to.
   const fetched = useHealthHistory();
   const series = history ?? fetched;

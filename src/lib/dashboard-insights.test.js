@@ -151,30 +151,23 @@ describe("summarizeDashboardHealth", () => {
     Array.from({ length: 100 }, (_, i) => dashboard({ id: String(i) })).map((d, i) => ({ ...d, ...(over(i) || {}) }))
   ));
 
-  test("a clean estate rates zero", () => {
-    expect(build(() => null).defectRate).toBe(0);
+  // computeSiteHealth scores four dashboard dimensions from these raw counts directly. What
+  // this owes it is the counts; the old combined `defectRate` had no consumer after the
+  // split and is gone.
+  test("passes the scored counts through, without a combined rate", () => {
+    const summary = build((i) => (i < 10 ? { owner: null } : null));
+    expect(summary).toMatchObject({ available: true, total: 100, orphanedCount: 10 });
+    expect(summary).not.toHaveProperty("defectRate");
   });
 
-  test("weights a vanishing dashboard above an editable one", () => {
-    const orphans = build((i) => (i < 10 ? { owner: null } : null));
-    const editable = build((i) => (i < 10 ? { editShares: [{ type: "global" }] } : null));
-    expect(orphans.defectRate).toBeGreaterThan(editable.defectRate);
-  });
-
-  test("an empty grid counts least of the three", () => {
-    const empty = build((i) => (i < 10 ? { gadgetCount: 0 } : null));
-    const editable = build((i) => (i < 10 ? { editShares: [{ type: "global" }] } : null));
-    expect(empty.defectRate).toBeLessThan(editable.defectRate);
-  });
-
-  // A partial walk contributes nothing to the rate rather than contributing zero, which
-  // would quietly flatter the score.
-  test("an unmeasured empty count does not move the rate", () => {
+  // A partial gadget walk leaves emptyCount null -- computeSiteHealth reads that as the
+  // content dimension being unavailable rather than scoring a shortfall in the build as a
+  // defect in the estate.
+  test("carries a null empty count through unchanged on a partial walk", () => {
     const partial = summarizeDashboards([dashboard({ gadgetCount: null }), dashboard({ id: "2", owner: null, gadgetCount: null })]);
     const health = summarizeDashboardHealth(partial);
     expect(health.emptyCount).toBeNull();
-    // Only the orphan contributes: 1 * 2 / (2 * 2).
-    expect(health.defectRate).toBe(0.5);
+    expect(health.orphanedCount).toBe(1);
   });
 
   test("reports unavailable when there is no estate to rate", () => {

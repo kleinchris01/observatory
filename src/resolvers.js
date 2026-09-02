@@ -141,6 +141,7 @@ import { queueWorkflowSnapshotBuild, isWorkflowBuildStale, queueStatusHistoryBui
 import { measureScreenFetchCost, probeScreenEndpoints, DEFAULT_SAMPLE_SIZE } from "./lib/screen-probe.js";
 import { queueScreenSnapshotBuild, isScreenBuildStale } from "./lib/screen-engine.js";
 import { queueIssueTypeSnapshotBuild, isIssueTypeBuildStale } from "./lib/issuetype-engine.js";
+import { summarizeIssueTypeInsights } from "./lib/issuetype-insights.js";
 import { computeSiteHealth, DEFAULT_HEALTH_TOLERANCES } from "./lib/health-score.js";
 // Moved out of this file so a scan can record a measurement without importing the
 // resolver layer. Same implementation, both callers.
@@ -151,6 +152,7 @@ import {
   buildScreenOverview,
   buildFilterOverview,
   buildDashboardOverview,
+  buildIssueTypeOverview,
   attachUniqueIssueCounts,
   captureSiteHealth,
 } from "./lib/site-health.js";
@@ -1468,6 +1470,10 @@ async function getIssueTypeInventory({ context }) {
     hierarchy,
     schemes: schemesResolved,
     governance,
+    // The finding-shaped detail behind the governance counts: near-duplicate name groups,
+    // the orphan list, and the schemes whose type set does not hang together. Computed from
+    // the rows already loaded above so the tab renders findings without a second round trip.
+    governanceFindings: summarizeIssueTypeInsights({ types: issueTypes, schemes, schemeItems }),
     issueTypeScreenSchemes,
     neverBuilt: false,
   };
@@ -1723,7 +1729,17 @@ async function getFilterInventory({ payload, context }) {
       if (projects.length) projectKeys = new Set(projects.map((p) => p.projectKey).filter(Boolean));
     }
 
-    const summary = summarizeFilters(filters, { projectKeys });
+    // The issue type catalog, for the "JQL names a type nothing defines" join. Same
+    // best-effort posture: skipped and flagged rather than reported as zero.
+    let typeNames = null;
+    const itMeta = await readIssueTypeSnapshotMeta(installationKey).catch(() => null);
+    if (itMeta?.version) {
+      const types = await loadIssueTypes(installationKey, itMeta.version)
+        .catch(fallbackOn("filters.type_names_load_failed", () => [], { installationKey }));
+      if (types.length) typeNames = new Set(types.map((t) => String(t.name || "").toLowerCase()).filter(Boolean));
+    }
+
+    const summary = summarizeFilters(filters, { projectKeys, typeNames });
     // `summary.filters` is analyzeFilter's own output -- every filter with findings attached,
     // unbounded, sorted worst-first. It exists so buildFilterOverview (the Overview's "worst"
     // list) can slice(0, 8) from it. Spreading the whole summary into this response used to
@@ -4850,7 +4866,7 @@ const EMPTY_DASHBOARD = {
 export async function getAdminOverview({ context }) {
   await ensureProjectStoreReady();
   const installationKey = getInstallationKey(context);
-  const [meta, summaryCounts, config, legacySummaryCount, workflow, screens, filterOverview, dashboardOverview, automationAnalysis] = await Promise.all([
+  const [meta, summaryCounts, config, legacySummaryCount, workflow, screens, issueTypeOverview, filterOverview, dashboardOverview, automationAnalysis] = await Promise.all([
     readSnapshotMeta(installationKey),
     // Counted in SQL rather than loaded. This used to pull up to 5,000 summary rows --
     // including two LONGTEXT columns -- across the wire, and use them for a count grouped by
@@ -4861,6 +4877,7 @@ export async function getAdminOverview({ context }) {
     countOldScopeKeyRows(installationKey).catch(fallbackOn("overview.legacy_row_count_failed", 0, { installationKey })),
     buildWorkflowOverview(installationKey),
     buildScreenOverview(installationKey),
+    buildIssueTypeOverview(installationKey),
     // Without the project catalog the broken-reference check is skipped and says so. Passing
     // it would mean loading the project list before this Promise.all rather than inside the
     // dashboard build below, which is a bigger cost than the one finding is worth here -- the
@@ -4954,6 +4971,7 @@ export async function getAdminOverview({ context }) {
     screens,
     filters: filterOverview?.health ?? null,
     dashboards: dashboardOverview?.health ?? null,
+    issueTypes: issueTypeOverview?.health ?? null,
     // Workflow, project and automation dimensions were scored against hardcoded constants
     // while every field rule was tunable. Same config surface now feeds both.
     tolerances: config?.healthTolerances,
@@ -4988,6 +5006,7 @@ export async function getAdminOverview({ context }) {
     findingsByCode,
     workflow,
     screens,
+    issueTypes: issueTypeOverview,
     // The counts the Overview's findings list needs, not just the score's rate. Same lesson
     // the automation pillar learned: trimming this to the headline fields made every problem
     // the analysis had already found invisible on the page that exists to surface problems.
@@ -5086,6 +5105,7 @@ const PILLAR_INPUTS = {
   dashboards: ["dashboards"],
   workflows: ["workflow"],
   screens: ["screens"],
+  issueTypes: ["issueTypes"],
   automation: ["automation"],
   projects: ["projects", "adoption"],
 };
@@ -5103,11 +5123,12 @@ async function getPillarHealth({ payload, context }) {
   // already reports as unavailable -- and unavailable dimensions from other pillars are
   // discarded below anyway, so the returned pillar is byte-identical to what the full
   // computation produced for it.
-  const [workflow, screens, filterOverview, dashboardOverview, automationAnalysis] = await Promise.all([
+  const [workflow, screens, filterOverview, dashboardOverview, issueTypeOverview, automationAnalysis] = await Promise.all([
     needs.has("workflow") ? buildWorkflowOverview(installationKey) : Promise.resolve(null),
     needs.has("screens") ? buildScreenOverview(installationKey) : Promise.resolve(null),
     needs.has("filters") ? buildFilterOverview(installationKey) : Promise.resolve(null),
     needs.has("dashboards") ? buildDashboardOverview(installationKey) : Promise.resolve(null),
+    needs.has("issueTypes") ? buildIssueTypeOverview(installationKey) : Promise.resolve(null),
     needs.has("automation")
       ? readAutomationAnalysis(installationKey).catch(fallbackOn("pillar-health.automation_load_failed", () => null, { installationKey }))
       : Promise.resolve(null),
@@ -5159,6 +5180,7 @@ async function getPillarHealth({ payload, context }) {
     adoption,
     filters: filterOverview?.health ?? null,
     dashboards: dashboardOverview?.health ?? null,
+    issueTypes: issueTypeOverview?.health ?? null,
     tolerances: config?.healthTolerances,
   });
 

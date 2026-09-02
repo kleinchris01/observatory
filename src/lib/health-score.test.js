@@ -105,11 +105,24 @@ const screens = (over = {}) => ({
   ...over,
 });
 
+const issueTypes = (over = {}) => ({
+  available: true,
+  totalTypes: 63,
+  totalSchemes: 24,
+  orphanTypeCount: 0,
+  unusedSchemeCount: 0,
+  reducibleTypeCount: 0,
+  duplicateTypeGroupCount: 0,
+  hierarchyFlaggedSchemeCount: 0,
+  ...over,
+});
+
 describe("computeSiteHealth — scoring", () => {
   test("a clean site scores at the top", () => {
     const health = computeSiteHealth({
       fieldUsage: fieldUsage(), workflow: workflow(), projects: projects(),
-      automation: automation(), screens: screens(), adoption: adoption(), filters: filters(), dashboards: dashboards(),
+      automation: automation(), screens: screens(), adoption: adoption(), filters: filters(),
+      dashboards: dashboards(), issueTypes: issueTypes(),
     });
 
     expect(health.score).toBeGreaterThanOrEqual(90);
@@ -278,13 +291,17 @@ describe("computeSiteHealth — scoring", () => {
       expect(dim(idle, "project-consistency").action).toMatch(/6 of them carry little issue volume/);
     });
 
-    test("scores activity separately from shape", () => {
+    // Activity scores ONLY projects that carry no work at all. Staleness ("nothing in six
+    // months") is no longer scored here -- project-adoption grades a project that went quiet
+    // age-relative, and a stale project is always old enough for it to judge, so scoring both
+    // charged one abandoned project twice into the projects pillar.
+    test("scores never-used projects, not stale ones", () => {
       const health = computeSiteHealth({
         projects: projects({ totalProjects: 200, staleProjectCount: 31, unusedProjectCount: 12 }),
       });
-      // 43/200 against a 30% tolerance.
-      expect(dim(health, "project-activity").score).toBe(28);
-      expect(dim(health, "project-activity").detail).toMatch(/31 projects.*no activity.*12 carry fields/);
+      // 12/200 against a 30% tolerance -- staleProjectCount does not enter.
+      expect(dim(health, "project-activity").score).toBe(80);
+      expect(dim(health, "project-activity").detail).toMatch(/12 of 200 projects carry fields but no recorded work/);
     });
 
     test("both are unavailable without project usage data", () => {
@@ -404,6 +421,52 @@ describe("screen dimensions", () => {
       expect(dim(health, key).available).toBe(false);
       expect(dim(health, key).reason).toMatch(/no screen inventory/i);
     }
+  });
+});
+
+describe("issue type dimensions", () => {
+  const dim = (health, key) => health.dimensions.find((d) => d.key === key);
+
+  test("scores a type on no scheme as unreachable, weighted above the others", () => {
+    const clean = computeSiteHealth({ issueTypes: issueTypes() });
+    const orphans = computeSiteHealth({ issueTypes: issueTypes({ totalTypes: 63, orphanTypeCount: 8 }) });
+
+    expect(dim(clean, "issue-type-reach").score).toBe(100);
+    // 8/63 against a 0.12 tolerance -> bottomed out.
+    expect(dim(orphans, "issue-type-reach").score).toBe(0);
+    expect(dim(orphans, "issue-type-reach").detail).toMatch(/no project can create one/i);
+    expect(dim(orphans, "issue-type-reach").weight).toBe(1.5);
+  });
+
+  test("scores an unassigned scheme forgivingly, and a near-duplicate name like a status", () => {
+    const unused = computeSiteHealth({ issueTypes: issueTypes({ totalSchemes: 24, unusedSchemeCount: 4 }) });
+    // 4/24 against a 0.40 tolerance -> ~58, not bottomed out.
+    expect(dim(unused, "issue-type-scheme-usage").score).toBeGreaterThan(40);
+
+    const dupes = computeSiteHealth({ issueTypes: issueTypes({ totalTypes: 63, reducibleTypeCount: 6, duplicateTypeGroupCount: 3 }) });
+    expect(dim(dupes, "issue-type-naming").detail).toMatch(/3 groups/);
+  });
+
+  test("flags a scheme whose type set cannot start an issue", () => {
+    const broken = computeSiteHealth({ issueTypes: issueTypes({ totalSchemes: 20, hierarchyFlaggedSchemeCount: 5 }) });
+    // 5/20 = the 0.25 tolerance exactly -> 0.
+    expect(dim(broken, "issue-type-hierarchy").score).toBe(0);
+    expect(dim(broken, "issue-type-hierarchy").detail).toMatch(/sub-tasks with no parent-level type/i);
+  });
+
+  test("marks every issue type dimension unavailable when no inventory exists", () => {
+    const health = computeSiteHealth({ fieldUsage: fieldUsage() });
+    for (const key of ["issue-type-reach", "issue-type-scheme-usage", "issue-type-naming", "issue-type-hierarchy"]) {
+      expect(dim(health, key).available).toBe(false);
+      expect(dim(health, key).reason).toMatch(/no issue type inventory/i);
+    }
+  });
+
+  test("the issue types pillar is weighted 1 and rolls its four dimensions up", () => {
+    const health = computeSiteHealth({ issueTypes: issueTypes({ orphanTypeCount: 5 }) });
+    const pillar = health.pillars.find((p) => p.key === "issueTypes");
+    expect(pillar.total).toBe(4);
+    expect(pillar.available).toBe(true);
   });
 });
 
