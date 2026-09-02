@@ -218,7 +218,7 @@ describe("filterFindings", () => {
 describe("analyzeExportFile", () => {
   it("derives every document from a real export shape", async () => {
     const docs = await analyzeExportFile(exportFile({ cloud: true, rules: [RULE] }));
-    expect(Object.keys(docs).sort()).toEqual(["analysis", "cascades", "directory", "fields", "findings", "statuses"]);
+    expect(Object.keys(docs).sort()).toEqual(["analysis", "cascades", "directory", "fields", "findings", "issueTypes", "statuses"]);
     expect(docs.analysis.estate).toMatchObject({ ruleCount: 1, enabledCount: 1 });
     expect(docs.fields.entries.map((e) => e.label).sort()).toEqual(["Actual SEOBD", "Post sourcing cost review"]);
   });
@@ -243,14 +243,14 @@ describe("persistAnalysis", () => {
   it("writes the analysis last, after every index", async () => {
     const save = vi.fn().mockResolvedValue({});
     await persistAnalysis(
-      { analysis: { a: 1 }, fields: { f: 1 }, statuses: { s: 1 }, directory: { d: 1 }, findings: { fi: 1 }, cascades: { c: 1 } },
+      { analysis: { a: 1 }, fields: { f: 1 }, statuses: { s: 1 }, issueTypes: { it: 1 }, directory: { d: 1 }, findings: { fi: 1 }, cascades: { c: 1 } },
       { save }
     );
 
     const order = save.mock.calls.map((c) => (c[0] === "saveAutomationIndex" ? c[1].part : c[0]));
     // Cascades go after the directory, which the cascade views join to for rule names, and
     // before the analysis, which is the commit point.
-    expect(order).toEqual(["fields", "statuses", "directory", "findings", "cascades", "saveAutomationAnalysis"]);
+    expect(order).toEqual(["fields", "statuses", "issueTypes", "directory", "findings", "cascades", "saveAutomationAnalysis"]);
   });
 
   it("stops before the commit point if an index write fails", async () => {
@@ -870,7 +870,7 @@ describe("AutomationTab", () => {
 
       await waitFor(() => expect(invoke).toHaveBeenCalledWith("saveAutomationAnalysis", expect.any(Object)));
       const parts = invoke.mock.calls.filter((c) => c[0] === "saveAutomationIndex").map((c) => c[1].part);
-      expect(parts).toEqual(["fields", "statuses", "directory", "findings", "cascades"]);
+      expect(parts).toEqual(["fields", "statuses", "issueTypes", "directory", "findings", "cascades"]);
     });
 
     it("shows a parse error against the control and keeps it usable", async () => {
