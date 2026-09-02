@@ -924,22 +924,21 @@ describe("probeEndpointAsUser", () => {
 });
 
 describe("probeStargateEndpoint", () => {
-  test("goes through requestAtlassian, not requestJira", async () => {
-    mockRequestAtlassian.mockResolvedValueOnce(jiraResponse({ status: 200, ok: true, text: "{\"objectSchemas\":[]}" }));
+  test("routes the /jsm/assets/ path through requestJira's gateway proxy", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ status: 200, ok: true, text: "{\"objectSchemas\":[]}" }));
 
     const path = "/jsm/assets/workspace/abc/v1/objectschema/list";
     const result = await probeStargateEndpoint(path);
 
-    // route([path]) collapses to the bare path -- requestAtlassian prepends the gateway host.
-    expect(mockRequestAtlassian).toHaveBeenCalledWith(path, expect.objectContaining({ method: "GET" }));
-    // requestJira cannot reach the gateway at all; the earlier createRequestStargateAsApp
-    // attempt was rejected as INVALID_TARGET_URL before it left the sandbox.
-    expect(mockRequestJira).not.toHaveBeenCalled();
+    // route([path]) collapses to the bare path; Forge's requestJira proxy recognises the
+    // /jsm/assets/ prefix and forwards it to api.atlassian.com. requestAtlassian / Stargate
+    // rejected the same path as INVALID_TARGET_URL, which is what this replaced.
+    expect(mockRequestJira).toHaveBeenCalledWith(path, expect.objectContaining({ method: "GET" }));
     expect(result).toMatchObject({ status: 200, ok: true });
   });
 
   test("returns a null status instead of throwing", async () => {
-    mockRequestAtlassian.mockRejectedValueOnce(new Error("gateway rejected the route"));
+    mockRequestJira.mockRejectedValueOnce(new Error("gateway rejected the route"));
 
     const result = await probeStargateEndpoint("/jsm/assets/workspace/x/v1/x");
 
@@ -950,14 +949,14 @@ describe("probeStargateEndpoint", () => {
 });
 
 describe("requestAtlassianJson", () => {
-  test("parses a 2xx JSON body from the gateway", async () => {
-    mockRequestAtlassian.mockResolvedValueOnce(jiraResponse({ status: 200, ok: true, text: "{\"objectSchemas\":[{\"id\":\"1\"}]}" }));
+  test("parses a 2xx JSON body from the Assets API", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ status: 200, ok: true, text: "{\"objectSchemas\":[{\"id\":\"1\"}]}" }));
     const body = await requestAtlassianJson("/jsm/assets/workspace/w/v1/objectschema/list");
     expect(body).toEqual({ objectSchemas: [{ id: "1" }] });
   });
 
   test("throws with the status attached on a non-2xx", async () => {
-    mockRequestAtlassian.mockResolvedValueOnce(jiraResponse({ status: 403, ok: false, text: "no assets licence" }));
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ status: 403, ok: false, text: "app not authorised for Assets" }));
     await expect(requestAtlassianJson("/jsm/assets/workspace/w/v1/config/statustype"))
       .rejects.toMatchObject({ status: 403 });
   });

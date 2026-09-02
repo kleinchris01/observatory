@@ -153,8 +153,10 @@ export async function buildAssetSnapshot(installationKey) {
       rawSchemas = Array.isArray(listed) ? listed : (listed?.values || listed?.objectSchemas || []);
     } catch (error) {
       if (isAssetsUnavailable(error)) {
-        return finishUnavailable(installationKey,
-          `The Assets API returned ${error.status} — Assets is not enabled or the app is not authorised for it here.`);
+        const reason = error.status === 401 || error.status === 403
+          ? `The Assets API returned ${error.status}. Assets is provisioned (the workspace resolved), but this app is not authorised to read it — grant the Observatory app an Assets read role in Assets → Configuration → Roles, then rebuild.`
+          : `The Assets API returned ${error.status ?? "no response"} — Assets is not enabled on this site (it needs JSM Premium/Enterprise).`;
+        return finishUnavailable(installationKey, reason);
       }
       throw error;
     }

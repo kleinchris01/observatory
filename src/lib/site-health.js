@@ -569,7 +569,7 @@ export async function buildAssetOverview(installationKey) {
       return { available: false, state: meta?.state || "idle", lastError: meta?.lastError || null };
     }
 
-    if (meta?.state === "unavailable" || meta?.assetsEnabled === false) {
+    if (meta?.state === "unavailable") {
       const summary = summarizeAssetInsights({ assetsEnabled: false });
       return {
         available: false,
