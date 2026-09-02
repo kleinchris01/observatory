@@ -3,7 +3,7 @@ import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { invoke } from "@forge/bridge";
-import { AutomationProbePanel, ConfigTab, ScreenCostProbePanel } from "./ConfigTab";
+import { AutomationProbePanel, AssetsProbePanel, ConfigTab, ScreenCostProbePanel } from "./ConfigTab";
 import { DEFAULT_THRESHOLDS, DEFAULT_MACRO_ACCESS } from "../admin-defaults";
 
 // ConfigTab had no test file, which is how a panel calling an unimported `invoke` reached
@@ -27,6 +27,48 @@ const probeResult = (over = {}) => ({
 });
 
 beforeEach(() => vi.clearAllMocks());
+
+describe("AssetsProbePanel", () => {
+  test("renders the probe button and, on success, names the workspace and reachable endpoints", async () => {
+    invoke.mockResolvedValue({
+      assetsEnabled: true,
+      workspaceId: "ws-abc",
+      reachable: ["schemas", "objectTypes"],
+      results: [
+        { step: "workspace", via: "site", path: "/rest/servicedeskapi/assets/workspace", status: 200, ok: true, sample: "{}" },
+        { step: "schemas", via: "stargate", path: "https://api.atlassian.com/jsm/assets/workspace/ws-abc/v1/objectschema/list", status: 200, ok: true, looksLikeAssets: true, sample: "[]" },
+      ],
+    });
+    render(<AssetsProbePanel />);
+    await userEvent.click(screen.getByRole("button", { name: /Probe Assets endpoints/i }));
+
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("probeAssetsApi", {}));
+    expect(await screen.findByText(/Assets is reachable/i)).toBeInTheDocument();
+    expect(screen.getByText("ws-abc")).toBeInTheDocument();
+  });
+
+  test("shows the reason when Assets is not reachable", async () => {
+    invoke.mockResolvedValue({
+      assetsEnabled: false,
+      workspaceId: null,
+      reason: "The workspace endpoint did not answer — Assets needs JSM Premium/Enterprise.",
+      reachable: [],
+      results: [{ step: "workspace", via: "site", path: "/rest/servicedeskapi/assets/workspace", status: 404, ok: false, sample: "" }],
+    });
+    render(<AssetsProbePanel />);
+    await userEvent.click(screen.getByRole("button", { name: /Probe Assets endpoints/i }));
+
+    expect(await screen.findByText(/Assets needs JSM Premium/i)).toBeInTheDocument();
+  });
+
+  test("surfaces a resolver failure without breaking the panel", async () => {
+    invoke.mockRejectedValue(new Error("boom"));
+    render(<AssetsProbePanel />);
+    await userEvent.click(screen.getByRole("button", { name: /Probe Assets endpoints/i }));
+    expect(await screen.findByText("boom")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Probe Assets endpoints/i })).toBeEnabled();
+  });
+});
 
 describe("AutomationProbePanel", () => {
   test("renders without crashing and offers the probe", () => {

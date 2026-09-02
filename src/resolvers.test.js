@@ -4261,6 +4261,30 @@ describe("probeAutomationApi — gateway transport", () => {
   });
 });
 
+describe("probeAssetsApi", () => {
+  const probeAssetsApi = __RAW_ADMIN_ONLY_FUNCTIONS.probeAssetsApi;
+
+  test("reports Assets not enabled when the workspace hop fails, and never touches the gateway", async () => {
+    mocks.probeEndpoint.mockResolvedValue({ path: "w", status: 404, ok: false, ms: 4, sample: "no" });
+
+    const result = await probeAssetsApi({ context: {} });
+
+    expect(result).toMatchObject({ assetsEnabled: false, workspaceId: null });
+    expect(mocks.probeStargateEndpoint).not.toHaveBeenCalled();
+  });
+
+  test("probes the Assets gateway endpoints once a workspace is discovered", async () => {
+    mocks.probeEndpoint.mockResolvedValue({ path: "w", status: 200, ok: true, ms: 4, sample: '{"values":[{"workspaceId":"ws-1"}]}' });
+    mocks.probeStargateEndpoint.mockResolvedValue({ path: "s", status: 200, ok: true, ms: 6, sample: '{"objectSchemas":[{"id":"1"}]}' });
+
+    const result = await probeAssetsApi({ context: {} });
+
+    expect(result.workspaceId).toBe("ws-1");
+    const gatewayPaths = mocks.probeStargateEndpoint.mock.calls.map((c) => c[0]);
+    expect(gatewayPaths.some((p) => p.includes("/jsm/assets/workspace/ws-1/v1/objectschema/list"))).toBe(true);
+  });
+});
+
 
 // ── Screen and scheme inventory ──────────────────────────────────────────────
 

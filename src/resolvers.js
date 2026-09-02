@@ -143,6 +143,7 @@ import {
 } from "./lib/project-store.js";
 import { queueWorkflowSnapshotBuild, isWorkflowBuildStale, queueStatusHistoryBuild } from "./lib/workflow-engine.js";
 import { measureScreenFetchCost, probeScreenEndpoints, DEFAULT_SAMPLE_SIZE } from "./lib/screen-probe.js";
+import { probeAssetsApi as probeAssetsApiProbe } from "./lib/asset-probe.js";
 import { queueScreenSnapshotBuild, isScreenBuildStale } from "./lib/screen-engine.js";
 import { queueIssueTypeSnapshotBuild, isIssueTypeBuildStale } from "./lib/issuetype-engine.js";
 import { queueUserSnapshotBuild, isUserBuildStale } from "./lib/user-engine.js";
@@ -2673,6 +2674,14 @@ async function probeScreenFetchCost({ payload, context }) {
 
 // reports exactly what each one returned. Admin-only, read-only, and it never throws:
 // a diagnostic that can fail the page it runs on is worse than no diagnostic.
+// Confirms what the JSM Assets API answers on this site -- the first step of the Assets
+// pillar, done as a probe because Assets is a gateway API whose exact endpoint spelling and
+// availability (JSM Premium only) are worth verifying before an engine is built on them.
+async function probeAssetsApi() {
+  incrMetric(METRIC_NAMES.resolver);
+  return probeAssetsApiProbe();
+}
+
 async function probeAutomationApi({ context }) {
   incrMetric(METRIC_NAMES.resolver);
   const installationKey = getInstallationKey(context);
@@ -6208,6 +6217,7 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   saveAdminConfig: saveAdminConfigResolver,    // Mutating: rewrites thresholds and access control
   getAdminOverview,                            // Admin read: dashboard aggregate
   probeAutomationApi,                          // Admin read: reports which Jira endpoints answer, for diagnosis
+  probeAssetsApi,                              // Admin read: confirms the JSM Assets API and workspace on this site
   probeScreenFetchCost,                        // Admin read: samples the cost of a full screen inventory pass
   migrateNamespaceKeys,                        // Mutating: rewrites scope keys across every table
 };

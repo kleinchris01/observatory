@@ -84,6 +84,73 @@ export function AutomationProbePanel() {
   );
 }
 
+export function AssetsProbePanel() {
+  const [result, setResult] = React.useState(null);
+  const [running, setRunning] = React.useState(false);
+  const [error, setError] = React.useState(null);
+
+  async function run() {
+    setRunning(true);
+    setError(null);
+    try {
+      setResult(await invoke("probeAssetsApi", {}));
+    } catch (err) {
+      setError(err?.message || "Probe failed.");
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  return (
+    <ConfigSection title="JSM Assets API" icon="layers">
+      <p className="admin-config-row__hint" style={{ marginBottom: 10 }}>
+        Assets (CMDB) is a gateway API — it lives on api.atlassian.com, not this site, and
+        needs JSM Premium. This confirms the workspace and which structure endpoints answer
+        before an Assets pillar is built on them. <b>site</b> rows are the workspace-id
+        discovery hop; <b>gateway</b> rows are the Assets API itself.
+      </p>
+
+      <button type="button" className="secondary-button" onClick={run} disabled={running}>
+        <Icon name="layers" size={13} />
+        {running ? "Probing…" : "Probe Assets endpoints"}
+      </button>
+
+      {error && <div className="danger-zone__error" role="alert">{error}</div>}
+
+      {result && (
+        <div className="probe-results">
+          {result.assetsEnabled ? (
+            <p className="probe-results__summary probe-results__summary--ok">
+              Assets is reachable. Workspace <code>{result.workspaceId}</code> —{" "}
+              {result.reachable.length} structure endpoint{result.reachable.length === 1 ? "" : "s"} answered.
+            </p>
+          ) : (
+            <p className="probe-results__summary">
+              {result.reason || "Assets is not reachable with the current scopes on this site."}
+            </p>
+          )}
+          <table className="probe-results__table">
+            <thead>
+              <tr><th>Step</th><th>Via</th><th>Endpoint</th><th>Status</th><th>Response</th></tr>
+            </thead>
+            <tbody>
+              {result.results.map((row) => (
+                <tr key={row.path} className={row.ok && (row.looksLikeAssets ?? true) ? "probe-results__row--ok" : ""}>
+                  <td>{row.step}</td>
+                  <td>{row.via === "stargate" ? "gateway" : "site"}</td>
+                  <td className="probe-results__path">{row.path}</td>
+                  <td>{row.status === null ? "—" : row.status}</td>
+                  <td className="probe-results__sample">{row.sample || "(empty)"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </ConfigSection>
+  );
+}
+
 export function ConfigTab({ config, onSave, saving }) {
 // Mirrors DEFAULT_HEALTH_TOLERANCES in src/lib/health-score.js. Stored as rates; shown as
 // percentages, because "flag once 15% of statuses are duplicates" is how an admin thinks
@@ -272,6 +339,7 @@ function ConfigAreas({ area, local, t, set, setThreshold, setMacroAccess, pct, s
       />
       <ScreenCostProbePanel />
       <AutomationProbePanel />
+      <AssetsProbePanel />
       <AuditLogPanel />
     </>
   );
