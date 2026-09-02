@@ -252,7 +252,7 @@ vi.mock("./lib/store/automation.js", () => ({
   loadRulesForProject: mocks.loadRulesForProject,
   loadStatusAutomationReferences: mocks.loadStatusAutomationReferences,
   loadGlobalRulesAffectingProject: mocks.loadGlobalRulesAffectingProject,
-  AUTOMATION_PARTS: { analysis: "a:", fields: "f:", statuses: "s:", directory: "d:", findings: "fi:" },
+  AUTOMATION_PARTS: { analysis: "a:", fields: "f:", statuses: "s:", issueTypes: "it:", directory: "d:", findings: "fi:", cascades: "c:" },
   MAX_PREVIEW_FINDINGS: 20,
   MAX_STORED_CASCADES: 150,
 }));
@@ -3668,6 +3668,56 @@ describe("getAutomationIndex", () => {
     await expect(
       getAutomationIndex({ payload: { part: "secrets" }, context: ctxWithAccount() })
     ).rejects.toThrow(/unknown automation index part/);
+  });
+
+  // A rule that creates an issue of a type names it by numeric id, so the issue-type index
+  // arrives half-labelled with "10022". Resolved against the inventory on read.
+  test("resolves issue-type id labels to names from the inventory", async () => {
+    mocks.readAutomationPart.mockResolvedValue({
+      schemaVersion: 1, total: 2, entries: [
+        { label: "10022", writeCount: 3, readCount: 0, triggerCount: 0, total: 3, ruleCount: 3, write: ["r1", "r2", "r3"], read: [], trigger: [] },
+        { label: "current", writeCount: 1, readCount: 0, triggerCount: 0, total: 1, ruleCount: 1, write: ["r9"], read: [], trigger: [] },
+      ],
+    });
+    mocks.readIssueTypeSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
+    mocks.loadIssueTypes.mockResolvedValue([{ id: "10022", name: "Incident" }, { id: "10000", name: "Bug" }]);
+
+    const result = await getAutomationIndex({ payload: { part: "issueTypes" }, context: ctxWithAccount() });
+
+    const labels = result.entries.map((e) => e.label);
+    expect(labels).toContain("Incident");
+    expect(labels).not.toContain("10022");
+    // A label that is not a known id -- a smart-value literal -- is left alone.
+    expect(labels).toContain("current");
+  });
+
+  test("merges an issue type referenced once by id and once by name", async () => {
+    mocks.readAutomationPart.mockResolvedValue({
+      schemaVersion: 1, total: 2, entries: [
+        { label: "10022", writeCount: 2, readCount: 0, triggerCount: 0, total: 2, ruleCount: 2, write: ["r1", "r2"], read: [], trigger: [] },
+        { label: "Incident", writeCount: 0, readCount: 1, triggerCount: 0, total: 1, ruleCount: 1, write: [], read: ["r3"], trigger: [] },
+      ],
+    });
+    mocks.readIssueTypeSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
+    mocks.loadIssueTypes.mockResolvedValue([{ id: "10022", name: "Incident" }]);
+
+    const result = await getAutomationIndex({ payload: { part: "issueTypes" }, context: ctxWithAccount() });
+
+    expect(result.entries).toHaveLength(1);
+    expect(result.entries[0]).toMatchObject({ label: "Incident", writeCount: 2, readCount: 1, total: 3, ruleCount: 3 });
+    expect(result.total).toBe(1);
+  });
+
+  test("leaves the issue-type index untouched when no inventory has been built", async () => {
+    mocks.readAutomationPart.mockResolvedValue({
+      schemaVersion: 1, total: 1, entries: [{ label: "10022", writeCount: 1, readCount: 0, triggerCount: 0, total: 1, write: ["r1"], read: [], trigger: [] }],
+    });
+    mocks.readIssueTypeSnapshotMeta.mockResolvedValue(null);
+
+    const result = await getAutomationIndex({ payload: { part: "issueTypes" }, context: ctxWithAccount() });
+
+    expect(result.entries[0].label).toBe("10022");
+    expect(mocks.loadIssueTypes).not.toHaveBeenCalled();
   });
 
   test("both index resolvers are admin-only", () => {

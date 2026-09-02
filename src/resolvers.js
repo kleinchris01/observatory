@@ -2428,6 +2428,46 @@ async function getStatusAutomationUsage({ payload, context }) {
 }
 
 
+// A rule that creates an issue of a type, or scopes its trigger to one, names that type by
+// numeric id -- only conditions and JQL carry the display name. So the issue-type index
+// arrives labelled with a mix of ids and names, and the tab was rendering "10022" where the
+// Issue Types tab says "Incident". Resolved here, against the issue-type inventory, rather
+// than in the browser-side analysis: the id -> name map is the inventory's to own, and the
+// analysis pipeline is shared with the backend importer which has no reason to load it.
+//
+// Relabelling can collide -- one rule referencing a type by id and another by name produces
+// two entries that are the same type -- so entries that land on the same name are merged.
+async function resolveIssueTypeIndexLabels(installationKey, entries) {
+  const meta = await readIssueTypeSnapshotMeta(installationKey).catch(() => null);
+  if (!meta?.version) return entries;
+  const types = await loadIssueTypes(installationKey, meta.version).catch(() => []);
+  if (!types.length) return entries;
+
+  const nameById = new Map(types.map((t) => [String(t.id), t.name]).filter(([, name]) => name));
+  if (!nameById.size) return entries;
+
+  const merged = new Map();
+  for (const entry of entries) {
+    const label = nameById.get(String(entry.label)) ?? entry.label;
+    const key = String(label).toLowerCase();
+    const existing = merged.get(key);
+    if (!existing) {
+      merged.set(key, { ...entry, label });
+      continue;
+    }
+    for (const dir of ["write", "read", "trigger"]) {
+      existing[dir] = [...new Set([...(existing[dir] ?? []), ...(entry[dir] ?? [])])].slice(0, 50);
+      existing[`${dir}Count`] = (existing[`${dir}Count`] ?? 0) + (entry[`${dir}Count`] ?? 0);
+    }
+    existing.total = existing.writeCount + existing.readCount + existing.triggerCount;
+    existing.ruleCount = new Set([...existing.write, ...existing.read, ...existing.trigger]).size;
+    existing.enabledRules = (existing.enabledRules ?? 0) + (entry.enabledRules ?? 0);
+    existing.disabledRules = (existing.disabledRules ?? 0) + (entry.disabledRules ?? 0);
+  }
+
+  return [...merged.values()].sort((a, b) => b.total - a.total || String(a.label).localeCompare(String(b.label)));
+}
+
 // Fetch a supporting index on demand. The field index is ~116 KB; sending it with the
 // first paint would slow the tab for every visit that never opens the Fields section.
 async function getAutomationIndex({ payload, context }) {
@@ -2442,11 +2482,15 @@ async function getAutomationIndex({ payload, context }) {
     const document = await readAutomationPart(installationKey, part);
     if (!document) return { available: false, part, reason: "no-index" };
 
+    const entries = part === "issueTypes"
+      ? await resolveIssueTypeIndexLabels(installationKey, document.entries ?? [])
+      : (document.entries ?? []);
+
     return {
       available: true,
       part,
-      total: document.total ?? 0,
-      entries: document.entries ?? [],
+      total: part === "issueTypes" ? entries.length : (document.total ?? 0),
+      entries,
       rules: document.rules ?? [],
       // Sent whole rather than paged. All 675 on the reference site are 144 KB in compact
       // form, which is one fetch the section already pays for; paging server-side would

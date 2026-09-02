@@ -280,7 +280,7 @@ function ReferenceExplorer({ noun, index, directory, loading, error, onRetry, si
 
       <div className="ref-head" aria-hidden="true">
         <span />
-        <span>{noun === "fields" ? "Field" : "Status"}</span>
+        <span>{noun === "fields" ? "Field" : noun === "statuses" ? "Status" : "Issue type"}</span>
         <span>Mix</span>
         {DIRECTIONS.map((d) => <span key={d.key} className="ref-head__num">{d.label}</span>)}
         <span className="ref-head__num">Total</span>
