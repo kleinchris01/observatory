@@ -1644,27 +1644,28 @@ export function getCloudId(context) {
   return match ? match[1] : null;
 }
 
-// Call an Atlassian gateway API (https://api.atlassian.com/...) as the app.
+// Call a JSM Assets REST API path and parse the JSON.
 //
-// Used for JSM Assets, whose REST API is not on the site: requestJira cannot reach it. The
-// sanctioned surface is `asApp().requestAtlassian`, which targets api.atlassian.com and
-// carries the app's auth. `path` is relative to that host and must start with "/".
+// The Assets API is not on the site -- it lives on api.atlassian.com/jsm/assets/... -- but
+// Forge's `requestJira` proxy recognises the `/jsm/assets/` prefix and routes it to the
+// gateway with the app's OAuth token. This is the surface the official Forge assets-import
+// template uses (`api.asApp().requestJira(route\`/jsm/assets/workspace/${id}/v1/...\`)`);
+// `requestAtlassian` / Stargate rejects the same path as INVALID_TARGET_URL, and a bare
+// `fetch` to api.atlassian.com needs Basic auth Forge marketplace apps cannot store.
 //
-// The earlier attempt used `createRequestStargateAsApp()` with a full https:// URL and the
-// Forge runtime rejected it before it left the sandbox (400 INVALID_TARGET_URL); a Route
-// through requestAtlassian is the form the platform accepts. `route([path])` passes the
-// path as one static segment -- no interpolation, so a UUID workspace id in it is not
-// re-encoded.
+// `path` must start with "/jsm/assets/". `route([path])` passes it as one static segment,
+// so a UUID workspace id in it is not re-encoded. A 401/403 here means the app has not been
+// granted Assets access, not that the call was malformed.
 export async function requestAtlassianJson(path, { method = "GET", body = null } = {}) {
   const init = { method, headers: { Accept: "application/json" } };
   if (body != null) {
     init.headers["Content-Type"] = "application/json";
     init.body = typeof body === "string" ? body : JSON.stringify(body);
   }
-  const response = await api.asApp().requestAtlassian(route([path]), init);
+  const response = await api.asApp().requestJira(route([path]), init);
   const text = await response.text();
   if (!response.ok) {
-    const error = new Error(`Atlassian gateway ${method} ${path} returned ${response.status}`);
+    const error = new Error(`Assets API ${method} ${path} returned ${response.status}`);
     error.status = response.status;
     error.body = text.slice(0, 500);
     throw error;
@@ -1692,12 +1693,13 @@ export async function getAssetsWorkspaceId() {
   return first?.workspaceId || first?.id || null;
 }
 
-// Probe an api.atlassian.com endpoint. Same never-throws diagnostic contract as
-// probeEndpoint, over the gateway surface instead of the site.
+// Probe a JSM Assets path. Same never-throws diagnostic contract as probeEndpoint. Goes
+// through requestJira, whose proxy routes the `/jsm/assets/` prefix to the gateway -- the
+// only Forge surface that reaches the Assets API.
 export async function probeStargateEndpoint(path) {
   const started = Date.now();
   try {
-    const response = await api.asApp().requestAtlassian(route([path]), {
+    const response = await api.asApp().requestJira(route([path]), {
       method: "GET",
       headers: { Accept: "application/json" },
     });

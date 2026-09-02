@@ -1635,7 +1635,7 @@ async function getAssetInventory({ context }) {
   const meta = await readAssetSnapshotMeta(installationKey);
   const staleBuild = isAssetBuildStale(meta);
 
-  if (meta?.state === "unavailable" || (meta && meta.assetsEnabled === false && meta.state !== "building")) {
+  if (meta?.state === "unavailable") {
     return {
       state: "unavailable",
       assetsEnabled: false,
