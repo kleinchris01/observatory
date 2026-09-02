@@ -442,12 +442,17 @@ describe("consumeSnapshot job routing", () => {
 
   test("defaults to a full snapshot when no jobType is given", async () => {
     await consumeSnapshot(event({}));
-    expect(runSnapshot).toHaveBeenCalledWith("scope-1");
+    expect(runSnapshot).toHaveBeenCalledWith("scope-1", { continuationToken: null });
   });
 
   test("routes run-snapshot to the snapshot engine", async () => {
     await consumeSnapshot(event({ jobType: "run-snapshot" }));
-    expect(runSnapshot).toHaveBeenCalledWith("scope-1");
+    expect(runSnapshot).toHaveBeenCalledWith("scope-1", { continuationToken: null });
+  });
+
+  test("passes a run-snapshot continuation token through to the engine", async () => {
+    await consumeSnapshot(event({ jobType: "run-snapshot", jobToken: "chunk-tok-9" }));
+    expect(runSnapshot).toHaveBeenCalledWith("scope-1", { continuationToken: "chunk-tok-9" });
   });
 
   test("routes build-field-summary with its cursor state", async () => {
@@ -788,7 +793,7 @@ describe("consumeSnapshot job routing", () => {
   // contract; pinning it means a future dispatch-table edit has to be deliberate.
   test("falls through to a full snapshot for an unknown jobType", async () => {
     await consumeSnapshot(event({ jobType: "totally-unknown" }));
-    expect(runSnapshot).toHaveBeenCalledWith("scope-1");
+    expect(runSnapshot).toHaveBeenCalledWith("scope-1", { continuationToken: null });
   });
 
   test("falls back to the global scope when no installation key is present", async () => {

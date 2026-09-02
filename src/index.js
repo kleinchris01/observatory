@@ -409,7 +409,10 @@ export async function consumeSnapshot(event) {
       return;
     }
 
-    await runSnapshot(installationKey);
+    // jobToken is present only on a continuation the build re-queued for itself (it chunks
+    // now, rather than trying to finish inside one 900s invocation). runSnapshot uses it to
+    // resume its own next chunk without being turned away by the duplicate-build guard.
+    await runSnapshot(installationKey, { continuationToken: event?.body?.jobToken || null });
   } catch (error) {
     incrMetric(METRIC_NAMES.snapshotConsumerFailed);
     // Last-resort catch — runSnapshot already handles its own errors, but never rethrow

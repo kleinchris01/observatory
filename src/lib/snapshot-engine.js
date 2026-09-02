@@ -129,9 +129,36 @@ export function hydrateFieldForGovernance(field, summary, duplicateNameCount = 1
 
 // ----- Queue helpers -----
 
-export async function queueSnapshotBuild(installationKey) {
+// Stop and re-queue a build that has been running this long, rather than letting Forge kill
+// the invocation at its 900s consumer ceiling. Same reasoning as FILTER_CHUNK_PAGES: leave
+// enough of the budget that the checkpoint write and the re-queue always land. runSnapshot's
+// per-field REST loop is rate-limited, so on a large estate a single invocation never gets
+// close to finishing -- it has to chunk, and this is where a chunk ends.
+export const SNAPSHOT_SOFT_BUDGET_MS = 11 * 60 * 1000;
+
+// A build stuck in "building" with no fresh heartbeat for this long is treated as abandoned
+// rather than in flight. Mirrors BUILD_STALE_MS in resumable-build.js and its siblings: the
+// consumer ceiling is 900s, plus a minute so a chunk finishing right at the limit is never
+// declared stale out from under itself. runSnapshot bumps startedAt on every chunk, so this
+// measures the CURRENT chunk's age, not the whole build's.
+export const SNAPSHOT_BUILD_STALE_MS = 16 * 60 * 1000;
+
+// True when a build was started but can no longer be running -- a chunk killed by a deploy,
+// an error outside the try, or a queue message that never arrived. Without this the row
+// stays "building" forever and blocks every future rebuild.
+export function isSnapshotBuildStale(meta, now = Date.now(), staleMs = SNAPSHOT_BUILD_STALE_MS) {
+  if (meta?.state !== "building") return false;
+  const heartbeat = Date.parse(meta?.startedAt || "");
+  if (!Number.isFinite(heartbeat)) return true;
+  return now - heartbeat > staleMs;
+}
+
+export async function queueSnapshotBuild(installationKey, jobToken = null) {
   await inventorySnapshotQueue.push({
-    body: { jobType: "run-snapshot", installationKey },
+    // The token rides along only on a build's own re-queued continuation. runSnapshot uses it
+    // to tell "my next chunk" apart from "a second consumer started while I was running",
+    // which the duplicate guard would otherwise reject identically.
+    body: { jobType: "run-snapshot", installationKey, ...(jobToken ? { jobToken } : {}) },
   });
 }
 
@@ -363,12 +390,7 @@ export async function ensureFieldSummaryJobRunning(installationKey, version, fie
 
 export async function requeueStaleSnapshotBuild(installationKey, meta) {
   const currentMeta = meta || await readSnapshotMeta(installationKey);
-  const startedMs = currentMeta?.startedAt ? new Date(currentMeta.startedAt).getTime() : 0;
-  const buildIsStuck =
-    currentMeta?.state === "building" &&
-    (!startedMs || (Date.now() - startedMs > 20 * 60 * 1000));
-
-  if (!buildIsStuck) {
+  if (!isSnapshotBuildStale(currentMeta)) {
     return currentMeta;
   }
 
@@ -381,7 +403,7 @@ export async function requeueStaleSnapshotBuild(installationKey, meta) {
 
   const claimed = await readSnapshotMeta(installationKey);
   if (claimed?.jobToken === queueToken) {
-    await queueSnapshotBuild(installationKey);
+    await queueSnapshotBuild(installationKey, queueToken);
     return claimed;
   }
 
@@ -806,16 +828,22 @@ class CancelError extends Error {
   }
 }
 
-export async function runSnapshot(installationKey) {
+export async function runSnapshot(installationKey, { continuationToken = null } = {}) {
   logger.info("snapshot.start", { installationKey });
   incrMetric(METRIC_NAMES.inventorySnapshot);
+  const runStartMs = Date.now();
   const progressLog = [];
   let processedCount = 0;
   let skipCount = 0;
   let totalCount = 0;
   let progressInterval = null;
   let cancelled = false;
+  // Set when this chunk has used its share of the invocation budget. Remaining fields are
+  // skipped, the walk unwinds, and the build re-queues itself to continue rather than being
+  // killed mid-field by Forge at the 900s ceiling.
+  let budgetExhausted = false;
   let version = null;
+  let buildToken = null;
   const pendingFieldRecords = [];
 
   // Reset telemetry for this invocation and expose logEntry to withRetry
@@ -863,16 +891,21 @@ export async function runSnapshot(installationKey) {
     let resuming = false;
 
     if (existingMeta?.state === "building") {
-      const startedMs = existingMeta?.startedAt ? new Date(existingMeta.startedAt).getTime() : 0;
-      const isStale = Date.now() - startedMs > 16 * 60 * 1000;
-      if (!isStale) {
+      // A continuation this build re-queued for itself carries the build token back. That is
+      // not a duplicate consumer -- it is this build picking up its own next chunk, and it
+      // must be let through even though the row is fresh ("building", just heartbeated).
+      const isOwnContinuation = Boolean(
+        continuationToken && existingMeta.jobToken && continuationToken === existingMeta.jobToken
+      );
+      if (!isOwnContinuation && !isSnapshotBuildStale(existingMeta)) {
         console.log("runSnapshot: build already in progress, skipping duplicate");
         return;
       }
       if (existingMeta.buildingVersion) {
         version = existingMeta.buildingVersion;
+        buildToken = existingMeta.jobToken || makeJobToken();
         resuming = true;
-        console.log(`runSnapshot: resuming stale build (version ${version})`);
+        console.log(`runSnapshot: resuming ${isOwnContinuation ? "in-flight" : "stale"} build (version ${version})`);
       } else {
         console.log("runSnapshot: existing build had no version, starting fresh");
       }
@@ -882,12 +915,14 @@ export async function runSnapshot(installationKey) {
       // the checkpoint (buildingVersion) must still be honored here, or the build silently
       // restarts from field 0 and discards every field already completed.
       version = existingMeta.buildingVersion;
+      buildToken = existingMeta.jobToken || makeJobToken();
       resuming = true;
       console.log(`runSnapshot: resuming re-queued build (version ${version})`);
     }
 
     if (!version) {
       version = String(Date.now());
+      buildToken = makeJobToken();
       await clearSnapshotVersion(installationKey, version);
     }
 
@@ -899,7 +934,11 @@ export async function runSnapshot(installationKey) {
     await writeSnapshotMeta(installationKey, {
       state: "building",
       buildingVersion: version,
-      startedAt: resuming ? existingMeta.startedAt : new Date().toISOString(),
+      jobToken: buildToken,
+      // Bumped on every chunk, not just the first: isSnapshotBuildStale reads this, so it
+      // has to mean "the current chunk started here", not "the whole build started here" --
+      // otherwise a long multi-chunk build would be declared stale while still working.
+      startedAt: new Date().toISOString(),
       completedAt: null,
       lastError: null,
       processedFields: processedCount,
@@ -938,6 +977,15 @@ export async function runSnapshot(installationKey) {
 
     await mapWithConcurrency(fieldsToProcess, SNAPSHOT_CONCURRENCY, async (field, index) => {
       if (cancelled) throw new CancelError();
+
+      // This chunk has had its share of the invocation. Stop taking new fields -- the walk
+      // unwinds fast (every remaining worker returns here), then the block after the map
+      // flushes what is done and re-queues to continue. Not a throw: the fields already
+      // processed are real progress, not something to roll back.
+      if (budgetExhausted || Date.now() - runStartMs > SNAPSHOT_SOFT_BUDGET_MS) {
+        budgetExhausted = true;
+        return;
+      }
 
       // Poll DB every 50 fields to pick up a cancel signal written by the resolver.
       // Also exit if a newer build has taken over the buildingVersion slot.
@@ -1034,6 +1082,39 @@ export async function runSnapshot(installationKey) {
       processedCount = skipCount + index + 1;
     });
 
+    // Ran out of invocation budget before every field was done. Flush what this chunk
+    // produced, checkpoint, and re-queue from here -- the next invocation resumes off the
+    // DB rows via getSnapshotProcessedFieldIds. No finalization: carry-forward, pruning and
+    // the ready state only happen once the walk actually completes.
+    if (budgetExhausted) {
+      await flushPendingFieldRecords();
+      const doneIds = await getSnapshotProcessedFieldIds(installationKey, version).catch(() => null);
+      const doneCount = doneIds ? doneIds.size : processedCount;
+      logEntry(`Chunk budget reached — ${doneCount} of ${totalCount} fields done; re-queueing to continue`);
+      if (progressInterval) { clearInterval(progressInterval); progressInterval = null; }
+
+      await writeSnapshotMeta(installationKey, {
+        state: "building",
+        buildingVersion: version,
+        jobToken: buildToken,
+        startedAt: new Date().toISOString(),
+        completedAt: null,
+        lastError: null,
+        processedFields: doneCount,
+        totalFields: totalCount,
+        progressLog: [...progressLog],
+      });
+
+      // Only the writer that still owns the version re-queues, so a build that lost the
+      // race above does not push a continuation for a version nobody will publish.
+      const owner = await readSnapshotMeta(installationKey);
+      if (owner?.buildingVersion === version) {
+        await queueSnapshotBuild(installationKey, buildToken);
+      }
+      logger.info("snapshot.chunk_checkpointed", { installationKey, version, processedFields: doneCount, totalFields: totalCount });
+      return;
+    }
+
     const { rl429Count, rlRetryCount } = getScanTelemetry();
     logEntry(`Finalizing — ${totalCount} fields complete | 429s: ${rl429Count} retries: ${rlRetryCount}`);
     await flushPendingFieldRecords();
@@ -1066,6 +1147,7 @@ export async function runSnapshot(installationKey) {
       state: "ready",
       version,
       buildingVersion: null,
+      jobToken: null,
       completedAt: refreshedAt,
       refreshedAt,
       totalFields: totalCount,
