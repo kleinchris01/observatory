@@ -88,6 +88,11 @@ export const DEFAULT_HEALTH_TOLERANCES = {
   // Schemes whose type set does not hang together: sub-tasks enabled with no standalone
   // type to hang them off, or a default type that cannot be created on its own.
   brokenTypeHierarchy: 0.25,
+  // People. A deactivated account still in an access group is a licence being paid for and
+  // a login that should not exist -- tight. An orphaned filter/dashboard/rule is config
+  // whose owner is gone; it still works until Jira garbage-collects it, so a touch looser.
+  deactivatedLicenceHolders: 0.05,
+  orphanedOwnership: 0.10,
 };
 
 // rate 0 -> 100, rate >= tolerance -> 0, linear between. Deliberately linear: a curve
@@ -135,6 +140,9 @@ export const PILLAR_WEIGHTS = {
   dashboards: 1,
   // Structural like screens: it decides what an issue can be, not how it behaves after.
   issueTypes: 1,
+  // The who. Licence waste and orphaned ownership are real costs, but neither changes what
+  // an issue does day to day, so it sits with the structural pillars, not above them.
+  users: 1,
 };
 
 export const HEALTH_PILLARS = [
@@ -144,6 +152,7 @@ export const HEALTH_PILLARS = [
   { key: "workflows", label: "Workflows and statuses" },
   { key: "screens", label: "Screens" },
   { key: "issueTypes", label: "Issue types" },
+  { key: "users", label: "People" },
   { key: "automation", label: "Automation" },
   { key: "projects", label: "Projects" },
 ];
@@ -170,7 +179,7 @@ export function resolveHealthTolerances(overrides = {}) {
   return out;
 }
 
-export function computeSiteHealth({ fieldUsage, workflow, projects, automation, screens, adoption, filters, dashboards, issueTypes, tolerances } = {}) {
+export function computeSiteHealth({ fieldUsage, workflow, projects, automation, screens, adoption, filters, dashboards, issueTypes, users, tolerances } = {}) {
   const TOLERANCE = resolveHealthTolerances(tolerances);
   const dimensions = [];
 
@@ -903,6 +912,59 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
     });
   } else {
     dimensions.push(unavailable("issue-type-hierarchy", "Issue type hierarchy", "issueTypes", "No issue type inventory yet."));
+  }
+
+  // ── Licence hygiene ───────────────────────────────────────────────────────
+  // Accounts still in a Jira access group that Jira has deactivated. Every one is a seat
+  // being paid for and a login that, if reactivated, comes back with its old access intact.
+  const totalLicensed = Number(users?.totalUsers) || 0;
+  if (users?.available && totalLicensed > 0) {
+    const deactivated = Number(users.deactivatedUsers) || 0;
+    dimensions.push({
+      key: "user-licence-hygiene",
+      label: "Licence hygiene",
+      pillar: "users",
+      available: true,
+      weight: 1.5,
+      score: scoreFromRate(deactivated / totalLicensed, TOLERANCE.deactivatedLicenceHolders),
+      detail: deactivated === 0
+        ? `All ${totalLicensed} licensed users have an active account.`
+        : `${deactivated} of ${totalLicensed} accounts in a Jira access group are deactivated.`,
+      action: deactivated > 0
+        ? "Remove each from the access group. The seat frees up, and a reactivated account no longer returns with a licence nobody re-granted."
+        : null,
+    });
+  } else {
+    dimensions.push(unavailable("user-licence-hygiene", "Licence hygiene", "users",
+      "No licensed-user roster yet. Build one from the People tab or run a full scan."));
+  }
+
+  // ── Ownership continuity ──────────────────────────────────────────────────
+  // Filters, dashboards and automation rules whose owner is not in the licensed roster --
+  // deleted or unlicensed accounts still holding site config. It works until Jira garbage-
+  // collects the account, and then every board and dashboard built on it breaks at once.
+  const ownedTotal = Number(users?.ownedArtifactTotal) || 0;
+  if (users?.available && ownedTotal > 0) {
+    const orphaned = Number(users.orphanedArtifacts) || 0;
+    dimensions.push({
+      key: "user-ownership",
+      label: "Ownership continuity",
+      pillar: "users",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(orphaned / ownedTotal, TOLERANCE.orphanedOwnership),
+      detail: orphaned === 0
+        ? `Every one of the ${ownedTotal} owned filters, dashboards and rules belongs to a licensed user.`
+        : `${orphaned} of ${ownedTotal} owned filters, dashboards and rules belong to an account not in the roster.`,
+      action: orphaned > 0
+        ? "Reassign these before the accounts are purged — the filter or dashboard goes with the account, and every board built on it goes at the same moment."
+        : null,
+    });
+  } else {
+    dimensions.push(unavailable("user-ownership", "Ownership continuity", "users",
+      users?.available
+        ? "No filter, dashboard or automation ownership data to join against yet."
+        : "No licensed-user roster yet. Build one from the People tab or run a full scan."));
   }
 
   // ── Roll-up ───────────────────────────────────────────────────────────────

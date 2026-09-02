@@ -610,6 +610,9 @@ beforeEach(() => {
   mocks.getBrowsableProjectIds.mockImplementation(async (_accountId, projectIds) => new Set((projectIds || []).map(String)));
   mocks.readWorkflowSnapshotMeta.mockResolvedValue(null);
   mocks.readScreenSnapshotMeta.mockResolvedValue(null);
+  // Default: no licensed-user roster. The People pillar then reports unavailable rather
+  // than being scored on absent data, the same posture as screens and automation above.
+  mocks.readUserSnapshotMeta.mockResolvedValue(null);
   mocks.loadScreensPage.mockResolvedValue({ total: 0, rows: [] });
   mocks.loadScreensForField.mockResolvedValue([]);
   mocks.loadScreenSchemes.mockResolvedValue([]);
@@ -1645,6 +1648,32 @@ describe("getAdminOverview", () => {
 
     expect(result.screens).toEqual({ available: false, state: "error" });
     expect(result.health).toBeDefined();
+  });
+
+  test("carries the people overview into the payload and the score", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "idle" });
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+    mocks.readUserSnapshotMeta.mockResolvedValue({ state: "ready", version: "u1", refreshedAt: "2026-09-01T00:00:00Z" });
+    mocks.loadUsers.mockResolvedValue([{ accountId: "a1", displayName: "Ann", applications: [], groups: [] }]);
+    mocks.loadUserGovernanceSummary.mockResolvedValue({ totalUsers: 200, activeUsers: 180 });
+
+    const result = await getAdminOverview({ context: {} });
+
+    expect(result.users.available).toBe(true);
+    expect(result.users.deactivatedUsers).toBe(20);
+    const hygiene = result.health.dimensions.find((d) => d.key === "user-licence-hygiene");
+    expect(hygiene.available).toBe(true);
+  });
+
+  test("reports people unavailable rather than failing the overview when no roster exists", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "idle" });
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+    mocks.readUserSnapshotMeta.mockResolvedValue(null);
+
+    const result = await getAdminOverview({ context: {} });
+
+    expect(result.users.available).toBe(false);
+    expect(result.health.dimensions.find((d) => d.key === "user-licence-hygiene").available).toBe(false);
   });
 
   test("passes the whole automation health summary through, not just the rule count", async () => {
@@ -4585,6 +4614,28 @@ describe("getPillarHealth", () => {
 
   test("rejects a missing pillar name", async () => {
     await expect(getPillarHealth({ payload: {}, ...ctx })).rejects.toThrow(/pillar/);
+  });
+
+  test("builds the people pillar from the user snapshot when one exists", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue(null);
+    mocks.readUserSnapshotMeta.mockResolvedValue({ version: "u1", state: "ready" });
+    mocks.loadUsers.mockResolvedValue([{ accountId: "a1", displayName: "Ann", applications: [], groups: [] }]);
+    mocks.loadUserGovernanceSummary.mockResolvedValue({ totalUsers: 200, activeUsers: 180 });
+
+    const result = await getPillarHealth({ payload: { pillar: "users" }, ...ctx });
+
+    expect(result.pillar.key).toBe("users");
+    expect(result.pillar.available).toBe(true);
+    expect(result.pillar.dimensions.some((d) => d.key === "user-licence-hygiene")).toBe(true);
+  });
+
+  test("reports the people pillar unavailable rather than empty when no roster exists", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue(null);
+    mocks.readUserSnapshotMeta.mockResolvedValue(null);
+
+    const result = await getPillarHealth({ payload: { pillar: "users" }, ...ctx });
+
+    expect(result.pillar.available).toBe(false);
   });
 });
 

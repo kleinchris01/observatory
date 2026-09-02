@@ -159,6 +159,7 @@ import {
   buildFilterOverview,
   buildDashboardOverview,
   buildIssueTypeOverview,
+  buildUserOverview,
   attachUniqueIssueCounts,
   captureSiteHealth,
 } from "./lib/site-health.js";
@@ -178,7 +179,7 @@ import {
   summarizeWorkflowInsights,
 } from "./lib/workflow-insights.js";
 import { analyzeCascadeGraph, MAX_CHAIN_DEPTH } from "./lib/cascade-graph.js";
-import { hydrateRuleDirectory } from "./lib/automation-analysis.js";
+import { buildOwnershipIndex, summarizeOrphanedOwnership } from "./lib/user-ownership.js";
 import {
   readAutomationAnalysis,
   writeAutomationAnalysis,
@@ -1507,55 +1508,6 @@ async function buildIssueTypeInventory({ context }) {
   return { queued: true };
 }
 
-// Who owns what, keyed by accountId. Filters and dashboards carry their owner on the
-// snapshot row; automation rules carry an author only if the rule export did. Built once so
-// the roster can show a per-user count and the detail view can list the artifacts, without
-// re-loading three snapshots per user.
-async function buildOwnershipIndex(installationKey) {
-  const [filterMeta, dashMeta, dirDoc] = await Promise.all([
-    readFilterSnapshotMeta(installationKey).catch(() => null),
-    readDashboardSnapshotMeta(installationKey).catch(() => null),
-    readAutomationPart(installationKey, "directory").catch(() => null),
-  ]);
-
-  const [filters, dashboards] = await Promise.all([
-    filterMeta?.version ? loadFilters(installationKey, filterMeta.version).catch(() => []) : [],
-    dashMeta?.version ? loadDashboards(installationKey, dashMeta.version).catch(() => []) : [],
-  ]);
-
-  const byAccount = new Map();
-  const bucket = (accountId) => {
-    if (!accountId) return null;
-    if (!byAccount.has(accountId)) byAccount.set(accountId, { filters: [], dashboards: [], rules: [] });
-    return byAccount.get(accountId);
-  };
-
-  for (const f of filters) {
-    const b = bucket(f.ownerAccountId);
-    if (b) b.filters.push({ id: f.id, name: f.name, viewUrl: f.viewUrl || null });
-  }
-  for (const d of dashboards) {
-    const b = bucket(d.ownerAccountId);
-    if (b) b.dashboards.push({ id: d.dashboardId ?? d.id, name: d.name, viewUrl: d.viewUrl || null });
-  }
-  if (dirDoc) {
-    for (const rule of hydrateRuleDirectory(dirDoc).values()) {
-      const b = bucket(rule.authorAccountId);
-      if (b) b.rules.push({ id: rule.id, name: rule.name, enabled: rule.enabled });
-    }
-  }
-
-  return {
-    byAccount,
-    available: {
-      filters: Boolean(filterMeta?.version),
-      dashboards: Boolean(dashMeta?.version),
-      // Rule authorship is only present once a rule export carrying accountIds has been imported.
-      rules: Boolean(dirDoc) && [...byAccount.values()].some((b) => b.rules.length > 0),
-    },
-  };
-}
-
 // The People pillar's read: the licensed-user roster with each user's products and access
 // groups, plus the site's own seat numbers for the header.
 async function getUserInventory({ context }) {
@@ -1597,16 +1549,7 @@ async function getUserInventory({ context }) {
     };
   });
 
-  // Artifacts owned by an accountId that is not in the licensed roster -- a deleted or
-  // unlicensed account still holding a filter/dashboard/rule. Surfaced as an estate count
-  // here; the People tab lists them under "orphaned ownership".
-  let orphanFilters = 0, orphanDashboards = 0, orphanRules = 0;
-  for (const [accountId, owned] of ownership.byAccount) {
-    if (rosterIds.has(accountId)) continue;
-    orphanFilters += owned.filters.length;
-    orphanDashboards += owned.dashboards.length;
-    orphanRules += owned.rules.length;
-  }
+  const orphaned = summarizeOrphanedOwnership(ownership, rosterIds);
 
   return {
     state: meta.state || "ready",
@@ -1616,13 +1559,7 @@ async function getUserInventory({ context }) {
     version: meta.version,
     users: withOwnership,
     applicationSummary: meta.applicationSummary || [],
-    governance: {
-      ...governance,
-      orphanedFilters: orphanFilters,
-      orphanedDashboards: orphanDashboards,
-      orphanedRules: orphanRules,
-      orphanedOwners: [...ownership.byAccount.keys()].filter((id) => !rosterIds.has(id)).length,
-    },
+    governance: { ...governance, ...orphaned },
     ownershipAvailable: ownership.available,
     lastError: meta.lastError || null,
     neverBuilt: false,
@@ -5101,7 +5038,7 @@ const EMPTY_DASHBOARD = {
 export async function getAdminOverview({ context }) {
   await ensureProjectStoreReady();
   const installationKey = getInstallationKey(context);
-  const [meta, summaryCounts, config, legacySummaryCount, workflow, screens, issueTypeOverview, filterOverview, dashboardOverview, automationAnalysis] = await Promise.all([
+  const [meta, summaryCounts, config, legacySummaryCount, workflow, screens, issueTypeOverview, userOverview, filterOverview, dashboardOverview, automationAnalysis] = await Promise.all([
     readSnapshotMeta(installationKey),
     // Counted in SQL rather than loaded. This used to pull up to 5,000 summary rows --
     // including two LONGTEXT columns -- across the wire, and use them for a count grouped by
@@ -5113,6 +5050,7 @@ export async function getAdminOverview({ context }) {
     buildWorkflowOverview(installationKey),
     buildScreenOverview(installationKey),
     buildIssueTypeOverview(installationKey),
+    buildUserOverview(installationKey),
     // Without the project catalog the broken-reference check is skipped and says so. Passing
     // it would mean loading the project list before this Promise.all rather than inside the
     // dashboard build below, which is a bigger cost than the one finding is worth here -- the
@@ -5207,6 +5145,7 @@ export async function getAdminOverview({ context }) {
     filters: filterOverview?.health ?? null,
     dashboards: dashboardOverview?.health ?? null,
     issueTypes: issueTypeOverview?.health ?? null,
+    users: userOverview?.health ?? null,
     // Workflow, project and automation dimensions were scored against hardcoded constants
     // while every field rule was tunable. Same config surface now feeds both.
     tolerances: config?.healthTolerances,
@@ -5242,6 +5181,7 @@ export async function getAdminOverview({ context }) {
     workflow,
     screens,
     issueTypes: issueTypeOverview,
+    users: userOverview,
     // The counts the Overview's findings list needs, not just the score's rate. Same lesson
     // the automation pillar learned: trimming this to the headline fields made every problem
     // the analysis had already found invisible on the page that exists to surface problems.
@@ -5341,6 +5281,7 @@ const PILLAR_INPUTS = {
   workflows: ["workflow"],
   screens: ["screens"],
   issueTypes: ["issueTypes"],
+  users: ["users"],
   automation: ["automation"],
   projects: ["projects", "adoption"],
 };
@@ -5358,12 +5299,13 @@ async function getPillarHealth({ payload, context }) {
   // already reports as unavailable -- and unavailable dimensions from other pillars are
   // discarded below anyway, so the returned pillar is byte-identical to what the full
   // computation produced for it.
-  const [workflow, screens, filterOverview, dashboardOverview, issueTypeOverview, automationAnalysis] = await Promise.all([
+  const [workflow, screens, filterOverview, dashboardOverview, issueTypeOverview, userOverview, automationAnalysis] = await Promise.all([
     needs.has("workflow") ? buildWorkflowOverview(installationKey) : Promise.resolve(null),
     needs.has("screens") ? buildScreenOverview(installationKey) : Promise.resolve(null),
     needs.has("filters") ? buildFilterOverview(installationKey) : Promise.resolve(null),
     needs.has("dashboards") ? buildDashboardOverview(installationKey) : Promise.resolve(null),
     needs.has("issueTypes") ? buildIssueTypeOverview(installationKey) : Promise.resolve(null),
+    needs.has("users") ? buildUserOverview(installationKey) : Promise.resolve(null),
     needs.has("automation")
       ? readAutomationAnalysis(installationKey).catch(fallbackOn("pillar-health.automation_load_failed", () => null, { installationKey }))
       : Promise.resolve(null),
@@ -5416,6 +5358,7 @@ async function getPillarHealth({ payload, context }) {
     filters: filterOverview?.health ?? null,
     dashboards: dashboardOverview?.health ?? null,
     issueTypes: issueTypeOverview?.health ?? null,
+    users: userOverview?.health ?? null,
     tolerances: config?.healthTolerances,
   });
 

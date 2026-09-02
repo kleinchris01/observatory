@@ -102,6 +102,15 @@ const issueTypes = (overrides = {}) => ({
   ...overrides,
 });
 
+const users = (overrides = {}) => ({
+  available: true,
+  totalUsers: 500,
+  deactivatedUsers: 12,
+  orphanedArtifacts: 5,
+  orphanedOwners: 2,
+  ...overrides,
+});
+
 beforeEach(() => vi.clearAllMocks());
 
 describe("OverviewDashboard — findings", () => {
@@ -246,6 +255,22 @@ describe("OverviewDashboard — automation and screen findings", () => {
   test("omits the issue type findings entirely when the pillar has not been built", () => {
     renderAll({ issueTypes: { available: false } });
     expect(screen.queryByText("Issue types on no scheme")).not.toBeInTheDocument();
+  });
+
+  test("surfaces the people findings and routes them to the People tab", async () => {
+    const onNavigate = vi.fn();
+    renderAll({ users: users(), onNavigate });
+
+    expect(screen.getByText("Deactivated accounts still holding a licence")).toBeInTheDocument();
+    expect(screen.getByText("Filters, dashboards and rules with no owner on the roster")).toBeInTheDocument();
+
+    await userEvent.click(screen.getAllByRole("button", { name: /^People$/ })[0]);
+    expect(onNavigate).toHaveBeenCalledWith("people", expect.objectContaining({ view: expect.any(String) }));
+  });
+
+  test("omits the people findings entirely when the pillar has not been built", () => {
+    renderAll({ users: { available: false } });
+    expect(screen.queryByText("Deactivated accounts still holding a licence")).not.toBeInTheDocument();
   });
 
   // The same rule the workflow findings already follow, now enforced for the two pillars

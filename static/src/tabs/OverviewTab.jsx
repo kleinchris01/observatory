@@ -45,6 +45,7 @@ export function OverviewTab({ overview, onMigrateNamespace, migratingNamespace, 
           workflow={overview.workflow}
           screens={overview.screens}
           issueTypes={overview.issueTypes}
+          users={overview.users}
           automation={overview.automation}
           filters={overview.filters}
           dashboards={overview.dashboards}
