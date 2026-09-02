@@ -84,6 +84,44 @@ export const CREATE_SNAPSHOT_PROJECT_USAGE_INDEX = `
   ON snapshot_project_usage (scope_key, version, field_id, issue_count)
 `;
 
+// Which issue types a field actually carries a value on, from the issue crawl. The Field
+// Browser can already say how many issues and which projects use a field; this is the third
+// axis -- a field on a screen for issue types no issue of that type ever populates is
+// configured wider than it is used. Mirrors snapshot_project_usage's shape and lifecycle:
+// staged in issue_scan_type_buffer as pages arrive, promoted here on a clean finalize.
+export const CREATE_SNAPSHOT_FIELD_TYPE_USAGE_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_field_type_usage (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    field_id VARCHAR(191) NOT NULL,
+    issue_type_id VARCHAR(191) NOT NULL,
+    issue_type_name TEXT NOT NULL,
+    issue_count BIGINT NOT NULL,
+    PRIMARY KEY (scope_key, version, field_id, issue_type_id)
+  )
+`;
+
+export const CREATE_SNAPSHOT_FIELD_TYPE_USAGE_INDEX = `
+  CREATE INDEX idx_snapshot_field_type_usage_field
+  ON snapshot_field_type_usage (scope_key, version, field_id, issue_count)
+`;
+
+// The crawl accumulator behind it. One row per field x issue type, incremented as pages land,
+// cleared at the start of every scan for the same reason issue_scan_buffer is -- a re-scan
+// on top of stale rows would double every count. No project dimension: a slice restart can
+// double-count a field x type pair for the restarted projects, which is accepted here
+// because the governance question is "used on this type at all", not an exact tally.
+export const CREATE_ISSUE_SCAN_TYPE_BUFFER_TABLE = `
+  CREATE TABLE IF NOT EXISTS issue_scan_type_buffer (
+    scope_key VARCHAR(191) NOT NULL,
+    field_id VARCHAR(191) NOT NULL,
+    issue_type_id VARCHAR(191) NOT NULL,
+    issue_type_name TEXT NOT NULL,
+    issue_count BIGINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (scope_key, field_id, issue_type_id)
+  )
+`;
+
 export const CREATE_SNAPSHOT_META_TABLE = `
   CREATE TABLE IF NOT EXISTS snapshot_meta (
     scope_key VARCHAR(191) NOT NULL,
@@ -1306,7 +1344,11 @@ const projectStoreMigrations = migrationRunner
   .enqueue("v114_create_snapshot_issue_type_scheme_items_table", CREATE_SNAPSHOT_ISSUE_TYPE_SCHEME_ITEMS_TABLE)
   .enqueue("v115_create_snapshot_issue_type_scheme_projects_table", CREATE_SNAPSHOT_ISSUE_TYPE_SCHEME_PROJECTS_TABLE)
   .enqueue("v116_create_snapshot_its_projects_by_project_index", CREATE_SNAPSHOT_ISSUE_TYPE_SCHEME_PROJECTS_BY_PROJECT_INDEX)
-  .enqueue("v117_create_issue_type_snapshot_meta_table", CREATE_ISSUE_TYPE_SNAPSHOT_META_TABLE);
+  .enqueue("v117_create_issue_type_snapshot_meta_table", CREATE_ISSUE_TYPE_SNAPSHOT_META_TABLE)
+  // Field x issue-type usage: the third axis of the Field Browser, filled by the issue crawl.
+  .enqueue("v118_create_issue_scan_type_buffer_table", CREATE_ISSUE_SCAN_TYPE_BUFFER_TABLE)
+  .enqueue("v119_create_snapshot_field_type_usage_table", CREATE_SNAPSHOT_FIELD_TYPE_USAGE_TABLE)
+  .enqueue("v120_create_snapshot_field_type_usage_index", CREATE_SNAPSHOT_FIELD_TYPE_USAGE_INDEX);
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history
