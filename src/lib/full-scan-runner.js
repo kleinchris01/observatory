@@ -56,7 +56,7 @@ import { isDashboardBuildStale, queueDashboardSnapshotBuild } from "./dashboard-
 import { buildWorkflowSnapshot, buildStatusHistorySnapshot } from "./workflow-engine.js";
 import { buildScreenSnapshot } from "./screen-engine.js";
 import { buildIssueTypeSnapshot } from "./issuetype-engine.js";
-import { runSnapshot } from "./snapshot-engine.js";
+import { queueSnapshotBuild, isSnapshotBuildStale, requeueStaleSnapshotBuild } from "./snapshot-engine.js";
 import { runIssueScanCoordinator } from "./scan-engine.js";
 
 // The four structural stages, shared verbatim between full and quick scan.
@@ -105,6 +105,26 @@ const dashboards = {
   },
 };
 
+// The field snapshot. Unlike filters and dashboards it is NOT failed-and-restarted when it
+// goes stale -- runSnapshot checkpoints every field to the DB, so a killed chunk is resumed
+// from where it stopped, not from zero. The poll re-queues a stale chunk itself and keeps
+// reporting "running"; the orchestrator's own frozen-signature guard (no change in
+// processedFields across maxPolls) is the backstop if a resume never makes progress.
+const fields = {
+  start: (key) => queueSnapshotBuild(key),
+  poll: async (key) => {
+    let meta = await readSnapshotMeta(key);
+    if (isSnapshotBuildStale(meta)) {
+      meta = await requeueStaleSnapshotBuild(key, meta);
+    }
+    return {
+      state: handoffStageState(meta),
+      sig: meta ? `${meta.state ?? ""}|${meta.processedFields ?? ""}|${meta.buildingVersion ?? ""}` : null,
+      lastError: meta?.lastError ?? null,
+    };
+  },
+};
+
 // What each FULL-scan stage actually does.
 //
 // `run` for an inline stage: do the work, return, stage is done. `start` + `poll` for a
@@ -119,7 +139,7 @@ export const STAGE_RUNNERS = {
   screens,
   filters,
   dashboards,
-  fields: { run: (key) => runSnapshot(key) },
+  fields,
   "status-history": statusHistory,
   "issue-types": issueTypes,
   issues: {

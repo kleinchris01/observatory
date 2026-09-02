@@ -45,7 +45,14 @@ export const FULL_SCAN_STAGES = [
   // Handoff for the same reason, and more so: enumerating is one paginated search but the
   // gadget walk is one request per dashboard, which is what killed it as a single pass.
   { key: "dashboards", label: "Dashboard inventory", needs: [], mode: "handoff" },
-  { key: "fields", label: "Field snapshot", needs: [], mode: "inline" },
+  // Handoff, not inline, and this was the last stage to learn that lesson. runSnapshot walks
+  // every custom field doing a rate-limited REST call or two apiece; on a large estate that
+  // does not fit in one 900s consumer invocation, so run inline it was killed mid-walk every
+  // time -- the orchestrator sat inside the call, never re-queued, and the hourly watchdog
+  // burned three recovery attempts before failing the stage out. It now checkpoints and
+  // re-queues itself like the filter and dashboard builds; the orchestrator starts it and
+  // polls its meta row for a terminal state.
+  { key: "fields", label: "Field snapshot", needs: [], mode: "handoff" },
   { key: "status-history", label: "Status history", needs: ["workflows"], mode: "inline" },
   // The issue type catalog and the schemes that gate which types a project may use. A
   // structural inventory like screens and workflows, and cheap -- a few hundred types, low

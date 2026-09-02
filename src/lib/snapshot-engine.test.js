@@ -10,6 +10,8 @@ import {
   syncFieldCatalog,
   refreshGovernanceFindingsForFields,
   latestChangeAcrossProjects,
+  isSnapshotBuildStale,
+  SNAPSHOT_SOFT_BUDGET_MS,
 } from "./snapshot-engine.js";
 import { buildGovernanceFindings } from "./analysis.js";
 
@@ -965,6 +967,132 @@ describe("runSnapshot", () => {
     expect(syncCallIndex).toBeGreaterThan(carryCallIndex);
     expect(syncCallIndex).toBeGreaterThan(fillCallIndex);
   });
+
+  // The core of the resumable-stage fix: a build that runs past its slice of the invocation
+  // budget stops taking new fields, checkpoints "building", and re-queues itself -- rather
+  // than being killed mid-walk by Forge at the 900s ceiling with nothing driving the rest.
+  it("checkpoints and re-queues instead of finalizing when the chunk budget is spent", async () => {
+    const store = await getProjectStoreMock();
+    const jiraApi = await getJiraApiMock();
+    const queues = await getQueuesMock();
+
+    jiraApi.getAllCustomFields.mockResolvedValue([
+      { id: "customfield_1", name: "One" },
+      { id: "customfield_2", name: "Two" },
+      { id: "customfield_3", name: "Three" },
+    ]);
+    jiraApi.getAllSystemFields.mockResolvedValue([]);
+    // Jump the clock past the soft budget once the first field is done, so field two's
+    // iteratee trips the guard and the walk unwinds.
+    let processed = 0;
+    jiraApi.getFieldConfiguredProjectCount.mockImplementation(async () => {
+      processed += 1;
+      if (processed === 1) vi.setSystemTime(Date.now() + SNAPSHOT_SOFT_BUDGET_MS + 1000);
+      return 0;
+    });
+
+    let capturedVersion = null;
+    store.writeSnapshotMeta.mockImplementation(async (_key, data) => {
+      if (data.buildingVersion) capturedVersion = data.buildingVersion;
+    });
+    store.readSnapshotMeta
+      .mockResolvedValueOnce(null)
+      .mockImplementation(async () => ({ buildingVersion: capturedVersion }));
+    store.getSnapshotProcessedFieldIds.mockResolvedValue(new Set(["customfield_1"]));
+
+    const runPromise = runSnapshot(INSTALLATION_KEY);
+    vi.runAllTimers();
+    await runPromise;
+
+    const writeCalls = store.writeSnapshotMeta.mock.calls;
+    // Never reached "ready" -- the walk did not complete.
+    expect(writeCalls.some((c) => c[1].state === "ready")).toBe(false);
+    // Last write is a "building" checkpoint carrying the build token forward.
+    const last = writeCalls[writeCalls.length - 1][1];
+    expect(last.state).toBe("building");
+    expect(last.jobToken).toBe("test-token");
+    // Re-queued with the token so the continuation is not turned away as a duplicate.
+    expect(queues.inventorySnapshotQueue.push).toHaveBeenCalledWith({
+      body: { jobType: "run-snapshot", installationKey: INSTALLATION_KEY, jobToken: "test-token" },
+    });
+    // Finalization is skipped -- carry-forward only runs once the walk actually finishes.
+    expect(store.carryForwardSnapshotProjectUsage).not.toHaveBeenCalled();
+  });
+
+  // A continuation the build re-queued for itself arrives while the row is still fresh
+  // ("building", just heartbeated). It carries the build token back, so it must be let
+  // through to resume rather than rejected by the duplicate guard.
+  it("resumes its own fresh continuation when the token matches", async () => {
+    const store = await getProjectStoreMock();
+    const jiraApi = await getJiraApiMock();
+
+    const recentStart = new Date(Date.now() - 30 * 1000).toISOString();
+    store.readSnapshotMeta.mockResolvedValue({
+      state: "building",
+      startedAt: recentStart,
+      buildingVersion: "v-inflight",
+      jobToken: "chunk-tok",
+      processedFields: 500,
+    });
+    store.getSnapshotProcessedFieldIds.mockResolvedValue(new Set(["customfield_1"]));
+    jiraApi.getAllCustomFields.mockResolvedValue([
+      { id: "customfield_1", name: "Done" },
+      { id: "customfield_2", name: "Todo" },
+    ]);
+    jiraApi.getAllSystemFields.mockResolvedValue([]);
+    jiraApi.getFieldConfiguredProjectCount.mockResolvedValue(0);
+
+    const runPromise = runSnapshot(INSTALLATION_KEY, { continuationToken: "chunk-tok" });
+    vi.runAllTimers();
+    await runPromise;
+
+    // Did not bail as a duplicate: it wrote building for the SAME version and resumed.
+    expect(store.clearSnapshotVersion).not.toHaveBeenCalled();
+    const buildingCall = store.writeSnapshotMeta.mock.calls.find((c) => c[1].state === "building");
+    expect(buildingCall[1].buildingVersion).toBe("v-inflight");
+    expect(buildingCall[1].processedFields).toBe(500);
+  });
+
+  it("still rejects a fresh duplicate when no matching token is presented", async () => {
+    const store = await getProjectStoreMock();
+
+    const recentStart = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+    store.readSnapshotMeta.mockResolvedValue({
+      state: "building",
+      startedAt: recentStart,
+      buildingVersion: "v-existing",
+      jobToken: "chunk-tok",
+    });
+
+    const runPromise = runSnapshot(INSTALLATION_KEY, { continuationToken: "a-different-token" });
+    vi.runAllTimers();
+    await runPromise;
+
+    expect(store.writeSnapshotMeta).not.toHaveBeenCalled();
+  });
+});
+
+// ── isSnapshotBuildStale ──────────────────────────────────────────────────────
+
+describe("isSnapshotBuildStale", () => {
+  it("is false for a build that is not in progress", () => {
+    expect(isSnapshotBuildStale({ state: "ready" })).toBe(false);
+    expect(isSnapshotBuildStale(null)).toBe(false);
+  });
+
+  it("is false while the current chunk's heartbeat is recent", () => {
+    const startedAt = new Date(Date.now() - 60 * 1000).toISOString();
+    expect(isSnapshotBuildStale({ state: "building", startedAt })).toBe(false);
+  });
+
+  it("is true once the chunk has been silent past the stale window", () => {
+    const startedAt = new Date(Date.now() - 20 * 60 * 1000).toISOString();
+    expect(isSnapshotBuildStale({ state: "building", startedAt })).toBe(true);
+  });
+
+  it("is true for a building row with no heartbeat at all", () => {
+    expect(isSnapshotBuildStale({ state: "building" })).toBe(true);
+  });
 });
 
 // ── queueSnapshotBuild ────────────────────────────────────────────────────────
@@ -981,6 +1109,16 @@ describe("queueSnapshotBuild", () => {
 
     expect(queues.inventorySnapshotQueue.push).toHaveBeenCalledWith({
       body: { jobType: "run-snapshot", installationKey: INSTALLATION_KEY },
+    });
+  });
+
+  it("carries a continuation token in the body when one is given", async () => {
+    const queues = await getQueuesMock();
+
+    await queueSnapshotBuild(INSTALLATION_KEY, "chunk-tok-7");
+
+    expect(queues.inventorySnapshotQueue.push).toHaveBeenCalledWith({
+      body: { jobType: "run-snapshot", installationKey: INSTALLATION_KEY, jobToken: "chunk-tok-7" },
     });
   });
 });
