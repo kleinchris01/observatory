@@ -607,20 +607,27 @@ describe("summarizeAutomationHealth", () => {
 
 describe("buildRuleDirectory", () => {
   const summaries = [
-    { id: 1, name: "Alpha", enabled: true, triggerType: "jira.issue.created", projectIds: ["10015", "10016"] },
+    { id: 1, name: "Alpha", enabled: true, triggerType: "jira.issue.created", projectIds: ["10015", "10016"], authorAccountId: "acc-1" },
     { id: 2, name: "Beta", enabled: false, triggerType: null, projectIds: [] },
   ];
 
   it("stores rules as tuples, which is smaller than objects over 1,477 rows", () => {
     const doc = buildRuleDirectory(summaries);
-    expect(doc.rules[0]).toEqual([1, "Alpha", 1, "jira.issue.created", 2]);
+    expect(doc.rules[0]).toEqual([1, "Alpha", 1, "jira.issue.created", 2, "acc-1"]);
+    // Position 6 falls back to "" when the export carried no author.
+    expect(doc.rules[1][5]).toBe("");
     expect(doc.total).toBe(2);
   });
 
-  it("round-trips through hydration without losing state", () => {
+  it("round-trips through hydration without losing state, including the author", () => {
     const byId = hydrateRuleDirectory(buildRuleDirectory(summaries));
-    expect(byId.get(1)).toEqual({ id: 1, name: "Alpha", enabled: true, triggerType: "jira.issue.created", projectCount: 2 });
-    expect(byId.get(2)).toMatchObject({ enabled: false, triggerType: null });
+    expect(byId.get(1)).toEqual({ id: 1, name: "Alpha", enabled: true, triggerType: "jira.issue.created", projectCount: 2, authorAccountId: "acc-1" });
+    expect(byId.get(2)).toMatchObject({ enabled: false, triggerType: null, authorAccountId: null });
+  });
+
+  it("hydrates a legacy 5-tuple document (no author) without throwing", () => {
+    const legacy = { schemaVersion: 1, total: 1, rules: [[9, "Old", 1, "jira.issue.created", 0]] };
+    expect(hydrateRuleDirectory(legacy).get(9)).toMatchObject({ id: 9, authorAccountId: null });
   });
 
   it("hydrates an absent document to an empty map rather than throwing", () => {

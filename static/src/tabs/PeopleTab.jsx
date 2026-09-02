@@ -9,9 +9,10 @@ import { useVisiblePolling } from "../hooks";
 // The People pillar: the who, not just the what.
 //
 // The roster is every member of the site's application-access groups, read live from
-// GET /rest/api/3/applicationrole -- so "licensed" needs no admin configuration. This first
-// slice is the catalog and the seat numbers; project roles, activity and the ownership joins
-// (filters / dashboards / automation) land in follow-ups.
+// GET /rest/api/3/applicationrole -- so "licensed" needs no admin configuration. Each user
+// carries their cross-pillar footprint: the filters, dashboards and automation rules they
+// own, joined from those pillars' snapshots. Project roles and per-issue activity are still
+// to come.
 
 const BUILD_POLL_MS = 3000;
 const STALE_AFTER_DAYS = 7;
@@ -30,26 +31,80 @@ function shortProduct(key) {
     .replace("product-discovery", "product discovery");
 }
 
-function UserRow({ user }) {
+function ownsSummary(user) {
+  const parts = [];
+  if (user.ownedFilters) parts.push(`${user.ownedFilters} filter${user.ownedFilters === 1 ? "" : "s"}`);
+  if (user.ownedDashboards) parts.push(`${user.ownedDashboards} dashboard${user.ownedDashboards === 1 ? "" : "s"}`);
+  if (user.authoredRules) parts.push(`${user.authoredRules} rule${user.authoredRules === 1 ? "" : "s"}`);
+  return parts.join(" · ");
+}
+
+function OwnedList({ title, items, empty }) {
   return (
-    <div className="issue-type-row">
-      <div className="issue-type-row__identity">
-        <span className="issue-type-row__name">{user.displayName}</span>
-        <span className="issue-type-row__desc">
-          {user.groups.length
-            ? `via ${user.groups.map((g) => g.name).join(", ")}`
-            : "no access group recorded"}
-        </span>
-      </div>
-      <div className="issue-type-row__meta">
-        {user.applications.map((p) => (
-          <Chip key={p.key} tone="neutral" title={`Licensed for ${p.name}`}>{shortProduct(p.key)}</Chip>
-        ))}
-        {user.accountType === "app" && (
-          <Chip tone="warning" title="This account is an app, not a person">app</Chip>
-        )}
-        {!user.active && <Chip tone="critical" title="Deactivated in Jira">inactive</Chip>}
-      </div>
+    <div className="ui-split__col">
+      <h4 className="ui-subhead">{title}</h4>
+      {items.length ? (
+        <ul className="people-owned-list">
+          {items.map((it) => (
+            <li key={it.id}>
+              {it.viewUrl
+                ? <a href={it.viewUrl} target="_blank" rel="noopener noreferrer">{it.name || it.id}</a>
+                : (it.name || it.id)}
+              {it.enabled === false && <Chip tone="neutral" title="Disabled rule">off</Chip>}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="admin-config-row__hint">{empty}</p>
+      )}
+    </div>
+  );
+}
+
+function UserRow({ user, expanded, detail, detailLoading, onToggle }) {
+  const owns = ownsSummary(user);
+  return (
+    <div className={`issue-type-row people-row${expanded ? " people-row--open" : ""}`}>
+      <button type="button" className="people-row__head" onClick={() => onToggle(user.accountId)}>
+        <div className="issue-type-row__identity">
+          <span className="issue-type-row__name">{user.displayName}</span>
+          <span className="issue-type-row__desc">
+            {user.groups.length
+              ? `via ${user.groups.map((g) => g.name).join(", ")}`
+              : "no access group recorded"}
+          </span>
+        </div>
+        <div className="issue-type-row__meta">
+          {owns && <Chip tone="neutral" title="Filters, dashboards and automation rules this user owns">owns {owns}</Chip>}
+          {user.applications.map((p) => (
+            <Chip key={p.key} tone="neutral" title={`Licensed for ${p.name}`}>{shortProduct(p.key)}</Chip>
+          ))}
+          {user.accountType === "app" && (
+            <Chip tone="warning" title="This account is an app, not a person">app</Chip>
+          )}
+          {!user.active && <Chip tone="critical" title="Deactivated in Jira">inactive</Chip>}
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="people-row__detail">
+          {detailLoading && !detail ? (
+            <p className="admin-config-row__hint">Loading…</p>
+          ) : (
+            <div className="ui-split">
+              <OwnedList title="Filters" items={detail?.ownedFilters || []} empty="Owns no saved filter." />
+              <OwnedList title="Dashboards" items={detail?.ownedDashboards || []} empty="Owns no dashboard." />
+              <OwnedList
+                title="Automation rules"
+                items={detail?.authoredRules || []}
+                empty={detail?.ownershipAvailable?.rules === false
+                  ? "Rule authorship needs a rule export that carries account ids — import one on the Automation tab."
+                  : "Authored no automation rule."}
+              />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -62,6 +117,24 @@ export function PeopleTab() {
   const [notice, setNotice] = React.useState("");
   const [building, setBuilding] = React.useState(false);
   const [search, setSearch] = React.useState("");
+  const [openUser, setOpenUser] = React.useState(null);
+  const [details, setDetails] = React.useState({});   // accountId -> detail
+  const [detailLoading, setDetailLoading] = React.useState(false);
+
+  const toggleUser = React.useCallback(async (accountId) => {
+    if (openUser === accountId) { setOpenUser(null); return; }
+    setOpenUser(accountId);
+    if (details[accountId]) return;
+    setDetailLoading(true);
+    try {
+      const detail = await invoke("getUserDetails", { accountId });
+      setDetails((d) => ({ ...d, [accountId]: detail }));
+    } catch {
+      setDetails((d) => ({ ...d, [accountId]: { ownedFilters: [], ownedDashboards: [], authoredRules: [] } }));
+    } finally {
+      setDetailLoading(false);
+    }
+  }, [openUser, details]);
 
   const load = React.useCallback(async () => {
     try {
@@ -264,6 +337,29 @@ export function PeopleTab() {
                 emptyMessage="No roster yet."
               />
             </Panel>
+
+            <Panel
+              title="Orphaned ownership"
+              icon="alertTriangle"
+              description="Filters, dashboards and automation rules owned by an account that is not in the licensed roster — a deleted or unlicensed user still holding site config."
+            >
+              {(g?.orphanedOwners ?? 0) > 0 ? (
+                <BarList
+                  items={[
+                    { label: "Filters", count: g?.orphanedFilters ?? 0 },
+                    { label: "Dashboards", count: g?.orphanedDashboards ?? 0 },
+                    { label: "Automation rules", count: g?.orphanedRules ?? 0 },
+                  ]}
+                  labelKey="label"
+                  valueKey="count"
+                  formatValue={(v) => formatNumber(v)}
+                  tone="warn"
+                  emptyMessage="None."
+                />
+              ) : (
+                <EmptyState inline>Every owned filter, dashboard and rule belongs to a licensed user.</EmptyState>
+              )}
+            </Panel>
           </PanelGrid>
         )}
 
@@ -284,7 +380,16 @@ export function PeopleTab() {
           >
             {roster.length ? (
               <div className="issue-type-list">
-                {roster.map((user) => <UserRow key={user.accountId} user={user} />)}
+                {roster.map((user) => (
+                  <UserRow
+                    key={user.accountId}
+                    user={user}
+                    expanded={openUser === user.accountId}
+                    detail={details[user.accountId]}
+                    detailLoading={detailLoading}
+                    onToggle={toggleUser}
+                  />
+                ))}
               </div>
             ) : (
               <EmptyState inline>{search ? "No users match that filter." : "No licensed users in this roster."}</EmptyState>

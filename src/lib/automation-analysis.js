@@ -407,6 +407,14 @@ export function summarizeRule(rule, options = {}) {
     name: rule?.name ?? "",
     state: rule?.state ?? "UNKNOWN",
     enabled: rule?.state === "ENABLED",
+    // Who owns the rule. Automation exports spell this a few ways; the top-level
+    // authorAccountId is the common one, with actor/actingUser as fallbacks. Null when the
+    // export does not carry it -- the People pillar treats that as "unknown", not "nobody".
+    authorAccountId: rule?.authorAccountId
+      ?? rule?.actor?.value
+      ?? rule?.actingUser?.accountId
+      ?? rule?.state?.actor?.value
+      ?? null,
     triggerType: rule?.trigger?.type ?? null,
     created: rule?.created ?? null,
     updated: rule?.updated ?? null,
@@ -691,8 +699,9 @@ export function buildRuleDirectory(summaries = []) {
     schemaVersion: 1,
     total: summaries.length,
     // Array of tuples rather than objects: over 1,477 rules the repeated key names cost more
-    // than the data. Rehydrated by the UI on load.
-    rules: summaries.map((s) => [s.id, s.name, s.enabled ? 1 : 0, s.triggerType ?? "", s.projectIds.length]),
+    // than the data. Rehydrated by the UI on load. Position 6 is the author accountId, added
+    // for the People pillar -- older documents are 5-tuples and rehydrate with author null.
+    rules: summaries.map((s) => [s.id, s.name, s.enabled ? 1 : 0, s.triggerType ?? "", s.projectIds.length, s.authorAccountId ?? ""]),
     // The project ids themselves, which used to be computed on every import and then thrown
     // away -- only their count survived, as the fifth tuple position. That discard is the
     // whole reason the Projects tab could not say a word about automation.
@@ -727,8 +736,11 @@ export function buildCascadeDocument(cascades = []) {
 
 export function hydrateRuleDirectory(document) {
   const byId = new Map();
-  for (const [id, name, enabled, triggerType, projectCount] of document?.rules ?? []) {
-    byId.set(id, { id, name, enabled: enabled === 1, triggerType: triggerType || null, projectCount });
+  for (const [id, name, enabled, triggerType, projectCount, authorAccountId] of document?.rules ?? []) {
+    byId.set(id, {
+      id, name, enabled: enabled === 1, triggerType: triggerType || null, projectCount,
+      authorAccountId: authorAccountId || null,
+    });
   }
   return byId;
 }

@@ -178,6 +178,7 @@ import {
   summarizeWorkflowInsights,
 } from "./lib/workflow-insights.js";
 import { analyzeCascadeGraph, MAX_CHAIN_DEPTH } from "./lib/cascade-graph.js";
+import { hydrateRuleDirectory } from "./lib/automation-analysis.js";
 import {
   readAutomationAnalysis,
   writeAutomationAnalysis,
@@ -1506,6 +1507,55 @@ async function buildIssueTypeInventory({ context }) {
   return { queued: true };
 }
 
+// Who owns what, keyed by accountId. Filters and dashboards carry their owner on the
+// snapshot row; automation rules carry an author only if the rule export did. Built once so
+// the roster can show a per-user count and the detail view can list the artifacts, without
+// re-loading three snapshots per user.
+async function buildOwnershipIndex(installationKey) {
+  const [filterMeta, dashMeta, dirDoc] = await Promise.all([
+    readFilterSnapshotMeta(installationKey).catch(() => null),
+    readDashboardSnapshotMeta(installationKey).catch(() => null),
+    readAutomationPart(installationKey, "directory").catch(() => null),
+  ]);
+
+  const [filters, dashboards] = await Promise.all([
+    filterMeta?.version ? loadFilters(installationKey, filterMeta.version).catch(() => []) : [],
+    dashMeta?.version ? loadDashboards(installationKey, dashMeta.version).catch(() => []) : [],
+  ]);
+
+  const byAccount = new Map();
+  const bucket = (accountId) => {
+    if (!accountId) return null;
+    if (!byAccount.has(accountId)) byAccount.set(accountId, { filters: [], dashboards: [], rules: [] });
+    return byAccount.get(accountId);
+  };
+
+  for (const f of filters) {
+    const b = bucket(f.ownerAccountId);
+    if (b) b.filters.push({ id: f.id, name: f.name, viewUrl: f.viewUrl || null });
+  }
+  for (const d of dashboards) {
+    const b = bucket(d.ownerAccountId);
+    if (b) b.dashboards.push({ id: d.dashboardId ?? d.id, name: d.name, viewUrl: d.viewUrl || null });
+  }
+  if (dirDoc) {
+    for (const rule of hydrateRuleDirectory(dirDoc).values()) {
+      const b = bucket(rule.authorAccountId);
+      if (b) b.rules.push({ id: rule.id, name: rule.name, enabled: rule.enabled });
+    }
+  }
+
+  return {
+    byAccount,
+    available: {
+      filters: Boolean(filterMeta?.version),
+      dashboards: Boolean(dashMeta?.version),
+      // Rule authorship is only present once a rule export carrying accountIds has been imported.
+      rules: Boolean(dirDoc) && [...byAccount.values()].some((b) => b.rules.length > 0),
+    },
+  };
+}
+
 // The People pillar's read: the licensed-user roster with each user's products and access
 // groups, plus the site's own seat numbers for the header.
 async function getUserInventory({ context }) {
@@ -1530,10 +1580,33 @@ async function getUserInventory({ context }) {
     };
   }
 
-  const [users, governance] = await Promise.all([
+  const [users, governance, ownership] = await Promise.all([
     loadUsers(installationKey, meta.version),
     loadUserGovernanceSummary(installationKey, meta.version),
+    buildOwnershipIndex(installationKey).catch(() => ({ byAccount: new Map(), available: {} })),
   ]);
+
+  const rosterIds = new Set(users.map((u) => u.accountId));
+  const withOwnership = users.map((u) => {
+    const owned = ownership.byAccount.get(u.accountId);
+    return {
+      ...u,
+      ownedFilters: owned?.filters.length ?? 0,
+      ownedDashboards: owned?.dashboards.length ?? 0,
+      authoredRules: owned?.rules.length ?? 0,
+    };
+  });
+
+  // Artifacts owned by an accountId that is not in the licensed roster -- a deleted or
+  // unlicensed account still holding a filter/dashboard/rule. Surfaced as an estate count
+  // here; the People tab lists them under "orphaned ownership".
+  let orphanFilters = 0, orphanDashboards = 0, orphanRules = 0;
+  for (const [accountId, owned] of ownership.byAccount) {
+    if (rosterIds.has(accountId)) continue;
+    orphanFilters += owned.filters.length;
+    orphanDashboards += owned.dashboards.length;
+    orphanRules += owned.rules.length;
+  }
 
   return {
     state: meta.state || "ready",
@@ -1541,11 +1614,49 @@ async function getUserInventory({ context }) {
     startedAt: meta.startedAt || null,
     refreshedAt: meta.refreshedAt || null,
     version: meta.version,
-    users,
+    users: withOwnership,
     applicationSummary: meta.applicationSummary || [],
-    governance,
+    governance: {
+      ...governance,
+      orphanedFilters: orphanFilters,
+      orphanedDashboards: orphanDashboards,
+      orphanedRules: orphanRules,
+      orphanedOwners: [...ownership.byAccount.keys()].filter((id) => !rosterIds.has(id)).length,
+    },
+    ownershipAvailable: ownership.available,
     lastError: meta.lastError || null,
     neverBuilt: false,
+  };
+}
+
+// One user's full cross-pillar footprint: products, groups, and the filters, dashboards and
+// automation rules they own. The roster gives counts; this gives the lists.
+async function getUserDetails({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+  const accountId = String(payload?.accountId || "");
+  if (!accountId) throw new Error("accountId is required");
+
+  const meta = await readUserSnapshotMeta(installationKey);
+  if (!meta?.version) return { available: false, reason: "no-roster" };
+
+  const [users, ownership] = await Promise.all([
+    loadUsers(installationKey, meta.version),
+    buildOwnershipIndex(installationKey).catch(() => ({ byAccount: new Map(), available: {} })),
+  ]);
+
+  const user = users.find((u) => u.accountId === accountId) || null;
+  const owned = ownership.byAccount.get(accountId) || { filters: [], dashboards: [], rules: [] };
+
+  return {
+    available: true,
+    inRoster: Boolean(user),
+    user: user || { accountId, displayName: accountId, applications: [], groups: [], active: null },
+    ownedFilters: owned.filters,
+    ownedDashboards: owned.dashboards,
+    authoredRules: owned.rules,
+    ownershipAvailable: ownership.available,
   };
 }
 
@@ -6231,7 +6342,8 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   buildIssueTypeInventory, // Mutating: queues a full issue type and scheme snapshot build
 
   // People pillar
-  getUserInventory,        // Admin read: the licensed-user roster with products and access groups
+  getUserInventory,        // Admin read: the licensed-user roster with products, access groups and ownership counts
+  getUserDetails,          // Admin read: one user's owned filters / dashboards / automation rules
   buildUserInventory,      // Mutating: queues a licensed-user roster build
 
   getAutomationCascades,   // Admin read: one filtered page of cascade relationships
