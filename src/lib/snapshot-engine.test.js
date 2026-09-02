@@ -91,6 +91,7 @@ vi.mock("./project-store.js", () => ({
   pruneOldSnapshotVersions: vi.fn().mockResolvedValue({ fieldsDeleted: 0, usageRowsDeleted: 0 }),
   syncActiveProjectCountsFromUsage: vi.fn().mockResolvedValue({ fieldsSynced: 0 }),
   loadFieldLastChangeMap: vi.fn().mockResolvedValue(new Map()),
+  readFullScanMeta: vi.fn().mockResolvedValue(null),
 }));
 
 vi.mock("./analysis.js", () => ({
@@ -658,6 +659,50 @@ describe("runSnapshot", () => {
     expect(readyCall).toBeDefined();
     expect(readyCall[1].processedFields).toBe(2);
     expect(readyCall[1].totalFields).toBe(2);
+  });
+
+  it("queues the follow-on delta issue scan after a standalone build", async () => {
+    const store = await getProjectStoreMock();
+    const jiraApi = await getJiraApiMock();
+    const queues = await getQueuesMock();
+    jiraApi.getAllCustomFields.mockResolvedValue([]);
+    jiraApi.getAllSystemFields.mockResolvedValue([]);
+    store.readFullScanMeta.mockResolvedValue(null);
+    let capturedVersion = null;
+    store.writeSnapshotMeta.mockImplementation(async (_key, data) => { if (data.buildingVersion) capturedVersion = data.buildingVersion; });
+    store.readSnapshotMeta.mockResolvedValueOnce(null).mockImplementation(async () => ({ buildingVersion: capturedVersion }));
+
+    const runPromise = runSnapshot(INSTALLATION_KEY);
+    vi.runAllTimers();
+    await runPromise;
+
+    expect(queues.inventorySnapshotQueue.push).toHaveBeenCalledWith({
+      body: { jobType: "run-delta-issue-scan", installationKey: INSTALLATION_KEY },
+    });
+  });
+
+  // Regression: once the field snapshot finally completed (it used to be killed and never
+  // finish), it fired this delta scan MID-full-scan, and that concurrent crawl is what
+  // pushed the installation past its cyclic-invocation limit and knocked a crawl worker out
+  // -- the run then lost ~30k issues but reported clean.
+  it("does NOT queue the delta issue scan while a full scan is running", async () => {
+    const store = await getProjectStoreMock();
+    const jiraApi = await getJiraApiMock();
+    const queues = await getQueuesMock();
+    jiraApi.getAllCustomFields.mockResolvedValue([]);
+    jiraApi.getAllSystemFields.mockResolvedValue([]);
+    store.readFullScanMeta.mockResolvedValue({ state: "running", scanType: "full" });
+    let capturedVersion = null;
+    store.writeSnapshotMeta.mockImplementation(async (_key, data) => { if (data.buildingVersion) capturedVersion = data.buildingVersion; });
+    store.readSnapshotMeta.mockResolvedValueOnce(null).mockImplementation(async () => ({ buildingVersion: capturedVersion }));
+
+    const runPromise = runSnapshot(INSTALLATION_KEY);
+    vi.runAllTimers();
+    await runPromise;
+
+    const deltaPushed = queues.inventorySnapshotQueue.push.mock.calls
+      .some((c) => c[0]?.body?.jobType === "run-delta-issue-scan");
+    expect(deltaPushed).toBe(false);
   });
 
   it("writes ready state with processedFields 0 when no fields exist", async () => {

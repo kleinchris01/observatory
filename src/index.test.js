@@ -51,6 +51,7 @@ vi.mock("./lib/dashboard-engine.js", () => ({
 vi.mock("./lib/scan-engine.js", () => ({
   runIssueScanCoordinator: vi.fn().mockResolvedValue(undefined),
   runIssueScanWorkerV2: vi.fn().mockResolvedValue(undefined),
+  reviveStalledIssueScanWorkers: vi.fn().mockResolvedValue({ revived: 0, checked: 0 }),
   cacheFieldOptionsForField: vi.fn().mockResolvedValue({ optionCount: 3 }),
   // Pure classifier; the consumer's backpressure branch calls it. Kept faithful to the real
   // one so the "leaves the job queued" cases still exercise the right phrases.
@@ -151,6 +152,7 @@ import {
   runIssueScanCoordinator,
   runIssueScanWorkerV2,
   cacheFieldOptionsForField,
+  reviveStalledIssueScanWorkers,
 } from "./lib/scan-engine.js";
 import { processProjectUsageReportJob } from "./lib/report-engine.js";
 import { buildWorkflowSnapshot, buildStatusHistorySnapshot } from "./lib/workflow-engine.js";
@@ -425,6 +427,17 @@ describe("quickScanScheduleCheck", () => {
     const result = await quickScanScheduleCheck({}, CONTEXT);
 
     expect(result).toMatchObject({ recovery: { recovered: false, reason: "error" } });
+  });
+
+  test("revives stalled issue-scan workers, and a revive failure does not stop the trigger", async () => {
+    readAdminConfig.mockResolvedValue({ quickScanSchedule: schedule({ enabled: false }) });
+    recoverStalledScan.mockResolvedValueOnce({ recovered: false, reason: "not-running" });
+    reviveStalledIssueScanWorkers.mockRejectedValueOnce(new Error("SQL rate limit"));
+
+    const result = await quickScanScheduleCheck({}, CONTEXT);
+
+    expect(reviveStalledIssueScanWorkers).toHaveBeenCalledWith("scope-1");
+    expect(result).toMatchObject({ skipped: true, reason: "disabled" });
   });
 });
 

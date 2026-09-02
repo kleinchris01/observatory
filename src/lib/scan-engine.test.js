@@ -8,6 +8,7 @@ import {
   runIssueScanCoordinator,
   completeIssueScanFinalization,
   runIssueScanWorkerV2,
+  reviveStalledIssueScanWorkers,
   sliceProjectKeys,
   normalizeWorkerSlices,
 } from "./scan-engine.js";
@@ -197,8 +198,12 @@ describe("queueIssueScanWorker", () => {
     const queues = await getQueuesMock();
     queues.inventorySnapshotQueue.push.mockReset().mockRejectedValue(new Error("429 too many requests"));
 
-    await expect(queueIssueScanWorker(INSTALLATION_KEY, 2)).rejects.toThrow(/too many requests/);
-    expect(queues.inventorySnapshotQueue.push).toHaveBeenCalledTimes(5);
+    const error = await queueIssueScanWorker(INSTALLATION_KEY, 2).catch((e) => e);
+    expect(error).toMatchObject({ message: expect.stringMatching(/too many requests/) });
+    // ISSUE_SCAN_WORKER_PUSH_ATTEMPTS — eight tries, ~3 minutes of backoff, before giving up.
+    expect(queues.inventorySnapshotQueue.push).toHaveBeenCalledTimes(8);
+    // Tagged so the worker catch pauses (keeps its slot open) rather than closing it.
+    expect(error.isQueueBackpressureExhausted).toBe(true);
   });
 
   it("staggers the re-queue with a delay when asked", async () => {
@@ -631,6 +636,45 @@ describe("completeIssueScanFinalization", () => {
       "v1",
       { syncTotalIssueCount: false }
     );
+  });
+
+  // The exact bug behind "why did it lose 30,000 issues" — the finalize write set
+  // lastError: null (the caller never passes workerError), clobbering the "worker N stopped"
+  // note, so a partial crawl showed a clean green tick.
+  it("writes a coverage caveat, not null, when a worker did not finish", async () => {
+    const store = await getProjectStoreMock();
+    store.readSnapshotMeta.mockResolvedValue({ version: "v1" });
+    store.readIssueScanMeta.mockResolvedValue({
+      processedIssues: 289617, startedAt: "2026-01-01T00:00:00.000Z", progressLog: [], scanHistory: [],
+    });
+    store.readIssueScanWorker.mockImplementation((_key, workerId) =>
+      Promise.resolve(workerId === 2
+        ? { status: "queued", lastError: "Paused on a Forge queue limit; resuming automatically once platform limits clear." }
+        : { status: "done" })
+    );
+
+    await completeIssueScanFinalization(INSTALLATION_KEY, "test-tag");
+
+    const readyWrite = store.writeIssueScanMeta.mock.calls.map((c) => c[1]).find((m) => m.state === "ready");
+    expect(readyWrite.lastError).toMatch(/1 of \d+ crawl workers did not finish/);
+    expect(readyWrite.lastError).toMatch(/worker 2:/);
+    expect(readyWrite.lastError).toMatch(/re-run the scan/i);
+    // The completion log line is honest about partial coverage too.
+    expect(readyWrite.progressLog.some((e) => /partial coverage/i.test(e.msg))).toBe(true);
+  });
+
+  it("keeps lastError null on a fully clean run", async () => {
+    const store = await getProjectStoreMock();
+    store.readSnapshotMeta.mockResolvedValue({ version: "v1" });
+    store.readIssueScanMeta.mockResolvedValue({
+      processedIssues: 321636, startedAt: "2026-01-01T00:00:00.000Z", progressLog: [], scanHistory: [],
+    });
+    store.readIssueScanWorker.mockResolvedValue({ status: "done" });
+
+    await completeIssueScanFinalization(INSTALLATION_KEY, "test-tag");
+
+    const readyWrite = store.writeIssueScanMeta.mock.calls.map((c) => c[1]).find((m) => m.state === "ready");
+    expect(readyWrite.lastError).toBeNull();
   });
 
   it("refreshes governance findings for touched fields after promotion", async () => {
@@ -1228,8 +1272,10 @@ describe("scan resilience", () => {
   });
 
   // The user's report: a worker checkpointed fine, then its re-queue hit the Forge async-
-  // queue limit and it was dropped with a vague "may be incompletely counted".
-  test("a re-queue that stays throttled through every retry closes the slot with a message that names the cause", async () => {
+  // queue limit, was dropped, and the run finalized ~30k issues short but marked clean.
+  // Now: an exhausted queue limit PAUSES the worker with its slot held open, so nothing
+  // finalizes without it and reviveStalledIssueScanWorkers picks it back up.
+  test("a re-queue throttled through every retry pauses the worker rather than dropping its projects", async () => {
     vi.clearAllMocks();
     const store = await getProjectStoreMock();
     const jiraApi = await getJiraApiMock();
@@ -1241,7 +1287,7 @@ describe("scan resilience", () => {
     store.readIssueScanWorker.mockResolvedValue(
       worker({ slices: [{ id: 0, jql: 'project IN ("ALPHA")', keys: ["ALPHA"], token: null, done: false }] })
     );
-    store.atomicAccumulateIssueScanProgress.mockResolvedValue({ processedPages: 5, totalPages: 5 });
+    store.atomicAccumulateIssueScanProgress.mockResolvedValue({ processedPages: 4, totalPages: 5 });
     jiraApi.jiraRequest.mockResolvedValue({
       issues: [{ key: "ALPHA-1", fields: { project: { id: "10", key: "ALPHA", name: "ALPHA" } } }],
       nextPageToken: "always-more",
@@ -1251,19 +1297,91 @@ describe("scan resilience", () => {
 
     await runIssueScanWorkerV2(INSTALLATION_KEY, 0);
 
-    // Re-queue was attempted the full number of times, then given up on.
-    expect(queues.inventorySnapshotQueue.push).toHaveBeenCalledTimes(5);
+    // Re-queue was attempted the full eight times, then given up on.
+    expect(queues.inventorySnapshotQueue.push).toHaveBeenCalledTimes(8);
 
     const logged = store.appendIssueScanLogEntry.mock.calls.map((c) => c[1]).join(" | ");
-    expect(logged).toMatch(/Forge async-queue limit/);
-    expect(logged).toMatch(/re-run the scan/i);
+    expect(logged).toMatch(/paused/i);
+    expect(logged).toMatch(/resumes automatically/i);
+    expect(logged).toMatch(/no issues are lost/i);
 
-    // The slot is released (so the other workers can finalize) and the SCAN is not failed.
+    // Slot is HELD OPEN: worker goes back to "queued", never "failed", and its finished-slot
+    // tick (KEY, 1, 0) is never sent -- so finalization cannot fire without it.
     const workerWrites = store.updateIssueScanWorker.mock.calls.map((c) => c[2]);
-    expect(workerWrites.some((w) => w.status === "failed")).toBe(true);
+    expect(workerWrites.some((w) => w.status === "queued")).toBe(true);
+    expect(workerWrites.some((w) => w.status === "failed")).toBe(false);
+    expect(store.atomicAccumulateIssueScanProgress).not.toHaveBeenCalledWith(INSTALLATION_KEY, 1, 0);
+
     const metaWrites = store.writeIssueScanMeta.mock.calls.map((c) => c[1]);
     expect(metaWrites.some((m) => m.state === "failed")).toBe(false);
-    expect(metaWrites.some((m) => /Forge queue limit/.test(m.lastError || ""))).toBe(true);
-    expect(store.atomicAccumulateIssueScanProgress).toHaveBeenCalledWith(INSTALLATION_KEY, 1, 0);
+    expect(metaWrites.some((m) => /paused on a Forge queue limit/i.test(m.lastError || ""))).toBe(true);
+  });
+});
+
+describe("reviveStalledIssueScanWorkers", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("re-queues only a worker carrying the pause marker, and clears the marker", async () => {
+    const store = await getProjectStoreMock();
+    const queues = await getQueuesMock();
+    store.readIssueScanMeta.mockResolvedValue({ state: "building" });
+    store.readIssueScanWorker.mockImplementation(async (_k, id) =>
+      id === 2
+        ? { status: "queued", lastError: "Paused on a Forge queue limit; resuming automatically once platform limits clear." }
+        : { status: "done" }
+    );
+    queues.inventorySnapshotQueue.push.mockReset().mockResolvedValue({ queued: true });
+
+    const result = await reviveStalledIssueScanWorkers(INSTALLATION_KEY);
+
+    expect(result.revived).toBe(1);
+    expect(queues.inventorySnapshotQueue.push).toHaveBeenCalledTimes(1);
+    expect(queues.inventorySnapshotQueue.push).toHaveBeenCalledWith(
+      expect.objectContaining({ body: expect.objectContaining({ jobType: "run-issue-scan-worker", workerId: 2 }) })
+    );
+    // Marker cleared before the re-queue so a second tick cannot double-queue it.
+    expect(store.updateIssueScanWorker).toHaveBeenCalledWith(INSTALLATION_KEY, 2, { lastError: null });
+  });
+
+  it("ignores a plain queued worker with no pause marker (freshly coordinator-queued)", async () => {
+    const store = await getProjectStoreMock();
+    const queues = await getQueuesMock();
+    store.readIssueScanMeta.mockResolvedValue({ state: "building" });
+    store.readIssueScanWorker.mockResolvedValue({ status: "queued", lastError: null });
+    queues.inventorySnapshotQueue.push.mockReset().mockResolvedValue({ queued: true });
+
+    const result = await reviveStalledIssueScanWorkers(INSTALLATION_KEY);
+
+    expect(result.revived).toBe(0);
+    expect(queues.inventorySnapshotQueue.push).not.toHaveBeenCalled();
+  });
+
+  it("restores the marker when the re-queue is still throttled", async () => {
+    const store = await getProjectStoreMock();
+    const queues = await getQueuesMock();
+    store.readIssueScanMeta.mockResolvedValue({ state: "building" });
+    store.readIssueScanWorker.mockImplementation(async (_k, id) =>
+      id === 0
+        ? { status: "queued", lastError: "Paused on a Forge queue limit; resuming automatically once platform limits clear." }
+        : { status: "done" }
+    );
+    queues.inventorySnapshotQueue.push.mockReset()
+      .mockRejectedValue(new Error("The limit on cyclic invocation has been reached"));
+
+    const result = await reviveStalledIssueScanWorkers(INSTALLATION_KEY);
+
+    expect(result.revived).toBe(0);
+    const markerRestored = store.updateIssueScanWorker.mock.calls
+      .some((c) => c[1] === 0 && /Paused on a Forge queue limit/.test(c[2]?.lastError || ""));
+    expect(markerRestored).toBe(true);
+  });
+
+  it("does nothing when no crawl is in progress", async () => {
+    const store = await getProjectStoreMock();
+    store.readIssueScanMeta.mockResolvedValue({ state: "ready" });
+
+    const result = await reviveStalledIssueScanWorkers(INSTALLATION_KEY);
+
+    expect(result).toEqual({ revived: 0, checked: 0 });
   });
 });
