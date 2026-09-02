@@ -286,14 +286,16 @@ permissions:
     - read:dashboard.property:jira
     # The JSM Assets (CMDB) pillar. Assets is a gateway API (api.atlassian.com), reached via
     # Stargate. The read:cmdb-* scopes cover the structure endpoints (schemas, object types,
-    # attributes); the workspace-id discovery hop (/rest/servicedeskapi/assets/workspace) is
-    # expected to be covered by one of these or by read:jira-work above. This ships behind a
-    # probe first -- the probe's own responses confirm which scope each Assets endpoint
-    # actually needs, the same way the screen and automation probes did, and a missing scope
-    # for the workspace hop shows up there as a 401 rather than a guess in this file.
+    # attributes). The workspace-id discovery hop (/rest/servicedeskapi/assets/workspace)
+    # returned 401 "scope does not match" on the first probe with only the cmdb scopes and
+    # read:jira-work -- it is a servicedeskapi endpoint, so it takes read:servicedesk-request;
+    # read:servicemanagement-insight-objects is the legacy Insight object-read scope, added
+    # alongside because the gateway object endpoints may want it too. The probe confirms.
     - read:cmdb-object:jira
     - read:cmdb-schema:jira
     - read:cmdb-attribute:jira
     - read:cmdb-type:jira
+    - read:servicedesk-request
+    - read:servicemanagement-insight-objects
     - read:chat:rovo
     - storage:app

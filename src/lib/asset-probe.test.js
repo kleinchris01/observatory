@@ -7,7 +7,7 @@ vi.mock("./jira-api.js", () => ({
 
 vi.mock("./logger.js", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 
-import { probeAssetsApi, firstWorkspaceId, firstSchemaId } from "./asset-probe.js";
+import { probeAssetsApi, firstWorkspaceId, firstSchemaId, workspaceReason } from "./asset-probe.js";
 import { probeEndpoint, probeStargateEndpoint } from "./jira-api.js";
 
 beforeEach(() => vi.clearAllMocks());
@@ -30,8 +30,25 @@ describe("firstSchemaId", () => {
   });
 });
 
+describe("workspaceReason", () => {
+  test("calls a 401 a scope gap, not a licence problem", () => {
+    expect(workspaceReason({ status: 401, ok: false, sample: '{"message":"scope does not match"}' }))
+      .toMatch(/missing the scope/i);
+    expect(workspaceReason({ status: 200, ok: true, sample: '{"code":401,"message":"scope does not match"}' }))
+      .toMatch(/missing the scope/i);
+  });
+
+  test("calls a 403/404 the real not-enabled case", () => {
+    expect(workspaceReason({ status: 404, ok: false, sample: "not found" })).toMatch(/JSM Premium/i);
+  });
+
+  test("distinguishes an OK answer with no workspace in it", () => {
+    expect(workspaceReason({ status: 200, ok: true, sample: '{"values":[]}' })).toMatch(/not be provisioned/i);
+  });
+});
+
 describe("probeAssetsApi", () => {
-  test("reports not-enabled when the workspace endpoint does not answer", async () => {
+  test("reports not-enabled when the workspace endpoint 404s", async () => {
     probeEndpoint.mockResolvedValue({ status: 404, ok: false, ms: 5, sample: "not found" });
 
     const result = await probeAssetsApi();
@@ -41,6 +58,15 @@ describe("probeAssetsApi", () => {
     expect(result.reason).toMatch(/JSM Premium/i);
     expect(probeStargateEndpoint).not.toHaveBeenCalled();
     expect(result.results[0]).toMatchObject({ step: "workspace", via: "site" });
+  });
+
+  test("names a 401 on the workspace hop as a scope gap", async () => {
+    probeEndpoint.mockResolvedValue({ status: 401, ok: false, ms: 5, sample: '{"code":401,"message":"Unauthorized; scope does not match"}' });
+
+    const result = await probeAssetsApi();
+
+    expect(result.assetsEnabled).toBe(false);
+    expect(result.reason).toMatch(/missing the scope/i);
   });
 
   test("reports not-enabled when the workspace endpoint answers but names no workspace", async () => {
