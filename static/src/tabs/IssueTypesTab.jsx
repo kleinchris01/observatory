@@ -2,7 +2,7 @@ import React from "react";
 import { invoke } from "@forge/bridge";
 import { formatNumber, formatRelativeTime } from "../utils";
 import { Icon } from "../components/Icons";
-import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, PanelGrid, GridSpan, BarList, PillarHealthPanel, FindingRow } from "../components/ui";
+import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, PanelGrid, GridSpan, BarList, PillarHealthPanel, FindingRow, SortFilterBar } from "../components/ui";
 import { SubNavLayout } from "../components/admin/primitives";
 import { useNavIntent, useVisiblePolling } from "../hooks";
 
@@ -312,14 +312,20 @@ export function IssueTypesTab({ intent }) {
     { key: "screen-schemes", label: "Screen schemes", icon: "copy", badge: formatNumber(data?.issueTypeScreenSchemes?.length ?? 0) },
   ];
 
+  const term = search.trim().toLowerCase();
+
   const filteredSchemes = (() => {
-    const term = search.trim().toLowerCase();
     if (!term) return data?.schemes || [];
     return (data?.schemes || []).filter((s) =>
       s.name.toLowerCase().includes(term) ||
       s.issueTypes.some((t) => (t.name || "").toLowerCase().includes(term)) ||
       s.projects.some((p) => p.projectKey.toLowerCase().includes(term)));
   })();
+
+  const matchingTypeCount = term
+    ? (data?.hierarchy || []).reduce((n, level) => n + level.types.filter(
+        (t) => t.name.toLowerCase().includes(term) || String(t.id) === term).length, 0)
+    : (data?.totalTypes ?? 0);
 
   return (
     <div className="admin-issue-types">
@@ -423,16 +429,15 @@ export function IssueTypesTab({ intent }) {
 
         {view === "hierarchy" && (
           <div className="issue-type-hierarchy">
-            <div className="admin-field-browser__search">
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Filter types by name or id…"
-                aria-label="Filter issue types"
-                className="admin-input"
-              />
-            </div>
+            <SortFilterBar
+              search={search}
+              onSearchChange={setSearch}
+              searchLabel="Search issue types"
+              searchPlaceholder="Search types by name or id…"
+              resultCount={matchingTypeCount}
+              totalCount={data?.totalTypes ?? 0}
+              onClear={() => setSearch("")}
+            />
             {(data?.hierarchy || []).length === 0 ? (
               <EmptyState inline>No issue types in this snapshot.</EmptyState>
             ) : (
@@ -449,16 +454,15 @@ export function IssueTypesTab({ intent }) {
             icon="folder"
             description="Which set of types each project is allowed to use, in the order they appear on the create dialog."
           >
-            <div className="admin-field-browser__search">
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Filter schemes by name, type or project key…"
-                aria-label="Filter issue type schemes"
-                className="admin-input"
-              />
-            </div>
+            <SortFilterBar
+              search={search}
+              onSearchChange={setSearch}
+              searchLabel="Search issue type schemes"
+              searchPlaceholder="Search schemes by name, type or project key…"
+              resultCount={filteredSchemes.length}
+              totalCount={data?.schemes?.length ?? 0}
+              onClear={() => setSearch("")}
+            />
             {filteredSchemes.length === 0 ? (
               <EmptyState inline>{search ? "No schemes match that search." : "No issue type schemes in this snapshot."}</EmptyState>
             ) : (

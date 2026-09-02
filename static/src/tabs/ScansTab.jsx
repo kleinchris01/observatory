@@ -615,18 +615,16 @@ export function IssueCrawlLiveView({ issueScan, onResume, onCancel, resuming, ca
             {scanHistoryRuns.length > 0 && (
               <span className="universe-scan-panel__log-runs">{scanHistoryRuns.length + 1} runs</span>
             )}
-            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
+            <label className="ui-controls__search universe-scan-panel__log-search">
+              <span className="ui-controls__srlabel">Search the audit log</span>
+              <Icon name="search" size={13} />
               <input
-                className="rqt-search-input"
-                style={{ maxWidth: 200 }}
+                type="search"
                 placeholder="Search all runs…"
                 value={logSearch}
                 onChange={e => setLogSearch(e.target.value)}
               />
-              {logSearch && (
-                <button className="inline-text-button" type="button" onClick={() => setLogSearch("")} style={{ fontSize: "0.75rem" }}>Clear</button>
-              )}
-            </div>
+            </label>
           </div>
           <div className="universe-scan-panel__log scan-log">
             {filteredEntries ? (
