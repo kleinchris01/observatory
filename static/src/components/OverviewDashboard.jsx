@@ -1,8 +1,8 @@
 import React from "react";
 import { invoke } from "@forge/bridge";
 import { Icon } from "./Icons";
-import { formatNumber, formatRelativeTime } from "../utils";
-import { StatTile, StatRow, Panel, EmptyState, BarList, LinkButton, GovernanceRow, TrendDelta, bandFromScore } from "./ui";
+import { formatNumber } from "../utils";
+import { StatTile, StatRow, Panel, EmptyState, LinkButton, GovernanceRow, TrendDelta, bandFromScore } from "./ui";
 import { HEALTH_PILLARS } from "../../../src/lib/health-score";
 
 // The admin landing page.
@@ -1137,248 +1137,6 @@ function GovernanceLedgerPanel({ health, findings, history, workflow, screens, a
   );
 }
 
-
-// ── Workflow ────────────────────────────────────────────────────────────────
-
-function WorkflowPanel({ workflow, onNavigate }) {
-  if (!workflow?.available) {
-    return (
-      <Panel title="Workflows and statuses" icon="activity">
-        <EmptyState action={<LinkButton onClick={() => onNavigate("workflows")}>Open Workflows</LinkButton>}>
-          {workflow?.state === "building"
-            ? "Building the workflow inventory…"
-            : "No workflow inventory yet. Build one to see scheme sharing and status health."}
-        </EmptyState>
-      </Panel>
-    );
-  }
-
-  return (
-    <Panel
-      title="Workflows and statuses"
-      icon="activity"
-      description={workflow.refreshedAt ? `Built ${formatRelativeTime(workflow.refreshedAt)}` : undefined}
-      action={<LinkButton onClick={() => onNavigate("workflows")}>Open Workflows</LinkButton>}
-    >
-      <StatRow>
-        <StatTile
-          label="Workflow schemes"
-          value={formatNumber(workflow.schemeCount)}
-          hint={`${formatNumber(workflow.sharedSchemes)} shared by more than one project`}
-          icon="activity"
-        />
-        <StatTile label="Statuses" value={formatNumber(workflow.statusCount)} icon="layers" />
-        <StatTile
-          label="Duplicate groups"
-          value={formatNumber(workflow.duplicateGroupCount)}
-          hint={workflow.reducibleStatusCount > 0 ? `${formatNumber(workflow.reducibleStatusCount)} removable` : undefined}
-          tone={workflow.duplicateGroupCount > 0 ? "warning" : "neutral"}
-        />
-        <StatTile
-          label="Unreachable"
-          value={workflow.schemeStatusesAvailable ? formatNumber(workflow.orphanCount) : "—"}
-          hint={
-            !workflow.schemeStatusesAvailable
-              ? "workflow status data unavailable"
-              : workflow.hasIssueCounts
-                ? `${formatNumber(workflow.safeToRemoveCount)} never used`
-                : "run a scan to confirm usage"
-          }
-          tone={workflow.schemeStatusesAvailable && workflow.orphanCount > 0 ? "warning" : "neutral"}
-        />
-      </StatRow>
-
-      {/* Scheme sharing is the premise the whole correlation rests on. If nothing is
-          shared, per-scheme comparison has no leverage and it is better to say so. */}
-      {workflow.sharedSchemes === 0 && workflow.schemeCount > 0 && (
-        <p className="ui-note">
-          <Icon name="info" size={13} />
-          <span>
-            No scheme governs more than one project, so there is no shared process to compare
-            field usage against.
-          </span>
-        </p>
-      )}
-    </Panel>
-  );
-}
-
-// ── Projects ────────────────────────────────────────────────────────────────
-
-function ProjectsPanel({ projects, onNavigate }) {
-  if (!projects || !projects.totalProjects) {
-    return (
-      <Panel title="Projects" icon="folder">
-        <EmptyState>No project usage data yet. Run a scan to populate it.</EmptyState>
-      </Panel>
-    );
-  }
-
-  return (
-    <Panel
-      title="Projects"
-      icon="folder"
-      action={<LinkButton onClick={() => onNavigate("projects")}>Open Project Usage</LinkButton>}
-    >
-      <StatRow>
-        <StatTile label="Projects with field usage" value={formatNumber(projects.totalProjects)} icon="folder" />
-        {/*
-          Two different measures, never one label. totalFieldFills counts field VALUES --
-          an issue with 90 populated fields contributes 90 -- so presenting it as "issues"
-          overstates by roughly the median field count. Only the Universal Scan measures
-          distinct issues, so when it has not run the tile says what it is actually showing.
-        */}
-        {projects.hasUniqueCounts ? (
-          <StatTile
-            label="Issues covered"
-            value={formatNumber(projects.totalUniqueIssues)}
-            hint="distinct issues, from the universe scan"
-            icon="barChart"
-          />
-        ) : (
-          <StatTile
-            label="Field fills"
-            value={formatNumber(projects.totalFieldFills)}
-            hint="field values, not issues — run a universe scan for issue counts"
-            icon="barChart"
-          />
-        )}
-        <StatTile
-          label="Median fields per project"
-          value={formatNumber(projects.medianFieldCount)}
-          hint={`90th percentile ${formatNumber(projects.p90FieldCount)}`}
-          icon="layers"
-        />
-        <StatTile
-          label="No issues recorded"
-          value={formatNumber(projects.unusedProjects?.length ?? 0)}
-          hint="fields configured, nothing filed"
-          tone={projects.unusedProjects?.length ? "warning" : "neutral"}
-        />
-      </StatRow>
-
-      <div className="ui-split">
-        <div className="ui-split__col">
-          <h4 className="ui-subhead">
-            {projects.hasUniqueCounts ? "Highest issue volume" : "Most field fills"}
-          </h4>
-          <BarList
-            items={projects.topByIssueVolume}
-            labelKey="projectKey"
-            valueKey="volume"
-            formatValue={formatNumber}
-            emptyMessage="No issue data yet"
-          />
-        </div>
-        <div className="ui-split__col">
-          <h4 className="ui-subhead">Most fields configured</h4>
-          <BarList
-            items={projects.topByFieldCount}
-            labelKey="projectKey"
-            valueKey="fieldCount"
-            formatValue={formatNumber}
-            tone="warn"
-            emptyMessage="No field data yet"
-          />
-        </div>
-      </div>
-
-      {projects.overConfigured?.length > 0 && (
-        <div className="ui-split__col">
-          <h4 className="ui-subhead">Configured past the norm, low volume</h4>
-          <p className="ui-subhead__desc">
-            Well above the median field count while carrying little work — the cost is real
-            and the usage is not.
-          </p>
-          <BarList
-            items={projects.overConfigured}
-            labelKey="projectKey"
-            valueKey="fieldCount"
-            formatValue={formatNumber}
-            tone="warn"
-          />
-        </div>
-      )}
-
-      {projects.staleProjects?.length > 0 && (
-        <div className="ui-split__col">
-          <h4 className="ui-subhead">No activity in over six months</h4>
-          <div className="ui-stale-list">
-            {projects.staleProjects.map((project) => (
-              <div key={project.projectKey} className="ui-stale">
-                <span className="ui-stale__key">{project.projectKey}</span>
-                <span className="ui-stale__name">{project.projectName}</span>
-                <span className="ui-stale__when">{formatRelativeTime(project.latestIssueUpdatedAt)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </Panel>
-  );
-}
-
-// ── Fields ──────────────────────────────────────────────────────────────────
-
-function FieldsPanel({ fieldUsage, onNavigate }) {
-  const severity = fieldUsage?.findingsBySeverity || { high: 0, medium: 0, low: 0 };
-  const origin = fieldUsage?.origin || { builtin: 0, appProvided: 0, custom: 0 };
-
-  return (
-    <Panel
-      title="Field usage"
-      icon="layers"
-      action={<LinkButton onClick={() => onNavigate("fields")}>Open Field Browser</LinkButton>}
-    >
-      <StatRow>
-        <StatTile
-          label="High severity"
-          value={formatNumber(severity.high)}
-          tone={severity.high > 0 ? "critical" : "neutral"}
-          icon="alertTriangle"
-        />
-        <StatTile
-          label="Medium severity"
-          value={formatNumber(severity.medium)}
-          tone={severity.medium > 0 ? "warning" : "neutral"}
-          icon="alertTriangle"
-        />
-        <StatTile label="Low severity" value={formatNumber(severity.low)} icon="info" />
-        <StatTile
-          label="Duplicate-name clusters"
-          value={formatNumber(fieldUsage?.duplicateClusters ?? 0)}
-          hint={`${formatNumber(origin.custom)} custom fields total`}
-          icon="scissors"
-        />
-      </StatRow>
-
-      <div className="ui-split">
-        <div className="ui-split__col">
-          <h4 className="ui-subhead">Most common findings</h4>
-          <BarList
-            items={fieldUsage?.findingsByType}
-            labelKey="title"
-            valueKey="count"
-            formatValue={formatNumber}
-            tone="warn"
-            emptyMessage="No governance findings yet"
-          />
-        </div>
-        <div className="ui-split__col">
-          <h4 className="ui-subhead">Field types</h4>
-          <BarList
-            items={fieldUsage?.fieldTypeBreakdown}
-            labelKey="type"
-            valueKey="count"
-            formatValue={formatNumber}
-            emptyMessage="No field data yet"
-          />
-        </div>
-      </div>
-    </Panel>
-  );
-}
-
 // ── RQT ─────────────────────────────────────────────────────────────────────
 
 function RqtPanel({ onOpenRqtIndex }) {
@@ -1434,9 +1192,11 @@ export function OverviewDashboard({ dashboard, findingsSummary, findingsByCode, 
         dashboards={dashboards}
         onNavigate={navigate}
       />
-      <WorkflowPanel workflow={workflow} onNavigate={navigate} />
-      <ProjectsPanel projects={dashboard?.projects} onNavigate={navigate} />
-      <FieldsPanel fieldUsage={dashboard?.fieldUsage} onNavigate={navigate} />
+      {/* The per-pillar stat blocks that used to sit here -- Workflows, Projects, Field
+          usage -- were removed: each is a duplicate of its own tab's Overview sub-view, and
+          two copies of the same numbers on two pages is how the product starts reading as
+          several. The cross-pillar findings ledger above is the landing page's job; the
+          detail lives one click away on the pillar tab. */}
       <RqtPanel onOpenRqtIndex={onOpenRqtIndex} />
     </div>
   );
