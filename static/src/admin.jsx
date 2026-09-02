@@ -44,6 +44,9 @@ const IssueTypesTab = React.lazy(() =>
 const PeopleTab = React.lazy(() =>
   import("./tabs/PeopleTab").then((m) => ({ default: m.PeopleTab }))
 );
+const AssetsTab = React.lazy(() =>
+  import("./tabs/AssetsTab").then((m) => ({ default: m.AssetsTab }))
+);
 const ScreensTab = React.lazy(() =>
   import("./tabs/ScreensTab").then((m) => ({ default: m.ScreensTab }))
 );
@@ -216,6 +219,7 @@ export function AdminApp() {
     { key: "workflows", label: "Workflows", icon: "activity" },
     { key: "issueTypes", label: "Issue Types", icon: "layers" },
     { key: "people", label: "People", icon: "user" },
+    { key: "assets", label: "Assets", icon: "database" },
     { key: "screens", label: "Screens", icon: "copy" },
     { key: "filters", label: "Saved Filters", icon: "search" },
     { key: "dashboards", label: "Dashboards", icon: "barChart" },
@@ -317,6 +321,8 @@ export function AdminApp() {
             <IssueTypesTab intent={navIntent} />
           ) : activeTab === "people" ? (
             <PeopleTab intent={navIntent} />
+          ) : activeTab === "assets" ? (
+            <AssetsTab intent={navIntent} />
           ) : activeTab === "screens" ? (
             <ScreensTab intent={navIntent} onBuildFieldReport={buildFieldReport} />
           ) : activeTab === "filters" ? (

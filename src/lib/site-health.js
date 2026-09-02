@@ -35,6 +35,10 @@ import {
   readWorkflowSnapshotMeta,
   readIssueTypeSnapshotMeta,
   loadIssueTypes,
+  readAssetSnapshotMeta,
+  loadAssetSchemas,
+  loadAssetObjectTypes,
+  loadAssetAttributes,
   loadIssueTypeSchemes,
   loadIssueTypeSchemeItems,
   readUserSnapshotMeta,
@@ -49,6 +53,7 @@ import { summarizeAdoption } from "./project-adoption.js";
 import { summarizeFilters, summarizeFilterHealth } from "./filter-insights.js";
 import { summarizeDashboards, summarizeDashboardHealth } from "./dashboard-insights.js";
 import { summarizeIssueTypeInsights, summarizeIssueTypeHealth } from "./issuetype-insights.js";
+import { summarizeAssetInsights, summarizeAssetHealth } from "./asset-insights.js";
 import { buildOwnershipIndex, summarizeOrphanedOwnership } from "./user-ownership.js";
 
 // Top finding-type/field-type breakdowns are capped -- Overview is a glance-level
@@ -553,6 +558,53 @@ export async function buildUserOverview(installationKey) {
   }
 }
 
+// The JSM Assets pillar's inputs: the schema / object-type / attribute structure, and the
+// four things wrong with it a scan can find. `assetsEnabled: false` is a distinct outcome
+// -- the build ran and Assets is not licensed on this site -- and the score treats that
+// pillar as not-applicable rather than scoring it zero.
+export async function buildAssetOverview(installationKey) {
+  try {
+    const meta = await readAssetSnapshotMeta(installationKey);
+    if (!meta?.version && meta?.state !== "unavailable") {
+      return { available: false, state: meta?.state || "idle", lastError: meta?.lastError || null };
+    }
+
+    if (meta?.state === "unavailable" || meta?.assetsEnabled === false) {
+      const summary = summarizeAssetInsights({ assetsEnabled: false });
+      return {
+        available: false,
+        assetsEnabled: false,
+        state: "unavailable",
+        refreshedAt: meta?.refreshedAt || null,
+        lastError: meta?.lastError || null,
+        ...summary,
+        health: summarizeAssetHealth(summary),
+      };
+    }
+
+    const [schemas, objectTypes, attributes] = await Promise.all([
+      loadAssetSchemas(installationKey, meta.version),
+      loadAssetObjectTypes(installationKey, meta.version),
+      loadAssetAttributes(installationKey, meta.version),
+    ]);
+    const summary = summarizeAssetInsights({ schemas, objectTypes, attributes, assetsEnabled: true });
+
+    return {
+      available: summary.available,
+      assetsEnabled: true,
+      state: meta.state || "idle",
+      refreshedAt: meta.refreshedAt || null,
+      workspaceId: meta.workspaceId || null,
+      lastError: meta.lastError || null,
+      ...summary,
+      health: summarizeAssetHealth(summary),
+    };
+  } catch (error) {
+    console.warn("buildAssetOverview failed:", error?.message || error);
+    return { available: false, state: "error" };
+  }
+}
+
 // Compute the score from scratch and record it.
 //
 // The one entry point anything outside the Overview should use. It gathers the same five
@@ -582,13 +634,14 @@ export async function captureSiteHealth(installationKey, deps) {
   }
 
   try {
-    const [meta, config, workflow, screens, issueTypeOverview, userOverview, automationAnalysis] = await Promise.all([
+    const [meta, config, workflow, screens, issueTypeOverview, userOverview, assetOverview, automationAnalysis] = await Promise.all([
       readSnapshotMeta(installationKey),
       readAdminConfig(),
       buildWorkflowOverview(installationKey),
       buildScreenOverview(installationKey),
       buildIssueTypeOverview(installationKey),
       buildUserOverview(installationKey),
+      buildAssetOverview(installationKey),
       readAutomationAnalysis(installationKey).catch(() => null),
     ]);
     let filters = null;
@@ -637,6 +690,7 @@ export async function captureSiteHealth(installationKey, deps) {
       dashboards,
       issueTypes: issueTypeOverview?.health ?? null,
       users: userOverview?.health ?? null,
+      assets: assetOverview?.health ?? null,
       tolerances: config?.healthTolerances,
     });
 

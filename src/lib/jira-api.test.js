@@ -10,19 +10,18 @@ import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
 const mockRequestJira = vi.fn();
 const mockRequestJiraAsUser = vi.fn();
 
-const mockRequestStargate = vi.fn();
+// The api.atlassian.com gateway surface. Distinct from requestJira: it targets the gateway
+// host, and JSM Assets is the reason it exists here.
+const mockRequestAtlassian = vi.fn();
 
 vi.mock("@forge/api", () => ({
   default: {
-    asApp: () => ({ requestJira: mockRequestJira }),
+    asApp: () => ({ requestJira: mockRequestJira, requestAtlassian: mockRequestAtlassian }),
     asUser: () => ({ requestJira: mockRequestJiraAsUser }),
   },
   // The real `route` is a tagged template that escapes interpolated values. The
   // stub keeps the assembled string so tests can assert on the path that was built.
   route: (strings, ...values) => strings.reduce((acc, s, i) => acc + s + (values[i] ?? ""), ""),
-  // The gateway transport. Distinct from requestJira: it takes a plain URL string rather
-  // than a Route, which is the distinction that made the automation probe work at all.
-  createRequestStargateAsApp: () => mockRequestStargate,
 }));
 
 const mockCounter = { incr: vi.fn(), incrBy: vi.fn() };
@@ -62,6 +61,8 @@ import {
   probeEndpoint,
   probeEndpointAsUser,
   probeStargateEndpoint,
+  requestAtlassianJson,
+  getAssetsWorkspaceId,
   getCloudId,
   getAllScreens,
   getAllScreenSchemes,
@@ -923,27 +924,62 @@ describe("probeEndpointAsUser", () => {
 });
 
 describe("probeStargateEndpoint", () => {
-  test("goes through the gateway transport, not requestJira", async () => {
-    mockRequestStargate.mockResolvedValueOnce(jiraResponse({ status: 200, ok: true, text: "{\"rules\":[]}" }));
+  test("goes through requestAtlassian, not requestJira", async () => {
+    mockRequestAtlassian.mockResolvedValueOnce(jiraResponse({ status: 200, ok: true, text: "{\"objectSchemas\":[]}" }));
 
-    const path = "https://api.atlassian.com/automation/public/jira/abc/rest/v1/rule";
+    const path = "/jsm/assets/workspace/abc/v1/objectschema/list";
     const result = await probeStargateEndpoint(path);
 
-    expect(mockRequestStargate).toHaveBeenCalledWith(path, expect.objectContaining({ method: "GET" }));
-    // The distinction that made this work: every site-relative attempt 401'd because it
-    // was asked of the wrong server, and requestJira cannot reach the gateway at all.
+    // route([path]) collapses to the bare path -- requestAtlassian prepends the gateway host.
+    expect(mockRequestAtlassian).toHaveBeenCalledWith(path, expect.objectContaining({ method: "GET" }));
+    // requestJira cannot reach the gateway at all; the earlier createRequestStargateAsApp
+    // attempt was rejected as INVALID_TARGET_URL before it left the sandbox.
     expect(mockRequestJira).not.toHaveBeenCalled();
     expect(result).toMatchObject({ status: 200, ok: true });
   });
 
   test("returns a null status instead of throwing", async () => {
-    mockRequestStargate.mockRejectedValueOnce(new Error("gateway rejected the route"));
+    mockRequestAtlassian.mockRejectedValueOnce(new Error("gateway rejected the route"));
 
-    const result = await probeStargateEndpoint("https://api.atlassian.com/x");
+    const result = await probeStargateEndpoint("/jsm/assets/workspace/x/v1/x");
 
     expect(result.status).toBeNull();
     expect(result.ok).toBe(false);
     expect(result.sample).toContain("gateway rejected");
+  });
+});
+
+describe("requestAtlassianJson", () => {
+  test("parses a 2xx JSON body from the gateway", async () => {
+    mockRequestAtlassian.mockResolvedValueOnce(jiraResponse({ status: 200, ok: true, text: "{\"objectSchemas\":[{\"id\":\"1\"}]}" }));
+    const body = await requestAtlassianJson("/jsm/assets/workspace/w/v1/objectschema/list");
+    expect(body).toEqual({ objectSchemas: [{ id: "1" }] });
+  });
+
+  test("throws with the status attached on a non-2xx", async () => {
+    mockRequestAtlassian.mockResolvedValueOnce(jiraResponse({ status: 403, ok: false, text: "no assets licence" }));
+    await expect(requestAtlassianJson("/jsm/assets/workspace/w/v1/config/statustype"))
+      .rejects.toMatchObject({ status: 403 });
+  });
+});
+
+describe("getAssetsWorkspaceId", () => {
+  test("pulls the first workspaceId out of the servicedeskapi payload", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({
+      status: 200, ok: true,
+      body: { values: [{ workspaceId: "c77afb26" }] },
+    }));
+    expect(await getAssetsWorkspaceId()).toBe("c77afb26");
+  });
+
+  test("returns null when the site has no workspace", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ status: 200, ok: true, body: { values: [] } }));
+    expect(await getAssetsWorkspaceId()).toBeNull();
+  });
+
+  test("throws with the status on a non-2xx", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ status: 401, ok: false, text: "scope does not match" }));
+    await expect(getAssetsWorkspaceId()).rejects.toMatchObject({ status: 401 });
   });
 });
 

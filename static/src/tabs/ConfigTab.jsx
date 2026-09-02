@@ -172,6 +172,9 @@ const DEFAULT_TOLERANCES = {
   brokenTypeHierarchy: 0.25,
   deactivatedLicenceHolders: 0.05,
   orphanedOwnership: 0.10,
+  deadAssetSchemas: 0.20,
+  bareAssetTypes: 0.30,
+  brokenAssetReferences: 0.10,
 };
 
   const [local, setLocal] = React.useState(() => {
@@ -804,6 +807,21 @@ function RulesArea({ t, setThreshold, pct, setTolerancePercent }) {
             tail="of licensed accounts that Jira has deactivated — a paid seat and a login that should not exist." />
           <ToleranceRule tone="risk" badge="People" name="Orphaned ownership" pct={pct} set={setTolerancePercent} k="orphanedOwnership"
             tail="of owned filters, dashboards and rules whose owner is not in the licensed roster." />
+        </div>
+      </ConfigSection>
+
+      <ConfigSection title="Assets (CMDB)" icon="database">
+        <p className="admin-config-section__desc">
+          The JSM Assets structure. Only scored on a Jira Service Management Premium site &mdash;
+          everywhere else the pillar reports itself not applicable.
+        </p>
+        <div className="admin-threshold-rules">
+          <ToleranceRule tone="cleanup" badge="Assets" name="Dead object schemas" pct={pct} set={setTolerancePercent} k="deadAssetSchemas"
+            tail="of object schemas with no object types or no objects — a namespace that resolves to nothing." />
+          <ToleranceRule tone="standardize" badge="Assets" name="Bare object types" pct={pct} set={setTolerancePercent} k="bareAssetTypes"
+            tail="of concrete object types carrying no attribute beyond the built-in Name." />
+          <ToleranceRule tone="risk" badge="Assets" name="Broken references" pct={pct} set={setTolerancePercent} k="brokenAssetReferences"
+            tail="of object-reference attributes pointing at an object type that is gone." />
         </div>
       </ConfigSection>
 

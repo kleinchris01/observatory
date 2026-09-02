@@ -19,7 +19,7 @@ import { HEALTH_PILLARS } from "../../../src/lib/health-score";
 // omitted rather than rendered as zero, because "0 duplicate statuses" and "we have never
 // looked for duplicate statuses" are completely different statements.
 
-function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, screens, issueTypes, users, automation, filters, dashboards, onNavigate }) {
+function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, screens, issueTypes, users, assets, automation, filters, dashboards, onNavigate }) {
   const findings = [];
 
   if (findingsSummary?.adminAttention > 0) {
@@ -720,6 +720,66 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
     });
   }
 
+  // ── Assets (CMDB) ──────────────────────────────────────────────────────
+  // Only present on a JSM Premium site. `assets.available` is false everywhere else, so
+  // none of these render rather than the pillar shipping empty findings.
+
+  if (assets?.available && assets.brokenReferenceCount > 0) {
+    findings.push({
+      key: "asset-broken-references",
+      dimension: "asset-findings",
+      pillar: "assets",
+      tone: "critical",
+      count: assets.brokenReferenceCount,
+      title: "Assets reference attributes pointing at a type that is gone",
+      detail: "The attribute still shows on every object of its type and resolves to nothing — the CMDB analogue of a filter scoped to a deleted project.",
+      onOpen: () => onNavigate("assets", { view: "attributes" }),
+      openLabel: "Assets",
+    });
+  }
+
+  if (assets?.available && assets.brokenHierarchyCount > 0) {
+    findings.push({
+      key: "asset-broken-hierarchy",
+      dimension: "asset-findings",
+      pillar: "assets",
+      tone: "critical",
+      count: assets.brokenHierarchyCount,
+      title: "Assets object types whose parent is missing",
+      detail: "Every child under the gap inherits attributes from a type that is not in the catalogue.",
+      onOpen: () => onNavigate("assets", { view: "types" }),
+      openLabel: "Assets",
+    });
+  }
+
+  if (assets?.available && assets.deadSchemaCount > 0) {
+    findings.push({
+      key: "asset-dead-schemas",
+      dimension: "asset-findings",
+      pillar: "assets",
+      tone: "warning",
+      count: assets.deadSchemaCount,
+      title: "Object schemas with nothing in them",
+      detail: "No object types, or types but no objects — a namespace in every AQL autocomplete that resolves to nothing.",
+      onOpen: () => onNavigate("assets", { view: "schemas" }),
+      openLabel: "Assets",
+    });
+  }
+
+  if (assets?.available && assets.bareTypeCount > 0) {
+    findings.push({
+      key: "asset-bare-types",
+      dimension: "asset-findings",
+      pillar: "assets",
+      tone: "info",
+      count: assets.bareTypeCount,
+      title: "Concrete object types with no attribute of their own",
+      detail: "Only the built-in Name — the type records nothing about the thing it represents.",
+      onOpen: () => onNavigate("assets", { view: "types" }),
+      openLabel: "Assets",
+    });
+  }
+
   // ── Projects ────────────────────────────────────────────────────────────
 
   // The month histogram behind every adoption figure has stopped near a fixed month -- a
@@ -1202,11 +1262,11 @@ function RqtPanel({ onOpenRqtIndex }) {
   );
 }
 
-export function OverviewDashboard({ dashboard, findingsSummary, findingsByCode, workflow, screens, issueTypes, users, automation, filters, dashboards, health, history, onOpenRqtIndex, onNavigate }) {
+export function OverviewDashboard({ dashboard, findingsSummary, findingsByCode, workflow, screens, issueTypes, users, assets, automation, filters, dashboards, health, history, onOpenRqtIndex, onNavigate }) {
   // onNavigate is optional so this stays renderable in isolation; without it the deep
   // links become inert rather than throwing.
   const navigate = onNavigate || (() => {});
-  const findings = buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, screens, issueTypes, users, automation, filters, dashboards, onNavigate: navigate });
+  const findings = buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, screens, issueTypes, users, assets, automation, filters, dashboards, onNavigate: navigate });
   // A caller may pass history in -- tests do -- but nobody has to.
   const fetched = useHealthHistory();
   const series = history ?? fetched;

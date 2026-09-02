@@ -37,6 +37,10 @@ vi.mock("./lib/user-engine.js", () => ({
   buildUserSnapshot: vi.fn().mockResolvedValue({ users: 377, groups: 3 }),
 }));
 
+vi.mock("./lib/asset-engine.js", () => ({
+  buildAssetSnapshot: vi.fn().mockResolvedValue({ schemas: 12, objectTypes: 140, attributes: 900 }),
+}));
+
 vi.mock("./lib/full-scan-runner.js", () => ({
   runFullScanStep: vi.fn().mockResolvedValue({ advanced: true, done: 2, total: 8 }),
   runQuickScanStep: vi.fn().mockResolvedValue({ advanced: true, done: 1, total: 6 }),
@@ -163,6 +167,7 @@ import { buildWorkflowSnapshot, buildStatusHistorySnapshot } from "./lib/workflo
 import { buildScreenSnapshot } from "./lib/screen-engine.js";
 import { buildIssueTypeSnapshot } from "./lib/issuetype-engine.js";
 import { buildUserSnapshot } from "./lib/user-engine.js";
+import { buildAssetSnapshot } from "./lib/asset-engine.js";
 import { runFullScanStep, runQuickScanStep, startQuickScan, recoverStalledScan } from "./lib/full-scan-runner.js";
 import { buildFilterSnapshot } from "./lib/filter-engine.js";
 import { buildDashboardSnapshot } from "./lib/dashboard-engine.js";
@@ -587,6 +592,21 @@ describe("consumeSnapshot job routing", () => {
   test("logs a build-user-snapshot that returned nothing without throwing", async () => {
     buildUserSnapshot.mockResolvedValueOnce(undefined);
     await expect(consumeSnapshot(event({ jobType: "build-user-snapshot" }))).resolves.toBeUndefined();
+  });
+
+  test("routes build-asset-snapshot to the asset engine", async () => {
+    await consumeSnapshot(event({ jobType: "build-asset-snapshot" }));
+    expect(buildAssetSnapshot).toHaveBeenCalledWith("scope-1");
+  });
+
+  test("logs a build-asset-snapshot that came back 'Assets not enabled' without throwing", async () => {
+    buildAssetSnapshot.mockResolvedValueOnce({ unavailable: true, reason: "no workspace" });
+    await expect(consumeSnapshot(event({ jobType: "build-asset-snapshot" }))).resolves.toBeUndefined();
+  });
+
+  test("logs a build-asset-snapshot that returned nothing without throwing", async () => {
+    buildAssetSnapshot.mockResolvedValueOnce(undefined);
+    await expect(consumeSnapshot(event({ jobType: "build-asset-snapshot" }))).resolves.toBeUndefined();
   });
 
   // The cheapest structural build here: one paginated endpoint with everything expanded, so

@@ -111,6 +111,17 @@ const users = (overrides = {}) => ({
   ...overrides,
 });
 
+const assets = (overrides = {}) => ({
+  available: true,
+  assetsEnabled: true,
+  totalSchemas: 12,
+  deadSchemaCount: 3,
+  brokenReferenceCount: 4,
+  brokenHierarchyCount: 2,
+  bareTypeCount: 6,
+  ...overrides,
+});
+
 beforeEach(() => vi.clearAllMocks());
 
 describe("OverviewDashboard — findings", () => {
@@ -271,6 +282,22 @@ describe("OverviewDashboard — automation and screen findings", () => {
   test("omits the people findings entirely when the pillar has not been built", () => {
     renderAll({ users: { available: false } });
     expect(screen.queryByText("Deactivated accounts still holding a licence")).not.toBeInTheDocument();
+  });
+
+  test("surfaces the assets findings and routes them to the Assets tab", async () => {
+    const onNavigate = vi.fn();
+    renderAll({ assets: assets(), onNavigate });
+
+    expect(screen.getByText("Assets reference attributes pointing at a type that is gone")).toBeInTheDocument();
+    expect(screen.getByText("Object schemas with nothing in them")).toBeInTheDocument();
+
+    await userEvent.click(screen.getAllByRole("button", { name: /^Assets$/ })[0]);
+    expect(onNavigate).toHaveBeenCalledWith("assets", expect.objectContaining({ view: expect.any(String) }));
+  });
+
+  test("omits the assets findings when Assets is not enabled on the site", () => {
+    renderAll({ assets: { available: false, assetsEnabled: false } });
+    expect(screen.queryByText("Object schemas with nothing in them")).not.toBeInTheDocument();
   });
 
   // The same rule the workflow findings already follow, now enforced for the two pillars
