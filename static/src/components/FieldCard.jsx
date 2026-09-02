@@ -496,6 +496,47 @@ export function ScreenUsageSection({ result, loading }) {
   );
 }
 
+// Which issue types actually carry a value for this field, from the last full issue crawl.
+// The third axis next to Screen Usage (where it *can* be filled) and Project Usage (where it
+// *is* filled): a field on a screen for types no issue of that type populates is configured
+// wider than it is used.
+export function IssueTypeUsageSection({ usage }) {
+  const rows = Array.isArray(usage) ? usage : null;
+  const max = rows && rows.length ? Math.max(...rows.map((r) => r.issueCount || 0), 1) : 1;
+
+  return (
+    <CollapsibleSection
+      title="Issue Type Usage"
+      badge={rows && rows.length ? `${formatNumber(rows.length)} type${rows.length === 1 ? "" : "s"}` : null}
+    >
+      {!rows || rows.length === 0 ? (
+        // Tri-state, same as Screen Usage: an empty list is "the crawl has not measured this
+        // yet", never "this field is used on no issue type".
+        <div className="empty-state empty-state--inline">
+          The issue crawl has not recorded which issue types carry this field yet. Run a full
+          scan to populate it.
+        </div>
+      ) : (
+        <div className="screen-usage-list">
+          {rows.map((row) => (
+            <div className="screen-usage-row" key={row.issueTypeId}>
+              <div className="screen-usage-row__name">
+                <strong>{row.issueTypeName}</strong>
+              </div>
+              <div className="screen-usage-row__meta" style={{ alignItems: "center", gap: 10 }}>
+                <div className="status-progress__bar" aria-hidden="true" style={{ width: 120 }}>
+                  <span style={{ width: `${Math.max(3, Math.round(((row.issueCount || 0) / max) * 100))}%` }} />
+                </div>
+                <MetricChip label="issues" value={formatNumber(row.issueCount || 0)} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </CollapsibleSection>
+  );
+}
+
 export function MetricChip({ label, value, tone = "neutral" }) {
   return (
     <div className={`metric-chip metric-chip--${tone}`}>
@@ -1016,6 +1057,8 @@ export function FieldCard({
               ) : null}
 
               <ScreenUsageSection result={screens} loading={screensLoading} />
+
+              <IssueTypeUsageSection usage={details.issueTypeUsage} />
 
               <CollapsibleSection
                 title="Project Usage"

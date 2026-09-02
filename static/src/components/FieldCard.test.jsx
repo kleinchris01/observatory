@@ -13,6 +13,7 @@ import {
   ProjectUsageBuildBadge,
   AutomationUsageSection,
   ScreenUsageSection,
+  IssueTypeUsageSection,
   FilterUsageSection,
 } from "./FieldCard";
 
@@ -153,6 +154,31 @@ describe("ScreenUsageSection", () => {
 
     expect(screen.getByText(/Loading screen usage/i)).toBeInTheDocument();
     expect(screen.queryByText(/no user can fill it/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("IssueTypeUsageSection", () => {
+  it("lists each issue type the field carries a value on, biggest first", () => {
+    render(<IssueTypeUsageSection usage={[
+      { issueTypeId: "10001", issueTypeName: "Bug", issueCount: 40 },
+      { issueTypeId: "10002", issueTypeName: "Task", issueCount: 5 },
+    ]} />);
+
+    expect(screen.getByText("Bug")).toBeInTheDocument();
+    expect(screen.getByText("Task")).toBeInTheDocument();
+    expect(screen.getByText("2 types")).toBeInTheDocument();
+  });
+
+  // Same tri-state discipline as Screen Usage: an empty list is "not measured", never
+  // "used on no type".
+  it("never claims zero-type usage when the crawl has not measured it", () => {
+    render(<IssueTypeUsageSection usage={[]} />);
+    expect(screen.getByText(/has not recorded which issue types/i)).toBeInTheDocument();
+  });
+
+  it("treats a missing prop the same as an empty list", () => {
+    render(<IssueTypeUsageSection usage={undefined} />);
+    expect(screen.getByText(/Run a full scan to populate it/i)).toBeInTheDocument();
   });
 });
 

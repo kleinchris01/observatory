@@ -60,6 +60,7 @@ vi.mock("./project-store.js", () => ({
   updateIssueScanWorker: vi.fn().mockResolvedValue(undefined),
   replaceFieldOptionsCache: vi.fn().mockResolvedValue({ optionCount: 0 }),
   flushIssueScanCounts: vi.fn().mockResolvedValue(undefined),
+  flushIssueScanTypeCounts: vi.fn().mockResolvedValue(undefined),
   flushIssueScanActivity: vi.fn().mockResolvedValue(undefined),
   promoteIssueScanActivity: vi.fn().mockResolvedValue({ projectsPromoted: 0, rowsInserted: 0 }),
   flushIssueScanStatusCounts: vi.fn().mockResolvedValue(undefined),
@@ -78,6 +79,7 @@ vi.mock("./project-store.js", () => ({
   tryClaimIssueScanFinalization: vi.fn().mockResolvedValue(false),
   loadIssueScanProjectTotals: vi.fn().mockResolvedValue([]),
   promoteIssueScanToSnapshotProjectUsage: vi.fn().mockResolvedValue({ fieldsPromoted: 0, rowsInserted: 0 }),
+  promoteIssueScanFieldTypeUsage: vi.fn().mockResolvedValue({ fieldsPromoted: 0, rowsInserted: 0 }),
   loadSnapshotFields: vi.fn().mockResolvedValue([]),
 }));
 
@@ -852,6 +854,19 @@ describe("runIssueScanWorkerV2", () => {
       expect(store.flushIssueScanCounts).toHaveBeenCalled();
       const [, fieldProjectCounts] = store.flushIssueScanCounts.mock.calls.at(-1);
       expect(fieldProjectCounts.has("customfield_1")).toBe(true);
+    });
+
+    it("counts populated custom fields per issue type", async () => {
+      const { store } = await runWorkerOverPage([
+        issue("ALPHA-1", "10", "ALPHA", "3", "In Review", {
+          customfield_1: "value",
+          issuetype: { id: "10001", name: "Bug" },
+        }),
+      ]);
+
+      expect(store.flushIssueScanTypeCounts).toHaveBeenCalled();
+      const [, fieldTypeCounts] = store.flushIssueScanTypeCounts.mock.calls.at(-1);
+      expect(fieldTypeCounts.get("customfield_1").get("10001")).toMatchObject({ count: 1, name: "Bug" });
     });
   });
 

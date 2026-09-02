@@ -138,6 +138,15 @@ export async function clearIssueScanBuffer(scopeKey) {
       .bindParams(scopeKey)
       .execute()
   );
+
+  // The field x issue-type accumulator, cleared for the same reason: a re-scan on top of
+  // last run's rows would add a second lifetime of issues to every count.
+  await withSqlRetry(() =>
+    sql
+      .prepare("DELETE FROM issue_scan_type_buffer WHERE scope_key = ?")
+      .bindParams(scopeKey)
+      .execute()
+  );
 }
 
 export async function resetIssueScanWorkers(scopeKey) {
@@ -438,6 +447,151 @@ export async function flushIssueScanCounts(scopeKey, fieldProjectCounts, project
         .execute()
     );
   }
+}
+
+// Stage field x issue-type counts from a crawl chunk.
+// fieldTypeCounts: Map<fieldId, Map<issueTypeId, { count, name }>>
+export async function flushIssueScanTypeCounts(scopeKey, fieldTypeCounts) {
+  await ensureProjectStoreReady();
+
+  const rows = [];
+  for (const [fieldId, byType] of fieldTypeCounts) {
+    for (const [issueTypeId, entry] of byType) {
+      rows.push([fieldId, issueTypeId, entry.name || issueTypeId, entry.count]);
+    }
+  }
+  if (!rows.length) return;
+
+  // Same 150-row batch as flushIssueScanCounts, and the same reason: SQL request count is
+  // the binding Forge quota, not row size. 4 bound params x 150 = 600 per statement.
+  for (const batch of chunkArray(rows, 150)) {
+    const valuesSql = batch.map(() => "(?, ?, ?, ?, ?)").join(", ");
+    const params = batch.flatMap(([fieldId, typeId, typeName, count]) => [
+      scopeKey, fieldId, typeId, typeName, count,
+    ]);
+    await withSqlRetry(() =>
+      sql
+        .prepare(`
+          INSERT INTO issue_scan_type_buffer (scope_key, field_id, issue_type_id, issue_type_name, issue_count)
+          VALUES ${valuesSql}
+          ON DUPLICATE KEY UPDATE
+            issue_type_name = VALUES(issue_type_name),
+            issue_count = issue_count + VALUES(issue_count)
+        `)
+        .bindParams(...params)
+        .execute()
+    );
+  }
+}
+
+// Promote field x issue-type counts from issue_scan_type_buffer into snapshot_field_type_usage
+// for the version the field snapshot just built. Non-destructive per field, like
+// promoteIssueScanToSnapshotProjectUsage: upsert this run's rows, then drop that field's
+// stale rows. A field with no rows in the buffer is left alone unless the scan had full
+// coverage -- then its usage is a confirmed zero and its rows for this version are cleared.
+export async function promoteIssueScanFieldTypeUsage(scopeKey, version, { coverageComplete = false } = {}) {
+  await ensureProjectStoreReady();
+
+  const result = await withSqlRetry(() =>
+    sql
+      .prepare(`
+        SELECT field_id, issue_type_id, issue_type_name, issue_count
+        FROM issue_scan_type_buffer
+        WHERE scope_key = ?
+        ORDER BY field_id, issue_count DESC
+      `)
+      .bindParams(scopeKey)
+      .execute()
+  );
+
+  const bufferRows = result.rows || [];
+  const byField = new Map();
+  for (const row of bufferRows) {
+    if (!byField.has(row.field_id)) byField.set(row.field_id, []);
+    byField.get(row.field_id).push(row);
+  }
+
+  let fieldsPromoted = 0;
+  let rowsInserted = 0;
+
+  for (const [fieldId, fieldRows] of byField) {
+    for (const batch of chunkArray(fieldRows, 100)) {
+      const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?)").join(", ");
+      const params = batch.flatMap((r) => [
+        scopeKey, version, fieldId, String(r.issue_type_id), String(r.issue_type_name || r.issue_type_id), toNumber(r.issue_count),
+      ]);
+      await withSqlRetry(() =>
+        sql
+          .prepare(`
+            INSERT INTO snapshot_field_type_usage
+              (scope_key, version, field_id, issue_type_id, issue_type_name, issue_count)
+            VALUES ${valuesSql}
+            ON DUPLICATE KEY UPDATE
+              issue_type_name = VALUES(issue_type_name),
+              issue_count = VALUES(issue_count)
+          `)
+          .bindParams(...params)
+          .execute()
+      );
+    }
+
+    const keptTypeIds = fieldRows.map((r) => String(r.issue_type_id));
+    const placeholders = keptTypeIds.map(() => "?").join(", ");
+    await withSqlRetry(() =>
+      sql
+        .prepare(`
+          DELETE FROM snapshot_field_type_usage
+          WHERE scope_key = ? AND version = ? AND field_id = ?
+            AND issue_type_id NOT IN (${placeholders})
+        `)
+        .bindParams(scopeKey, version, fieldId, ...keptTypeIds)
+        .execute()
+    );
+
+    fieldsPromoted += 1;
+    rowsInserted += fieldRows.length;
+  }
+
+  if (coverageComplete && byField.size) {
+    // A field the crawl covered fully and never saw carrying a typed value has no type
+    // usage -- clear whatever this version had for it.
+    const crawled = Array.from(byField.keys());
+    const placeholders = crawled.map(() => "?").join(", ");
+    await withSqlRetry(() =>
+      sql
+        .prepare(`
+          DELETE FROM snapshot_field_type_usage
+          WHERE scope_key = ? AND version = ? AND field_id NOT IN (${placeholders})
+        `)
+        .bindParams(scopeKey, version, ...crawled)
+        .execute()
+    );
+  }
+
+  return { fieldsPromoted, rowsInserted };
+}
+
+// Every issue type a field carries a value on, for one version. Newest/biggest first.
+export async function loadFieldTypeUsage(scopeKey, version, fieldId) {
+  await ensureProjectStoreReady();
+
+  const result = await withSqlRetry(() =>
+    sql
+      .prepare(`
+        SELECT issue_type_id, issue_type_name, issue_count
+        FROM snapshot_field_type_usage
+        WHERE scope_key = ? AND version = ? AND field_id = ?
+        ORDER BY issue_count DESC, issue_type_name ASC
+      `)
+      .bindParams(scopeKey, version, String(fieldId))
+      .execute()
+  );
+
+  return (result.rows || []).map((row) => ({
+    issueTypeId: String(row.issue_type_id),
+    issueTypeName: String(row.issue_type_name || row.issue_type_id),
+    issueCount: toNumber(row.issue_count),
+  }));
 }
 
 export async function finalizeIssueScan(scopeKey) {

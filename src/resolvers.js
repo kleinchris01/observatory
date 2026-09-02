@@ -88,6 +88,7 @@ import {
   migrateOldScopeKeys,
   loadSnapshotFieldIssueSums,
   sumSnapshotFieldIssueCount,
+  loadFieldTypeUsage,
   upsertProjectTotalsForDelta,
   upsertDeltaFieldProjectUsage,
   upsertRqtFieldHits,
@@ -2685,12 +2686,15 @@ async function getFieldDetails({ payload, context }) {
     if (!meta?.version) throw new Error("No completed snapshot available â€” build one first.");
 
     const offset = (usagePage - 1) * usagePageSize;
-    const [snapshotField, projectUsageRows, projectCount, rawFieldSummary, projectUsageIssueSum] = await Promise.all([
+    const [snapshotField, projectUsageRows, projectCount, rawFieldSummary, projectUsageIssueSum, issueTypeUsage] = await Promise.all([
       loadSnapshotField(installationKey, meta.version, fieldId),
       loadSnapshotProjectUsage(installationKey, meta.version, fieldId, usagePageSize, offset),
       countSnapshotProjectUsage(installationKey, meta.version, fieldId),
       loadFieldSummary(installationKey, fieldId),
       sumSnapshotFieldIssueCount(installationKey, meta.version, fieldId),
+      // The field x issue-type axis from the last full crawl. Empty when the crawl predates
+      // this feature or has not run since -- the UI treats [] as "not measured yet".
+      loadFieldTypeUsage(installationKey, meta.version, fieldId).catch(() => []),
     ]);
 
     if (!snapshotField) throw new Error(`Field not found in snapshot: ${fieldId}`);
@@ -2795,6 +2799,7 @@ async function getFieldDetails({ payload, context }) {
       findings: hydratedField.findings || null,
       contexts: finalContexts,
       projects: projectUsage,
+      issueTypeUsage,
       projectUsagePage: usagePage,
       projectUsagePageSize: usagePageSize,
       projectUsageTotalProjects: finalProjectCount,

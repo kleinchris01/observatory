@@ -33,6 +33,7 @@ import {
   updateIssueScanWorker,
   replaceFieldOptionsCache,
   flushIssueScanCounts,
+  flushIssueScanTypeCounts,
   flushIssueScanActivity,
   promoteIssueScanActivity,
   flushIssueScanStatusCounts,
@@ -51,6 +52,7 @@ import {
   tryClaimIssueScanFinalization,
   loadIssueScanProjectTotals,
   promoteIssueScanToSnapshotProjectUsage,
+  promoteIssueScanFieldTypeUsage,
 } from "./project-store.js";
 import {
   STRUCTURAL_SYSTEM_FIELDS,
@@ -302,6 +304,12 @@ export async function completeIssueScanFinalization(installationKey, tag, worker
       // erase good data from a previous run.
       const promoted = await promoteIssueScanToSnapshotProjectUsage(installationKey, snapshotMeta.version, { syncTotalIssueCount: scanCoverageComplete });
       console.log(`${tag}: promoted ${promoted.fieldsPromoted} fields (${promoted.rowsInserted} rows)${scanCoverageComplete ? ", totals synced" : ""}`);
+
+      // The field x issue-type axis, promoted the same way and gated the same way: a field
+      // absent from a partial crawl's buffer is "not yet crawled", not "used on no type".
+      const typePromoted = await promoteIssueScanFieldTypeUsage(installationKey, snapshotMeta.version, { coverageComplete: scanCoverageComplete })
+        .catch(fallbackOn("scan.field_type_promote_failed", { fieldsPromoted: 0, rowsInserted: 0 }, { installationKey }));
+      console.log(`${tag}: promoted issue-type usage for ${typePromoted.fieldsPromoted} fields (${typePromoted.rowsInserted} rows)`);
 
       if (promoted.touchedFieldIds?.length) {
         const refreshed = await refreshGovernanceFindingsForFields(installationKey, snapshotMeta.version, promoted.touchedFieldIds).catch((err) => {
@@ -680,6 +688,10 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
   resetScanTelemetry();
   let pendingIssues = 0;
   const fieldProjectCounts = new Map();
+  // fieldId -> Map<issueTypeId, { count, name }>. The third axis of field usage: which issue
+  // types actually carry a value. Same cost as fieldProjectCounts -- an accumulator over data
+  // already on every issue (the crawl requests "*all") -- no extra Jira traffic.
+  const fieldTypeCounts = new Map();
   const projectTotals = new Map();
   // One entry per project per month, carrying the exact first and last issue seen in it.
   // Keyed the same way the row is, so a flush is a straight map over the values.
@@ -761,6 +773,7 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
 
     async function drainBuffers() {
       const counts = new Map(fieldProjectCounts);
+      const typeCounts = new Map(fieldTypeCounts);
       const totals = new Map(projectTotals);
       const months = new Map(projectMonths);
       const statuses = new Map(statusCounts);
@@ -769,6 +782,7 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
       const rqtValues = rqtValueBuffer.splice(0);
       const rqtFieldIssues = rqtFieldIssueBuffer.splice(0);
       fieldProjectCounts.clear();
+      fieldTypeCounts.clear();
       projectTotals.clear();
       projectMonths.clear();
       statusCounts.clear();
@@ -777,6 +791,9 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
       if (counts.size > 0 || totals.size > 0) {
         await flushIssueScanCounts(installationKey, counts, totals).catch(ignoreWith("scan.count_flush_failed", { workerId }));
         await flushIssueScanActivity(installationKey, months).catch(ignoreWith("scan.activity_flush_failed", { workerId }));
+      }
+      if (typeCounts.size > 0) {
+        await flushIssueScanTypeCounts(installationKey, typeCounts).catch(ignoreWith("scan.type_flush_failed", { workerId }));
       }
       if (statuses.size > 0) {
         await flushIssueScanStatusCounts(installationKey, statuses).catch(ignoreWith("scan.status_flush_failed", { workerId }));
@@ -954,6 +971,10 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
           statusCounts.set(statusKey, statusEntry);
         }
 
+        const issueType = issue.fields?.issuetype;
+        const issueTypeId = issueType?.id ? String(issueType.id) : "";
+        const issueTypeName = issueType?.name || issueTypeId;
+
         for (const [fieldId, value] of Object.entries(issue.fields || {})) {
           if (STRUCTURAL_SYSTEM_FIELDS.has(fieldId)) continue;
           if (!isFieldValueNonEmpty(value)) continue;
@@ -965,6 +986,18 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
           const entry = byProject.get(projectId) || { count: 0, key: projectKey_, name: projectName };
           entry.count++;
           byProject.set(projectId, entry);
+
+          // Same value, second axis: which issue type is carrying it.
+          if (issueTypeId) {
+            let byType = fieldTypeCounts.get(fieldId);
+            if (!byType) {
+              byType = new Map();
+              fieldTypeCounts.set(fieldId, byType);
+            }
+            const typeEntry = byType.get(issueTypeId) || { count: 0, name: issueTypeName };
+            typeEntry.count++;
+            byType.set(issueTypeId, typeEntry);
+          }
         }
 
         const issueRqt = collectIssueRqtValues(issue.fields, issue.fields?.summary);
