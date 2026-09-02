@@ -45,6 +45,8 @@ import {
   getAllFilters,
   getAllDashboards,
   getDashboardGadgets,
+  getApplicationRoles,
+  getGroupMembers,
 } from "./jira-api.js";
 
 // Not exported by the module; mirrored here so the timer mock can recognise it.
@@ -1030,3 +1032,40 @@ describe("getDashboardGadgets", () => {
   });
 });
 
+
+describe("getApplicationRoles", () => {
+  test("returns the bare array of application roles", async () => {
+    mockRequestJira.mockResolvedValue(jiraResponse({
+      body: [
+        { key: "jira-software", name: "Jira Software", numberOfSeats: 500, groupDetails: [{ groupId: "g1", name: "sw" }] },
+      ],
+    }));
+    const roles = await getApplicationRoles();
+    expect(roles).toHaveLength(1);
+    expect(mockRequestJira.mock.calls[0][0]).toContain("/rest/api/3/applicationrole");
+  });
+
+  test("returns [] when the payload is not an array", async () => {
+    mockRequestJira.mockResolvedValue(jiraResponse({ body: { message: "denied" } }));
+    expect(await getApplicationRoles()).toEqual([]);
+  });
+});
+
+describe("getGroupMembers", () => {
+  test("paginates by groupId and excludes inactive users", async () => {
+    mockRequestJira
+      .mockResolvedValueOnce(jiraResponse({ body: { values: [{ accountId: "a1" }, { accountId: "a2" }], total: 3, isLast: false } }))
+      .mockResolvedValueOnce(jiraResponse({ body: { values: [{ accountId: "a3" }], total: 3, isLast: true } }));
+
+    const members = await getGroupMembers("grp-123");
+
+    expect(members.map((m) => m.accountId)).toEqual(["a1", "a2", "a3"]);
+    expect(mockRequestJira.mock.calls[0][0]).toContain("groupId=grp-123");
+    expect(mockRequestJira.mock.calls[0][0]).toContain("includeInactiveUsers=false");
+  });
+
+  test("returns [] for a missing groupId without a request", async () => {
+    expect(await getGroupMembers("")).toEqual([]);
+    expect(mockRequestJira).not.toHaveBeenCalled();
+  });
+});

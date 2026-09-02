@@ -262,6 +262,11 @@ permissions:
     - read:screenable-field:jira
     - manage:jira-configuration
     - read:jira-user
+    # The People pillar. GET /rest/api/3/applicationrole (admin-only) returns, per Jira
+    # product, the access groups whose members get a licence plus the seat numbers -- how
+    # "who is licensed" is answered without any admin configuration. read:jira-user above
+    # already covers the group/member enumeration that follows.
+    - read:application-role:jira
     # Saved filters. The only endpoint that enumerates them site-wide is
     # /rest/api/3/filter/search -- /rest/api/3/filter returns the caller's favourites, which
     # is a personal list rather than an inventory. One new scope, and it is the one that

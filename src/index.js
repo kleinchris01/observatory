@@ -24,6 +24,7 @@ import { processProjectUsageReportJob } from "./lib/report-engine.js";
 import { buildWorkflowSnapshot, buildStatusHistorySnapshot } from "./lib/workflow-engine.js";
 import { buildScreenSnapshot } from "./lib/screen-engine.js";
 import { buildIssueTypeSnapshot } from "./lib/issuetype-engine.js";
+import { buildUserSnapshot } from "./lib/user-engine.js";
 import { runFullScanStep, runQuickScanStep, startQuickScan, recoverStalledScan } from "./lib/full-scan-runner.js";
 import { buildFilterSnapshot } from "./lib/filter-engine.js";
 import { buildDashboardSnapshot } from "./lib/dashboard-engine.js";
@@ -413,6 +414,14 @@ export async function consumeSnapshot(event) {
       const result = await buildIssueTypeSnapshot(installationKey);
       console.log(
         `build-issue-type-snapshot: ${result?.issueTypes ?? 0} issue types, ${result?.schemes ?? 0} schemes`
+      );
+      return;
+    }
+
+    if (jobType === "build-user-snapshot") {
+      const result = await buildUserSnapshot(installationKey);
+      console.log(
+        `build-user-snapshot: ${result?.users ?? 0} licensed users across ${result?.groups ?? 0} access groups`
       );
       return;
     }
