@@ -12,6 +12,7 @@
 // evidence the field is in use, but finding none is not evidence that it is not.
 
 import { detectRuleSecretKinds } from "./secret-detect.js";
+import { extractJqlIssueTypes } from "./jql-refs.js";
 
 // A reference's direction matters more than its existence. A rule that WRITES a field
 // keeps it alive; a rule that merely READS it in a condition does not, but does break if
@@ -191,6 +192,81 @@ export function extractStatusReferences(rule) {
   return [...byKey.values()];
 }
 
+// Jira spells the issue-type field "issuetype"; exports and older rules use the display name.
+const ISSUE_TYPE_FIELD_NAMES = new Set(["issuetype", "issue type", "issue_type", "type"]);
+
+// Issue types a rule names -- in a condition on the Issue Type field, in a create/clone
+// action that sets one, in a field operation, in JQL, or in the trigger's own scope.
+//
+// Same shape and same reasoning as extractStatusReferences: a rule that creates issues of
+// type "Incident" keeps that type load-bearing, and one that only checks `issuetype = Bug`
+// in a condition breaks if the type is renamed or removed. Best-effort like the rest of this
+// module -- a reference found here is proof the type is in use; finding none is not proof it
+// is not.
+export function extractIssueTypeReferences(rule) {
+  const refs = [];
+
+  walkComponents(rule, (component) => {
+    const value = isPlainObject(component?.value) ? component.value : {};
+
+    // A condition comparing the Issue Type field against one or more values.
+    const selected = value.selectedField;
+    if (isPlainObject(selected) && ISSUE_TYPE_FIELD_NAMES.has(String(selected.value).toLowerCase())) {
+      for (const name of parseCompareValues(value.compareValue)) {
+        refs.push({ id: null, name, kind: REF_KIND.READ, via: component.type });
+      }
+    }
+
+    // jira.issue.create / jira.issue.clone name the type of issue they produce.
+    const created = value.issueType ?? value.issueTypeId ?? value.targetIssueType;
+    if (isPlainObject(created) && typeof created.value === "string" && created.value) {
+      const byId = created.type === "ID" || created.type === "id";
+      refs.push({ id: byId ? created.value : null, name: byId ? null : created.value, kind: REF_KIND.WRITE, via: component.type });
+    }
+
+    // A field operation that sets issuetype (edit actions use operations[]).
+    if (Array.isArray(value.operations)) {
+      for (const operation of value.operations) {
+        const field = operation?.field;
+        if (
+          isPlainObject(field)
+          && ISSUE_TYPE_FIELD_NAMES.has(String(field.value).toLowerCase())
+          && isPlainObject(operation?.value)
+          && typeof operation.value.value === "string"
+          && operation.value.value
+        ) {
+          refs.push({ id: null, name: operation.value.value, kind: REF_KIND.WRITE, via: component.type });
+        }
+      }
+    }
+
+    // JQL in a condition or branch -- `issuetype in (...)`, `type = ...`.
+    const jql = value.query?.value ?? value.jql?.value ?? (typeof value.rawJql === "string" ? value.rawJql : null);
+    if (typeof jql === "string" && jql) {
+      for (const name of extractJqlIssueTypes(jql)) {
+        refs.push({ id: null, name, kind: REF_KIND.READ, via: component.type });
+      }
+    }
+  });
+
+  // The trigger's own scope: several trigger types filter to a set of issue types.
+  const scope = rule?.trigger?.value?.issueTypes ?? rule?.trigger?.value?.issueType;
+  const scopeList = Array.isArray(scope) ? scope : (scope ? [scope] : []);
+  for (const entry of scopeList) {
+    if (isPlainObject(entry) && typeof entry.value === "string" && entry.value) {
+      const byId = entry.type === "ID" || entry.type === "id";
+      refs.push({
+        id: byId ? entry.value : null,
+        name: byId ? null : entry.value,
+        kind: REF_KIND.TRIGGER,
+        via: rule?.trigger?.type ?? "trigger",
+      });
+    }
+  }
+
+  return dedupeRefs(refs);
+}
+
 function parseCompareValues(compareValue) {
   const raw = compareValue?.value;
   if (typeof raw !== "string" || raw.length === 0) return [];
@@ -322,6 +398,7 @@ export function analyzeRuleRisks(rule, { now = Date.now() } = {}) {
 export function summarizeRule(rule, options = {}) {
   const fields = extractFieldReferences(rule);
   const statuses = extractStatusReferences(rule);
+  const issueTypes = extractIssueTypeReferences(rule);
   const counts = countComponents(rule);
   const risks = analyzeRuleRisks(rule, options);
 
@@ -340,6 +417,7 @@ export function summarizeRule(rule, options = {}) {
     projectIds: extractProjectReferences(rule),
     fieldRefs: fields,
     statusRefs: statuses,
+    issueTypeRefs: issueTypes,
     writesFields: fields.filter((f) => f.kind === REF_KIND.WRITE).map((f) => f.name ?? f.id),
     risks,
     // Highest severity present, so a table can sort without re-deriving it per row.
@@ -354,6 +432,7 @@ const SEVERITY_ORDER = { high: 0, medium: 1, low: 2, info: 3 };
 export function buildReferenceIndex(rules = [], options = {}) {
   const fields = new Map();
   const statuses = new Map();
+  const issueTypes = new Map();
   const summaries = options.summaries ?? rules.map((rule) => summarizeRule(rule, options));
 
   for (const summary of summaries) {
@@ -368,9 +447,15 @@ export function buildReferenceIndex(rules = [], options = {}) {
       if (!statuses.has(key)) statuses.set(key, { label: ref.name, write: [], read: [], trigger: [] });
       statuses.get(key)[ref.kind].push(summary.id);
     }
+    for (const ref of summary.issueTypeRefs ?? []) {
+      const key = (ref.name ?? ref.id ?? "").toLowerCase();
+      if (!key) continue;
+      if (!issueTypes.has(key)) issueTypes.set(key, { label: ref.name ?? ref.id, write: [], read: [], trigger: [] });
+      issueTypes.get(key)[ref.kind].push(summary.id);
+    }
   }
 
-  return { fields, statuses, summaries };
+  return { fields, statuses, issueTypes, summaries };
 }
 
 // Two rules can only cascade if they can act on the same issues. An empty project list
@@ -655,7 +740,7 @@ export function analyzeRules(rules = [], { source = "unknown", now = Date.now() 
   const summaries = rules.map((rule) => summarizeRule(rule, { now }));
   const options = { now, summaries };
 
-  const { fields, statuses } = buildReferenceIndex(rules, options);
+  const { fields, statuses, issueTypes } = buildReferenceIndex(rules, options);
   const cascades = findTriggerCascades(rules, options);
   const enabledById = new Map(summaries.map((s) => [s.id, s.enabled]));
 
@@ -669,6 +754,7 @@ export function analyzeRules(rules = [], { source = "unknown", now = Date.now() 
     }),
     fields: buildIndexDocument(fields, "field", enabledById),
     statuses: buildIndexDocument(statuses, "status", enabledById),
+    issueTypes: buildIndexDocument(issueTypes, "issueType", enabledById),
     directory: buildRuleDirectory(summaries),
     findings: buildFindingsDocument(summaries),
     cascades: buildCascadeDocument(cascades),
@@ -694,7 +780,7 @@ export function summarizeAutomationHealth(summaries = [], cascades = []) {
 }
 
 export function summarizeEstate(rules = [], options = {}) {
-  const { fields, statuses, summaries } = buildReferenceIndex(rules, options);
+  const { fields, statuses, issueTypes, summaries } = buildReferenceIndex(rules, options);
   // Reused for both the cascade count and the health rates; deriving them twice walks every
   // rule again.
   const cascades = options.cascades ?? findTriggerCascades(rules, { ...options, summaries });
@@ -716,6 +802,7 @@ export function summarizeEstate(rules = [], options = {}) {
     disabledCount: summaries.filter((s) => !s.enabled).length,
     fieldsReferenced: fields.size,
     statusesReferenced: statuses.size,
+    issueTypesReferenced: issueTypes.size,
     triggerBreakdown: [...byTrigger.entries()].map(([type, count]) => ({ type, count })).sort((a, b) => b.count - a.count),
     risks: [...risksByCode.values()].sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]),
     cascadeCount: cascades.length,

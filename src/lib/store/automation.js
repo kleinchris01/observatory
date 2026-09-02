@@ -36,6 +36,7 @@ export const AUTOMATION_PARTS = {
   analysis: "automation:analysis:",
   fields: "automation:fields:",
   statuses: "automation:statuses:",
+  issueTypes: "automation:issueTypes:",
   directory: "automation:directory:",
   findings: "automation:findings:",
 };

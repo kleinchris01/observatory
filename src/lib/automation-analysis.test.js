@@ -17,6 +17,7 @@ import {
   extractOutboundHosts,
   extractProjectReferences,
   extractStatusReferences,
+  extractIssueTypeReferences,
   findTriggerCascades,
   scopesOverlap,
   summarizeEstate,
@@ -205,6 +206,68 @@ describe("extractStatusReferences", () => {
   it("ignores conditions on fields other than status", () => {
     const r = rule({ components: [condition("jira.issue.condition", { selectedField: { type: "ID", value: "issuetype" }, compareValue: { value: "Bug" } })] });
     expect(extractStatusReferences(r)).toEqual([]);
+  });
+});
+
+describe("extractIssueTypeReferences", () => {
+  it("records an issuetype condition as a read", () => {
+    const r = rule({ components: [condition("jira.issue.condition", {
+      selectedField: { type: "ID", value: "issuetype" },
+      compareValue: { multiValue: true, value: '["Bug","Incident"]' },
+    })] });
+    const names = extractIssueTypeReferences(r).map((t) => t.name);
+    expect(names).toEqual(expect.arrayContaining(["Bug", "Incident"]));
+    expect(extractIssueTypeReferences(r).every((t) => t.kind === REF_KIND.READ)).toBe(true);
+  });
+
+  it("records a create-issue action's target type as a write", () => {
+    const r = rule({ components: [action("jira.issue.create", { issueType: { type: "NAME", value: "Incident" } })] });
+    expect(extractIssueTypeReferences(r)).toContainEqual(
+      expect.objectContaining({ name: "Incident", kind: REF_KIND.WRITE })
+    );
+  });
+
+  it("records an edit operation that sets issuetype as a write", () => {
+    const r = rule({ components: [action("jira.issue.edit", {
+      operations: [{ field: { type: "NAME", value: "Issue Type" }, type: "SET", value: { value: "Task" } }],
+    })] });
+    expect(extractIssueTypeReferences(r)).toContainEqual(
+      expect.objectContaining({ name: "Task", kind: REF_KIND.WRITE })
+    );
+  });
+
+  it("pulls issue types out of a JQL condition", () => {
+    const r = rule({ components: [condition("jira.jql.condition", {
+      query: { value: 'issuetype in ("Sub-task", Story) AND status = Done' },
+    })] });
+    const names = extractIssueTypeReferences(r).map((t) => t.name.toLowerCase());
+    expect(names).toEqual(expect.arrayContaining(["sub-task", "story"]));
+  });
+
+  it("records the trigger's own issue-type scope as a trigger reference", () => {
+    const r = rule({
+      trigger: {
+        id: "t", component: "TRIGGER", type: "jira.issue.event.trigger:created", children: [], conditions: [],
+        value: { issueTypes: [{ type: "NAME", value: "Epic" }] },
+      },
+    });
+    expect(extractIssueTypeReferences(r)).toContainEqual(
+      expect.objectContaining({ name: "Epic", kind: REF_KIND.TRIGGER })
+    );
+  });
+
+  it("collapses the same type across components to one entry per direction", () => {
+    const r = rule({ components: [
+      condition("jira.issue.condition", { selectedField: { type: "ID", value: "issuetype" }, compareValue: { value: "Bug" } }),
+      condition("jira.issue.condition", { selectedField: { type: "ID", value: "type" }, compareValue: { value: "Bug" } }),
+    ] });
+    const bugReads = extractIssueTypeReferences(r).filter((t) => t.name === "Bug" && t.kind === REF_KIND.READ);
+    expect(bugReads).toHaveLength(1);
+  });
+
+  it("ignores conditions on fields other than issue type", () => {
+    const r = rule({ components: [condition("jira.issue.condition", { selectedField: { type: "ID", value: "status" }, compareValue: { value: "Done" } })] });
+    expect(extractIssueTypeReferences(r)).toEqual([]);
   });
 });
 
@@ -578,7 +641,7 @@ describe("analyzeRules", () => {
 
   it("returns every document the tab needs from one pass", () => {
     const out = analyzeRules(rules, { source: "export.json" });
-    expect(Object.keys(out).sort()).toEqual(["analysis", "cascades", "directory", "fields", "findings", "statuses"]);
+    expect(Object.keys(out).sort()).toEqual(["analysis", "cascades", "directory", "fields", "findings", "issueTypes", "statuses"]);
     expect(out.analysis).toMatchObject({ schemaVersion: 1, source: "export.json" });
   });
 
