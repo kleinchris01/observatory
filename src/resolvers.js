@@ -133,6 +133,9 @@ import {
   loadIssueTypeSchemeProjects,
   loadIssueTypeSchemeForProject,
   loadIssueTypeGovernanceSummary,
+  readUserSnapshotMeta,
+  loadUsers,
+  loadUserGovernanceSummary,
   recordHealthSnapshot,
   readFullScanMeta,
   loadHealthHistory,
@@ -142,6 +145,7 @@ import { queueWorkflowSnapshotBuild, isWorkflowBuildStale, queueStatusHistoryBui
 import { measureScreenFetchCost, probeScreenEndpoints, DEFAULT_SAMPLE_SIZE } from "./lib/screen-probe.js";
 import { queueScreenSnapshotBuild, isScreenBuildStale } from "./lib/screen-engine.js";
 import { queueIssueTypeSnapshotBuild, isIssueTypeBuildStale } from "./lib/issuetype-engine.js";
+import { queueUserSnapshotBuild, isUserBuildStale } from "./lib/user-engine.js";
 import { summarizeIssueTypeInsights } from "./lib/issuetype-insights.js";
 import { computeSiteHealth, DEFAULT_HEALTH_TOLERANCES } from "./lib/health-score.js";
 // Moved out of this file so a scan can record a measurement without importing the
@@ -1498,6 +1502,68 @@ async function buildIssueTypeInventory({ context }) {
   }
 
   await queueIssueTypeSnapshotBuild(installationKey);
+  return { queued: true };
+}
+
+// The People pillar's read: the licensed-user roster with each user's products and access
+// groups, plus the site's own seat numbers for the header.
+async function getUserInventory({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  const meta = await readUserSnapshotMeta(installationKey);
+  const staleBuild = isUserBuildStale(meta);
+
+  if (!meta?.version) {
+    return {
+      state: meta?.state || "idle",
+      staleBuild,
+      startedAt: meta?.startedAt || null,
+      version: null,
+      users: [],
+      applicationSummary: [],
+      governance: null,
+      lastError: meta?.lastError || null,
+      neverBuilt: true,
+    };
+  }
+
+  const [users, governance] = await Promise.all([
+    loadUsers(installationKey, meta.version),
+    loadUserGovernanceSummary(installationKey, meta.version),
+  ]);
+
+  return {
+    state: meta.state || "ready",
+    staleBuild,
+    startedAt: meta.startedAt || null,
+    refreshedAt: meta.refreshedAt || null,
+    version: meta.version,
+    users,
+    applicationSummary: meta.applicationSummary || [],
+    governance,
+    lastError: meta.lastError || null,
+    neverBuilt: false,
+  };
+}
+
+async function buildUserInventory({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  const meta = await readUserSnapshotMeta(installationKey);
+  if (meta?.state === "building" && !isUserBuildStale(meta)) {
+    return { queued: false, reason: "already-building", meta };
+  }
+
+  const adminConfig = await readAdminConfig();
+  if (adminConfig.readOnlyMode) {
+    return { queued: false, error: "Read-only mode is enabled. Disable it before building the people inventory." };
+  }
+
+  await queueUserSnapshotBuild(installationKey);
   return { queued: true };
 }
 
@@ -6010,6 +6076,7 @@ const AUDITED_ADMIN_ACTIONS = new Set([
   "migrateNamespaceKeys",
   "buildScreenInventory",
   "buildIssueTypeInventory",
+  "buildUserInventory",
 ]);
 
 function withAuditTrail(functions) {
@@ -6109,6 +6176,10 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   // Issue type inventory
   getIssueTypeInventory,   // Admin read: issue types by hierarchy, schemes and their routing
   buildIssueTypeInventory, // Mutating: queues a full issue type and scheme snapshot build
+
+  // People pillar
+  getUserInventory,        // Admin read: the licensed-user roster with products and access groups
+  buildUserInventory,      // Mutating: queues a licensed-user roster build
 
   getAutomationCascades,   // Admin read: one filtered page of cascade relationships
   getCascadeGraph,         // Admin read: loops and multi-rule chains across every edge

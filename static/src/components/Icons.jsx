@@ -19,6 +19,7 @@ import {
   Sliders,
   Copy,
   MagnifyingGlass,
+  Users,
 } from "@phosphor-icons/react";
 
 export function useLiveDuration(startedAt) {
@@ -70,6 +71,7 @@ export const ICON_COMPONENTS = {
   clock: Clock,
   sliders: Sliders,
   copy: Copy,
+  user: Users,
 };
 
 // Validated categorical palette (dataviz skill's reference instance, references/palette.md) --

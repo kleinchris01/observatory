@@ -118,6 +118,9 @@ export const METRIC_NAMES = {
   issueTypeSnapshotStarted: "issue-type-snapshot-started",
   issueTypeSnapshotCompleted: "issue-type-snapshot-completed",
   issueTypeSnapshotFailed: "issue-type-snapshot-failed",
+  userSnapshotStarted: "user-snapshot-started",
+  userSnapshotCompleted: "user-snapshot-completed",
+  userSnapshotFailed: "user-snapshot-failed",
 };
 
 // ----- Module-level rate limiter state -----
@@ -1143,6 +1146,25 @@ export async function getIssueTypeScreenSchemeProjects(projectIds = []) {
 export async function getAllIssueTypes() {
   const data = await jiraRequest(route`/rest/api/3/issuetype`);
   return Array.isArray(data) ? data : [];
+}
+
+// The Jira products defined on the site and, per product, the groups whose members get an
+// application licence for it plus the seat/usage numbers. This is how "who is licensed" is
+// answered without any admin configuration: the access groups are read live from here.
+// Admin-only endpoint; returns a bare array.
+export async function getApplicationRoles() {
+  const data = await jiraRequest(route`/rest/api/3/applicationrole`);
+  return Array.isArray(data) ? data : [];
+}
+
+// Members of one group, by groupId (name is also accepted by the API but ids are stable
+// across renames). Inactive users are excluded -- a licence held by a deactivated account
+// is a finding for the pillar, not part of the active roster, and is surfaced separately.
+export async function getGroupMembers(groupId) {
+  if (!groupId) return [];
+  return paginate(
+    (startAt) => route`/rest/api/3/group/member?groupId=${groupId}&includeInactiveUsers=false&startAt=${startAt}&maxResults=50`
+  );
 }
 
 // The issue type schemes: which set of types a project is allowed to use. Paginated the

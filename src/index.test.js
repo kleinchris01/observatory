@@ -33,6 +33,10 @@ vi.mock("./lib/issuetype-engine.js", () => ({
   buildIssueTypeSnapshot: vi.fn().mockResolvedValue({ issueTypes: 42, schemes: 7 }),
 }));
 
+vi.mock("./lib/user-engine.js", () => ({
+  buildUserSnapshot: vi.fn().mockResolvedValue({ users: 377, groups: 3 }),
+}));
+
 vi.mock("./lib/full-scan-runner.js", () => ({
   runFullScanStep: vi.fn().mockResolvedValue({ advanced: true, done: 2, total: 8 }),
   runQuickScanStep: vi.fn().mockResolvedValue({ advanced: true, done: 1, total: 6 }),
@@ -158,6 +162,7 @@ import { processProjectUsageReportJob } from "./lib/report-engine.js";
 import { buildWorkflowSnapshot, buildStatusHistorySnapshot } from "./lib/workflow-engine.js";
 import { buildScreenSnapshot } from "./lib/screen-engine.js";
 import { buildIssueTypeSnapshot } from "./lib/issuetype-engine.js";
+import { buildUserSnapshot } from "./lib/user-engine.js";
 import { runFullScanStep, runQuickScanStep, startQuickScan, recoverStalledScan } from "./lib/full-scan-runner.js";
 import { buildFilterSnapshot } from "./lib/filter-engine.js";
 import { buildDashboardSnapshot } from "./lib/dashboard-engine.js";
@@ -572,6 +577,16 @@ describe("consumeSnapshot job routing", () => {
   test("logs a build-issue-type-snapshot that returned nothing without throwing", async () => {
     buildIssueTypeSnapshot.mockResolvedValueOnce(undefined);
     await expect(consumeSnapshot(event({ jobType: "build-issue-type-snapshot" }))).resolves.toBeUndefined();
+  });
+
+  test("routes build-user-snapshot to the user engine", async () => {
+    await consumeSnapshot(event({ jobType: "build-user-snapshot" }));
+    expect(buildUserSnapshot).toHaveBeenCalledWith("scope-1");
+  });
+
+  test("logs a build-user-snapshot that returned nothing without throwing", async () => {
+    buildUserSnapshot.mockResolvedValueOnce(undefined);
+    await expect(consumeSnapshot(event({ jobType: "build-user-snapshot" }))).resolves.toBeUndefined();
   });
 
   // The cheapest structural build here: one paginated endpoint with everything expanded, so

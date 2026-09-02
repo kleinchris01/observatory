@@ -160,6 +160,13 @@ const mocks = vi.hoisted(() => ({
   queueIssueTypeSnapshotBuild: vi.fn(),
   isIssueTypeBuildStale: vi.fn(() => false),
 
+  // user store + user-engine.js
+  readUserSnapshotMeta: vi.fn(),
+  loadUsers: vi.fn(async () => []),
+  loadUserGovernanceSummary: vi.fn(async () => null),
+  queueUserSnapshotBuild: vi.fn(),
+  isUserBuildStale: vi.fn(() => false),
+
   loadRulesForProject: vi.fn(),
   loadStatusAutomationReferences: vi.fn(),
   loadGlobalRulesAffectingProject: vi.fn(),
@@ -346,6 +353,9 @@ vi.mock("./lib/project-store.js", () => ({
   loadIssueTypeSchemeProjects: mocks.loadIssueTypeSchemeProjects,
   loadIssueTypeSchemeForProject: mocks.loadIssueTypeSchemeForProject,
   loadIssueTypeGovernanceSummary: mocks.loadIssueTypeGovernanceSummary,
+  readUserSnapshotMeta: mocks.readUserSnapshotMeta,
+  loadUsers: mocks.loadUsers,
+  loadUserGovernanceSummary: mocks.loadUserGovernanceSummary,
   recordHealthSnapshot: mocks.recordHealthSnapshot,
   loadHealthHistory: mocks.loadHealthHistory,
   // Real values, not mocks: the resolver whitelists the sort token against these, so a
@@ -370,6 +380,11 @@ vi.mock("./lib/screen-engine.js", () => ({
 vi.mock("./lib/issuetype-engine.js", () => ({
   queueIssueTypeSnapshotBuild: mocks.queueIssueTypeSnapshotBuild,
   isIssueTypeBuildStale: mocks.isIssueTypeBuildStale,
+}));
+
+vi.mock("./lib/user-engine.js", () => ({
+  queueUserSnapshotBuild: mocks.queueUserSnapshotBuild,
+  isUserBuildStale: mocks.isUserBuildStale,
 }));
 
 vi.mock("./lib/workflow-engine.js", () => ({
@@ -495,6 +510,8 @@ const {
   buildScreenInventory,
   getIssueTypeInventory,
   buildIssueTypeInventory,
+  getUserInventory,
+  buildUserInventory,
 } = __RAW_ADMIN_ONLY_FUNCTIONS;
 
 const {
@@ -5034,6 +5051,59 @@ describe("buildIssueTypeInventory", () => {
 
     expect(result.queued).toBe(true);
     expect(mocks.queueIssueTypeSnapshotBuild).toHaveBeenCalled();
+  });
+});
+
+describe("getUserInventory", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x" } };
+
+  test("reports never-built rather than an empty roster", async () => {
+    mocks.readUserSnapshotMeta.mockResolvedValue(null);
+    const result = await getUserInventory(ctx);
+    expect(result).toMatchObject({ neverBuilt: true, users: [], applicationSummary: [] });
+  });
+
+  test("returns the roster, seat summary and governance once built", async () => {
+    mocks.readUserSnapshotMeta.mockResolvedValue({
+      state: "ready", version: "v1", refreshedAt: "2026-09-02T00:00:00.000Z",
+      applicationSummary: [{ key: "jira-software", numberOfSeats: 5, userCount: 3 }],
+    });
+    mocks.loadUsers.mockResolvedValue([{ accountId: "a1", displayName: "Ann", applications: [], groups: [] }]);
+    mocks.loadUserGovernanceSummary.mockResolvedValue({ totalUsers: 1, activeUsers: 1, appUsers: 0, multiProductUsers: 0 });
+
+    const result = await getUserInventory(ctx);
+
+    expect(result).toMatchObject({
+      neverBuilt: false,
+      version: "v1",
+      users: [{ accountId: "a1" }],
+      applicationSummary: [{ key: "jira-software" }],
+      governance: { totalUsers: 1 },
+    });
+  });
+});
+
+describe("buildUserInventory", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x" } };
+
+  test("queues a build when nothing is running", async () => {
+    mocks.readUserSnapshotMeta.mockResolvedValue({ state: "idle" });
+    mocks.readAdminConfig?.mockResolvedValue?.({ readOnlyMode: false });
+
+    const result = await buildUserInventory(ctx);
+
+    expect(result.queued).toBe(true);
+    expect(mocks.queueUserSnapshotBuild).toHaveBeenCalledWith("test-install");
+  });
+
+  test("refuses while a live build is running", async () => {
+    mocks.readUserSnapshotMeta.mockResolvedValue({ state: "building" });
+    mocks.isUserBuildStale.mockReturnValue(false);
+
+    const result = await buildUserInventory(ctx);
+
+    expect(result).toMatchObject({ queued: false, reason: "already-building" });
+    expect(mocks.queueUserSnapshotBuild).not.toHaveBeenCalled();
   });
 });
 

@@ -1130,6 +1130,66 @@ export const CREATE_ISSUE_TYPE_SNAPSHOT_META_TABLE = `
   )
 `;
 
+// The People pillar. One row per licensed Jira user, from enumerating the members of the
+// application-access groups (see getApplicationRoles). account_id is the durable Atlassian
+// identifier; display_name is stored so the tab reads without a per-row lookup, matching how
+// filter owner names are already kept. No email -- Jira Cloud is in GDPR strict mode and the
+// accountId is the identifier the rest of the app joins on.
+export const CREATE_SNAPSHOT_USERS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_users (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    account_id VARCHAR(128) NOT NULL,
+    display_name VARCHAR(255) NULL,
+    active TINYINT NOT NULL DEFAULT 1,
+    account_type VARCHAR(32) NULL,
+    avatar_url VARCHAR(512) NULL,
+    PRIMARY KEY (scope_key, version, account_id)
+  )
+`;
+
+// Which Jira products each user is licensed for, and via which access group. A user in both
+// jira-software-users and jira-servicedesk-users gets one row per product; the group is kept
+// so the tab can say "licensed for Jira Software via <group>" and so a later governance
+// check can flag a user who only holds a licence through a group nobody meant to grant it.
+export const CREATE_SNAPSHOT_USER_ACCESS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_user_access (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    account_id VARCHAR(128) NOT NULL,
+    application_key VARCHAR(64) NOT NULL,
+    application_name VARCHAR(128) NULL,
+    via_group_id VARCHAR(128) NOT NULL,
+    via_group_name VARCHAR(255) NULL,
+    PRIMARY KEY (scope_key, version, account_id, application_key, via_group_id)
+  )
+`;
+
+export const CREATE_SNAPSHOT_USER_ACCESS_BY_APP_INDEX = `
+  CREATE INDEX IF NOT EXISTS idx_snapshot_user_access_by_app
+    ON snapshot_user_access (scope_key, version, application_key)
+`;
+
+// Build state plus the site's own seat numbers, read straight from getApplicationRoles at
+// build time. application_summary is a small JSON array -- one entry per product with
+// numberOfSeats / remainingSeats / userCount -- so the tab can show "377 of 500 Jira
+// Software seats used" and cross-check it against the roster this snapshot built.
+export const CREATE_USER_SNAPSHOT_META_TABLE = `
+  CREATE TABLE IF NOT EXISTS user_snapshot_meta (
+    scope_key VARCHAR(191) NOT NULL,
+    state VARCHAR(32) NOT NULL DEFAULT 'idle',
+    version VARCHAR(64) NULL,
+    started_at VARCHAR(64) NULL,
+    completed_at VARCHAR(64) NULL,
+    refreshed_at VARCHAR(64) NULL,
+    total_users INTEGER NOT NULL DEFAULT 0,
+    active_users INTEGER NOT NULL DEFAULT 0,
+    application_summary LONGTEXT NULL,
+    last_error TEXT NULL,
+    PRIMARY KEY (scope_key)
+  )
+`;
+
 // Append-only record of privileged actions: who did what, when, and whether it was
 // allowed. Deliberately not versioned by snapshot and deliberately NOT wiped by
 // clearAllSnapshotData -- an audit trail that a privileged action can erase is not an
@@ -1348,7 +1408,14 @@ const projectStoreMigrations = migrationRunner
   // Field x issue-type usage: the third axis of the Field Browser, filled by the issue crawl.
   .enqueue("v118_create_issue_scan_type_buffer_table", CREATE_ISSUE_SCAN_TYPE_BUFFER_TABLE)
   .enqueue("v119_create_snapshot_field_type_usage_table", CREATE_SNAPSHOT_FIELD_TYPE_USAGE_TABLE)
-  .enqueue("v120_create_snapshot_field_type_usage_index", CREATE_SNAPSHOT_FIELD_TYPE_USAGE_INDEX);
+  .enqueue("v120_create_snapshot_field_type_usage_index", CREATE_SNAPSHOT_FIELD_TYPE_USAGE_INDEX)
+  // The People pillar: the licensed-user roster (from application-access group membership)
+  // and which products each user holds, versioned on its own cadence like the issue-type
+  // pillar. Project roles, activity and ownership joins land in follow-up migrations.
+  .enqueue("v121_create_snapshot_users_table", CREATE_SNAPSHOT_USERS_TABLE)
+  .enqueue("v122_create_snapshot_user_access_table", CREATE_SNAPSHOT_USER_ACCESS_TABLE)
+  .enqueue("v123_create_snapshot_user_access_by_app_index", CREATE_SNAPSHOT_USER_ACCESS_BY_APP_INDEX)
+  .enqueue("v124_create_user_snapshot_meta_table", CREATE_USER_SNAPSHOT_META_TABLE);
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history
