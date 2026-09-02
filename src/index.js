@@ -11,6 +11,7 @@ import {
   runIssueScanWorkerV2,
   cacheFieldOptionsForField,
   isForgeBackpressureError,
+  reviveStalledIssueScanWorkers,
 } from "./lib/scan-engine.js";
 import {
   runSnapshot,
@@ -158,6 +159,13 @@ export async function quickScanScheduleCheck(_event, context) {
   const recovery = await recoverStalledScan(installationKey).catch((error) => {
     logger.error("scan.watchdog_failed", { installationKey, error: error?.message || String(error) });
     return { recovered: false, reason: "error" };
+  });
+
+  // Same idea one level down: an issue-crawl worker that paused on a Forge queue limit needs
+  // a kick from outside its own (blocked) chain. The full scan's issues poll does this every
+  // 30s while it is waiting; this covers a standalone crawl, which has no poller of its own.
+  await reviveStalledIssueScanWorkers(installationKey).catch((error) => {
+    logger.warn("scan.worker_revive_watchdog_failed", { installationKey, error: error?.message || String(error) });
   });
 
   const config = await readAdminConfig();

@@ -57,7 +57,7 @@ import { buildWorkflowSnapshot, buildStatusHistorySnapshot } from "./workflow-en
 import { buildScreenSnapshot } from "./screen-engine.js";
 import { buildIssueTypeSnapshot } from "./issuetype-engine.js";
 import { queueSnapshotBuild, isSnapshotBuildStale, requeueStaleSnapshotBuild } from "./snapshot-engine.js";
-import { runIssueScanCoordinator } from "./scan-engine.js";
+import { runIssueScanCoordinator, reviveStalledIssueScanWorkers } from "./scan-engine.js";
 
 // The four structural stages, shared verbatim between full and quick scan.
 //
@@ -161,6 +161,12 @@ export const STAGE_RUNNERS = {
       await runIssueScanCoordinator(key);
     },
     poll: async (key) => {
+      // Re-kick any worker that paused on a Forge queue limit. This poll runs on the
+      // orchestrator's chain, not the crawl's, so its re-queue starts fresh and lands even
+      // when the crawl's own chain is against the ceiling. A paused worker holds its slot
+      // open, so finalisation waits for it -- this is what turns a transient limit into a
+      // pause-and-resume instead of a dropped ~30k issues marked clean.
+      await reviveStalledIssueScanWorkers(key).catch(() => ({ revived: 0 }));
       const meta = await readIssueScanMeta(key);
       // The issue crawl spells its running state "building" like the rest, but it also has a
       // "cancelled" that handoffStageState treats as failed -- a user who stopped the crawl

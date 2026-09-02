@@ -58,6 +58,7 @@ import {
   updateSnapshotFieldFindings,
   loadFieldLastChangeMap,
   syncActiveProjectCountsFromUsage,
+  readFullScanMeta,
 } from "./project-store.js";
 import {
   USAGE_STATUS_READY,
@@ -1167,16 +1168,28 @@ export async function runSnapshot(installationKey, { continuationToken = null } 
     }
 
     logger.info("snapshot.complete", { installationKey, version, processedFields: totalCount, skipped: skipCount });
-    try {
-      await inventorySnapshotQueue.push({ body: { jobType: "run-delta-issue-scan", installationKey } });
-    } catch (error) {
-      // The snapshot itself is complete and committed; only the follow-on delta scan was
-      // lost. Worth a warning: usage counts then quietly stop refreshing until the next
-      // full build, which presents as stale data rather than as a failure.
-      logger.warn("snapshot.delta_queue_failed", {
-        installationKey,
-        error: String(error?.message || error),
-      });
+
+    // The follow-on delta scan keeps per-project usage counts fresh between full builds --
+    // but NOT when a full scan is orchestrating this build. The full scan's very next stage
+    // is a complete issue crawl that recomputes those same counts, so the delta is redundant
+    // there, and running its own paginated crawl + 500 count queries concurrently with the
+    // crawl's five workers is what pushed the installation past its cyclic-invocation limit
+    // and knocked a crawl worker over. The full scan owns issue counting; stay out of it.
+    const fullScan = await readFullScanMeta(installationKey).catch(() => null);
+    if (fullScan?.state === "running") {
+      logger.info("snapshot.delta_skipped_full_scan_running", { installationKey });
+    } else {
+      try {
+        await inventorySnapshotQueue.push({ body: { jobType: "run-delta-issue-scan", installationKey } });
+      } catch (error) {
+        // The snapshot itself is complete and committed; only the follow-on delta scan was
+        // lost. Worth a warning: usage counts then quietly stop refreshing until the next
+        // full build, which presents as stale data rather than as a failure.
+        logger.warn("snapshot.delta_queue_failed", {
+          installationKey,
+          error: String(error?.message || error),
+        });
+      }
     }
   } catch (err) {
     if (progressInterval) {
