@@ -128,12 +128,27 @@ const users = (over = {}) => ({
   ...over,
 });
 
+// The Assets (CMDB) pillar's health input. `assetsEnabled: false` is the common case and
+// takes the pillar out of the score entirely; this fixture is the JSM-Premium site.
+const assets = (over = {}) => ({
+  available: true,
+  assetsEnabled: true,
+  totalSchemas: 12,
+  deadSchemaCount: 0,
+  concreteObjectTypes: 140,
+  bareTypeCount: 0,
+  brokenHierarchyCount: 0,
+  referenceAttributeCount: 90,
+  brokenReferenceCount: 0,
+  ...over,
+});
+
 describe("computeSiteHealth — scoring", () => {
   test("a clean site scores at the top", () => {
     const health = computeSiteHealth({
       fieldUsage: fieldUsage(), workflow: workflow(), projects: projects(),
       automation: automation(), screens: screens(), adoption: adoption(), filters: filters(),
-      dashboards: dashboards(), issueTypes: issueTypes(), users: users(),
+      dashboards: dashboards(), issueTypes: issueTypes(), users: users(), assets: assets(),
     });
 
     expect(health.score).toBeGreaterThanOrEqual(90);
@@ -527,6 +542,70 @@ describe("people dimensions", () => {
     const health = computeSiteHealth({ users: users({ deactivatedUsers: 40 }) });
     const pillar = health.pillars.find((p) => p.key === "users");
     expect(pillar.total).toBe(2);
+    expect(pillar.available).toBe(true);
+  });
+});
+
+describe("asset dimensions", () => {
+  const dim = (health, key) => health.dimensions.find((d) => d.key === key);
+  const KEYS = ["asset-schema-hygiene", "asset-type-completeness", "asset-reference-integrity"];
+
+  test("a clean CMDB scores every asset dimension at the top", () => {
+    const health = computeSiteHealth({ assets: assets() });
+    for (const key of KEYS) expect(dim(health, key).score).toBe(100);
+  });
+
+  test("scores dead schemas as a rate against the schema total", () => {
+    const health = computeSiteHealth({ assets: assets({ totalSchemas: 20, deadSchemaCount: 4 }) });
+    // 4/20 = 0.20 -- the tolerance exactly -> 0.
+    expect(dim(health, "asset-schema-hygiene").score).toBe(0);
+    expect(dim(health, "asset-schema-hygiene").detail).toMatch(/4 of 20/);
+  });
+
+  test("scores bare object types against the concrete-type total, forgivingly", () => {
+    const health = computeSiteHealth({ assets: assets({ concreteObjectTypes: 100, bareTypeCount: 15 }) });
+    // 15/100 = 0.15 against the 0.30 tolerance -> 50, not bottomed out.
+    expect(dim(health, "asset-type-completeness").score).toBe(50);
+  });
+
+  test("weights reference integrity above the other two", () => {
+    const health = computeSiteHealth({ assets: assets({ referenceAttributeCount: 100, brokenReferenceCount: 10 }) });
+    expect(dim(health, "asset-reference-integrity").weight).toBe(1.5);
+    // 10/100 = the 0.10 tolerance exactly -> 0.
+    expect(dim(health, "asset-reference-integrity").score).toBe(0);
+  });
+
+  test("reports every asset dimension not-applicable when Assets is not licensed", () => {
+    const health = computeSiteHealth({ assets: { available: false, assetsEnabled: false } });
+    for (const key of KEYS) {
+      expect(dim(health, key).available).toBe(false);
+      expect(dim(health, key).reason).toMatch(/not enabled on this site/i);
+    }
+    // A pillar with no measurable dimension does not appear as a scored pillar.
+    const pillar = health.pillars.find((p) => p.key === "assets");
+    expect(pillar.available).toBe(false);
+  });
+
+  test("reports every asset dimension unmeasured when no inventory has been built", () => {
+    const health = computeSiteHealth({ fieldUsage: fieldUsage() });
+    for (const key of KEYS) {
+      expect(dim(health, key).available).toBe(false);
+      expect(dim(health, key).reason).toMatch(/no assets inventory/i);
+    }
+  });
+
+  test("reference integrity is unmeasured, not perfect, when there are no reference attributes", () => {
+    const health = computeSiteHealth({ assets: assets({ referenceAttributeCount: 0, brokenReferenceCount: 0 }) });
+    expect(dim(health, "asset-reference-integrity").available).toBe(false);
+    expect(dim(health, "asset-reference-integrity").reason).toMatch(/no object-reference attributes/i);
+    // The other two still score.
+    expect(dim(health, "asset-schema-hygiene").available).toBe(true);
+  });
+
+  test("the assets pillar is weighted 1 and rolls its dimensions up", () => {
+    const health = computeSiteHealth({ assets: assets({ deadSchemaCount: 3 }) });
+    const pillar = health.pillars.find((p) => p.key === "assets");
+    expect(pillar.total).toBe(3);
     expect(pillar.available).toBe(true);
   });
 });

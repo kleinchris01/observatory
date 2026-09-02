@@ -1,4 +1,4 @@
-import api, { route, createRequestStargateAsApp } from "@forge/api";
+import api, { route } from "@forge/api";
 import { fallbackOn } from "./logger.js";
 import { internalMetrics } from "@forge/metrics";
 import {
@@ -121,6 +121,9 @@ export const METRIC_NAMES = {
   userSnapshotStarted: "user-snapshot-started",
   userSnapshotCompleted: "user-snapshot-completed",
   userSnapshotFailed: "user-snapshot-failed",
+  assetSnapshotStarted: "asset-snapshot-started",
+  assetSnapshotCompleted: "asset-snapshot-completed",
+  assetSnapshotFailed: "asset-snapshot-failed",
 };
 
 // ----- Module-level rate limiter state -----
@@ -1641,20 +1644,60 @@ export function getCloudId(context) {
   return match ? match[1] : null;
 }
 
-// Probe an api.atlassian.com endpoint through Stargate.
+// Call an Atlassian gateway API (https://api.atlassian.com/...) as the app.
 //
-// Distinct from probeEndpoint, which is site-relative. Every automation path probed
-// earlier returned 401 because they were asked of the wrong server entirely: the
-// automation API lives on the gateway host, not on the site. requestJira cannot reach it,
-// so this uses the Stargate request surface instead.
+// Used for JSM Assets, whose REST API is not on the site: requestJira cannot reach it. The
+// sanctioned surface is `asApp().requestAtlassian`, which targets api.atlassian.com and
+// carries the app's auth. `path` is relative to that host and must start with "/".
+//
+// The earlier attempt used `createRequestStargateAsApp()` with a full https:// URL and the
+// Forge runtime rejected it before it left the sandbox (400 INVALID_TARGET_URL); a Route
+// through requestAtlassian is the form the platform accepts. `route([path])` passes the
+// path as one static segment -- no interpolation, so a UUID workspace id in it is not
+// re-encoded.
+export async function requestAtlassianJson(path, { method = "GET", body = null } = {}) {
+  const init = { method, headers: { Accept: "application/json" } };
+  if (body != null) {
+    init.headers["Content-Type"] = "application/json";
+    init.body = typeof body === "string" ? body : JSON.stringify(body);
+  }
+  const response = await api.asApp().requestAtlassian(route([path]), init);
+  const text = await response.text();
+  if (!response.ok) {
+    const error = new Error(`Atlassian gateway ${method} ${path} returned ${response.status}`);
+    error.status = response.status;
+    error.body = text.slice(0, 500);
+    throw error;
+  }
+  return text ? JSON.parse(text) : null;
+}
+
+// The Assets workspace id for this site. Site-relative (it is a servicedeskapi endpoint),
+// and it is the one identifier every gateway Assets URL needs. One workspace is the norm;
+// a Data Center migration can leave more than one, in which case the first is used and the
+// rest are ignored -- the pillar governs "the" workspace, not a chooser.
+export async function getAssetsWorkspaceId() {
+  const response = await api.asApp().requestJira(
+    route(["/rest/servicedeskapi/assets/workspace"]),
+    { headers: { Accept: "application/json" } }
+  );
+  if (!response.ok) {
+    const error = new Error(`assets workspace lookup returned ${response.status}`);
+    error.status = response.status;
+    throw error;
+  }
+  const body = await response.json();
+  const values = Array.isArray(body?.values) ? body.values : (Array.isArray(body) ? body : []);
+  const first = values[0];
+  return first?.workspaceId || first?.id || null;
+}
+
+// Probe an api.atlassian.com endpoint. Same never-throws diagnostic contract as
+// probeEndpoint, over the gateway surface instead of the site.
 export async function probeStargateEndpoint(path) {
   const started = Date.now();
   try {
-    // A plain string, not a Route. createRequestStargateAsApp returns
-    // `(url: string, init?) => Promise<Response>` -- wrapping the path in
-    // assumeTrustedRoute produced INVALID_TARGET_URL before the request left the runtime.
-    const requestStargate = createRequestStargateAsApp();
-    const response = await requestStargate(path, {
+    const response = await api.asApp().requestAtlassian(route([path]), {
       method: "GET",
       headers: { Accept: "application/json" },
     });

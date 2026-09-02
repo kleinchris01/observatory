@@ -1190,6 +1190,85 @@ export const CREATE_USER_SNAPSHOT_META_TABLE = `
   )
 `;
 
+// The JSM Assets (CMDB) pillar. Structure only: one row per object schema, per object type
+// and per attribute. Object counts run to hundreds of thousands and are never stored here;
+// the schema row carries the per-schema total the list API already returns, and per-type
+// counts are a later opt-in stage.
+export const CREATE_SNAPSHOT_ASSET_SCHEMAS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_asset_schemas (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    schema_id VARCHAR(64) NOT NULL,
+    name VARCHAR(255) NULL,
+    schema_key VARCHAR(64) NULL,
+    description TEXT NULL,
+    object_type_count INTEGER NOT NULL DEFAULT 0,
+    object_count INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (scope_key, version, schema_id)
+  )
+`;
+
+// Hierarchical: parent_id points at another row's object_type_id. A parent_id that resolves
+// to nothing in the same version is a broken hierarchy -- surfaced as a finding, not fixed.
+export const CREATE_SNAPSHOT_ASSET_OBJECT_TYPES_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_asset_object_types (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    object_type_id VARCHAR(64) NOT NULL,
+    schema_id VARCHAR(64) NOT NULL,
+    name VARCHAR(255) NULL,
+    description TEXT NULL,
+    parent_id VARCHAR(64) NULL,
+    inherited TINYINT NOT NULL DEFAULT 0,
+    is_abstract TINYINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (scope_key, version, object_type_id)
+  )
+`;
+
+// reference_object_type_id is set only for an object-reference attribute: the object type it
+// points at. A value that resolves to no row in the same version is the Assets analogue of a
+// filter scoped to a deleted project.
+export const CREATE_SNAPSHOT_ASSET_ATTRIBUTES_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_asset_attributes (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    attribute_id VARCHAR(64) NOT NULL,
+    object_type_id VARCHAR(64) NULL,
+    schema_id VARCHAR(64) NOT NULL,
+    name VARCHAR(255) NULL,
+    data_type VARCHAR(48) NULL,
+    reference_object_type_id VARCHAR(64) NULL,
+    is_system TINYINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (scope_key, version, attribute_id)
+  )
+`;
+
+export const CREATE_SNAPSHOT_ASSET_OBJECT_TYPES_BY_SCHEMA_INDEX = `
+  CREATE INDEX IF NOT EXISTS idx_snapshot_asset_object_types_by_schema
+    ON snapshot_asset_object_types (scope_key, version, schema_id)
+`;
+
+// Build state plus the workspace id the gateway URLs need, and assets_enabled: false when
+// the build ran fine and the answer was "Assets is not licensed here". The tab reads that
+// flag to explain rather than show an empty catalogue.
+export const CREATE_ASSET_SNAPSHOT_META_TABLE = `
+  CREATE TABLE IF NOT EXISTS asset_snapshot_meta (
+    scope_key VARCHAR(191) NOT NULL,
+    state VARCHAR(32) NOT NULL DEFAULT 'idle',
+    version VARCHAR(64) NULL,
+    started_at VARCHAR(64) NULL,
+    completed_at VARCHAR(64) NULL,
+    refreshed_at VARCHAR(64) NULL,
+    workspace_id VARCHAR(64) NULL,
+    assets_enabled TINYINT NOT NULL DEFAULT 0,
+    total_schemas INTEGER NOT NULL DEFAULT 0,
+    total_object_types INTEGER NOT NULL DEFAULT 0,
+    total_attributes INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT NULL,
+    PRIMARY KEY (scope_key)
+  )
+`;
+
 // Append-only record of privileged actions: who did what, when, and whether it was
 // allowed. Deliberately not versioned by snapshot and deliberately NOT wiped by
 // clearAllSnapshotData -- an audit trail that a privileged action can erase is not an
@@ -1415,7 +1494,14 @@ const projectStoreMigrations = migrationRunner
   .enqueue("v121_create_snapshot_users_table", CREATE_SNAPSHOT_USERS_TABLE)
   .enqueue("v122_create_snapshot_user_access_table", CREATE_SNAPSHOT_USER_ACCESS_TABLE)
   .enqueue("v123_create_snapshot_user_access_by_app_index", CREATE_SNAPSHOT_USER_ACCESS_BY_APP_INDEX)
-  .enqueue("v124_create_user_snapshot_meta_table", CREATE_USER_SNAPSHOT_META_TABLE);
+  .enqueue("v124_create_user_snapshot_meta_table", CREATE_USER_SNAPSHOT_META_TABLE)
+
+  // ── v125-v129: the JSM Assets (CMDB) pillar ──────────────────────────────
+  .enqueue("v125_create_snapshot_asset_schemas_table", CREATE_SNAPSHOT_ASSET_SCHEMAS_TABLE)
+  .enqueue("v126_create_snapshot_asset_object_types_table", CREATE_SNAPSHOT_ASSET_OBJECT_TYPES_TABLE)
+  .enqueue("v127_create_snapshot_asset_attributes_table", CREATE_SNAPSHOT_ASSET_ATTRIBUTES_TABLE)
+  .enqueue("v128_create_snapshot_asset_object_types_by_schema_index", CREATE_SNAPSHOT_ASSET_OBJECT_TYPES_BY_SCHEMA_INDEX)
+  .enqueue("v129_create_asset_snapshot_meta_table", CREATE_ASSET_SNAPSHOT_META_TABLE);
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history

@@ -6714,6 +6714,10 @@ a.dash-row__name:hover { text-decoration: underline; }
   .issue-type-row__desc { max-width: 100%; white-space: normal; }
 }
 
+/* Assets tab. Built from the same row grammar as Issue Types and Screens, so a schema row
+   reads like a screen-scheme card and an object-type row like an issue-type row. */
+.admin-assets { display: flex; flex-direction: column; gap: 16px; }
+
 /* People tab. The roster is an expandable list, built on the same row grammar as the
    Automation reference explorer -- chevron, identity, meta chips, a detail drawer -- so a
    user row reads like a field row. */

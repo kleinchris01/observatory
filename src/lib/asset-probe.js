@@ -2,10 +2,10 @@
 // specific paths.
 //
 // Assets is not on the site. Its REST API lives on the gateway host --
-// https://api.atlassian.com/jsm/assets/workspace/{workspaceId}/v1/... -- so requestJira
-// cannot reach it and every site-relative path returns 401. This uses the same Stargate
-// surface the automation probe uses (probeStargateEndpoint), and it does the workspace-id
-// discovery hop first because every Assets URL needs it.
+// api.atlassian.com/jsm/assets/workspace/{workspaceId}/v1/... -- so requestJira cannot
+// reach it. probeStargateEndpoint goes through `asApp().requestAtlassian`, which takes a
+// path relative to api.atlassian.com; the workspace-id discovery hop comes first because
+// every Assets URL needs it.
 //
 // Deliberately a probe and not the first half of the real fetcher: it fetches one schema's
 // worth of structure at most, enough to see the shapes, and never walks objects.
@@ -17,8 +17,9 @@ import { probeEndpoint, probeStargateEndpoint } from "./jira-api.js";
 // site is the norm; Data Center migrations can leave more than one.
 const WORKSPACE_PATH = "/rest/servicedeskapi/assets/workspace";
 
+// Relative to api.atlassian.com -- requestAtlassian prepends the host.
 function assetsBase(workspaceId) {
-  return `https://api.atlassian.com/jsm/assets/workspace/${workspaceId}/v1`;
+  return `/jsm/assets/workspace/${workspaceId}/v1`;
 }
 
 // A 401 "scope does not match" means a missing scope, not a missing licence. A 403 or 404 is

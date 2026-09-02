@@ -93,6 +93,13 @@ export const DEFAULT_HEALTH_TOLERANCES = {
   // whose owner is gone; it still works until Jira garbage-collects it, so a touch looser.
   deactivatedLicenceHolders: 0.05,
   orphanedOwnership: 0.10,
+  // Assets (CMDB). A schema with nothing in it is clutter, forgiving like an unused issue
+  // type scheme. A concrete object type nobody added an attribute to is unfinished, looser
+  // still. A reference attribute pointing at a type that is gone is a broken pointer, tight
+  // -- it is the Assets analogue of a filter scoped to a deleted project.
+  deadAssetSchemas: 0.20,
+  bareAssetTypes: 0.30,
+  brokenAssetReferences: 0.10,
 };
 
 // rate 0 -> 100, rate >= tolerance -> 0, linear between. Deliberately linear: a curve
@@ -143,6 +150,9 @@ export const PILLAR_WEIGHTS = {
   // The who. Licence waste and orphaned ownership are real costs, but neither changes what
   // an issue does day to day, so it sits with the structural pillars, not above them.
   users: 1,
+  // The CMDB's shape. Only relevant on a JSM Premium site, and it reports itself
+  // not-applicable everywhere else rather than dragging the score down with unmeasured bars.
+  assets: 1,
 };
 
 export const HEALTH_PILLARS = [
@@ -153,6 +163,7 @@ export const HEALTH_PILLARS = [
   { key: "screens", label: "Screens" },
   { key: "issueTypes", label: "Issue types" },
   { key: "users", label: "People" },
+  { key: "assets", label: "Assets (CMDB)" },
   { key: "automation", label: "Automation" },
   { key: "projects", label: "Projects" },
 ];
@@ -179,7 +190,7 @@ export function resolveHealthTolerances(overrides = {}) {
   return out;
 }
 
-export function computeSiteHealth({ fieldUsage, workflow, projects, automation, screens, adoption, filters, dashboards, issueTypes, users, tolerances } = {}) {
+export function computeSiteHealth({ fieldUsage, workflow, projects, automation, screens, adoption, filters, dashboards, issueTypes, users, assets, tolerances } = {}) {
   const TOLERANCE = resolveHealthTolerances(tolerances);
   const dimensions = [];
 
@@ -965,6 +976,86 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       users?.available
         ? "No filter, dashboard or automation ownership data to join against yet."
         : "No licensed-user roster yet. Build one from the People tab or run a full scan."));
+  }
+
+  // ── Assets (CMDB) ─────────────────────────────────────────────────────────
+  // Only meaningful on a JSM Premium/Enterprise site. `assetsEnabled: false` is not a gap
+  // in the data -- it is the correct answer for most sites -- so all three dimensions report
+  // "not applicable" there rather than "not measured", and the roll-up drops the pillar
+  // entirely rather than scoring it.
+  const assetsNotApplicable = assets && assets.assetsEnabled === false;
+  const assetSchemaTotal = Number(assets?.totalSchemas) || 0;
+  if (assets?.available && assetSchemaTotal > 0) {
+    const dead = Number(assets.deadSchemaCount) || 0;
+    dimensions.push({
+      key: "asset-schema-hygiene",
+      label: "Schema hygiene",
+      pillar: "assets",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(dead / assetSchemaTotal, TOLERANCE.deadAssetSchemas),
+      detail: dead === 0
+        ? `All ${assetSchemaTotal} object schemas contain object types and objects.`
+        : `${dead} of ${assetSchemaTotal} object schemas have no object types or no objects.`,
+      action: dead > 0
+        ? "Delete or repopulate the empty schemas — each one is a namespace in every AQL autocomplete that resolves to nothing."
+        : null,
+    });
+  } else {
+    dimensions.push(unavailable("asset-schema-hygiene", "Schema hygiene", "assets",
+      assetsNotApplicable
+        ? "Assets (JSM Premium/Enterprise) is not enabled on this site."
+        : "No Assets inventory yet. Build one from the Assets tab or run a full scan."));
+  }
+
+  const assetConcreteTypes = Number(assets?.concreteObjectTypes) || 0;
+  if (assets?.available && assetConcreteTypes > 0) {
+    const bare = Number(assets.bareTypeCount) || 0;
+    dimensions.push({
+      key: "asset-type-completeness",
+      label: "Object type completeness",
+      pillar: "assets",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(bare / assetConcreteTypes, TOLERANCE.bareAssetTypes),
+      detail: bare === 0
+        ? `Every one of the ${assetConcreteTypes} concrete object types carries at least one attribute someone added.`
+        : `${bare} of ${assetConcreteTypes} concrete object types have no attribute beyond the built-in Name.`,
+      action: bare > 0
+        ? "Give each a defining attribute or retire it — a type with only a name records nothing about the thing it represents."
+        : null,
+    });
+  } else {
+    dimensions.push(unavailable("asset-type-completeness", "Object type completeness", "assets",
+      assetsNotApplicable
+        ? "Assets (JSM Premium/Enterprise) is not enabled on this site."
+        : "No Assets inventory yet. Build one from the Assets tab or run a full scan."));
+  }
+
+  const assetRefTotal = Number(assets?.referenceAttributeCount) || 0;
+  if (assets?.available && assetRefTotal > 0) {
+    const broken = Number(assets.brokenReferenceCount) || 0;
+    dimensions.push({
+      key: "asset-reference-integrity",
+      label: "Reference integrity",
+      pillar: "assets",
+      available: true,
+      weight: 1.5,
+      score: scoreFromRate(broken / assetRefTotal, TOLERANCE.brokenAssetReferences),
+      detail: broken === 0
+        ? `All ${assetRefTotal} object-reference attributes point at an object type that exists.`
+        : `${broken} of ${assetRefTotal} object-reference attributes point at an object type that is gone.`,
+      action: broken > 0
+        ? "Repoint or remove them — the attribute still shows on every object of its type and resolves to nothing."
+        : null,
+    });
+  } else {
+    dimensions.push(unavailable("asset-reference-integrity", "Reference integrity", "assets",
+      assetsNotApplicable
+        ? "Assets (JSM Premium/Enterprise) is not enabled on this site."
+        : assets?.available
+          ? "No object-reference attributes to check."
+          : "No Assets inventory yet. Build one from the Assets tab or run a full scan."));
   }
 
   // ── Roll-up ───────────────────────────────────────────────────────────────

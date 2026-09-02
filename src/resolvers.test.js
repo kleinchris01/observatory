@@ -167,6 +167,14 @@ const mocks = vi.hoisted(() => ({
   queueUserSnapshotBuild: vi.fn(),
   isUserBuildStale: vi.fn(() => false),
 
+  // asset store + asset-engine.js
+  readAssetSnapshotMeta: vi.fn(),
+  loadAssetSchemas: vi.fn(async () => []),
+  loadAssetObjectTypes: vi.fn(async () => []),
+  loadAssetAttributes: vi.fn(async () => []),
+  queueAssetSnapshotBuild: vi.fn(),
+  isAssetBuildStale: vi.fn(() => false),
+
   loadRulesForProject: vi.fn(),
   loadStatusAutomationReferences: vi.fn(),
   loadGlobalRulesAffectingProject: vi.fn(),
@@ -356,6 +364,10 @@ vi.mock("./lib/project-store.js", () => ({
   readUserSnapshotMeta: mocks.readUserSnapshotMeta,
   loadUsers: mocks.loadUsers,
   loadUserGovernanceSummary: mocks.loadUserGovernanceSummary,
+  readAssetSnapshotMeta: mocks.readAssetSnapshotMeta,
+  loadAssetSchemas: mocks.loadAssetSchemas,
+  loadAssetObjectTypes: mocks.loadAssetObjectTypes,
+  loadAssetAttributes: mocks.loadAssetAttributes,
   recordHealthSnapshot: mocks.recordHealthSnapshot,
   loadHealthHistory: mocks.loadHealthHistory,
   // Real values, not mocks: the resolver whitelists the sort token against these, so a
@@ -385,6 +397,11 @@ vi.mock("./lib/issuetype-engine.js", () => ({
 vi.mock("./lib/user-engine.js", () => ({
   queueUserSnapshotBuild: mocks.queueUserSnapshotBuild,
   isUserBuildStale: mocks.isUserBuildStale,
+}));
+
+vi.mock("./lib/asset-engine.js", () => ({
+  queueAssetSnapshotBuild: mocks.queueAssetSnapshotBuild,
+  isAssetBuildStale: mocks.isAssetBuildStale,
 }));
 
 vi.mock("./lib/workflow-engine.js", () => ({
@@ -513,6 +530,8 @@ const {
   getUserInventory,
   getUserDetails,
   buildUserInventory,
+  getAssetInventory,
+  buildAssetInventory,
 } = __RAW_ADMIN_ONLY_FUNCTIONS;
 
 const {
@@ -613,6 +632,8 @@ beforeEach(() => {
   // Default: no licensed-user roster. The People pillar then reports unavailable rather
   // than being scored on absent data, the same posture as screens and automation above.
   mocks.readUserSnapshotMeta.mockResolvedValue(null);
+  // Default: no Assets snapshot. The Assets pillar reports unmeasured, same posture.
+  mocks.readAssetSnapshotMeta.mockResolvedValue(null);
   mocks.loadScreensPage.mockResolvedValue({ total: 0, rows: [] });
   mocks.loadScreensForField.mockResolvedValue([]);
   mocks.loadScreenSchemes.mockResolvedValue([]);
@@ -1674,6 +1695,35 @@ describe("getAdminOverview", () => {
 
     expect(result.users.available).toBe(false);
     expect(result.health.dimensions.find((d) => d.key === "user-licence-hygiene").available).toBe(false);
+  });
+
+  test("carries the assets overview into the payload and the score", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "idle" });
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+    mocks.readAssetSnapshotMeta.mockResolvedValue({ state: "ready", version: "as1", assetsEnabled: true, refreshedAt: "2026-09-02T00:00:00Z" });
+    mocks.loadAssetSchemas.mockResolvedValue([
+      { id: "1", name: "Infra", objectTypeCount: 2, objectCount: 40 },
+      { id: "2", name: "Empty", objectTypeCount: 0, objectCount: 0 },
+    ]);
+    mocks.loadAssetObjectTypes.mockResolvedValue([{ id: "9", schemaId: "1", name: "Server", parentId: null, abstract: false }]);
+    mocks.loadAssetAttributes.mockResolvedValue([{ id: "a", objectTypeId: "9", name: "OS", referenceObjectTypeId: null, system: false }]);
+
+    const result = await getAdminOverview({ context: {} });
+
+    expect(result.assets.available).toBe(true);
+    expect(result.assets.deadSchemaCount).toBe(1);
+    expect(result.health.dimensions.find((d) => d.key === "asset-schema-hygiene").available).toBe(true);
+  });
+
+  test("reports assets not-applicable rather than failing the overview when Assets is off", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "idle" });
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+    mocks.readAssetSnapshotMeta.mockResolvedValue({ state: "unavailable", assetsEnabled: false });
+
+    const result = await getAdminOverview({ context: {} });
+
+    expect(result.assets.assetsEnabled).toBe(false);
+    expect(result.health.dimensions.find((d) => d.key === "asset-reference-integrity").available).toBe(false);
   });
 
   test("passes the whole automation health summary through, not just the rule count", async () => {
@@ -4637,6 +4687,30 @@ describe("getPillarHealth", () => {
 
     expect(result.pillar.available).toBe(false);
   });
+
+  test("builds the assets pillar from the asset snapshot when one exists", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue(null);
+    mocks.readAssetSnapshotMeta.mockResolvedValue({ version: "as1", state: "ready", assetsEnabled: true });
+    mocks.loadAssetSchemas.mockResolvedValue([{ id: "1", name: "Infra", objectTypeCount: 3, objectCount: 40 }]);
+    mocks.loadAssetObjectTypes.mockResolvedValue([{ id: "9", schemaId: "1", name: "Server", parentId: null, abstract: false }]);
+    mocks.loadAssetAttributes.mockResolvedValue([{ id: "a", objectTypeId: "9", name: "OS", referenceObjectTypeId: null, system: false }]);
+
+    const result = await getPillarHealth({ payload: { pillar: "assets" }, ...ctx });
+
+    expect(result.pillar.key).toBe("assets");
+    expect(result.pillar.available).toBe(true);
+    expect(result.pillar.dimensions.some((d) => d.key === "asset-schema-hygiene")).toBe(true);
+  });
+
+  test("reports the assets pillar not-applicable when Assets is not licensed", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue(null);
+    mocks.readAssetSnapshotMeta.mockResolvedValue({ state: "unavailable", assetsEnabled: false });
+
+    const result = await getPillarHealth({ payload: { pillar: "assets" }, ...ctx });
+
+    expect(result.pillar.available).toBe(false);
+    expect(result.pillar.dimensions.every((d) => /not enabled on this site/i.test(d.reason))).toBe(true);
+  });
 });
 
 describe("getProjectOverview", () => {
@@ -5278,6 +5352,64 @@ describe("buildUserInventory", () => {
 
     expect(result).toMatchObject({ queued: false, reason: "already-building" });
     expect(mocks.queueUserSnapshotBuild).not.toHaveBeenCalled();
+  });
+});
+
+describe("getAssetInventory", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x" } };
+
+  test("reports never-built when no snapshot exists", async () => {
+    mocks.readAssetSnapshotMeta.mockResolvedValue(null);
+    const result = await getAssetInventory(ctx);
+    expect(result).toMatchObject({ neverBuilt: true, schemas: [], governance: null });
+  });
+
+  test("surfaces 'Assets not enabled' as a first-class state, not an empty catalogue", async () => {
+    mocks.readAssetSnapshotMeta.mockResolvedValue({ state: "unavailable", assetsEnabled: false, lastError: "no workspace" });
+    const result = await getAssetInventory(ctx);
+    expect(result).toMatchObject({ state: "unavailable", assetsEnabled: false, neverBuilt: false });
+    expect(result.governance).toMatchObject({ assetsEnabled: false });
+    expect(mocks.loadAssetSchemas).not.toHaveBeenCalled();
+  });
+
+  test("returns the structure and the governance summary when built", async () => {
+    mocks.readAssetSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1", assetsEnabled: true, workspaceId: "ws-1" });
+    mocks.loadAssetSchemas.mockResolvedValue([
+      { id: "1", name: "Infra", objectTypeCount: 2, objectCount: 40 },
+      { id: "2", name: "Empty", objectTypeCount: 0, objectCount: 0 },
+    ]);
+    mocks.loadAssetObjectTypes.mockResolvedValue([{ id: "9", schemaId: "1", name: "Server", parentId: null, abstract: false }]);
+    mocks.loadAssetAttributes.mockResolvedValue([{ id: "a", objectTypeId: "9", name: "OS", referenceObjectTypeId: "404", system: false }]);
+
+    const result = await getAssetInventory(ctx);
+
+    expect(result).toMatchObject({ state: "ready", assetsEnabled: true, version: "v1", workspaceId: "ws-1" });
+    expect(result.schemas).toHaveLength(2);
+    expect(result.governance).toMatchObject({ deadSchemaCount: 1, brokenReferenceCount: 1 });
+  });
+});
+
+describe("buildAssetInventory", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x" } };
+
+  test("queues a build when nothing is running", async () => {
+    mocks.readAssetSnapshotMeta.mockResolvedValue({ state: "idle" });
+    mocks.readAdminConfig?.mockResolvedValue?.({ readOnlyMode: false });
+
+    const result = await buildAssetInventory(ctx);
+
+    expect(result.queued).toBe(true);
+    expect(mocks.queueAssetSnapshotBuild).toHaveBeenCalledWith("test-install");
+  });
+
+  test("refuses while a live build is running", async () => {
+    mocks.readAssetSnapshotMeta.mockResolvedValue({ state: "building" });
+    mocks.isAssetBuildStale.mockReturnValue(false);
+
+    const result = await buildAssetInventory(ctx);
+
+    expect(result).toMatchObject({ queued: false, reason: "already-building" });
+    expect(mocks.queueAssetSnapshotBuild).not.toHaveBeenCalled();
   });
 });
 

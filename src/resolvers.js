@@ -136,6 +136,10 @@ import {
   readUserSnapshotMeta,
   loadUsers,
   loadUserGovernanceSummary,
+  readAssetSnapshotMeta,
+  loadAssetSchemas,
+  loadAssetObjectTypes,
+  loadAssetAttributes,
   recordHealthSnapshot,
   readFullScanMeta,
   loadHealthHistory,
@@ -147,7 +151,9 @@ import { probeAssetsApi as probeAssetsApiProbe } from "./lib/asset-probe.js";
 import { queueScreenSnapshotBuild, isScreenBuildStale } from "./lib/screen-engine.js";
 import { queueIssueTypeSnapshotBuild, isIssueTypeBuildStale } from "./lib/issuetype-engine.js";
 import { queueUserSnapshotBuild, isUserBuildStale } from "./lib/user-engine.js";
+import { queueAssetSnapshotBuild, isAssetBuildStale } from "./lib/asset-engine.js";
 import { summarizeIssueTypeInsights } from "./lib/issuetype-insights.js";
+import { summarizeAssetInsights } from "./lib/asset-insights.js";
 import { computeSiteHealth, DEFAULT_HEALTH_TOLERANCES } from "./lib/health-score.js";
 // Moved out of this file so a scan can record a measurement without importing the
 // resolver layer. Same implementation, both callers.
@@ -160,6 +166,7 @@ import {
   buildDashboardOverview,
   buildIssueTypeOverview,
   buildUserOverview,
+  buildAssetOverview,
   attachUniqueIssueCounts,
   captureSiteHealth,
 } from "./lib/site-health.js";
@@ -1613,6 +1620,94 @@ async function buildUserInventory({ context }) {
   }
 
   await queueUserSnapshotBuild(installationKey);
+  return { queued: true };
+}
+
+// The JSM Assets (CMDB) pillar's read: object schemas, their object types and those types'
+// attributes, plus the governance summary. `assetsEnabled: false` is a first-class state --
+// the build ran and Assets is not licensed here -- and the tab renders the explanation
+// rather than an empty catalogue.
+async function getAssetInventory({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  const meta = await readAssetSnapshotMeta(installationKey);
+  const staleBuild = isAssetBuildStale(meta);
+
+  if (meta?.state === "unavailable" || (meta && meta.assetsEnabled === false && meta.state !== "building")) {
+    return {
+      state: "unavailable",
+      assetsEnabled: false,
+      staleBuild: false,
+      refreshedAt: meta?.refreshedAt || null,
+      workspaceId: meta?.workspaceId || null,
+      schemas: [],
+      objectTypes: [],
+      attributes: [],
+      governance: summarizeAssetInsights({ assetsEnabled: false }),
+      lastError: meta?.lastError || null,
+      neverBuilt: false,
+    };
+  }
+
+  if (!meta?.version) {
+    return {
+      state: meta?.state || "idle",
+      assetsEnabled: null,
+      staleBuild,
+      startedAt: meta?.startedAt || null,
+      version: null,
+      schemas: [],
+      objectTypes: [],
+      attributes: [],
+      governance: null,
+      lastError: meta?.lastError || null,
+      neverBuilt: true,
+    };
+  }
+
+  const [schemas, objectTypes, attributes] = await Promise.all([
+    loadAssetSchemas(installationKey, meta.version),
+    loadAssetObjectTypes(installationKey, meta.version),
+    loadAssetAttributes(installationKey, meta.version),
+  ]);
+
+  const governance = summarizeAssetInsights({ schemas, objectTypes, attributes, assetsEnabled: true });
+
+  return {
+    state: meta.state || "ready",
+    assetsEnabled: true,
+    staleBuild,
+    startedAt: meta.startedAt || null,
+    refreshedAt: meta.refreshedAt || null,
+    version: meta.version,
+    workspaceId: meta.workspaceId || null,
+    schemas,
+    objectTypes,
+    attributes,
+    governance,
+    lastError: meta.lastError || null,
+    neverBuilt: false,
+  };
+}
+
+async function buildAssetInventory({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  const meta = await readAssetSnapshotMeta(installationKey);
+  if (meta?.state === "building" && !isAssetBuildStale(meta)) {
+    return { queued: false, reason: "already-building", meta };
+  }
+
+  const adminConfig = await readAdminConfig();
+  if (adminConfig.readOnlyMode) {
+    return { queued: false, error: "Read-only mode is enabled. Disable it before building the Assets inventory." };
+  }
+
+  await queueAssetSnapshotBuild(installationKey);
   return { queued: true };
 }
 
@@ -5038,7 +5133,7 @@ const EMPTY_DASHBOARD = {
 export async function getAdminOverview({ context }) {
   await ensureProjectStoreReady();
   const installationKey = getInstallationKey(context);
-  const [meta, summaryCounts, config, legacySummaryCount, workflow, screens, issueTypeOverview, userOverview, filterOverview, dashboardOverview, automationAnalysis] = await Promise.all([
+  const [meta, summaryCounts, config, legacySummaryCount, workflow, screens, issueTypeOverview, userOverview, assetOverview, filterOverview, dashboardOverview, automationAnalysis] = await Promise.all([
     readSnapshotMeta(installationKey),
     // Counted in SQL rather than loaded. This used to pull up to 5,000 summary rows --
     // including two LONGTEXT columns -- across the wire, and use them for a count grouped by
@@ -5051,6 +5146,7 @@ export async function getAdminOverview({ context }) {
     buildScreenOverview(installationKey),
     buildIssueTypeOverview(installationKey),
     buildUserOverview(installationKey),
+    buildAssetOverview(installationKey),
     // Without the project catalog the broken-reference check is skipped and says so. Passing
     // it would mean loading the project list before this Promise.all rather than inside the
     // dashboard build below, which is a bigger cost than the one finding is worth here -- the
@@ -5146,6 +5242,7 @@ export async function getAdminOverview({ context }) {
     dashboards: dashboardOverview?.health ?? null,
     issueTypes: issueTypeOverview?.health ?? null,
     users: userOverview?.health ?? null,
+    assets: assetOverview?.health ?? null,
     // Workflow, project and automation dimensions were scored against hardcoded constants
     // while every field rule was tunable. Same config surface now feeds both.
     tolerances: config?.healthTolerances,
@@ -5182,6 +5279,7 @@ export async function getAdminOverview({ context }) {
     screens,
     issueTypes: issueTypeOverview,
     users: userOverview,
+    assets: assetOverview,
     // The counts the Overview's findings list needs, not just the score's rate. Same lesson
     // the automation pillar learned: trimming this to the headline fields made every problem
     // the analysis had already found invisible on the page that exists to surface problems.
@@ -5282,6 +5380,7 @@ const PILLAR_INPUTS = {
   screens: ["screens"],
   issueTypes: ["issueTypes"],
   users: ["users"],
+  assets: ["assets"],
   automation: ["automation"],
   projects: ["projects", "adoption"],
 };
@@ -5299,13 +5398,14 @@ async function getPillarHealth({ payload, context }) {
   // already reports as unavailable -- and unavailable dimensions from other pillars are
   // discarded below anyway, so the returned pillar is byte-identical to what the full
   // computation produced for it.
-  const [workflow, screens, filterOverview, dashboardOverview, issueTypeOverview, userOverview, automationAnalysis] = await Promise.all([
+  const [workflow, screens, filterOverview, dashboardOverview, issueTypeOverview, userOverview, assetOverview, automationAnalysis] = await Promise.all([
     needs.has("workflow") ? buildWorkflowOverview(installationKey) : Promise.resolve(null),
     needs.has("screens") ? buildScreenOverview(installationKey) : Promise.resolve(null),
     needs.has("filters") ? buildFilterOverview(installationKey) : Promise.resolve(null),
     needs.has("dashboards") ? buildDashboardOverview(installationKey) : Promise.resolve(null),
     needs.has("issueTypes") ? buildIssueTypeOverview(installationKey) : Promise.resolve(null),
     needs.has("users") ? buildUserOverview(installationKey) : Promise.resolve(null),
+    needs.has("assets") ? buildAssetOverview(installationKey) : Promise.resolve(null),
     needs.has("automation")
       ? readAutomationAnalysis(installationKey).catch(fallbackOn("pillar-health.automation_load_failed", () => null, { installationKey }))
       : Promise.resolve(null),
@@ -5359,6 +5459,7 @@ async function getPillarHealth({ payload, context }) {
     dashboards: dashboardOverview?.health ?? null,
     issueTypes: issueTypeOverview?.health ?? null,
     users: userOverview?.health ?? null,
+    assets: assetOverview?.health ?? null,
     tolerances: config?.healthTolerances,
   });
 
@@ -6184,6 +6285,7 @@ const AUDITED_ADMIN_ACTIONS = new Set([
   "buildScreenInventory",
   "buildIssueTypeInventory",
   "buildUserInventory",
+  "buildAssetInventory",
 ]);
 
 function withAuditTrail(functions) {
@@ -6288,6 +6390,10 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   getUserInventory,        // Admin read: the licensed-user roster with products, access groups and ownership counts
   getUserDetails,          // Admin read: one user's owned filters / dashboards / automation rules
   buildUserInventory,      // Mutating: queues a licensed-user roster build
+
+  // JSM Assets (CMDB) pillar
+  getAssetInventory,       // Admin read: object schemas, their object types and attributes, with the governance summary
+  buildAssetInventory,     // Mutating: queues a JSM Assets structure snapshot build
 
   getAutomationCascades,   // Admin read: one filtered page of cascade relationships
   getCascadeGraph,         // Admin read: loops and multi-rule chains across every edge

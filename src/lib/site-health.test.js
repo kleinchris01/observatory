@@ -8,6 +8,12 @@ const userStore = {
   loadUsers: vi.fn(async () => []),
   loadUserGovernanceSummary: vi.fn(async () => ({})),
 };
+const assetStore = {
+  readAssetSnapshotMeta: vi.fn(async () => null),
+  loadAssetSchemas: vi.fn(async () => []),
+  loadAssetObjectTypes: vi.fn(async () => []),
+  loadAssetAttributes: vi.fn(async () => []),
+};
 vi.mock("./project-store.js", () => ({
   loadIssueScanProjectTotals: vi.fn(async () => []),
   loadScreenGovernanceSummary: vi.fn(async () => ({})),
@@ -22,13 +28,14 @@ vi.mock("./project-store.js", () => ({
   loadFilters: vi.fn(async () => []),
   loadDashboards: vi.fn(async () => []),
   ...userStore,
+  ...assetStore,
 }));
 vi.mock("./store/automation.js", () => ({
   loadStatusAutomationReferences: vi.fn(async () => ({})),
   readAutomationPart: vi.fn(async () => null),
 }));
 
-const { buildProjectInsights, buildFieldUsageInsights, captureSiteHealth, buildUserOverview } = await import("./site-health.js");
+const { buildProjectInsights, buildFieldUsageInsights, captureSiteHealth, buildUserOverview, buildAssetOverview } = await import("./site-health.js");
 
 // The fields pillar scores duplicate naming once, through the dedicated field-naming
 // dimension (built from duplicateClusters). The per-field "duplicate-naming" finding must
@@ -108,6 +115,42 @@ describe("buildUserOverview", () => {
     expect(overview.orphanedArtifacts).toBe(1);
     expect(overview.orphanedOwners).toBe(1);
     expect(overview.health).toMatchObject({ orphanedArtifacts: 1, ownedArtifactTotal: 2 });
+  });
+});
+
+describe("buildAssetOverview", () => {
+  test("reports unmeasured when no snapshot exists", async () => {
+    assetStore.readAssetSnapshotMeta.mockResolvedValueOnce(null);
+    const overview = await buildAssetOverview("inst");
+    expect(overview.available).toBe(false);
+    expect(overview.health).toBeUndefined();
+  });
+
+  test("reports not-applicable, with a health input, when the meta says Assets is off", async () => {
+    assetStore.readAssetSnapshotMeta.mockResolvedValueOnce({ state: "unavailable", assetsEnabled: false, lastError: "no workspace" });
+    const overview = await buildAssetOverview("inst");
+    expect(overview).toMatchObject({ available: false, assetsEnabled: false, state: "unavailable" });
+    expect(overview.health).toEqual({ available: false, assetsEnabled: false });
+  });
+
+  test("summarises the structure and hands computeSiteHealth its inputs", async () => {
+    assetStore.readAssetSnapshotMeta.mockResolvedValueOnce({ state: "ready", version: "v1", assetsEnabled: true, refreshedAt: "2026-09-02T00:00:00Z" });
+    assetStore.loadAssetSchemas.mockResolvedValueOnce([
+      { id: "1", name: "Infra", objectTypeCount: 2, objectCount: 40 },
+      { id: "2", name: "Empty", objectTypeCount: 0, objectCount: 0 },
+    ]);
+    assetStore.loadAssetObjectTypes.mockResolvedValueOnce([
+      { id: "9", schemaId: "1", name: "Server", parentId: null, abstract: false },
+      { id: "10", schemaId: "1", name: "VM", parentId: "9", abstract: false },
+    ]);
+    assetStore.loadAssetAttributes.mockResolvedValueOnce([
+      { id: "a", objectTypeId: "9", name: "OS", referenceObjectTypeId: null, system: false },
+      { id: "b", objectTypeId: "10", name: "Host", referenceObjectTypeId: "404", system: false },
+    ]);
+
+    const overview = await buildAssetOverview("inst");
+    expect(overview).toMatchObject({ available: true, assetsEnabled: true, totalSchemas: 2, deadSchemaCount: 1, brokenReferenceCount: 1 });
+    expect(overview.health).toMatchObject({ available: true, totalSchemas: 2, deadSchemaCount: 1, brokenReferenceCount: 1 });
   });
 });
 
