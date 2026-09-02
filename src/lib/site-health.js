@@ -37,6 +37,9 @@ import {
   loadIssueTypes,
   loadIssueTypeSchemes,
   loadIssueTypeSchemeItems,
+  readUserSnapshotMeta,
+  loadUsers,
+  loadUserGovernanceSummary,
 } from "./project-store.js";
 // Imported from the automation store directly: project-store.js re-exports the other eight
 // store modules but not this one, because the automation pillar is written by an import
@@ -46,6 +49,7 @@ import { summarizeAdoption } from "./project-adoption.js";
 import { summarizeFilters, summarizeFilterHealth } from "./filter-insights.js";
 import { summarizeDashboards, summarizeDashboardHealth } from "./dashboard-insights.js";
 import { summarizeIssueTypeInsights, summarizeIssueTypeHealth } from "./issuetype-insights.js";
+import { buildOwnershipIndex, summarizeOrphanedOwnership } from "./user-ownership.js";
 
 // Top finding-type/field-type breakdowns are capped -- Overview is a glance-level
 // summary, not the full Field Browser, and shipping ~1500 hydrated fields' worth of
@@ -509,6 +513,46 @@ export async function buildIssueTypeOverview(installationKey) {
   }
 }
 
+// The People pillar's health inputs: how many licensed accounts are deactivated, and how
+// much owned config (filters / dashboards / rules) belongs to an account not in the roster.
+export async function buildUserOverview(installationKey) {
+  try {
+    const meta = await readUserSnapshotMeta(installationKey);
+    if (!meta?.version) return { available: false, state: meta?.state || "idle", lastError: meta?.lastError || null };
+
+    const [users, summary, ownership] = await Promise.all([
+      loadUsers(installationKey, meta.version),
+      loadUserGovernanceSummary(installationKey, meta.version),
+      buildOwnershipIndex(installationKey).catch(() => ({ byAccount: new Map(), available: {} })),
+    ]);
+
+    const rosterIds = new Set(users.map((u) => u.accountId));
+    const orphaned = summarizeOrphanedOwnership(ownership, rosterIds);
+    const totalUsers = Number(summary?.totalUsers) || users.length;
+    const deactivatedUsers = Math.max(0, totalUsers - (Number(summary?.activeUsers) || totalUsers));
+
+    return {
+      available: totalUsers > 0,
+      state: meta.state || "idle",
+      refreshedAt: meta.refreshedAt || null,
+      lastError: meta.lastError || null,
+      totalUsers,
+      deactivatedUsers,
+      ...orphaned,
+      health: {
+        available: totalUsers > 0,
+        totalUsers,
+        deactivatedUsers,
+        orphanedArtifacts: orphaned.orphanedArtifacts,
+        ownedArtifactTotal: orphaned.ownedArtifactTotal,
+      },
+    };
+  } catch (error) {
+    console.warn("buildUserOverview failed:", error?.message || error);
+    return { available: false, state: "error" };
+  }
+}
+
 // Compute the score from scratch and record it.
 //
 // The one entry point anything outside the Overview should use. It gathers the same five
@@ -538,12 +582,13 @@ export async function captureSiteHealth(installationKey, deps) {
   }
 
   try {
-    const [meta, config, workflow, screens, issueTypeOverview, automationAnalysis] = await Promise.all([
+    const [meta, config, workflow, screens, issueTypeOverview, userOverview, automationAnalysis] = await Promise.all([
       readSnapshotMeta(installationKey),
       readAdminConfig(),
       buildWorkflowOverview(installationKey),
       buildScreenOverview(installationKey),
       buildIssueTypeOverview(installationKey),
+      buildUserOverview(installationKey),
       readAutomationAnalysis(installationKey).catch(() => null),
     ]);
     let filters = null;
@@ -591,6 +636,7 @@ export async function captureSiteHealth(installationKey, deps) {
       filters,
       dashboards,
       issueTypes: issueTypeOverview?.health ?? null,
+      users: userOverview?.health ?? null,
       tolerances: config?.healthTolerances,
     });
 

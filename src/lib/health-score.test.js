@@ -117,12 +117,23 @@ const issueTypes = (over = {}) => ({
   ...over,
 });
 
+// The People pillar's health input: the licensed-user count with how many are deactivated,
+// and the owned-artifact total with how many belong to an account off the roster.
+const users = (over = {}) => ({
+  available: true,
+  totalUsers: 500,
+  deactivatedUsers: 0,
+  ownedArtifactTotal: 600,
+  orphanedArtifacts: 0,
+  ...over,
+});
+
 describe("computeSiteHealth — scoring", () => {
   test("a clean site scores at the top", () => {
     const health = computeSiteHealth({
       fieldUsage: fieldUsage(), workflow: workflow(), projects: projects(),
       automation: automation(), screens: screens(), adoption: adoption(), filters: filters(),
-      dashboards: dashboards(), issueTypes: issueTypes(),
+      dashboards: dashboards(), issueTypes: issueTypes(), users: users(),
     });
 
     expect(health.score).toBeGreaterThanOrEqual(90);
@@ -466,6 +477,56 @@ describe("issue type dimensions", () => {
     const health = computeSiteHealth({ issueTypes: issueTypes({ orphanTypeCount: 5 }) });
     const pillar = health.pillars.find((p) => p.key === "issueTypes");
     expect(pillar.total).toBe(4);
+    expect(pillar.available).toBe(true);
+  });
+});
+
+describe("people dimensions", () => {
+  const dim = (health, key) => health.dimensions.find((d) => d.key === key);
+
+  test("scores deactivated licence holders as a rate, weighted above ownership", () => {
+    const health = computeSiteHealth({ users: users({ totalUsers: 500, deactivatedUsers: 25 }) });
+    // 25/500 = the 0.05 tolerance exactly -> 0.
+    expect(dim(health, "user-licence-hygiene").score).toBe(0);
+    expect(dim(health, "user-licence-hygiene").weight).toBe(1.5);
+    expect(dim(health, "user-licence-hygiene").detail).toMatch(/25 of 500/);
+    expect(dim(health, "user-licence-hygiene").action).toMatch(/access group/i);
+  });
+
+  test("scores orphaned ownership forgivingly against the owned-artifact total", () => {
+    const health = computeSiteHealth({ users: users({ ownedArtifactTotal: 600, orphanedArtifacts: 30 }) });
+    // 30/600 = 0.05 against the 0.10 tolerance -> ~50, not bottomed out.
+    expect(dim(health, "user-ownership").score).toBeGreaterThan(40);
+    expect(dim(health, "user-ownership").score).toBeLessThan(60);
+    expect(dim(health, "user-ownership").weight).toBe(1);
+    expect(dim(health, "user-ownership").detail).toMatch(/30 of 600/);
+  });
+
+  test("a clean roster scores both dimensions at the top", () => {
+    const health = computeSiteHealth({ users: users() });
+    expect(dim(health, "user-licence-hygiene").score).toBe(100);
+    expect(dim(health, "user-ownership").score).toBe(100);
+  });
+
+  test("licence hygiene is available even before any ownership data joins", () => {
+    const health = computeSiteHealth({ users: users({ ownedArtifactTotal: 0 }) });
+    expect(dim(health, "user-licence-hygiene").available).toBe(true);
+    expect(dim(health, "user-ownership").available).toBe(false);
+    expect(dim(health, "user-ownership").reason).toMatch(/ownership data/i);
+  });
+
+  test("marks both people dimensions unavailable when no roster has been built", () => {
+    const health = computeSiteHealth({ fieldUsage: fieldUsage() });
+    for (const key of ["user-licence-hygiene", "user-ownership"]) {
+      expect(dim(health, key).available).toBe(false);
+      expect(dim(health, key).reason).toMatch(/no licensed-user roster/i);
+    }
+  });
+
+  test("the people pillar is weighted 1 and rolls its two dimensions up", () => {
+    const health = computeSiteHealth({ users: users({ deactivatedUsers: 40 }) });
+    const pillar = health.pillars.find((p) => p.key === "users");
+    expect(pillar.total).toBe(2);
     expect(pillar.available).toBe(true);
   });
 });

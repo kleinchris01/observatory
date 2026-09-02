@@ -3,6 +3,11 @@ import { describe, test, expect, vi } from "vitest";
 // site-health.js reaches the store for the workflow and screen pillars, so the store is
 // mocked wholesale. Nothing below exercises those paths -- these tests are about
 // buildProjectInsights, which is pure -- but the imports have to resolve.
+const userStore = {
+  readUserSnapshotMeta: vi.fn(async () => null),
+  loadUsers: vi.fn(async () => []),
+  loadUserGovernanceSummary: vi.fn(async () => ({})),
+};
 vi.mock("./project-store.js", () => ({
   loadIssueScanProjectTotals: vi.fn(async () => []),
   loadScreenGovernanceSummary: vi.fn(async () => ({})),
@@ -12,12 +17,18 @@ vi.mock("./project-store.js", () => ({
   loadWorkflowSchemes: vi.fn(async () => []),
   readScreenSnapshotMeta: vi.fn(async () => null),
   readWorkflowSnapshotMeta: vi.fn(async () => null),
+  readFilterSnapshotMeta: vi.fn(async () => null),
+  readDashboardSnapshotMeta: vi.fn(async () => null),
+  loadFilters: vi.fn(async () => []),
+  loadDashboards: vi.fn(async () => []),
+  ...userStore,
 }));
 vi.mock("./store/automation.js", () => ({
   loadStatusAutomationReferences: vi.fn(async () => ({})),
+  readAutomationPart: vi.fn(async () => null),
 }));
 
-const { buildProjectInsights, buildFieldUsageInsights, captureSiteHealth } = await import("./site-health.js");
+const { buildProjectInsights, buildFieldUsageInsights, captureSiteHealth, buildUserOverview } = await import("./site-health.js");
 
 // The fields pillar scores duplicate naming once, through the dedicated field-naming
 // dimension (built from duplicateClusters). The per-field "duplicate-naming" finding must
@@ -54,6 +65,49 @@ describe("captureSiteHealth — missing deps", () => {
   test("no-ops instead of throwing when called without its dependencies", async () => {
     await expect(captureSiteHealth("inst")).resolves.toEqual({ recorded: false, reason: "missing-deps" });
     await expect(captureSiteHealth("inst", {})).resolves.toEqual({ recorded: false, reason: "missing-deps" });
+  });
+});
+
+// buildUserOverview is the People pillar's health input: it joins the licensed roster
+// against the seat summary and the filter/dashboard/rule ownership index, then hands
+// computeSiteHealth a small `health` object. It must report unavailable, never zero, when
+// no roster has been built.
+describe("buildUserOverview", () => {
+  test("reports unavailable when no user snapshot exists", async () => {
+    userStore.readUserSnapshotMeta.mockResolvedValueOnce(null);
+    const overview = await buildUserOverview("inst");
+    expect(overview.available).toBe(false);
+    expect(overview.health).toBeUndefined();
+  });
+
+  test("derives deactivated count from the seat summary, not the roster length", async () => {
+    userStore.readUserSnapshotMeta.mockResolvedValueOnce({ version: "v1", state: "ready", refreshedAt: "2026-09-01T00:00:00Z" });
+    userStore.loadUsers.mockResolvedValueOnce([{ accountId: "a1" }, { accountId: "a2" }]);
+    userStore.loadUserGovernanceSummary.mockResolvedValueOnce({ totalUsers: 500, activeUsers: 470 });
+
+    const overview = await buildUserOverview("inst");
+    expect(overview.available).toBe(true);
+    expect(overview.totalUsers).toBe(500);
+    expect(overview.deactivatedUsers).toBe(30);
+    expect(overview.health).toMatchObject({ available: true, totalUsers: 500, deactivatedUsers: 30 });
+  });
+
+  test("counts owned artifacts whose owner is off the roster as orphaned", async () => {
+    userStore.readUserSnapshotMeta.mockResolvedValueOnce({ version: "v1", state: "ready" });
+    userStore.loadUsers.mockResolvedValueOnce([{ accountId: "a1" }]);
+    userStore.loadUserGovernanceSummary.mockResolvedValueOnce({ totalUsers: 1, activeUsers: 1 });
+    const store = await import("./project-store.js");
+    store.readFilterSnapshotMeta.mockResolvedValueOnce({ version: "f1" });
+    store.loadFilters.mockResolvedValueOnce([
+      { id: "10", name: "Mine", ownerAccountId: "a1" },
+      { id: "11", name: "Ghost", ownerAccountId: "gone" },
+    ]);
+
+    const overview = await buildUserOverview("inst");
+    expect(overview.ownedArtifactTotal).toBe(2);
+    expect(overview.orphanedArtifacts).toBe(1);
+    expect(overview.orphanedOwners).toBe(1);
+    expect(overview.health).toMatchObject({ orphanedArtifacts: 1, ownedArtifactTotal: 2 });
   });
 });
 

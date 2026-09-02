@@ -19,7 +19,7 @@ import { HEALTH_PILLARS } from "../../../src/lib/health-score";
 // omitted rather than rendered as zero, because "0 duplicate statuses" and "we have never
 // looked for duplicate statuses" are completely different statements.
 
-function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, screens, issueTypes, automation, filters, dashboards, onNavigate }) {
+function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, screens, issueTypes, users, automation, filters, dashboards, onNavigate }) {
   const findings = [];
 
   if (findingsSummary?.adminAttention > 0) {
@@ -688,6 +688,38 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
     });
   }
 
+  // ── People ─────────────────────────────────────────────────────────────
+  // "people-findings" is not a scored dimension key -- the scored cards state the rate,
+  // these state the list to act on, same split as screens and issue types.
+
+  if (users?.available && users.deactivatedUsers > 0) {
+    findings.push({
+      key: "people-deactivated-licence",
+      dimension: "people-findings",
+      pillar: "users",
+      tone: "warning",
+      count: users.deactivatedUsers,
+      title: "Deactivated accounts still holding a licence",
+      detail: "They count against the seat total and clutter every user picker until the licence is reclaimed.",
+      onOpen: () => onNavigate("people", { view: "roster" }),
+      openLabel: "People",
+    });
+  }
+
+  if (users?.available && users.orphanedArtifacts > 0) {
+    findings.push({
+      key: "people-orphaned-ownership",
+      dimension: "people-findings",
+      pillar: "users",
+      tone: "warning",
+      count: users.orphanedArtifacts,
+      title: "Filters, dashboards and rules with no owner on the roster",
+      detail: `${users.orphanedOwners} account${users.orphanedOwners === 1 ? "" : "s"} no longer licensed still own site config — nobody can be asked to fix or retire it.`,
+      onOpen: () => onNavigate("people", { view: "overview" }),
+      openLabel: "People",
+    });
+  }
+
   // ── Projects ────────────────────────────────────────────────────────────
 
   // The month histogram behind every adoption figure has stopped near a fixed month -- a
@@ -1170,11 +1202,11 @@ function RqtPanel({ onOpenRqtIndex }) {
   );
 }
 
-export function OverviewDashboard({ dashboard, findingsSummary, findingsByCode, workflow, screens, issueTypes, automation, filters, dashboards, health, history, onOpenRqtIndex, onNavigate }) {
+export function OverviewDashboard({ dashboard, findingsSummary, findingsByCode, workflow, screens, issueTypes, users, automation, filters, dashboards, health, history, onOpenRqtIndex, onNavigate }) {
   // onNavigate is optional so this stays renderable in isolation; without it the deep
   // links become inert rather than throwing.
   const navigate = onNavigate || (() => {});
-  const findings = buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, screens, issueTypes, automation, filters, dashboards, onNavigate: navigate });
+  const findings = buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, screens, issueTypes, users, automation, filters, dashboards, onNavigate: navigate });
   // A caller may pass history in -- tests do -- but nobody has to.
   const fetched = useHealthHistory();
   const series = history ?? fetched;

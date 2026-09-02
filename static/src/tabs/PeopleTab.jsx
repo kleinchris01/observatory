@@ -2,7 +2,7 @@ import React from "react";
 import { invoke } from "@forge/bridge";
 import { formatNumber, formatRelativeTime } from "../utils";
 import { Icon } from "../components/Icons";
-import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, PanelGrid, BarList } from "../components/ui";
+import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, PanelGrid, GridSpan, PillarHealthPanel, BarList } from "../components/ui";
 import { SubNavLayout } from "../components/admin/primitives";
 import { useVisiblePolling } from "../hooks";
 
@@ -150,6 +150,17 @@ export function PeopleTab() {
 
   React.useEffect(() => { load(); }, [load]);
 
+  // The People pillar of the site health score, fetched on its own so this tab shows the
+  // same governance reading the Overview does -- matching ScreensTab and IssueTypesTab.
+  const [pillar, setPillar] = React.useState(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    invoke("getPillarHealth", { pillar: "users" })
+      .then((result) => { if (!cancelled) setPillar(result?.pillar || null); })
+      .catch(() => { if (!cancelled) setPillar(null); });
+    return () => { cancelled = true; };
+  }, [data?.refreshedAt]);
+
   const isBuilding = ["building", "queued"].includes(data?.state) && !data?.staleBuild;
   useVisiblePolling(isBuilding, load, BUILD_POLL_MS);
 
@@ -295,6 +306,10 @@ export function PeopleTab() {
       <SubNavLayout items={items} activeKey={view} onSelect={setView}>
         {view === "overview" && (
           <PanelGrid>
+            <GridSpan>
+              <PillarHealthPanel pillar={pillar} />
+            </GridSpan>
+
             <Panel
               title="Seats by product"
               icon="barChart"

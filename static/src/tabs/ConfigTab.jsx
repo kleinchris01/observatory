@@ -170,6 +170,8 @@ const DEFAULT_TOLERANCES = {
   unusedTypeSchemes: 0.40,
   duplicateIssueTypeNames: 0.15,
   brokenTypeHierarchy: 0.25,
+  deactivatedLicenceHolders: 0.05,
+  orphanedOwnership: 0.10,
 };
 
   const [local, setLocal] = React.useState(() => {
@@ -788,6 +790,20 @@ function RulesArea({ t, setThreshold, pct, setTolerancePercent }) {
             tail="of issue types duplicating another's name. A Bug / Defect split makes every by-type report wrong." />
           <ToleranceRule tone="risk" badge="Issue type" name="Broken type hierarchy" pct={pct} set={setTolerancePercent} k="brokenTypeHierarchy"
             tail="of schemes with only sub-tasks, or an uncreatable default type — an issue cannot be started." />
+        </div>
+      </ConfigSection>
+
+      <ConfigSection title="People" icon="user">
+        <p className="admin-config-section__desc">
+          Licence waste and orphaned ownership. A deactivated account in an access group is a
+          seat being paid for; a filter or dashboard whose owner is gone breaks the moment Jira
+          purges the account.
+        </p>
+        <div className="admin-threshold-rules">
+          <ToleranceRule tone="risk" badge="People" name="Deactivated licence holders" pct={pct} set={setTolerancePercent} k="deactivatedLicenceHolders"
+            tail="of licensed accounts that Jira has deactivated — a paid seat and a login that should not exist." />
+          <ToleranceRule tone="risk" badge="People" name="Orphaned ownership" pct={pct} set={setTolerancePercent} k="orphanedOwnership"
+            tail="of owned filters, dashboards and rules whose owner is not in the licensed roster." />
         </div>
       </ConfigSection>
 

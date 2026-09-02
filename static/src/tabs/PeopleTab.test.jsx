@@ -109,6 +109,28 @@ describe("PeopleTab", () => {
     expect(screen.getByText("Filters")).toBeInTheDocument();
   });
 
+  test("shows the People pillar of the site health score on the overview", async () => {
+    invoke.mockImplementation((fn) => {
+      if (fn === "getUserInventory") return Promise.resolve(roster());
+      if (fn === "getPillarHealth") return Promise.resolve({
+        pillar: {
+          key: "users", available: true, score: 74, grade: "C", total: 2,
+          dimensions: [
+            { key: "user-licence-hygiene", label: "Licence hygiene", available: true, score: 60, detail: "12 of 500 accounts are deactivated." },
+            { key: "user-ownership", label: "Ownership continuity", available: true, score: 88, detail: "5 of 300 owned artifacts are orphaned." },
+          ],
+        },
+      });
+      return Promise.resolve({});
+    });
+    render(<PeopleTab />);
+
+    await screen.findByText("People");
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("getPillarHealth", { pillar: "users" }));
+    expect(await screen.findByText("Licence hygiene")).toBeInTheDocument();
+    expect(screen.getByText("Ownership continuity")).toBeInTheDocument();
+  });
+
   test("queues a build and reports it", async () => {
     invoke.mockImplementation((fn) => {
       if (fn === "getUserInventory") return Promise.resolve(roster());
