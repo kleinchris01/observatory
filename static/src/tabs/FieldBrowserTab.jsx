@@ -2,7 +2,7 @@ import React from "react";
 import { invoke, view } from "@forge/bridge";
 import { openFieldExpertRovo, buildFieldRovoPrompt, buildProjectRovoPrompt, buildReportRovoPrompt } from "../utils";
 import { Icon } from "../components/Icons";
-import { Chip, EmptyState } from "../components/ui";
+import { Chip, EmptyState, SortFilterBar } from "../components/ui";
 import { useNavIntent } from "../hooks";
 import { FieldCard } from "../components/FieldCard";
 
@@ -25,6 +25,18 @@ const FINDINGS_FILTER_LABELS = {
   "context-sprawl": "Context sprawl",
   "missing-description": "Missing description",
 };
+const FIELD_SORT_OPTIONS = [
+  { value: "name-asc", label: "Name A–Z" },
+  { value: "name-desc", label: "Name Z–A" },
+  { value: "usage-desc", label: "Most issues with value" },
+  { value: "usage-asc", label: "Fewest issues with value" },
+  { value: "active-projects-desc", label: "Most active projects" },
+  { value: "active-projects-asc", label: "Fewest active projects" },
+  { value: "contexts-desc", label: "Most contexts" },
+  { value: "contexts-asc", label: "Fewest contexts" },
+  { value: "priority-desc", label: "Highest priority" },
+];
+
 // The largest single tab, and the one most worth testing in isolation.
 
 export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSelectedFieldIds, onGoToReport, siteOrigin, intent = null }) {
@@ -235,7 +247,6 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
 
   const activeFilterCount = React.useMemo(() => {
     let count = 0;
-    if (typeFilter !== "all") count++;
     if (fieldOrigin !== "all") count++;
     if (projectUsageFilter !== "all") count++;
     if (hasDescription !== "all") count++;
@@ -249,7 +260,6 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
     if (maxContexts !== "") count++;
     return count;
   }, [
-    typeFilter,
     fieldOrigin,
     projectUsageFilter,
     hasDescription,
@@ -443,37 +453,23 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
     <div className="admin-field-browser">
       {/* Primary toolbar */}
       <div className="admin-field-browser__toolbar">
-        <input
-          type="search"
-          placeholder="Field name, ID, or description…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          className="admin-jobs-search"
-          aria-label="Search fields"
-        />
-        <select
-          aria-label="Field type"
-          value={typeFilter}
-          onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }}
+        <SortFilterBar
+          search={query}
+          onSearchChange={setQuery}
+          searchLabel="Search fields"
+          searchPlaceholder="Field name, ID, or description…"
+          sort={sortBy}
+          onSortChange={(value) => { setSortBy(value); setPage(1); }}
+          sortOptions={FIELD_SORT_OPTIONS}
+          filters={[{
+            key: "type",
+            label: "Type",
+            value: typeFilter,
+            onChange: (value) => { setTypeFilter(value); setPage(1); },
+            options: [{ value: "all", label: "All types" }, ...availableTypes.map((t) => ({ value: t, label: t }))],
+          }]}
+          onClear={clearAllFilters}
         >
-          <option value="all">All types</option>
-          {availableTypes.map((t) => <option key={t} value={t}>{t}</option>)}
-        </select>
-        <select
-          aria-label="Sort by"
-          value={sortBy}
-          onChange={(e) => { setSortBy(e.target.value); setPage(1); }}
-        >
-          <option value="name-asc">Name A–Z</option>
-          <option value="name-desc">Name Z–A</option>
-          <option value="usage-desc">Most issues with value</option>
-          <option value="usage-asc">Fewest issues with value</option>
-          <option value="active-projects-desc">Most active projects</option>
-          <option value="active-projects-asc">Fewest active projects</option>
-          <option value="contexts-desc">Most contexts</option>
-          <option value="contexts-asc">Fewest contexts</option>
-          <option value="priority-desc">Highest priority</option>
-        </select>
         <div className="admin-field-browser__filter-anchor" ref={filterPanelRef}>
           <button
             type="button"
@@ -612,6 +608,7 @@ export function FieldBrowserTab({ selectedFieldIds = [], onToggleField, onSetSel
             </div>
           )}
         </div>
+        </SortFilterBar>
         {activeFilterCount > 0 && (
           <button
             type="button"

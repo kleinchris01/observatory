@@ -2,7 +2,7 @@ import React from "react";
 import { invoke } from "@forge/bridge";
 import { formatNumber, formatRelativeTime } from "../utils";
 import { Icon } from "../components/Icons";
-import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, PanelGrid, GridSpan, PillarHealthPanel, BarList } from "../components/ui";
+import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, PanelGrid, GridSpan, PillarHealthPanel, BarList, SortFilterBar } from "../components/ui";
 import { SubNavLayout } from "../components/admin/primitives";
 import { useVisiblePolling } from "../hooks";
 
@@ -31,6 +31,10 @@ function shortProduct(key) {
     .replace("product-discovery", "product discovery");
 }
 
+function ownsCount(user) {
+  return (Number(user.ownedFilters) || 0) + (Number(user.ownedDashboards) || 0) + (Number(user.authoredRules) || 0);
+}
+
 function ownsSummary(user) {
   const parts = [];
   if (user.ownedFilters) parts.push(`${user.ownedFilters} filter${user.ownedFilters === 1 ? "" : "s"}`);
@@ -42,7 +46,7 @@ function ownsSummary(user) {
 function OwnedList({ title, items, empty }) {
   return (
     <div className="ui-split__col">
-      <h4 className="ui-subhead">{title}</h4>
+      <h4 className="ui-subhead">{title} <span className="people-owned__count">{items.length || ""}</span></h4>
       {items.length ? (
         <ul className="people-owned-list">
           {items.map((it) => (
@@ -64,17 +68,23 @@ function OwnedList({ title, items, empty }) {
 function UserRow({ user, expanded, detail, detailLoading, onToggle }) {
   const owns = ownsSummary(user);
   return (
-    <div className={`issue-type-row people-row${expanded ? " people-row--open" : ""}`}>
-      <button type="button" className="people-row__head" onClick={() => onToggle(user.accountId)}>
-        <div className="issue-type-row__identity">
-          <span className="issue-type-row__name">{user.displayName}</span>
-          <span className="issue-type-row__desc">
+    <div className={`people-row${expanded ? " people-row--open" : ""}`}>
+      <button
+        type="button"
+        className="people-row__head"
+        onClick={() => onToggle(user.accountId)}
+        aria-expanded={expanded}
+      >
+        <span className="people-row__chevron" aria-hidden="true">{expanded ? "▾" : "▸"}</span>
+        <span className="people-row__identity">
+          <span className="people-row__name">{user.displayName}</span>
+          <span className="people-row__via">
             {user.groups.length
               ? `via ${user.groups.map((g) => g.name).join(", ")}`
               : "no access group recorded"}
           </span>
-        </div>
-        <div className="issue-type-row__meta">
+        </span>
+        <span className="people-row__meta">
           {owns && <Chip tone="neutral" title="Filters, dashboards and automation rules this user owns">owns {owns}</Chip>}
           {user.applications.map((p) => (
             <Chip key={p.key} tone="neutral" title={`Licensed for ${p.name}`}>{shortProduct(p.key)}</Chip>
@@ -83,7 +93,7 @@ function UserRow({ user, expanded, detail, detailLoading, onToggle }) {
             <Chip tone="warning" title="This account is an app, not a person">app</Chip>
           )}
           {!user.active && <Chip tone="critical" title="Deactivated in Jira">inactive</Chip>}
-        </div>
+        </span>
       </button>
 
       {expanded && (
@@ -109,6 +119,39 @@ function UserRow({ user, expanded, detail, detailLoading, onToggle }) {
   );
 }
 
+const ROSTER_SORTS = [
+  { value: "name-asc", label: "Name A–Z" },
+  { value: "name-desc", label: "Name Z–A" },
+  { value: "owned-desc", label: "Most owned" },
+  { value: "products-desc", label: "Most products" },
+];
+
+const ROSTER_FILTERS = [
+  { value: "all", label: "Everyone" },
+  { value: "app", label: "App accounts" },
+  { value: "inactive", label: "Deactivated" },
+  { value: "multi", label: "Multi-product" },
+  { value: "owners", label: "Owns config" },
+];
+
+function matchesRosterFilter(user, filter) {
+  if (filter === "app") return user.accountType === "app";
+  if (filter === "inactive") return !user.active;
+  if (filter === "multi") return (user.applications?.length ?? 0) > 1;
+  if (filter === "owners") return ownsCount(user) > 0;
+  return true;
+}
+
+function sortRoster(users, sort) {
+  const by = {
+    "name-asc": (a, b) => a.displayName.localeCompare(b.displayName),
+    "name-desc": (a, b) => b.displayName.localeCompare(a.displayName),
+    "owned-desc": (a, b) => ownsCount(b) - ownsCount(a) || a.displayName.localeCompare(b.displayName),
+    "products-desc": (a, b) => (b.applications?.length ?? 0) - (a.applications?.length ?? 0) || a.displayName.localeCompare(b.displayName),
+  };
+  return [...users].sort(by[sort] || by["name-asc"]);
+}
+
 export function PeopleTab() {
   const [view, setView] = React.useState("overview");
   const [data, setData] = React.useState(null);
@@ -117,6 +160,8 @@ export function PeopleTab() {
   const [notice, setNotice] = React.useState("");
   const [building, setBuilding] = React.useState(false);
   const [search, setSearch] = React.useState("");
+  const [sort, setSort] = React.useState("name-asc");
+  const [rosterFilter, setRosterFilter] = React.useState("all");
   const [openUser, setOpenUser] = React.useState(null);
   const [details, setDetails] = React.useState({});   // accountId -> detail
   const [detailLoading, setDetailLoading] = React.useState(false);
@@ -241,15 +286,18 @@ export function PeopleTab() {
     0
   );
 
+  const allUsers = data?.users || [];
   const roster = (() => {
     const term = search.trim().toLowerCase();
-    const all = data?.users || [];
-    if (!term) return all;
-    return all.filter((u) =>
-      u.displayName.toLowerCase().includes(term) ||
-      u.accountId.toLowerCase().includes(term) ||
-      u.applications.some((p) => shortProduct(p.key).includes(term)) ||
-      u.groups.some((gr) => gr.name.toLowerCase().includes(term)));
+    let rows = allUsers.filter((u) => matchesRosterFilter(u, rosterFilter));
+    if (term) {
+      rows = rows.filter((u) =>
+        u.displayName.toLowerCase().includes(term) ||
+        u.accountId.toLowerCase().includes(term) ||
+        u.applications.some((p) => shortProduct(p.key).includes(term)) ||
+        u.groups.some((gr) => gr.name.toLowerCase().includes(term)));
+    }
+    return sortRoster(rows, sort);
   })();
 
   const items = [
@@ -383,18 +431,29 @@ export function PeopleTab() {
             title="Licensed users"
             icon="user"
             description="Everyone in an access group, with the products they hold and the group they hold them through."
-            actions={
-              <input
-                type="search"
-                className="admin-jobs-search__input"
-                placeholder="Filter by name, product or group…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            }
           >
+            <SortFilterBar
+              search={search}
+              onSearchChange={setSearch}
+              searchLabel="Search the roster"
+              searchPlaceholder="Search by name, account id, product or group…"
+              sort={sort}
+              onSortChange={setSort}
+              sortOptions={ROSTER_SORTS}
+              filters={[{
+                key: "roster",
+                label: "Show",
+                value: rosterFilter,
+                onChange: setRosterFilter,
+                options: ROSTER_FILTERS,
+              }]}
+              resultCount={roster.length}
+              totalCount={allUsers.length}
+              onClear={() => { setSearch(""); setSort("name-asc"); setRosterFilter("all"); }}
+            />
+
             {roster.length ? (
-              <div className="issue-type-list">
+              <div className="people-list">
                 {roster.map((user) => (
                   <UserRow
                     key={user.accountId}
@@ -407,7 +466,7 @@ export function PeopleTab() {
                 ))}
               </div>
             ) : (
-              <EmptyState inline>{search ? "No users match that filter." : "No licensed users in this roster."}</EmptyState>
+              <EmptyState inline>{search || rosterFilter !== "all" ? "No users match that filter." : "No licensed users in this roster."}</EmptyState>
             )}
           </Panel>
         )}

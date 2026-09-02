@@ -72,6 +72,29 @@ describe("PeopleTab", () => {
     expect(screen.getByText("app")).toBeInTheDocument();
   });
 
+  test("the roster toolbar filters by search and by the Show select", async () => {
+    invoke.mockImplementation((fn) => fn === "getUserInventory" ? Promise.resolve(roster()) : Promise.resolve({}));
+    render(<PeopleTab />);
+    await screen.findByText("People");
+    await userEvent.click(screen.getByRole("button", { name: /^Roster/ }));
+    await screen.findByText("Ann Admin");
+
+    // Search narrows the list and the count reflects it.
+    await userEvent.type(screen.getByRole("searchbox", { name: /search the roster/i }), "bot");
+    expect(screen.queryByText("Ann Admin")).not.toBeInTheDocument();
+    expect(screen.getByText("Bot Account")).toBeInTheDocument();
+    expect(screen.getByText("1 of 2 matching")).toBeInTheDocument();
+
+    // Clear all resets it.
+    await userEvent.click(screen.getByRole("button", { name: /clear all/i }));
+    expect(await screen.findByText("Ann Admin")).toBeInTheDocument();
+
+    // The Show select keeps only app accounts.
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: /show/i }), "app");
+    expect(screen.queryByText("Ann Admin")).not.toBeInTheDocument();
+    expect(screen.getByText("Bot Account")).toBeInTheDocument();
+  });
+
   test("shows an owns-summary chip and expands to the owned artifacts on click", async () => {
     invoke.mockImplementation((fn, payload) => {
       if (fn === "getUserInventory") return Promise.resolve(roster());
