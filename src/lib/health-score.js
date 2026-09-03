@@ -108,6 +108,11 @@ export const DEFAULT_HEALTH_TOLERANCES = {
   unusedAccessSchemes: 0.35,
   brokenSecurityLevels: 0.15,
   fragileNotificationSchemes: 0.30,
+  // Project roles. A project whose admin role has no group or user in it can only be
+  // administered by a site admin -- a real gap, bounded tight. An off-roster account still
+  // sitting in a role is licence-adjacent cleanup.
+  projectsWithoutRoleAdmin: 0.10,
+  offRosterRoleActors: 0.05,
   // Global value lists. A duplicated resolution silently splits every resolution-based
   // report, so it is bounded fairly tight; priorities duplicate far less often and matter
   // less when they do.
@@ -172,6 +177,9 @@ export const PILLAR_WEIGHTS = {
   permissions: 1.5,
   security: 1,
   notifications: 0.5,
+  // Who is in which project role. A project with an empty admin role is a real
+  // administrability gap, so this weighs the same as issue security.
+  roles: 1,
   // The global value lists. Small surface, low blast radius -- a naming-hygiene pillar, not
   // a correctness one.
   estate: 0.5,
@@ -189,6 +197,7 @@ export const HEALTH_PILLARS = [
   { key: "permissions", label: "Permission schemes" },
   { key: "security", label: "Issue security" },
   { key: "notifications", label: "Notification schemes" },
+  { key: "roles", label: "Project roles" },
   { key: "estate", label: "Priorities and resolutions" },
   { key: "automation", label: "Automation" },
   { key: "projects", label: "Projects" },
@@ -216,7 +225,7 @@ export function resolveHealthTolerances(overrides = {}) {
   return out;
 }
 
-export function computeSiteHealth({ fieldUsage, workflow, projects, automation, screens, adoption, filters, dashboards, issueTypes, users, assets, permissions, security, notifications, estate, tolerances } = {}) {
+export function computeSiteHealth({ fieldUsage, workflow, projects, automation, screens, adoption, filters, dashboards, issueTypes, users, assets, permissions, security, notifications, roles, estate, tolerances } = {}) {
   const TOLERANCE = resolveHealthTolerances(tolerances);
   const dimensions = [];
 
@@ -1187,6 +1196,40 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
   } else {
     dimensions.push(unavailable("notification-routing", "Routing resilience", "notifications", noAccess));
     dimensions.push(unavailable("notification-scheme-sprawl", "Scheme sprawl", "notifications", noAccess));
+  }
+
+  // ── Project roles & actors ───────────────────────────────────────────────
+  if (roles?.available && roles.projectsWithRoles > 0) {
+    const missing = Number(roles.projectsMissingAdminActorCount) || 0;
+    dimensions.push({
+      key: "role-admin-coverage",
+      label: "Admin coverage",
+      pillar: "roles",
+      available: true,
+      weight: 1.5,
+      score: scoreFromRate(missing / roles.projectsWithRoles, TOLERANCE.projectsWithoutRoleAdmin),
+      detail: missing === 0
+        ? `Every project with roles has a group or user in its administrator role.`
+        : `${missing} of ${roles.projectsWithRoles} projects have an empty administrator role — only a site admin can administer them.`,
+      action: missing > 0 ? "Add a group to the project's administrator role; a project only a site admin can manage is a project nobody manages." : null,
+    });
+    const off = Number(roles.offRosterActorCount) || 0;
+    const denom = Math.max(1, Number(roles.directUserActorCount) || 0);
+    dimensions.push({
+      key: "role-actor-hygiene",
+      label: "Actor hygiene",
+      pillar: "roles",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(off / denom, TOLERANCE.offRosterRoleActors),
+      detail: off === 0
+        ? `No project-role actor is an account off the licensed roster.`
+        : `${off} project-role actors are accounts no longer on the licensed roster.`,
+      action: off > 0 ? "Remove the off-roster accounts from their project roles." : null,
+    });
+  } else {
+    dimensions.push(unavailable("role-admin-coverage", "Admin coverage", "roles", noAccess));
+    dimensions.push(unavailable("role-actor-hygiene", "Actor hygiene", "roles", noAccess));
   }
 
   // ── Estate config: the global value lists ─────────────────────────────────

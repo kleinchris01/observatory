@@ -1756,7 +1756,13 @@ const projectStoreMigrations = migrationRunner
 
   // ── v143-v144: estate config — the global value lists (resolutions, priorities) ──
   .enqueue("v143_create_snapshot_estate_values_table", CREATE_SNAPSHOT_ESTATE_VALUES_TABLE)
-  .enqueue("v144_create_estate_snapshot_meta_table", CREATE_ESTATE_SNAPSHOT_META_TABLE);
+  .enqueue("v144_create_estate_snapshot_meta_table", CREATE_ESTATE_SNAPSHOT_META_TABLE)
+
+  // ── v145: project roles fold into the access pillar (scheme_type = 'project-role') ──
+  .enqueue(
+    "v145_alter_access_snapshot_meta_add_project_roles",
+    "ALTER TABLE access_snapshot_meta ADD COLUMN IF NOT EXISTS total_project_roles INTEGER NOT NULL DEFAULT 0"
+  );
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history

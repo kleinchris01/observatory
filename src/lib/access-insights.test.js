@@ -3,6 +3,7 @@ import {
   summarizePermissionInsights, summarizePermissionHealth,
   summarizeSecurityInsights, summarizeSecurityHealth,
   summarizeNotificationInsights, summarizeNotificationHealth,
+  summarizeRoleInsights, summarizeRoleHealth,
 } from "./access-insights.js";
 
 const roster = new Set(["acc-1", "acc-2"]);
@@ -94,12 +95,45 @@ describe("summarizeNotificationInsights", () => {
   });
 });
 
+describe("summarizeRoleInsights", () => {
+  const roles = [
+    { id: "10002", name: "Administrators" },
+    { id: "10003", name: "Members" },
+  ];
+  // holders: user|group actors, plus an "empty" sentinel for a (role, project) with nobody.
+  const holders = [
+    { schemeId: "10002", context: "1", contextLabel: "OPS", holderType: "group", holderValue: "g-admins", holderLabel: "admins" },
+    { schemeId: "10002", context: "2", contextLabel: "DEV", holderType: "empty", holderValue: "", holderLabel: "Administrators" },
+    { schemeId: "10003", context: "1", contextLabel: "OPS", holderType: "user", holderValue: "acc-1" },
+    { schemeId: "10003", context: "2", contextLabel: "DEV", holderType: "user", holderValue: "acc-gone" },
+  ];
+
+  test("counts projects whose admin role has no actor, and off-roster actors", () => {
+    const s = summarizeRoleInsights({ roles, holders, rosterAccountIds: roster });
+    expect(s.available).toBe(true);
+    expect(s.totalRoles).toBe(2);
+    expect(s.projectsWithRoles).toBe(2);            // OPS, DEV
+    expect(s.projectsMissingAdminActorCount).toBe(1); // DEV's Administrators is the empty sentinel
+    expect(s.projectsMissingAdminActor[0]).toMatchObject({ projectKey: "DEV", role: "Administrators" });
+    expect(s.directUserActorCount).toBe(2);
+    expect(s.offRosterActorCount).toBe(1);          // acc-gone
+  });
+
+  test("health carries the coverage inputs, and unavailable follows an empty input", () => {
+    const s = summarizeRoleInsights({ roles, holders, rosterAccountIds: roster });
+    expect(summarizeRoleHealth(s)).toMatchObject({ available: true, projectsWithRoles: 2, projectsMissingAdminActorCount: 1 });
+    expect(summarizeRoleInsights({}).available).toBe(false);
+    expect(summarizeRoleHealth(summarizeRoleInsights({}))).toEqual({ available: false });
+  });
+});
+
 describe("unmeasured", () => {
   test("every summariser reports unavailable on an empty input, and health follows", () => {
     for (const [ins, hp] of [
       [summarizePermissionInsights({}), summarizePermissionHealth],
       [summarizeSecurityInsights({}), summarizeSecurityHealth],
       [summarizeNotificationInsights({}), summarizeNotificationHealth],
+      [summarizeRoleInsights({}), summarizeRoleHealth],
     ]) {
       expect(ins.available).toBe(false);
       expect(hp(ins)).toEqual({ available: false });

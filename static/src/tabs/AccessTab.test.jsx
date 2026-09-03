@@ -67,6 +67,22 @@ const inventory = (over = {}) => ({
       fragileSchemes: [{ id: "n1", name: "Prod notifications", namedUserCount: 1 }],
     },
   },
+  roles: {
+    schemes: [
+      { id: "10002", name: "Administrators", description: "", projectCount: 1 },
+      { id: "10003", name: "Members", description: "", projectCount: 2 },
+    ],
+    holders: [
+      { schemeId: "10002", context: "1", contextLabel: "OPS", holderType: "group", holderValue: "g-admins", holderLabel: "site-admins" },
+      { schemeId: "10002", context: "2", contextLabel: "DEV", holderType: "empty", holderValue: "", holderLabel: "Administrators" },
+      { schemeId: "10003", context: "1", contextLabel: "OPS", holderType: "user", holderValue: "acc-1", holderLabel: "Ann" },
+    ],
+    governance: {
+      available: true, totalRoles: 2, projectsWithRoles: 2, projectsMissingAdminActorCount: 1,
+      offRosterActorCount: 0, directUserActorCount: 1,
+      projectsMissingAdminActor: [{ projectKey: "DEV", role: "Administrators" }],
+    },
+  },
   lastError: null,
   ...over,
 });
@@ -89,9 +105,24 @@ describe("AccessTab", () => {
     expect(await screen.findByText("Access")).toBeInTheDocument();
     expect(screen.getByText("Permission schemes")).toBeInTheDocument();
     expect(screen.getByText("Least-privilege flags")).toBeInTheDocument();
+    expect(screen.getByText("Empty admin roles")).toBeInTheDocument();
     expect(screen.getByText("Permission schemes that break least privilege")).toBeInTheDocument();
     expect(screen.getByText("Issue security levels nobody can see through")).toBeInTheDocument();
     expect(screen.getByText("Notification schemes routing to a named individual")).toBeInTheDocument();
+    expect(screen.getByText("Projects with an empty administrator role")).toBeInTheDocument();
+  });
+
+  test("the Project roles view lists each role and flags the empty admin role", async () => {
+    invoke.mockImplementation((fn) => fn === "getAccessInventory" ? Promise.resolve(inventory()) : Promise.resolve({}));
+    render(<AccessTab />);
+    await screen.findByText("Access");
+    await userEvent.click(screen.getByRole("button", { name: /^Project roles/ }));
+
+    expect(await screen.findByText("Administrators")).toBeInTheDocument();
+    expect(screen.getByText("empty on 1 project")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /Administrators/ }));
+    expect(await screen.findByText(/group: site-admins/i)).toBeInTheDocument();
   });
 
   test("permissions view lists schemes with their least-privilege flag and expands to the grants", async () => {

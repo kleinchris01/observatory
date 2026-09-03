@@ -89,11 +89,12 @@ function SchemeRow({ scheme, holders, flags, contextNoun, holderNoun }) {
 
 // The findings behind all three access pillars, one uniform list. Ordered most consequential
 // first: least-privilege failures, then data black holes, then fragile routing, then clutter.
-function AccessFindings({ permissions, security, notifications }) {
+function AccessFindings({ permissions, security, notifications, roles }) {
   const rows = [];
   const p = permissions?.governance || {};
   const s = security?.governance || {};
   const n = notifications?.governance || {};
+  const r = roles?.governance || {};
 
   if (p.riskySchemeCount > 0) {
     rows.push({
@@ -122,6 +123,21 @@ function AccessFindings({ permissions, security, notifications }) {
       tone: "warning", count: n.fragileSchemeCount,
       title: "Notification schemes routing to a named individual",
       detail: "The notification stops silently the day that person leaves. Route to a project role or group instead.",
+    });
+  }
+  if (r.projectsMissingAdminActorCount > 0) {
+    rows.push({
+      tone: "critical", count: r.projectsMissingAdminActorCount,
+      title: "Projects with an empty administrator role",
+      detail: "No group or user is in the project's admin role — only a site admin can administer it. "
+        + (r.projectsMissingAdminActor || []).slice(0, 6).map((x) => x.projectKey).join(", "),
+    });
+  }
+  if (r.offRosterActorCount > 0) {
+    rows.push({
+      tone: "warning", count: r.offRosterActorCount,
+      title: "Project-role actors off the licensed roster",
+      detail: "An account no longer licensed still sits in a project role.",
     });
   }
   const unused = (p.unusedSchemeCount || 0) + (s.unusedSchemeCount || 0) + (n.unusedSchemeCount || 0);
@@ -173,12 +189,14 @@ function AccessTabInner({ data, view, setView, search, setSearch, schemeSort, se
   const perm = data.permissions || {};
   const sec = data.security || {};
   const notif = data.notifications || {};
+  const role = data.roles || {};
 
   const items = [
     { key: "overview", label: "Overview", icon: "barChart" },
     { key: "permissions", label: "Permissions", icon: "shield", badge: formatNumber((perm.schemes || []).length) },
     { key: "security", label: "Issue security", icon: "lock", badge: formatNumber((sec.schemes || []).length) },
     { key: "notifications", label: "Notifications", icon: "bell", badge: formatNumber((notif.schemes || []).length) },
+    { key: "roles", label: "Project roles", icon: "user", badge: formatNumber((role.schemes || []).length) },
   ];
 
   return (
@@ -188,8 +206,9 @@ function AccessTabInner({ data, view, setView, search, setSearch, schemeSort, se
           <GridSpan><PillarHealthPanel pillar={pillars.permissions} /></GridSpan>
           <GridSpan><PillarHealthPanel pillar={pillars.security} /></GridSpan>
           <GridSpan><PillarHealthPanel pillar={pillars.notifications} /></GridSpan>
+          <GridSpan><PillarHealthPanel pillar={pillars.roles} /></GridSpan>
           <GridSpan>
-            <AccessFindings permissions={perm} security={sec} notifications={notif} />
+            <AccessFindings permissions={perm} security={sec} notifications={notif} roles={role} />
           </GridSpan>
           <GridSpan>
             <Panel title="Permission schemes by project reach" icon="shield" description="A scheme on hundreds of projects is not a local edit.">
@@ -293,6 +312,38 @@ function AccessTabInner({ data, view, setView, search, setSearch, schemeSort, se
           )}
         </Panel>
       )}
+
+      {view === "roles" && (
+        <Panel title="Project roles" icon="user" description="Each project role and who is in it, per project. Permission and notification schemes grant to these roles — an empty administrator role means only a site admin can manage that project.">
+          <SortFilterBar
+            search={search} onSearchChange={setSearch}
+            searchLabel="Search project roles" searchPlaceholder="Search roles by name…"
+            sort={schemeSort} onSortChange={setSchemeSort} sortOptions={SCHEME_SORTS}
+            resultCount={filterSchemes(role.schemes || [], role.governance).length}
+            totalCount={(role.schemes || []).length}
+            onClear={() => { setSearch(""); setSchemeSort("name-asc"); }}
+          />
+          {(role.schemes || []).length === 0 ? (
+            <EmptyState inline>No project roles in this snapshot.</EmptyState>
+          ) : (
+            <div className="access-list">
+              {filterSchemes(role.schemes, role.governance).map((s) => {
+                const emptyProjectKeys = (role.governance?.projectsMissingAdminActor || [])
+                  .filter((x) => x.role === s.name).map((x) => x.projectKey);
+                const flags = emptyProjectKeys.length
+                  ? [{ label: `empty on ${emptyProjectKeys.length} ${emptyProjectKeys.length === 1 ? "project" : "projects"}`, tone: "critical", title: `No actor on: ${emptyProjectKeys.slice(0, 12).join(", ")}` }]
+                  : [];
+                return (
+                  <SchemeRow
+                    key={s.id} scheme={{ ...s, projectCount: s.projectCount }} holders={role.holders || []}
+                    flags={flags} contextNoun="project" holderNoun="actors"
+                  />
+                );
+              })}
+            </div>
+          )}
+        </Panel>
+      )}
     </SubNavLayout>
   );
 }
@@ -328,16 +379,17 @@ export function AccessTab({ intent }) {
 
   // The three access pillars of the site health score, on their own so this tab shows the
   // same governance reading the Overview does -- matching IssueTypesTab and AssetsTab.
-  const [pillars, setPillars] = React.useState({ permissions: null, security: null, notifications: null });
+  const [pillars, setPillars] = React.useState({ permissions: null, security: null, notifications: null, roles: null });
   React.useEffect(() => {
     let cancelled = false;
     Promise.all([
       invoke("getPillarHealth", { pillar: "permissions" }).catch(() => null),
       invoke("getPillarHealth", { pillar: "security" }).catch(() => null),
       invoke("getPillarHealth", { pillar: "notifications" }).catch(() => null),
-    ]).then(([p, s, n]) => {
+      invoke("getPillarHealth", { pillar: "roles" }).catch(() => null),
+    ]).then(([p, s, n, r]) => {
       if (cancelled) return;
-      setPillars({ permissions: p?.pillar || null, security: s?.pillar || null, notifications: n?.pillar || null });
+      setPillars({ permissions: p?.pillar || null, security: s?.pillar || null, notifications: n?.pillar || null, roles: r?.pillar || null });
     });
     return () => { cancelled = true; };
   }, [data?.refreshedAt]);
@@ -428,6 +480,7 @@ export function AccessTab({ intent }) {
   const perm = data.permissions?.governance || {};
   const sec = data.security?.governance || {};
   const notif = data.notifications?.governance || {};
+  const roleGov = data.roles?.governance || {};
   const buildAgeDays = daysSince(data?.refreshedAt);
   const isStale = buildAgeDays != null && buildAgeDays > STALE_AFTER_DAYS;
 
@@ -465,6 +518,13 @@ export function AccessTab({ intent }) {
           hint={(notif.fragileSchemeCount ?? 0) > 0 ? "Route to a named person" : "Route to roles and groups"}
           tone={(notif.fragileSchemeCount ?? 0) > 0 ? "warning" : "success"}
           icon="bell"
+        />
+        <StatTile
+          label="Empty admin roles"
+          value={formatNumber(roleGov.projectsMissingAdminActorCount ?? 0)}
+          hint={(roleGov.projectsMissingAdminActorCount ?? 0) > 0 ? "Only a site admin can manage these" : "Every project has a role admin"}
+          tone={(roleGov.projectsMissingAdminActorCount ?? 0) > 0 ? "critical" : "success"}
+          icon="user"
         />
       </StatRow>
 

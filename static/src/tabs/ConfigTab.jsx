@@ -151,6 +151,70 @@ export function AssetsProbePanel() {
   );
 }
 
+// Global permissions: the access pillar covers PROJECT permission schemes. This probe asks
+// whether the Jira Cloud REST API also exposes which groups hold each GLOBAL permission --
+// as of writing it does not, and this confirms it against the live site rather than by
+// assumption.
+export function GlobalPermissionsProbePanel() {
+  const [result, setResult] = React.useState(null);
+  const [running, setRunning] = React.useState(false);
+  const [error, setError] = React.useState(null);
+
+  async function run() {
+    setRunning(true);
+    setError(null);
+    try {
+      setResult(await invoke("probeGlobalPermissions", {}));
+    } catch (err) {
+      setError(err?.message || "Probe failed.");
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  return (
+    <ConfigSection title="Global permissions API" icon="shield">
+      <p className="admin-config-row__hint" style={{ marginBottom: 10 }}>
+        The access pillar covers project permission schemes. A site-level global-permissions
+        view would need an endpoint that lists which groups hold ADMINISTER, SYSTEM_ADMIN and
+        the rest — this checks whether one exists on this site.
+      </p>
+
+      <button type="button" className="secondary-button" onClick={run} disabled={running}>
+        <Icon name="shield" size={13} />
+        {running ? "Probing…" : "Probe global-permissions API"}
+      </button>
+
+      {error && <div className="danger-zone__error" role="alert">{error}</div>}
+
+      {result && (
+        <div className="probe-results">
+          <p className="probe-results__summary">
+            {result.catalogAvailable
+              ? `Catalog readable — ${result.globalPermissionKeys.length} global permissions defined. `
+              : "The permission catalog did not answer. "}
+            {result.grantEnumerationAvailable
+              ? "Grant enumeration IS available — a global-permissions view can be built."
+              : "No endpoint enumerates global-permission holders, so a governance view is blocked on that gap."}
+          </p>
+          <table className="probe-results__table">
+            <thead><tr><th>Endpoint</th><th>Status</th><th>Note</th></tr></thead>
+            <tbody>
+              {result.rows.map((row) => (
+                <tr key={row.path} className={row.ok ? "probe-results__row--ok" : ""}>
+                  <td className="probe-results__path">{row.path}</td>
+                  <td>{row.status === null ? "—" : row.status}</td>
+                  <td>{row.note}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </ConfigSection>
+  );
+}
+
 export function ConfigTab({ config, onSave, saving }) {
 // Mirrors DEFAULT_HEALTH_TOLERANCES in src/lib/health-score.js. Stored as rates; shown as
 // percentages, because "flag once 15% of statuses are duplicates" is how an admin thinks
@@ -179,6 +243,8 @@ const DEFAULT_TOLERANCES = {
   unusedAccessSchemes: 0.35,
   brokenSecurityLevels: 0.15,
   fragileNotificationSchemes: 0.30,
+  projectsWithoutRoleAdmin: 0.10,
+  offRosterRoleActors: 0.05,
   duplicateResolutions: 0.15,
   duplicatePriorities: 0.20,
 };
@@ -351,6 +417,7 @@ function ConfigAreas({ area, local, t, set, setThreshold, setMacroAccess, pct, s
       <ScreenCostProbePanel />
       <AutomationProbePanel />
       <AssetsProbePanel />
+      <GlobalPermissionsProbePanel />
       <AuditLogPanel />
     </>
   );
@@ -847,6 +914,10 @@ function RulesArea({ t, setThreshold, pct, setTolerancePercent }) {
             tail="of notification schemes sending an event to a named individual rather than a role or group." />
           <ToleranceRule tone="cleanup" badge="Access" name="Unused schemes" pct={pct} set={setTolerancePercent} k="unusedAccessSchemes"
             tail="of permission, security and notification schemes assigned to no project." />
+          <ToleranceRule tone="risk" badge="Roles" name="Empty admin roles" pct={pct} set={setTolerancePercent} k="projectsWithoutRoleAdmin"
+            tail="of projects whose administrator role has no group or user in it — only a site admin can manage them." />
+          <ToleranceRule tone="cleanup" badge="Roles" name="Off-roster role actors" pct={pct} set={setTolerancePercent} k="offRosterRoleActors"
+            tail="of project-role user actors that are accounts no longer on the licensed roster." />
         </div>
       </ConfigSection>
 

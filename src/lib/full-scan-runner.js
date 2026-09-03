@@ -555,7 +555,7 @@ export async function readStageProducedCounts(installationKey, scanType) {
     put("workflows", readWorkflowSnapshotMeta, (m) => m.totalSchemes),
     put("screens", readScreenSnapshotMeta, (m) => m.totalScreens),
     put("issue-types", readIssueTypeSnapshotMeta, (m) => m.totalTypes),
-    put("access", readAccessSnapshotMeta, (m) => m.totalPermissionSchemes + m.totalSecuritySchemes + m.totalNotificationSchemes),
+    put("access", readAccessSnapshotMeta, (m) => m.totalPermissionSchemes + m.totalSecuritySchemes + m.totalNotificationSchemes + (m.totalProjectRoles || 0)),
     put("estate", readEstateSnapshotMeta, (m) => m.totalResolutions + m.totalPriorities),
     put("drift", readDriftSnapshotMeta, (m) => m.lastRunChanges),
     put("filters", readFilterSnapshotMeta, (m) => m.totalFilters),

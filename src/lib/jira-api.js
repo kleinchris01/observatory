@@ -1278,6 +1278,52 @@ export async function getAllNotificationSchemes() {
   return paginate((startAt) => route`/rest/api/3/notificationscheme?expand=all&startAt=${startAt}&maxResults=50`);
 }
 
+// Project roles. `GET /rest/api/3/role` is the site-wide catalog of role DEFINITIONS
+// ({ id, name, description, scope }); the ACTORS (who is in each role) are per project and
+// take two hops -- the name->url map, then one call per role.
+export async function getAllProjectRoles() {
+  const data = await jiraRequest(route(["/rest/api/3/role"]));
+  return Array.isArray(data) ? data : [];
+}
+
+// One project's roles WITH their actors, resolved. Returns
+// [{ roleId, roleName, actors: [{ type, id, displayName, accountId, groupId, groupName }] }].
+// Best-effort per role -- a role the app cannot read is skipped, not fatal.
+export async function getProjectRolesForProject(projectIdOrKey) {
+  const map = await jiraRequest(route`/rest/api/3/project/${String(projectIdOrKey)}/role`).catch(() => ({}));
+  const entries = Object.entries(map || {});
+  const out = [];
+  for (const [roleName, url] of entries) {
+    const roleId = String(url || "").split("/").filter(Boolean).pop();
+    if (!roleId) continue;
+    const detail = await jiraRequest(
+      route`/rest/api/3/project/${String(projectIdOrKey)}/role/${roleId}`
+    ).catch(() => null);
+    if (!detail) continue;
+    const actors = (detail.actors || []).map((a) => ({
+      // "atlassian-group-role-actor" | "atlassian-user-role-actor"
+      type: a.type === "atlassian-user-role-actor" ? "user" : a.type === "atlassian-group-role-actor" ? "group" : String(a.type || "unknown"),
+      id: a.id != null ? String(a.id) : null,
+      displayName: a.displayName || a.name || null,
+      accountId: a.actorUser?.accountId ? String(a.actorUser.accountId) : null,
+      groupId: a.actorGroup?.groupId ? String(a.actorGroup.groupId) : null,
+      groupName: a.actorGroup?.name || a.actorGroup?.displayName || null,
+    }));
+    out.push({ roleId, roleName, actors });
+  }
+  return out;
+}
+
+// The global-permission catalog. Jira Cloud REST exposes the permission DEFINITIONS here
+// ({ permissions: { ADMINISTER: { key, name, type, description }, ... } }) but -- as of
+// writing -- no endpoint that enumerates which groups HOLD each global permission. The
+// probe resolver confirms this against the live site before the access pillar commits to a
+// global-permissions view.
+export async function getPermissionCatalog() {
+  const data = await jiraRequest(route(["/rest/api/3/permissions"]));
+  return data?.permissions && typeof data.permissions === "object" ? data.permissions : {};
+}
+
 // GET /rest/api/3/status returns a flat array, not the usual {values, isLast} wrapper.
 export async function getAllStatuses() {
   const data = await jiraRequest(route`/rest/api/3/status`);
