@@ -48,7 +48,7 @@ import {
 // Imported from the automation store directly: project-store.js re-exports the other eight
 // store modules but not this one, because the automation pillar is written by an import
 // rather than built by a snapshot job and never needed to be part of that surface.
-import { loadStatusAutomationReferences } from "./store/automation.js";
+import { loadStatusAutomationReferences, readAutomationPart } from "./store/automation.js";
 import { summarizeAdoption } from "./project-adoption.js";
 import { summarizeFilters, summarizeFilterHealth } from "./filter-insights.js";
 import { summarizeDashboards, summarizeDashboardHealth } from "./dashboard-insights.js";
@@ -525,16 +525,26 @@ export async function buildUserOverview(installationKey) {
     const meta = await readUserSnapshotMeta(installationKey);
     if (!meta?.version) return { available: false, state: meta?.state || "idle", lastError: meta?.lastError || null };
 
-    const [users, summary, ownership] = await Promise.all([
+    const [users, summary, ownership, ruleUserIndex] = await Promise.all([
       loadUsers(installationKey, meta.version),
       loadUserGovernanceSummary(installationKey, meta.version),
       buildOwnershipIndex(installationKey).catch(() => ({ byAccount: new Map(), available: {} })),
+      Promise.resolve().then(() => readAutomationPart(installationKey, "users")).catch(() => null),
     ]);
 
     const rosterIds = new Set(users.map((u) => u.accountId));
     const orphaned = summarizeOrphanedOwnership(ownership, rosterIds);
     const totalUsers = Number(summary?.totalUsers) || users.length;
     const deactivatedUsers = Math.max(0, totalUsers - (Number(summary?.activeUsers) || totalUsers));
+
+    // People an automation rule names, and how many of those are not on the roster -- a rule
+    // routing work to someone who has left. Estate counts only; the finding is on the Overview.
+    let automationRefUsers = 0;
+    let orphanedAutomationRefUsers = 0;
+    for (const entry of ruleUserIndex?.entries ?? []) {
+      automationRefUsers += 1;
+      if (!rosterIds.has(String(entry.label))) orphanedAutomationRefUsers += 1;
+    }
 
     return {
       available: totalUsers > 0,
@@ -543,6 +553,8 @@ export async function buildUserOverview(installationKey) {
       lastError: meta.lastError || null,
       totalUsers,
       deactivatedUsers,
+      automationRefUsers,
+      orphanedAutomationRefUsers,
       ...orphaned,
       health: {
         available: totalUsers > 0,

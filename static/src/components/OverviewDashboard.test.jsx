@@ -108,6 +108,7 @@ const users = (overrides = {}) => ({
   deactivatedUsers: 12,
   orphanedArtifacts: 5,
   orphanedOwners: 2,
+  orphanedAutomationRefUsers: 3,
   ...overrides,
 });
 
@@ -274,6 +275,7 @@ describe("OverviewDashboard — automation and screen findings", () => {
 
     expect(screen.getByText("Deactivated accounts still holding a licence")).toBeInTheDocument();
     expect(screen.getByText("Filters, dashboards and rules with no owner on the roster")).toBeInTheDocument();
+    expect(screen.getByText("Automation rules routing work to someone off the roster")).toBeInTheDocument();
 
     await userEvent.click(screen.getAllByRole("button", { name: /^People$/ })[0]);
     expect(onNavigate).toHaveBeenCalledWith("people", expect.objectContaining({ view: expect.any(String) }));

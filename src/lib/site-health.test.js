@@ -30,10 +30,11 @@ vi.mock("./project-store.js", () => ({
   ...userStore,
   ...assetStore,
 }));
-vi.mock("./store/automation.js", () => ({
+const automationStore = {
   loadStatusAutomationReferences: vi.fn(async () => ({})),
   readAutomationPart: vi.fn(async () => null),
-}));
+};
+vi.mock("./store/automation.js", () => automationStore);
 
 const { buildProjectInsights, buildFieldUsageInsights, captureSiteHealth, buildUserOverview, buildAssetOverview } = await import("./site-health.js");
 
@@ -115,6 +116,21 @@ describe("buildUserOverview", () => {
     expect(overview.orphanedArtifacts).toBe(1);
     expect(overview.orphanedOwners).toBe(1);
     expect(overview.health).toMatchObject({ orphanedArtifacts: 1, ownedArtifactTotal: 2 });
+  });
+
+  test("counts the automation user references, and the off-roster ones", async () => {
+    userStore.readUserSnapshotMeta.mockResolvedValueOnce({ version: "v1", state: "ready" });
+    userStore.loadUsers.mockResolvedValueOnce([{ accountId: "a1" }]);
+    userStore.loadUserGovernanceSummary.mockResolvedValueOnce({ totalUsers: 1, activeUsers: 1 });
+    automationStore.readAutomationPart.mockImplementation((_k, part) =>
+      Promise.resolve(part === "users"
+        ? { entries: [{ label: "a1" }, { label: "gone-1" }, { label: "gone-2" }] }
+        : null));
+
+    const overview = await buildUserOverview("inst");
+    expect(overview.automationRefUsers).toBe(3);
+    expect(overview.orphanedAutomationRefUsers).toBe(2);
+    automationStore.readAutomationPart.mockResolvedValue(null);
   });
 });
 

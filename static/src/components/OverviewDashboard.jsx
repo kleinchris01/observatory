@@ -720,6 +720,20 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
     });
   }
 
+  if (users?.available && users.orphanedAutomationRefUsers > 0) {
+    findings.push({
+      key: "people-offroster-automation-refs",
+      dimension: "people-findings",
+      pillar: "users",
+      tone: "critical",
+      count: users.orphanedAutomationRefUsers,
+      title: "Automation rules routing work to someone off the roster",
+      detail: "A rule assigns to or conditions on an account that is no longer licensed — the work lands nowhere, or the condition silently never matches.",
+      onOpen: () => onNavigate("people", { view: "overview" }),
+      openLabel: "People",
+    });
+  }
+
   // ── Assets (CMDB) ──────────────────────────────────────────────────────
   // Only present on a JSM Premium site. `assets.available` is false everywhere else, so
   // none of these render rather than the pillar shipping empty findings.
