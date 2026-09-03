@@ -106,6 +106,45 @@ export const CREATE_SNAPSHOT_FIELD_TYPE_USAGE_INDEX = `
   ON snapshot_field_type_usage (scope_key, version, field_id, issue_count)
 `;
 
+// The fourth usage axis for a field: WHICH PEOPLE hold a value in it. Only user-picker
+// fields (single and multi) contribute -- the crawl tests a value for an accountId before
+// tallying. One row per field x account, promoted from issue_scan_field_user_buffer on a
+// clean finalize, same lifecycle as snapshot_field_type_usage. Powers "how many distinct
+// people does this picker actually reference" on the Field Browser and "which pickers does
+// this person appear in" on the People tab.
+export const CREATE_SNAPSHOT_FIELD_USER_USAGE_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_field_user_usage (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    field_id VARCHAR(191) NOT NULL,
+    account_id VARCHAR(128) NOT NULL,
+    display_name TEXT NULL,
+    issue_count BIGINT NOT NULL,
+    PRIMARY KEY (scope_key, version, field_id, account_id)
+  )
+`;
+
+// The reverse-lookup index: every field one account appears in, biggest first. The forward
+// lookup (field -> people) is covered by the primary key's leading columns.
+export const CREATE_SNAPSHOT_FIELD_USER_USAGE_BY_ACCOUNT_INDEX = `
+  CREATE INDEX idx_snapshot_field_user_usage_account
+  ON snapshot_field_user_usage (scope_key, version, account_id, issue_count)
+`;
+
+// The crawl accumulator. One row per field x account, incremented as pages land, cleared at
+// the start of every scan like issue_scan_type_buffer -- a re-scan on stale rows would
+// double every count.
+export const CREATE_ISSUE_SCAN_FIELD_USER_BUFFER_TABLE = `
+  CREATE TABLE IF NOT EXISTS issue_scan_field_user_buffer (
+    scope_key VARCHAR(191) NOT NULL,
+    field_id VARCHAR(191) NOT NULL,
+    account_id VARCHAR(128) NOT NULL,
+    display_name TEXT NULL,
+    issue_count BIGINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (scope_key, field_id, account_id)
+  )
+`;
+
 // The crawl accumulator behind it. One row per field x issue type, incremented as pages land,
 // cleared at the start of every scan for the same reason issue_scan_buffer is -- a re-scan
 // on top of stale rows would double every count. No project dimension: a slice restart can
@@ -1501,7 +1540,12 @@ const projectStoreMigrations = migrationRunner
   .enqueue("v126_create_snapshot_asset_object_types_table", CREATE_SNAPSHOT_ASSET_OBJECT_TYPES_TABLE)
   .enqueue("v127_create_snapshot_asset_attributes_table", CREATE_SNAPSHOT_ASSET_ATTRIBUTES_TABLE)
   .enqueue("v128_create_snapshot_asset_object_types_by_schema_index", CREATE_SNAPSHOT_ASSET_OBJECT_TYPES_BY_SCHEMA_INDEX)
-  .enqueue("v129_create_asset_snapshot_meta_table", CREATE_ASSET_SNAPSHOT_META_TABLE);
+  .enqueue("v129_create_asset_snapshot_meta_table", CREATE_ASSET_SNAPSHOT_META_TABLE)
+
+  // ── v130-v132: field x user (user-picker value) usage, a fourth field axis ──
+  .enqueue("v130_create_snapshot_field_user_usage_table", CREATE_SNAPSHOT_FIELD_USER_USAGE_TABLE)
+  .enqueue("v131_create_snapshot_field_user_usage_by_account_index", CREATE_SNAPSHOT_FIELD_USER_USAGE_BY_ACCOUNT_INDEX)
+  .enqueue("v132_create_issue_scan_field_user_buffer_table", CREATE_ISSUE_SCAN_FIELD_USER_BUFFER_TABLE);
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history

@@ -44,6 +44,7 @@ import {
   listAuditEvents,
   loadSnapshotFields,
   loadSnapshotField,
+  loadSnapshotFieldNames,
   loadSnapshotProjectUsage,
   loadAllSnapshotProjectUsage,
   loadAnySnapshotProjectUsage,
@@ -89,6 +90,8 @@ import {
   loadSnapshotFieldIssueSums,
   sumSnapshotFieldIssueCount,
   loadFieldTypeUsage,
+  loadFieldUserUsage,
+  loadUserFieldAppearances,
   upsertProjectTotalsForDelta,
   upsertDeltaFieldProjectUsage,
   upsertRqtFieldHits,
@@ -1607,11 +1610,16 @@ async function getUserDetails({ payload, context }) {
   const meta = await readUserSnapshotMeta(installationKey);
   if (!meta?.version) return { available: false, reason: "no-roster" };
 
-  const [users, ownership, ruleUserIndex, ruleDirectoryDoc] = await Promise.all([
+  const fieldMeta = await readSnapshotMeta(installationKey).catch(() => null);
+
+  const [users, ownership, ruleUserIndex, ruleDirectoryDoc, fieldAppearanceRows] = await Promise.all([
     loadUsers(installationKey, meta.version),
     buildOwnershipIndex(installationKey).catch(() => ({ byAccount: new Map(), available: {} })),
     readAutomationPart(installationKey, "users").catch(() => null),
     readAutomationPart(installationKey, "directory").catch(() => null),
+    fieldMeta?.version
+      ? loadUserFieldAppearances(installationKey, fieldMeta.version, accountId).catch(() => [])
+      : Promise.resolve([]),
   ]);
 
   const user = users.find((u) => u.accountId === accountId) || null;
@@ -1622,6 +1630,18 @@ async function getUserDetails({ payload, context }) {
   // deactivated account can still be the assignee half a dozen rules route work to.
   const referencedInRules = collectRuleUserReferences(accountId, ruleUserIndex, ruleDirectoryDoc);
 
+  // The user-picker fields this account holds a value in, from the last full crawl. Names
+  // joined from the field snapshot. Empty until a scan has run since this feature landed.
+  let fieldAppearances = [];
+  if (fieldAppearanceRows.length && fieldMeta?.version) {
+    const names = await loadSnapshotFieldNames(installationKey, fieldMeta.version, fieldAppearanceRows.map((r) => r.fieldId)).catch(() => new Map());
+    fieldAppearances = fieldAppearanceRows.map((r) => ({
+      fieldId: r.fieldId,
+      fieldName: names.get(r.fieldId) || r.fieldId,
+      issueCount: r.issueCount,
+    }));
+  }
+
   return {
     available: true,
     inRoster: Boolean(user),
@@ -1630,7 +1650,9 @@ async function getUserDetails({ payload, context }) {
     ownedDashboards: owned.dashboards,
     authoredRules: owned.rules,
     referencedInRules,
+    fieldAppearances,
     automationRefsAvailable: Boolean(ruleUserIndex),
+    fieldAppearancesAvailable: Boolean(fieldMeta?.version),
     ownershipAvailable: ownership.available,
   };
 }
@@ -3023,7 +3045,7 @@ async function getFieldDetails({ payload, context }) {
     if (!meta?.version) throw new Error("No completed snapshot available â€” build one first.");
 
     const offset = (usagePage - 1) * usagePageSize;
-    const [snapshotField, projectUsageRows, projectCount, rawFieldSummary, projectUsageIssueSum, issueTypeUsage] = await Promise.all([
+    const [snapshotField, projectUsageRows, projectCount, rawFieldSummary, projectUsageIssueSum, issueTypeUsage, userValueUsage] = await Promise.all([
       loadSnapshotField(installationKey, meta.version, fieldId),
       loadSnapshotProjectUsage(installationKey, meta.version, fieldId, usagePageSize, offset),
       countSnapshotProjectUsage(installationKey, meta.version, fieldId),
@@ -3032,9 +3054,31 @@ async function getFieldDetails({ payload, context }) {
       // The field x issue-type axis from the last full crawl. Empty when the crawl predates
       // this feature or has not run since -- the UI treats [] as "not measured yet".
       loadFieldTypeUsage(installationKey, meta.version, fieldId).catch(() => []),
+      // The field x user axis: how many distinct people hold a value, and the top holders.
+      // Only populated for user-picker fields (and assignee/reporter). Names are resolved
+      // against the licensed-user roster below so a deleted account still shows something.
+      loadFieldUserUsage(installationKey, meta.version, fieldId).catch(() => ({ distinctUsers: 0, issueTotal: 0, top: [] })),
     ]);
 
     if (!snapshotField) throw new Error(`Field not found in snapshot: ${fieldId}`);
+
+    // Prefer the roster's current display name over the one the crawl captured, and mark an
+    // account that is no longer licensed -- a picker still pointing at someone who has left.
+    if (userValueUsage?.top?.length) {
+      const userMeta = await readUserSnapshotMeta(installationKey).catch(() => null);
+      const roster = userMeta?.version
+        ? await loadUsers(installationKey, userMeta.version).catch(() => [])
+        : [];
+      const rosterById = new Map(roster.map((u) => [u.accountId, u]));
+      userValueUsage.top = userValueUsage.top.map((row) => {
+        const person = rosterById.get(row.accountId);
+        return {
+          ...row,
+          displayName: person?.displayName || row.displayName || row.accountId,
+          onRoster: userMeta?.version ? Boolean(person) : null,
+        };
+      });
+    }
     const fieldSummary = await ensureFieldSummaryJobRunning(
       installationKey,
       meta.version,
@@ -3137,6 +3181,7 @@ async function getFieldDetails({ payload, context }) {
       contexts: finalContexts,
       projects: projectUsage,
       issueTypeUsage,
+      userValueUsage,
       projectUsagePage: usagePage,
       projectUsagePageSize: usagePageSize,
       projectUsageTotalProjects: finalProjectCount,
