@@ -26,6 +26,10 @@ import {
   flushIssueScanActivity,
   promoteIssueScanActivity,
   flushIssueScanTypeCounts,
+  flushIssueScanFieldUserCounts,
+  promoteIssueScanFieldUserUsage,
+  loadFieldUserUsage,
+  loadUserFieldAppearances,
   promoteIssueScanFieldTypeUsage,
   loadFieldTypeUsage,
 } from "./scan.js";
@@ -139,6 +143,77 @@ describe("loadFieldTypeUsage", () => {
       { issueTypeId: "10002", issueTypeName: "Task", issueCount: 5 },
     ]);
     expect(issued.at(-1).statement).toMatch(/ORDER BY issue_count DESC/);
+  });
+});
+
+describe("field x user (user-picker value) usage", () => {
+  test("flushIssueScanFieldUserCounts accumulates field x account into the buffer", async () => {
+    const counts = new Map([
+      ["customfield_500", new Map([
+        ["acc-1", { count: 8, name: "Ann" }],
+        ["acc-2", { count: 2, name: null }],
+      ])],
+    ]);
+
+    await flushIssueScanFieldUserCounts("inst", counts);
+
+    const insert = writes().find((e) => e.statement.startsWith("INSERT"));
+    expect(insert.statement).toMatch(/INSERT INTO issue_scan_field_user_buffer/);
+    expect(insert.statement).toMatch(/issue_count = issue_count \+ VALUES\(issue_count\)/);
+    expect(insert.params).toEqual([
+      "inst", "customfield_500", "acc-1", "Ann", 8,
+      "inst", "customfield_500", "acc-2", null, 2,
+    ]);
+  });
+
+  test("promoteIssueScanFieldUserUsage upserts and drops the field's stale accounts", async () => {
+    rowsFor = (entry) => entry.statement.startsWith("SELECT")
+      ? [
+          { field_id: "customfield_500", account_id: "acc-1", display_name: "Ann", issue_count: 30 },
+          { field_id: "customfield_500", account_id: "acc-2", display_name: "Bo", issue_count: 4 },
+        ]
+      : [];
+
+    const result = await promoteIssueScanFieldUserUsage("inst", "v9");
+
+    const stmts = writes().map((e) => e.statement);
+    expect(stmts.some((s) => /INSERT INTO snapshot_field_user_usage/.test(s))).toBe(true);
+    const del = writes().find((e) => /account_id NOT IN/.test(e.statement));
+    expect(del.params).toEqual(["inst", "v9", "customfield_500", "acc-1", "acc-2"]);
+    expect(result).toEqual({ fieldsPromoted: 1, rowsInserted: 2 });
+  });
+
+  test("loadFieldUserUsage returns the top holders and a distinct-user total", async () => {
+    rowsFor = (entry) => /COUNT\(\*\) AS distinct_users/.test(entry.statement)
+      ? [{ distinct_users: 42, issue_total: 500 }]
+      : [
+          { account_id: "acc-1", display_name: "Ann", issue_count: 30 },
+          { account_id: "acc-2", display_name: null, issue_count: 4 },
+        ];
+
+    const usage = await loadFieldUserUsage("inst", "v9", "customfield_500");
+
+    expect(usage.distinctUsers).toBe(42);
+    expect(usage.issueTotal).toBe(500);
+    expect(usage.top).toEqual([
+      { accountId: "acc-1", displayName: "Ann", issueCount: 30 },
+      { accountId: "acc-2", displayName: null, issueCount: 4 },
+    ]);
+  });
+
+  test("loadUserFieldAppearances returns every field one account is a value in", async () => {
+    rowsFor = () => [
+      { field_id: "customfield_500", issue_count: 30 },
+      { field_id: "assignee", issue_count: 900 },
+    ];
+
+    const rows = await loadUserFieldAppearances("inst", "v9", "acc-1");
+
+    expect(rows).toEqual([
+      { fieldId: "customfield_500", issueCount: 30 },
+      { fieldId: "assignee", issueCount: 900 },
+    ]);
+    expect(issued.at(-1).statement).toMatch(/WHERE scope_key = \? AND version = \? AND account_id = \?/);
   });
 });
 

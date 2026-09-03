@@ -14,6 +14,7 @@ import {
   AutomationUsageSection,
   ScreenUsageSection,
   IssueTypeUsageSection,
+  PeopleUsageSection,
   FilterUsageSection,
 } from "./FieldCard";
 
@@ -179,6 +180,28 @@ describe("IssueTypeUsageSection", () => {
   it("treats a missing prop the same as an empty list", () => {
     render(<IssueTypeUsageSection usage={undefined} />);
     expect(screen.getByText(/Run a full scan to populate it/i)).toBeInTheDocument();
+  });
+});
+
+describe("PeopleUsageSection", () => {
+  it("lists the top holders with a distinct-user badge and flags an unlicensed account", () => {
+    render(<PeopleUsageSection usage={{
+      distinctUsers: 42, issueTotal: 500,
+      top: [
+        { accountId: "acc-1", displayName: "Ann Admin", issueCount: 30, onRoster: true },
+        { accountId: "acc-gone", displayName: "Ghost", issueCount: 4, onRoster: false },
+      ],
+    }} />);
+
+    expect(screen.getByText("Ann Admin")).toBeInTheDocument();
+    expect(screen.getByText("42 distinct")).toBeInTheDocument();
+    expect(screen.getByText("not licensed")).toBeInTheDocument();
+    expect(screen.getByText(/Showing the top 2 of 42 people/i)).toBeInTheDocument();
+  });
+
+  it("says 'not measured / not a user field' rather than claiming zero", () => {
+    render(<PeopleUsageSection usage={{ distinctUsers: 0, top: [] }} />);
+    expect(screen.getByText(/no user values for this field/i)).toBeInTheDocument();
   });
 });
 

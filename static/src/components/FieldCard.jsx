@@ -6,6 +6,7 @@ import {
   buildJiraSearchUrl,
   handleJiraLinkClick,
   isSelectType,
+  isUserPickerField,
   isUsageAvailable,
   mergeFieldMetrics,
   buildFieldRovoPrompt,
@@ -537,6 +538,51 @@ export function IssueTypeUsageSection({ usage }) {
   );
 }
 
+// The cross-pillar join with People: which real people hold a value in this field, from
+// the last full crawl. Only shows for user-picker fields (and assignee/reporter) -- for
+// anything else the crawl records nothing and this renders the "not a user field" note.
+export function PeopleUsageSection({ usage }) {
+  const data = usage && typeof usage === "object" ? usage : null;
+  const top = data?.top || [];
+  const max = top.length ? Math.max(...top.map((r) => r.issueCount || 0), 1) : 1;
+
+  return (
+    <CollapsibleSection
+      title="People in this field"
+      badge={data && data.distinctUsers ? `${formatNumber(data.distinctUsers)} distinct` : null}
+    >
+      {!data || data.distinctUsers === 0 ? (
+        <div className="empty-state empty-state--inline">
+          The crawl has recorded no user values for this field. Either it is not a user
+          picker, or a full scan has not run since this measurement was added.
+        </div>
+      ) : (
+        <>
+          <div className="screen-usage-list">
+            {top.map((row) => (
+              <div className="screen-usage-row" key={row.accountId}>
+                <div className="screen-usage-row__name">
+                  <strong>{row.displayName || row.accountId}</strong>
+                  {row.onRoster === false && <MetricChip label="" value="not licensed" tone="danger" />}
+                </div>
+                <div className="screen-usage-row__meta" style={{ alignItems: "center", gap: 10 }}>
+                  <div className="status-progress__bar" aria-hidden="true" style={{ width: 120 }}>
+                    <span style={{ width: `${Math.max(3, Math.round(((row.issueCount || 0) / max) * 100))}%` }} />
+                  </div>
+                  <MetricChip label="issues" value={formatNumber(row.issueCount || 0)} />
+                </div>
+              </div>
+            ))}
+          </div>
+          {data.distinctUsers > top.length && (
+            <p className="ui-truncation">Showing the top {top.length} of {formatNumber(data.distinctUsers)} people.</p>
+          )}
+        </>
+      )}
+    </CollapsibleSection>
+  );
+}
+
 export function MetricChip({ label, value, tone = "neutral" }) {
   return (
     <div className={`metric-chip metric-chip--${tone}`}>
@@ -1059,6 +1105,8 @@ export function FieldCard({
               <ScreenUsageSection result={screens} loading={screensLoading} />
 
               <IssueTypeUsageSection usage={details.issueTypeUsage} />
+
+              {isUserPickerField(field) && <PeopleUsageSection usage={details.userValueUsage} />}
 
               <CollapsibleSection
                 title="Project Usage"

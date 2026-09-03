@@ -109,7 +109,12 @@ describe("PeopleTab", () => {
             { id: 7, name: "Assign incidents to Ann", direction: "write", enabled: true },
             { id: 9, name: "Escalation check", direction: "read", enabled: false },
           ],
+          fieldAppearances: [
+            { fieldId: "customfield_500", fieldName: "Reviewer", issueCount: 30 },
+            { fieldId: "assignee", fieldName: "Assignee", issueCount: 900 },
+          ],
           automationRefsAvailable: true,
+          fieldAppearancesAvailable: true,
           ownershipAvailable: { filters: true, dashboards: true, rules: false },
         });
       }
@@ -132,6 +137,9 @@ describe("PeopleTab", () => {
     // The rules that NAME this person, joined to rule names.
     expect(screen.getByText("Assign incidents to Ann")).toBeInTheDocument();
     expect(screen.getByText("Escalation check")).toBeInTheDocument();
+    // The user-picker fields this person is held as a value in.
+    expect(screen.getByText("Reviewer")).toBeInTheDocument();
+    expect(screen.getByText("Assignee")).toBeInTheDocument();
   });
 
   test("surfaces orphaned ownership on the overview", async () => {

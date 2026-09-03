@@ -99,6 +99,9 @@ const mocks = vi.hoisted(() => ({
   loadSnapshotFieldIssueSums: vi.fn().mockResolvedValue(new Map()),
   sumSnapshotFieldIssueCount: vi.fn().mockResolvedValue(0),
   loadFieldTypeUsage: vi.fn().mockResolvedValue([]),
+  loadFieldUserUsage: vi.fn().mockResolvedValue({ distinctUsers: 0, issueTotal: 0, top: [] }),
+  loadUserFieldAppearances: vi.fn().mockResolvedValue([]),
+  loadSnapshotFieldNames: vi.fn().mockResolvedValue(new Map()),
   upsertProjectTotalsForDelta: vi.fn(),
   upsertDeltaFieldProjectUsage: vi.fn(),
   upsertRqtFieldHits: vi.fn(),
@@ -328,6 +331,9 @@ vi.mock("./lib/project-store.js", () => ({
   loadSnapshotFieldIssueSums: mocks.loadSnapshotFieldIssueSums,
   sumSnapshotFieldIssueCount: mocks.sumSnapshotFieldIssueCount,
   loadFieldTypeUsage: mocks.loadFieldTypeUsage,
+  loadFieldUserUsage: mocks.loadFieldUserUsage,
+  loadUserFieldAppearances: mocks.loadUserFieldAppearances,
+  loadSnapshotFieldNames: mocks.loadSnapshotFieldNames,
   upsertProjectTotalsForDelta: mocks.upsertProjectTotalsForDelta,
   upsertDeltaFieldProjectUsage: mocks.upsertDeltaFieldProjectUsage,
   upsertRqtFieldHits: mocks.upsertRqtFieldHits,
@@ -1196,6 +1202,30 @@ describe("getFieldDetails", () => {
     expect(result.projects).toHaveLength(1);
     expect(result.projects[0].projectKey).toBe("ABC");
     expect(result.projectUsageTotalProjects).toBe(1);
+  });
+
+  test("attaches the field x user usage, with roster names and a not-licensed flag", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: 1 });
+    mocks.loadSnapshotField.mockResolvedValue(snapshotField());
+    mocks.loadSnapshotProjectUsage.mockResolvedValue([]);
+    mocks.countSnapshotProjectUsage.mockResolvedValue(0);
+    mocks.loadFieldSummary.mockResolvedValue(null);
+    mocks.loadSnapshotFields.mockResolvedValue([snapshotField()]);
+    mocks.loadFieldUserUsage.mockResolvedValue({
+      distinctUsers: 2, issueTotal: 12,
+      top: [
+        { accountId: "acc-1", displayName: "stale name", issueCount: 10 },
+        { accountId: "acc-gone", displayName: "Ghost", issueCount: 2 },
+      ],
+    });
+    mocks.readUserSnapshotMeta.mockResolvedValue({ version: "u1" });
+    mocks.loadUsers.mockResolvedValue([{ accountId: "acc-1", displayName: "Ann Admin" }]);
+
+    const result = await getFieldDetails({ payload: { fieldId: "customfield_10001" }, context: {} });
+
+    expect(result.userValueUsage.distinctUsers).toBe(2);
+    expect(result.userValueUsage.top[0]).toMatchObject({ displayName: "Ann Admin", onRoster: true });
+    expect(result.userValueUsage.top[1]).toMatchObject({ displayName: "Ghost", onRoster: false });
   });
 
   test("marks summaryStatus as failed when a 'ready' summary claims active projects but has none listed (self-healing detection)", async () => {
@@ -5368,6 +5398,26 @@ describe("getUserDetails", () => {
   test("reports no-roster when nothing has been built", async () => {
     mocks.readUserSnapshotMeta.mockResolvedValue(null);
     expect(await getUserDetails(ctx)).toMatchObject({ available: false });
+  });
+
+  test("lists the user-picker fields this account is a value in, joined to field names", async () => {
+    mocks.readUserSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
+    mocks.loadUsers.mockResolvedValue([{ accountId: "a1", displayName: "Ann", applications: [], groups: [] }]);
+    mocks.readSnapshotMeta.mockResolvedValue({ version: "f1" });
+    mocks.readAutomationPart.mockResolvedValue(null);
+    mocks.loadUserFieldAppearances.mockResolvedValue([
+      { fieldId: "customfield_500", issueCount: 30 },
+      { fieldId: "assignee", issueCount: 900 },
+    ]);
+    mocks.loadSnapshotFieldNames.mockResolvedValue(new Map([["customfield_500", "Reviewer"], ["assignee", "Assignee"]]));
+
+    const result = await getUserDetails(ctx);
+
+    expect(result.fieldAppearancesAvailable).toBe(true);
+    expect(result.fieldAppearances).toEqual([
+      { fieldId: "customfield_500", fieldName: "Reviewer", issueCount: 30 },
+      { fieldId: "assignee", fieldName: "Assignee", issueCount: 900 },
+    ]);
   });
 
   test("lists the automation rules that name this account, joined to rule names", async () => {

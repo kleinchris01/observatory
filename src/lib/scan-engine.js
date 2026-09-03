@@ -34,6 +34,7 @@ import {
   replaceFieldOptionsCache,
   flushIssueScanCounts,
   flushIssueScanTypeCounts,
+  flushIssueScanFieldUserCounts,
   flushIssueScanActivity,
   promoteIssueScanActivity,
   flushIssueScanStatusCounts,
@@ -53,6 +54,7 @@ import {
   loadIssueScanProjectTotals,
   promoteIssueScanToSnapshotProjectUsage,
   promoteIssueScanFieldTypeUsage,
+  promoteIssueScanFieldUserUsage,
 } from "./project-store.js";
 import {
   STRUCTURAL_SYSTEM_FIELDS,
@@ -85,6 +87,22 @@ const ISSUE_COUNT_TIMEOUT_MS = 8000;
 
 export function isJiraRateLimitError(error) {
   return Number(error?.status) === 429;
+}
+
+// The accountIds carried by a field value, if any. A user-picker value is
+// { accountId, displayName, ... }; a multi-user picker is an array of those. Anything
+// without an accountId contributes nothing, so the caller's tally stays empty for every
+// non-user field.
+export function accountsInValue(value) {
+  const out = [];
+  const push = (v) => {
+    if (v && typeof v === "object" && typeof v.accountId === "string" && v.accountId) {
+      out.push({ accountId: v.accountId, displayName: typeof v.displayName === "string" ? v.displayName : null });
+    }
+  };
+  if (Array.isArray(value)) value.forEach(push);
+  else push(value);
+  return out;
 }
 
 // A Forge PLATFORM limit, not a Jira one. The async-events queue caps how many jobs one
@@ -310,6 +328,11 @@ export async function completeIssueScanFinalization(installationKey, tag, worker
       const typePromoted = await promoteIssueScanFieldTypeUsage(installationKey, snapshotMeta.version, { coverageComplete: scanCoverageComplete })
         .catch(fallbackOn("scan.field_type_promote_failed", { fieldsPromoted: 0, rowsInserted: 0 }, { installationKey }));
       console.log(`${tag}: promoted issue-type usage for ${typePromoted.fieldsPromoted} fields (${typePromoted.rowsInserted} rows)`);
+
+      // The field x user axis: which people a user-picker field references. Same gating.
+      const userPromoted = await promoteIssueScanFieldUserUsage(installationKey, snapshotMeta.version, { coverageComplete: scanCoverageComplete })
+        .catch(fallbackOn("scan.field_user_promote_failed", { fieldsPromoted: 0, rowsInserted: 0 }, { installationKey }));
+      console.log(`${tag}: promoted user-picker usage for ${userPromoted.fieldsPromoted} fields (${userPromoted.rowsInserted} rows)`);
 
       if (promoted.touchedFieldIds?.length) {
         const refreshed = await refreshGovernanceFindingsForFields(installationKey, snapshotMeta.version, promoted.touchedFieldIds).catch((err) => {
@@ -692,6 +715,10 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
   // types actually carry a value. Same cost as fieldProjectCounts -- an accumulator over data
   // already on every issue (the crawl requests "*all") -- no extra Jira traffic.
   const fieldTypeCounts = new Map();
+  // fieldId -> Map<accountId, { count, name }>. The fourth axis: which PEOPLE a user-picker
+  // field actually references. Populated only for values that carry an accountId, so it stays
+  // empty for every non-user field. Same zero-cost accumulator over data already on the issue.
+  const fieldUserCounts = new Map();
   const projectTotals = new Map();
   // One entry per project per month, carrying the exact first and last issue seen in it.
   // Keyed the same way the row is, so a flush is a straight map over the values.
@@ -774,6 +801,7 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
     async function drainBuffers() {
       const counts = new Map(fieldProjectCounts);
       const typeCounts = new Map(fieldTypeCounts);
+      const userCounts = new Map(fieldUserCounts);
       const totals = new Map(projectTotals);
       const months = new Map(projectMonths);
       const statuses = new Map(statusCounts);
@@ -783,6 +811,7 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
       const rqtFieldIssues = rqtFieldIssueBuffer.splice(0);
       fieldProjectCounts.clear();
       fieldTypeCounts.clear();
+      fieldUserCounts.clear();
       projectTotals.clear();
       projectMonths.clear();
       statusCounts.clear();
@@ -791,6 +820,9 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
       if (counts.size > 0 || totals.size > 0) {
         await flushIssueScanCounts(installationKey, counts, totals).catch(ignoreWith("scan.count_flush_failed", { workerId }));
         await flushIssueScanActivity(installationKey, months).catch(ignoreWith("scan.activity_flush_failed", { workerId }));
+      }
+      if (userCounts.size > 0) {
+        await flushIssueScanFieldUserCounts(installationKey, userCounts).catch(ignoreWith("scan.field_user_flush_failed", { workerId }));
       }
       if (typeCounts.size > 0) {
         await flushIssueScanTypeCounts(installationKey, typeCounts).catch(ignoreWith("scan.type_flush_failed", { workerId }));
@@ -997,6 +1029,23 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
             const typeEntry = byType.get(issueTypeId) || { count: 0, name: issueTypeName };
             typeEntry.count++;
             byType.set(issueTypeId, typeEntry);
+          }
+
+          // Fourth axis: if the value is a user (or list of users), which people. Nothing is
+          // tallied for a non-user value, so this Map only ever contains user-picker fields.
+          const accounts = accountsInValue(value);
+          if (accounts.length) {
+            let byAccount = fieldUserCounts.get(fieldId);
+            if (!byAccount) {
+              byAccount = new Map();
+              fieldUserCounts.set(fieldId, byAccount);
+            }
+            for (const { accountId, displayName } of accounts) {
+              const acctEntry = byAccount.get(accountId) || { count: 0, name: displayName || null };
+              acctEntry.count++;
+              if (!acctEntry.name && displayName) acctEntry.name = displayName;
+              byAccount.set(accountId, acctEntry);
+            }
           }
         }
 

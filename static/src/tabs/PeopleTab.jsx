@@ -138,6 +138,28 @@ function UserRow({ user, expanded, detail, detailLoading, onToggle }) {
                   </p>
                 )}
               </div>
+
+              <div className="ui-split__col">
+                <h4 className="ui-subhead">
+                  Appears in fields <span className="people-owned__count">{(detail?.fieldAppearances || []).length || ""}</span>
+                </h4>
+                {(detail?.fieldAppearances || []).length ? (
+                  <ul className="people-owned-list">
+                    {detail.fieldAppearances.map((f) => (
+                      <li key={f.fieldId}>
+                        {f.fieldName}
+                        <Chip tone="neutral" title="Issues where this user is the value">{formatNumber(f.issueCount)}</Chip>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="admin-config-row__hint">
+                    {detail?.fieldAppearancesAvailable === false
+                      ? "Run a full scan to record which user-picker fields hold this person."
+                      : "Not held as a value in any user-picker field (or assignee / reporter)."}
+                  </p>
+                )}
+              </div>
             </div>
           )}
         </div>

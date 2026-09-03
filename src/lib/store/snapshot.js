@@ -99,6 +99,31 @@ export async function appendSnapshotFields(scopeKey, version, fields) {
   }
 }
 
+// Just the id -> name pairs for a given set of field ids. For drill-downs that arrive
+// holding field ids (the People tab's "appears in these fields") and need labels without
+// pulling the whole catalogue's LONGTEXT columns across the wire.
+export async function loadSnapshotFieldNames(scopeKey, version, fieldIds = []) {
+  await ensureProjectStoreReady();
+  const ids = [...new Set(fieldIds.map(String))].filter(Boolean);
+  if (!ids.length) return new Map();
+
+  const out = new Map();
+  for (const batch of chunkArray(ids, 100)) {
+    const placeholders = batch.map(() => "?").join(", ");
+    const result = await withSqlRetry(() =>
+      sql
+        .prepare(`
+          SELECT field_id, name FROM snapshot_fields
+          WHERE scope_key = ? AND version = ? AND field_id IN (${placeholders})
+        `)
+        .bindParams(scopeKey, version, ...batch)
+        .execute()
+    );
+    for (const row of result.rows || []) out.set(String(row.field_id), row.name || String(row.field_id));
+  }
+  return out;
+}
+
 export async function loadSnapshotFields(scopeKey, version) {
   await ensureProjectStoreReady();
 

@@ -61,6 +61,7 @@ vi.mock("./project-store.js", () => ({
   replaceFieldOptionsCache: vi.fn().mockResolvedValue({ optionCount: 0 }),
   flushIssueScanCounts: vi.fn().mockResolvedValue(undefined),
   flushIssueScanTypeCounts: vi.fn().mockResolvedValue(undefined),
+  flushIssueScanFieldUserCounts: vi.fn().mockResolvedValue(undefined),
   flushIssueScanActivity: vi.fn().mockResolvedValue(undefined),
   promoteIssueScanActivity: vi.fn().mockResolvedValue({ projectsPromoted: 0, rowsInserted: 0 }),
   flushIssueScanStatusCounts: vi.fn().mockResolvedValue(undefined),
@@ -80,6 +81,7 @@ vi.mock("./project-store.js", () => ({
   loadIssueScanProjectTotals: vi.fn().mockResolvedValue([]),
   promoteIssueScanToSnapshotProjectUsage: vi.fn().mockResolvedValue({ fieldsPromoted: 0, rowsInserted: 0 }),
   promoteIssueScanFieldTypeUsage: vi.fn().mockResolvedValue({ fieldsPromoted: 0, rowsInserted: 0 }),
+  promoteIssueScanFieldUserUsage: vi.fn().mockResolvedValue({ fieldsPromoted: 0, rowsInserted: 0 }),
   loadSnapshotFields: vi.fn().mockResolvedValue([]),
 }));
 
@@ -867,6 +869,23 @@ describe("runIssueScanWorkerV2", () => {
       expect(store.flushIssueScanTypeCounts).toHaveBeenCalled();
       const [, fieldTypeCounts] = store.flushIssueScanTypeCounts.mock.calls.at(-1);
       expect(fieldTypeCounts.get("customfield_1").get("10001")).toMatchObject({ count: 1, name: "Bug" });
+    });
+
+    it("tallies user-picker values per account and ignores non-user values", async () => {
+      const { store } = await runWorkerOverPage([
+        issue("ALPHA-1", "10", "ALPHA", "3", "In Review", {
+          customfield_9: { accountId: "acc-1", displayName: "Ann" },
+          customfield_8: [{ accountId: "acc-2", displayName: "Bo" }, { accountId: "acc-3", displayName: "Cy" }],
+          customfield_1: "plain text",
+        }),
+      ]);
+
+      expect(store.flushIssueScanFieldUserCounts).toHaveBeenCalled();
+      const [, fieldUserCounts] = store.flushIssueScanFieldUserCounts.mock.calls.at(-1);
+      expect(fieldUserCounts.get("customfield_9").get("acc-1")).toMatchObject({ count: 1, name: "Ann" });
+      expect(fieldUserCounts.get("customfield_8").get("acc-3")).toMatchObject({ count: 1, name: "Cy" });
+      // A plain string value contributes nothing to the user tally.
+      expect(fieldUserCounts.has("customfield_1")).toBe(false);
     });
   });
 
