@@ -40,6 +40,9 @@ vi.mock("./lib/user-engine.js", () => ({
 vi.mock("./lib/asset-engine.js", () => ({
   buildAssetSnapshot: vi.fn().mockResolvedValue({ schemas: 12, objectTypes: 140, attributes: 900 }),
 }));
+vi.mock("./lib/access-engine.js", () => ({
+  buildAccessSnapshot: vi.fn().mockResolvedValue({ version: "v1", permission: 8, security: 2, notification: 5 }),
+}));
 
 vi.mock("./lib/full-scan-runner.js", () => ({
   runFullScanStep: vi.fn().mockResolvedValue({ advanced: true, done: 2, total: 8 }),
@@ -168,6 +171,7 @@ import { buildScreenSnapshot } from "./lib/screen-engine.js";
 import { buildIssueTypeSnapshot } from "./lib/issuetype-engine.js";
 import { buildUserSnapshot } from "./lib/user-engine.js";
 import { buildAssetSnapshot } from "./lib/asset-engine.js";
+import { buildAccessSnapshot } from "./lib/access-engine.js";
 import { runFullScanStep, runQuickScanStep, startQuickScan, recoverStalledScan } from "./lib/full-scan-runner.js";
 import { buildFilterSnapshot } from "./lib/filter-engine.js";
 import { buildDashboardSnapshot } from "./lib/dashboard-engine.js";
@@ -607,6 +611,16 @@ describe("consumeSnapshot job routing", () => {
   test("logs a build-asset-snapshot that returned nothing without throwing", async () => {
     buildAssetSnapshot.mockResolvedValueOnce(undefined);
     await expect(consumeSnapshot(event({ jobType: "build-asset-snapshot" }))).resolves.toBeUndefined();
+  });
+
+  test("routes build-access-snapshot to the access engine", async () => {
+    await consumeSnapshot(event({ jobType: "build-access-snapshot" }));
+    expect(buildAccessSnapshot).toHaveBeenCalledWith("scope-1");
+  });
+
+  test("logs a build-access-snapshot that returned nothing without throwing", async () => {
+    buildAccessSnapshot.mockResolvedValueOnce(undefined);
+    await expect(consumeSnapshot(event({ jobType: "build-access-snapshot" }))).resolves.toBeUndefined();
   });
 
   // The cheapest structural build here: one paginated endpoint with everything expanded, so

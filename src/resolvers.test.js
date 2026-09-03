@@ -178,6 +178,17 @@ const mocks = vi.hoisted(() => ({
   queueAssetSnapshotBuild: vi.fn(),
   isAssetBuildStale: vi.fn(() => false),
 
+  // access store + access-engine.js
+  readAccessSnapshotMeta: vi.fn(),
+  loadSchemes: vi.fn(async () => []),
+  loadSchemeHolders: vi.fn(async () => []),
+  loadSchemeLevels: vi.fn(async () => []),
+  loadSchemeProjects: vi.fn(async () => []),
+  loadSchemesGrantingHolder: vi.fn(async () => []),
+  loadProjectSchemes: vi.fn(async () => []),
+  queueAccessSnapshotBuild: vi.fn(),
+  isAccessBuildStale: vi.fn(() => false),
+
   loadRulesForProject: vi.fn(),
   loadStatusAutomationReferences: vi.fn(),
   loadGlobalRulesAffectingProject: vi.fn(),
@@ -371,6 +382,13 @@ vi.mock("./lib/project-store.js", () => ({
   loadUsers: mocks.loadUsers,
   loadUserGovernanceSummary: mocks.loadUserGovernanceSummary,
   readAssetSnapshotMeta: mocks.readAssetSnapshotMeta,
+  readAccessSnapshotMeta: mocks.readAccessSnapshotMeta,
+  loadSchemes: mocks.loadSchemes,
+  loadSchemeHolders: mocks.loadSchemeHolders,
+  loadSchemeLevels: mocks.loadSchemeLevels,
+  loadSchemeProjects: mocks.loadSchemeProjects,
+  loadSchemesGrantingHolder: mocks.loadSchemesGrantingHolder,
+  loadProjectSchemes: mocks.loadProjectSchemes,
   loadAssetSchemas: mocks.loadAssetSchemas,
   loadAssetObjectTypes: mocks.loadAssetObjectTypes,
   loadAssetAttributes: mocks.loadAssetAttributes,
@@ -408,6 +426,11 @@ vi.mock("./lib/user-engine.js", () => ({
 vi.mock("./lib/asset-engine.js", () => ({
   queueAssetSnapshotBuild: mocks.queueAssetSnapshotBuild,
   isAssetBuildStale: mocks.isAssetBuildStale,
+}));
+
+vi.mock("./lib/access-engine.js", () => ({
+  queueAccessSnapshotBuild: mocks.queueAccessSnapshotBuild,
+  isAccessBuildStale: mocks.isAccessBuildStale,
 }));
 
 vi.mock("./lib/workflow-engine.js", () => ({
@@ -538,6 +561,8 @@ const {
   buildUserInventory,
   getAssetInventory,
   buildAssetInventory,
+  getAccessInventory,
+  buildAccessInventory,
 } = __RAW_ADMIN_ONLY_FUNCTIONS;
 
 const {
@@ -640,6 +665,8 @@ beforeEach(() => {
   mocks.readUserSnapshotMeta.mockResolvedValue(null);
   // Default: no Assets snapshot. The Assets pillar reports unmeasured, same posture.
   mocks.readAssetSnapshotMeta.mockResolvedValue(null);
+  // Default: no access snapshot. The three access pillars report unmeasured.
+  mocks.readAccessSnapshotMeta.mockResolvedValue(null);
   mocks.loadScreensPage.mockResolvedValue({ total: 0, rows: [] });
   mocks.loadScreensForField.mockResolvedValue([]);
   mocks.loadScreenSchemes.mockResolvedValue([]);
@@ -4813,6 +4840,36 @@ describe("getProjectOverview", () => {
     expect(result.automation.available).toBe(true);
   });
 
+  // Cross-pillar (Access): the three schemes this project resolves to, each flagged if it
+  // is the site default. Tri-state like the rest.
+  test("joins the project's permission / security / notification schemes when the access inventory exists", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: "f1" });
+    mocks.readAccessSnapshotMeta.mockResolvedValue({ version: "a1" });
+    mocks.loadProjectSchemes.mockResolvedValue([
+      { schemeType: "permission", schemeId: "1", schemeName: "Prod permissions", isDefault: false },
+      { schemeType: "notification", schemeId: "n1", schemeName: "Default Notification Scheme", isDefault: true },
+    ]);
+
+    const result = await getProjectOverview({ payload: { projectId: "10000" }, ...ctx });
+
+    expect(result.schemes).toMatchObject({
+      available: true,
+      permission: { schemeName: "Prod permissions" },
+      security: null,
+      notification: { isDefault: true },
+    });
+  });
+
+  test("reports the access schemes unavailable when that inventory has not been built", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: "f1" });
+    mocks.readAccessSnapshotMeta.mockResolvedValue(null);
+
+    const result = await getProjectOverview({ payload: { projectId: "10000" }, ...ctx });
+
+    expect(result.schemes).toMatchObject({ available: false });
+    expect(mocks.loadProjectSchemes).not.toHaveBeenCalled();
+  });
+
 
   // Site-wide rules are only worth listing per project if there is evidence they act there
   // -- otherwise the list is "all of them" and says nothing.
@@ -5439,6 +5496,38 @@ describe("getUserDetails", () => {
       expect.objectContaining({ id: 9, name: "Escalate", direction: "read", enabled: false }),
     ]));
   });
+
+  // Cross-pillar (Access): permission grants, security-level memberships and notification
+  // recipients that name this account directly.
+  test("lists the schemes that name this account directly when the access inventory exists", async () => {
+    mocks.readUserSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
+    mocks.loadUsers.mockResolvedValue([{ accountId: "a1", displayName: "Ann", applications: [], groups: [] }]);
+    mocks.readAutomationPart.mockResolvedValue(null);
+    mocks.readAccessSnapshotMeta.mockResolvedValue({ version: "a1" });
+    mocks.loadSchemesGrantingHolder.mockResolvedValue([
+      { schemeType: "permission", schemeId: "1", schemeName: "Prod", context: "ADMINISTER_PROJECTS", contextLabel: "Administer Projects" },
+    ]);
+
+    const result = await getUserDetails(ctx);
+
+    expect(result.accessGrantsAvailable).toBe(true);
+    expect(result.grantedBySchemes).toEqual([
+      expect.objectContaining({ schemeType: "permission", schemeName: "Prod", contextLabel: "Administer Projects" }),
+    ]);
+    expect(mocks.loadSchemesGrantingHolder).toHaveBeenCalledWith("test-install", "a1", "user", "a1");
+  });
+
+  test("reports access grants unavailable when the access inventory has not been built", async () => {
+    mocks.readUserSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
+    mocks.loadUsers.mockResolvedValue([{ accountId: "a1", displayName: "Ann", applications: [], groups: [] }]);
+    mocks.readAutomationPart.mockResolvedValue(null);
+    mocks.readAccessSnapshotMeta.mockResolvedValue(null);
+
+    const result = await getUserDetails(ctx);
+
+    expect(result.accessGrantsAvailable).toBe(false);
+    expect(result.grantedBySchemes).toEqual([]);
+  });
 });
 
 describe("buildUserInventory", () => {
@@ -5520,6 +5609,76 @@ describe("buildAssetInventory", () => {
 
     expect(result).toMatchObject({ queued: false, reason: "already-building" });
     expect(mocks.queueAssetSnapshotBuild).not.toHaveBeenCalled();
+  });
+});
+
+describe("getAccessInventory", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x" } };
+
+  test("reports never-built when no snapshot exists", async () => {
+    mocks.readAccessSnapshotMeta.mockResolvedValue(null);
+    const result = await getAccessInventory(ctx);
+    expect(result).toMatchObject({ neverBuilt: true, permissions: null, security: null, notifications: null });
+    expect(mocks.loadSchemes).not.toHaveBeenCalled();
+  });
+
+  test("returns the three scheme families with a project count and a governance summary each", async () => {
+    mocks.readAccessSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1", refreshedAt: "2026-09-01T00:00:00Z" });
+    mocks.readUserSnapshotMeta.mockResolvedValue({ version: "u1" });
+    mocks.loadUsers.mockResolvedValue([{ accountId: "acc-1" }]);
+    mocks.loadSchemes.mockImplementation(async (_k, _v, type) => {
+      if (type === "permission") return [
+        { id: "1", name: "Prod", isDefault: false },
+        { id: "3", name: "Legacy", isDefault: false },
+      ];
+      if (type === "security") return [{ id: "s1", name: "Restricted", defaultLevelId: "L1" }];
+      if (type === "notification") return [{ id: "n1", name: "Prod notif", isDefault: false }];
+      return [];
+    });
+    mocks.loadSchemeHolders.mockImplementation(async (_k, _v, type) => {
+      if (type === "permission") return [
+        { schemeId: "3", context: "BROWSE_PROJECTS", holderType: "anyone", holderValue: "" },
+      ];
+      if (type === "notification") return [
+        { schemeId: "n1", context: "1", holderType: "user", holderValue: "acc-gone" },
+      ];
+      return [];
+    });
+    mocks.loadSchemeProjects.mockImplementation(async (_k, _v, type) =>
+      type === "permission" ? [{ schemeId: "1", projectId: "10" }] : []);
+    mocks.loadSchemeLevels.mockResolvedValue([{ schemeId: "s1", id: "L1", name: "Internal" }]);
+
+    const result = await getAccessInventory(ctx);
+
+    expect(result.neverBuilt).toBe(false);
+    expect(result.permissions.schemes.find((s) => s.id === "1").projectCount).toBe(1);
+    expect(result.permissions.governance).toMatchObject({ available: true, riskySchemeCount: 1, unusedSchemeCount: 1 });
+    expect(result.security.governance).toMatchObject({ available: true, noLevelSchemeCount: 0 });
+    expect(result.notifications.governance).toMatchObject({ fragileSchemeCount: 1 });
+  });
+});
+
+describe("buildAccessInventory", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x" } };
+
+  test("queues a build when nothing is running", async () => {
+    mocks.readAccessSnapshotMeta.mockResolvedValue({ state: "idle" });
+    mocks.readAdminConfig?.mockResolvedValue?.({ readOnlyMode: false });
+
+    const result = await buildAccessInventory(ctx);
+
+    expect(result.queued).toBe(true);
+    expect(mocks.queueAccessSnapshotBuild).toHaveBeenCalledWith("test-install");
+  });
+
+  test("refuses while a live build is running", async () => {
+    mocks.readAccessSnapshotMeta.mockResolvedValue({ state: "building" });
+    mocks.isAccessBuildStale.mockReturnValue(false);
+
+    const result = await buildAccessInventory(ctx);
+
+    expect(result).toMatchObject({ queued: false, reason: "already-building" });
+    expect(mocks.queueAccessSnapshotBuild).not.toHaveBeenCalled();
   });
 });
 

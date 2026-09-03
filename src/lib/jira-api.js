@@ -124,6 +124,9 @@ export const METRIC_NAMES = {
   assetSnapshotStarted: "asset-snapshot-started",
   assetSnapshotCompleted: "asset-snapshot-completed",
   assetSnapshotFailed: "asset-snapshot-failed",
+  accessSnapshotStarted: "access-snapshot-started",
+  accessSnapshotCompleted: "access-snapshot-completed",
+  accessSnapshotFailed: "access-snapshot-failed",
 };
 
 // ----- Module-level rate limiter state -----
@@ -1205,6 +1208,68 @@ export async function getIssueTypeSchemeProjects(projectIds = []) {
     rows.push(...page);
   }
   return rows;
+}
+
+// ── Access & routing schemes: permission, issue-security, notification ────────
+//
+// All three are project-scoped schemes whose members are users, groups, project roles or
+// application roles -- the same "who can do what, where" shape. Small on any site (dozens of
+// schemes), so the fetch is a handful of calls plus, for permission schemes only, one call
+// per project to learn which scheme it uses (Jira has no bulk project->permissionscheme).
+
+// Every permission scheme with its grants inline. Not paginated -- one call returns all.
+// Each grant: { permission: "BROWSE_PROJECTS", holder: { type, value, parameter } }.
+export async function getAllPermissionSchemes() {
+  const data = await jiraRequest(route(["/rest/api/3/permissionscheme?expand=permissions"]));
+  return Array.isArray(data?.permissionSchemes) ? data.permissionSchemes : [];
+}
+
+// One project's permission scheme header { id, name }. Best-effort per caller -- a project
+// the app cannot read just goes unattributed rather than failing the build.
+export async function getProjectPermissionScheme(projectIdOrKey) {
+  return jiraRequest(route`/rest/api/3/project/${String(projectIdOrKey)}/permissionscheme`);
+}
+
+// Issue security scheme headers: { id, name, description, defaultSecurityLevelId }. Levels
+// and members are separate paginated calls per scheme.
+export async function getAllIssueSecuritySchemes() {
+  const data = await jiraRequest(route(["/rest/api/3/issuesecurityschemes"]));
+  return Array.isArray(data?.issueSecuritySchemes) ? data.issueSecuritySchemes : [];
+}
+
+export async function getIssueSecurityLevels(schemeId) {
+  return paginate((startAt) => route`/rest/api/3/issuesecurityschemes/level?schemeId=${schemeId}&startAt=${startAt}&maxResults=100`);
+}
+
+// Level members: [{ issueSecurityLevelId, holder: { type, value, parameter } }].
+export async function getIssueSecurityLevelMembers(schemeId) {
+  return paginate((startAt) => route`/rest/api/3/issuesecurityschemes/level/member?schemeId=${schemeId}&startAt=${startAt}&maxResults=100`);
+}
+
+// Security scheme -> projects. Bulk, projectId repeatable, batched like getIssueTypeSchemeProjects.
+export async function getIssueSecuritySchemeProjects(projectIds = []) {
+  const ids = [...new Set((projectIds || []).map((id) => String(id).trim()).filter(Boolean))];
+  if (!ids.length) return [];
+  const rows = [];
+  for (let i = 0; i < ids.length; i += ITSS_PROJECT_QUERY_BATCH) {
+    const query = ids
+      .slice(i, i + ITSS_PROJECT_QUERY_BATCH)
+      .map((id) => `projectId=${encodeURIComponent(id)}`)
+      .join("&");
+    const page = await paginate((startAt) =>
+      route([`/rest/api/3/issuesecurityschemes/project?maxResults=100&startAt=${Number(startAt) || 0}&${query}`])
+    );
+    rows.push(...page);
+  }
+  return rows;
+}
+
+// Notification schemes with events, recipients and project assignments inline (expand=all),
+// so no per-project call is needed. Each scheme: { id, name, description,
+// notificationSchemeEvents: [{ event: { id, name }, notifications: [{ notificationType, parameter, ... }] }],
+// projects: [projectId, ...] }.
+export async function getAllNotificationSchemes() {
+  return paginate((startAt) => route`/rest/api/3/notificationscheme?expand=all&startAt=${startAt}&maxResults=50`);
 }
 
 // GET /rest/api/3/status returns a flat array, not the usual {values, isLast} wrapper.

@@ -1308,6 +1308,98 @@ export const CREATE_ASSET_SNAPSHOT_META_TABLE = `
   )
 `;
 
+// ── Access & routing schemes: permission, issue-security, notification ────────
+//
+// Three scheme types, one shape: a header, a set of holders (users / groups / project roles
+// / application roles / special tokens like "anyone" or "assignee"), and a set of project
+// assignments. scheme_type keeps them in one set of tables so the cross-pillar joins ("which
+// schemes name this account", "which schemes does this project use") are one query, not three.
+export const CREATE_SNAPSHOT_SCHEMES_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_schemes (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    scheme_type VARCHAR(16) NOT NULL,
+    scheme_id VARCHAR(64) NOT NULL,
+    name VARCHAR(255) NULL,
+    description TEXT NULL,
+    is_default TINYINT NOT NULL DEFAULT 0,
+    default_level_id VARCHAR(64) NULL,
+    PRIMARY KEY (scope_key, version, scheme_type, scheme_id)
+  )
+`;
+
+// One row per (scheme, context, holder). `context` is the permission key for a permission
+// scheme, the level id for a security scheme, the event id for a notification scheme --
+// context_label carries its human name. holder_value is "" (not NULL) for the value-less
+// holder types so it can sit in the primary key.
+export const CREATE_SNAPSHOT_SCHEME_HOLDERS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_scheme_holders (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    scheme_type VARCHAR(16) NOT NULL,
+    scheme_id VARCHAR(64) NOT NULL,
+    context VARCHAR(128) NOT NULL,
+    context_label VARCHAR(255) NULL,
+    holder_type VARCHAR(48) NOT NULL,
+    holder_value VARCHAR(191) NOT NULL DEFAULT '',
+    holder_label VARCHAR(255) NULL,
+    PRIMARY KEY (scope_key, version, scheme_type, scheme_id, context, holder_type, holder_value)
+  )
+`;
+
+// The reverse-lookup index for the People cross-pillar join: every scheme that names one
+// account / group / role directly.
+export const CREATE_SNAPSHOT_SCHEME_HOLDERS_BY_HOLDER_INDEX = `
+  CREATE INDEX idx_snapshot_scheme_holders_by_holder
+  ON snapshot_scheme_holders (scope_key, version, holder_type, holder_value)
+`;
+
+// Security scheme levels, including the ones with no members (a level nobody is in makes any
+// issue set to it invisible to everyone but a site admin -- a data black hole).
+export const CREATE_SNAPSHOT_SCHEME_LEVELS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_scheme_levels (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    scheme_id VARCHAR(64) NOT NULL,
+    level_id VARCHAR(64) NOT NULL,
+    name VARCHAR(255) NULL,
+    description TEXT NULL,
+    is_default TINYINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (scope_key, version, scheme_id, level_id)
+  )
+`;
+
+// Which projects each scheme is assigned to -- across all three types. A scheme with no row
+// here is unused clutter; two projects with wildly different schemes is sprawl.
+export const CREATE_SNAPSHOT_SCHEME_PROJECTS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_scheme_projects (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    scheme_type VARCHAR(16) NOT NULL,
+    scheme_id VARCHAR(64) NOT NULL,
+    project_id VARCHAR(64) NOT NULL,
+    project_key VARCHAR(64) NULL,
+    project_name VARCHAR(255) NULL,
+    PRIMARY KEY (scope_key, version, scheme_type, scheme_id, project_id)
+  )
+`;
+
+export const CREATE_ACCESS_SNAPSHOT_META_TABLE = `
+  CREATE TABLE IF NOT EXISTS access_snapshot_meta (
+    scope_key VARCHAR(191) NOT NULL,
+    state VARCHAR(32) NOT NULL DEFAULT 'idle',
+    version VARCHAR(64) NULL,
+    started_at VARCHAR(64) NULL,
+    completed_at VARCHAR(64) NULL,
+    refreshed_at VARCHAR(64) NULL,
+    total_permission_schemes INTEGER NOT NULL DEFAULT 0,
+    total_security_schemes INTEGER NOT NULL DEFAULT 0,
+    total_notification_schemes INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT NULL,
+    PRIMARY KEY (scope_key)
+  )
+`;
+
 // Append-only record of privileged actions: who did what, when, and whether it was
 // allowed. Deliberately not versioned by snapshot and deliberately NOT wiped by
 // clearAllSnapshotData -- an audit trail that a privileged action can erase is not an
@@ -1545,7 +1637,15 @@ const projectStoreMigrations = migrationRunner
   // ── v130-v132: field x user (user-picker value) usage, a fourth field axis ──
   .enqueue("v130_create_snapshot_field_user_usage_table", CREATE_SNAPSHOT_FIELD_USER_USAGE_TABLE)
   .enqueue("v131_create_snapshot_field_user_usage_by_account_index", CREATE_SNAPSHOT_FIELD_USER_USAGE_BY_ACCOUNT_INDEX)
-  .enqueue("v132_create_issue_scan_field_user_buffer_table", CREATE_ISSUE_SCAN_FIELD_USER_BUFFER_TABLE);
+  .enqueue("v132_create_issue_scan_field_user_buffer_table", CREATE_ISSUE_SCAN_FIELD_USER_BUFFER_TABLE)
+
+  // ── v133-v138: the access pillar — permission / security / notification schemes ──
+  .enqueue("v133_create_snapshot_schemes_table", CREATE_SNAPSHOT_SCHEMES_TABLE)
+  .enqueue("v134_create_snapshot_scheme_holders_table", CREATE_SNAPSHOT_SCHEME_HOLDERS_TABLE)
+  .enqueue("v135_create_snapshot_scheme_holders_by_holder_index", CREATE_SNAPSHOT_SCHEME_HOLDERS_BY_HOLDER_INDEX)
+  .enqueue("v136_create_snapshot_scheme_levels_table", CREATE_SNAPSHOT_SCHEME_LEVELS_TABLE)
+  .enqueue("v137_create_snapshot_scheme_projects_table", CREATE_SNAPSHOT_SCHEME_PROJECTS_TABLE)
+  .enqueue("v138_create_access_snapshot_meta_table", CREATE_ACCESS_SNAPSHOT_META_TABLE);
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history

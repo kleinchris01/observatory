@@ -113,6 +113,11 @@ describe("PeopleTab", () => {
             { fieldId: "customfield_500", fieldName: "Reviewer", issueCount: 30 },
             { fieldId: "assignee", fieldName: "Assignee", issueCount: 900 },
           ],
+          grantedBySchemes: [
+            { schemeType: "permission", schemeId: "1", schemeName: "Prod permissions", context: "ADMINISTER_PROJECTS", contextLabel: "Administer Projects" },
+            { schemeType: "notification", schemeId: "n1", schemeName: "Prod notifications", context: "1", contextLabel: "Issue Created" },
+          ],
+          accessGrantsAvailable: true,
           automationRefsAvailable: true,
           fieldAppearancesAvailable: true,
           ownershipAvailable: { filters: true, dashboards: true, rules: false },
@@ -140,6 +145,10 @@ describe("PeopleTab", () => {
     // The user-picker fields this person is held as a value in.
     expect(screen.getByText("Reviewer")).toBeInTheDocument();
     expect(screen.getByText("Assignee")).toBeInTheDocument();
+    // The cross-pillar access join: schemes that name this account directly.
+    expect(screen.getByText("Granted by schemes")).toBeInTheDocument();
+    expect(screen.getByText("Prod permissions")).toBeInTheDocument();
+    expect(screen.getByText(/permission: Administer Projects/i)).toBeInTheDocument();
   });
 
   test("surfaces orphaned ownership on the overview", async () => {

@@ -284,6 +284,22 @@ permissions:
     # With it, dashboard -> gadget -> filter -> field resolves exactly, which is what lets a
     # field card say which dashboards break if the field goes.
     - read:dashboard.property:jira
+    # The access pillar: permission schemes, issue-security schemes and notification schemes,
+    # with their holders and project assignments. All admin-only reads -- Observatory reports
+    # who can do what where, it never edits a grant. Granular scopes are conjunctive, so each
+    # scheme family's specific scope is declared alongside manage:jira-configuration (which
+    # carries the Jira-admin gate every one of these endpoints also requires):
+    #   permissionscheme            -> read:permission-scheme:jira
+    #   issuesecurityschemes(+level)-> read:issue-security-scheme:jira, read:issue-security-level:jira
+    #   notificationscheme          -> read:notification-scheme:jira
+    # notificationscheme?expand=all also resolves role and group recipients, so both of those
+    # read scopes are declared too.
+    - read:permission-scheme:jira
+    - read:issue-security-scheme:jira
+    - read:issue-security-level:jira
+    - read:notification-scheme:jira
+    - read:project-role:jira
+    - read:group:jira
     # The JSM Assets (CMDB) pillar. Assets is a gateway API (api.atlassian.com), reached via
     # Stargate. The read:cmdb-* scopes cover the structure endpoints (schemas, object types,
     # attributes). The workspace-id discovery hop (/rest/servicedeskapi/assets/workspace)

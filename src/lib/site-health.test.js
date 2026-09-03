@@ -14,6 +14,13 @@ const assetStore = {
   loadAssetObjectTypes: vi.fn(async () => []),
   loadAssetAttributes: vi.fn(async () => []),
 };
+const accessStore = {
+  readAccessSnapshotMeta: vi.fn(async () => null),
+  loadSchemes: vi.fn(async () => []),
+  loadSchemeHolders: vi.fn(async () => []),
+  loadSchemeLevels: vi.fn(async () => []),
+  loadSchemeProjects: vi.fn(async () => []),
+};
 vi.mock("./project-store.js", () => ({
   loadIssueScanProjectTotals: vi.fn(async () => []),
   loadScreenGovernanceSummary: vi.fn(async () => ({})),
@@ -29,6 +36,7 @@ vi.mock("./project-store.js", () => ({
   loadDashboards: vi.fn(async () => []),
   ...userStore,
   ...assetStore,
+  ...accessStore,
 }));
 const automationStore = {
   loadStatusAutomationReferences: vi.fn(async () => ({})),
@@ -36,7 +44,7 @@ const automationStore = {
 };
 vi.mock("./store/automation.js", () => automationStore);
 
-const { buildProjectInsights, buildFieldUsageInsights, captureSiteHealth, buildUserOverview, buildAssetOverview } = await import("./site-health.js");
+const { buildProjectInsights, buildFieldUsageInsights, captureSiteHealth, buildUserOverview, buildAssetOverview, buildAccessOverview } = await import("./site-health.js");
 
 // The fields pillar scores duplicate naming once, through the dedicated field-naming
 // dimension (built from duplicateClusters). The per-field "duplicate-naming" finding must
@@ -167,6 +175,33 @@ describe("buildAssetOverview", () => {
     const overview = await buildAssetOverview("inst");
     expect(overview).toMatchObject({ available: true, assetsEnabled: true, totalSchemas: 2, deadSchemaCount: 1, brokenReferenceCount: 1 });
     expect(overview.health).toMatchObject({ available: true, totalSchemas: 2, deadSchemaCount: 1, brokenReferenceCount: 1 });
+  });
+});
+
+describe("buildAccessOverview", () => {
+  test("reports unmeasured when no snapshot exists", async () => {
+    accessStore.readAccessSnapshotMeta.mockResolvedValueOnce(null);
+    const overview = await buildAccessOverview("inst");
+    expect(overview.available).toBe(false);
+  });
+
+  test("summarises each scheme type and hands each its own health block", async () => {
+    accessStore.readAccessSnapshotMeta.mockResolvedValueOnce({ state: "ready", version: "v1", refreshedAt: "2026-09-02T00:00:00Z" });
+    accessStore.loadSchemes.mockImplementation(async (_k, _v, type) => type === "permission"
+      ? [{ id: "1", name: "Prod", isDefault: false }, { id: "2", name: "Default Permission Scheme", isDefault: true }]
+      : type === "security" ? [{ id: "s1", name: "Sec" }]
+      : [{ id: "n1", name: "Notif" }]);
+    accessStore.loadSchemeHolders.mockImplementation(async (_k, _v, type) => type === "permission"
+      ? [{ schemeId: "1", context: "BROWSE_PROJECTS", holderType: "anyone", holderValue: "" }]
+      : []);
+    accessStore.loadSchemeLevels.mockResolvedValue([{ schemeId: "s1", id: "L1", name: "Internal" }]);
+    accessStore.loadSchemeProjects.mockImplementation(async (_k, _v, type) => type === "permission" ? [{ schemeId: "1", projectId: "10" }] : []);
+
+    const overview = await buildAccessOverview("inst");
+    expect(overview.available).toBe(true);
+    expect(overview.permissions.health).toMatchObject({ available: true, riskySchemeCount: 1 });
+    expect(overview.security.health).toMatchObject({ available: true, brokenLevelCount: 1 });
+    expect(overview.notifications.health).toMatchObject({ available: true });
   });
 });
 

@@ -175,6 +175,10 @@ const DEFAULT_TOLERANCES = {
   deadAssetSchemas: 0.20,
   bareAssetTypes: 0.30,
   brokenAssetReferences: 0.10,
+  riskyPermissionSchemes: 0.15,
+  unusedAccessSchemes: 0.35,
+  brokenSecurityLevels: 0.15,
+  fragileNotificationSchemes: 0.30,
 };
 
   const [local, setLocal] = React.useState(() => {
@@ -822,6 +826,25 @@ function RulesArea({ t, setThreshold, pct, setTolerancePercent }) {
             tail="of concrete object types carrying no attribute beyond the built-in Name." />
           <ToleranceRule tone="risk" badge="Assets" name="Broken references" pct={pct} set={setTolerancePercent} k="brokenAssetReferences"
             tail="of object-reference attributes pointing at an object type that is gone." />
+        </div>
+      </ConfigSection>
+
+      <ConfigSection title="Access schemes" icon="shield">
+        <p className="admin-config-section__desc">
+          Permission, issue-security and notification schemes. Least privilege carries the most
+          consequence &mdash; a scheme that opens browse to anyone is a data-exposure fact, not a
+          tidiness one &mdash; so it is bounded tightest; unused schemes of any kind are the most
+          forgiving.
+        </p>
+        <div className="admin-threshold-rules">
+          <ToleranceRule tone="risk" badge="Permissions" name="Least-privilege violations" pct={pct} set={setTolerancePercent} k="riskyPermissionSchemes"
+            tail="of permission schemes granting browse to anyone, project admin to a whole group, or a permission to a named individual." />
+          <ToleranceRule tone="risk" badge="Issue security" name="Unreachable security levels" pct={pct} set={setTolerancePercent} k="brokenSecurityLevels"
+            tail="of security levels with no members, or belonging to a scheme with no levels — an issue set to one is invisible." />
+          <ToleranceRule tone="standardize" badge="Notifications" name="Fragile routing" pct={pct} set={setTolerancePercent} k="fragileNotificationSchemes"
+            tail="of notification schemes sending an event to a named individual rather than a role or group." />
+          <ToleranceRule tone="cleanup" badge="Access" name="Unused schemes" pct={pct} set={setTolerancePercent} k="unusedAccessSchemes"
+            tail="of permission, security and notification schemes assigned to no project." />
         </div>
       </ConfigSection>
 

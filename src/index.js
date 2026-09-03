@@ -26,6 +26,7 @@ import { buildScreenSnapshot } from "./lib/screen-engine.js";
 import { buildIssueTypeSnapshot } from "./lib/issuetype-engine.js";
 import { buildUserSnapshot } from "./lib/user-engine.js";
 import { buildAssetSnapshot } from "./lib/asset-engine.js";
+import { buildAccessSnapshot } from "./lib/access-engine.js";
 import { runFullScanStep, runQuickScanStep, startQuickScan, recoverStalledScan } from "./lib/full-scan-runner.js";
 import { buildFilterSnapshot } from "./lib/filter-engine.js";
 import { buildDashboardSnapshot } from "./lib/dashboard-engine.js";
@@ -433,6 +434,14 @@ export async function consumeSnapshot(event) {
         result?.unavailable
           ? `build-asset-snapshot: Assets not enabled — ${result.reason}`
           : `build-asset-snapshot: ${result?.schemas ?? 0} schemas, ${result?.objectTypes ?? 0} object types, ${result?.attributes ?? 0} attributes`
+      );
+      return;
+    }
+
+    if (jobType === "build-access-snapshot") {
+      const result = await buildAccessSnapshot(installationKey);
+      console.log(
+        `build-access-snapshot: ${result?.permission ?? 0} permission, ${result?.security ?? 0} security, ${result?.notification ?? 0} notification schemes`
       );
       return;
     }

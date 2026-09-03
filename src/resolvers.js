@@ -143,6 +143,13 @@ import {
   loadAssetSchemas,
   loadAssetObjectTypes,
   loadAssetAttributes,
+  readAccessSnapshotMeta,
+  loadSchemes,
+  loadSchemeHolders,
+  loadSchemeLevels,
+  loadSchemeProjects,
+  loadSchemesGrantingHolder,
+  loadProjectSchemes,
   recordHealthSnapshot,
   readFullScanMeta,
   loadHealthHistory,
@@ -155,8 +162,12 @@ import { queueScreenSnapshotBuild, isScreenBuildStale } from "./lib/screen-engin
 import { queueIssueTypeSnapshotBuild, isIssueTypeBuildStale } from "./lib/issuetype-engine.js";
 import { queueUserSnapshotBuild, isUserBuildStale } from "./lib/user-engine.js";
 import { queueAssetSnapshotBuild, isAssetBuildStale } from "./lib/asset-engine.js";
+import { queueAccessSnapshotBuild, isAccessBuildStale } from "./lib/access-engine.js";
 import { summarizeIssueTypeInsights } from "./lib/issuetype-insights.js";
 import { summarizeAssetInsights } from "./lib/asset-insights.js";
+import {
+  summarizePermissionInsights, summarizeSecurityInsights, summarizeNotificationInsights,
+} from "./lib/access-insights.js";
 import { computeSiteHealth, DEFAULT_HEALTH_TOLERANCES } from "./lib/health-score.js";
 // Moved out of this file so a scan can record a measurement without importing the
 // resolver layer. Same implementation, both callers.
@@ -170,6 +181,7 @@ import {
   buildIssueTypeOverview,
   buildUserOverview,
   buildAssetOverview,
+  buildAccessOverview,
   attachUniqueIssueCounts,
   captureSiteHealth,
 } from "./lib/site-health.js";
@@ -1610,15 +1622,21 @@ async function getUserDetails({ payload, context }) {
   const meta = await readUserSnapshotMeta(installationKey);
   if (!meta?.version) return { available: false, reason: "no-roster" };
 
-  const fieldMeta = await readSnapshotMeta(installationKey).catch(() => null);
+  const [fieldMeta, accessMeta] = await Promise.all([
+    readSnapshotMeta(installationKey).catch(() => null),
+    readAccessSnapshotMeta(installationKey).catch(() => null),
+  ]);
 
-  const [users, ownership, ruleUserIndex, ruleDirectoryDoc, fieldAppearanceRows] = await Promise.all([
+  const [users, ownership, ruleUserIndex, ruleDirectoryDoc, fieldAppearanceRows, grantedBySchemes] = await Promise.all([
     loadUsers(installationKey, meta.version),
     buildOwnershipIndex(installationKey).catch(() => ({ byAccount: new Map(), available: {} })),
     readAutomationPart(installationKey, "users").catch(() => null),
     readAutomationPart(installationKey, "directory").catch(() => null),
     fieldMeta?.version
       ? loadUserFieldAppearances(installationKey, fieldMeta.version, accountId).catch(() => [])
+      : Promise.resolve([]),
+    accessMeta?.version
+      ? loadSchemesGrantingHolder(installationKey, accessMeta.version, "user", accountId).catch(() => [])
       : Promise.resolve([]),
   ]);
 
@@ -1651,8 +1669,12 @@ async function getUserDetails({ payload, context }) {
     authoredRules: owned.rules,
     referencedInRules,
     fieldAppearances,
+    // Permission grants, security-level memberships and notification recipients that name
+    // this account directly (a direct grant is an anti-pattern -- it should be a role).
+    grantedBySchemes,
     automationRefsAvailable: Boolean(ruleUserIndex),
     fieldAppearancesAvailable: Boolean(fieldMeta?.version),
+    accessGrantsAvailable: Boolean(accessMeta?.version),
     ownershipAvailable: ownership.available,
   };
 }
@@ -1788,6 +1810,112 @@ async function buildAssetInventory({ context }) {
   }
 
   await queueAssetSnapshotBuild(installationKey);
+  return { queued: true };
+}
+
+// The access pillar's read: permission / issue-security / notification schemes, their
+// holders and project assignments, with the governance summary for each type. Roster
+// accountIds are joined in so an off-roster grant reads as such.
+async function getAccessInventory({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  const meta = await readAccessSnapshotMeta(installationKey);
+  const staleBuild = isAccessBuildStale(meta);
+
+  if (!meta?.version) {
+    return {
+      state: meta?.state || "idle",
+      staleBuild,
+      startedAt: meta?.startedAt || null,
+      version: null,
+      permissions: null,
+      security: null,
+      notifications: null,
+      lastError: meta?.lastError || null,
+      neverBuilt: true,
+    };
+  }
+
+  let rosterAccountIds = new Set();
+  const userMeta = await readUserSnapshotMeta(installationKey).catch(() => null);
+  if (userMeta?.version) {
+    const users = await loadUsers(installationKey, userMeta.version).catch(() => []);
+    rosterAccountIds = new Set(users.map((u) => u.accountId));
+  }
+
+  const [
+    permSchemes, permHolders, permProjects,
+    secSchemes, secHolders, secProjects, levels,
+    notifSchemes, notifHolders, notifProjects,
+  ] = await Promise.all([
+    loadSchemes(installationKey, meta.version, "permission"),
+    loadSchemeHolders(installationKey, meta.version, "permission"),
+    loadSchemeProjects(installationKey, meta.version, "permission"),
+    loadSchemes(installationKey, meta.version, "security"),
+    loadSchemeHolders(installationKey, meta.version, "security"),
+    loadSchemeProjects(installationKey, meta.version, "security"),
+    loadSchemeLevels(installationKey, meta.version),
+    loadSchemes(installationKey, meta.version, "notification"),
+    loadSchemeHolders(installationKey, meta.version, "notification"),
+    loadSchemeProjects(installationKey, meta.version, "notification"),
+  ]);
+
+  const projectCountFor = (rows) => {
+    const m = new Map();
+    for (const r of rows) m.set(r.schemeId, (m.get(r.schemeId) || 0) + 1);
+    return m;
+  };
+
+  const decorate = (schemes, projRows) => {
+    const counts = projectCountFor(projRows);
+    return schemes.map((s) => ({ ...s, projectCount: counts.get(s.id) || 0 }));
+  };
+
+  return {
+    state: meta.state || "ready",
+    staleBuild,
+    startedAt: meta.startedAt || null,
+    refreshedAt: meta.refreshedAt || null,
+    version: meta.version,
+    neverBuilt: false,
+    lastError: meta.lastError || null,
+    permissions: {
+      schemes: decorate(permSchemes, permProjects),
+      holders: permHolders,
+      governance: summarizePermissionInsights({ schemes: permSchemes, holders: permHolders, schemeProjects: permProjects, rosterAccountIds }),
+    },
+    security: {
+      schemes: decorate(secSchemes, secProjects),
+      levels,
+      holders: secHolders,
+      governance: summarizeSecurityInsights({ schemes: secSchemes, levels, holders: secHolders, schemeProjects: secProjects, rosterAccountIds }),
+    },
+    notifications: {
+      schemes: decorate(notifSchemes, notifProjects),
+      holders: notifHolders,
+      governance: summarizeNotificationInsights({ schemes: notifSchemes, holders: notifHolders, schemeProjects: notifProjects, rosterAccountIds }),
+    },
+  };
+}
+
+async function buildAccessInventory({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  const meta = await readAccessSnapshotMeta(installationKey);
+  if (meta?.state === "building" && !isAccessBuildStale(meta)) {
+    return { queued: false, reason: "already-building", meta };
+  }
+
+  const adminConfig = await readAdminConfig();
+  if (adminConfig.readOnlyMode) {
+    return { queued: false, error: "Read-only mode is enabled. Disable it before building the access inventory." };
+  }
+
+  await queueAccessSnapshotBuild(installationKey);
   return { queued: true };
 }
 
@@ -5253,7 +5381,7 @@ const EMPTY_DASHBOARD = {
 export async function getAdminOverview({ context }) {
   await ensureProjectStoreReady();
   const installationKey = getInstallationKey(context);
-  const [meta, summaryCounts, config, legacySummaryCount, workflow, screens, issueTypeOverview, userOverview, assetOverview, filterOverview, dashboardOverview, automationAnalysis] = await Promise.all([
+  const [meta, summaryCounts, config, legacySummaryCount, workflow, screens, issueTypeOverview, userOverview, assetOverview, accessOverview, filterOverview, dashboardOverview, automationAnalysis] = await Promise.all([
     readSnapshotMeta(installationKey),
     // Counted in SQL rather than loaded. This used to pull up to 5,000 summary rows --
     // including two LONGTEXT columns -- across the wire, and use them for a count grouped by
@@ -5267,6 +5395,7 @@ export async function getAdminOverview({ context }) {
     buildIssueTypeOverview(installationKey),
     buildUserOverview(installationKey),
     buildAssetOverview(installationKey),
+    buildAccessOverview(installationKey),
     // Without the project catalog the broken-reference check is skipped and says so. Passing
     // it would mean loading the project list before this Promise.all rather than inside the
     // dashboard build below, which is a bigger cost than the one finding is worth here -- the
@@ -5363,6 +5492,9 @@ export async function getAdminOverview({ context }) {
     issueTypes: issueTypeOverview?.health ?? null,
     users: userOverview?.health ?? null,
     assets: assetOverview?.health ?? null,
+    permissions: accessOverview?.permissions?.health ?? null,
+    security: accessOverview?.security?.health ?? null,
+    notifications: accessOverview?.notifications?.health ?? null,
     // Workflow, project and automation dimensions were scored against hardcoded constants
     // while every field rule was tunable. Same config surface now feeds both.
     tolerances: config?.healthTolerances,
@@ -5400,6 +5532,7 @@ export async function getAdminOverview({ context }) {
     issueTypes: issueTypeOverview,
     users: userOverview,
     assets: assetOverview,
+    access: accessOverview,
     // The counts the Overview's findings list needs, not just the score's rate. Same lesson
     // the automation pillar learned: trimming this to the headline fields made every problem
     // the analysis had already found invisible on the page that exists to surface problems.
@@ -5501,6 +5634,9 @@ const PILLAR_INPUTS = {
   issueTypes: ["issueTypes"],
   users: ["users"],
   assets: ["assets"],
+  permissions: ["access"],
+  security: ["access"],
+  notifications: ["access"],
   automation: ["automation"],
   projects: ["projects", "adoption"],
 };
@@ -5518,7 +5654,7 @@ async function getPillarHealth({ payload, context }) {
   // already reports as unavailable -- and unavailable dimensions from other pillars are
   // discarded below anyway, so the returned pillar is byte-identical to what the full
   // computation produced for it.
-  const [workflow, screens, filterOverview, dashboardOverview, issueTypeOverview, userOverview, assetOverview, automationAnalysis] = await Promise.all([
+  const [workflow, screens, filterOverview, dashboardOverview, issueTypeOverview, userOverview, assetOverview, accessOverview, automationAnalysis] = await Promise.all([
     needs.has("workflow") ? buildWorkflowOverview(installationKey) : Promise.resolve(null),
     needs.has("screens") ? buildScreenOverview(installationKey) : Promise.resolve(null),
     needs.has("filters") ? buildFilterOverview(installationKey) : Promise.resolve(null),
@@ -5526,6 +5662,7 @@ async function getPillarHealth({ payload, context }) {
     needs.has("issueTypes") ? buildIssueTypeOverview(installationKey) : Promise.resolve(null),
     needs.has("users") ? buildUserOverview(installationKey) : Promise.resolve(null),
     needs.has("assets") ? buildAssetOverview(installationKey) : Promise.resolve(null),
+    needs.has("access") ? buildAccessOverview(installationKey) : Promise.resolve(null),
     needs.has("automation")
       ? readAutomationAnalysis(installationKey).catch(fallbackOn("pillar-health.automation_load_failed", () => null, { installationKey }))
       : Promise.resolve(null),
@@ -5580,6 +5717,9 @@ async function getPillarHealth({ payload, context }) {
     issueTypes: issueTypeOverview?.health ?? null,
     users: userOverview?.health ?? null,
     assets: assetOverview?.health ?? null,
+    permissions: accessOverview?.permissions?.health ?? null,
+    security: accessOverview?.security?.health ?? null,
+    notifications: accessOverview?.notifications?.health ?? null,
     tolerances: config?.healthTolerances,
   });
 
@@ -5717,11 +5857,12 @@ async function getProjectOverview({ payload, context }) {
     return { available: false, reason: "You do not have Browse Projects on this project." };
   }
 
-  const [fieldMeta, workflowMeta, screenMeta, filterMeta] = await Promise.all([
+  const [fieldMeta, workflowMeta, screenMeta, filterMeta, accessMeta] = await Promise.all([
     readSnapshotMeta(installationKey),
     readWorkflowSnapshotMeta(installationKey).catch(() => null),
     readScreenSnapshotMeta(installationKey).catch(() => null),
     readFilterSnapshotMeta(installationKey).catch(() => null),
+    readAccessSnapshotMeta(installationKey).catch(() => null),
   ]);
 
   // The project's own row, plus every browsable project's activity -- needed both for this
@@ -5734,7 +5875,7 @@ async function getProjectOverview({ payload, context }) {
   const thisProject = allProjects.find((p) => String(p.projectId) === String(projectId)) || null;
   const projectKey = projectKeyHint || thisProject?.projectKey || "";
 
-  const [scheme, screens, rules, globalRules, projectFilters, activityByProject] = await Promise.all([
+  const [scheme, screens, rules, globalRules, projectFilters, activityByProject, projectSchemeRows] = await Promise.all([
     workflowMeta?.version
       ? loadWorkflowSchemeForProject(installationKey, workflowMeta.version, projectId).catch(() => null)
       : Promise.resolve(null),
@@ -5753,6 +5894,9 @@ async function getProjectOverview({ payload, context }) {
       ? loadFilterReferencesFor(installationKey, filterMeta.version, "project", projectKey).catch(() => null)
       : Promise.resolve(null),
     loadProjectActivity(installationKey).catch(() => new Map()),
+    accessMeta?.version
+      ? loadProjectSchemes(installationKey, accessMeta.version, projectId).catch(() => null)
+      : Promise.resolve(null),
   ]);
 
   const workflowPillar = workflowMeta?.version
@@ -5817,6 +5961,16 @@ async function getProjectOverview({ payload, context }) {
       }
       : { available: false, reason: "No saved-filter inventory has been built yet." },
     adoption: adoptionRow,
+    // The permission / issue-security / notification scheme this project uses, each flagged
+    // if it is the site default. Tri-state like the rest.
+    schemes: accessMeta?.version
+      ? {
+        available: true,
+        permission: (projectSchemeRows || []).find((s) => s.schemeType === "permission") || null,
+        security: (projectSchemeRows || []).find((s) => s.schemeType === "security") || null,
+        notification: (projectSchemeRows || []).find((s) => s.schemeType === "notification") || null,
+      }
+      : { available: false, reason: "No access scheme inventory has been built yet." },
     // One rolled-up read of the project's overall health, from the pillar signals above.
     health: buildProjectHealthRollup({
       perIssue,
@@ -6406,6 +6560,7 @@ const AUDITED_ADMIN_ACTIONS = new Set([
   "buildIssueTypeInventory",
   "buildUserInventory",
   "buildAssetInventory",
+  "buildAccessInventory",
 ]);
 
 function withAuditTrail(functions) {
@@ -6514,6 +6669,10 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   // JSM Assets (CMDB) pillar
   getAssetInventory,       // Admin read: object schemas, their object types and attributes, with the governance summary
   buildAssetInventory,     // Mutating: queues a JSM Assets structure snapshot build
+
+  // Access pillar (permission / issue-security / notification schemes)
+  getAccessInventory,      // Admin read: the three scheme types, their holders and project assignments, with governance
+  buildAccessInventory,    // Mutating: queues an access scheme snapshot build
 
   getAutomationCascades,   // Admin read: one filtered page of cascade relationships
   getCascadeGraph,         // Admin read: loops and multi-rule chains across every edge

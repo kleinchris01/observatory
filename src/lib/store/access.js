@@ -1,0 +1,281 @@
+// The access pillar: permission schemes, issue-security schemes and notification schemes,
+// their holders, and their project assignments -- one shape, one set of tables.
+//
+// Imports only from core.js so there is one arrow and no cycle. Full replace per scope: a
+// site has dozens of schemes and low hundreds of holders, so the build completes in one
+// invocation and never appends to a partial version.
+
+import { sql } from "@forge/sql";
+import {
+  chunkArray,
+  ensureProjectStoreReady,
+  toNumber,
+  withSqlRetry,
+} from "./core.js";
+
+const BATCH = 50;
+
+export async function replaceAccessSnapshot(scopeKey, version, {
+  schemes = [],
+  holders = [],
+  levels = [],
+  schemeProjects = [],
+} = {}) {
+  await ensureProjectStoreReady();
+
+  for (const table of [
+    "snapshot_schemes",
+    "snapshot_scheme_holders",
+    "snapshot_scheme_levels",
+    "snapshot_scheme_projects",
+  ]) {
+    await withSqlRetry(() =>
+      sql.prepare(`DELETE FROM ${table} WHERE scope_key = ?`).bindParams(scopeKey).execute()
+    );
+  }
+
+  for (const b of chunkArray(schemes, BATCH)) {
+    const valuesSql = b.map(() => "(?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
+    const params = b.flatMap((s) => [
+      scopeKey, version, String(s.schemeType), String(s.id), s.name || null, s.description || null,
+      s.isDefault ? 1 : 0, s.defaultLevelId == null ? null : String(s.defaultLevelId),
+    ]);
+    await withSqlRetry(() =>
+      sql.prepare(`
+        INSERT INTO snapshot_schemes
+          (scope_key, version, scheme_type, scheme_id, name, description, is_default, default_level_id)
+        VALUES ${valuesSql}
+      `).bindParams(...params).execute()
+    );
+  }
+
+  for (const b of chunkArray(holders, BATCH)) {
+    const valuesSql = b.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
+    const params = b.flatMap((h) => [
+      scopeKey, version, String(h.schemeType), String(h.schemeId),
+      String(h.context ?? ""), h.contextLabel || null,
+      String(h.holderType), String(h.holderValue ?? ""), h.holderLabel || null,
+    ]);
+    await withSqlRetry(() =>
+      sql.prepare(`
+        INSERT INTO snapshot_scheme_holders
+          (scope_key, version, scheme_type, scheme_id, context, context_label, holder_type, holder_value, holder_label)
+        VALUES ${valuesSql}
+        ON DUPLICATE KEY UPDATE context_label = VALUES(context_label), holder_label = VALUES(holder_label)
+      `).bindParams(...params).execute()
+    );
+  }
+
+  for (const b of chunkArray(levels, BATCH)) {
+    const valuesSql = b.map(() => "(?, ?, ?, ?, ?, ?, ?)").join(", ");
+    const params = b.flatMap((l) => [
+      scopeKey, version, String(l.schemeId), String(l.id), l.name || null, l.description || null, l.isDefault ? 1 : 0,
+    ]);
+    await withSqlRetry(() =>
+      sql.prepare(`
+        INSERT INTO snapshot_scheme_levels
+          (scope_key, version, scheme_id, level_id, name, description, is_default)
+        VALUES ${valuesSql}
+      `).bindParams(...params).execute()
+    );
+  }
+
+  for (const b of chunkArray(schemeProjects, BATCH)) {
+    const valuesSql = b.map(() => "(?, ?, ?, ?, ?, ?, ?)").join(", ");
+    const params = b.flatMap((p) => [
+      scopeKey, version, String(p.schemeType), String(p.schemeId), String(p.projectId),
+      p.projectKey || null, p.projectName || null,
+    ]);
+    await withSqlRetry(() =>
+      sql.prepare(`
+        INSERT INTO snapshot_scheme_projects
+          (scope_key, version, scheme_type, scheme_id, project_id, project_key, project_name)
+        VALUES ${valuesSql}
+        ON DUPLICATE KEY UPDATE project_key = VALUES(project_key), project_name = VALUES(project_name)
+      `).bindParams(...params).execute()
+    );
+  }
+}
+
+// ── Reads ────────────────────────────────────────────────────────────────────
+
+export async function loadSchemes(scopeKey, version, schemeType) {
+  await ensureProjectStoreReady();
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT scheme_id, name, description, is_default, default_level_id
+      FROM snapshot_schemes
+      WHERE scope_key = ? AND version = ? AND scheme_type = ?
+      ORDER BY name ASC, scheme_id ASC
+    `).bindParams(scopeKey, version, String(schemeType)).execute()
+  );
+  return (result.rows || []).map((row) => ({
+    id: row.scheme_id,
+    name: row.name || row.scheme_id,
+    description: row.description || "",
+    isDefault: Boolean(toNumber(row.is_default)),
+    defaultLevelId: row.default_level_id || null,
+  }));
+}
+
+export async function loadSchemeHolders(scopeKey, version, schemeType) {
+  await ensureProjectStoreReady();
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT scheme_id, context, context_label, holder_type, holder_value, holder_label
+      FROM snapshot_scheme_holders
+      WHERE scope_key = ? AND version = ? AND scheme_type = ?
+    `).bindParams(scopeKey, version, String(schemeType)).execute()
+  );
+  return (result.rows || []).map((row) => ({
+    schemeId: row.scheme_id,
+    context: row.context,
+    contextLabel: row.context_label || row.context,
+    holderType: row.holder_type,
+    holderValue: row.holder_value || "",
+    holderLabel: row.holder_label || null,
+  }));
+}
+
+export async function loadSchemeLevels(scopeKey, version) {
+  await ensureProjectStoreReady();
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT scheme_id, level_id, name, description, is_default
+      FROM snapshot_scheme_levels
+      WHERE scope_key = ? AND version = ?
+      ORDER BY scheme_id ASC, name ASC
+    `).bindParams(scopeKey, version).execute()
+  );
+  return (result.rows || []).map((row) => ({
+    schemeId: row.scheme_id,
+    id: row.level_id,
+    name: row.name || row.level_id,
+    description: row.description || "",
+    isDefault: Boolean(toNumber(row.is_default)),
+  }));
+}
+
+export async function loadSchemeProjects(scopeKey, version, schemeType) {
+  await ensureProjectStoreReady();
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT scheme_id, project_id, project_key, project_name
+      FROM snapshot_scheme_projects
+      WHERE scope_key = ? AND version = ? AND scheme_type = ?
+    `).bindParams(scopeKey, version, String(schemeType)).execute()
+  );
+  return (result.rows || []).map((row) => ({
+    schemeId: row.scheme_id,
+    projectId: row.project_id,
+    projectKey: row.project_key || "",
+    projectName: row.project_name || "",
+  }));
+}
+
+// Cross-pillar (People): every scheme that names one account / group / role directly, with
+// the permission or level or event it grants. Used by getUserDetails.
+export async function loadSchemesGrantingHolder(scopeKey, version, holderType, holderValue) {
+  await ensureProjectStoreReady();
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT h.scheme_type, h.scheme_id, s.name AS scheme_name, h.context, h.context_label
+      FROM snapshot_scheme_holders h
+      LEFT JOIN snapshot_schemes s
+        ON s.scope_key = h.scope_key AND s.version = h.version
+       AND s.scheme_type = h.scheme_type AND s.scheme_id = h.scheme_id
+      WHERE h.scope_key = ? AND h.version = ? AND h.holder_type = ? AND h.holder_value = ?
+    `).bindParams(scopeKey, version, String(holderType), String(holderValue)).execute()
+  );
+  return (result.rows || []).map((row) => ({
+    schemeType: row.scheme_type,
+    schemeId: row.scheme_id,
+    schemeName: row.scheme_name || row.scheme_id,
+    context: row.context,
+    contextLabel: row.context_label || row.context,
+  }));
+}
+
+// Cross-pillar (Projects): the three schemes one project uses, with a "default scheme" flag.
+export async function loadProjectSchemes(scopeKey, version, projectId) {
+  await ensureProjectStoreReady();
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT p.scheme_type, p.scheme_id, s.name AS scheme_name, s.is_default, s.default_level_id
+      FROM snapshot_scheme_projects p
+      LEFT JOIN snapshot_schemes s
+        ON s.scope_key = p.scope_key AND s.version = p.version
+       AND s.scheme_type = p.scheme_type AND s.scheme_id = p.scheme_id
+      WHERE p.scope_key = ? AND p.version = ? AND p.project_id = ?
+    `).bindParams(scopeKey, version, String(projectId)).execute()
+  );
+  return (result.rows || []).map((row) => ({
+    schemeType: row.scheme_type,
+    schemeId: row.scheme_id,
+    schemeName: row.scheme_name || row.scheme_id,
+    isDefault: Boolean(toNumber(row.is_default)),
+    defaultLevelId: row.default_level_id || null,
+  }));
+}
+
+// ── Meta ─────────────────────────────────────────────────────────────────────
+
+export async function readAccessSnapshotMeta(scopeKey) {
+  await ensureProjectStoreReady();
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT state, version, started_at, completed_at, refreshed_at,
+             total_permission_schemes, total_security_schemes, total_notification_schemes, last_error
+      FROM access_snapshot_meta WHERE scope_key = ?
+    `).bindParams(scopeKey).execute()
+  );
+  const row = result.rows?.[0];
+  if (!row) return null;
+  return {
+    state: row.state || "idle",
+    version: row.version || null,
+    startedAt: row.started_at || null,
+    completedAt: row.completed_at || null,
+    refreshedAt: row.refreshed_at || null,
+    totalPermissionSchemes: toNumber(row.total_permission_schemes),
+    totalSecuritySchemes: toNumber(row.total_security_schemes),
+    totalNotificationSchemes: toNumber(row.total_notification_schemes),
+    lastError: row.last_error || null,
+  };
+}
+
+export async function writeAccessSnapshotMeta(scopeKey, patch = {}) {
+  await ensureProjectStoreReady();
+  const current = (await readAccessSnapshotMeta(scopeKey)) || {};
+  const next = { ...current, ...patch };
+
+  await withSqlRetry(() =>
+    sql.prepare(`
+      INSERT INTO access_snapshot_meta
+        (scope_key, state, version, started_at, completed_at, refreshed_at,
+         total_permission_schemes, total_security_schemes, total_notification_schemes, last_error)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE
+        state = VALUES(state),
+        version = VALUES(version),
+        started_at = VALUES(started_at),
+        completed_at = VALUES(completed_at),
+        refreshed_at = VALUES(refreshed_at),
+        total_permission_schemes = VALUES(total_permission_schemes),
+        total_security_schemes = VALUES(total_security_schemes),
+        total_notification_schemes = VALUES(total_notification_schemes),
+        last_error = VALUES(last_error)
+    `).bindParams(
+      scopeKey,
+      next.state || "idle",
+      next.version || null,
+      next.startedAt || null,
+      next.completedAt || null,
+      next.refreshedAt || null,
+      next.totalPermissionSchemes ?? 0,
+      next.totalSecuritySchemes ?? 0,
+      next.totalNotificationSchemes ?? 0,
+      next.lastError || null
+    ).execute()
+  );
+}

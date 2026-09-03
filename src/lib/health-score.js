@@ -100,6 +100,14 @@ export const DEFAULT_HEALTH_TOLERANCES = {
   deadAssetSchemas: 0.20,
   bareAssetTypes: 0.30,
   brokenAssetReferences: 0.10,
+  // Access schemes. A permission scheme that opens browse to anyone or hands project admin
+  // to a whole group is a least-privilege failure -- tight. An unused scheme of any kind is
+  // clutter -- forgiving. A security level nobody is in is a data black hole, tight. A
+  // notification scheme routing to a named individual is fragile but not dangerous.
+  riskyPermissionSchemes: 0.15,
+  unusedAccessSchemes: 0.35,
+  brokenSecurityLevels: 0.15,
+  fragileNotificationSchemes: 0.30,
 };
 
 // rate 0 -> 100, rate >= tolerance -> 0, linear between. Deliberately linear: a curve
@@ -153,6 +161,12 @@ export const PILLAR_WEIGHTS = {
   // The CMDB's shape. Only relevant on a JSM Premium site, and it reports itself
   // not-applicable everywhere else rather than dragging the score down with unmeasured bars.
   assets: 1,
+  // Who can do what, where. Permissions carries the most consequence of the three -- a
+  // scheme that opens browse to anyone is a data-exposure fact, not a tidiness one -- so it
+  // outweighs security and notifications.
+  permissions: 1.5,
+  security: 1,
+  notifications: 0.5,
 };
 
 export const HEALTH_PILLARS = [
@@ -164,6 +178,9 @@ export const HEALTH_PILLARS = [
   { key: "issueTypes", label: "Issue types" },
   { key: "users", label: "People" },
   { key: "assets", label: "Assets (CMDB)" },
+  { key: "permissions", label: "Permission schemes" },
+  { key: "security", label: "Issue security" },
+  { key: "notifications", label: "Notification schemes" },
   { key: "automation", label: "Automation" },
   { key: "projects", label: "Projects" },
 ];
@@ -190,7 +207,7 @@ export function resolveHealthTolerances(overrides = {}) {
   return out;
 }
 
-export function computeSiteHealth({ fieldUsage, workflow, projects, automation, screens, adoption, filters, dashboards, issueTypes, users, assets, tolerances } = {}) {
+export function computeSiteHealth({ fieldUsage, workflow, projects, automation, screens, adoption, filters, dashboards, issueTypes, users, assets, permissions, security, notifications, tolerances } = {}) {
   const TOLERANCE = resolveHealthTolerances(tolerances);
   const dimensions = [];
 
@@ -1056,6 +1073,111 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
         : assets?.available
           ? "No object-reference attributes to check."
           : "No Assets inventory yet. Build one from the Assets tab or run a full scan."));
+  }
+
+  // ── Access schemes: permission / issue-security / notification ─────────────
+  // Three pillars, one scan stage. "No access inventory yet" is the unmeasured state for all
+  // of them; each dimension scores a rate over its own scheme count.
+  const noAccess = "No access inventory yet. Run a full scan to populate it.";
+
+  // Permission schemes: least-privilege violations, then unused clutter.
+  if (permissions?.available && permissions.totalSchemes > 0) {
+    const risky = Number(permissions.riskySchemeCount) || 0;
+    dimensions.push({
+      key: "permission-least-privilege",
+      label: "Least privilege",
+      pillar: "permissions",
+      available: true,
+      weight: 1.5,
+      score: scoreFromRate(risky / permissions.totalSchemes, TOLERANCE.riskyPermissionSchemes),
+      detail: risky === 0
+        ? `None of the ${permissions.totalSchemes} permission schemes open browse to anyone or hand project admin to a group.`
+        : `${risky} of ${permissions.totalSchemes} permission schemes grant browse to anyone, project admin to a whole group, or a permission to a named individual.`,
+      action: risky > 0 ? "Replace direct and blanket grants with project roles; a permission held by an individual is a permission nobody reviews." : null,
+    });
+    const unused = Number(permissions.unusedSchemeCount) || 0;
+    dimensions.push({
+      key: "permission-scheme-sprawl",
+      label: "Scheme sprawl",
+      pillar: "permissions",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(unused / permissions.totalSchemes, TOLERANCE.unusedAccessSchemes),
+      detail: unused === 0
+        ? `Every permission scheme is assigned to at least one project.`
+        : `${unused} of ${permissions.totalSchemes} permission schemes are assigned to no project.`,
+      action: unused > 0 ? "Delete the unused schemes — each is a decision nobody made that still shows in every scheme picker." : null,
+    });
+  } else {
+    dimensions.push(unavailable("permission-least-privilege", "Least privilege", "permissions", noAccess));
+    dimensions.push(unavailable("permission-scheme-sprawl", "Scheme sprawl", "permissions", noAccess));
+  }
+
+  // Issue security: data black holes, then unused clutter.
+  if (security?.available && security.totalSchemes > 0) {
+    const broken = Number(security.brokenLevelCount) || 0;
+    const denom = Math.max(1, Number(security.totalLevels) || 0);
+    dimensions.push({
+      key: "security-level-integrity",
+      label: "Level integrity",
+      pillar: "security",
+      available: true,
+      weight: 1.5,
+      score: scoreFromRate(broken / denom, TOLERANCE.brokenSecurityLevels),
+      detail: broken === 0
+        ? `Every one of the ${denom} security levels has members and every scheme has a level.`
+        : `${broken} security levels have no members, or belong to a scheme with no levels — an issue set to one is invisible to everyone but a site admin.`,
+      action: broken > 0 ? "Add members or delete the level. An empty security level is a way to lose an issue in plain sight." : null,
+    });
+    const unused = Number(security.unusedSchemeCount) || 0;
+    dimensions.push({
+      key: "security-scheme-sprawl",
+      label: "Scheme sprawl",
+      pillar: "security",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(unused / security.totalSchemes, TOLERANCE.unusedAccessSchemes),
+      detail: unused === 0
+        ? `Every issue security scheme is assigned to a project.`
+        : `${unused} of ${security.totalSchemes} issue security schemes are assigned to no project.`,
+      action: unused > 0 ? "Delete the unused schemes." : null,
+    });
+  } else {
+    dimensions.push(unavailable("security-level-integrity", "Level integrity", "security", noAccess));
+    dimensions.push(unavailable("security-scheme-sprawl", "Scheme sprawl", "security", noAccess));
+  }
+
+  // Notification schemes: fragile routing, then unused clutter.
+  if (notifications?.available && notifications.totalSchemes > 0) {
+    const fragile = Number(notifications.fragileSchemeCount) || 0;
+    dimensions.push({
+      key: "notification-routing",
+      label: "Routing resilience",
+      pillar: "notifications",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(fragile / notifications.totalSchemes, TOLERANCE.fragileNotificationSchemes),
+      detail: fragile === 0
+        ? `No notification scheme routes an event to a named individual.`
+        : `${fragile} of ${notifications.totalSchemes} notification schemes send an event to a specific person — the notification stops silently the day they leave.`,
+      action: fragile > 0 ? "Route to a project role or group instead of a named account." : null,
+    });
+    const unused = Number(notifications.unusedSchemeCount) || 0;
+    dimensions.push({
+      key: "notification-scheme-sprawl",
+      label: "Scheme sprawl",
+      pillar: "notifications",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(unused / notifications.totalSchemes, TOLERANCE.unusedAccessSchemes),
+      detail: unused === 0
+        ? `Every notification scheme is assigned to a project.`
+        : `${unused} of ${notifications.totalSchemes} notification schemes are assigned to no project.`,
+      action: unused > 0 ? "Delete the unused schemes." : null,
+    });
+  } else {
+    dimensions.push(unavailable("notification-routing", "Routing resilience", "notifications", noAccess));
+    dimensions.push(unavailable("notification-scheme-sprawl", "Scheme sprawl", "notifications", noAccess));
   }
 
   // ── Roll-up ───────────────────────────────────────────────────────────────

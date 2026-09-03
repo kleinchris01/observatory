@@ -143,12 +143,18 @@ const assets = (over = {}) => ({
   ...over,
 });
 
+// The three access pillars' health inputs.
+const permissions = (over = {}) => ({ available: true, totalSchemes: 8, riskySchemeCount: 0, unusedSchemeCount: 0, ...over });
+const security = (over = {}) => ({ available: true, totalSchemes: 4, totalLevels: 12, brokenLevelCount: 0, unusedSchemeCount: 0, ...over });
+const notifications = (over = {}) => ({ available: true, totalSchemes: 5, fragileSchemeCount: 0, unusedSchemeCount: 0, ...over });
+
 describe("computeSiteHealth — scoring", () => {
   test("a clean site scores at the top", () => {
     const health = computeSiteHealth({
       fieldUsage: fieldUsage(), workflow: workflow(), projects: projects(),
       automation: automation(), screens: screens(), adoption: adoption(), filters: filters(),
       dashboards: dashboards(), issueTypes: issueTypes(), users: users(), assets: assets(),
+      permissions: permissions(), security: security(), notifications: notifications(),
     });
 
     expect(health.score).toBeGreaterThanOrEqual(90);
@@ -607,6 +613,45 @@ describe("asset dimensions", () => {
     const pillar = health.pillars.find((p) => p.key === "assets");
     expect(pillar.total).toBe(3);
     expect(pillar.available).toBe(true);
+  });
+});
+
+describe("access dimensions", () => {
+  const dim = (health, key) => health.dimensions.find((d) => d.key === key);
+
+  test("a clean access config scores every dimension at the top", () => {
+    const health = computeSiteHealth({ permissions: permissions(), security: security(), notifications: notifications() });
+    for (const key of ["permission-least-privilege", "permission-scheme-sprawl", "security-level-integrity", "security-scheme-sprawl", "notification-routing", "notification-scheme-sprawl"]) {
+      expect(dim(health, key).score).toBe(100);
+    }
+  });
+
+  test("least privilege is the heaviest permission dimension and scores as a rate", () => {
+    const health = computeSiteHealth({ permissions: permissions({ totalSchemes: 10, riskySchemeCount: 3 }) });
+    // 3/10 past the 0.15 tolerance -> 0.
+    expect(dim(health, "permission-least-privilege").score).toBe(0);
+    expect(dim(health, "permission-least-privilege").weight).toBe(1.5);
+  });
+
+  test("security level integrity scores broken levels over the level total", () => {
+    const health = computeSiteHealth({ security: security({ totalLevels: 20, brokenLevelCount: 3 }) });
+    // 3/20 = 0.15 = the tolerance -> 0.
+    expect(dim(health, "security-level-integrity").score).toBe(0);
+  });
+
+  test("the three access pillars are weighted 1.5 / 1 / 0.5 and each rolls its two dimensions", () => {
+    const health = computeSiteHealth({ permissions: permissions({ riskySchemeCount: 1 }), security: security(), notifications: notifications() });
+    expect(health.pillars.find((p) => p.key === "permissions").total).toBe(2);
+    expect(health.pillars.find((p) => p.key === "security").total).toBe(2);
+    expect(health.pillars.find((p) => p.key === "notifications").total).toBe(2);
+  });
+
+  test("all six dimensions are unmeasured until an access inventory exists", () => {
+    const health = computeSiteHealth({ fieldUsage: fieldUsage() });
+    for (const key of ["permission-least-privilege", "security-level-integrity", "notification-routing"]) {
+      expect(dim(health, key).available).toBe(false);
+      expect(dim(health, key).reason).toMatch(/no access inventory/i);
+    }
   });
 });
 

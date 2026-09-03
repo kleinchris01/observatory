@@ -48,6 +48,7 @@ import {
   readWorkflowSnapshotMeta,
   readScreenSnapshotMeta,
   readIssueTypeSnapshotMeta,
+  readAccessSnapshotMeta,
   readSnapshotMeta,
   recordFullScanRun,
 } from "./project-store.js";
@@ -56,6 +57,7 @@ import { isDashboardBuildStale, queueDashboardSnapshotBuild } from "./dashboard-
 import { buildWorkflowSnapshot, buildStatusHistorySnapshot } from "./workflow-engine.js";
 import { buildScreenSnapshot } from "./screen-engine.js";
 import { buildIssueTypeSnapshot } from "./issuetype-engine.js";
+import { buildAccessSnapshot } from "./access-engine.js";
 import { queueSnapshotBuild, isSnapshotBuildStale, requeueStaleSnapshotBuild } from "./snapshot-engine.js";
 import { runIssueScanCoordinator, reviveStalledIssueScanWorkers } from "./scan-engine.js";
 
@@ -69,6 +71,7 @@ import { runIssueScanCoordinator, reviveStalledIssueScanWorkers } from "./scan-e
 const workflows = { run: (key) => buildWorkflowSnapshot(key) };
 const screens = { run: (key) => buildScreenSnapshot(key) };
 const issueTypes = { run: (key) => buildIssueTypeSnapshot(key) };
+const access = { run: (key) => buildAccessSnapshot(key) };
 const statusHistory = { run: (key) => buildStatusHistorySnapshot(key) };
 
 // captureSiteHealth is dependency-injected so site-health.js stays testable without the Forge
@@ -142,6 +145,7 @@ export const STAGE_RUNNERS = {
   fields,
   "status-history": statusHistory,
   "issue-types": issueTypes,
+  access,
   issues: {
     // Move the crawl's own meta into "queued" BEFORE handing off. runIssueScanCoordinator
     // refuses to run from any other state -- so without this it reads the previous run's
@@ -209,6 +213,7 @@ export const QUICK_SCAN_RUNNERS = {
   },
   "status-history": statusHistory,
   "issue-types": issueTypes,
+  access,
   health,
 };
 
@@ -540,6 +545,7 @@ export async function readStageProducedCounts(installationKey, scanType) {
     put("workflows", readWorkflowSnapshotMeta, (m) => m.totalSchemes),
     put("screens", readScreenSnapshotMeta, (m) => m.totalScreens),
     put("issue-types", readIssueTypeSnapshotMeta, (m) => m.totalTypes),
+    put("access", readAccessSnapshotMeta, (m) => m.totalPermissionSchemes + m.totalSecuritySchemes + m.totalNotificationSchemes),
     put("filters", readFilterSnapshotMeta, (m) => m.totalFilters),
     put("dashboards", readDashboardSnapshotMeta, (m) => m.totalDashboards),
     put("fields", readSnapshotMeta, (m) => m.totalFields),

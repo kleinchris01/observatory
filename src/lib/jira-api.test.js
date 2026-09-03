@@ -73,6 +73,13 @@ import {
   getAllIssueTypeSchemes,
   getIssueTypeSchemeItems,
   getIssueTypeSchemeProjects,
+  getAllPermissionSchemes,
+  getProjectPermissionScheme,
+  getAllIssueSecuritySchemes,
+  getIssueSecurityLevels,
+  getIssueSecurityLevelMembers,
+  getIssueSecuritySchemeProjects,
+  getAllNotificationSchemes,
   getScreenTabs,
   getScreenTabFields,
   getWorkflowSchemesForProjects,
@@ -1187,6 +1194,85 @@ describe("issue type fetchers", () => {
     mockRequestJira.mockResolvedValue(jiraResponse({ body: { values: [], isLast: true } }));
     await getIssueTypeSchemeProjects(Array.from({ length: 120 }, (_, i) => 10000 + i));
     expect(mockRequestJira).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe("access & routing schemes", () => {
+  test("getAllPermissionSchemes unwraps the permissionSchemes array and asks for grants", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({
+      body: { permissionSchemes: [{ id: 1, name: "Prod" }, { id: 2, name: "Default Permission Scheme" }] },
+    }));
+    const rows = await getAllPermissionSchemes();
+    expect(rows).toHaveLength(2);
+    expect(String(mockRequestJira.mock.calls[0][0])).toContain("/rest/api/3/permissionscheme?expand=permissions");
+  });
+
+  test("getAllPermissionSchemes returns [] when the payload has no array", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: {} }));
+    await expect(getAllPermissionSchemes()).resolves.toEqual([]);
+  });
+
+  test("getProjectPermissionScheme requests the project-scoped scheme", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: { id: 3, name: "Prod" } }));
+    const scheme = await getProjectPermissionScheme("OPS");
+    expect(scheme).toEqual({ id: 3, name: "Prod" });
+    expect(String(mockRequestJira.mock.calls[0][0])).toContain("/rest/api/3/project/OPS/permissionscheme");
+  });
+
+  test("getAllIssueSecuritySchemes unwraps issueSecuritySchemes", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: { issueSecuritySchemes: [{ id: "s1", name: "Restricted" }] } }));
+    await expect(getAllIssueSecuritySchemes()).resolves.toEqual([{ id: "s1", name: "Restricted" }]);
+  });
+
+  test("getAllIssueSecuritySchemes returns [] on an unexpected shape", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: null }));
+    await expect(getAllIssueSecuritySchemes()).resolves.toEqual([]);
+  });
+
+  test("getIssueSecurityLevels paginates the scheme's levels", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: { values: [{ id: "L1" }, { id: "L2" }], isLast: true } }));
+    const levels = await getIssueSecurityLevels("s1");
+    expect(levels.map((l) => l.id)).toEqual(["L1", "L2"]);
+    expect(String(mockRequestJira.mock.calls[0][0])).toContain("/rest/api/3/issuesecurityschemes/level?schemeId=s1");
+  });
+
+  test("getIssueSecurityLevelMembers paginates the scheme's members", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({
+      body: { values: [{ issueSecurityLevelId: "L1", holder: { type: "group", value: "g" } }], isLast: true },
+    }));
+    const members = await getIssueSecurityLevelMembers("s1");
+    expect(members[0].issueSecurityLevelId).toBe("L1");
+    expect(String(mockRequestJira.mock.calls[0][0])).toContain("/rest/api/3/issuesecurityschemes/level/member?schemeId=s1");
+  });
+
+  test("getIssueSecuritySchemeProjects sends the repeatable projectId parameters and makes no call for none", async () => {
+    await expect(getIssueSecuritySchemeProjects([])).resolves.toEqual([]);
+    expect(mockRequestJira).not.toHaveBeenCalled();
+
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({
+      body: { values: [{ issueSecuritySchemeId: "s1", projectIds: ["10000"] }], isLast: true },
+    }));
+    const rows = await getIssueSecuritySchemeProjects(["10000", "10001"]);
+    expect(rows[0].issueSecuritySchemeId).toBe("s1");
+    const path = String(mockRequestJira.mock.calls[0][0]);
+    expect(path).toContain("/rest/api/3/issuesecurityschemes/project");
+    expect(path).toContain("projectId=10000");
+    expect(path).toContain("projectId=10001");
+  });
+
+  test("getIssueSecuritySchemeProjects batches large project lists at 50 per request", async () => {
+    mockRequestJira.mockResolvedValue(jiraResponse({ body: { values: [], isLast: true } }));
+    await getIssueSecuritySchemeProjects(Array.from({ length: 120 }, (_, i) => 10000 + i));
+    expect(mockRequestJira).toHaveBeenCalledTimes(3);
+  });
+
+  test("getAllNotificationSchemes paginates with expand=all", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({
+      body: { values: [{ id: "n1", name: "Prod", notificationSchemeEvents: [], projects: [] }], isLast: true },
+    }));
+    const rows = await getAllNotificationSchemes();
+    expect(rows[0].id).toBe("n1");
+    expect(String(mockRequestJira.mock.calls[0][0])).toContain("/rest/api/3/notificationscheme?expand=all");
   });
 });
 
