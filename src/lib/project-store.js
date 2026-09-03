@@ -18,6 +18,7 @@ export * from "./store/screen.js";
 export * from "./store/issuetype.js";
 export * from "./store/user.js";
 export * from "./store/asset.js";
+export * from "./store/access.js";
 export * from "./store/filter.js";
 export * from "./store/dashboard.js";
 export * from "./store/snapshot.js";

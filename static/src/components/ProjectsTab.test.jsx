@@ -457,6 +457,35 @@ describe("ProjectOverview", () => {
 
     expect(screen.getByText(/may be incomplete/i)).toBeInTheDocument();
   });
+
+  it("names the permission / security / notification scheme this project resolves to", () => {
+    render(<ProjectOverview
+      project={project}
+      loading={false}
+      overview={overview({
+        schemes: {
+          available: true,
+          permission: { schemeType: "permission", schemeId: "1", schemeName: "Prod permissions", isDefault: false },
+          security: null,
+          notification: { schemeType: "notification", schemeId: "n1", schemeName: "Default Notification Scheme", isDefault: true },
+        },
+      })}
+    />);
+
+    expect(screen.getByText("Prod permissions")).toBeInTheDocument();
+    expect(screen.getByText("Default Notification Scheme")).toBeInTheDocument();
+    expect(screen.getByText(/no issue is restricted here/i)).toBeInTheDocument();
+  });
+
+  it("reports the access schemes as unknown when that inventory has not been built", () => {
+    render(<ProjectOverview
+      project={project}
+      loading={false}
+      overview={overview({ schemes: { available: false, reason: "No access scheme inventory has been built yet." } })}
+    />);
+
+    expect(screen.getByText(/No access scheme inventory/i)).toBeInTheDocument();
+  });
 });
 
 // Site-wide rules are only worth listing per project if there is evidence they act there.

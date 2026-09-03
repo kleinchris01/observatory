@@ -21,6 +21,8 @@ import {
   MagnifyingGlass,
   Users,
   Database,
+  ShieldCheck,
+  Bell,
 } from "@phosphor-icons/react";
 
 export function useLiveDuration(startedAt) {
@@ -74,6 +76,8 @@ export const ICON_COMPONENTS = {
   copy: Copy,
   user: Users,
   database: Database,
+  shield: ShieldCheck,
+  bell: Bell,
 };
 
 // Validated categorical palette (dataviz skill's reference instance, references/palette.md) --

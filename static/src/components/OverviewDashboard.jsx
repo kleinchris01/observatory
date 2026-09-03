@@ -19,7 +19,7 @@ import { HEALTH_PILLARS } from "../../../src/lib/health-score";
 // omitted rather than rendered as zero, because "0 duplicate statuses" and "we have never
 // looked for duplicate statuses" are completely different statements.
 
-function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, screens, issueTypes, users, assets, automation, filters, dashboards, onNavigate }) {
+function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, screens, issueTypes, users, assets, access, automation, filters, dashboards, onNavigate }) {
   const findings = [];
 
   if (findingsSummary?.adminAttention > 0) {
@@ -794,6 +794,97 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
     });
   }
 
+  // ── Access schemes: permissions / issue security / notifications ────────
+  // Three pillars, one scan stage. The "*-findings" dimension keys deliberately do not match
+  // a scored dimension -- the scored cards state the rate, these state the list to act on.
+
+  const perm = access?.permissions;
+  if (perm?.available && perm.riskySchemeCount > 0) {
+    findings.push({
+      key: "permission-risky",
+      dimension: "permission-findings",
+      pillar: "permissions",
+      tone: "critical",
+      count: perm.riskySchemeCount,
+      title: "Permission schemes that break least privilege",
+      detail: "Browse open to anyone, project admin handed to a whole group, or a permission held by a named individual — grants nobody reviews.",
+      onOpen: () => onNavigate("access", { view: "permissions" }),
+      openLabel: "Access",
+    });
+  }
+
+  if (perm?.available && perm.unusedSchemeCount > 0) {
+    findings.push({
+      key: "permission-unused",
+      dimension: "permission-findings",
+      pillar: "permissions",
+      tone: "info",
+      count: perm.unusedSchemeCount,
+      title: "Permission schemes assigned to no project",
+      detail: "A scheme no project uses is a decision nobody made that still shows in every scheme picker.",
+      onOpen: () => onNavigate("access", { view: "permissions" }),
+      openLabel: "Access",
+    });
+  }
+
+  const sec = access?.security;
+  if (sec?.available && (sec.emptyLevelCount > 0 || sec.noLevelSchemeCount > 0)) {
+    findings.push({
+      key: "security-broken-levels",
+      dimension: "security-findings",
+      pillar: "security",
+      tone: "critical",
+      count: (sec.emptyLevelCount || 0) + (sec.noLevelSchemeCount || 0),
+      title: "Issue security levels nobody can see through",
+      detail: "Levels with no members, or schemes with no levels at all. An issue set to one is invisible to everyone but a site admin.",
+      onOpen: () => onNavigate("access", { view: "security" }),
+      openLabel: "Access",
+    });
+  }
+
+  if (sec?.available && sec.unusedSchemeCount > 0) {
+    findings.push({
+      key: "security-unused",
+      dimension: "security-findings",
+      pillar: "security",
+      tone: "info",
+      count: sec.unusedSchemeCount,
+      title: "Issue security schemes assigned to no project",
+      detail: "Nothing enforces them. Clutter in the scheme picker.",
+      onOpen: () => onNavigate("access", { view: "security" }),
+      openLabel: "Access",
+    });
+  }
+
+  const notif = access?.notifications;
+  if (notif?.available && notif.fragileSchemeCount > 0) {
+    findings.push({
+      key: "notification-fragile",
+      dimension: "notification-findings",
+      pillar: "notifications",
+      tone: "warning",
+      count: notif.fragileSchemeCount,
+      title: "Notification schemes routing to a named individual",
+      detail: "The notification stops silently the day that person leaves. Route to a project role or group instead.",
+      onOpen: () => onNavigate("access", { view: "notifications" }),
+      openLabel: "Access",
+    });
+  }
+
+  if (notif?.available && notif.unusedSchemeCount > 0) {
+    findings.push({
+      key: "notification-unused",
+      dimension: "notification-findings",
+      pillar: "notifications",
+      tone: "info",
+      count: notif.unusedSchemeCount,
+      title: "Notification schemes assigned to no project",
+      detail: "A scheme no project uses.",
+      onOpen: () => onNavigate("access", { view: "notifications" }),
+      openLabel: "Access",
+    });
+  }
+
   // ── Projects ────────────────────────────────────────────────────────────
 
   // The month histogram behind every adoption figure has stopped near a fixed month -- a
@@ -1078,7 +1169,7 @@ export function useHealthHistory({ days = 90, load = invoke } = {}) {
   return history;
 }
 
-function GovernanceLedgerPanel({ health, findings, history, workflow, screens, automation, filters, dashboards, onNavigate }) {
+function GovernanceLedgerPanel({ health, findings, history, workflow, screens, access, automation, filters, dashboards, onNavigate }) {
   const ledger = React.useMemo(() => buildGovernanceLedger({ health, findings, history }), [health, findings, history]);
 
   // Which pillars have never been built. Named individually, because "nothing flagged" while
@@ -1090,6 +1181,7 @@ function GovernanceLedgerPanel({ health, findings, history, workflow, screens, a
     !automation?.available && { label: "automation analysis", tab: "automation" },
     !filters?.available && { label: "saved filter inventory", tab: "filters" },
     !dashboards?.available && { label: "dashboard inventory", tab: "dashboards" },
+    !access?.available && { label: "access scheme inventory", tab: "access" },
   ].filter(Boolean);
 
   // No rows at all. Two different reasons, and they must not be worded the same: a site
@@ -1276,11 +1368,11 @@ function RqtPanel({ onOpenRqtIndex }) {
   );
 }
 
-export function OverviewDashboard({ dashboard, findingsSummary, findingsByCode, workflow, screens, issueTypes, users, assets, automation, filters, dashboards, health, history, onOpenRqtIndex, onNavigate }) {
+export function OverviewDashboard({ dashboard, findingsSummary, findingsByCode, workflow, screens, issueTypes, users, assets, access, automation, filters, dashboards, health, history, onOpenRqtIndex, onNavigate }) {
   // onNavigate is optional so this stays renderable in isolation; without it the deep
   // links become inert rather than throwing.
   const navigate = onNavigate || (() => {});
-  const findings = buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, screens, issueTypes, users, assets, automation, filters, dashboards, onNavigate: navigate });
+  const findings = buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, screens, issueTypes, users, assets, access, automation, filters, dashboards, onNavigate: navigate });
   // A caller may pass history in -- tests do -- but nobody has to.
   const fetched = useHealthHistory();
   const series = history ?? fetched;
@@ -1293,6 +1385,7 @@ export function OverviewDashboard({ dashboard, findingsSummary, findingsByCode, 
         history={series}
         workflow={workflow}
         screens={screens}
+        access={access}
         automation={automation}
         filters={filters}
         dashboards={dashboards}

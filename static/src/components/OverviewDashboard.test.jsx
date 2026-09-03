@@ -123,6 +123,14 @@ const assets = (overrides = {}) => ({
   ...overrides,
 });
 
+const access = (overrides = {}) => ({
+  available: true,
+  permissions: { available: true, riskySchemeCount: 2, unusedSchemeCount: 1 },
+  security: { available: true, emptyLevelCount: 1, noLevelSchemeCount: 1, unusedSchemeCount: 2 },
+  notifications: { available: true, fragileSchemeCount: 3, unusedSchemeCount: 0 },
+  ...overrides,
+});
+
 beforeEach(() => vi.clearAllMocks());
 
 describe("OverviewDashboard — findings", () => {
@@ -300,6 +308,23 @@ describe("OverviewDashboard — automation and screen findings", () => {
   test("omits the assets findings when Assets is not enabled on the site", () => {
     renderAll({ assets: { available: false, assetsEnabled: false } });
     expect(screen.queryByText("Object schemas with nothing in them")).not.toBeInTheDocument();
+  });
+
+  test("surfaces the access findings and routes them to the Access tab", async () => {
+    const onNavigate = vi.fn();
+    renderAll({ access: access(), onNavigate });
+
+    expect(screen.getByText("Permission schemes that break least privilege")).toBeInTheDocument();
+    expect(screen.getByText("Issue security levels nobody can see through")).toBeInTheDocument();
+    expect(screen.getByText("Notification schemes routing to a named individual")).toBeInTheDocument();
+
+    await userEvent.click(screen.getAllByRole("button", { name: /^Access$/ })[0]);
+    expect(onNavigate).toHaveBeenCalledWith("access", expect.objectContaining({ view: expect.any(String) }));
+  });
+
+  test("omits the access findings entirely when the pillar has not been built", () => {
+    renderAll({ access: { available: false } });
+    expect(screen.queryByText("Permission schemes that break least privilege")).not.toBeInTheDocument();
   });
 
   // The same rule the workflow findings already follow, now enforced for the two pillars

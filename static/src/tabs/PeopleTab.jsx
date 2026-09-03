@@ -160,6 +160,30 @@ function UserRow({ user, expanded, detail, detailLoading, onToggle }) {
                   </p>
                 )}
               </div>
+
+              <div className="ui-split__col">
+                <h4 className="ui-subhead">
+                  Granted by schemes <span className="people-owned__count">{(detail?.grantedBySchemes || []).length || ""}</span>
+                </h4>
+                {(detail?.grantedBySchemes || []).length ? (
+                  <ul className="people-owned-list">
+                    {detail.grantedBySchemes.map((g, i) => (
+                      <li key={`${g.schemeType}-${g.schemeId}-${g.context}-${i}`}>
+                        {g.schemeName}
+                        <Chip tone="warning" title={`${g.schemeType} scheme — a direct grant to a person should be a role`}>
+                          {g.schemeType}: {g.contextLabel || g.context}
+                        </Chip>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="admin-config-row__hint">
+                    {detail?.accessGrantsAvailable === false
+                      ? "Build the access inventory (or run a full scan) to see which schemes name this person directly."
+                      : "No permission, security level or notification scheme names this account directly."}
+                  </p>
+                )}
+              </div>
             </div>
           )}
         </div>

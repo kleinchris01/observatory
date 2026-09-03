@@ -39,6 +39,11 @@ import {
   loadAssetSchemas,
   loadAssetObjectTypes,
   loadAssetAttributes,
+  readAccessSnapshotMeta,
+  loadSchemes,
+  loadSchemeHolders,
+  loadSchemeLevels,
+  loadSchemeProjects,
   loadIssueTypeSchemes,
   loadIssueTypeSchemeItems,
   readUserSnapshotMeta,
@@ -54,6 +59,11 @@ import { summarizeFilters, summarizeFilterHealth } from "./filter-insights.js";
 import { summarizeDashboards, summarizeDashboardHealth } from "./dashboard-insights.js";
 import { summarizeIssueTypeInsights, summarizeIssueTypeHealth } from "./issuetype-insights.js";
 import { summarizeAssetInsights, summarizeAssetHealth } from "./asset-insights.js";
+import {
+  summarizePermissionInsights, summarizePermissionHealth,
+  summarizeSecurityInsights, summarizeSecurityHealth,
+  summarizeNotificationInsights, summarizeNotificationHealth,
+} from "./access-insights.js";
 import { buildOwnershipIndex, summarizeOrphanedOwnership } from "./user-ownership.js";
 
 // Top finding-type/field-type breakdowns are capped -- Overview is a glance-level
@@ -617,6 +627,59 @@ export async function buildAssetOverview(installationKey) {
   }
 }
 
+// The access pillar's inputs: permission, issue-security and notification schemes, and the
+// governance signal for each -- least-privilege violations, data black holes, fragile
+// routing, plus off-roster grants (the People cross-pillar join). Returns one object per
+// scheme type, each with its own `health` block feeding a distinct pillar.
+export async function buildAccessOverview(installationKey) {
+  try {
+    const meta = await readAccessSnapshotMeta(installationKey);
+    if (!meta?.version) return { available: false, state: meta?.state || "idle", lastError: meta?.lastError || null };
+
+    // Roster accountIds for the "grant to someone off the roster" checks.
+    let rosterAccountIds = new Set();
+    const userMeta = await readUserSnapshotMeta(installationKey).catch(() => null);
+    if (userMeta?.version) {
+      const users = await loadUsers(installationKey, userMeta.version).catch(() => []);
+      rosterAccountIds = new Set(users.map((u) => u.accountId));
+    }
+
+    const [
+      permSchemes, permHolders, permProjects,
+      secSchemes, secHolders, secProjects, levels,
+      notifSchemes, notifHolders, notifProjects,
+    ] = await Promise.all([
+      loadSchemes(installationKey, meta.version, "permission"),
+      loadSchemeHolders(installationKey, meta.version, "permission"),
+      loadSchemeProjects(installationKey, meta.version, "permission"),
+      loadSchemes(installationKey, meta.version, "security"),
+      loadSchemeHolders(installationKey, meta.version, "security"),
+      loadSchemeProjects(installationKey, meta.version, "security"),
+      loadSchemeLevels(installationKey, meta.version),
+      loadSchemes(installationKey, meta.version, "notification"),
+      loadSchemeHolders(installationKey, meta.version, "notification"),
+      loadSchemeProjects(installationKey, meta.version, "notification"),
+    ]);
+
+    const permissions = summarizePermissionInsights({ schemes: permSchemes, holders: permHolders, schemeProjects: permProjects, rosterAccountIds });
+    const security = summarizeSecurityInsights({ schemes: secSchemes, levels, holders: secHolders, schemeProjects: secProjects, rosterAccountIds });
+    const notifications = summarizeNotificationInsights({ schemes: notifSchemes, holders: notifHolders, schemeProjects: notifProjects, rosterAccountIds });
+
+    return {
+      available: true,
+      state: meta.state || "idle",
+      refreshedAt: meta.refreshedAt || null,
+      lastError: meta.lastError || null,
+      permissions: { ...permissions, health: summarizePermissionHealth(permissions) },
+      security: { ...security, health: summarizeSecurityHealth(security) },
+      notifications: { ...notifications, health: summarizeNotificationHealth(notifications) },
+    };
+  } catch (error) {
+    console.warn("buildAccessOverview failed:", error?.message || error);
+    return { available: false, state: "error" };
+  }
+}
+
 // Compute the score from scratch and record it.
 //
 // The one entry point anything outside the Overview should use. It gathers the same five
@@ -646,7 +709,7 @@ export async function captureSiteHealth(installationKey, deps) {
   }
 
   try {
-    const [meta, config, workflow, screens, issueTypeOverview, userOverview, assetOverview, automationAnalysis] = await Promise.all([
+    const [meta, config, workflow, screens, issueTypeOverview, userOverview, assetOverview, accessOverview, automationAnalysis] = await Promise.all([
       readSnapshotMeta(installationKey),
       readAdminConfig(),
       buildWorkflowOverview(installationKey),
@@ -654,6 +717,7 @@ export async function captureSiteHealth(installationKey, deps) {
       buildIssueTypeOverview(installationKey),
       buildUserOverview(installationKey),
       buildAssetOverview(installationKey),
+      buildAccessOverview(installationKey),
       readAutomationAnalysis(installationKey).catch(() => null),
     ]);
     let filters = null;
@@ -703,6 +767,9 @@ export async function captureSiteHealth(installationKey, deps) {
       issueTypes: issueTypeOverview?.health ?? null,
       users: userOverview?.health ?? null,
       assets: assetOverview?.health ?? null,
+      permissions: accessOverview?.permissions?.health ?? null,
+      security: accessOverview?.security?.health ?? null,
+      notifications: accessOverview?.notifications?.health ?? null,
       tolerances: config?.healthTolerances,
     });
 

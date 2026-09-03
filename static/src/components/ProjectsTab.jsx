@@ -540,6 +540,47 @@ export function ProjectScreenReportPanel({ projectId, onBuildFieldReport }) {
   );
 }
 
+// The permission / issue-security / notification scheme this project resolves to, each
+// flagged when it is the site default. Tri-state like the other pillars: a project on no
+// custom scheme is on the default, which is a fact worth showing, not an empty panel.
+export function ProjectSchemesPanel({ schemes }) {
+  if (!schemes?.available) {
+    return (
+      <Panel title="Access schemes" icon="shield">
+        <EmptyState inline>{schemes?.reason || "No access scheme inventory has been built yet."}</EmptyState>
+      </Panel>
+    );
+  }
+
+  const rows = [
+    { label: "Permissions", scheme: schemes.permission },
+    { label: "Issue security", scheme: schemes.security },
+    { label: "Notifications", scheme: schemes.notification },
+  ];
+
+  return (
+    <Panel title="Access schemes" icon="shield" description="Who can do what here, who it is secured from, and who gets told.">
+      <ul className="project-schemes">
+        {rows.map(({ label, scheme }) => (
+          <li key={label} className="project-schemes__item">
+            <span className="project-schemes__label">{label}</span>
+            {scheme ? (
+              <span className="project-schemes__name">
+                {scheme.schemeName}
+                {scheme.isDefault && <Chip tone="neutral" title="The site-wide default scheme">default</Chip>}
+              </span>
+            ) : (
+              <span className="project-schemes__name project-schemes__name--none">
+                {label === "Issue security" ? "none — no issue is restricted here" : "not resolved"}
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </Panel>
+  );
+}
+
 export function ProjectOverview({ project, overview, loading, fields = [], siteOrigin = "", adoption = null, adoptionContext = null, onBuildFieldReport }) {
   if (loading) return <EmptyState inline>Loading everything that touches this project…</EmptyState>;
   if (!overview?.available) {
@@ -725,6 +766,10 @@ export function ProjectOverview({ project, overview, loading, fields = [], siteO
 
       <GridSpan>
         <ProjectFiltersPanel filters={overview.filters} siteOrigin={siteOrigin} />
+      </GridSpan>
+
+      <GridSpan>
+        <ProjectSchemesPanel schemes={overview.schemes} />
       </GridSpan>
 
       {onBuildFieldReport && (
