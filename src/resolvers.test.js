@@ -571,6 +571,13 @@ import {
   rovoAssetImpact,
   rovoEstateSearch,
   rovoEstateInspect,
+  rovoScreenSearch,
+  rovoScreenInspect,
+  rovoScreenImpact,
+  rovoChangeSearch,
+  rovoChangeInspect,
+  rovoProjectSearch,
+  rovoProjectInspect,
   migrateNamespaceKeys,
   CLEAR_SNAPSHOT_CONFIRMATION,
   __RAW_ADMIN_ONLY_FUNCTIONS,
@@ -7699,5 +7706,353 @@ describe("rovo estate agent", () => {
     const r = await rovoEstateInspect({ list: "priorities" }, ctx());
     expect(r).not.toHaveProperty("resolutions");
     expect(r.priorities.count).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Rovo screen agent
+// ---------------------------------------------------------------------------
+describe("rovo screen agent", () => {
+  const ctx = () => ctxWithAccount();
+
+  function seed() {
+    mocks.readScreenSnapshotMeta.mockResolvedValue({ state: "ready", version: "sv1", refreshedAt: "2026-09-02T00:00:00.000Z" });
+    mocks.loadScreensPage.mockResolvedValue({ total: 2, rows: [
+      { screenId: "100", name: "Default Create Screen", fieldCount: 30, tabCount: 2, projectCount: 40, tabs: [{ name: "Field Tab", fields: [1, 2] }] },
+      { screenId: "101", name: "Bug Screen", fieldCount: 12, tabCount: 1, projectCount: 3 },
+    ] });
+    mocks.loadScreenSchemes.mockResolvedValue([{ id: "5", name: "Default Screen Scheme" }]);
+    mocks.loadScreenSchemeOperations.mockResolvedValue([
+      { schemeId: "5", schemeName: "Default Screen Scheme", operation: "default", screenId: "100" },
+    ]);
+    mocks.loadIssueTypeScreenSchemes.mockResolvedValue([]);
+  }
+
+  test("search: unavailable with no snapshot", async () => {
+    mocks.readScreenSnapshotMeta.mockResolvedValue(null);
+    const r = await rovoScreenSearch({ query: "create" }, ctx());
+    expect(r.status).toBe("screens-unavailable");
+  });
+
+  test("search: ranks screen and scheme matches", async () => {
+    seed();
+    const r = await rovoScreenSearch({ query: "screen" }, ctx());
+    expect(r.status).toBe("ok");
+    expect(r.screenSchemes.map((s) => s.name)).toContain("Default Screen Scheme");
+  });
+
+  test("inspect: a screen returns tabs and field count", async () => {
+    seed();
+    const r = await rovoScreenInspect({ identifier: "Default Create Screen" }, ctx());
+    expect(r.kind).toBe("screen");
+    expect(r.screen.fieldCount).toBe(30);
+    expect(r.screen.tabs[0]).toMatchObject({ name: "Field Tab", fieldCount: 2 });
+  });
+
+  test("inspect: a scheme returns its operation mapping", async () => {
+    seed();
+    const r = await rovoScreenInspect({ identifier: "Default Screen Scheme" }, ctx());
+    expect(r.kind).toBe("scheme");
+    expect(r.operations[0]).toMatchObject({ operation: "default", screenId: "100" });
+  });
+
+  test("impact: a screen a scheme operation points at is 'routed'", async () => {
+    seed();
+    const r = await rovoScreenImpact({ name: "Default Create Screen" }, ctx());
+    expect(r.verdict).toBe("routed");
+    expect(r.routedBySchemeCount).toBe(1);
+  });
+
+  test("impact: a screen nothing points at is 'nothing-routes-to-it'", async () => {
+    seed();
+    const r = await rovoScreenImpact({ name: "Bug Screen" }, ctx());
+    expect(r.verdict).toBe("nothing-routes-to-it");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Rovo configuration change agent
+// ---------------------------------------------------------------------------
+describe("rovo change agent", () => {
+  const ctx = () => ctxWithAccount();
+
+  function seed() {
+    mocks.readDriftSnapshotMeta.mockResolvedValue({ state: "ready", version: "dv1", refreshedAt: "2026-09-03T00:00:00.000Z", totalChanges: 3 });
+    mocks.loadConfigChanges.mockResolvedValue([
+      { detectedAt: "2026-09-03", pillar: "workflows", entityType: "status", label: "In Review", changeKind: "modified", summary: "category changed" },
+      { detectedAt: "2026-09-02", pillar: "access", entityType: "scheme", label: "Default Permission Scheme", changeKind: "modified", summary: "holder added" },
+      { detectedAt: "2026-08-20", pillar: "workflows", entityType: "status", label: "In Review", changeKind: "added", summary: "created" },
+    ]);
+  }
+
+  test("search: unavailable with no drift snapshot", async () => {
+    mocks.readDriftSnapshotMeta.mockResolvedValue(null);
+    const r = await rovoChangeSearch({ query: "review" }, ctx());
+    expect(r.status).toBe("configuration changes-unavailable");
+  });
+
+  test("search: phrase-matches the entity label", async () => {
+    seed();
+    const r = await rovoChangeSearch({ query: "review" }, ctx());
+    expect(r.status).toBe("ok");
+    expect(r.changes.every((c) => c.label === "In Review")).toBe(true);
+    expect(r.totalRecorded).toBe(3);
+  });
+
+  test("search: no phrase lists recent changes", async () => {
+    seed();
+    const r = await rovoChangeSearch({}, ctx());
+    expect(r.changes.length).toBe(3);
+  });
+
+  test("inspect: returns the full history for one entity", async () => {
+    seed();
+    const r = await rovoChangeInspect({ label: "In Review" }, ctx());
+    expect(r.status).toBe("ok");
+    expect(r.changeCount).toBe(2);
+    expect(r.history.map((h) => h.kind).sort()).toEqual(["added", "modified"]);
+  });
+
+  test("inspect: an entity with no recorded change is not-found", async () => {
+    seed();
+    const r = await rovoChangeInspect({ label: "Never Touched" }, ctx());
+    expect(r.status).toBe("not-found");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Rovo project agent
+// ---------------------------------------------------------------------------
+describe("rovo project agent", () => {
+  const ctx = () => ctxWithAccount();
+
+  function seedProjects() {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: "fv1", state: "ready" });
+    mocks.listSnapshotProjects.mockResolvedValue([
+      { projectId: "10", projectKey: "ABC", projectName: "Alpha Beta" },
+      { projectId: "11", projectKey: "XYZ", projectName: "Ex Why Zed" },
+    ]);
+    mocks.getBrowsableProjectIds.mockResolvedValue(new Set(["10", "11"]));
+  }
+
+  test("search: unavailable when there is no field snapshot to list projects from", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue(null);
+    const r = await rovoProjectSearch({ query: "alpha" }, ctx());
+    expect(r.status).toBe("projects-unavailable");
+  });
+
+  test("search: matches browsable projects by key or name", async () => {
+    seedProjects();
+    const r = await rovoProjectSearch({ query: "alpha" }, ctx());
+    expect(r.status).toBe("ok");
+    expect(r.projects.map((p) => p.projectKey)).toContain("ABC");
+    expect(r.browsableProjectCount).toBe(2);
+  });
+
+  test("inspect: requires an id or key", async () => {
+    const r = await rovoProjectInspect({}, ctx());
+    expect(r.status).toBe("error");
+  });
+
+  test("inspect: an unknown key is not-found", async () => {
+    seedProjects();
+    const r = await rovoProjectInspect({ projectKey: "NOPE" }, ctx());
+    expect(r.status).toBe("not-found");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Rovo agents: error paths, filters and edge branches (coverage of the thin bits)
+// ---------------------------------------------------------------------------
+describe("rovo agents: edge branches", () => {
+  const ctx = () => ctxWithAccount();
+
+  test("every search action rejects an empty query", async () => {
+    for (const fn of [rovoWorkflowSearch, rovoIssueTypeSearch, rovoAccessSearch, rovoPeopleSearch, rovoAssetSearch, rovoEstateSearch, rovoScreenSearch, rovoProjectSearch]) {
+      const r = await fn({ query: "" }, ctx());
+      expect(r.status).toBe("error");
+    }
+  });
+
+  test("every inspect/impact action rejects a missing identifier", async () => {
+    expect((await rovoWorkflowInspect({}, ctx())).status).toBe("error");
+    expect((await rovoWorkflowImpact({}, ctx())).status).toBe("error");
+    expect((await rovoIssueTypeInspect({}, ctx())).status).toBe("error");
+    expect((await rovoIssueTypeImpact({}, ctx())).status).toBe("error");
+    expect((await rovoAccessInspect({}, ctx())).status).toBe("error");
+    expect((await rovoAccessImpact({}, ctx())).status).toBe("error");
+    expect((await rovoPeopleImpact({}, ctx())).status).toBe("error");
+    expect((await rovoAssetInspect({}, ctx())).status).toBe("error");
+    expect((await rovoAssetImpact({}, ctx())).status).toBe("error");
+    expect((await rovoScreenInspect({}, ctx())).status).toBe("error");
+    expect((await rovoScreenImpact({}, ctx())).status).toBe("error");
+    expect((await rovoChangeInspect({}, ctx())).status).toBe("error");
+  });
+
+  test("a loader that throws surfaces as a rejected resolver, not a silent result", async () => {
+    mocks.readWorkflowSnapshotMeta.mockRejectedValueOnce(new Error("sql down"));
+    await expect(rovoWorkflowSearch({ query: "x" }, ctx())).rejects.toThrow("sql down");
+    mocks.readAccessSnapshotMeta.mockRejectedValueOnce(new Error("boom"));
+    await expect(rovoAccessSearch({ query: "x" }, ctx())).rejects.toThrow("boom");
+    mocks.readAssetSnapshotMeta.mockRejectedValueOnce(new Error("gw"));
+    await expect(rovoAssetSearch({ query: "x" }, ctx())).rejects.toThrow("gw");
+    mocks.readDriftSnapshotMeta.mockRejectedValueOnce(new Error("drift"));
+    await expect(rovoChangeSearch({ query: "x" }, ctx())).rejects.toThrow("drift");
+  });
+
+  test("workflow search: kind=status suppresses schemes; issue-type kind=type suppresses schemes", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v", state: "ready", refreshedAt: "t" });
+    mocks.loadWorkflowSchemes.mockResolvedValue([{ schemeId: "s", name: "Review Scheme" }]);
+    mocks.loadStatusesCatalog.mockResolvedValue([{ statusId: "1", name: "Review", statusCategory: "In Progress" }]);
+    mocks.loadWorkflowSchemeStatuses.mockResolvedValue([]);
+    mocks.loadStatusIssueCounts.mockResolvedValue(new Map());
+    mocks.loadStatusHistoryCounts.mockResolvedValue({ counts: new Map(), measuredAt: null });
+    const r = await rovoWorkflowSearch({ query: "review", kind: "status" }, ctx());
+    expect(r.schemes).toEqual([]);
+
+    mocks.readIssueTypeSnapshotMeta.mockResolvedValue({ version: "v", state: "ready", refreshedAt: "t" });
+    mocks.loadIssueTypes.mockResolvedValue([{ id: "1", name: "Review", hierarchyLevel: 0 }]);
+    mocks.loadIssueTypeSchemes.mockResolvedValue([{ schemeId: "s", name: "Review Scheme" }]);
+    mocks.loadIssueTypeSchemeItems.mockResolvedValue([]);
+    mocks.loadIssueTypeSchemeProjects.mockResolvedValue([]);
+    const r2 = await rovoIssueTypeSearch({ query: "review", kind: "type" }, ctx());
+    expect(r2.schemes).toEqual([]);
+  });
+
+  test("assets: not-enabled short-circuits inspect and impact too", async () => {
+    mocks.readAssetSnapshotMeta.mockResolvedValue({ state: "unavailable", assetsEnabled: false });
+    expect((await rovoAssetInspect({ identifier: "x" }, ctx())).status).toBe("assets-not-enabled");
+    expect((await rovoAssetImpact({ name: "x" }, ctx())).status).toBe("assets-not-enabled");
+  });
+
+  test("estate inspect: list=resolutions omits priorities", async () => {
+    mocks.readEstateSnapshotMeta.mockResolvedValue({ state: "ready", version: "e", refreshedAt: "t" });
+    mocks.loadEstateValues.mockImplementation(async (_k, _v, kind) =>
+      kind === "resolution" ? [{ id: "1", name: "Done", isDefault: false }] : [{ id: "1", name: "High", isDefault: true }]);
+    const r = await rovoEstateInspect({ list: "resolutions" }, ctx());
+    expect(r).not.toHaveProperty("priorities");
+    expect(r.resolutions.hasDefault).toBe(false);
+  });
+
+  test("project inspect: a project the caller cannot browse is not-authorised", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: "fv", state: "ready" });
+    mocks.listSnapshotProjects.mockResolvedValue([{ projectId: "10", projectKey: "ABC", projectName: "A" }]);
+    mocks.getBrowsableProjectIds.mockImplementation(async (_a, ids) => new Set()); // nothing browsable
+    const r = await rovoProjectInspect({ projectId: "10" }, ctx());
+    expect(r.status).toBe("not-authorised");
+  });
+
+  test("access search: family filter with an unknown family falls back to all", async () => {
+    mocks.readAccessSnapshotMeta.mockResolvedValue({ version: "v", state: "ready", refreshedAt: "t" });
+    mocks.readUserSnapshotMeta.mockResolvedValue(null);
+    mocks.loadSchemes.mockResolvedValue([{ id: "1", name: "Thing" }]);
+    mocks.loadSchemeHolders.mockResolvedValue([]);
+    mocks.loadSchemeProjects.mockResolvedValue([]);
+    mocks.loadSchemeLevels.mockResolvedValue([]);
+    const r = await rovoAccessSearch({ query: "thing", family: "nonsense" }, ctx());
+    expect(Object.keys(r.schemes).sort()).toEqual(["notifications", "permissions", "roles", "security"]);
+  });
+});
+
+describe("rovo agents: more edge branches", () => {
+  const ctx = () => ctxWithAccount();
+
+  test("workflow inspect: scheme branch with no scheme-status rows yields a null-ish balance and empty statuses", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v", state: "ready", refreshedAt: "t" });
+    mocks.loadWorkflowSchemes.mockResolvedValue([{ schemeId: "s1", name: "Lonely Scheme", description: "" }]);
+    mocks.loadStatusesCatalog.mockResolvedValue([{ statusId: "1", name: "To Do", statusCategory: "To Do" }]);
+    mocks.loadWorkflowSchemeStatuses.mockResolvedValue([]);
+    mocks.loadStatusIssueCounts.mockResolvedValue(new Map());
+    mocks.loadStatusHistoryCounts.mockResolvedValue({ counts: new Map(), measuredAt: null });
+    mocks.loadWorkflowSchemeProjects.mockResolvedValue([]);
+    const r = await rovoWorkflowInspect({ identifier: "Lonely Scheme" }, ctx());
+    expect(r.kind).toBe("scheme");
+    expect(r.statuses).toEqual([]);
+    expect(r.projectCount).toBe(0);
+  });
+
+  test("workflow impact: verdict is 'unknown' when issue counts were never measured", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v", state: "ready", refreshedAt: "t" });
+    mocks.loadWorkflowSchemes.mockResolvedValue([{ schemeId: "s1", name: "S" }]);
+    mocks.loadStatusesCatalog.mockResolvedValue([{ statusId: "9", name: "Limbo", statusCategory: "In Progress" }]);
+    mocks.loadWorkflowSchemeStatuses.mockResolvedValue([]);
+    mocks.loadStatusIssueCounts.mockResolvedValue(new Map());
+    mocks.loadStatusHistoryCounts.mockResolvedValue({ counts: new Map(), measuredAt: null });
+    mocks.loadStatusAutomationReferences.mockResolvedValue(null);
+    const r = await rovoWorkflowImpact({ name: "Limbo" }, ctx());
+    expect(r.verdict).toBe("unknown");
+  });
+
+  test("issue type inspect: an unknown identifier is not-found", async () => {
+    mocks.readIssueTypeSnapshotMeta.mockResolvedValue({ version: "v", state: "ready", refreshedAt: "t" });
+    mocks.loadIssueTypes.mockResolvedValue([{ id: "1", name: "Bug", hierarchyLevel: 0 }]);
+    mocks.loadIssueTypeSchemes.mockResolvedValue([]);
+    mocks.loadIssueTypeSchemeItems.mockResolvedValue([]);
+    mocks.loadIssueTypeSchemeProjects.mockResolvedValue([]);
+    const r = await rovoIssueTypeInspect({ identifier: "Nope" }, ctx());
+    expect(r.status).toBe("not-found");
+  });
+
+  test("access impact: matches on accountId, not just display name", async () => {
+    mocks.readAccessSnapshotMeta.mockResolvedValue({ version: "v", state: "ready", refreshedAt: "t" });
+    mocks.readUserSnapshotMeta.mockResolvedValue(null);
+    mocks.loadSchemes.mockImplementation(async (_k, _v, f) => f === "permission" ? [{ id: "p1", name: "PS" }] : []);
+    mocks.loadSchemeHolders.mockImplementation(async (_k, _v, f) => f === "permission"
+      ? [{ schemeId: "p1", holderType: "user", accountId: "acc-99", holderName: "Someone", permission: "ADMINISTER_PROJECTS", offRoster: true }]
+      : []);
+    mocks.loadSchemeProjects.mockResolvedValue([]);
+    mocks.loadSchemeLevels.mockResolvedValue([]);
+    const r = await rovoAccessImpact({ name: "acc-99" }, ctx());
+    expect(r.verdict).toBe("named-in-schemes");
+    expect(r.namedIn[0].offRoster).toBe(true);
+  });
+
+  test("screen inspect: neither a scheme nor a screen match is not-found", async () => {
+    mocks.readScreenSnapshotMeta.mockResolvedValue({ state: "ready", version: "v", refreshedAt: "t" });
+    mocks.loadScreensPage.mockResolvedValue({ total: 0, rows: [] });
+    mocks.loadScreenSchemes.mockResolvedValue([]);
+    mocks.loadScreenSchemeOperations.mockResolvedValue([]);
+    mocks.loadIssueTypeScreenSchemes.mockResolvedValue([]);
+    const r = await rovoScreenInspect({ identifier: "Ghost Screen" }, ctx());
+    expect(r.status).toBe("not-found");
+  });
+
+  test("change search: pillar and kind filters are forwarded to the loader", async () => {
+    mocks.readDriftSnapshotMeta.mockResolvedValue({ state: "ready", version: "d", refreshedAt: "t", totalChanges: 1 });
+    mocks.loadConfigChanges.mockResolvedValue([
+      { detectedAt: "2026-09-01", pillar: "access", entityType: "scheme", label: "PS", changeKind: "modified", summary: "x" },
+    ]);
+    const r = await rovoChangeSearch({ pillar: "access", kind: "modified" }, ctx());
+    expect(r.pillar).toBe("access");
+    expect(r.kind).toBe("modified");
+    expect(mocks.loadConfigChanges).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ pillar: "access", kind: "modified" }));
+  });
+
+  test("project inspect: resolves a projectKey from the browsable set and returns the overview shape", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: "fv", state: "ready" });
+    mocks.listSnapshotProjects.mockResolvedValue([{ projectId: "10", projectKey: "ABC", projectName: "Alpha" }]);
+    mocks.getBrowsableProjectIds.mockImplementation(async (_a, ids) => new Set((ids || []).map(String)));
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue(null);
+    mocks.readScreenSnapshotMeta.mockResolvedValue(null);
+    mocks.readFilterSnapshotMeta?.mockResolvedValue?.(null);
+    const r = await rovoProjectInspect({ projectKey: "abc" }, ctx());
+    expect(["ok", "not-authorised"]).toContain(r.status);
+  });
+
+  test("asset search: kind=schema and kind=type each suppress the other list", async () => {
+    mocks.readAssetSnapshotMeta.mockResolvedValue({ state: "ready", version: "a", assetsEnabled: true, refreshedAt: "t" });
+    mocks.loadAssetSchemas.mockResolvedValue([{ id: "1", name: "Infra Schema" }]);
+    mocks.loadAssetObjectTypes.mockResolvedValue([{ id: "9", objectSchemaId: "1", name: "Infra Node" }]);
+    mocks.loadAssetAttributes.mockResolvedValue([]);
+    expect((await rovoAssetSearch({ query: "infra", kind: "schema" }, ctx())).objectTypes).toEqual([]);
+    expect((await rovoAssetSearch({ query: "infra", kind: "type" }, ctx())).schemas).toEqual([]);
+  });
+
+  test("estate search: kind filters", async () => {
+    mocks.readEstateSnapshotMeta.mockResolvedValue({ state: "ready", version: "e", refreshedAt: "t" });
+    mocks.loadEstateValues.mockImplementation(async (_k, _v, kind) =>
+      kind === "resolution" ? [{ id: "1", name: "Done" }] : [{ id: "1", name: "Done" }]);
+    expect((await rovoEstateSearch({ query: "done", kind: "resolution" }, ctx())).priorities).toEqual([]);
+    expect((await rovoEstateSearch({ query: "done", kind: "priority" }, ctx())).resolutions).toEqual([]);
   });
 });

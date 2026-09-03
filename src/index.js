@@ -74,6 +74,13 @@ import {
   rovoAssetImpact,
   rovoEstateSearch,
   rovoEstateInspect,
+  rovoScreenSearch,
+  rovoScreenInspect,
+  rovoScreenImpact,
+  rovoChangeSearch,
+  rovoChangeInspect,
+  rovoProjectSearch,
+  rovoProjectInspect,
   SHARED_RESOLVER_FUNCTIONS,
   ADMIN_ONLY_FUNCTIONS,
 } from "./resolvers.js";
@@ -565,3 +572,6 @@ export { rovoAccessSearch, rovoAccessInspect, rovoAccessImpact };
 export { rovoPeopleSearch, rovoPeopleInspect, rovoPeopleImpact };
 export { rovoAssetSearch, rovoAssetInspect, rovoAssetImpact };
 export { rovoEstateSearch, rovoEstateInspect };
+export { rovoScreenSearch, rovoScreenInspect, rovoScreenImpact };
+export { rovoChangeSearch, rovoChangeInspect };
+export { rovoProjectSearch, rovoProjectInspect };

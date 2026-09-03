@@ -1,9 +1,9 @@
 import React from "react";
 import { invoke } from "@forge/bridge";
-import { formatNumber, formatRelativeTime, formatLogTime } from "../utils";
+import { formatNumber, formatRelativeTime, formatLogTime, buildRovoPrompt } from "../utils";
 import { Icon } from "../components/Icons";
 import {
-  StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, SortFilterBar,
+  StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, SortFilterBar, AskRovo,
 } from "../components/ui";
 import { useNavIntent, useVisiblePolling } from "../hooks";
 
@@ -120,10 +120,24 @@ export function ChangesTab({ intent }) {
   }
 
   const buildAction = (
-    <button type="button" className="secondary-button" onClick={startBuild} disabled={building || isBuilding}>
-      <Icon name="refreshCw" size={13} />
+    <>
+      <AskRovo
+        agent="observatory-change-expert"
+        scope="the configuration change history"
+        context="the last drift-pass time and the recorded change counts by pillar and kind"
+        disabled={Boolean(data?.neverBuilt)}
+        buildPrompt={() =>
+          buildRovoPrompt({
+            task: "Summarise what has changed in the estate's configuration recently and which pillar has seen the most change.",
+            facts: [["Last drift pass", data?.refreshedAt || "unknown"], ["Changes recorded last pass", data?.lastRunChanges ?? null], ["Total changes recorded", data?.totalChanges ?? null], ["Window (days)", data?.windowDays ?? null]],
+          })
+        }
+      />
+      <button type="button" className="secondary-button" onClick={startBuild} disabled={building || isBuilding}>
+        <Icon name="refreshCw" size={13} />
       {isBuilding ? "Running…" : "Run drift pass"}
     </button>
+    </>
   );
 
   if (loading && !data) {

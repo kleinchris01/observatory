@@ -6080,6 +6080,254 @@ export async function rovoEstateInspect(payload, context) {
   }
 }
 
+// ── Rovo: screen expert ────────────────────────────────────────────────────
+//
+// Screens, their tabs and fields, and the scheme chain that routes to them, over
+// getScreenInventory (which pages screens -- the agent asks for a large page).
+
+export async function rovoScreenSearch(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const query = String(payload?.query || "").trim();
+    const kind = String(payload?.kind || "any").trim().toLowerCase();
+    const limit = clampResults(payload?.maxResults, 8, 20);
+    if (!query) return { status: "error", message: "A search query is required." };
+
+    const inv = await getScreenInventory({ payload: { pageSize: 100, search: kind === "scheme" ? "" : query }, context });
+    if (inv.neverBuilt || !inv.version) return pillarUnavailable("screens", { state: inv.state, refreshedAt: null });
+
+    const screenRows = kind === "scheme" ? [] : (inv.screens?.rows || inv.screens || []);
+    const screens = rankMatches(screenRows, query, (s) => [s.name, s.id, s.screenId], limit);
+    const schemes = kind === "screen" ? [] :
+      rankMatches(inv.screenSchemes || [], query, (s) => [s.name, s.id], limit);
+
+    return agentOk(inv.refreshedAt || null, {
+      query,
+      screens: screens.map((s) => ({
+        screenId: s.screenId ?? s.id, name: s.name,
+        fieldCount: s.fieldCount ?? s.totalFields ?? null,
+        tabCount: s.tabCount ?? null,
+        reachedByProjectCount: s.projectCount ?? s.reachableProjectCount ?? null,
+      })),
+      screenSchemes: schemes.map((s) => ({ id: s.id, name: s.name })),
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoScreenSearch failed:", error);
+    throw error;
+  }
+}
+
+export async function rovoScreenInspect(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const identifier = String(payload?.identifier || "").trim();
+    if (!identifier) return { status: "error", message: "A screen or screen scheme name is required." };
+    const inv = await getScreenInventory({ payload: { pageSize: 100, search: identifier }, context });
+    if (inv.neverBuilt || !inv.version) return pillarUnavailable("screens", { state: inv.state, refreshedAt: null });
+    const idLower = identifier.toLowerCase();
+
+    const scheme = (inv.screenSchemes || []).find((s) => String(s.id) === identifier || String(s.name || "").toLowerCase() === idLower);
+    if (scheme) {
+      const ops = (inv.schemeOperations || []).filter((o) => String(o.schemeId) === String(scheme.id));
+      return agentOk(inv.refreshedAt || null, {
+        kind: "scheme",
+        scheme: { id: scheme.id, name: scheme.name },
+        operations: ops.map((o) => ({ operation: o.operation, screenId: o.screenId, screenName: o.screenName || null, inherited: Boolean(o.inherited) })),
+      });
+    }
+
+    const rows = inv.screens?.rows || inv.screens || [];
+    const screen = rows.find((s) => String(s.screenId ?? s.id) === identifier || String(s.name || "").toLowerCase() === idLower);
+    if (!screen) return agentNotFound(inv.refreshedAt || null, `No screen or screen scheme matched "${identifier}" on the current page. Try a more exact name.`);
+
+    return agentOk(inv.refreshedAt || null, {
+      kind: "screen",
+      screen: {
+        screenId: screen.screenId ?? screen.id, name: screen.name,
+        fieldCount: screen.fieldCount ?? screen.totalFields ?? null,
+        tabCount: screen.tabCount ?? null,
+        tabs: (screen.tabs || []).map((t) => ({ name: t.name, fieldCount: (t.fields || []).length })),
+        findings: screen.findings || null,
+        unresolved: Boolean(screen.unresolved),
+      },
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoScreenInspect failed:", error);
+    throw error;
+  }
+}
+
+export async function rovoScreenImpact(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const name = String(payload?.name || "").trim();
+    if (!name) return { status: "error", message: "A screen name is required." };
+    const inv = await getScreenInventory({ payload: { pageSize: 100, search: name }, context });
+    if (inv.neverBuilt || !inv.version) return pillarUnavailable("screens", { state: inv.state, refreshedAt: null });
+
+    const rows = inv.screens?.rows || inv.screens || [];
+    const screen = rows.find((s) => String(s.name || "").toLowerCase() === name.toLowerCase());
+    if (!screen) return agentNotFound(inv.refreshedAt || null, `No screen named "${name}" was found on the current page.`);
+
+    const sid = String(screen.screenId ?? screen.id);
+    const ops = (inv.schemeOperations || []).filter((o) => String(o.screenId) === sid);
+    const schemeIds = new Set(ops.map((o) => String(o.schemeId)));
+    const transitions = (inv.transitionScreens || []).filter((t) => String(t.screenId) === sid);
+
+    return agentOk(inv.refreshedAt || null, {
+      screen: { screenId: sid, name: screen.name, fieldCount: screen.fieldCount ?? screen.totalFields ?? null },
+      routedBySchemeOperations: ops.map((o) => ({ scheme: o.schemeName || o.schemeId, operation: o.operation })),
+      routedBySchemeCount: schemeIds.size,
+      openedByTransitionCount: transitions.length,
+      reachedByProjectCount: screen.projectCount ?? screen.reachableProjectCount ?? null,
+      verdict: schemeIds.size === 0 && transitions.length === 0 ? "nothing-routes-to-it" : "routed",
+      verdictCaveat:
+        "This covers screen scheme operation mappings and workflow transition screens (where the workflow inventory recorded them). Reachability by project depends on the issue-type-screen-scheme chain, which may be partial.",
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoScreenImpact failed:", error);
+    throw error;
+  }
+}
+
+// ── Rovo: configuration change expert ──────────────────────────────────────
+//
+// The change-history timeline, over loadConfigChanges. Search filters by pillar/kind and
+// substring-matches the label; inspect returns one entity's whole recorded history.
+
+export async function rovoChangeSearch(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    await ensureProjectStoreReady();
+    const installationKey = getInstallationKey(context);
+    const query = String(payload?.query || "").trim().toLowerCase();
+    const pillar = payload?.pillar && payload.pillar !== "all" ? String(payload.pillar) : null;
+    const kind = payload?.kind && payload.kind !== "all" ? String(payload.kind) : null;
+    const limit = clampResults(payload?.maxResults, 20, 100);
+
+    const meta = await readDriftSnapshotMeta(installationKey);
+    if (!meta?.version) return pillarUnavailable("configuration changes", { state: meta?.state || "idle", refreshedAt: null });
+
+    const rows = await loadConfigChanges(installationKey, { pillar, kind, limit: 300 });
+    const filtered = (query
+      ? rows.filter((r) => String(r.label || "").toLowerCase().includes(query) || String(r.summary || "").toLowerCase().includes(query))
+      : rows
+    ).slice(0, limit);
+
+    return agentOk(meta.refreshedAt || null, {
+      query: query || null, pillar, kind,
+      totalRecorded: meta.totalChanges || 0,
+      changes: filtered.map((r) => ({
+        detectedAt: r.detectedAt, pillar: r.pillar, entityType: r.entityType,
+        label: r.label, kind: r.changeKind, summary: r.summary,
+      })),
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoChangeSearch failed:", error);
+    throw error;
+  }
+}
+
+export async function rovoChangeInspect(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    await ensureProjectStoreReady();
+    const installationKey = getInstallationKey(context);
+    const label = String(payload?.label || "").trim();
+    if (!label) return { status: "error", message: "The name of a scheme, status, field, filter or other entity is required." };
+
+    const meta = await readDriftSnapshotMeta(installationKey);
+    if (!meta?.version) return pillarUnavailable("configuration changes", { state: meta?.state || "idle", refreshedAt: null });
+
+    const rows = await loadConfigChanges(installationKey, { limit: 500 });
+    const forEntity = rows.filter((r) => String(r.label || "").toLowerCase() === label.toLowerCase());
+    if (!forEntity.length) {
+      return agentNotFound(meta.refreshedAt || null,
+        `No recorded configuration change names "${label}". Either it has not changed since the drift baseline was set, or it is not one of the tracked entity kinds.`);
+    }
+
+    return agentOk(meta.refreshedAt || null, {
+      label,
+      pillar: forEntity[0].pillar,
+      entityType: forEntity[0].entityType,
+      changeCount: forEntity.length,
+      history: forEntity.map((r) => ({ detectedAt: r.detectedAt, kind: r.changeKind, summary: r.summary })),
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoChangeInspect failed:", error);
+    throw error;
+  }
+}
+
+// ── Rovo: project expert ───────────────────────────────────────────────────
+//
+// Per-project scheme identity, adoption and field usage, over getProjectOverview. Read
+// only what the viewer can Browse, exactly as getProjectOverview does.
+
+export async function rovoProjectSearch(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const installationKey = getInstallationKey(context);
+    const query = String(payload?.query || "").trim();
+    const limit = clampResults(payload?.maxResults, 8, 20);
+    if (!query) return { status: "error", message: "A search query is required." };
+
+    const vp = await viewerProjects(installationKey, context);
+    if (!vp.available) return pillarUnavailable("projects", { state: "idle", refreshedAt: null });
+
+    const matches = rankMatches(vp.projects, query, (p) => [p.projectKey, p.projectName], limit);
+    return agentOk(null, {
+      query,
+      projects: matches.map((p) => ({ projectId: p.projectId, projectKey: p.projectKey, projectName: p.projectName })),
+      browsableProjectCount: vp.projects.length,
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoProjectSearch failed:", error);
+    throw error;
+  }
+}
+
+export async function rovoProjectInspect(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const installationKey = getInstallationKey(context);
+    let projectId = String(payload?.projectId || "").trim();
+    const projectKey = String(payload?.projectKey || "").trim();
+
+    if (!projectId) {
+      if (!projectKey) return { status: "error", message: "A projectId or projectKey is required. Use search first." };
+      const vp = await viewerProjects(installationKey, context);
+      const hit = vp.projects.find((p) => String(p.projectKey || "").toLowerCase() === projectKey.toLowerCase());
+      if (!hit) return agentNotFound(null, `No browsable project has the key "${projectKey}".`);
+      projectId = hit.projectId;
+    }
+
+    const ov = await getProjectOverview({ payload: { projectId, projectKey }, context });
+    if (!ov.available) return { status: "not-authorised", message: ov.reason || "You do not have Browse Projects on this project." };
+
+    return agentOk(ov.refreshedAt || null, {
+      project: { projectId, projectKey: ov.projectKey || projectKey, projectName: ov.projectName || null, type: ov.projectType || null, lead: ov.lead || null },
+      workflowScheme: ov.workflowScheme ? { name: ov.workflowScheme.name, sharedWithCount: ov.workflowScheme.sharedWithCount ?? null } : null,
+      schemes: ov.schemes || null,
+      roleActors: ov.roleActors || null,
+      adoption: ov.adoption || ov.selectedAdoption || null,
+      fieldsInUse: Array.isArray(ov.fields) ? ov.fields.length : (ov.fieldsInUse ?? null),
+      dataCaveats:
+        "Project activity and archetype-divergence measurement are not built yet -- this is scheme identity, adoption where measured, and field usage.",
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoProjectInspect failed:", error);
+    throw error;
+  }
+}
+
 // ── Rovo: automation expert ──────────────────────────────────────────────────
 //
 // The agent answers only from the stored analysis. It has no route to the live rules, so

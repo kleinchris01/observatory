@@ -17,7 +17,8 @@ import { invoke } from "@forge/bridge";
 import { Icon, useChartPalette } from "./Icons";
 import { SkeletonProjectItem, FindingsStrip, MetricChip } from "./FieldCard";
 import { SubNavLayout } from "./admin/primitives";
-import { Panel, StatRow, StatTile, BarList, PanelGrid, GridSpan, EmptyState, Chip, PageHeader } from "./ui";
+import { Panel, StatRow, StatTile, BarList, PanelGrid, GridSpan, EmptyState, Chip, PageHeader, AskRovo } from "./ui";
+import { buildRovoPrompt } from "../utils";
 
 function ChartTooltip({ active, payload }) {
   if (!active || !payload?.length) return null;
@@ -1102,6 +1103,24 @@ export function ProjectsTabView({
             </div>
             {selectedProject ? (
               <div className="section-heading__actions">
+                <AskRovo
+                  agent="observatory-project-expert"
+                  scope={`${selectedProject.projectKey}`}
+                  context="this project's key, its workflow scheme and how many projects share it, and its cached field-usage count"
+                  buildPrompt={() =>
+                    buildRovoPrompt({
+                      task: `Explain project ${selectedProject.projectKey} (${selectedProject.projectName}): which schemes it resolves to, how it compares with its siblings, and anything worth reviewing.`,
+                      facts: [
+                        ["Project key", selectedProject.projectKey],
+                        ["Project id", selectedProject.projectId],
+                        ["Workflow scheme", data?.workflowScheme?.name || "unknown"],
+                        ["Projects sharing that workflow scheme", data?.workflowScheme?.sharedWithCount ?? null],
+                        ["Fields in use", Array.isArray(data?.fields) ? data.fields.length : null],
+                        ["Usage refreshed", refreshedAt || "unknown"],
+                      ],
+                    })
+                  }
+                />
                 <button
                   className="secondary-button secondary-button--small"
                   type="button"

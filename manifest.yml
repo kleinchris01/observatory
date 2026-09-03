@@ -139,6 +139,43 @@ modules:
       actions:
         - search-estate
         - inspect-estate
+    - key: observatory-screen-expert
+      name: Observatory Screen Expert
+      description: A Jira screen specialist that explains the screen catalogue, tabs and fields, the screen-scheme operation mapping, and what routes to a screen.
+      prompt: resource:agent-resources;prompts/screen-expert.txt
+      conversationStarters:
+        - Give me an overview of the screen catalogue and its schemes
+        - Which screens carry the most fields?
+        - Which screens does no screen scheme route to?
+        - What routes to a specific screen, and would anything break if I changed it?
+      actions:
+        - search-screens
+        - inspect-screen
+        - screen-impact
+    - key: observatory-change-expert
+      name: Observatory Configuration Change Expert
+      description: A specialist in Observatory's configuration change-history timeline, explaining what changed in the estate's configuration and when.
+      prompt: resource:agent-resources;prompts/change-expert.txt
+      conversationStarters:
+        - What has changed in the estate's configuration recently?
+        - Show me every recorded change to permission schemes
+        - Has the "In Review" status been modified since the baseline?
+        - Which pillar has seen the most configuration change?
+      actions:
+        - search-changes
+        - inspect-changes
+    - key: observatory-project-expert
+      name: Observatory Project Expert
+      description: A specialist in per-project configuration - which schemes a project resolves to, its adoption where measured, and its field usage. Limited to projects the caller can browse.
+      prompt: resource:agent-resources;prompts/project-expert.txt
+      conversationStarters:
+        - Give me an overview of a specific project's configuration
+        - Which workflow scheme does project ABC use, and how many projects share it?
+        - What schemes and project-role actors does project ABC resolve to?
+        - How adopted is project ABC compared with the site?
+      actions:
+        - search-projects
+        - inspect-project
   action:
     - key: search-field-catalog
       name: Search field catalog
@@ -472,6 +509,118 @@ modules:
           type: string
           required: false
           description: Limit to priorities or resolutions. Defaults to both.
+    - key: search-screens
+      name: Search screens and screen schemes
+      function: rovo-screen-search
+      actionVerb: GET
+      description: Search the screen snapshot by name and return matching screens (with field and tab counts) and screen schemes.
+      inputs:
+        query:
+          title: Search query
+          type: string
+          required: true
+          description: A screen name, a screen scheme name, or a short phrase.
+        kind:
+          title: Kind
+          type: string
+          required: false
+          description: Limit to screen or scheme. Defaults to any.
+        maxResults:
+          title: Maximum results
+          type: integer
+          required: false
+          description: Optional maximum number of matches to return, from 1 to 20.
+    - key: inspect-screen
+      name: Inspect a screen or screen scheme
+      function: rovo-screen-inspect
+      actionVerb: GET
+      description: Retrieve one screen (its tabs, field count and findings) or one screen scheme (its create / edit / view / default operation mapping).
+      inputs:
+        identifier:
+          title: Screen or screen scheme
+          type: string
+          required: true
+          description: A screen name or a screen scheme name.
+    - key: screen-impact
+      name: What routes to a screen
+      function: rovo-screen-impact
+      actionVerb: GET
+      description: Report which screen scheme operations point at a screen and how many workflow transitions open it, with a verdict. Use this before editing or deleting a screen.
+      inputs:
+        name:
+          title: Screen name
+          type: string
+          required: true
+          description: The exact screen name.
+    - key: search-changes
+      name: Search the configuration change history
+      function: rovo-change-search
+      actionVerb: GET
+      description: Search the change-history timeline. Filter by pillar and change kind and match a phrase against the changed entity's name.
+      inputs:
+        query:
+          title: Search phrase
+          type: string
+          required: false
+          description: A phrase to match against the changed entity's name or the change summary. Omit to list recent changes.
+        pillar:
+          title: Pillar
+          type: string
+          required: false
+          description: Limit to one pillar, such as workflows, screens, fields, access, filters, dashboards, estate.
+        kind:
+          title: Change kind
+          type: string
+          required: false
+          description: Limit to added, removed or modified.
+        maxResults:
+          title: Maximum results
+          type: integer
+          required: false
+          description: Optional maximum number of changes to return, from 1 to 100.
+    - key: inspect-changes
+      name: Change history for one entity
+      function: rovo-change-inspect
+      actionVerb: GET
+      description: Return every recorded configuration change for one named entity (a scheme, status, field, filter, dashboard, priority or resolution).
+      inputs:
+        label:
+          title: Entity name
+          type: string
+          required: true
+          description: The exact name of the scheme, status, field or other tracked entity.
+    - key: search-projects
+      name: Search browsable projects
+      function: rovo-project-search
+      actionVerb: GET
+      description: Search the projects the caller can browse by key or name.
+      inputs:
+        query:
+          title: Search query
+          type: string
+          required: true
+          description: A project key or name.
+        maxResults:
+          title: Maximum results
+          type: integer
+          required: false
+          description: Optional maximum number of matches to return, from 1 to 20.
+    - key: inspect-project
+      name: Inspect one project's configuration
+      function: rovo-project-inspect
+      actionVerb: GET
+      description: Retrieve one project's workflow scheme, access schemes and role actors, adoption (where measured) and field-usage count. Only works for a project the caller can browse.
+      inputs:
+        projectId:
+          title: Project id
+          type: string
+          required: false
+          description: The numeric project id. Provide this or projectKey.
+        projectKey:
+          title: Project key
+          type: string
+          required: false
+          description: The project key, such as ABC. Resolved to an id from the browsable set.
   consumer:
     - key: inventory-snapshot-consumer
       queue: inventory-snapshot-queue
@@ -533,6 +682,20 @@ modules:
       handler: index.rovoEstateSearch
     - key: rovo-estate-inspect
       handler: index.rovoEstateInspect
+    - key: rovo-screen-search
+      handler: index.rovoScreenSearch
+    - key: rovo-screen-inspect
+      handler: index.rovoScreenInspect
+    - key: rovo-screen-impact
+      handler: index.rovoScreenImpact
+    - key: rovo-change-search
+      handler: index.rovoChangeSearch
+    - key: rovo-change-inspect
+      handler: index.rovoChangeInspect
+    - key: rovo-project-search
+      handler: index.rovoProjectSearch
+    - key: rovo-project-inspect
+      handler: index.rovoProjectInspect
     - key: snapshot-consumer
       handler: index.consumeSnapshot
       timeoutSeconds: 900

@@ -2,7 +2,8 @@ import React from "react";
 import { invoke } from "@forge/bridge";
 import { formatNumber, formatRelativeTime } from "../utils";
 import { Icon } from "../components/Icons";
-import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, SortFilterBar, PanelGrid, GridSpan, PillarHealthPanel, BarList, StickyActions } from "../components/ui";
+import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, SortFilterBar, PanelGrid, GridSpan, PillarHealthPanel, BarList, StickyActions, AskRovo } from "../components/ui";
+import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
 import { useNavIntent, useVisiblePolling } from "../hooks";
 
@@ -334,10 +335,24 @@ export function ScreensTab({ intent = null, onBuildFieldReport }) {
   const isStale = buildAgeDays != null && buildAgeDays > STALE_AFTER_DAYS;
 
   const buildAction = (
-    <button type="button" className="secondary-button" onClick={startBuild} disabled={building || isBuilding}>
-      <Icon name="refreshCw" size={13} />
+    <>
+      <AskRovo
+        agent="observatory-screen-expert"
+        scope="the screen catalogue"
+        context="the snapshot age, screen and scheme totals, and the unresolved-screen count"
+        disabled={Boolean(data?.neverBuilt)}
+        buildPrompt={() =>
+          buildRovoPrompt({
+            task: "Give me an overview of the screen catalogue and its schemes on this site and what to look at first.",
+            facts: [["Snapshot built", data?.refreshedAt || "unknown"], ["Screens", data?.totalScreens ?? null], ["Screen schemes", data?.totalSchemes ?? null], ["Screens whose tabs could not be read", data?.unresolvedScreens ?? null]],
+          })
+        }
+      />
+      <button type="button" className="secondary-button" onClick={startBuild} disabled={building || isBuilding}>
+        <Icon name="refreshCw" size={13} />
       {isBuilding ? "Building…" : data?.neverBuilt ? "Build inventory" : "Rebuild"}
     </button>
+    </>
   );
 
   if (loading && !data) {
