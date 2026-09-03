@@ -5,6 +5,7 @@ import { invoke, view } from "@forge/bridge";
 import "./styles.css";
 import { formatTimestamp, formatNumber, toDisplayName, buildValueJql, formatShortTime, formatRelativeTime, formatLogTime, formatContextList, normalizeSiteOrigin, buildJiraSearchUrl, handleJiraLinkClick, escapeCsvCell, downloadCsv, slugifyFilenamePart, normalizeReportData, groupReportFieldsByType, summarizeReportData, isUsageAvailable, isSelectType, mergeFieldMetrics, openFieldExpertRovo, buildInventoryRovoPrompt, buildFieldRovoPrompt, buildProjectRovoPrompt, buildReportRovoPrompt } from "./utils";
 import { Icon, useLiveDuration } from "./components/Icons";
+import { Starfield } from "./components/Starfield";
 import { ReportErrorBoundary, SavedReportsPanel, ProjectUsageReportView } from "./components/ReportView";
 import { MetricChip, FindingBadge, FindingsStrip, SkeletonFieldCard, SkeletonProjectItem, InlineOptionsContext, FieldCard } from "./components/FieldCard";
 import { useRefreshOnVisible } from "./hooks";
@@ -235,6 +236,7 @@ export function AdminApp() {
 
   return (
     <div className="admin-shell">
+      <Starfield active={theme === "dark"} />
       <div className="admin-layout">
         <aside className="admin-sidebar">
           <div className="admin-sidebar__brand">
