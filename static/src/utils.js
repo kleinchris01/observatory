@@ -467,13 +467,94 @@ export function mergeFieldMetrics(field, source) {
   };
 }
 
-export async function openFieldExpertRovo(prompt) {
+// One Rovo agent per pillar. The key is the manifest `rovo:agent` key and MUST match it
+// exactly; `name` is the manifest `name` and is what rovo.open() needs to route the deep
+// link. `reads` is the one-line "what context this agent works from", shown in the Ask Rovo
+// tooltip so a person knows what the button is about to send before they click it.
+//
+// Adding a pillar agent: add the entry here, add the matching rovo:agent + actions +
+// functions to manifest.yml, add resource/agent/prompts/<pillar>-expert.txt (starting with
+// the shared preamble), and wire <AskRovo agent="..."> into that pillar's tab. The
+// agent-prompts test asserts every key here has a prompt file and vice versa.
+export const ROVO_AGENTS = {
+  "observatory-field-expert": {
+    name: "Observatory Field Expert",
+    reads: "the custom field snapshot and per-project usage",
+  },
+  "observatory-automation-expert": {
+    name: "Observatory Automation Expert",
+    reads: "the imported automation rule analysis",
+  },
+  "observatory-workflow-expert": {
+    name: "Observatory Workflow & Status Expert",
+    reads: "the workflow scheme and status inventory",
+  },
+  "observatory-issuetype-expert": {
+    name: "Observatory Issue Type Expert",
+    reads: "the issue type catalogue and its schemes",
+  },
+  "observatory-screen-expert": {
+    name: "Observatory Screen Expert",
+    reads: "the screen, tab and scheme inventory",
+  },
+  "observatory-access-expert": {
+    name: "Observatory Access Expert",
+    reads: "permission, issue-security and notification schemes and project roles",
+  },
+  "observatory-people-expert": {
+    name: "Observatory People Expert",
+    reads: "the licensed-user roster and ownership graph",
+  },
+  "observatory-assets-expert": {
+    name: "Observatory Assets Expert",
+    reads: "the JSM Assets object schema and type structure",
+  },
+  "observatory-estate-expert": {
+    name: "Observatory Priorities & Resolutions Expert",
+    reads: "the resolution and priority value lists",
+  },
+  "observatory-change-expert": {
+    name: "Observatory Configuration Change Expert",
+    reads: "the configuration change-history timeline",
+  },
+  "observatory-project-expert": {
+    name: "Observatory Project Expert",
+    reads: "per-project scheme identity, adoption and field usage",
+  },
+};
+
+// Open a Rovo agent, pre-seeded with a prompt. Every "Ask Rovo" button in the product goes
+// through here (via <AskRovo>) so the deep link is built one way. rovo.open() rejects if
+// Rovo is not available on the site; callers swallow that -- the button is best-effort.
+export async function openRovo(agentKey, prompt) {
+  const agent = ROVO_AGENTS[agentKey];
+  if (!agent) throw new Error(`openRovo: unknown agent "${agentKey}"`);
   await rovo.open({
     type: "forge",
-    agentName: "Observatory Field Expert",
-    agentKey: "observatory-field-expert",
+    agentName: agent.name,
+    agentKey,
     prompt,
   });
+}
+
+// Retained for the field-pillar call sites that predate the registry. New code uses
+// <AskRovo> or openRovo() directly.
+export async function openFieldExpertRovo(prompt) {
+  await openRovo("observatory-field-expert", prompt);
+}
+
+// The one prompt shape. `task` is the question the agent should answer first; `facts` is an
+// ordered list of [label, value] the agent should reason from. Empty / null / undefined
+// values are dropped so a caller does not have to guard every field. Produces the same
+// "one sentence of task, then labelled evidence" structure the agent prompts expect,
+// regardless of which pillar built it.
+export function buildRovoPrompt({ task, facts = [] }) {
+  const lines = [String(task || "").trim()].filter(Boolean);
+  for (const [label, value] of facts) {
+    if (value === undefined || value === null || value === "") continue;
+    lines.push(`${label}: ${value}.`);
+  }
+  return lines.join(" ");
 }
 
 export function buildInventoryRovoPrompt({ totalFields, availableTypes, refreshedAt, currentPage, totalPages, query, typeFilter, sortBy }) {

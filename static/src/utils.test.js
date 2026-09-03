@@ -23,7 +23,12 @@ import {
   buildFieldRovoPrompt,
   buildProjectRovoPrompt,
   buildReportRovoPrompt,
+  ROVO_AGENTS,
+  openRovo,
+  openFieldExpertRovo,
+  buildRovoPrompt,
 } from "./utils";
+import { rovo } from "@forge/bridge";
 
 // ---------------------------------------------------------------------------
 // formatTimestamp
@@ -788,5 +793,71 @@ describe("applyTableControls", () => {
 
     expect(asc[asc.length - 1].id).toBe("c");
     expect(desc[desc.length - 1].id).toBe("c");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Rovo agent registry + openRovo + buildRovoPrompt
+// ---------------------------------------------------------------------------
+describe("ROVO_AGENTS registry", () => {
+  test("every entry has a manifest-shaped key, a display name and a 'reads' phrase", () => {
+    for (const [key, meta] of Object.entries(ROVO_AGENTS)) {
+      expect(key).toMatch(/^observatory-[a-z]+-expert$/);
+      expect(meta.name).toMatch(/^Observatory /);
+      expect(typeof meta.reads).toBe("string");
+      expect(meta.reads.length).toBeGreaterThan(0);
+    }
+  });
+
+  test("covers all eleven pillars", () => {
+    expect(Object.keys(ROVO_AGENTS)).toHaveLength(11);
+  });
+});
+
+describe("openRovo", () => {
+  beforeEach(() => rovo.open.mockClear());
+
+  test("maps the key to the manifest agentName and passes the prompt through", async () => {
+    await openRovo("observatory-issuetype-expert", "why so many types?");
+    expect(rovo.open).toHaveBeenCalledWith({
+      type: "forge",
+      agentName: "Observatory Issue Type Expert",
+      agentKey: "observatory-issuetype-expert",
+      prompt: "why so many types?",
+    });
+  });
+
+  test("throws on an unknown agent rather than opening the wrong one", async () => {
+    await expect(openRovo("observatory-nope-expert", "x")).rejects.toThrow(/unknown agent/);
+    expect(rovo.open).not.toHaveBeenCalled();
+  });
+
+  test("openFieldExpertRovo still routes to the field agent", async () => {
+    await openFieldExpertRovo("hi");
+    expect(rovo.open).toHaveBeenCalledWith(
+      expect.objectContaining({ agentKey: "observatory-field-expert", prompt: "hi" })
+    );
+  });
+});
+
+describe("buildRovoPrompt", () => {
+  test("one sentence of task, then labelled evidence", () => {
+    const out = buildRovoPrompt({
+      task: "Explain this scheme.",
+      facts: [["Name", "Default"], ["Statuses", 12]],
+    });
+    expect(out).toBe("Explain this scheme. Name: Default. Statuses: 12.");
+  });
+
+  test("drops empty / null / undefined facts so callers need not guard", () => {
+    const out = buildRovoPrompt({
+      task: "Explain.",
+      facts: [["A", ""], ["B", null], ["C", undefined], ["D", "kept"], ["E", 0]],
+    });
+    expect(out).toBe("Explain. D: kept. E: 0.");
+  });
+
+  test("survives being handed nothing", () => {
+    expect(buildRovoPrompt({})).toBe("");
   });
 });

@@ -7,7 +7,7 @@ widget that already exists.**
 
 `static/src/components/ui.jsx` is the home for anything used by more than one tab:
 `StatTile`, `StatRow`, `PageHeader`, `Panel`, `Chip`, `EmptyState`, `BarList`,
-`FindingRow`, `StickyActions`, `LinkButton`.
+`FindingRow`, `StickyActions`, `LinkButton`, `AskRovo`.
 
 `static/src/components/admin/primitives.jsx` holds admin-only controls — `Toggle`,
 `ConfigSection`, `ConfigRow`, `ThresholdInput`, `JobStatusBadge`, `SubNavLayout`,
@@ -45,6 +45,24 @@ wrong, change it — every call site is in this repo.
 `tone` carries meaning, not decoration. `neutral`, `success`, `active` (in flight),
 `warning`, `critical`. Use `critical` only when a person should act on the value, or it
 stops meaning anything.
+
+## Rovo agents: one per pillar, one button
+
+Every pillar has exactly one Rovo agent, keyed `observatory-<pillar>-expert`. The keys and
+display names live in `ROVO_AGENTS` in `static/src/utils.js` and **must** match the
+`rovo:agent` entries in `manifest.yml`. Each agent has a prompt file at
+`resource/agent/prompts/<pillar>-expert.txt` that begins with the shared preamble (see
+`resource/agent/prompts/_preamble.md`) followed by its pillar-specific section, and a
+consistent action set: `search-<pillar>`, `inspect-<pillar>`, and `<pillar>-impact` where
+the pillar can answer "what references this". Every action returns the snapshot's
+`refreshedAt` and an explicit `*-unavailable` status — never an empty result.
+
+Every "Ask Rovo" affordance in the UI is `<AskRovo>` from `ui.jsx`. Do not hand-roll a Rovo
+button. Pass `agent`, `scope` ("this scheme" / "the workflow estate"), a `context` phrase
+naming what gets sent, and a lazy `buildPrompt`. The button appears twice per pillar tab:
+once in the tab header (pillar-scoped) and once per entity row / detail drawer
+(entity-scoped). The label always reads `Ask Rovo about <scope>` and the tooltip always
+names the agent and ends with the read-only reassurance.
 
 ## Testing
 
