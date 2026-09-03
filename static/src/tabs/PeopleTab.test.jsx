@@ -150,6 +150,16 @@ describe("PeopleTab", () => {
     expect(screen.getByText("Filters")).toBeInTheDocument();
   });
 
+  test("surfaces the cross-pillar automation reference counts on the overview", async () => {
+    invoke.mockImplementation((fn) => fn === "getUserInventory"
+      ? Promise.resolve(roster({ governance: { ...roster().governance, automationRefUsers: 40, orphanedAutomationRefUsers: 3 }, automationRefsAvailable: true }))
+      : Promise.resolve({}));
+    render(<PeopleTab />);
+    expect(await screen.findByText("Cross-pillar references")).toBeInTheDocument();
+    expect(screen.getByText("Named in automation")).toBeInTheDocument();
+    expect(screen.getByText("Referenced off-roster")).toBeInTheDocument();
+  });
+
   test("shows the People pillar of the site health score on the overview", async () => {
     invoke.mockImplementation((fn) => {
       if (fn === "getUserInventory") return Promise.resolve(roster());

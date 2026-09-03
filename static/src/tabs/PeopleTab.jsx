@@ -472,6 +472,28 @@ export function PeopleTab() {
                 <EmptyState inline>Every owned filter, dashboard and rule belongs to a licensed user.</EmptyState>
               )}
             </Panel>
+
+            <Panel
+              title="Cross-pillar references"
+              icon="layers"
+              description="How much of the estate points at a specific person — and how much of that points at someone no longer on the roster."
+            >
+              <StatRow>
+                <StatTile
+                  label="Named in automation"
+                  value={formatNumber(g?.automationRefUsers ?? 0)}
+                  hint={data?.automationRefsAvailable === false ? "Import a rule export to measure" : "Accounts a rule assigns to or conditions on"}
+                  icon="refreshCw"
+                />
+                <StatTile
+                  label="Referenced off-roster"
+                  value={formatNumber(g?.orphanedAutomationRefUsers ?? 0)}
+                  hint={(g?.orphanedAutomationRefUsers ?? 0) > 0 ? "A rule routes work to someone who has left" : "Every referenced account is licensed"}
+                  tone={(g?.orphanedAutomationRefUsers ?? 0) > 0 ? "critical" : "success"}
+                  icon="alertTriangle"
+                />
+              </StatRow>
+            </Panel>
           </PanelGrid>
         )}
 
