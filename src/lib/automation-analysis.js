@@ -282,6 +282,64 @@ function parseCompareValues(compareValue) {
   return [raw];
 }
 
+// Fields whose value is a user. A rule that sets or conditions on one of these names a
+// specific person, and that is a dependency the People pillar can report: rename or
+// deactivate the account and the rule quietly stops matching or assigns to nobody.
+const USER_FIELD_NAMES = new Set(["assignee", "reporter", "creator"]);
+// An Atlassian accountId: 24-hex, or the newer "<realm>:<uuid>" form, or a bare uuid.
+const ACCOUNT_ID_RE = /^(?:[0-9a-f]{24}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[a-z0-9]+:[0-9a-f-]{36})$/i;
+
+function looksLikeAccountId(value) {
+  return typeof value === "string" && ACCOUNT_ID_RE.test(value.trim());
+}
+
+// The users a rule names by accountId -- in an assign action, a user-field edit, or a
+// condition on assignee/reporter/creator. Deliberately narrow: {{initiator}}, "automatic"
+// and copy-from-field are not references to a specific person, and a display name with no
+// id is not resolvable, so both are skipped rather than guessed at.
+//
+// Same best-effort contract as the other extractors: a reference here is proof the person
+// is load-bearing in automation; finding none is not proof they are not.
+export function extractUserReferences(rule) {
+  const refs = [];
+  const add = (value, kind, via) => {
+    if (isPlainObject(value)) value = value.accountId ?? value.value ?? value.id;
+    if (looksLikeAccountId(value)) refs.push({ id: String(value).trim(), name: null, kind, via });
+  };
+
+  walkComponents(rule, (component) => {
+    const value = isPlainObject(component?.value) ? component.value : {};
+
+    // jira.issue.assign -- the assignee it sets.
+    if (component.type === "jira.issue.assign" || value.assignee !== undefined) {
+      add(value.assignee, REF_KIND.WRITE, component.type);
+    }
+
+    // An edit action's operations that set a user field.
+    if (Array.isArray(value.operations)) {
+      for (const operation of value.operations) {
+        const fieldName = String(operation?.field?.value || "").toLowerCase();
+        const isUserField = USER_FIELD_NAMES.has(fieldName)
+          || /user|people|assignee|owner|approver/.test(fieldName);
+        if (isUserField) add(operation?.value, REF_KIND.WRITE, component.type);
+      }
+    }
+
+    // A condition comparing a user field against a specific account.
+    const selected = value.selectedField;
+    if (isPlainObject(selected) && USER_FIELD_NAMES.has(String(selected.value).toLowerCase())) {
+      for (const v of parseCompareValues(value.compareValue)) add(v, REF_KIND.READ, component.type);
+    }
+
+    // jira.user.condition / "user is in role/group" blocks carry the user under a few keys.
+    for (const key of ["user", "checkUser", "accountId"]) {
+      if (value[key] !== undefined) add(value[key], REF_KIND.READ, component.type);
+    }
+  });
+
+  return dedupeRefs(refs);
+}
+
 const PROJECT_ARI_RE = /ari:cloud:jira[^:]*:[^:]+:project\/(\d+)/g;
 
 export function extractProjectReferences(rule) {
@@ -399,6 +457,7 @@ export function summarizeRule(rule, options = {}) {
   const fields = extractFieldReferences(rule);
   const statuses = extractStatusReferences(rule);
   const issueTypes = extractIssueTypeReferences(rule);
+  const users = extractUserReferences(rule);
   const counts = countComponents(rule);
   const risks = analyzeRuleRisks(rule, options);
 
@@ -426,6 +485,7 @@ export function summarizeRule(rule, options = {}) {
     fieldRefs: fields,
     statusRefs: statuses,
     issueTypeRefs: issueTypes,
+    userRefs: users,
     writesFields: fields.filter((f) => f.kind === REF_KIND.WRITE).map((f) => f.name ?? f.id),
     risks,
     // Highest severity present, so a table can sort without re-deriving it per row.
@@ -441,6 +501,7 @@ export function buildReferenceIndex(rules = [], options = {}) {
   const fields = new Map();
   const statuses = new Map();
   const issueTypes = new Map();
+  const users = new Map();
   const summaries = options.summaries ?? rules.map((rule) => summarizeRule(rule, options));
 
   for (const summary of summaries) {
@@ -461,9 +522,17 @@ export function buildReferenceIndex(rules = [], options = {}) {
       if (!issueTypes.has(key)) issueTypes.set(key, { label: ref.name ?? ref.id, write: [], read: [], trigger: [] });
       issueTypes.get(key)[ref.kind].push(summary.id);
     }
+    // Keyed by accountId -- a rule names a person by id, never a spelling. The label starts
+    // as the id and getAutomationIndex resolves it to a display name from the roster.
+    for (const ref of summary.userRefs ?? []) {
+      const key = (ref.id ?? "").toLowerCase();
+      if (!key) continue;
+      if (!users.has(key)) users.set(key, { label: ref.id, write: [], read: [], trigger: [] });
+      users.get(key)[ref.kind].push(summary.id);
+    }
   }
 
-  return { fields, statuses, issueTypes, summaries };
+  return { fields, statuses, issueTypes, users, summaries };
 }
 
 // Two rules can only cascade if they can act on the same issues. An empty project list
@@ -752,7 +821,7 @@ export function analyzeRules(rules = [], { source = "unknown", now = Date.now() 
   const summaries = rules.map((rule) => summarizeRule(rule, { now }));
   const options = { now, summaries };
 
-  const { fields, statuses, issueTypes } = buildReferenceIndex(rules, options);
+  const { fields, statuses, issueTypes, users } = buildReferenceIndex(rules, options);
   const cascades = findTriggerCascades(rules, options);
   const enabledById = new Map(summaries.map((s) => [s.id, s.enabled]));
 
@@ -767,6 +836,7 @@ export function analyzeRules(rules = [], { source = "unknown", now = Date.now() 
     fields: buildIndexDocument(fields, "field", enabledById),
     statuses: buildIndexDocument(statuses, "status", enabledById),
     issueTypes: buildIndexDocument(issueTypes, "issueType", enabledById),
+    users: buildIndexDocument(users, "user", enabledById),
     directory: buildRuleDirectory(summaries),
     findings: buildFindingsDocument(summaries),
     cascades: buildCascadeDocument(cascades),
@@ -792,7 +862,7 @@ export function summarizeAutomationHealth(summaries = [], cascades = []) {
 }
 
 export function summarizeEstate(rules = [], options = {}) {
-  const { fields, statuses, issueTypes, summaries } = buildReferenceIndex(rules, options);
+  const { fields, statuses, issueTypes, users, summaries } = buildReferenceIndex(rules, options);
   // Reused for both the cascade count and the health rates; deriving them twice walks every
   // rule again.
   const cascades = options.cascades ?? findTriggerCascades(rules, { ...options, summaries });
@@ -815,6 +885,7 @@ export function summarizeEstate(rules = [], options = {}) {
     fieldsReferenced: fields.size,
     statusesReferenced: statuses.size,
     issueTypesReferenced: issueTypes.size,
+    usersReferenced: users.size,
     triggerBreakdown: [...byTrigger.entries()].map(([type, count]) => ({ type, count })).sort((a, b) => b.count - a.count),
     risks: [...risksByCode.values()].sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]),
     cascadeCount: cascades.length,

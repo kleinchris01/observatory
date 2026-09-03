@@ -29,10 +29,10 @@ const roster = (over = {}) => ({
     { accountId: "a1", displayName: "Ann Admin", active: true, accountType: "atlassian",
       applications: [{ key: "jira-software", name: "Jira Software" }, { key: "jira-servicedesk", name: "JSM" }],
       groups: [{ id: "g1", name: "jira-software-users" }, { id: "g2", name: "jsm-users" }],
-      ownedFilters: 2, ownedDashboards: 1, authoredRules: 0 },
+      ownedFilters: 2, ownedDashboards: 1, authoredRules: 0, automationRefs: 3 },
     { accountId: "a2", displayName: "Bot Account", active: true, accountType: "app",
       applications: [{ key: "jira-software", name: "Jira Software" }], groups: [{ id: "g1", name: "jira-software-users" }],
-      ownedFilters: 0, ownedDashboards: 0, authoredRules: 0 },
+      ownedFilters: 0, ownedDashboards: 0, authoredRules: 0, automationRefs: 0 },
   ],
   ...over,
 });
@@ -105,6 +105,11 @@ describe("PeopleTab", () => {
           ownedFilters: [{ id: "10", name: "My board filter", viewUrl: "https://x/f/10" }],
           ownedDashboards: [{ id: "20", name: "Ops dashboard", viewUrl: null }],
           authoredRules: [],
+          referencedInRules: [
+            { id: 7, name: "Assign incidents to Ann", direction: "write", enabled: true },
+            { id: 9, name: "Escalation check", direction: "read", enabled: false },
+          ],
+          automationRefsAvailable: true,
           ownershipAvailable: { filters: true, dashboards: true, rules: false },
         });
       }
@@ -115,6 +120,8 @@ describe("PeopleTab", () => {
     await userEvent.click(screen.getByRole("button", { name: /^Roster/ }));
 
     expect(await screen.findByText(/owns 2 filters · 1 dashboard/)).toBeInTheDocument();
+    // The roster row also shows the cross-pillar automation reference count.
+    expect(screen.getByText("in 3 rules")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: /Ann Admin/ }));
 
@@ -122,6 +129,9 @@ describe("PeopleTab", () => {
     expect(await screen.findByText("My board filter")).toBeInTheDocument();
     expect(screen.getByText("Ops dashboard")).toBeInTheDocument();
     expect(screen.getByText(/Rule authorship needs a rule export/i)).toBeInTheDocument();
+    // The rules that NAME this person, joined to rule names.
+    expect(screen.getByText("Assign incidents to Ann")).toBeInTheDocument();
+    expect(screen.getByText("Escalation check")).toBeInTheDocument();
   });
 
   test("surfaces orphaned ownership on the overview", async () => {
