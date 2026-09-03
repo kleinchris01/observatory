@@ -51,6 +51,9 @@ const AssetsTab = React.lazy(() =>
 const AccessTab = React.lazy(() =>
   import("./tabs/AccessTab").then((m) => ({ default: m.AccessTab }))
 );
+const ChangesTab = React.lazy(() =>
+  import("./tabs/ChangesTab").then((m) => ({ default: m.ChangesTab }))
+);
 const ScreensTab = React.lazy(() =>
   import("./tabs/ScreensTab").then((m) => ({ default: m.ScreensTab }))
 );
@@ -230,6 +233,7 @@ export function AdminApp() {
     { key: "dashboards", label: "Dashboards", icon: "barChart" },
     { key: "automation", label: "Automation", icon: "refreshCw" },
     { key: "reports", label: "Reports", icon: "barChart" },
+    { key: "changes", label: "Changes", icon: "clock" },
     { key: "scans", label: "Scans", icon: "zap" },
     { key: "config", label: "Configuration", icon: "settings" },
   ];
@@ -341,6 +345,8 @@ export function AdminApp() {
             <AutomationTab siteOrigin={siteOrigin} intent={navIntent} />
           ) : activeTab === "reports" ? (
             <ReportsTab siteOrigin={siteOrigin} selectedFieldIds={selectedFieldIds} onSetSelectedFieldIds={setSelectedFieldIds} autoGenerate={pendingReportGenerate} onAutoGenerateConsumed={() => setPendingReportGenerate(false)} initialSection={reportsInitialSection} projectScope={reportProjectScope} onSetProjectScope={setReportProjectScope} />
+          ) : activeTab === "changes" ? (
+            <ChangesTab intent={navIntent} />
           ) : activeTab === "scans" ? (
             <ScansTab siteOrigin={siteOrigin} initialSection={scansInitialSection} />
           ) : (

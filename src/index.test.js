@@ -43,6 +43,9 @@ vi.mock("./lib/asset-engine.js", () => ({
 vi.mock("./lib/access-engine.js", () => ({
   buildAccessSnapshot: vi.fn().mockResolvedValue({ version: "v1", permission: 8, security: 2, notification: 5 }),
 }));
+vi.mock("./lib/drift-engine.js", () => ({
+  buildDriftSnapshot: vi.fn().mockResolvedValue({ version: "v1", changes: 3, seeded: [] }),
+}));
 
 vi.mock("./lib/full-scan-runner.js", () => ({
   runFullScanStep: vi.fn().mockResolvedValue({ advanced: true, done: 2, total: 8 }),
@@ -100,6 +103,7 @@ vi.mock("./lib/project-store.js", () => ({
   pruneOldSnapshotVersions: vi.fn().mockResolvedValue({ fieldsDeleted: 0, usageRowsDeleted: 0 }),
   pruneStaleReportJobs: vi.fn().mockResolvedValue({ jobsDeleted: 0 }),
   pruneOldAuditEvents: vi.fn().mockResolvedValue({ eventsDeleted: 0 }),
+  pruneOldConfigChanges: vi.fn().mockResolvedValue({ changesDeleted: 0 }),
 }));
 
 vi.mock("./resolvers.js", () => ({
@@ -145,6 +149,7 @@ import {
   pruneOldSnapshotVersions,
   pruneStaleReportJobs,
   pruneOldAuditEvents,
+  pruneOldConfigChanges,
   restoreSnapshotProjectUsageFromSummaries,
   loadSnapshotField,
   loadFieldSummary,
@@ -172,6 +177,7 @@ import { buildIssueTypeSnapshot } from "./lib/issuetype-engine.js";
 import { buildUserSnapshot } from "./lib/user-engine.js";
 import { buildAssetSnapshot } from "./lib/asset-engine.js";
 import { buildAccessSnapshot } from "./lib/access-engine.js";
+import { buildDriftSnapshot } from "./lib/drift-engine.js";
 import { runFullScanStep, runQuickScanStep, startQuickScan, recoverStalledScan } from "./lib/full-scan-runner.js";
 import { buildFilterSnapshot } from "./lib/filter-engine.js";
 import { buildDashboardSnapshot } from "./lib/dashboard-engine.js";
@@ -190,6 +196,7 @@ beforeEach(() => {
   pruneOldSnapshotVersions.mockResolvedValue({ fieldsDeleted: 0, usageRowsDeleted: 0 });
   pruneStaleReportJobs.mockResolvedValue({ jobsDeleted: 0 });
   pruneOldAuditEvents.mockResolvedValue({ eventsDeleted: 0 });
+  pruneOldConfigChanges.mockResolvedValue({ changesDeleted: 0 });
 });
 
 // ── Retention ─────────────────────────────────────────────────────────────────
@@ -206,6 +213,7 @@ describe("runRetentionCleanup", () => {
       snapshotUsageRowsDeleted: 7,
       reportJobsDeleted: 2,
       auditEventsDeleted: 0,
+      configChangesDeleted: 0,
     });
     expect(pruneOldSnapshotVersions).toHaveBeenCalledWith("scope-1", "v9");
   });
@@ -621,6 +629,16 @@ describe("consumeSnapshot job routing", () => {
   test("logs a build-access-snapshot that returned nothing without throwing", async () => {
     buildAccessSnapshot.mockResolvedValueOnce(undefined);
     await expect(consumeSnapshot(event({ jobType: "build-access-snapshot" }))).resolves.toBeUndefined();
+  });
+
+  test("routes build-drift-snapshot to the drift engine", async () => {
+    await consumeSnapshot(event({ jobType: "build-drift-snapshot" }));
+    expect(buildDriftSnapshot).toHaveBeenCalledWith("scope-1");
+  });
+
+  test("logs a build-drift-snapshot that returned nothing without throwing", async () => {
+    buildDriftSnapshot.mockResolvedValueOnce(undefined);
+    await expect(consumeSnapshot(event({ jobType: "build-drift-snapshot" }))).resolves.toBeUndefined();
   });
 
   // The cheapest structural build here: one paginated endpoint with everything expanded, so

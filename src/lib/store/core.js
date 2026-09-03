@@ -1400,6 +1400,70 @@ export const CREATE_ACCESS_SNAPSHOT_META_TABLE = `
   )
 `;
 
+// ── Configuration drift: the change-history timeline ────────────────────────
+//
+// Every other pillar full-replaces its snapshot, so there is no history to diff after the
+// fact. These two tables are the exception, kept deliberately thin:
+//
+//   snapshot_entity_digest  one row per live config entity (a scheme, a status, a field...),
+//                           holding a hash of its STRUCTURAL fields only -- never usage
+//                           counts, which move every scan and would drown the log in noise.
+//                           Full-replaced per (pillar) each drift pass. This is the state
+//                           the next pass diffs against.
+//
+//   config_change_log       append-only: one row per detected add / remove / modify, with a
+//                           human sentence. Pruned by the retention job on age, like the
+//                           audit log. This is the timeline the Changes tab renders.
+export const CREATE_SNAPSHOT_ENTITY_DIGEST_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_entity_digest (
+    scope_key VARCHAR(191) NOT NULL,
+    pillar VARCHAR(32) NOT NULL,
+    entity_type VARCHAR(48) NOT NULL,
+    entity_id VARCHAR(191) NOT NULL,
+    label VARCHAR(255) NULL,
+    digest VARCHAR(32) NOT NULL,
+    fields_json TEXT NULL,
+    PRIMARY KEY (scope_key, pillar, entity_type, entity_id)
+  )
+`;
+
+export const CREATE_CONFIG_CHANGE_LOG_TABLE = `
+  CREATE TABLE IF NOT EXISTS config_change_log (
+    scope_key VARCHAR(191) NOT NULL,
+    change_id VARCHAR(64) NOT NULL,
+    detected_at VARCHAR(64) NOT NULL,
+    scan_version VARCHAR(64) NULL,
+    pillar VARCHAR(32) NOT NULL,
+    entity_type VARCHAR(48) NOT NULL,
+    entity_id VARCHAR(191) NOT NULL,
+    label VARCHAR(255) NULL,
+    change_kind VARCHAR(16) NOT NULL,
+    summary VARCHAR(1024) NULL,
+    PRIMARY KEY (scope_key, change_id)
+  )
+`;
+
+export const CREATE_CONFIG_CHANGE_LOG_BY_TIME_INDEX = `
+  CREATE INDEX idx_config_change_log_by_time
+  ON config_change_log (scope_key, detected_at)
+`;
+
+export const CREATE_DRIFT_SNAPSHOT_META_TABLE = `
+  CREATE TABLE IF NOT EXISTS drift_snapshot_meta (
+    scope_key VARCHAR(191) NOT NULL,
+    state VARCHAR(32) NOT NULL DEFAULT 'idle',
+    version VARCHAR(64) NULL,
+    started_at VARCHAR(64) NULL,
+    completed_at VARCHAR(64) NULL,
+    refreshed_at VARCHAR(64) NULL,
+    last_run_changes INTEGER NOT NULL DEFAULT 0,
+    total_changes INTEGER NOT NULL DEFAULT 0,
+    seeded_pillars TEXT NULL,
+    last_error TEXT NULL,
+    PRIMARY KEY (scope_key)
+  )
+`;
+
 // Append-only record of privileged actions: who did what, when, and whether it was
 // allowed. Deliberately not versioned by snapshot and deliberately NOT wiped by
 // clearAllSnapshotData -- an audit trail that a privileged action can erase is not an
@@ -1645,7 +1709,13 @@ const projectStoreMigrations = migrationRunner
   .enqueue("v135_create_snapshot_scheme_holders_by_holder_index", CREATE_SNAPSHOT_SCHEME_HOLDERS_BY_HOLDER_INDEX)
   .enqueue("v136_create_snapshot_scheme_levels_table", CREATE_SNAPSHOT_SCHEME_LEVELS_TABLE)
   .enqueue("v137_create_snapshot_scheme_projects_table", CREATE_SNAPSHOT_SCHEME_PROJECTS_TABLE)
-  .enqueue("v138_create_access_snapshot_meta_table", CREATE_ACCESS_SNAPSHOT_META_TABLE);
+  .enqueue("v138_create_access_snapshot_meta_table", CREATE_ACCESS_SNAPSHOT_META_TABLE)
+
+  // ── v139-v142: configuration drift — the change-history timeline ──
+  .enqueue("v139_create_snapshot_entity_digest_table", CREATE_SNAPSHOT_ENTITY_DIGEST_TABLE)
+  .enqueue("v140_create_config_change_log_table", CREATE_CONFIG_CHANGE_LOG_TABLE)
+  .enqueue("v141_create_config_change_log_by_time_index", CREATE_CONFIG_CHANGE_LOG_BY_TIME_INDEX)
+  .enqueue("v142_create_drift_snapshot_meta_table", CREATE_DRIFT_SNAPSHOT_META_TABLE);
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history

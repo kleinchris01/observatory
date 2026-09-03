@@ -6862,3 +6862,31 @@ a.dash-row__name:hover { text-decoration: underline; }
   .access-row__meta { justify-content: flex-start; max-width: 100%; }
   .access-row__detail { padding-left: 16px; }
 }
+
+/* Changes tab. A day-grouped timeline of configuration adds / removals / edits. */
+.admin-changes { display: flex; flex-direction: column; gap: 16px; }
+
+.change-timeline { display: flex; flex-direction: column; gap: 14px; }
+.change-day { display: flex; flex-direction: column; gap: 4px; }
+.change-day__label {
+  margin: 0; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.change-day__list { display: flex; flex-direction: column; }
+
+.change-row {
+  display: flex; align-items: baseline; gap: 10px;
+  padding: 7px 4px; border-bottom: 1px solid var(--stroke); font-size: 0.82rem;
+}
+.change-row:last-child { border-bottom: none; }
+.change-row__summary { flex: 1 1 auto; min-width: 0; }
+.change-row__meta { display: flex; align-items: center; gap: 8px; flex: none; }
+.change-row__time { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.change-timeline__more { margin-top: 12px; display: flex; justify-content: center; }
+
+@media (max-width: 700px) {
+  .change-row { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .change-row__meta { flex-wrap: wrap; }
+}

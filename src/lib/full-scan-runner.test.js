@@ -25,11 +25,13 @@ vi.mock("./project-store.js", () => ({
   readScreenSnapshotMeta: vi.fn(async () => null),
   readIssueTypeSnapshotMeta: vi.fn(async () => null),
   readAccessSnapshotMeta: vi.fn(async () => null),
+  readDriftSnapshotMeta: vi.fn(async () => null),
   readSnapshotMeta: vi.fn(async () => null),
   recordFullScanRun: vi.fn(async () => ({ recorded: true })),
 }));
 
 vi.mock("./access-engine.js", () => ({ buildAccessSnapshot: vi.fn() }));
+vi.mock("./drift-engine.js", () => ({ buildDriftSnapshot: vi.fn() }));
 
 vi.mock("./filter-engine.js", () => ({ isFilterBuildStale: vi.fn(() => false), queueFilterSnapshotBuild: vi.fn() }));
 vi.mock("./dashboard-engine.js", () => ({ isDashboardBuildStale: vi.fn(() => false), queueDashboardSnapshotBuild: vi.fn() }));

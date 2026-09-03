@@ -27,6 +27,7 @@ import { buildIssueTypeSnapshot } from "./lib/issuetype-engine.js";
 import { buildUserSnapshot } from "./lib/user-engine.js";
 import { buildAssetSnapshot } from "./lib/asset-engine.js";
 import { buildAccessSnapshot } from "./lib/access-engine.js";
+import { buildDriftSnapshot } from "./lib/drift-engine.js";
 import { runFullScanStep, runQuickScanStep, startQuickScan, recoverStalledScan } from "./lib/full-scan-runner.js";
 import { buildFilterSnapshot } from "./lib/filter-engine.js";
 import { buildDashboardSnapshot } from "./lib/dashboard-engine.js";
@@ -43,6 +44,7 @@ import {
   pruneOldSnapshotVersions,
   pruneStaleReportJobs,
   pruneOldAuditEvents,
+  pruneOldConfigChanges,
 } from "./lib/project-store.js";
 import {
   readAdminConfig,
@@ -85,6 +87,11 @@ export async function runRetentionCleanup(_event, context) {
     console.log(`runRetentionCleanup: pruned ${auditPruned.eventsDeleted} audit events older than 180 days`);
   }
 
+  const changesPruned = await pruneOldConfigChanges(installationKey);
+  if (changesPruned.changesDeleted > 0) {
+    console.log(`runRetentionCleanup: pruned ${changesPruned.changesDeleted} config-change rows older than 400 days`);
+  }
+
   // Unconditional, unlike the per-prune lines above, which only fire when something was
   // actually deleted. Without this a clean run logs nothing at all, and "no output" is
   // indistinguishable from "the trigger never fired" -- which matters most right after
@@ -95,11 +102,12 @@ export async function runRetentionCleanup(_event, context) {
     snapshotUsageRowsDeleted: snapshotPruned.usageRowsDeleted,
     reportJobsDeleted: reportPruned.jobsDeleted,
     auditEventsDeleted: auditPruned.eventsDeleted,
+    configChangesDeleted: changesPruned.changesDeleted,
   };
   console.log(
     `runRetentionCleanup: complete — ${summary.snapshotFieldsDeleted} fields, `
     + `${summary.snapshotUsageRowsDeleted} usage rows, ${summary.reportJobsDeleted} report jobs, `
-    + `${summary.auditEventsDeleted} audit events`
+    + `${summary.auditEventsDeleted} audit events, ${summary.configChangesDeleted} config-change rows`
   );
 
   return summary;
@@ -442,6 +450,14 @@ export async function consumeSnapshot(event) {
       const result = await buildAccessSnapshot(installationKey);
       console.log(
         `build-access-snapshot: ${result?.permission ?? 0} permission, ${result?.security ?? 0} security, ${result?.notification ?? 0} notification schemes`
+      );
+      return;
+    }
+
+    if (jobType === "build-drift-snapshot") {
+      const result = await buildDriftSnapshot(installationKey);
+      console.log(
+        `build-drift-snapshot: ${result?.changes ?? 0} changes recorded${result?.seeded?.length ? `, seeded ${result.seeded.join(", ")}` : ""}`
       );
       return;
     }

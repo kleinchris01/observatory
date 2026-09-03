@@ -127,6 +127,9 @@ export const METRIC_NAMES = {
   accessSnapshotStarted: "access-snapshot-started",
   accessSnapshotCompleted: "access-snapshot-completed",
   accessSnapshotFailed: "access-snapshot-failed",
+  driftSnapshotStarted: "drift-snapshot-started",
+  driftSnapshotCompleted: "drift-snapshot-completed",
+  driftSnapshotFailed: "drift-snapshot-failed",
 };
 
 // ----- Module-level rate limiter state -----

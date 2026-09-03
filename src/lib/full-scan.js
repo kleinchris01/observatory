@@ -74,6 +74,10 @@ export const FULL_SCAN_STAGES = [
     // implementation of something that already works.
     mode: "handoff",
   },
+  // Diffs every inventory this scan just refreshed against the digests kept from the last
+  // one, and appends the deltas to the change-history timeline. Runs after every inventory
+  // stage and before health, so a future "deviation from baseline" signal can feed the score.
+  { key: "drift", label: "Configuration drift", needs: [], mode: "inline" },
   { key: "health", label: "Record site health", needs: [], mode: "inline" },
 ];
 
@@ -120,6 +124,7 @@ export const QUICK_SCAN_STAGES = [
   // Same full-refetch structural stage as a full scan -- Jira exposes no changed-since
   // signal for permission / security / notification schemes either.
   { key: "access", label: "Access scheme inventory (full)", needs: [], mode: "inline" },
+  { key: "drift", label: "Configuration drift", needs: [], mode: "inline" },
   { key: "health", label: "Record site health", needs: [], mode: "inline" },
 ];
 
