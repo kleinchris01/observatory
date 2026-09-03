@@ -20,6 +20,8 @@ vi.mock("./project-store.js", () => ({
   readAccessSnapshotMeta: vi.fn(async () => null),
   readFilterSnapshotMeta: vi.fn(async () => null),
   readDashboardSnapshotMeta: vi.fn(async () => null),
+  readEstateSnapshotMeta: vi.fn(async () => null),
+  loadEstateValues: vi.fn(async () => []),
   loadSnapshotFields: vi.fn(async () => []),
   loadStatusesCatalog: vi.fn(async () => []),
   loadWorkflowSchemes: vi.fn(async () => []),
@@ -50,12 +52,12 @@ beforeEach(() => {
   for (const fn of [
     "readSnapshotMeta", "readWorkflowSnapshotMeta", "readIssueTypeSnapshotMeta",
     "readAccessSnapshotMeta", "readFilterSnapshotMeta", "readDashboardSnapshotMeta",
-    "readDriftSnapshotMeta",
+    "readEstateSnapshotMeta", "readDriftSnapshotMeta",
   ]) store[fn].mockResolvedValue(null);
   for (const fn of [
     "loadEntityDigests", "loadSnapshotFields", "loadStatusesCatalog", "loadWorkflowSchemes",
     "loadIssueTypes", "loadIssueTypeSchemes", "loadSchemes", "loadSchemeHolders",
-    "loadSchemeLevels", "loadFilters", "loadDashboards",
+    "loadSchemeLevels", "loadFilters", "loadDashboards", "loadEstateValues",
   ]) store[fn].mockResolvedValue([]);
 });
 

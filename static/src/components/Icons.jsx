@@ -23,6 +23,7 @@ import {
   Database,
   ShieldCheck,
   Bell,
+  Flag,
 } from "@phosphor-icons/react";
 
 export function useLiveDuration(startedAt) {
@@ -78,6 +79,7 @@ export const ICON_COMPONENTS = {
   database: Database,
   shield: ShieldCheck,
   bell: Bell,
+  flag: Flag,
 };
 
 // Validated categorical palette (dataviz skill's reference instance, references/palette.md) --

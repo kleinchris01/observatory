@@ -131,6 +131,14 @@ const access = (overrides = {}) => ({
   ...overrides,
 });
 
+const estate = (overrides = {}) => ({
+  available: true,
+  reducibleResolutionCount: 4,
+  resolutionDuplicateGroupCount: 2,
+  reduciblePriorityCount: 1,
+  ...overrides,
+});
+
 beforeEach(() => vi.clearAllMocks());
 
 describe("OverviewDashboard — findings", () => {
@@ -325,6 +333,22 @@ describe("OverviewDashboard — automation and screen findings", () => {
   test("omits the access findings entirely when the pillar has not been built", () => {
     renderAll({ access: { available: false } });
     expect(screen.queryByText("Permission schemes that break least privilege")).not.toBeInTheDocument();
+  });
+
+  test("surfaces the priorities & resolutions findings and routes them to the Priorities tab", async () => {
+    const onNavigate = vi.fn();
+    renderAll({ estate: estate(), onNavigate });
+
+    expect(screen.getByText("Near-duplicate resolution names")).toBeInTheDocument();
+    expect(screen.getByText("Near-duplicate priority names")).toBeInTheDocument();
+
+    await userEvent.click(screen.getAllByRole("button", { name: /^Priorities$/ })[0]);
+    expect(onNavigate).toHaveBeenCalledWith("priorities", expect.objectContaining({ view: expect.any(String) }));
+  });
+
+  test("omits the estate findings entirely when the pillar has not been built", () => {
+    renderAll({ estate: { available: false } });
+    expect(screen.queryByText("Near-duplicate resolution names")).not.toBeInTheDocument();
   });
 
   // The same rule the workflow findings already follow, now enforced for the two pillars

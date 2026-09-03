@@ -108,6 +108,11 @@ export const DEFAULT_HEALTH_TOLERANCES = {
   unusedAccessSchemes: 0.35,
   brokenSecurityLevels: 0.15,
   fragileNotificationSchemes: 0.30,
+  // Global value lists. A duplicated resolution silently splits every resolution-based
+  // report, so it is bounded fairly tight; priorities duplicate far less often and matter
+  // less when they do.
+  duplicateResolutions: 0.15,
+  duplicatePriorities: 0.20,
 };
 
 // rate 0 -> 100, rate >= tolerance -> 0, linear between. Deliberately linear: a curve
@@ -167,6 +172,9 @@ export const PILLAR_WEIGHTS = {
   permissions: 1.5,
   security: 1,
   notifications: 0.5,
+  // The global value lists. Small surface, low blast radius -- a naming-hygiene pillar, not
+  // a correctness one.
+  estate: 0.5,
 };
 
 export const HEALTH_PILLARS = [
@@ -181,6 +189,7 @@ export const HEALTH_PILLARS = [
   { key: "permissions", label: "Permission schemes" },
   { key: "security", label: "Issue security" },
   { key: "notifications", label: "Notification schemes" },
+  { key: "estate", label: "Priorities and resolutions" },
   { key: "automation", label: "Automation" },
   { key: "projects", label: "Projects" },
 ];
@@ -207,7 +216,7 @@ export function resolveHealthTolerances(overrides = {}) {
   return out;
 }
 
-export function computeSiteHealth({ fieldUsage, workflow, projects, automation, screens, adoption, filters, dashboards, issueTypes, users, assets, permissions, security, notifications, tolerances } = {}) {
+export function computeSiteHealth({ fieldUsage, workflow, projects, automation, screens, adoption, filters, dashboards, issueTypes, users, assets, permissions, security, notifications, estate, tolerances } = {}) {
   const TOLERANCE = resolveHealthTolerances(tolerances);
   const dimensions = [];
 
@@ -1178,6 +1187,48 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
   } else {
     dimensions.push(unavailable("notification-routing", "Routing resilience", "notifications", noAccess));
     dimensions.push(unavailable("notification-scheme-sprawl", "Scheme sprawl", "notifications", noAccess));
+  }
+
+  // ── Estate config: the global value lists ─────────────────────────────────
+  // Near-duplicate names in a list Jira offers no scheme layer to contain. One dimension
+  // per list; each scores what fraction of the list would disappear if every duplicate
+  // group were collapsed to a single value.
+  const noEstate = "No priorities/resolutions inventory yet. Run a full scan to populate it.";
+
+  if (estate?.available && estate.totalResolutions > 0) {
+    const removable = Number(estate.reducibleResolutionCount) || 0;
+    dimensions.push({
+      key: "resolution-naming",
+      label: "Resolution naming",
+      pillar: "estate",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(removable / estate.totalResolutions, TOLERANCE.duplicateResolutions),
+      detail: removable === 0
+        ? `None of the ${estate.totalResolutions} resolutions duplicate another.`
+        : `${removable} of ${estate.totalResolutions} resolutions duplicate another — every resolution-based report is split across the synonyms.`,
+      action: removable > 0 ? "Consolidate the duplicate resolutions; a report grouped by resolution is only as good as the list." : null,
+    });
+  } else {
+    dimensions.push(unavailable("resolution-naming", "Resolution naming", "estate", noEstate));
+  }
+
+  if (estate?.available && estate.totalPriorities > 0) {
+    const removable = Number(estate.reduciblePriorityCount) || 0;
+    dimensions.push({
+      key: "priority-naming",
+      label: "Priority naming",
+      pillar: "estate",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(removable / estate.totalPriorities, TOLERANCE.duplicatePriorities),
+      detail: removable === 0
+        ? `None of the ${estate.totalPriorities} priorities duplicate another.`
+        : `${removable} of ${estate.totalPriorities} priorities duplicate another.`,
+      action: removable > 0 ? "Consolidate the duplicate priorities." : null,
+    });
+  } else {
+    dimensions.push(unavailable("priority-naming", "Priority naming", "estate", noEstate));
   }
 
   // ── Roll-up ───────────────────────────────────────────────────────────────

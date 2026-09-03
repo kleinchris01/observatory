@@ -73,6 +73,8 @@ import {
   getAllIssueTypeSchemes,
   getIssueTypeSchemeItems,
   getIssueTypeSchemeProjects,
+  getAllResolutions,
+  getAllPriorities,
   getAllPermissionSchemes,
   getProjectPermissionScheme,
   getAllIssueSecuritySchemes,
@@ -1194,6 +1196,22 @@ describe("issue type fetchers", () => {
     mockRequestJira.mockResolvedValue(jiraResponse({ body: { values: [], isLast: true } }));
     await getIssueTypeSchemeProjects(Array.from({ length: 120 }, (_, i) => 10000 + i));
     expect(mockRequestJira).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe("estate config value lists", () => {
+  test("getAllResolutions paginates the /resolution/search endpoint", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: { values: [{ id: "1", name: "Done" }], isLast: true } }));
+    const rows = await getAllResolutions();
+    expect(rows).toEqual([{ id: "1", name: "Done" }]);
+    expect(String(mockRequestJira.mock.calls[0][0])).toContain("/rest/api/3/resolution/search");
+  });
+
+  test("getAllPriorities paginates the /priority/search endpoint", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: { values: [{ id: "10", name: "High" }], isLast: true } }));
+    const rows = await getAllPriorities();
+    expect(rows[0].name).toBe("High");
+    expect(String(mockRequestJira.mock.calls[0][0])).toContain("/rest/api/3/priority/search");
   });
 });
 

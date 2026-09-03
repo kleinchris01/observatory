@@ -65,6 +65,9 @@ export const FULL_SCAN_STAGES = [
   // assignments. Structural and cheap -- dozens of schemes, one bulk call each plus one
   // per-project call for the permission scheme (Jira has no bulk for that one), best-effort.
   { key: "access", label: "Access scheme inventory", needs: [], mode: "inline" },
+  // The two global value lists (resolutions, priorities). Two paginated calls, no per-item
+  // walk -- the cheapest structural stage here.
+  { key: "estate", label: "Priorities & resolutions inventory", needs: [], mode: "inline" },
   {
     key: "issues",
     label: "Issue crawl",
@@ -124,6 +127,7 @@ export const QUICK_SCAN_STAGES = [
   // Same full-refetch structural stage as a full scan -- Jira exposes no changed-since
   // signal for permission / security / notification schemes either.
   { key: "access", label: "Access scheme inventory (full)", needs: [], mode: "inline" },
+  { key: "estate", label: "Priorities & resolutions inventory (full)", needs: [], mode: "inline" },
   { key: "drift", label: "Configuration drift", needs: [], mode: "inline" },
   { key: "health", label: "Record site health", needs: [], mode: "inline" },
 ];

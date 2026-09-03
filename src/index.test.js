@@ -46,6 +46,9 @@ vi.mock("./lib/access-engine.js", () => ({
 vi.mock("./lib/drift-engine.js", () => ({
   buildDriftSnapshot: vi.fn().mockResolvedValue({ version: "v1", changes: 3, seeded: [] }),
 }));
+vi.mock("./lib/estate-engine.js", () => ({
+  buildEstateSnapshot: vi.fn().mockResolvedValue({ version: "v1", resolutions: 7, priorities: 5 }),
+}));
 
 vi.mock("./lib/full-scan-runner.js", () => ({
   runFullScanStep: vi.fn().mockResolvedValue({ advanced: true, done: 2, total: 8 }),
@@ -178,6 +181,7 @@ import { buildUserSnapshot } from "./lib/user-engine.js";
 import { buildAssetSnapshot } from "./lib/asset-engine.js";
 import { buildAccessSnapshot } from "./lib/access-engine.js";
 import { buildDriftSnapshot } from "./lib/drift-engine.js";
+import { buildEstateSnapshot } from "./lib/estate-engine.js";
 import { runFullScanStep, runQuickScanStep, startQuickScan, recoverStalledScan } from "./lib/full-scan-runner.js";
 import { buildFilterSnapshot } from "./lib/filter-engine.js";
 import { buildDashboardSnapshot } from "./lib/dashboard-engine.js";
@@ -629,6 +633,11 @@ describe("consumeSnapshot job routing", () => {
   test("logs a build-access-snapshot that returned nothing without throwing", async () => {
     buildAccessSnapshot.mockResolvedValueOnce(undefined);
     await expect(consumeSnapshot(event({ jobType: "build-access-snapshot" }))).resolves.toBeUndefined();
+  });
+
+  test("routes build-estate-snapshot to the estate engine", async () => {
+    await consumeSnapshot(event({ jobType: "build-estate-snapshot" }));
+    expect(buildEstateSnapshot).toHaveBeenCalledWith("scope-1");
   });
 
   test("routes build-drift-snapshot to the drift engine", async () => {

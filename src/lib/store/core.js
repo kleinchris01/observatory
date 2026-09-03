@@ -1464,6 +1464,43 @@ export const CREATE_DRIFT_SNAPSHOT_META_TABLE = `
   )
 `;
 
+// ── Estate config: the global value lists (resolutions, priorities) ─────────
+//
+// Statuses and issue types get their own pillars; these are the other two things in Jira's
+// "Issues" admin section. Neither has a scheme layer worth modelling yet (resolutions have
+// none at all), so one table with a `kind` discriminator holds both. The governance read is
+// the same duplicate-name detection the workflow and issue-type pillars already run --
+// fifteen resolutions that all mean "done" wreck resolution-based reporting exactly the way
+// duplicate statuses wreck status-based reporting.
+export const CREATE_SNAPSHOT_ESTATE_VALUES_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_estate_values (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    kind VARCHAR(24) NOT NULL,
+    item_id VARCHAR(64) NOT NULL,
+    name VARCHAR(255) NULL,
+    description TEXT NULL,
+    is_default TINYINT NOT NULL DEFAULT 0,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (scope_key, version, kind, item_id)
+  )
+`;
+
+export const CREATE_ESTATE_SNAPSHOT_META_TABLE = `
+  CREATE TABLE IF NOT EXISTS estate_snapshot_meta (
+    scope_key VARCHAR(191) NOT NULL,
+    state VARCHAR(32) NOT NULL DEFAULT 'idle',
+    version VARCHAR(64) NULL,
+    started_at VARCHAR(64) NULL,
+    completed_at VARCHAR(64) NULL,
+    refreshed_at VARCHAR(64) NULL,
+    total_resolutions INTEGER NOT NULL DEFAULT 0,
+    total_priorities INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT NULL,
+    PRIMARY KEY (scope_key)
+  )
+`;
+
 // Append-only record of privileged actions: who did what, when, and whether it was
 // allowed. Deliberately not versioned by snapshot and deliberately NOT wiped by
 // clearAllSnapshotData -- an audit trail that a privileged action can erase is not an
@@ -1715,7 +1752,11 @@ const projectStoreMigrations = migrationRunner
   .enqueue("v139_create_snapshot_entity_digest_table", CREATE_SNAPSHOT_ENTITY_DIGEST_TABLE)
   .enqueue("v140_create_config_change_log_table", CREATE_CONFIG_CHANGE_LOG_TABLE)
   .enqueue("v141_create_config_change_log_by_time_index", CREATE_CONFIG_CHANGE_LOG_BY_TIME_INDEX)
-  .enqueue("v142_create_drift_snapshot_meta_table", CREATE_DRIFT_SNAPSHOT_META_TABLE);
+  .enqueue("v142_create_drift_snapshot_meta_table", CREATE_DRIFT_SNAPSHOT_META_TABLE)
+
+  // ── v143-v144: estate config — the global value lists (resolutions, priorities) ──
+  .enqueue("v143_create_snapshot_estate_values_table", CREATE_SNAPSHOT_ESTATE_VALUES_TABLE)
+  .enqueue("v144_create_estate_snapshot_meta_table", CREATE_ESTATE_SNAPSHOT_META_TABLE);
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history
