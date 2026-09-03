@@ -62,6 +62,19 @@ modules:
         - search-automation-rules
         - inspect-automation-rule
         - automation-usage
+    - key: observatory-workflow-expert
+      name: Observatory Workflow & Status Expert
+      description: A Jira workflow and status specialist that explains the site's workflow schemes and status catalogue, which schemes and projects a status reaches, and whether a status is safe to consolidate or retire.
+      prompt: resource:agent-resources;prompts/workflow-expert.txt
+      conversationStarters:
+        - Give me an overview of the workflow and status estate
+        - Which statuses look like duplicates of each other?
+        - Which workflow schemes have no Done status or are oversized?
+        - What would break if I retired the "On Hold" status?
+      actions:
+        - search-workflows
+        - inspect-workflow
+        - workflow-impact
   action:
     - key: search-field-catalog
       name: Search field catalog
@@ -158,6 +171,49 @@ modules:
           type: string
           required: false
           description: Either field or status. Defaults to field.
+    - key: search-workflows
+      name: Search workflow schemes and statuses
+      function: rovo-workflow-search
+      actionVerb: GET
+      description: Search the workflow snapshot by name and return matching workflow schemes and statuses with their project counts and issue counts.
+      inputs:
+        query:
+          title: Search query
+          type: string
+          required: true
+          description: A workflow scheme name, a status name, or a short phrase.
+        kind:
+          title: Kind
+          type: string
+          required: false
+          description: Limit to scheme or status. Defaults to any.
+        maxResults:
+          title: Maximum results
+          type: integer
+          required: false
+          description: Optional maximum number of matches to return, from 1 to 20.
+    - key: inspect-workflow
+      name: Inspect a workflow scheme or status
+      function: rovo-workflow-inspect
+      actionVerb: GET
+      description: Retrieve one workflow scheme (its statuses, category balance and the projects it governs) or one status (its issue and history counts, which schemes reach it, and near-duplicate siblings).
+      inputs:
+        identifier:
+          title: Scheme or status
+          type: string
+          required: true
+          description: A workflow scheme name or a status name, such as "Software Simplified Workflow Scheme" or "In Review".
+    - key: workflow-impact
+      name: Impact of changing a status
+      function: rovo-workflow-impact
+      actionVerb: GET
+      description: Report which workflow schemes reach a status, how many projects those schemes govern, which automation rules touch it, and whether there is any evidence the status is in use. Use this before consolidating or retiring a status.
+      inputs:
+        name:
+          title: Status name
+          type: string
+          required: true
+          description: The exact status name, such as "On Hold" or "Waiting for customer".
   consumer:
     - key: inventory-snapshot-consumer
       queue: inventory-snapshot-queue
@@ -185,6 +241,12 @@ modules:
       handler: index.rovoInspectAutomationRule
     - key: rovo-auto-usage
       handler: index.rovoAutomationUsage
+    - key: rovo-workflow-search
+      handler: index.rovoWorkflowSearch
+    - key: rovo-workflow-inspect
+      handler: index.rovoWorkflowInspect
+    - key: rovo-workflow-impact
+      handler: index.rovoWorkflowImpact
     - key: snapshot-consumer
       handler: index.consumeSnapshot
       timeoutSeconds: 900

@@ -554,6 +554,9 @@ import {
   rovoSearchAutomationRules,
   rovoInspectAutomationRule,
   rovoAutomationUsage,
+  rovoWorkflowSearch,
+  rovoWorkflowInspect,
+  rovoWorkflowImpact,
   migrateNamespaceKeys,
   CLEAR_SNAPSHOT_CONFIRMATION,
   __RAW_ADMIN_ONLY_FUNCTIONS,
@@ -7255,6 +7258,116 @@ describe("every queued job carries a body envelope", () => {
       expect(payload.body).toHaveProperty("jobType");
       expect(payload).not.toHaveProperty("jobType");
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Rovo workflow & status agent (search / inspect / impact)
+// ---------------------------------------------------------------------------
+describe("rovo workflow agent", () => {
+  const ctx = () => ctxWithAccount();
+
+  function seedBuilt() {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v9", state: "ready", refreshedAt: "2026-09-01T00:00:00.000Z" });
+    mocks.loadWorkflowSchemes.mockResolvedValue([
+      { schemeId: "s1", name: "Software Simplified Workflow Scheme", description: "the default", defaultWorkflow: "SSW", projectCount: 3 },
+      { schemeId: "s2", name: "Ops Scheme", description: "", defaultWorkflow: "Ops", projectCount: 1 },
+    ]);
+    mocks.loadStatusesCatalog.mockResolvedValue([
+      { statusId: "1", name: "To Do", statusCategory: "To Do" },
+      { statusId: "2", name: "In Review", statusCategory: "In Progress" },
+      { statusId: "3", name: "In  Review", statusCategory: "In Progress" }, // spacing dup of #2
+      { statusId: "9", name: "On Hold", statusCategory: "In Progress" },
+    ]);
+    mocks.loadWorkflowSchemeStatuses.mockResolvedValue([
+      { schemeId: "s1", statusId: "1" }, { schemeId: "s1", statusId: "2" }, { schemeId: "s2", statusId: "1" },
+    ]);
+    mocks.loadStatusIssueCounts.mockResolvedValue(new Map([["1", 40], ["2", 5], ["9", 0]]));
+    mocks.loadStatusHistoryCounts.mockResolvedValue({ counts: new Map([["9", 12]]), measuredAt: "2026-08-01" });
+    mocks.loadWorkflowSchemeProjects.mockResolvedValue([{ projectKey: "ABC", projectName: "Alpha" }]);
+    mocks.loadStatusAutomationReferences.mockResolvedValue({});
+  }
+
+  test("search: returns workflows-unavailable when no snapshot exists", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ state: "idle" });
+    const r = await rovoWorkflowSearch({ query: "review" }, ctx());
+    expect(r.status).toBe("workflows-unavailable");
+    expect(r.snapshotStatus).toEqual({ state: "idle", refreshedAt: null });
+  });
+
+  test("search: ranks scheme and status matches and carries refreshedAt", async () => {
+    seedBuilt();
+    const r = await rovoWorkflowSearch({ query: "review" }, ctx());
+    expect(r.status).toBe("ok");
+    expect(r.refreshedAt).toBe("2026-09-01T00:00:00.000Z");
+    expect(r.statuses.map((s) => s.name)).toContain("In Review");
+    expect(r.statuses[0]).toMatchObject({ issueCount: 5, category: "In Progress" });
+  });
+
+  test("search: kind=scheme suppresses status matches", async () => {
+    seedBuilt();
+    const r = await rovoWorkflowSearch({ query: "scheme", kind: "scheme" }, ctx());
+    expect(r.statuses).toEqual([]);
+    expect(r.schemes.length).toBeGreaterThan(0);
+  });
+
+  test("search: an empty query is an error", async () => {
+    const r = await rovoWorkflowSearch({ query: "  " }, ctx());
+    expect(r.status).toBe("error");
+  });
+
+  test("inspect: a scheme returns its statuses, balance and governed projects", async () => {
+    seedBuilt();
+    const r = await rovoWorkflowInspect({ identifier: "Software Simplified Workflow Scheme" }, ctx());
+    expect(r.status).toBe("ok");
+    expect(r.kind).toBe("scheme");
+    expect(r.statuses.map((s) => s.name).sort()).toEqual(["In Review", "To Do"]);
+    expect(r.projects).toEqual([{ projectKey: "ABC", projectName: "Alpha" }]);
+  });
+
+  test("inspect: a status reports schemes that reach it and near-duplicate siblings", async () => {
+    seedBuilt();
+    const r = await rovoWorkflowInspect({ identifier: "In Review" }, ctx());
+    expect(r.kind).toBe("status");
+    expect(r.reachedBySchemes.map((s) => s.name)).toEqual(["Software Simplified Workflow Scheme"]);
+    expect(r.duplicateSiblings.map((s) => s.name)).toContain("In  Review");
+  });
+
+  test("inspect: unknown identifier is not-found, not unavailable", async () => {
+    seedBuilt();
+    const r = await rovoWorkflowInspect({ identifier: "Nope" }, ctx());
+    expect(r.status).toBe("not-found");
+    expect(r.refreshedAt).toBe("2026-09-01T00:00:00.000Z");
+  });
+
+  test("impact: a status no scheme reaches with a measured-zero count and no rules is no-evidence-of-use", async () => {
+    seedBuilt();
+    const r = await rovoWorkflowImpact({ name: "On Hold" }, ctx());
+    expect(r.status).toBe("ok");
+    expect(r.reachedBySchemeCount).toBe(0);
+    expect(r.issueCount).toBe(0);
+    expect(r.verdict).toBe("no-evidence-of-use");
+    expect(r.verdictCaveat).toMatch(/boards, filters, dashboards or apps/);
+  });
+
+  test("impact: a status issues sit in is in-use with its governed project sample", async () => {
+    seedBuilt();
+    const r = await rovoWorkflowImpact({ name: "To Do" }, ctx());
+    expect(r.verdict).toBe("in-use");
+    expect(r.reachedBySchemeCount).toBe(2);
+    expect(r.projectSample).toContain("ABC");
+  });
+
+  test("impact: unknown status is not-found", async () => {
+    seedBuilt();
+    const r = await rovoWorkflowImpact({ name: "Ghost" }, ctx());
+    expect(r.status).toBe("not-found");
+  });
+
+  test("impact: missing snapshot is workflows-unavailable", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue(null);
+    const r = await rovoWorkflowImpact({ name: "To Do" }, ctx());
+    expect(r.status).toBe("workflows-unavailable");
   });
 });
 

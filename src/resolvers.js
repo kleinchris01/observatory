@@ -24,6 +24,7 @@ import {
   getBrowsableProjectIds,
 } from "./lib/jira-api.js";
 import { queueIssueScanWorker, completeIssueScanFinalization } from "./lib/scan-engine.js";
+import { pillarUnavailable, agentOk, agentNotFound, rankMatches, clampResults } from "./lib/rovo-agents.js";
 import {
   requeueStaleSnapshotBuild,
   hydrateFieldForGovernance,
@@ -5372,6 +5373,208 @@ export async function rovoInspectField(payload, context) {
       jql: p.jql,
     })),
   };
+}
+
+// ── Rovo: workflow & status expert ──────────────────────────────────────────
+//
+// Three actions over the workflow snapshot, all reusing the loaders getWorkflowInsights
+// already uses so the agent and the tab never disagree. Every path returns refreshedAt and
+// an explicit "workflows-unavailable" when no snapshot exists.
+
+async function loadWorkflowForAgent(installationKey) {
+  const meta = await readWorkflowSnapshotMeta(installationKey);
+  if (!meta?.version) {
+    return { available: false, snapshotStatus: { state: meta?.state || "idle", refreshedAt: null } };
+  }
+  const [schemes, statuses, schemeStatuses] = await Promise.all([
+    loadWorkflowSchemes(installationKey, meta.version),
+    loadStatusesCatalog(installationKey, meta.version),
+    loadWorkflowSchemeStatuses(installationKey, meta.version),
+  ]);
+  const issueCounts = await loadStatusIssueCounts(installationKey).catch(() => new Map());
+  const history = await loadStatusHistoryCounts(installationKey).catch(() => ({ counts: new Map(), measuredAt: null }));
+  return {
+    available: true,
+    refreshedAt: meta.refreshedAt || null,
+    meta,
+    schemes,
+    statuses,
+    schemeStatuses,
+    issueCounts,
+    hasIssueCounts: issueCounts.size > 0,
+    historyCounts: history.counts,
+    hasHistoryCounts: history.counts.size > 0,
+  };
+}
+
+function statusRow(status, wf) {
+  const id = String(status.statusId ?? status.id);
+  return {
+    statusId: id,
+    name: status.name,
+    category: status.statusCategory || status.category || null,
+    issueCount: wf.hasIssueCounts ? Number(wf.issueCounts.get(id) ?? 0) : null,
+    everCount: wf.hasHistoryCounts ? (wf.historyCounts.get(id) ?? null) : null,
+  };
+}
+
+export async function rovoWorkflowSearch(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const installationKey = getInstallationKey(context);
+    const query = String(payload?.query || "").trim();
+    const kind = String(payload?.kind || "any").trim().toLowerCase();
+    const limit = clampResults(payload?.maxResults, 8, 20);
+    if (!query) return { status: "error", message: "A search query is required." };
+
+    const wf = await loadWorkflowForAgent(installationKey);
+    if (!wf.available) return pillarUnavailable("workflows", wf.snapshotStatus);
+
+    const schemeMatches = kind === "status" ? [] :
+      rankMatches(wf.schemes, query, (s) => [s.name, s.schemeId, s.description], limit);
+    const statusMatches = kind === "scheme" ? [] :
+      rankMatches(wf.statuses, query, (s) => [s.name, s.statusId ?? s.id], limit);
+
+    return agentOk(wf.refreshedAt, {
+      query,
+      schemes: schemeMatches.map((s) => ({
+        schemeId: s.schemeId, name: s.name, description: s.description || null,
+        defaultWorkflow: s.defaultWorkflow || null, projectCount: s.projectCount ?? null,
+      })),
+      statuses: statusMatches.map((s) => statusRow(s, wf)),
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoWorkflowSearch failed:", error);
+    throw error;
+  }
+}
+
+export async function rovoWorkflowInspect(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const installationKey = getInstallationKey(context);
+    const identifier = String(payload?.identifier || "").trim();
+    if (!identifier) return { status: "error", message: "A scheme or status name is required." };
+
+    const wf = await loadWorkflowForAgent(installationKey);
+    if (!wf.available) return pillarUnavailable("workflows", wf.snapshotStatus);
+    const idLower = identifier.toLowerCase();
+
+    const scheme = wf.schemes.find(
+      (s) => String(s.schemeId) === identifier || String(s.name || "").toLowerCase() === idLower
+    );
+    if (scheme) {
+      const balance = computeSchemeCategoryBalance([scheme], wf.schemeStatuses, wf.statuses)[0] || null;
+      const statusIds = new Set(
+        wf.schemeStatuses.filter((p) => String(p.schemeId) === String(scheme.schemeId)).map((p) => String(p.statusId))
+      );
+      const projects = await loadWorkflowSchemeProjects(installationKey, wf.meta.version, scheme.schemeId).catch(() => []);
+      return agentOk(wf.refreshedAt, {
+        kind: "scheme",
+        scheme: {
+          schemeId: scheme.schemeId, name: scheme.name, description: scheme.description || null,
+          defaultWorkflow: scheme.defaultWorkflow || null,
+        },
+        statuses: wf.statuses.filter((s) => statusIds.has(String(s.statusId ?? s.id))).map((s) => statusRow(s, wf)),
+        categoryBalance: balance,
+        projects: projects.slice(0, 50).map((p) => ({ projectKey: p.projectKey, projectName: p.projectName })),
+        projectCount: projects.length,
+      });
+    }
+
+    const status = wf.statuses.find(
+      (s) => String(s.statusId ?? s.id) === identifier || String(s.name || "").toLowerCase() === idLower
+    );
+    if (!status) return agentNotFound(wf.refreshedAt, `No workflow scheme or status matched "${identifier}".`);
+
+    const sid = String(status.statusId ?? status.id);
+    const reachingSchemeIds = new Set(
+      wf.schemeStatuses.filter((p) => String(p.statusId) === sid).map((p) => String(p.schemeId))
+    );
+    const dupGroup = findDuplicateStatusGroups(wf.statuses).find((g) =>
+      g.statuses.some((s) => String(s.statusId ?? s.id) === sid)
+    );
+    const automation = await loadStatusAutomationReferences(installationKey, [status.name]).catch(() => null);
+
+    return agentOk(wf.refreshedAt, {
+      kind: "status",
+      subject: statusRow(status, wf),
+      reachedBySchemes: wf.schemes
+        .filter((s) => reachingSchemeIds.has(String(s.schemeId)))
+        .map((s) => ({ schemeId: s.schemeId, name: s.name })),
+      reachedBySchemeCount: reachingSchemeIds.size,
+      duplicateSiblings: dupGroup
+        ? dupGroup.statuses.filter((s) => String(s.statusId ?? s.id) !== sid).map((s) => ({ statusId: String(s.statusId ?? s.id), name: s.name, kind: dupGroup.kind }))
+        : [],
+      automationChecked: Boolean(automation),
+      automationRules: automation?.[status.name.toLowerCase()] || automation?.[status.name] || null,
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoWorkflowInspect failed:", error);
+    throw error;
+  }
+}
+
+export async function rovoWorkflowImpact(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const installationKey = getInstallationKey(context);
+    const name = String(payload?.name || "").trim();
+    if (!name) return { status: "error", message: "A status name is required." };
+
+    const wf = await loadWorkflowForAgent(installationKey);
+    if (!wf.available) return pillarUnavailable("workflows", wf.snapshotStatus);
+
+    const status = wf.statuses.find((s) => String(s.name || "").toLowerCase() === name.toLowerCase());
+    if (!status) return agentNotFound(wf.refreshedAt, `No status named "${name}" is in the catalogue.`);
+
+    const sid = String(status.statusId ?? status.id);
+    const reachingSchemeIds = new Set(
+      wf.schemeStatuses.filter((p) => String(p.statusId) === sid).map((p) => String(p.schemeId))
+    );
+    const reachingSchemes = wf.schemes.filter((s) => reachingSchemeIds.has(String(s.schemeId)));
+    let projectCount = 0;
+    const projectSample = [];
+    for (const scheme of reachingSchemes.slice(0, 25)) {
+      const projects = await loadWorkflowSchemeProjects(installationKey, wf.meta.version, scheme.schemeId).catch(() => []);
+      projectCount += projects.length;
+      for (const p of projects.slice(0, 10)) projectSample.push(p.projectKey);
+    }
+    const automation = await loadStatusAutomationReferences(installationKey, [status.name]).catch(() => null);
+    const rules = automation?.[status.name.toLowerCase()] || automation?.[status.name] || null;
+
+    // The consequential judgement, phrased at its true strength. A status no scheme reaches
+    // and no rule touches has "no evidence of use" -- never "safe to delete".
+    const noEvidence =
+      reachingSchemeIds.size === 0 &&
+      (wf.hasIssueCounts ? Number(wf.issueCounts.get(sid) ?? 0) === 0 : false) &&
+      Boolean(automation) &&
+      !rules;
+
+    return agentOk(wf.refreshedAt, {
+      subject: statusRow(status, wf),
+      reachedBySchemes: reachingSchemes.map((s) => ({ schemeId: s.schemeId, name: s.name })),
+      reachedBySchemeCount: reachingSchemeIds.size,
+      governedProjectCount: projectCount,
+      projectSample: [...new Set(projectSample)].slice(0, 20),
+      automationChecked: Boolean(automation),
+      automationRules: rules,
+      issueCount: wf.hasIssueCounts ? Number(wf.issueCounts.get(sid) ?? 0) : null,
+      everCount: wf.hasHistoryCounts ? (wf.historyCounts.get(sid) ?? null) : null,
+      verdict: noEvidence
+        ? "no-evidence-of-use"
+        : (wf.hasIssueCounts ? "in-use" : "unknown"),
+      verdictCaveat:
+        "This covers workflow schemes, issue counts and (where an analysis exists) automation. " +
+        "It does not cover boards, filters, dashboards or apps.",
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoWorkflowImpact failed:", error);
+    throw error;
+  }
 }
 
 // ── Rovo: automation expert ──────────────────────────────────────────────────

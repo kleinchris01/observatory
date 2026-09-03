@@ -2,7 +2,8 @@ import React from "react";
 import { invoke } from "@forge/bridge";
 import { formatTimestamp, formatRelativeTime, formatNumber } from "../utils";
 import { Icon } from "../components/Icons";
-import { StatTile, StatRow, Panel, EmptyState, PageHeader, SortFilterBar, Chip, RuleLink } from "../components/ui";
+import { StatTile, StatRow, Panel, EmptyState, PageHeader, SortFilterBar, Chip, RuleLink, AskRovo } from "../components/ui";
+import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
 import { useNavIntent } from "../hooks";
 
@@ -790,15 +791,36 @@ export function WorkflowTab({ intent = null, siteOrigin = "" }) {
         description="Which workflow schemes exist, which projects each governs, and the full status catalog. Read-only — Observatory reports what is configured; changes stay in Jira's own admin UI."
         meta={snapshot?.refreshedAt ? `Built ${formatRelativeTime(snapshot.refreshedAt)}` : null}
         actions={
-          <button
-            className="primary-button"
-            type="button"
-            onClick={() => load({ forceRefresh: true })}
-            disabled={isBuilding || loading}
-          >
-            <Icon name="refreshCw" size={14} />
-            {isBuilding ? "Building…" : snapshot?.version ? "Rebuild" : "Build inventory"}
-          </button>
+          <>
+            <AskRovo
+              agent="observatory-workflow-expert"
+              scope="the workflow estate"
+              context="the snapshot age and the current duplicate / unreachable / scheme-balance counts"
+              disabled={!snapshot?.version}
+              buildPrompt={() =>
+                buildRovoPrompt({
+                  task: "Give me an overview of this site's workflow and status estate and what to look at first.",
+                  facts: [
+                    ["Snapshot built", snapshot?.refreshedAt || "unknown"],
+                    ["Workflow schemes", snapshot?.totalSchemes ?? null],
+                    ["Status catalogue size", insights?.statusTotals?.catalogCount ?? null],
+                    ["Near-duplicate status groups", insights?.summary?.duplicateGroupCount ?? null],
+                    ["Unreachable statuses", insights?.summary?.reducibleStatusCount ?? insights?.summary?.orphanCount ?? null],
+                    ["Schemes flagged for category balance", insights?.summary?.flaggedSchemeCount ?? null],
+                  ],
+                })
+              }
+            />
+            <button
+              className="primary-button"
+              type="button"
+              onClick={() => load({ forceRefresh: true })}
+              disabled={isBuilding || loading}
+            >
+              <Icon name="refreshCw" size={14} />
+              {isBuilding ? "Building…" : snapshot?.version ? "Rebuild" : "Build inventory"}
+            </button>
+          </>
         }
       />
 
