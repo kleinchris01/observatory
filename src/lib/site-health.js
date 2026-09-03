@@ -44,6 +44,8 @@ import {
   loadSchemeHolders,
   loadSchemeLevels,
   loadSchemeProjects,
+  readEstateSnapshotMeta,
+  loadEstateValues,
   loadIssueTypeSchemes,
   loadIssueTypeSchemeItems,
   readUserSnapshotMeta,
@@ -59,6 +61,7 @@ import { summarizeFilters, summarizeFilterHealth } from "./filter-insights.js";
 import { summarizeDashboards, summarizeDashboardHealth } from "./dashboard-insights.js";
 import { summarizeIssueTypeInsights, summarizeIssueTypeHealth } from "./issuetype-insights.js";
 import { summarizeAssetInsights, summarizeAssetHealth } from "./asset-insights.js";
+import { summarizeEstateInsights, summarizeEstateHealth } from "./estate-insights.js";
 import {
   summarizePermissionInsights, summarizePermissionHealth,
   summarizeSecurityInsights, summarizeSecurityHealth,
@@ -680,6 +683,32 @@ export async function buildAccessOverview(installationKey) {
   }
 }
 
+// The estate-config pillar's input: the global value lists (resolutions, priorities) and
+// the near-duplicate-name read over each. Same tri-state posture as every other pillar.
+export async function buildEstateOverview(installationKey) {
+  try {
+    const meta = await readEstateSnapshotMeta(installationKey);
+    if (!meta?.version) return { available: false, state: meta?.state || "idle", lastError: meta?.lastError || null };
+
+    const [resolutions, priorities] = await Promise.all([
+      loadEstateValues(installationKey, meta.version, "resolution"),
+      loadEstateValues(installationKey, meta.version, "priority"),
+    ]);
+
+    const summary = summarizeEstateInsights({ resolutions, priorities });
+    return {
+      ...summary,
+      state: meta.state || "idle",
+      refreshedAt: meta.refreshedAt || null,
+      lastError: meta.lastError || null,
+      health: summarizeEstateHealth(summary),
+    };
+  } catch (error) {
+    console.warn("buildEstateOverview failed:", error?.message || error);
+    return { available: false, state: "error" };
+  }
+}
+
 // Compute the score from scratch and record it.
 //
 // The one entry point anything outside the Overview should use. It gathers the same five
@@ -709,7 +738,7 @@ export async function captureSiteHealth(installationKey, deps) {
   }
 
   try {
-    const [meta, config, workflow, screens, issueTypeOverview, userOverview, assetOverview, accessOverview, automationAnalysis] = await Promise.all([
+    const [meta, config, workflow, screens, issueTypeOverview, userOverview, assetOverview, accessOverview, estateOverview, automationAnalysis] = await Promise.all([
       readSnapshotMeta(installationKey),
       readAdminConfig(),
       buildWorkflowOverview(installationKey),
@@ -718,6 +747,7 @@ export async function captureSiteHealth(installationKey, deps) {
       buildUserOverview(installationKey),
       buildAssetOverview(installationKey),
       buildAccessOverview(installationKey),
+      buildEstateOverview(installationKey),
       readAutomationAnalysis(installationKey).catch(() => null),
     ]);
     let filters = null;
@@ -770,6 +800,7 @@ export async function captureSiteHealth(installationKey, deps) {
       permissions: accessOverview?.permissions?.health ?? null,
       security: accessOverview?.security?.health ?? null,
       notifications: accessOverview?.notifications?.health ?? null,
+      estate: estateOverview?.health ?? null,
       tolerances: config?.healthTolerances,
     });
 

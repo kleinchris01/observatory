@@ -19,7 +19,7 @@ import { HEALTH_PILLARS } from "../../../src/lib/health-score";
 // omitted rather than rendered as zero, because "0 duplicate statuses" and "we have never
 // looked for duplicate statuses" are completely different statements.
 
-function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, screens, issueTypes, users, assets, access, automation, filters, dashboards, onNavigate }) {
+function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, screens, issueTypes, users, assets, access, estate, automation, filters, dashboards, onNavigate }) {
   const findings = [];
 
   if (findingsSummary?.adminAttention > 0) {
@@ -885,6 +885,38 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
     });
   }
 
+  // ── Priorities & resolutions ──────────────────────────────────────────
+  // "estate-findings" is not a scored dimension key — the scored cards state the rate,
+  // these state the list to act on.
+
+  if (estate?.available && estate.reducibleResolutionCount > 0) {
+    findings.push({
+      key: "estate-duplicate-resolutions",
+      dimension: "estate-findings",
+      pillar: "estate",
+      tone: "warning",
+      count: estate.reducibleResolutionCount,
+      title: "Near-duplicate resolution names",
+      detail: `${estate.resolutionDuplicateGroupCount} group${estate.resolutionDuplicateGroupCount === 1 ? "" : "s"} — every resolution-based report is split across the synonyms.`,
+      onOpen: () => onNavigate("priorities", { view: "resolutions" }),
+      openLabel: "Priorities",
+    });
+  }
+
+  if (estate?.available && estate.reduciblePriorityCount > 0) {
+    findings.push({
+      key: "estate-duplicate-priorities",
+      dimension: "estate-findings",
+      pillar: "estate",
+      tone: "info",
+      count: estate.reduciblePriorityCount,
+      title: "Near-duplicate priority names",
+      detail: "Priorities that almost certainly mean the same thing.",
+      onOpen: () => onNavigate("priorities", { view: "priorities" }),
+      openLabel: "Priorities",
+    });
+  }
+
   // ── Projects ────────────────────────────────────────────────────────────
 
   // The month histogram behind every adoption figure has stopped near a fixed month -- a
@@ -1169,7 +1201,7 @@ export function useHealthHistory({ days = 90, load = invoke } = {}) {
   return history;
 }
 
-function GovernanceLedgerPanel({ health, findings, history, workflow, screens, access, automation, filters, dashboards, onNavigate }) {
+function GovernanceLedgerPanel({ health, findings, history, workflow, screens, access, estate, automation, filters, dashboards, onNavigate }) {
   const ledger = React.useMemo(() => buildGovernanceLedger({ health, findings, history }), [health, findings, history]);
 
   // Which pillars have never been built. Named individually, because "nothing flagged" while
@@ -1182,6 +1214,7 @@ function GovernanceLedgerPanel({ health, findings, history, workflow, screens, a
     !filters?.available && { label: "saved filter inventory", tab: "filters" },
     !dashboards?.available && { label: "dashboard inventory", tab: "dashboards" },
     !access?.available && { label: "access scheme inventory", tab: "access" },
+    !estate?.available && { label: "priorities & resolutions inventory", tab: "priorities" },
   ].filter(Boolean);
 
   // No rows at all. Two different reasons, and they must not be worded the same: a site
@@ -1368,11 +1401,11 @@ function RqtPanel({ onOpenRqtIndex }) {
   );
 }
 
-export function OverviewDashboard({ dashboard, findingsSummary, findingsByCode, workflow, screens, issueTypes, users, assets, access, automation, filters, dashboards, health, history, onOpenRqtIndex, onNavigate }) {
+export function OverviewDashboard({ dashboard, findingsSummary, findingsByCode, workflow, screens, issueTypes, users, assets, access, estate, automation, filters, dashboards, health, history, onOpenRqtIndex, onNavigate }) {
   // onNavigate is optional so this stays renderable in isolation; without it the deep
   // links become inert rather than throwing.
   const navigate = onNavigate || (() => {});
-  const findings = buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, screens, issueTypes, users, assets, access, automation, filters, dashboards, onNavigate: navigate });
+  const findings = buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, screens, issueTypes, users, assets, access, estate, automation, filters, dashboards, onNavigate: navigate });
   // A caller may pass history in -- tests do -- but nobody has to.
   const fetched = useHealthHistory();
   const series = history ?? fetched;
@@ -1386,6 +1419,7 @@ export function OverviewDashboard({ dashboard, findingsSummary, findingsByCode, 
         workflow={workflow}
         screens={screens}
         access={access}
+        estate={estate}
         automation={automation}
         filters={filters}
         dashboards={dashboards}

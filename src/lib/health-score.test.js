@@ -147,6 +147,7 @@ const assets = (over = {}) => ({
 const permissions = (over = {}) => ({ available: true, totalSchemes: 8, riskySchemeCount: 0, unusedSchemeCount: 0, ...over });
 const security = (over = {}) => ({ available: true, totalSchemes: 4, totalLevels: 12, brokenLevelCount: 0, unusedSchemeCount: 0, ...over });
 const notifications = (over = {}) => ({ available: true, totalSchemes: 5, fragileSchemeCount: 0, unusedSchemeCount: 0, ...over });
+const estate = (over = {}) => ({ available: true, totalResolutions: 6, totalPriorities: 5, reducibleResolutionCount: 0, reduciblePriorityCount: 0, ...over });
 
 describe("computeSiteHealth — scoring", () => {
   test("a clean site scores at the top", () => {
@@ -154,7 +155,7 @@ describe("computeSiteHealth — scoring", () => {
       fieldUsage: fieldUsage(), workflow: workflow(), projects: projects(),
       automation: automation(), screens: screens(), adoption: adoption(), filters: filters(),
       dashboards: dashboards(), issueTypes: issueTypes(), users: users(), assets: assets(),
-      permissions: permissions(), security: security(), notifications: notifications(),
+      permissions: permissions(), security: security(), notifications: notifications(), estate: estate(),
     });
 
     expect(health.score).toBeGreaterThanOrEqual(90);
@@ -651,6 +652,31 @@ describe("access dimensions", () => {
     for (const key of ["permission-least-privilege", "security-level-integrity", "notification-routing"]) {
       expect(dim(health, key).available).toBe(false);
       expect(dim(health, key).reason).toMatch(/no access inventory/i);
+    }
+  });
+});
+
+describe("estate dimensions", () => {
+  const dim = (health, key) => health.dimensions.find((d) => d.key === key);
+
+  test("a clean value-list config scores both naming dimensions at the top", () => {
+    const health = computeSiteHealth({ estate: estate() });
+    expect(dim(health, "resolution-naming").score).toBe(100);
+    expect(dim(health, "priority-naming").score).toBe(100);
+  });
+
+  test("resolution naming scores reducible resolutions over the list size", () => {
+    const health = computeSiteHealth({ estate: estate({ totalResolutions: 20, reducibleResolutionCount: 3 }) });
+    // 3/20 = 0.15 = the tolerance -> 0.
+    expect(dim(health, "resolution-naming").score).toBe(0);
+    expect(health.pillars.find((p) => p.key === "estate").total).toBe(2);
+  });
+
+  test("both dimensions are unmeasured until the inventory exists", () => {
+    const health = computeSiteHealth({ fieldUsage: fieldUsage() });
+    for (const key of ["resolution-naming", "priority-naming"]) {
+      expect(dim(health, key).available).toBe(false);
+      expect(dim(health, key).reason).toMatch(/no priorities\/resolutions inventory/i);
     }
   });
 });

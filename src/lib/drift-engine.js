@@ -29,6 +29,8 @@ import {
   readAccessSnapshotMeta,
   readFilterSnapshotMeta,
   readDashboardSnapshotMeta,
+  readEstateSnapshotMeta,
+  loadEstateValues,
   loadSnapshotFields,
   loadStatusesCatalog,
   loadWorkflowSchemes,
@@ -220,6 +222,23 @@ async function collectDashboards(installationKey, version) {
   }));
 }
 
+async function collectEstate(installationKey, version) {
+  const [resolutions, priorities] = await Promise.all([
+    loadEstateValues(installationKey, version, "resolution"),
+    loadEstateValues(installationKey, version, "priority"),
+  ]);
+  return [
+    ...resolutions.map((r) => ({
+      entityType: "resolution", entityId: r.id, label: r.name,
+      fields: { name: r.name, description: r.description, isDefault: r.isDefault },
+    })),
+    ...priorities.map((p) => ({
+      entityType: "priority", entityId: p.id, label: p.name,
+      fields: { name: p.name, description: p.description, isDefault: p.isDefault },
+    })),
+  ];
+}
+
 // The registry. `readMeta` returns the pillar's snapshot meta -- a falsy `version` means the
 // inventory has never been built, so the pillar is skipped rather than reported as emptied.
 export const DRIFT_PILLARS = [
@@ -227,6 +246,7 @@ export const DRIFT_PILLARS = [
   { pillar: "workflow", label: "Workflows", readMeta: readWorkflowSnapshotMeta, collect: collectWorkflow },
   { pillar: "issueTypes", label: "Issue types", readMeta: readIssueTypeSnapshotMeta, collect: collectIssueTypes },
   { pillar: "access", label: "Access", readMeta: readAccessSnapshotMeta, collect: collectAccess },
+  { pillar: "estate", label: "Priorities & resolutions", readMeta: readEstateSnapshotMeta, collect: collectEstate },
   { pillar: "filters", label: "Saved filters", readMeta: readFilterSnapshotMeta, collect: collectFilters },
   { pillar: "dashboards", label: "Dashboards", readMeta: readDashboardSnapshotMeta, collect: collectDashboards },
 ];
@@ -239,6 +259,8 @@ const TYPE_NOUNS = {
   "workflow-scheme": "Workflow scheme",
   "issue-type": "Issue type",
   "issue-type-scheme": "Issue type scheme",
+  resolution: "Resolution",
+  priority: "Priority",
   "permission-scheme": "Permission scheme",
   "security-scheme": "Issue security scheme",
   "notification-scheme": "Notification scheme",

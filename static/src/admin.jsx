@@ -54,6 +54,9 @@ const AccessTab = React.lazy(() =>
 const ChangesTab = React.lazy(() =>
   import("./tabs/ChangesTab").then((m) => ({ default: m.ChangesTab }))
 );
+const PrioritiesTab = React.lazy(() =>
+  import("./tabs/PrioritiesTab").then((m) => ({ default: m.PrioritiesTab }))
+);
 const ScreensTab = React.lazy(() =>
   import("./tabs/ScreensTab").then((m) => ({ default: m.ScreensTab }))
 );
@@ -225,6 +228,7 @@ export function AdminApp() {
     { key: "projects", label: "Project Usage", icon: "folder" },
     { key: "workflows", label: "Workflows", icon: "activity" },
     { key: "issueTypes", label: "Issue Types", icon: "layers" },
+    { key: "priorities", label: "Priorities", icon: "flag" },
     { key: "people", label: "People", icon: "user" },
     { key: "assets", label: "Assets", icon: "database" },
     { key: "access", label: "Access", icon: "shield" },
@@ -329,6 +333,8 @@ export function AdminApp() {
             <WorkflowTab intent={navIntent} siteOrigin={siteOrigin} />
           ) : activeTab === "issueTypes" ? (
             <IssueTypesTab intent={navIntent} />
+          ) : activeTab === "priorities" ? (
+            <PrioritiesTab intent={navIntent} />
           ) : activeTab === "people" ? (
             <PeopleTab intent={navIntent} />
           ) : activeTab === "assets" ? (

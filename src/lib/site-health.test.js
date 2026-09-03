@@ -21,6 +21,10 @@ const accessStore = {
   loadSchemeLevels: vi.fn(async () => []),
   loadSchemeProjects: vi.fn(async () => []),
 };
+const estateStore = {
+  readEstateSnapshotMeta: vi.fn(async () => null),
+  loadEstateValues: vi.fn(async () => []),
+};
 vi.mock("./project-store.js", () => ({
   loadIssueScanProjectTotals: vi.fn(async () => []),
   loadScreenGovernanceSummary: vi.fn(async () => ({})),
@@ -37,6 +41,7 @@ vi.mock("./project-store.js", () => ({
   ...userStore,
   ...assetStore,
   ...accessStore,
+  ...estateStore,
 }));
 const automationStore = {
   loadStatusAutomationReferences: vi.fn(async () => ({})),
@@ -44,7 +49,7 @@ const automationStore = {
 };
 vi.mock("./store/automation.js", () => automationStore);
 
-const { buildProjectInsights, buildFieldUsageInsights, captureSiteHealth, buildUserOverview, buildAssetOverview, buildAccessOverview } = await import("./site-health.js");
+const { buildProjectInsights, buildFieldUsageInsights, captureSiteHealth, buildUserOverview, buildAssetOverview, buildAccessOverview, buildEstateOverview } = await import("./site-health.js");
 
 // The fields pillar scores duplicate naming once, through the dedicated field-naming
 // dimension (built from duplicateClusters). The per-field "duplicate-naming" finding must
@@ -202,6 +207,28 @@ describe("buildAccessOverview", () => {
     expect(overview.permissions.health).toMatchObject({ available: true, riskySchemeCount: 1 });
     expect(overview.security.health).toMatchObject({ available: true, brokenLevelCount: 1 });
     expect(overview.notifications.health).toMatchObject({ available: true });
+  });
+});
+
+describe("buildEstateOverview", () => {
+  test("reports unmeasured when no snapshot exists", async () => {
+    estateStore.readEstateSnapshotMeta.mockResolvedValueOnce(null);
+    const overview = await buildEstateOverview("inst");
+    expect(overview.available).toBe(false);
+    expect(overview.health).toBeUndefined();
+  });
+
+  test("summarises the value lists and attaches a health block", async () => {
+    estateStore.readEstateSnapshotMeta.mockResolvedValueOnce({ state: "ready", version: "v1", refreshedAt: "2026-09-03T00:00:00Z" });
+    estateStore.loadEstateValues.mockImplementation(async (_k, _v, kind) =>
+      kind === "resolution"
+        ? [{ id: "1", name: "Done", isDefault: true }, { id: "2", name: "done" }]
+        : [{ id: "10", name: "High", isDefault: true }]);
+
+    const overview = await buildEstateOverview("inst");
+    expect(overview.available).toBe(true);
+    expect(overview.resolutionDuplicateGroupCount).toBe(1);
+    expect(overview.health).toMatchObject({ available: true, reducibleResolutionCount: 1 });
   });
 });
 

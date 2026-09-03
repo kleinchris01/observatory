@@ -196,6 +196,12 @@ const mocks = vi.hoisted(() => ({
   queueDriftSnapshotBuild: vi.fn(),
   isDriftBuildStale: vi.fn(() => false),
 
+  // estate store + estate-engine.js
+  readEstateSnapshotMeta: vi.fn(),
+  loadEstateValues: vi.fn(async () => []),
+  queueEstateSnapshotBuild: vi.fn(),
+  isEstateBuildStale: vi.fn(() => false),
+
   loadRulesForProject: vi.fn(),
   loadStatusAutomationReferences: vi.fn(),
   loadGlobalRulesAffectingProject: vi.fn(),
@@ -399,6 +405,8 @@ vi.mock("./lib/project-store.js", () => ({
   readDriftSnapshotMeta: mocks.readDriftSnapshotMeta,
   loadConfigChanges: mocks.loadConfigChanges,
   loadConfigChangeSummary: mocks.loadConfigChangeSummary,
+  readEstateSnapshotMeta: mocks.readEstateSnapshotMeta,
+  loadEstateValues: mocks.loadEstateValues,
   loadAssetSchemas: mocks.loadAssetSchemas,
   loadAssetObjectTypes: mocks.loadAssetObjectTypes,
   loadAssetAttributes: mocks.loadAssetAttributes,
@@ -451,9 +459,15 @@ vi.mock("./lib/drift-engine.js", () => ({
     { pillar: "workflow", label: "Workflows" },
     { pillar: "issueTypes", label: "Issue types" },
     { pillar: "access", label: "Access" },
+    { pillar: "estate", label: "Priorities & resolutions" },
     { pillar: "filters", label: "Saved filters" },
     { pillar: "dashboards", label: "Dashboards" },
   ],
+}));
+
+vi.mock("./lib/estate-engine.js", () => ({
+  queueEstateSnapshotBuild: mocks.queueEstateSnapshotBuild,
+  isEstateBuildStale: mocks.isEstateBuildStale,
 }));
 
 vi.mock("./lib/workflow-engine.js", () => ({
@@ -588,6 +602,8 @@ const {
   buildAccessInventory,
   getChangeHistory,
   buildChangeHistory,
+  getEstateInventory,
+  buildEstateInventory,
 } = __RAW_ADMIN_ONLY_FUNCTIONS;
 
 const {
@@ -694,6 +710,8 @@ beforeEach(() => {
   mocks.readAccessSnapshotMeta.mockResolvedValue(null);
   // Default: no drift snapshot. getChangeHistory reports never-built.
   mocks.readDriftSnapshotMeta.mockResolvedValue(null);
+  // Default: no estate snapshot. The estate pillar reports unmeasured.
+  mocks.readEstateSnapshotMeta.mockResolvedValue(null);
   mocks.loadScreensPage.mockResolvedValue({ total: 0, rows: [] });
   mocks.loadScreensForField.mockResolvedValue([]);
   mocks.loadScreenSchemes.mockResolvedValue([]);
@@ -5772,6 +5790,56 @@ describe("buildChangeHistory", () => {
 
     expect(result).toMatchObject({ queued: false, reason: "already-building" });
     expect(mocks.queueDriftSnapshotBuild).not.toHaveBeenCalled();
+  });
+});
+
+describe("getEstateInventory", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x" } };
+
+  test("reports never-built when no snapshot exists", async () => {
+    mocks.readEstateSnapshotMeta.mockResolvedValue(null);
+    const result = await getEstateInventory(ctx);
+    expect(result).toMatchObject({ neverBuilt: true, resolutions: [], priorities: [] });
+    expect(result.governance.available).toBe(false);
+    expect(mocks.loadEstateValues).not.toHaveBeenCalled();
+  });
+
+  test("returns both lists with the duplicate-name governance summary", async () => {
+    mocks.readEstateSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1", refreshedAt: "2026-09-03T00:00:00Z" });
+    mocks.loadEstateValues.mockImplementation(async (_k, _v, kind) =>
+      kind === "resolution"
+        ? [{ id: "1", name: "Done", isDefault: true }, { id: "2", name: "done" }]
+        : [{ id: "10", name: "High", isDefault: true }]);
+
+    const result = await getEstateInventory(ctx);
+
+    expect(result.neverBuilt).toBe(false);
+    expect(result.resolutions).toHaveLength(2);
+    expect(result.governance).toMatchObject({ available: true, resolutionDuplicateGroupCount: 1, reducibleResolutionCount: 1 });
+  });
+});
+
+describe("buildEstateInventory", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x" } };
+
+  test("queues a build when nothing is running", async () => {
+    mocks.readEstateSnapshotMeta.mockResolvedValue({ state: "idle" });
+    mocks.readAdminConfig?.mockResolvedValue?.({ readOnlyMode: false });
+
+    const result = await buildEstateInventory(ctx);
+
+    expect(result.queued).toBe(true);
+    expect(mocks.queueEstateSnapshotBuild).toHaveBeenCalledWith("test-install");
+  });
+
+  test("refuses while a live build is running", async () => {
+    mocks.readEstateSnapshotMeta.mockResolvedValue({ state: "building" });
+    mocks.isEstateBuildStale.mockReturnValue(false);
+
+    const result = await buildEstateInventory(ctx);
+
+    expect(result).toMatchObject({ queued: false, reason: "already-building" });
+    expect(mocks.queueEstateSnapshotBuild).not.toHaveBeenCalled();
   });
 });
 

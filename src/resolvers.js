@@ -153,6 +153,8 @@ import {
   readDriftSnapshotMeta,
   loadConfigChanges,
   loadConfigChangeSummary,
+  readEstateSnapshotMeta,
+  loadEstateValues,
   recordHealthSnapshot,
   readFullScanMeta,
   loadHealthHistory,
@@ -167,6 +169,8 @@ import { queueUserSnapshotBuild, isUserBuildStale } from "./lib/user-engine.js";
 import { queueAssetSnapshotBuild, isAssetBuildStale } from "./lib/asset-engine.js";
 import { queueAccessSnapshotBuild, isAccessBuildStale } from "./lib/access-engine.js";
 import { queueDriftSnapshotBuild, isDriftBuildStale, DRIFT_PILLARS } from "./lib/drift-engine.js";
+import { queueEstateSnapshotBuild, isEstateBuildStale } from "./lib/estate-engine.js";
+import { summarizeEstateInsights } from "./lib/estate-insights.js";
 import { summarizeIssueTypeInsights } from "./lib/issuetype-insights.js";
 import { summarizeAssetInsights } from "./lib/asset-insights.js";
 import {
@@ -186,6 +190,7 @@ import {
   buildUserOverview,
   buildAssetOverview,
   buildAccessOverview,
+  buildEstateOverview,
   attachUniqueIssueCounts,
   captureSiteHealth,
 } from "./lib/site-health.js";
@@ -1994,6 +1999,65 @@ async function buildChangeHistory({ context }) {
   }
 
   await queueDriftSnapshotBuild(installationKey);
+  return { queued: true };
+}
+
+// The estate-config pillar's read: the global value lists (resolutions, priorities) with
+// the near-duplicate-name governance summary over each.
+async function getEstateInventory({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  const meta = await readEstateSnapshotMeta(installationKey);
+  const staleBuild = isEstateBuildStale(meta);
+
+  if (!meta?.version) {
+    return {
+      state: meta?.state || "idle",
+      staleBuild,
+      startedAt: meta?.startedAt || null,
+      neverBuilt: true,
+      resolutions: [],
+      priorities: [],
+      governance: summarizeEstateInsights({}),
+      lastError: meta?.lastError || null,
+    };
+  }
+
+  const [resolutions, priorities] = await Promise.all([
+    loadEstateValues(installationKey, meta.version, "resolution"),
+    loadEstateValues(installationKey, meta.version, "priority"),
+  ]);
+
+  return {
+    state: meta.state || "ready",
+    staleBuild,
+    refreshedAt: meta.refreshedAt || null,
+    neverBuilt: false,
+    lastError: meta.lastError || null,
+    resolutions,
+    priorities,
+    governance: summarizeEstateInsights({ resolutions, priorities }),
+  };
+}
+
+async function buildEstateInventory({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  const meta = await readEstateSnapshotMeta(installationKey);
+  if (meta?.state === "building" && !isEstateBuildStale(meta)) {
+    return { queued: false, reason: "already-building", meta };
+  }
+
+  const adminConfig = await readAdminConfig();
+  if (adminConfig.readOnlyMode) {
+    return { queued: false, error: "Read-only mode is enabled. Disable it before building the priorities/resolutions inventory." };
+  }
+
+  await queueEstateSnapshotBuild(installationKey);
   return { queued: true };
 }
 
@@ -5459,7 +5523,7 @@ const EMPTY_DASHBOARD = {
 export async function getAdminOverview({ context }) {
   await ensureProjectStoreReady();
   const installationKey = getInstallationKey(context);
-  const [meta, summaryCounts, config, legacySummaryCount, workflow, screens, issueTypeOverview, userOverview, assetOverview, accessOverview, filterOverview, dashboardOverview, automationAnalysis] = await Promise.all([
+  const [meta, summaryCounts, config, legacySummaryCount, workflow, screens, issueTypeOverview, userOverview, assetOverview, accessOverview, estateOverview, filterOverview, dashboardOverview, automationAnalysis] = await Promise.all([
     readSnapshotMeta(installationKey),
     // Counted in SQL rather than loaded. This used to pull up to 5,000 summary rows --
     // including two LONGTEXT columns -- across the wire, and use them for a count grouped by
@@ -5474,6 +5538,7 @@ export async function getAdminOverview({ context }) {
     buildUserOverview(installationKey),
     buildAssetOverview(installationKey),
     buildAccessOverview(installationKey),
+    buildEstateOverview(installationKey),
     // Without the project catalog the broken-reference check is skipped and says so. Passing
     // it would mean loading the project list before this Promise.all rather than inside the
     // dashboard build below, which is a bigger cost than the one finding is worth here -- the
@@ -5573,6 +5638,7 @@ export async function getAdminOverview({ context }) {
     permissions: accessOverview?.permissions?.health ?? null,
     security: accessOverview?.security?.health ?? null,
     notifications: accessOverview?.notifications?.health ?? null,
+    estate: estateOverview?.health ?? null,
     // Workflow, project and automation dimensions were scored against hardcoded constants
     // while every field rule was tunable. Same config surface now feeds both.
     tolerances: config?.healthTolerances,
@@ -5611,6 +5677,7 @@ export async function getAdminOverview({ context }) {
     users: userOverview,
     assets: assetOverview,
     access: accessOverview,
+    estate: estateOverview,
     // The counts the Overview's findings list needs, not just the score's rate. Same lesson
     // the automation pillar learned: trimming this to the headline fields made every problem
     // the analysis had already found invisible on the page that exists to surface problems.
@@ -5715,6 +5782,7 @@ const PILLAR_INPUTS = {
   permissions: ["access"],
   security: ["access"],
   notifications: ["access"],
+  estate: ["estate"],
   automation: ["automation"],
   projects: ["projects", "adoption"],
 };
@@ -5732,7 +5800,7 @@ async function getPillarHealth({ payload, context }) {
   // already reports as unavailable -- and unavailable dimensions from other pillars are
   // discarded below anyway, so the returned pillar is byte-identical to what the full
   // computation produced for it.
-  const [workflow, screens, filterOverview, dashboardOverview, issueTypeOverview, userOverview, assetOverview, accessOverview, automationAnalysis] = await Promise.all([
+  const [workflow, screens, filterOverview, dashboardOverview, issueTypeOverview, userOverview, assetOverview, accessOverview, estateOverview, automationAnalysis] = await Promise.all([
     needs.has("workflow") ? buildWorkflowOverview(installationKey) : Promise.resolve(null),
     needs.has("screens") ? buildScreenOverview(installationKey) : Promise.resolve(null),
     needs.has("filters") ? buildFilterOverview(installationKey) : Promise.resolve(null),
@@ -5741,6 +5809,7 @@ async function getPillarHealth({ payload, context }) {
     needs.has("users") ? buildUserOverview(installationKey) : Promise.resolve(null),
     needs.has("assets") ? buildAssetOverview(installationKey) : Promise.resolve(null),
     needs.has("access") ? buildAccessOverview(installationKey) : Promise.resolve(null),
+    needs.has("estate") ? buildEstateOverview(installationKey) : Promise.resolve(null),
     needs.has("automation")
       ? readAutomationAnalysis(installationKey).catch(fallbackOn("pillar-health.automation_load_failed", () => null, { installationKey }))
       : Promise.resolve(null),
@@ -5798,6 +5867,7 @@ async function getPillarHealth({ payload, context }) {
     permissions: accessOverview?.permissions?.health ?? null,
     security: accessOverview?.security?.health ?? null,
     notifications: accessOverview?.notifications?.health ?? null,
+    estate: estateOverview?.health ?? null,
     tolerances: config?.healthTolerances,
   });
 
@@ -6640,6 +6710,7 @@ const AUDITED_ADMIN_ACTIONS = new Set([
   "buildAssetInventory",
   "buildAccessInventory",
   "buildChangeHistory",
+  "buildEstateInventory",
 ]);
 
 function withAuditTrail(functions) {
@@ -6756,6 +6827,10 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   // Configuration drift (the change-history timeline)
   getChangeHistory,        // Admin read: one page of detected config changes + a trailing-window summary
   buildChangeHistory,      // Mutating: queues a standalone drift pass
+
+  // Estate config (the global value lists — resolutions, priorities)
+  getEstateInventory,      // Admin read: the resolution and priority lists with the duplicate-name governance summary
+  buildEstateInventory,    // Mutating: queues an estate-config snapshot build
 
   getAutomationCascades,   // Admin read: one filtered page of cascade relationships
   getCascadeGraph,         // Admin read: loops and multi-rule chains across every edge

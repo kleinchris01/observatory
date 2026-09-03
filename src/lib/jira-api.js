@@ -130,6 +130,9 @@ export const METRIC_NAMES = {
   driftSnapshotStarted: "drift-snapshot-started",
   driftSnapshotCompleted: "drift-snapshot-completed",
   driftSnapshotFailed: "drift-snapshot-failed",
+  estateSnapshotStarted: "estate-snapshot-started",
+  estateSnapshotCompleted: "estate-snapshot-completed",
+  estateSnapshotFailed: "estate-snapshot-failed",
 };
 
 // ----- Module-level rate limiter state -----
@@ -1279,6 +1282,18 @@ export async function getAllNotificationSchemes() {
 export async function getAllStatuses() {
   const data = await jiraRequest(route`/rest/api/3/status`);
   return Array.isArray(data) ? data : [];
+}
+
+// The two global value lists every issue draws on: resolutions and priorities. Both are
+// site-wide (resolutions have no scheme layer at all; priorities have a thin one this pillar
+// does not yet read). The /search variants are the current, paginated endpoints and carry
+// `isDefault`; the bare /resolution and /priority are deprecated.
+export async function getAllResolutions() {
+  return paginate((startAt) => route`/rest/api/3/resolution/search?startAt=${startAt}&maxResults=100`);
+}
+
+export async function getAllPriorities() {
+  return paginate((startAt) => route`/rest/api/3/priority/search?startAt=${startAt}&maxResults=100`);
 }
 
 // Normalize a workflow-search response into [{ name, statusIds }].

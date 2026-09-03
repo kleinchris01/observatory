@@ -27,6 +27,7 @@ import { buildIssueTypeSnapshot } from "./lib/issuetype-engine.js";
 import { buildUserSnapshot } from "./lib/user-engine.js";
 import { buildAssetSnapshot } from "./lib/asset-engine.js";
 import { buildAccessSnapshot } from "./lib/access-engine.js";
+import { buildEstateSnapshot } from "./lib/estate-engine.js";
 import { buildDriftSnapshot } from "./lib/drift-engine.js";
 import { runFullScanStep, runQuickScanStep, startQuickScan, recoverStalledScan } from "./lib/full-scan-runner.js";
 import { buildFilterSnapshot } from "./lib/filter-engine.js";
@@ -450,6 +451,14 @@ export async function consumeSnapshot(event) {
       const result = await buildAccessSnapshot(installationKey);
       console.log(
         `build-access-snapshot: ${result?.permission ?? 0} permission, ${result?.security ?? 0} security, ${result?.notification ?? 0} notification schemes`
+      );
+      return;
+    }
+
+    if (jobType === "build-estate-snapshot") {
+      const result = await buildEstateSnapshot(installationKey);
+      console.log(
+        `build-estate-snapshot: ${result?.resolutions ?? 0} resolutions, ${result?.priorities ?? 0} priorities`
       );
       return;
     }

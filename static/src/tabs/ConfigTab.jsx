@@ -179,6 +179,8 @@ const DEFAULT_TOLERANCES = {
   unusedAccessSchemes: 0.35,
   brokenSecurityLevels: 0.15,
   fragileNotificationSchemes: 0.30,
+  duplicateResolutions: 0.15,
+  duplicatePriorities: 0.20,
 };
 
   const [local, setLocal] = React.useState(() => {
@@ -845,6 +847,20 @@ function RulesArea({ t, setThreshold, pct, setTolerancePercent }) {
             tail="of notification schemes sending an event to a named individual rather than a role or group." />
           <ToleranceRule tone="cleanup" badge="Access" name="Unused schemes" pct={pct} set={setTolerancePercent} k="unusedAccessSchemes"
             tail="of permission, security and notification schemes assigned to no project." />
+        </div>
+      </ConfigSection>
+
+      <ConfigSection title="Priorities &amp; resolutions" icon="flag">
+        <p className="admin-config-section__desc">
+          The two global value lists Jira offers no scheme layer to contain. A duplicated
+          resolution silently splits every resolution-based report, so it is bounded tighter
+          than priorities, which duplicate less often and matter less when they do.
+        </p>
+        <div className="admin-threshold-rules">
+          <ToleranceRule tone="standardize" badge="Resolutions" name="Duplicate resolution names" pct={pct} set={setTolerancePercent} k="duplicateResolutions"
+            tail="of the resolution list duplicating another entry &mdash; a Done / Fixed / Complete split makes every resolution report wrong." />
+          <ToleranceRule tone="standardize" badge="Priorities" name="Duplicate priority names" pct={pct} set={setTolerancePercent} k="duplicatePriorities"
+            tail="of the priority list duplicating another entry." />
         </div>
       </ConfigSection>
 
