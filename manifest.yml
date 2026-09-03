@@ -75,6 +75,32 @@ modules:
         - search-workflows
         - inspect-workflow
         - workflow-impact
+    - key: observatory-issuetype-expert
+      name: Observatory Issue Type Expert
+      description: A Jira issue type specialist that explains the type catalogue and its schemes, which schemes and projects a type reaches, near-duplicate type names, and whether a type is safe to retire.
+      prompt: resource:agent-resources;prompts/issuetype-expert.txt
+      conversationStarters:
+        - Give me an overview of the issue type catalogue and its schemes
+        - Which issue type names look like duplicates of each other?
+        - Which issue type schemes does no project use?
+        - What would break if I retired the "Change Request" issue type?
+      actions:
+        - search-issue-types
+        - inspect-issue-type
+        - issue-type-impact
+    - key: observatory-access-expert
+      name: Observatory Access Expert
+      description: A Jira access specialist that explains permission, issue-security and notification schemes and project roles, who holds what, and everywhere an account or group is named.
+      prompt: resource:agent-resources;prompts/access-expert.txt
+      conversationStarters:
+        - Give me an overview of the access schemes on this site
+        - Which permission schemes grant Browse Projects to anyone?
+        - Which issue-security schemes have a level with no members?
+        - Everywhere the "jira-administrators" group is named across schemes and roles
+      actions:
+        - search-access
+        - inspect-access
+        - access-impact
   action:
     - key: search-field-catalog
       name: Search field catalog
@@ -214,6 +240,92 @@ modules:
           type: string
           required: true
           description: The exact status name, such as "On Hold" or "Waiting for customer".
+    - key: search-issue-types
+      name: Search issue types and schemes
+      function: rovo-issuetype-search
+      actionVerb: GET
+      description: Search the issue type snapshot by name and return matching issue types and issue type schemes with their hierarchy level, project counts and membership counts.
+      inputs:
+        query:
+          title: Search query
+          type: string
+          required: true
+          description: An issue type name, a scheme name, or a short phrase.
+        kind:
+          title: Kind
+          type: string
+          required: false
+          description: Limit to type or scheme. Defaults to any.
+        maxResults:
+          title: Maximum results
+          type: integer
+          required: false
+          description: Optional maximum number of matches to return, from 1 to 20.
+    - key: inspect-issue-type
+      name: Inspect an issue type or scheme
+      function: rovo-issuetype-inspect
+      actionVerb: GET
+      description: Retrieve one issue type scheme (its members and the projects it governs) or one issue type (its hierarchy level and which schemes reach it).
+      inputs:
+        identifier:
+          title: Issue type or scheme
+          type: string
+          required: true
+          description: An issue type name or an issue type scheme name.
+    - key: issue-type-impact
+      name: Impact of changing an issue type
+      function: rovo-issuetype-impact
+      actionVerb: GET
+      description: Report which issue type schemes reach a type and how many projects those schemes govern. Use this before retiring or merging an issue type.
+      inputs:
+        name:
+          title: Issue type name
+          type: string
+          required: true
+          description: The exact issue type name, such as "Change Request".
+    - key: search-access
+      name: Search access schemes
+      function: rovo-access-search
+      actionVerb: GET
+      description: Search permission, issue-security and notification schemes and project roles by name and return matches with their project counts.
+      inputs:
+        query:
+          title: Search query
+          type: string
+          required: true
+          description: A scheme or role name, or a short phrase.
+        family:
+          title: Scheme family
+          type: string
+          required: false
+          description: Limit to permissions, security, notifications or roles. Defaults to all.
+        maxResults:
+          title: Maximum results
+          type: integer
+          required: false
+          description: Optional maximum number of matches per family, from 1 to 20.
+    - key: inspect-access
+      name: Inspect an access scheme
+      function: rovo-access-inspect
+      actionVerb: GET
+      description: Retrieve one permission / issue-security / notification scheme or project role with its holders, project count and governance findings.
+      inputs:
+        identifier:
+          title: Scheme or role
+          type: string
+          required: true
+          description: A permission, issue-security or notification scheme name, or a project role name.
+    - key: access-impact
+      name: Where an account or group is named
+      function: rovo-access-impact
+      actionVerb: GET
+      description: Report every permission / issue-security / notification scheme and project role that names a given account id, group name or display name, and how it is granted. Use this before deactivating an account or deleting a group.
+      inputs:
+        name:
+          title: Account id, group or display name
+          type: string
+          required: true
+          description: An accountId, a group name such as "jira-administrators", or a display name.
   consumer:
     - key: inventory-snapshot-consumer
       queue: inventory-snapshot-queue
@@ -247,6 +359,18 @@ modules:
       handler: index.rovoWorkflowInspect
     - key: rovo-workflow-impact
       handler: index.rovoWorkflowImpact
+    - key: rovo-issuetype-search
+      handler: index.rovoIssueTypeSearch
+    - key: rovo-issuetype-inspect
+      handler: index.rovoIssueTypeInspect
+    - key: rovo-issuetype-impact
+      handler: index.rovoIssueTypeImpact
+    - key: rovo-access-search
+      handler: index.rovoAccessSearch
+    - key: rovo-access-inspect
+      handler: index.rovoAccessInspect
+    - key: rovo-access-impact
+      handler: index.rovoAccessImpact
     - key: snapshot-consumer
       handler: index.consumeSnapshot
       timeoutSeconds: 900

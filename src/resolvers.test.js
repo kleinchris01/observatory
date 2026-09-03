@@ -557,6 +557,12 @@ import {
   rovoWorkflowSearch,
   rovoWorkflowInspect,
   rovoWorkflowImpact,
+  rovoIssueTypeSearch,
+  rovoIssueTypeInspect,
+  rovoIssueTypeImpact,
+  rovoAccessSearch,
+  rovoAccessInspect,
+  rovoAccessImpact,
   migrateNamespaceKeys,
   CLEAR_SNAPSHOT_CONFIRMATION,
   __RAW_ADMIN_ONLY_FUNCTIONS,
@@ -7371,3 +7377,146 @@ describe("rovo workflow agent", () => {
   });
 });
 
+
+// ---------------------------------------------------------------------------
+// Rovo issue type agent
+// ---------------------------------------------------------------------------
+describe("rovo issue type agent", () => {
+  const ctx = () => ctxWithAccount();
+
+  function seed() {
+    mocks.readIssueTypeSnapshotMeta.mockResolvedValue({ version: "v3", state: "ready", refreshedAt: "2026-09-02T00:00:00.000Z" });
+    mocks.loadIssueTypes.mockResolvedValue([
+      { id: "10", name: "Bug", hierarchyLevel: 0, subtask: false, description: "a defect" },
+      { id: "11", name: "Change Request", hierarchyLevel: 0, subtask: false, description: "" },
+      { id: "12", name: "Sub-task", hierarchyLevel: -1, subtask: true, description: "" },
+    ]);
+    mocks.loadIssueTypeSchemes.mockResolvedValue([
+      { schemeId: "s1", name: "Default Issue Type Scheme", isDefault: true, defaultIssueTypeId: "10" },
+      { schemeId: "s2", name: "Ops Scheme", isDefault: false },
+    ]);
+    mocks.loadIssueTypeSchemeItems.mockResolvedValue([
+      { schemeId: "s1", issueTypeId: "10" }, { schemeId: "s1", issueTypeId: "11" },
+    ]);
+    mocks.loadIssueTypeSchemeProjects.mockResolvedValue([
+      { schemeId: "s1", projectId: "1", projectKey: "ABC", projectName: "Alpha" },
+    ]);
+  }
+
+  test("search: unavailable with no snapshot", async () => {
+    mocks.readIssueTypeSnapshotMeta.mockResolvedValue({ state: "idle" });
+    const r = await rovoIssueTypeSearch({ query: "bug" }, ctx());
+    expect(r.status).toBe("issue types-unavailable");
+  });
+
+  test("search: ranks type and scheme matches", async () => {
+    seed();
+    const r = await rovoIssueTypeSearch({ query: "change" }, ctx());
+    expect(r.status).toBe("ok");
+    expect(r.refreshedAt).toBe("2026-09-02T00:00:00.000Z");
+    expect(r.issueTypes.map((t) => t.name)).toContain("Change Request");
+  });
+
+  test("inspect: a scheme lists its members and projects", async () => {
+    seed();
+    const r = await rovoIssueTypeInspect({ identifier: "Default Issue Type Scheme" }, ctx());
+    expect(r.kind).toBe("scheme");
+    expect(r.issueTypes.map((t) => t.name).sort()).toEqual(["Bug", "Change Request"]);
+    expect(r.projects).toEqual([{ projectKey: "ABC", projectName: "Alpha" }]);
+  });
+
+  test("inspect: a type reports which schemes reach it", async () => {
+    seed();
+    const r = await rovoIssueTypeInspect({ identifier: "Bug" }, ctx());
+    expect(r.kind).toBe("type");
+    expect(r.reachedBySchemeCount).toBe(1);
+  });
+
+  test("impact: a type no scheme reaches is no-scheme-reaches-it", async () => {
+    seed();
+    const r = await rovoIssueTypeImpact({ name: "Sub-task" }, ctx());
+    expect(r.verdict).toBe("no-scheme-reaches-it");
+    expect(r.reachedBySchemeCount).toBe(0);
+  });
+
+  test("impact: unknown type is not-found", async () => {
+    seed();
+    const r = await rovoIssueTypeImpact({ name: "Ghost" }, ctx());
+    expect(r.status).toBe("not-found");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Rovo access agent
+// ---------------------------------------------------------------------------
+describe("rovo access agent", () => {
+  const ctx = () => ctxWithAccount();
+
+  function seed() {
+    mocks.readAccessSnapshotMeta.mockResolvedValue({ version: "v2", state: "ready", refreshedAt: "2026-09-03T00:00:00.000Z" });
+    mocks.readUserSnapshotMeta.mockResolvedValue(null);
+    mocks.loadSchemes.mockImplementation(async (_k, _v, family) => {
+      if (family === "permission") return [{ id: "p1", name: "Default Permission Scheme", description: "" }];
+      if (family === "notification") return [{ id: "n1", name: "Default Notification Scheme", description: "" }];
+      return [];
+    });
+    mocks.loadSchemeHolders.mockImplementation(async (_k, _v, family) => {
+      if (family === "permission") return [
+        { schemeId: "p1", holderType: "group", holderName: "jira-administrators", permission: "ADMINISTER_PROJECTS", offRoster: false },
+        { schemeId: "p1", holderType: "group", holderName: "anyone", permission: "BROWSE_PROJECTS", offRoster: false },
+      ];
+      return [];
+    });
+    mocks.loadSchemeProjects.mockResolvedValue([{ schemeId: "p1", projectId: "1" }]);
+    mocks.loadSchemeLevels.mockResolvedValue([]);
+  }
+
+  test("search: unavailable with no snapshot", async () => {
+    mocks.readAccessSnapshotMeta.mockResolvedValue({ state: "idle" });
+    const r = await rovoAccessSearch({ query: "default" }, ctx());
+    expect(r.status).toBe("access-unavailable");
+  });
+
+  test("search: matches per family", async () => {
+    seed();
+    const r = await rovoAccessSearch({ query: "default" }, ctx());
+    expect(r.status).toBe("ok");
+    expect(r.schemes.permissions.map((s) => s.name)).toContain("Default Permission Scheme");
+    expect(r.schemes.notifications.map((s) => s.name)).toContain("Default Notification Scheme");
+  });
+
+  test("search: family filter narrows to one set", async () => {
+    seed();
+    const r = await rovoAccessSearch({ query: "default", family: "permissions" }, ctx());
+    expect(Object.keys(r.schemes)).toEqual(["permissions"]);
+  });
+
+  test("inspect: a scheme returns its holders and holder count", async () => {
+    seed();
+    const r = await rovoAccessInspect({ identifier: "Default Permission Scheme" }, ctx());
+    expect(r.family).toBe("permissions");
+    expect(r.holderCount).toBe(2);
+    expect(r.holders.map((h) => h.value)).toContain("jira-administrators");
+  });
+
+  test("inspect: unknown scheme is not-found", async () => {
+    seed();
+    const r = await rovoAccessInspect({ identifier: "Nope" }, ctx());
+    expect(r.status).toBe("not-found");
+  });
+
+  test("impact: a group names in schemes reports where and how", async () => {
+    seed();
+    const r = await rovoAccessImpact({ name: "jira-administrators" }, ctx());
+    expect(r.verdict).toBe("named-in-schemes");
+    expect(r.namedIn[0]).toMatchObject({ family: "permissions", as: "group", grants: "ADMINISTER_PROJECTS" });
+    expect(r.verdictCaveat).toMatch(/global permissions/);
+  });
+
+  test("impact: an unnamed account is not-named-in-any-scheme", async () => {
+    seed();
+    const r = await rovoAccessImpact({ name: "5b10ffffffffffffffffffff" }, ctx());
+    expect(r.verdict).toBe("not-named-in-any-scheme");
+    expect(r.namedInCount).toBe(0);
+  });
+});

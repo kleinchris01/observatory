@@ -4,8 +4,9 @@ import { formatNumber, formatRelativeTime } from "../utils";
 import { Icon } from "../components/Icons";
 import {
   StatTile, StatRow, Panel, EmptyState, Chip, PageHeader,
-  PanelGrid, GridSpan, PillarHealthPanel, BarList, FindingRow, SortFilterBar,
+  PanelGrid, GridSpan, PillarHealthPanel, BarList, FindingRow, SortFilterBar, AskRovo,
 } from "../components/ui";
+import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
 import { useNavIntent, useVisiblePolling } from "../hooks";
 
@@ -419,10 +420,30 @@ export function AccessTab({ intent }) {
   }
 
   const buildAction = (
-    <button type="button" className="secondary-button" onClick={startBuild} disabled={building || isBuilding}>
-      <Icon name="refreshCw" size={13} />
-      {isBuilding ? "Building…" : data?.neverBuilt ? "Build inventory" : "Rebuild"}
-    </button>
+    <>
+      <AskRovo
+        agent="observatory-access-expert"
+        scope="the access schemes"
+        context="the snapshot age and the scheme counts per family"
+        disabled={Boolean(data?.neverBuilt)}
+        buildPrompt={() =>
+          buildRovoPrompt({
+            task: "Give me an overview of the permission, issue-security and notification schemes and project roles on this site, and what to review first.",
+            facts: [
+              ["Snapshot built", data?.refreshedAt || "unknown"],
+              ["Permission schemes", (data?.permissions?.schemes || []).length || null],
+              ["Issue-security schemes", (data?.security?.schemes || []).length || null],
+              ["Notification schemes", (data?.notifications?.schemes || []).length || null],
+              ["Project roles", (data?.roles?.schemes || []).length || null],
+            ],
+          })
+        }
+      />
+      <button type="button" className="secondary-button" onClick={startBuild} disabled={building || isBuilding}>
+        <Icon name="refreshCw" size={13} />
+        {isBuilding ? "Building…" : data?.neverBuilt ? "Build inventory" : "Rebuild"}
+      </button>
+    </>
   );
 
   if (loading && !data) {

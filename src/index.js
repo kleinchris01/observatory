@@ -60,6 +60,12 @@ import {
   rovoWorkflowSearch,
   rovoWorkflowInspect,
   rovoWorkflowImpact,
+  rovoIssueTypeSearch,
+  rovoIssueTypeInspect,
+  rovoIssueTypeImpact,
+  rovoAccessSearch,
+  rovoAccessInspect,
+  rovoAccessImpact,
   SHARED_RESOLVER_FUNCTIONS,
   ADMIN_ONLY_FUNCTIONS,
 } from "./resolvers.js";
@@ -546,3 +552,5 @@ export const adminHandler = makeResolver({
 export { rovoSearchFields, rovoInspectField };
 export { rovoSearchAutomationRules, rovoInspectAutomationRule, rovoAutomationUsage };
 export { rovoWorkflowSearch, rovoWorkflowInspect, rovoWorkflowImpact };
+export { rovoIssueTypeSearch, rovoIssueTypeInspect, rovoIssueTypeImpact };
+export { rovoAccessSearch, rovoAccessInspect, rovoAccessImpact };
