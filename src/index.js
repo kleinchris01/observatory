@@ -66,6 +66,14 @@ import {
   rovoAccessSearch,
   rovoAccessInspect,
   rovoAccessImpact,
+  rovoPeopleSearch,
+  rovoPeopleInspect,
+  rovoPeopleImpact,
+  rovoAssetSearch,
+  rovoAssetInspect,
+  rovoAssetImpact,
+  rovoEstateSearch,
+  rovoEstateInspect,
   SHARED_RESOLVER_FUNCTIONS,
   ADMIN_ONLY_FUNCTIONS,
 } from "./resolvers.js";
@@ -554,3 +562,6 @@ export { rovoSearchAutomationRules, rovoInspectAutomationRule, rovoAutomationUsa
 export { rovoWorkflowSearch, rovoWorkflowInspect, rovoWorkflowImpact };
 export { rovoIssueTypeSearch, rovoIssueTypeInspect, rovoIssueTypeImpact };
 export { rovoAccessSearch, rovoAccessInspect, rovoAccessImpact };
+export { rovoPeopleSearch, rovoPeopleInspect, rovoPeopleImpact };
+export { rovoAssetSearch, rovoAssetInspect, rovoAssetImpact };
+export { rovoEstateSearch, rovoEstateInspect };

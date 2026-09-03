@@ -4,8 +4,9 @@ import { formatNumber, formatRelativeTime } from "../utils";
 import { Icon } from "../components/Icons";
 import {
   StatTile, StatRow, Panel, EmptyState, Chip, PageHeader,
-  PanelGrid, GridSpan, PillarHealthPanel, FindingRow, SortFilterBar,
+  PanelGrid, GridSpan, PillarHealthPanel, FindingRow, SortFilterBar, AskRovo,
 } from "../components/ui";
+import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
 import { useNavIntent, useVisiblePolling } from "../hooks";
 
@@ -146,10 +147,24 @@ export function PrioritiesTab({ intent }) {
   }
 
   const buildAction = (
-    <button type="button" className="secondary-button" onClick={startBuild} disabled={building || isBuilding}>
+    <>
+      <AskRovo
+        agent="observatory-estate-expert"
+        scope="the priority and resolution lists"
+        context="the snapshot age and the list sizes and near-duplicate counts"
+        disabled={Boolean(data?.neverBuilt)}
+        buildPrompt={() =>
+          buildRovoPrompt({
+            task: "Give me an overview of the priority and resolution lists on this site and what to look at first.",
+            facts: [["Snapshot built", data?.refreshedAt || "unknown"], ["Resolutions", data?.resolutions?.length ?? null], ["Priorities", data?.priorities?.length ?? null], ["Resolution list has a default", (data?.resolutions || []).some((r) => r.isDefault) ? "yes" : "no"], ["Priority list has a default", (data?.priorities || []).some((p) => p.isDefault) ? "yes" : "no"]],
+          })
+        }
+      />
+      <button type="button" className="secondary-button" onClick={startBuild} disabled={building || isBuilding}>
       <Icon name="refreshCw" size={13} />
       {isBuilding ? "Building…" : data?.neverBuilt ? "Build inventory" : "Rebuild"}
-    </button>
+      </button>
+    </>
   );
 
   if (loading && !data) {

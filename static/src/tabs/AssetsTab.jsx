@@ -4,8 +4,9 @@ import { formatNumber, formatRelativeTime } from "../utils";
 import { Icon } from "../components/Icons";
 import {
   StatTile, StatRow, Panel, EmptyState, Chip, PageHeader,
-  PanelGrid, GridSpan, PillarHealthPanel, BarList, FindingRow, SortFilterBar,
+  PanelGrid, GridSpan, PillarHealthPanel, BarList, FindingRow, SortFilterBar, AskRovo,
 } from "../components/ui";
+import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
 import { useNavIntent, useVisiblePolling } from "../hooks";
 
@@ -204,10 +205,24 @@ export function AssetsTab({ intent }) {
   }
 
   const buildAction = (
-    <button type="button" className="secondary-button" onClick={startBuild} disabled={building || isBuilding}>
+    <>
+      <AskRovo
+        agent="observatory-assets-expert"
+        scope="the Assets object structure"
+        context="the snapshot age and the schema / object-type counts"
+        disabled={Boolean(data?.neverBuilt)}
+        buildPrompt={() =>
+          buildRovoPrompt({
+            task: "Give me an overview of the Assets object structure on this site and what to look at first.",
+            facts: [["Snapshot built", data?.refreshedAt || "unknown"], ["Assets enabled", data?.assetsEnabled === false ? "no (needs JSM Premium)" : "yes"], ["Object schemas", data?.schemas?.length ?? null], ["Object types", data?.objectTypes?.length ?? null], ["Attributes", data?.attributes?.length ?? null]],
+          })
+        }
+      />
+      <button type="button" className="secondary-button" onClick={startBuild} disabled={building || isBuilding}>
       <Icon name="refreshCw" size={13} />
       {isBuilding ? "Building…" : data?.neverBuilt || data?.assetsEnabled === false ? "Check again" : "Rebuild"}
-    </button>
+      </button>
+    </>
   );
 
   if (loading && !data) {

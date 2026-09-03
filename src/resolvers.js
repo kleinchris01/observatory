@@ -5804,6 +5804,282 @@ export async function rovoAccessImpact(payload, context) {
   }
 }
 
+// ── Rovo: people expert ─────────────────────────────────────────────────────
+//
+// The roster and the ownership / reference graph, over getUserInventory and getUserDetails.
+
+export async function rovoPeopleSearch(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const query = String(payload?.query || "").trim();
+    const limit = clampResults(payload?.maxResults, 8, 20);
+    if (!query) return { status: "error", message: "A search query is required." };
+
+    const inv = await getUserInventory({ context });
+    if (inv.neverBuilt || !inv.version) return pillarUnavailable("people", { state: inv.state, refreshedAt: null });
+
+    const users = rankMatches(inv.users, query, (u) => [u.displayName, u.accountId], limit);
+    const groups = new Map();
+    for (const u of inv.users) for (const g of u.groups || []) {
+      if (!groups.has(g.id)) groups.set(g.id, { id: g.id, name: g.name, memberCount: 0 });
+      groups.get(g.id).memberCount += 1;
+    }
+    const groupMatches = rankMatches([...groups.values()], query, (g) => [g.name, g.id], limit);
+
+    return agentOk(inv.refreshedAt || null, {
+      query,
+      users: users.map((u) => ({
+        accountId: u.accountId, displayName: u.displayName, active: u.active !== false,
+        ownedFilters: u.ownedFilters ?? 0, ownedDashboards: u.ownedDashboards ?? 0,
+        authoredRules: u.authoredRules ?? 0, automationRefs: u.automationRefs ?? 0,
+      })),
+      groups: groupMatches,
+      rosterSize: inv.users.length,
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoPeopleSearch failed:", error);
+    throw error;
+  }
+}
+
+export async function rovoPeopleInspect(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const accountId = String(payload?.accountId || "").trim();
+    if (!accountId) return { status: "error", message: "An accountId is required. Use search first to resolve a name." };
+    const details = await getUserDetails({ payload: { accountId }, context });
+    if (!details.available) return pillarUnavailable("people", { state: "idle", refreshedAt: null });
+
+    return agentOk(null, {
+      accountId,
+      inRoster: Boolean(details.inRoster),
+      user: {
+        displayName: details.user?.displayName || accountId,
+        active: details.user?.active ?? null,
+        products: details.user?.applications || details.user?.products || [],
+        groups: (details.user?.groups || []).map((g) => g.name || g.id),
+      },
+      ownedFilters: (details.ownedFilters || []).length,
+      ownedDashboards: (details.ownedDashboards || []).length,
+      authoredRules: (details.authoredRules || []).length,
+      referencedInRules: (details.referencedInRules || []).map((r) => ({ id: r.id, name: r.name, direction: r.direction })),
+      grantedBySchemes: (details.grantedBySchemes || []).map((s) => ({ scheme: s.schemeName || s.name, family: s.schemeType || s.family, grants: s.permission || s.level || s.eventName || null })),
+      fieldAppearances: (details.fieldAppearances || []).map((f) => ({ field: f.fieldName, issueCount: f.issueCount })),
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoPeopleInspect failed:", error);
+    throw error;
+  }
+}
+
+export async function rovoPeopleImpact(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const accountId = String(payload?.accountId || "").trim();
+    if (!accountId) return { status: "error", message: "An accountId is required." };
+    const details = await getUserDetails({ payload: { accountId }, context });
+    if (!details.available) return pillarUnavailable("people", { state: "idle", refreshedAt: null });
+
+    const ownedFilters = (details.ownedFilters || []).length;
+    const ownedDashboards = (details.ownedDashboards || []).length;
+    const authoredRules = (details.authoredRules || []).length;
+    const writeRefs = (details.referencedInRules || []).filter((r) => r.direction === "write");
+    const grants = (details.grantedBySchemes || []).length;
+    const anything = ownedFilters + ownedDashboards + authoredRules + (details.referencedInRules || []).length + grants;
+
+    return agentOk(null, {
+      accountId,
+      displayName: details.user?.displayName || accountId,
+      active: details.user?.active ?? null,
+      ownedFilters, ownedDashboards, authoredRules,
+      rulesRoutingWorkHere: writeRefs.map((r) => ({ id: r.id, name: r.name })),
+      referencedInRuleCount: (details.referencedInRules || []).length,
+      directSchemeGrants: grants,
+      verdict: anything === 0 ? "no-cross-pillar-footprint" : "has-footprint",
+      verdictCaveat:
+        "Deactivating an account leaves its filters, dashboards and rules ownerless (boards and any dashboard on a wall break), and any rule that routes work to it stops assigning. " +
+        "This does not cover board leads, project leads, or app-specific ownership.",
+      dataCaveats: {
+        automation: details.automationRefsAvailable ? "checked" : "no automation analysis imported",
+        access: details.accessGrantsAvailable ? "checked" : "no access snapshot built",
+        fields: details.fieldAppearancesAvailable ? "checked" : "no field crawl since this landed",
+      },
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoPeopleImpact failed:", error);
+    throw error;
+  }
+}
+
+// ── Rovo: assets (CMDB) expert ──────────────────────────────────────────────
+//
+// Object schemas, hierarchical object types and their attributes, over getAssetInventory.
+
+export async function rovoAssetSearch(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const query = String(payload?.query || "").trim();
+    const kind = String(payload?.kind || "any").trim().toLowerCase();
+    const limit = clampResults(payload?.maxResults, 8, 20);
+    if (!query) return { status: "error", message: "A search query is required." };
+
+    const inv = await getAssetInventory({ context });
+    if (inv.state === "unavailable" || inv.assetsEnabled === false) {
+      return { status: "assets-not-enabled", message: "JSM Assets is not enabled on this site (it needs JSM Premium or Enterprise), so there is no object structure to search." };
+    }
+    if (inv.neverBuilt || !inv.version) return pillarUnavailable("assets", { state: inv.state, refreshedAt: null });
+
+    const schemas = kind === "type" ? [] : rankMatches(inv.schemas, query, (s) => [s.name, s.objectSchemaKey, s.key], limit);
+    const types = kind === "schema" ? [] : rankMatches(inv.objectTypes, query, (t) => [t.name], limit);
+
+    return agentOk(inv.refreshedAt || null, {
+      query,
+      schemas: schemas.map((s) => ({ id: s.id, name: s.name, key: s.objectSchemaKey || s.key || null, objectTypeCount: s.objectTypeCount ?? null })),
+      objectTypes: types.map((t) => ({ id: t.id, name: t.name, schemaId: t.objectSchemaId ?? t.schemaId ?? null, parentId: t.parentObjectTypeId ?? t.parentId ?? null })),
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoAssetSearch failed:", error);
+    throw error;
+  }
+}
+
+export async function rovoAssetInspect(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const identifier = String(payload?.identifier || "").trim();
+    if (!identifier) return { status: "error", message: "An object schema or object type name is required." };
+    const inv = await getAssetInventory({ context });
+    if (inv.state === "unavailable" || inv.assetsEnabled === false) {
+      return { status: "assets-not-enabled", message: "JSM Assets is not enabled on this site." };
+    }
+    if (inv.neverBuilt || !inv.version) return pillarUnavailable("assets", { state: inv.state, refreshedAt: null });
+    const idLower = identifier.toLowerCase();
+
+    const schema = (inv.schemas || []).find((s) => String(s.id) === identifier || String(s.name || "").toLowerCase() === idLower);
+    if (schema) {
+      const types = (inv.objectTypes || []).filter((t) => String(t.objectSchemaId ?? t.schemaId) === String(schema.id));
+      return agentOk(inv.refreshedAt || null, {
+        kind: "schema",
+        schema: { id: schema.id, name: schema.name, key: schema.objectSchemaKey || schema.key || null },
+        objectTypes: types.slice(0, 100).map((t) => ({ id: t.id, name: t.name, parentId: t.parentObjectTypeId ?? t.parentId ?? null })),
+        objectTypeCount: types.length,
+      });
+    }
+
+    const type = (inv.objectTypes || []).find((t) => String(t.id) === identifier || String(t.name || "").toLowerCase() === idLower);
+    if (!type) return agentNotFound(inv.refreshedAt || null, `No object schema or object type matched "${identifier}".`);
+
+    const attrs = (inv.attributes || []).filter((a) => String(a.objectTypeId ?? a.typeId) === String(type.id));
+    const children = (inv.objectTypes || []).filter((t) => String(t.parentObjectTypeId ?? t.parentId) === String(type.id));
+    const referencedBy = (inv.attributes || []).filter((a) => String(a.referenceObjectTypeId ?? a.referenceTypeId) === String(type.id));
+
+    return agentOk(inv.refreshedAt || null, {
+      kind: "type",
+      objectType: { id: type.id, name: type.name, schemaId: type.objectSchemaId ?? type.schemaId ?? null, parentId: type.parentObjectTypeId ?? type.parentId ?? null },
+      attributes: attrs.slice(0, 100).map((a) => ({ name: a.name, type: a.type || a.dataType || null, referenceType: a.referenceObjectTypeName || null })),
+      attributeCount: attrs.length,
+      childTypes: children.map((c) => ({ id: c.id, name: c.name })),
+      referencedByAttributeCount: referencedBy.length,
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoAssetInspect failed:", error);
+    throw error;
+  }
+}
+
+export async function rovoAssetImpact(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const name = String(payload?.name || "").trim();
+    if (!name) return { status: "error", message: "An object type name is required." };
+    const inv = await getAssetInventory({ context });
+    if (inv.state === "unavailable" || inv.assetsEnabled === false) {
+      return { status: "assets-not-enabled", message: "JSM Assets is not enabled on this site." };
+    }
+    if (inv.neverBuilt || !inv.version) return pillarUnavailable("assets", { state: inv.state, refreshedAt: null });
+
+    const type = (inv.objectTypes || []).find((t) => String(t.name || "").toLowerCase() === name.toLowerCase());
+    if (!type) return agentNotFound(inv.refreshedAt || null, `No object type named "${name}" was found.`);
+
+    const children = (inv.objectTypes || []).filter((t) => String(t.parentObjectTypeId ?? t.parentId) === String(type.id));
+    const referencingAttrs = (inv.attributes || []).filter((a) => String(a.referenceObjectTypeId ?? a.referenceTypeId) === String(type.id));
+
+    return agentOk(inv.refreshedAt || null, {
+      objectType: { id: type.id, name: type.name },
+      childTypes: children.map((c) => ({ id: c.id, name: c.name })),
+      childTypeCount: children.length,
+      referencedByAttributes: referencingAttrs.slice(0, 100).map((a) => ({ attribute: a.name, onType: a.objectTypeName || a.objectTypeId })),
+      referencedByAttributeCount: referencingAttrs.length,
+      verdict: children.length === 0 && referencingAttrs.length === 0 ? "nothing-references-it" : "referenced",
+      verdictCaveat:
+        "This covers the object type hierarchy and reference attributes within Assets. It does not cover the objects themselves, Assets automation, or object-reference custom fields on Jira issues.",
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoAssetImpact failed:", error);
+    throw error;
+  }
+}
+
+// ── Rovo: priorities & resolutions expert ───────────────────────────────────
+//
+// The two global value lists, over getEstateInventory. Search + inspect only: priority
+// schemes (which projects use which list) are not captured, so there is no "impact".
+
+export async function rovoEstateSearch(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const query = String(payload?.query || "").trim();
+    const kind = String(payload?.kind || "any").trim().toLowerCase();
+    const limit = clampResults(payload?.maxResults, 10, 20);
+    if (!query) return { status: "error", message: "A search query is required." };
+
+    const inv = await getEstateInventory({ context });
+    if (inv.neverBuilt) return pillarUnavailable("priorities & resolutions", { state: inv.state, refreshedAt: null });
+
+    const resolutions = kind === "priority" ? [] : rankMatches(inv.resolutions, query, (r) => [r.name, r.description], limit);
+    const priorities = kind === "resolution" ? [] : rankMatches(inv.priorities, query, (p) => [p.name, p.description], limit);
+
+    return agentOk(inv.refreshedAt || null, {
+      query,
+      resolutions: resolutions.map((r) => ({ id: r.id, name: r.name, isDefault: Boolean(r.isDefault), description: r.description || null })),
+      priorities: priorities.map((p) => ({ id: p.id, name: p.name, isDefault: Boolean(p.isDefault), description: p.description || null })),
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoEstateSearch failed:", error);
+    throw error;
+  }
+}
+
+export async function rovoEstateInspect(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const kind = String(payload?.list || "both").trim().toLowerCase();
+    const inv = await getEstateInventory({ context });
+    if (inv.neverBuilt) return pillarUnavailable("priorities & resolutions", { state: inv.state, refreshedAt: null });
+
+    const shape = (rows) => ({
+      count: rows.length,
+      hasDefault: rows.some((r) => r.isDefault),
+      values: rows.map((r) => ({ name: r.name, isDefault: Boolean(r.isDefault) })),
+    });
+    const out = { status: "ok", refreshedAt: inv.refreshedAt || null, findings: inv.governance?.findings || inv.governance || null };
+    if (kind !== "priorities") out.resolutions = shape(inv.resolutions || []);
+    if (kind !== "resolutions") out.priorities = shape(inv.priorities || []);
+    return out;
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoEstateInspect failed:", error);
+    throw error;
+  }
+}
+
 // ── Rovo: automation expert ──────────────────────────────────────────────────
 //
 // The agent answers only from the stored analysis. It has no route to the live rules, so

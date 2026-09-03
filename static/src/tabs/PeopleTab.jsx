@@ -2,7 +2,8 @@ import React from "react";
 import { invoke } from "@forge/bridge";
 import { formatNumber, formatRelativeTime } from "../utils";
 import { Icon } from "../components/Icons";
-import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, PanelGrid, GridSpan, PillarHealthPanel, BarList, SortFilterBar } from "../components/ui";
+import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, PanelGrid, GridSpan, PillarHealthPanel, BarList, SortFilterBar, AskRovo } from "../components/ui";
+import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
 import { useVisiblePolling } from "../hooks";
 
@@ -304,10 +305,24 @@ export function PeopleTab() {
   }
 
   const buildAction = (
-    <button type="button" className="secondary-button" onClick={startBuild} disabled={building || isBuilding}>
+    <>
+      <AskRovo
+        agent="observatory-people-expert"
+        scope="the licensed-user roster"
+        context="the roster size and the ownership / off-roster counts"
+        disabled={Boolean(data?.neverBuilt)}
+        buildPrompt={() =>
+          buildRovoPrompt({
+            task: "Give me an overview of the licensed-user roster on this site and what to look at first.",
+            facts: [["Snapshot built", data?.refreshedAt || "unknown"], ["Licensed accounts", data?.users?.length ?? null], ["Deactivated accounts still owning things", data?.governance?.orphanedOwnershipCount ?? null], ["Accounts named by automation rules", data?.governance?.automationRefUsers ?? null], ["Of those, off-roster", data?.governance?.orphanedAutomationRefUsers ?? null]],
+          })
+        }
+      />
+      <button type="button" className="secondary-button" onClick={startBuild} disabled={building || isBuilding}>
       <Icon name="refreshCw" size={13} />
       {isBuilding ? "Building…" : data?.neverBuilt ? "Build roster" : "Rebuild"}
-    </button>
+      </button>
+    </>
   );
 
   if (loading && !data) {

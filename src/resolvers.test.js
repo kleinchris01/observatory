@@ -563,6 +563,14 @@ import {
   rovoAccessSearch,
   rovoAccessInspect,
   rovoAccessImpact,
+  rovoPeopleSearch,
+  rovoPeopleInspect,
+  rovoPeopleImpact,
+  rovoAssetSearch,
+  rovoAssetInspect,
+  rovoAssetImpact,
+  rovoEstateSearch,
+  rovoEstateInspect,
   migrateNamespaceKeys,
   CLEAR_SNAPSHOT_CONFIRMATION,
   __RAW_ADMIN_ONLY_FUNCTIONS,
@@ -7518,5 +7526,178 @@ describe("rovo access agent", () => {
     const r = await rovoAccessImpact({ name: "5b10ffffffffffffffffffff" }, ctx());
     expect(r.verdict).toBe("not-named-in-any-scheme");
     expect(r.namedInCount).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Rovo people agent
+// ---------------------------------------------------------------------------
+describe("rovo people agent", () => {
+  const ctx = () => ctxWithAccount();
+
+  function seedRoster() {
+    mocks.readUserSnapshotMeta.mockResolvedValue({ state: "ready", version: "u1", refreshedAt: "2026-09-03T00:00:00.000Z" });
+    mocks.readSnapshotMeta.mockResolvedValue(null);
+    mocks.readAccessSnapshotMeta.mockResolvedValue(null);
+    mocks.readAutomationPart.mockResolvedValue(null);
+    mocks.loadSchemesGrantingHolder.mockResolvedValue([]);
+    mocks.loadUsers.mockResolvedValue([
+      { accountId: "acc-1", displayName: "Dana Ops", active: true, groups: [{ id: "g1", name: "ops-team" }], applications: ["jira-software"] },
+      { accountId: "acc-2", displayName: "Sam Gone", active: false, groups: [], applications: [] },
+    ]);
+    mocks.loadUserGovernanceSummary.mockResolvedValue({ totalUsers: 2, activeUsers: 1 });
+  }
+
+  test("search: unavailable with no roster", async () => {
+    mocks.readUserSnapshotMeta.mockResolvedValue(null);
+    const r = await rovoPeopleSearch({ query: "dana" }, ctx());
+    expect(r.status).toBe("people-unavailable");
+  });
+
+  test("search: resolves a display name to an account and surfaces groups", async () => {
+    seedRoster();
+    const r = await rovoPeopleSearch({ query: "ops" }, ctx());
+    expect(r.status).toBe("ok");
+    expect(r.users.map((u) => u.accountId)).toContain("acc-1");
+    expect(r.groups.map((g) => g.name)).toContain("ops-team");
+    expect(r.rosterSize).toBe(2);
+  });
+
+  test("search: empty query errors", async () => {
+    const r = await rovoPeopleSearch({ query: "" }, ctx());
+    expect(r.status).toBe("error");
+  });
+
+  test("inspect: requires an accountId", async () => {
+    const r = await rovoPeopleInspect({}, ctx());
+    expect(r.status).toBe("error");
+  });
+
+  test("inspect: unavailable when getUserDetails has no roster", async () => {
+    mocks.readUserSnapshotMeta.mockResolvedValue(null);
+    const r = await rovoPeopleInspect({ accountId: "acc-1" }, ctx());
+    expect(r.status).toBe("people-unavailable");
+  });
+
+  test("inspect: returns a footprint shape for a known account", async () => {
+    seedRoster();
+    const r = await rovoPeopleInspect({ accountId: "acc-1" }, ctx());
+    expect(r.status).toBe("ok");
+    expect(r).toHaveProperty("ownedFilters");
+    expect(r).toHaveProperty("referencedInRules");
+  });
+
+  test("impact: returns a verdict and per-source data caveats", async () => {
+    seedRoster();
+    const r = await rovoPeopleImpact({ accountId: "acc-2" }, ctx());
+    expect(r.status).toBe("ok");
+    expect(["no-cross-pillar-footprint", "has-footprint"]).toContain(r.verdict);
+    expect(r.dataCaveats).toHaveProperty("automation");
+    expect(r.verdictCaveat).toMatch(/ownerless/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Rovo assets agent
+// ---------------------------------------------------------------------------
+describe("rovo assets agent", () => {
+  const ctx = () => ctxWithAccount();
+
+  function seed() {
+    mocks.readAssetSnapshotMeta.mockResolvedValue({ state: "ready", version: "as1", assetsEnabled: true, refreshedAt: "2026-09-02T00:00:00.000Z" });
+    mocks.loadAssetSchemas.mockResolvedValue([{ id: "1", name: "Infrastructure", objectSchemaKey: "INFRA", objectTypeCount: 2 }]);
+    mocks.loadAssetObjectTypes.mockResolvedValue([
+      { id: "9", objectSchemaId: "1", name: "Server", parentObjectTypeId: null },
+      { id: "10", objectSchemaId: "1", name: "Rack", parentObjectTypeId: "9" },
+    ]);
+    mocks.loadAssetAttributes.mockResolvedValue([
+      { objectTypeId: "10", name: "Location", type: "text", referenceObjectTypeId: null },
+      { objectTypeId: "10", name: "Hosts", type: "reference", referenceObjectTypeId: "9" },
+    ]);
+  }
+
+  test("search: assets-not-enabled is its own state", async () => {
+    mocks.readAssetSnapshotMeta.mockResolvedValue({ state: "unavailable", assetsEnabled: false });
+    const r = await rovoAssetSearch({ query: "server" }, ctx());
+    expect(r.status).toBe("assets-not-enabled");
+  });
+
+  test("search: unavailable when built but no version", async () => {
+    mocks.readAssetSnapshotMeta.mockResolvedValue({ state: "idle" });
+    const r = await rovoAssetSearch({ query: "server" }, ctx());
+    expect(r.status).toBe("assets-unavailable");
+  });
+
+  test("search: ranks schema and type matches", async () => {
+    seed();
+    const r = await rovoAssetSearch({ query: "rack" }, ctx());
+    expect(r.status).toBe("ok");
+    expect(r.objectTypes.map((t) => t.name)).toContain("Rack");
+  });
+
+  test("inspect: a type reports attributes, children and reference count", async () => {
+    seed();
+    const r = await rovoAssetInspect({ identifier: "Server" }, ctx());
+    expect(r.kind).toBe("type");
+    expect(r.childTypes.map((c) => c.name)).toContain("Rack");
+    expect(r.referencedByAttributeCount).toBe(1);
+  });
+
+  test("impact: a referenced type is 'referenced'", async () => {
+    seed();
+    const r = await rovoAssetImpact({ name: "Server" }, ctx());
+    expect(r.verdict).toBe("referenced");
+    expect(r.referencedByAttributeCount).toBe(1);
+  });
+
+  test("impact: unknown type is not-found", async () => {
+    seed();
+    const r = await rovoAssetImpact({ name: "Ghost" }, ctx());
+    expect(r.status).toBe("not-found");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Rovo priorities & resolutions agent
+// ---------------------------------------------------------------------------
+describe("rovo estate agent", () => {
+  const ctx = () => ctxWithAccount();
+
+  function seed() {
+    mocks.readEstateSnapshotMeta.mockResolvedValue({ state: "ready", version: "e1", refreshedAt: "2026-09-03T00:00:00.000Z" });
+    mocks.loadEstateValues.mockImplementation(async (_k, _v, kind) => {
+      if (kind === "resolution") return [
+        { id: "1", name: "Done", isDefault: true }, { id: "2", name: "Fixed", isDefault: false },
+      ];
+      return [{ id: "1", name: "High", isDefault: false }, { id: "2", name: "Low", isDefault: false }];
+    });
+  }
+
+  test("search: unavailable with no snapshot", async () => {
+    mocks.readEstateSnapshotMeta.mockResolvedValue(null);
+    const r = await rovoEstateSearch({ query: "done" }, ctx());
+    expect(r.status).toBe("priorities & resolutions-unavailable");
+  });
+
+  test("search: matches resolutions and priorities", async () => {
+    seed();
+    const r = await rovoEstateSearch({ query: "done" }, ctx());
+    expect(r.status).toBe("ok");
+    expect(r.resolutions.map((x) => x.name)).toContain("Done");
+  });
+
+  test("inspect: reports counts and whether each list has a default", async () => {
+    seed();
+    const r = await rovoEstateInspect({}, ctx());
+    expect(r.status).toBe("ok");
+    expect(r.resolutions.hasDefault).toBe(true);
+    expect(r.priorities.hasDefault).toBe(false);
+  });
+
+  test("inspect: list filter narrows the response", async () => {
+    seed();
+    const r = await rovoEstateInspect({ list: "priorities" }, ctx());
+    expect(r).not.toHaveProperty("resolutions");
+    expect(r.priorities.count).toBe(2);
   });
 });
