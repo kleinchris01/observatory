@@ -3,6 +3,7 @@ import {
   analyzeFilter,
   classifyOwner,
   findBrokenProjectRefs,
+  findUnknownTypeRefs,
   findDuplicateFilters,
   isSharedWithEveryone,
   summarizeFilters,
@@ -168,6 +169,24 @@ describe("findBrokenProjectRefs", () => {
   });
 });
 
+describe("findUnknownTypeRefs", () => {
+  const names = new Set(["bug", "story", "epic"]);
+
+  test("finds a filter naming an issue type the site does not define", () => {
+    const found = findUnknownTypeRefs([filter({ id: "9", name: "Ghost", typeRefs: ["Sub-bug"] })], names);
+    expect(found).toEqual([{ id: "9", name: "Ghost", ownerName: "Bob", missing: ["Sub-bug"] }]);
+  });
+
+  test("matches a defined type case-insensitively and does not judge a numeric id", () => {
+    expect(findUnknownTypeRefs([filter({ typeRefs: ["BUG", "10001"] })], names)).toEqual([]);
+  });
+
+  test("checks nothing when the type catalog is unknown", () => {
+    expect(findUnknownTypeRefs([filter({ typeRefs: ["Nope"] })], null)).toEqual([]);
+    expect(findUnknownTypeRefs([filter({ typeRefs: ["Nope"] })], new Set())).toEqual([]);
+  });
+});
+
 describe("summarizeFilters", () => {
   const estate = [
     filter({ id: "1", name: "Fine" }),
@@ -228,31 +247,37 @@ describe("summarizeFilterHealth", () => {
     { now: NOW, projectKeys: new Set(Array.from({ length: 100 }, (_, i) => `P${i}`)) }
   ));
 
-  test("a clean estate rates zero", () => {
-    expect(build(() => null).defectRate).toBe(0);
+  // computeSiteHealth scores four filter dimensions from these raw counts directly. What this
+  // function owes it is the counts, not a pre-combined rate -- the old `defectRate` was a
+  // leftover from the single-dimension era with no consumer.
+  test("passes the four scored counts through, and the total", () => {
+    const summary = build((i) => (i < 10 ? { owner: null } : null));
+    expect(summary).toMatchObject({ available: true, total: 100, orphanedCount: 10 });
+    expect(summary).not.toHaveProperty("defectRate");
   });
 
-  test("weights an orphaned owner above an over-share", () => {
-    const orphans = build((i) => (i < 10 ? { owner: null } : null));
-    const shared = build((i) => (i < 10 ? { shares: [{ type: "global" }] } : null));
-    expect(orphans.defectRate).toBeGreaterThan(shared.defectRate);
+  // The filter-scope dimension needs to know whether the project catalog was available to
+  // join against -- without this passthrough it was permanently unavailable and
+  // brokenProjectCount never reached the score.
+  test("carries projectsChecked so the scope dimension can be scored", () => {
+    expect(build(() => null).projectsChecked).toBe(true);
+    const noCatalog = summarizeFilterHealth(summarizeFilters(
+      [filter({ id: "1", jql: "project = P1", projectRefs: ["P1"] })], { now: NOW }
+    ));
+    expect(noCatalog.projectsChecked).toBe(false);
   });
 
-  // Duplicates are the most numerous filter finding and the least consequential. Included at
-  // any weight they dominated the number, which would have made a dimension called "filter
-  // hygiene" into a duplicate counter wearing a governance label.
-  test("duplicates do not move the rate", () => {
-    const unique = summarizeFilters(
-      Array.from({ length: 50 }, (_, i) => filter({ id: String(i), jql: `project = P${i}` })),
-      { now: NOW }
-    );
+  // Duplicates are the most numerous filter finding and the least consequential, and are
+  // deliberately absent from every filter score -- the reducible count lives on the tab.
+  test("does not surface a duplicate figure among the scored counts", () => {
     const identical = summarizeFilters(
       Array.from({ length: 50 }, (_, i) => filter({ id: String(i), jql: "project = SAME" })),
       { now: NOW }
     );
-
     expect(identical.reducibleCount).toBe(49);
-    expect(summarizeFilterHealth(identical).defectRate).toBe(summarizeFilterHealth(unique).defectRate);
+    const health = summarizeFilterHealth(identical);
+    expect(health.orphanedCount).toBe(0);
+    expect(health.brokenProjectCount).toBe(0);
   });
 
   test("reports unavailable when there is no estate to rate", () => {

@@ -189,20 +189,30 @@ export function extractJqlStatuses(jql) {
   return valuesFor(jql, ["status"]);
 }
 
+// Issue type names a filter names. The `type` alias is Jira's own shorthand for `issuetype`
+// and appears in real filters at least as often as the long form, so both are read. Feeds
+// the cross-pillar check "this saved search targets a type no project it is scoped to can
+// create" -- a JQL that can never match, and the issue-type equivalent of a broken project
+// reference.
+export function extractJqlIssueTypes(jql) {
+  return valuesFor(jql, ["issuetype", "type"]);
+}
+
 // Everything one filter depends on, in the shape the reference table stores.
 export function extractJqlReferences(jql) {
   const { fields, pairs } = scanJql(jql);
-  const pick = (name) => {
+  const pick = (...names) => {
+    const wanted = new Set(names);
     const found = new Map();
     for (const pair of pairs) {
-      if (pair.field !== name) continue;
+      if (!wanted.has(pair.field)) continue;
       const key = pair.value.toLowerCase();
       if (KEYWORDS.has(key)) continue;
       if (!found.has(key)) found.set(key, pair.value);
     }
     return [...found.values()];
   };
-  return { fields, projects: pick("project"), statuses: pick("status") };
+  return { fields, projects: pick("project"), statuses: pick("status"), issueTypes: pick("issuetype", "type") };
 }
 
 // Two filters that would return the same issues.

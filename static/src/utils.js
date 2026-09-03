@@ -414,6 +414,17 @@ export function isSelectType(fieldType) {
   return SELECT_FIELD_TYPE_KEYWORDS.some((kw) => normalized.includes(kw));
 }
 
+// True for a field whose value is one or more people: the userpicker / multiuserpicker
+// custom types, and the assignee / reporter system fields. Used to decide whether the
+// "People in this field" cross-pillar section is worth showing.
+const USER_PICKER_SYSTEM_IDS = new Set(["assignee", "reporter"]);
+export function isUserPickerField(field) {
+  if (!field) return false;
+  if (USER_PICKER_SYSTEM_IDS.has(String(field.id))) return true;
+  const haystack = `${field.type || ""} ${field.customType || ""} ${field.fieldType || ""}`.toLowerCase();
+  return /user\s*picker|userpicker|:userpicker|:multiuserpicker|people/.test(haystack);
+}
+
 export function mergeFieldMetrics(field, source) {
   if (!source) {
     return field;

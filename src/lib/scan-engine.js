@@ -33,6 +33,8 @@ import {
   updateIssueScanWorker,
   replaceFieldOptionsCache,
   flushIssueScanCounts,
+  flushIssueScanTypeCounts,
+  flushIssueScanFieldUserCounts,
   flushIssueScanActivity,
   promoteIssueScanActivity,
   flushIssueScanStatusCounts,
@@ -51,6 +53,8 @@ import {
   tryClaimIssueScanFinalization,
   loadIssueScanProjectTotals,
   promoteIssueScanToSnapshotProjectUsage,
+  promoteIssueScanFieldTypeUsage,
+  promoteIssueScanFieldUserUsage,
 } from "./project-store.js";
 import {
   STRUCTURAL_SYSTEM_FIELDS,
@@ -85,6 +89,22 @@ export function isJiraRateLimitError(error) {
   return Number(error?.status) === 429;
 }
 
+// The accountIds carried by a field value, if any. A user-picker value is
+// { accountId, displayName, ... }; a multi-user picker is an array of those. Anything
+// without an accountId contributes nothing, so the caller's tally stays empty for every
+// non-user field.
+export function accountsInValue(value) {
+  const out = [];
+  const push = (v) => {
+    if (v && typeof v === "object" && typeof v.accountId === "string" && v.accountId) {
+      out.push({ accountId: v.accountId, displayName: typeof v.displayName === "string" ? v.displayName : null });
+    }
+  };
+  if (Array.isArray(value)) value.forEach(push);
+  else push(value);
+  return out;
+}
+
 // A Forge PLATFORM limit, not a Jira one. The async-events queue caps how many jobs one
 // installation may have in flight; past that, push() is rejected with one of these. It is
 // transient -- the ceiling clears within seconds as running jobs drain -- so a push that
@@ -113,10 +133,13 @@ function isQueuePushRejection(error) {
   return /\b400\b/.test(String(error?.message || error || ""));
 }
 
-// How many times a worker re-queue is retried before the push is allowed to fail. Five
-// attempts back off ~2s, 4s, 8s, 16s -- about half a minute, comfortably longer than a
-// transient queue-depth spike while several workers re-queue in the same window.
-const ISSUE_SCAN_WORKER_PUSH_ATTEMPTS = 5;
+// How many times a worker re-queue is retried before the push is allowed to fail. Eight
+// attempts back off ~3s, 6s, 12s, 24s, 45s, 45s, 45s -- around three minutes, long enough
+// to ride out a cyclic-invocation ceiling that clears once other chains drain. If it still
+// will not land after that, the worker PAUSES rather than fails (see the catch in
+// runIssueScanWorkerV2): its checkpoint is intact and reviveStalledIssueScanWorkers
+// re-queues it from a fresh chain.
+const ISSUE_SCAN_WORKER_PUSH_ATTEMPTS = 8;
 
 export function isExpiredPageTokenError(error) {
   return Number(error?.status) === 400 && String(error?.message || "").toLowerCase().includes("next page token");
@@ -177,13 +200,71 @@ export async function queueIssueScanWorker(installationKey, workerId, { delaySec
       return;
     } catch (error) {
       if (!isQueuePushRejection(error) || attempt === ISSUE_SCAN_WORKER_PUSH_ATTEMPTS) {
+        // Tag an exhausted queue-limit rejection so the worker catch pauses (keeps its
+        // slot open for a later revive) instead of closing it and finalizing a partial run.
+        if (isQueuePushRejection(error)) error.isQueueBackpressureExhausted = true;
         throw error;
       }
-      const backoffMs = Math.min(20000, 2000 * (2 ** (attempt - 1))) + Math.floor(Math.random() * 1000);
+      const backoffMs = Math.min(45000, 3000 * (2 ** (attempt - 1))) + Math.floor(Math.random() * 1000);
       logger.warn("scan.worker_requeue_backpressure", { installationKey, workerId, attempt, backoffMs });
       await sleep(backoffMs);
     }
   }
+}
+
+// The marker runIssueScanWorkerV2 writes on a worker it parked because its self-re-queue
+// could not clear the Forge cyclic-invocation ceiling. reviveStalledIssueScanWorkers keys
+// off exactly this so it can never race a worker the coordinator has only just queued.
+const WORKER_PAUSED_MARKER = "Paused on a Forge queue limit";
+
+// Re-queue any crawl worker that PAUSED because its own re-queue could not land.
+//
+// A worker re-queues itself every chunk. When that push cannot clear a Forge cyclic-invocation
+// ceiling -- several chains re-queuing at once -- the worker writes its checkpoint, marks
+// itself `queued` with WORKER_PAUSED_MARKER, and stops (see the catch in runIssueScanWorkerV2).
+// Nothing in the worker's own chain can restart it then, by definition. This runs from OUTSIDE
+// that chain -- the full scan's issues poll every 30s, and the hourly watchdog -- so its
+// re-queue starts a fresh chain clear of the ceiling.
+//
+// Deliberately narrow: only a worker carrying the pause marker is touched. A freshly
+// coordinator-queued worker has no marker, and an in-flight worker is `building`, so neither
+// can be double-queued from here. Finalisation cannot fire while the paused worker holds its
+// slot open (it was never accumulated), so this is what lets a transient limit self-heal
+// with full coverage instead of dropping ~30k issues and reporting clean.
+export async function reviveStalledIssueScanWorkers(installationKey) {
+  const meta = await readIssueScanMeta(installationKey).catch(() => null);
+  if (meta?.state !== "building") return { revived: 0, checked: 0 };
+
+  const workers = await Promise.all(
+    Array.from({ length: ISSUE_SCAN_WORKERS }, (_, workerId) =>
+      readIssueScanWorker(installationKey, workerId).catch(() => null))
+  );
+
+  let revived = 0;
+  for (let workerId = 0; workerId < workers.length; workerId++) {
+    const worker = workers[workerId];
+    if (!worker) continue;
+    if (worker.status !== "queued") continue;
+    if (!String(worker.lastError || "").includes(WORKER_PAUSED_MARKER)) continue;
+
+    try {
+      // Clear the marker first so a second watchdog tick a moment later does not re-queue the
+      // same worker while its restart message is still in flight.
+      await updateIssueScanWorker(installationKey, workerId, { lastError: null })
+        .catch(ignoreWith("scan.worker_revive_marker_clear_failed", { workerId }));
+      await queueIssueScanWorker(installationKey, workerId, { delaySeconds: 1 + workerId });
+      revived += 1;
+      logger.warn("scan.worker_revived", { installationKey, workerId });
+    } catch (error) {
+      // The ceiling is still hot. Put the marker back so the next tick retries -- the worker's
+      // slot stays open, so nothing finalises without it.
+      await updateIssueScanWorker(installationKey, workerId, {
+        lastError: `${WORKER_PAUSED_MARKER}; resuming automatically once platform limits clear.`,
+      }).catch(ignoreWith("scan.worker_revive_marker_restore_failed", { workerId }));
+      logger.warn("scan.worker_revive_deferred", { installationKey, workerId, error: String(error?.message || error) });
+    }
+  }
+  return { revived, checked: workers.filter(Boolean).length };
 }
 
 export async function queueFieldOptionsCache(installationKey, fieldId) {
@@ -212,20 +293,46 @@ export async function completeIssueScanFinalization(installationKey, tag, worker
       .catch(fallbackOn("scan.activity_promote_failed", { projectsPromoted: 0, rowsInserted: 0 }, { installationKey }));
     console.log(`${tag}: promoted activity for ${activityPromoted.projectsPromoted} projects (${activityPromoted.rowsInserted} rows)`);
 
+    // Read every worker's final state once, up front: it decides both whether the crawl's
+    // totals can be trusted as authoritative AND whether this run carries a coverage caveat.
+    const workers = await Promise.all(
+      Array.from({ length: ISSUE_SCAN_WORKERS }, (_, workerId) =>
+        readIssueScanWorker(installationKey, workerId).catch(fallbackOn("scan.worker_read_failed", null, { workerId })))
+    );
+    const scanCoverageComplete = workers.every((worker) => !worker || worker.status === "done");
+    const unfinished = workers
+      .map((worker, workerId) => ({ workerId, worker }))
+      .filter(({ worker }) => worker && worker.status !== "done");
+    // Never let a partial crawl report as clean. `workerError` from the caller wins if given;
+    // otherwise derive the caveat from the workers themselves. This line was silently `null`
+    // before — the finalize write clobbered the "worker N stopped" note the catch had just
+    // written, so a run that dropped tens of thousands of issues showed a green tick.
+    const coverageCaveat = workerError
+      || (unfinished.length
+        ? `${unfinished.length} of ${ISSUE_SCAN_WORKERS} crawl workers did not finish `
+          + `(${unfinished.map(({ workerId, worker }) => `worker ${workerId}: ${worker.lastError || worker.status}`).join("; ")}). `
+          + `Their projects keep their previous issue counts — re-run the scan to complete them.`
+        : null);
+
     const snapshotMeta = await readSnapshotMeta(installationKey);
     if (snapshotMeta?.version) {
       // Only trust the crawl's totals as authoritative (and zero out fields it never saw)
       // when every worker actually finished — a field absent from a partial crawl's buffer
       // is "not yet crawled," not "confirmed zero," and treating it as the latter would
       // erase good data from a previous run.
-      const workers = await Promise.all(
-        Array.from({ length: ISSUE_SCAN_WORKERS }, (_, workerId) =>
-          readIssueScanWorker(installationKey, workerId).catch(fallbackOn("scan.worker_read_failed", null, { workerId })))
-      );
-      const scanCoverageComplete = workers.every((worker) => !worker || worker.status === "done");
-
       const promoted = await promoteIssueScanToSnapshotProjectUsage(installationKey, snapshotMeta.version, { syncTotalIssueCount: scanCoverageComplete });
       console.log(`${tag}: promoted ${promoted.fieldsPromoted} fields (${promoted.rowsInserted} rows)${scanCoverageComplete ? ", totals synced" : ""}`);
+
+      // The field x issue-type axis, promoted the same way and gated the same way: a field
+      // absent from a partial crawl's buffer is "not yet crawled", not "used on no type".
+      const typePromoted = await promoteIssueScanFieldTypeUsage(installationKey, snapshotMeta.version, { coverageComplete: scanCoverageComplete })
+        .catch(fallbackOn("scan.field_type_promote_failed", { fieldsPromoted: 0, rowsInserted: 0 }, { installationKey }));
+      console.log(`${tag}: promoted issue-type usage for ${typePromoted.fieldsPromoted} fields (${typePromoted.rowsInserted} rows)`);
+
+      // The field x user axis: which people a user-picker field references. Same gating.
+      const userPromoted = await promoteIssueScanFieldUserUsage(installationKey, snapshotMeta.version, { coverageComplete: scanCoverageComplete })
+        .catch(fallbackOn("scan.field_user_promote_failed", { fieldsPromoted: 0, rowsInserted: 0 }, { installationKey }));
+      console.log(`${tag}: promoted user-picker usage for ${userPromoted.fieldsPromoted} fields (${userPromoted.rowsInserted} rows)`);
 
       if (promoted.touchedFieldIds?.length) {
         const refreshed = await refreshGovernanceFindingsForFields(installationKey, snapshotMeta.version, promoted.touchedFieldIds).catch((err) => {
@@ -240,7 +347,12 @@ export async function completeIssueScanFinalization(installationKey, tag, worker
     const completionTimestamp = new Date().toISOString();
     const completedProgressLog = [
       ...((finalMeta?.progressLog || []).slice(-40)),
-      { t: completionTimestamp, msg: `Scan complete - ${(finalMeta?.processedIssues || 0).toLocaleString()} issues` },
+      {
+        t: completionTimestamp,
+        msg: coverageCaveat
+          ? `Scan complete with partial coverage - ${(finalMeta?.processedIssues || 0).toLocaleString()} issues. ${coverageCaveat}`
+          : `Scan complete - ${(finalMeta?.processedIssues || 0).toLocaleString()} issues`,
+      },
     ];
     const prevScanHistory = (finalMeta?.scanHistory || []).slice(-14);
     await writeIssueScanMeta(installationKey, {
@@ -248,7 +360,7 @@ export async function completeIssueScanFinalization(installationKey, tag, worker
       completedAt: completionTimestamp,
       nextPageToken: null,
       nextStartAt: 0,
-      lastError: workerError,
+      lastError: coverageCaveat,
       progressLog: completedProgressLog,
       scanHistory: [
         ...prevScanHistory,
@@ -599,6 +711,14 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
   resetScanTelemetry();
   let pendingIssues = 0;
   const fieldProjectCounts = new Map();
+  // fieldId -> Map<issueTypeId, { count, name }>. The third axis of field usage: which issue
+  // types actually carry a value. Same cost as fieldProjectCounts -- an accumulator over data
+  // already on every issue (the crawl requests "*all") -- no extra Jira traffic.
+  const fieldTypeCounts = new Map();
+  // fieldId -> Map<accountId, { count, name }>. The fourth axis: which PEOPLE a user-picker
+  // field actually references. Populated only for values that carry an accountId, so it stays
+  // empty for every non-user field. Same zero-cost accumulator over data already on the issue.
+  const fieldUserCounts = new Map();
   const projectTotals = new Map();
   // One entry per project per month, carrying the exact first and last issue seen in it.
   // Keyed the same way the row is, so a flush is a straight map over the values.
@@ -680,6 +800,8 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
 
     async function drainBuffers() {
       const counts = new Map(fieldProjectCounts);
+      const typeCounts = new Map(fieldTypeCounts);
+      const userCounts = new Map(fieldUserCounts);
       const totals = new Map(projectTotals);
       const months = new Map(projectMonths);
       const statuses = new Map(statusCounts);
@@ -688,6 +810,8 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
       const rqtValues = rqtValueBuffer.splice(0);
       const rqtFieldIssues = rqtFieldIssueBuffer.splice(0);
       fieldProjectCounts.clear();
+      fieldTypeCounts.clear();
+      fieldUserCounts.clear();
       projectTotals.clear();
       projectMonths.clear();
       statusCounts.clear();
@@ -696,6 +820,12 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
       if (counts.size > 0 || totals.size > 0) {
         await flushIssueScanCounts(installationKey, counts, totals).catch(ignoreWith("scan.count_flush_failed", { workerId }));
         await flushIssueScanActivity(installationKey, months).catch(ignoreWith("scan.activity_flush_failed", { workerId }));
+      }
+      if (userCounts.size > 0) {
+        await flushIssueScanFieldUserCounts(installationKey, userCounts).catch(ignoreWith("scan.field_user_flush_failed", { workerId }));
+      }
+      if (typeCounts.size > 0) {
+        await flushIssueScanTypeCounts(installationKey, typeCounts).catch(ignoreWith("scan.type_flush_failed", { workerId }));
       }
       if (statuses.size > 0) {
         await flushIssueScanStatusCounts(installationKey, statuses).catch(ignoreWith("scan.status_flush_failed", { workerId }));
@@ -873,6 +1003,10 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
           statusCounts.set(statusKey, statusEntry);
         }
 
+        const issueType = issue.fields?.issuetype;
+        const issueTypeId = issueType?.id ? String(issueType.id) : "";
+        const issueTypeName = issueType?.name || issueTypeId;
+
         for (const [fieldId, value] of Object.entries(issue.fields || {})) {
           if (STRUCTURAL_SYSTEM_FIELDS.has(fieldId)) continue;
           if (!isFieldValueNonEmpty(value)) continue;
@@ -884,6 +1018,35 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
           const entry = byProject.get(projectId) || { count: 0, key: projectKey_, name: projectName };
           entry.count++;
           byProject.set(projectId, entry);
+
+          // Same value, second axis: which issue type is carrying it.
+          if (issueTypeId) {
+            let byType = fieldTypeCounts.get(fieldId);
+            if (!byType) {
+              byType = new Map();
+              fieldTypeCounts.set(fieldId, byType);
+            }
+            const typeEntry = byType.get(issueTypeId) || { count: 0, name: issueTypeName };
+            typeEntry.count++;
+            byType.set(issueTypeId, typeEntry);
+          }
+
+          // Fourth axis: if the value is a user (or list of users), which people. Nothing is
+          // tallied for a non-user value, so this Map only ever contains user-picker fields.
+          const accounts = accountsInValue(value);
+          if (accounts.length) {
+            let byAccount = fieldUserCounts.get(fieldId);
+            if (!byAccount) {
+              byAccount = new Map();
+              fieldUserCounts.set(fieldId, byAccount);
+            }
+            for (const { accountId, displayName } of accounts) {
+              const acctEntry = byAccount.get(accountId) || { count: 0, name: displayName || null };
+              acctEntry.count++;
+              if (!acctEntry.name && displayName) acctEntry.name = displayName;
+              byAccount.set(accountId, acctEntry);
+            }
+          }
         }
 
         const issueRqt = collectIssueRqtValues(issue.fields, issue.fields?.summary);
@@ -1009,15 +1172,34 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
     const errMsg = error?.message || String(error);
     console.error(`${tag} failed:`, errMsg);
 
-    // A Forge queue limit that survived every re-queue retry is still transient in nature --
-    // the ceiling clears on its own -- but nothing re-picks up a mid-scan worker, so the
-    // slot is closed here rather than left hanging every other worker for hours. The message
-    // says WHY and what to do, because "may be incompletely counted" alone sent people
-    // hunting for a Jira problem that does not exist. The projects keep last scan's numbers
-    // (the partial-coverage gate in completeIssueScanFinalization), so nothing is corrupted.
-    // A Jira 400 (bad JQL, expired page token) is handled inside runSlice and never reaches
-    // here -- so a rejection that looks like a queue-limit at this point is one: the worker
-    // re-queue push that could not land after every retry.
+    // A Forge queue limit that outlasted every re-queue retry is a PAUSE, not a failure.
+    // The worker's slices and cursors are already checkpointed, so leave its slot OPEN --
+    // do NOT accumulate it (that is what keeps finalization waiting) and mark it "queued"
+    // so reviveStalledIssueScanWorkers re-queues it from a fresh chain once the ceiling
+    // clears. Finalizing here would drop this worker's projects and still mark the run
+    // clean. The full scan's issues poll keeps waiting; its 4-hour frozen-signature guard
+    // is the backstop if the limit never clears.
+    if (error?.isQueueBackpressureExhausted) {
+      await updateIssueScanWorker(installationKey, workerId, {
+        status: "queued",
+        lastError: `${WORKER_PAUSED_MARKER}; resuming automatically once platform limits clear.`,
+      }).catch(ignoreWith("scan.worker_pause_write_failed", { workerId }));
+      await appendIssueScanLogEntry(
+        installationKey,
+        `Worker ${workerId} paused: the Forge async-queue limit held through every retry. Its progress is saved and it resumes automatically once the limit clears — no issues are lost.`
+      ).catch(ignoreWith("scan.log_append_failed", { workerId }));
+      await writeIssueScanMeta(installationKey, {
+        lastError: `Worker ${workerId} paused on a Forge queue limit — resuming automatically.`,
+      }).catch(ignoreWith("scan.worker_pause_meta_write_failed", { workerId }));
+      logger.warn("scan.worker_paused_backpressure", { installationKey, workerId });
+      return;
+    }
+
+    // A different error, or a queue-limit that we are choosing to stop retrying: close the
+    // slot so the other workers are not held at "building" forever waiting on a fifth that
+    // is not coming back. The projects keep last scan's numbers (the partial-coverage gate
+    // in completeIssueScanFinalization), so nothing is corrupted. A Jira 400 (bad JQL,
+    // expired page token) is handled inside runSlice and never reaches here.
     const backpressure = isQueuePushRejection(error);
     const workerNote = backpressure
       ? `Worker ${workerId} stopped: the Forge async-queue limit for this installation held through every retry. Its projects keep their previous counts — re-run the scan once platform limits reset.`

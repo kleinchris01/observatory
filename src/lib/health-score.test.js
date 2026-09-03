@@ -105,11 +105,56 @@ const screens = (over = {}) => ({
   ...over,
 });
 
+const issueTypes = (over = {}) => ({
+  available: true,
+  totalTypes: 63,
+  totalSchemes: 24,
+  orphanTypeCount: 0,
+  unusedSchemeCount: 0,
+  reducibleTypeCount: 0,
+  duplicateTypeGroupCount: 0,
+  hierarchyFlaggedSchemeCount: 0,
+  ...over,
+});
+
+// The People pillar's health input: the licensed-user count with how many are deactivated,
+// and the owned-artifact total with how many belong to an account off the roster.
+const users = (over = {}) => ({
+  available: true,
+  totalUsers: 500,
+  deactivatedUsers: 0,
+  ownedArtifactTotal: 600,
+  orphanedArtifacts: 0,
+  ...over,
+});
+
+// The Assets (CMDB) pillar's health input. `assetsEnabled: false` is the common case and
+// takes the pillar out of the score entirely; this fixture is the JSM-Premium site.
+const assets = (over = {}) => ({
+  available: true,
+  assetsEnabled: true,
+  totalSchemas: 12,
+  deadSchemaCount: 0,
+  concreteObjectTypes: 140,
+  bareTypeCount: 0,
+  brokenHierarchyCount: 0,
+  referenceAttributeCount: 90,
+  brokenReferenceCount: 0,
+  ...over,
+});
+
+// The three access pillars' health inputs.
+const permissions = (over = {}) => ({ available: true, totalSchemes: 8, riskySchemeCount: 0, unusedSchemeCount: 0, ...over });
+const security = (over = {}) => ({ available: true, totalSchemes: 4, totalLevels: 12, brokenLevelCount: 0, unusedSchemeCount: 0, ...over });
+const notifications = (over = {}) => ({ available: true, totalSchemes: 5, fragileSchemeCount: 0, unusedSchemeCount: 0, ...over });
+
 describe("computeSiteHealth — scoring", () => {
   test("a clean site scores at the top", () => {
     const health = computeSiteHealth({
       fieldUsage: fieldUsage(), workflow: workflow(), projects: projects(),
-      automation: automation(), screens: screens(), adoption: adoption(), filters: filters(), dashboards: dashboards(),
+      automation: automation(), screens: screens(), adoption: adoption(), filters: filters(),
+      dashboards: dashboards(), issueTypes: issueTypes(), users: users(), assets: assets(),
+      permissions: permissions(), security: security(), notifications: notifications(),
     });
 
     expect(health.score).toBeGreaterThanOrEqual(90);
@@ -278,13 +323,17 @@ describe("computeSiteHealth — scoring", () => {
       expect(dim(idle, "project-consistency").action).toMatch(/6 of them carry little issue volume/);
     });
 
-    test("scores activity separately from shape", () => {
+    // Activity scores ONLY projects that carry no work at all. Staleness ("nothing in six
+    // months") is no longer scored here -- project-adoption grades a project that went quiet
+    // age-relative, and a stale project is always old enough for it to judge, so scoring both
+    // charged one abandoned project twice into the projects pillar.
+    test("scores never-used projects, not stale ones", () => {
       const health = computeSiteHealth({
         projects: projects({ totalProjects: 200, staleProjectCount: 31, unusedProjectCount: 12 }),
       });
-      // 43/200 against a 30% tolerance.
-      expect(dim(health, "project-activity").score).toBe(28);
-      expect(dim(health, "project-activity").detail).toMatch(/31 projects.*no activity.*12 carry fields/);
+      // 12/200 against a 30% tolerance -- staleProjectCount does not enter.
+      expect(dim(health, "project-activity").score).toBe(80);
+      expect(dim(health, "project-activity").detail).toMatch(/12 of 200 projects carry fields but no recorded work/);
     });
 
     test("both are unavailable without project usage data", () => {
@@ -403,6 +452,205 @@ describe("screen dimensions", () => {
     for (const key of ["screen-integrity", "screen-hygiene"]) {
       expect(dim(health, key).available).toBe(false);
       expect(dim(health, key).reason).toMatch(/no screen inventory/i);
+    }
+  });
+});
+
+describe("issue type dimensions", () => {
+  const dim = (health, key) => health.dimensions.find((d) => d.key === key);
+
+  test("scores a type on no scheme as unreachable, weighted above the others", () => {
+    const clean = computeSiteHealth({ issueTypes: issueTypes() });
+    const orphans = computeSiteHealth({ issueTypes: issueTypes({ totalTypes: 63, orphanTypeCount: 8 }) });
+
+    expect(dim(clean, "issue-type-reach").score).toBe(100);
+    // 8/63 against a 0.12 tolerance -> bottomed out.
+    expect(dim(orphans, "issue-type-reach").score).toBe(0);
+    expect(dim(orphans, "issue-type-reach").detail).toMatch(/no project can create one/i);
+    expect(dim(orphans, "issue-type-reach").weight).toBe(1.5);
+  });
+
+  test("scores an unassigned scheme forgivingly, and a near-duplicate name like a status", () => {
+    const unused = computeSiteHealth({ issueTypes: issueTypes({ totalSchemes: 24, unusedSchemeCount: 4 }) });
+    // 4/24 against a 0.40 tolerance -> ~58, not bottomed out.
+    expect(dim(unused, "issue-type-scheme-usage").score).toBeGreaterThan(40);
+
+    const dupes = computeSiteHealth({ issueTypes: issueTypes({ totalTypes: 63, reducibleTypeCount: 6, duplicateTypeGroupCount: 3 }) });
+    expect(dim(dupes, "issue-type-naming").detail).toMatch(/3 groups/);
+  });
+
+  test("flags a scheme whose type set cannot start an issue", () => {
+    const broken = computeSiteHealth({ issueTypes: issueTypes({ totalSchemes: 20, hierarchyFlaggedSchemeCount: 5 }) });
+    // 5/20 = the 0.25 tolerance exactly -> 0.
+    expect(dim(broken, "issue-type-hierarchy").score).toBe(0);
+    expect(dim(broken, "issue-type-hierarchy").detail).toMatch(/sub-tasks with no parent-level type/i);
+  });
+
+  test("marks every issue type dimension unavailable when no inventory exists", () => {
+    const health = computeSiteHealth({ fieldUsage: fieldUsage() });
+    for (const key of ["issue-type-reach", "issue-type-scheme-usage", "issue-type-naming", "issue-type-hierarchy"]) {
+      expect(dim(health, key).available).toBe(false);
+      expect(dim(health, key).reason).toMatch(/no issue type inventory/i);
+    }
+  });
+
+  test("the issue types pillar is weighted 1 and rolls its four dimensions up", () => {
+    const health = computeSiteHealth({ issueTypes: issueTypes({ orphanTypeCount: 5 }) });
+    const pillar = health.pillars.find((p) => p.key === "issueTypes");
+    expect(pillar.total).toBe(4);
+    expect(pillar.available).toBe(true);
+  });
+});
+
+describe("people dimensions", () => {
+  const dim = (health, key) => health.dimensions.find((d) => d.key === key);
+
+  test("scores deactivated licence holders as a rate, weighted above ownership", () => {
+    const health = computeSiteHealth({ users: users({ totalUsers: 500, deactivatedUsers: 25 }) });
+    // 25/500 = the 0.05 tolerance exactly -> 0.
+    expect(dim(health, "user-licence-hygiene").score).toBe(0);
+    expect(dim(health, "user-licence-hygiene").weight).toBe(1.5);
+    expect(dim(health, "user-licence-hygiene").detail).toMatch(/25 of 500/);
+    expect(dim(health, "user-licence-hygiene").action).toMatch(/access group/i);
+  });
+
+  test("scores orphaned ownership forgivingly against the owned-artifact total", () => {
+    const health = computeSiteHealth({ users: users({ ownedArtifactTotal: 600, orphanedArtifacts: 30 }) });
+    // 30/600 = 0.05 against the 0.10 tolerance -> ~50, not bottomed out.
+    expect(dim(health, "user-ownership").score).toBeGreaterThan(40);
+    expect(dim(health, "user-ownership").score).toBeLessThan(60);
+    expect(dim(health, "user-ownership").weight).toBe(1);
+    expect(dim(health, "user-ownership").detail).toMatch(/30 of 600/);
+  });
+
+  test("a clean roster scores both dimensions at the top", () => {
+    const health = computeSiteHealth({ users: users() });
+    expect(dim(health, "user-licence-hygiene").score).toBe(100);
+    expect(dim(health, "user-ownership").score).toBe(100);
+  });
+
+  test("licence hygiene is available even before any ownership data joins", () => {
+    const health = computeSiteHealth({ users: users({ ownedArtifactTotal: 0 }) });
+    expect(dim(health, "user-licence-hygiene").available).toBe(true);
+    expect(dim(health, "user-ownership").available).toBe(false);
+    expect(dim(health, "user-ownership").reason).toMatch(/ownership data/i);
+  });
+
+  test("marks both people dimensions unavailable when no roster has been built", () => {
+    const health = computeSiteHealth({ fieldUsage: fieldUsage() });
+    for (const key of ["user-licence-hygiene", "user-ownership"]) {
+      expect(dim(health, key).available).toBe(false);
+      expect(dim(health, key).reason).toMatch(/no licensed-user roster/i);
+    }
+  });
+
+  test("the people pillar is weighted 1 and rolls its two dimensions up", () => {
+    const health = computeSiteHealth({ users: users({ deactivatedUsers: 40 }) });
+    const pillar = health.pillars.find((p) => p.key === "users");
+    expect(pillar.total).toBe(2);
+    expect(pillar.available).toBe(true);
+  });
+});
+
+describe("asset dimensions", () => {
+  const dim = (health, key) => health.dimensions.find((d) => d.key === key);
+  const KEYS = ["asset-schema-hygiene", "asset-type-completeness", "asset-reference-integrity"];
+
+  test("a clean CMDB scores every asset dimension at the top", () => {
+    const health = computeSiteHealth({ assets: assets() });
+    for (const key of KEYS) expect(dim(health, key).score).toBe(100);
+  });
+
+  test("scores dead schemas as a rate against the schema total", () => {
+    const health = computeSiteHealth({ assets: assets({ totalSchemas: 20, deadSchemaCount: 4 }) });
+    // 4/20 = 0.20 -- the tolerance exactly -> 0.
+    expect(dim(health, "asset-schema-hygiene").score).toBe(0);
+    expect(dim(health, "asset-schema-hygiene").detail).toMatch(/4 of 20/);
+  });
+
+  test("scores bare object types against the concrete-type total, forgivingly", () => {
+    const health = computeSiteHealth({ assets: assets({ concreteObjectTypes: 100, bareTypeCount: 15 }) });
+    // 15/100 = 0.15 against the 0.30 tolerance -> 50, not bottomed out.
+    expect(dim(health, "asset-type-completeness").score).toBe(50);
+  });
+
+  test("weights reference integrity above the other two", () => {
+    const health = computeSiteHealth({ assets: assets({ referenceAttributeCount: 100, brokenReferenceCount: 10 }) });
+    expect(dim(health, "asset-reference-integrity").weight).toBe(1.5);
+    // 10/100 = the 0.10 tolerance exactly -> 0.
+    expect(dim(health, "asset-reference-integrity").score).toBe(0);
+  });
+
+  test("reports every asset dimension not-applicable when Assets is not licensed", () => {
+    const health = computeSiteHealth({ assets: { available: false, assetsEnabled: false } });
+    for (const key of KEYS) {
+      expect(dim(health, key).available).toBe(false);
+      expect(dim(health, key).reason).toMatch(/not enabled on this site/i);
+    }
+    // A pillar with no measurable dimension does not appear as a scored pillar.
+    const pillar = health.pillars.find((p) => p.key === "assets");
+    expect(pillar.available).toBe(false);
+  });
+
+  test("reports every asset dimension unmeasured when no inventory has been built", () => {
+    const health = computeSiteHealth({ fieldUsage: fieldUsage() });
+    for (const key of KEYS) {
+      expect(dim(health, key).available).toBe(false);
+      expect(dim(health, key).reason).toMatch(/no assets inventory/i);
+    }
+  });
+
+  test("reference integrity is unmeasured, not perfect, when there are no reference attributes", () => {
+    const health = computeSiteHealth({ assets: assets({ referenceAttributeCount: 0, brokenReferenceCount: 0 }) });
+    expect(dim(health, "asset-reference-integrity").available).toBe(false);
+    expect(dim(health, "asset-reference-integrity").reason).toMatch(/no object-reference attributes/i);
+    // The other two still score.
+    expect(dim(health, "asset-schema-hygiene").available).toBe(true);
+  });
+
+  test("the assets pillar is weighted 1 and rolls its dimensions up", () => {
+    const health = computeSiteHealth({ assets: assets({ deadSchemaCount: 3 }) });
+    const pillar = health.pillars.find((p) => p.key === "assets");
+    expect(pillar.total).toBe(3);
+    expect(pillar.available).toBe(true);
+  });
+});
+
+describe("access dimensions", () => {
+  const dim = (health, key) => health.dimensions.find((d) => d.key === key);
+
+  test("a clean access config scores every dimension at the top", () => {
+    const health = computeSiteHealth({ permissions: permissions(), security: security(), notifications: notifications() });
+    for (const key of ["permission-least-privilege", "permission-scheme-sprawl", "security-level-integrity", "security-scheme-sprawl", "notification-routing", "notification-scheme-sprawl"]) {
+      expect(dim(health, key).score).toBe(100);
+    }
+  });
+
+  test("least privilege is the heaviest permission dimension and scores as a rate", () => {
+    const health = computeSiteHealth({ permissions: permissions({ totalSchemes: 10, riskySchemeCount: 3 }) });
+    // 3/10 past the 0.15 tolerance -> 0.
+    expect(dim(health, "permission-least-privilege").score).toBe(0);
+    expect(dim(health, "permission-least-privilege").weight).toBe(1.5);
+  });
+
+  test("security level integrity scores broken levels over the level total", () => {
+    const health = computeSiteHealth({ security: security({ totalLevels: 20, brokenLevelCount: 3 }) });
+    // 3/20 = 0.15 = the tolerance -> 0.
+    expect(dim(health, "security-level-integrity").score).toBe(0);
+  });
+
+  test("the three access pillars are weighted 1.5 / 1 / 0.5 and each rolls its two dimensions", () => {
+    const health = computeSiteHealth({ permissions: permissions({ riskySchemeCount: 1 }), security: security(), notifications: notifications() });
+    expect(health.pillars.find((p) => p.key === "permissions").total).toBe(2);
+    expect(health.pillars.find((p) => p.key === "security").total).toBe(2);
+    expect(health.pillars.find((p) => p.key === "notifications").total).toBe(2);
+  });
+
+  test("all six dimensions are unmeasured until an access inventory exists", () => {
+    const health = computeSiteHealth({ fieldUsage: fieldUsage() });
+    for (const key of ["permission-least-privilege", "security-level-integrity", "notification-routing"]) {
+      expect(dim(health, key).available).toBe(false);
+      expect(dim(health, key).reason).toMatch(/no access inventory/i);
     }
   });
 });

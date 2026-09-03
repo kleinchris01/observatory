@@ -12,6 +12,7 @@
 // evidence the field is in use, but finding none is not evidence that it is not.
 
 import { detectRuleSecretKinds } from "./secret-detect.js";
+import { extractJqlIssueTypes } from "./jql-refs.js";
 
 // A reference's direction matters more than its existence. A rule that WRITES a field
 // keeps it alive; a rule that merely READS it in a condition does not, but does break if
@@ -191,6 +192,81 @@ export function extractStatusReferences(rule) {
   return [...byKey.values()];
 }
 
+// Jira spells the issue-type field "issuetype"; exports and older rules use the display name.
+const ISSUE_TYPE_FIELD_NAMES = new Set(["issuetype", "issue type", "issue_type", "type"]);
+
+// Issue types a rule names -- in a condition on the Issue Type field, in a create/clone
+// action that sets one, in a field operation, in JQL, or in the trigger's own scope.
+//
+// Same shape and same reasoning as extractStatusReferences: a rule that creates issues of
+// type "Incident" keeps that type load-bearing, and one that only checks `issuetype = Bug`
+// in a condition breaks if the type is renamed or removed. Best-effort like the rest of this
+// module -- a reference found here is proof the type is in use; finding none is not proof it
+// is not.
+export function extractIssueTypeReferences(rule) {
+  const refs = [];
+
+  walkComponents(rule, (component) => {
+    const value = isPlainObject(component?.value) ? component.value : {};
+
+    // A condition comparing the Issue Type field against one or more values.
+    const selected = value.selectedField;
+    if (isPlainObject(selected) && ISSUE_TYPE_FIELD_NAMES.has(String(selected.value).toLowerCase())) {
+      for (const name of parseCompareValues(value.compareValue)) {
+        refs.push({ id: null, name, kind: REF_KIND.READ, via: component.type });
+      }
+    }
+
+    // jira.issue.create / jira.issue.clone name the type of issue they produce.
+    const created = value.issueType ?? value.issueTypeId ?? value.targetIssueType;
+    if (isPlainObject(created) && typeof created.value === "string" && created.value) {
+      const byId = created.type === "ID" || created.type === "id";
+      refs.push({ id: byId ? created.value : null, name: byId ? null : created.value, kind: REF_KIND.WRITE, via: component.type });
+    }
+
+    // A field operation that sets issuetype (edit actions use operations[]).
+    if (Array.isArray(value.operations)) {
+      for (const operation of value.operations) {
+        const field = operation?.field;
+        if (
+          isPlainObject(field)
+          && ISSUE_TYPE_FIELD_NAMES.has(String(field.value).toLowerCase())
+          && isPlainObject(operation?.value)
+          && typeof operation.value.value === "string"
+          && operation.value.value
+        ) {
+          refs.push({ id: null, name: operation.value.value, kind: REF_KIND.WRITE, via: component.type });
+        }
+      }
+    }
+
+    // JQL in a condition or branch -- `issuetype in (...)`, `type = ...`.
+    const jql = value.query?.value ?? value.jql?.value ?? (typeof value.rawJql === "string" ? value.rawJql : null);
+    if (typeof jql === "string" && jql) {
+      for (const name of extractJqlIssueTypes(jql)) {
+        refs.push({ id: null, name, kind: REF_KIND.READ, via: component.type });
+      }
+    }
+  });
+
+  // The trigger's own scope: several trigger types filter to a set of issue types.
+  const scope = rule?.trigger?.value?.issueTypes ?? rule?.trigger?.value?.issueType;
+  const scopeList = Array.isArray(scope) ? scope : (scope ? [scope] : []);
+  for (const entry of scopeList) {
+    if (isPlainObject(entry) && typeof entry.value === "string" && entry.value) {
+      const byId = entry.type === "ID" || entry.type === "id";
+      refs.push({
+        id: byId ? entry.value : null,
+        name: byId ? null : entry.value,
+        kind: REF_KIND.TRIGGER,
+        via: rule?.trigger?.type ?? "trigger",
+      });
+    }
+  }
+
+  return dedupeRefs(refs);
+}
+
 function parseCompareValues(compareValue) {
   const raw = compareValue?.value;
   if (typeof raw !== "string" || raw.length === 0) return [];
@@ -204,6 +280,64 @@ function parseCompareValues(compareValue) {
     }
   }
   return [raw];
+}
+
+// Fields whose value is a user. A rule that sets or conditions on one of these names a
+// specific person, and that is a dependency the People pillar can report: rename or
+// deactivate the account and the rule quietly stops matching or assigns to nobody.
+const USER_FIELD_NAMES = new Set(["assignee", "reporter", "creator"]);
+// An Atlassian accountId: 24-hex, or the newer "<realm>:<uuid>" form, or a bare uuid.
+const ACCOUNT_ID_RE = /^(?:[0-9a-f]{24}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[a-z0-9]+:[0-9a-f-]{36})$/i;
+
+function looksLikeAccountId(value) {
+  return typeof value === "string" && ACCOUNT_ID_RE.test(value.trim());
+}
+
+// The users a rule names by accountId -- in an assign action, a user-field edit, or a
+// condition on assignee/reporter/creator. Deliberately narrow: {{initiator}}, "automatic"
+// and copy-from-field are not references to a specific person, and a display name with no
+// id is not resolvable, so both are skipped rather than guessed at.
+//
+// Same best-effort contract as the other extractors: a reference here is proof the person
+// is load-bearing in automation; finding none is not proof they are not.
+export function extractUserReferences(rule) {
+  const refs = [];
+  const add = (value, kind, via) => {
+    if (isPlainObject(value)) value = value.accountId ?? value.value ?? value.id;
+    if (looksLikeAccountId(value)) refs.push({ id: String(value).trim(), name: null, kind, via });
+  };
+
+  walkComponents(rule, (component) => {
+    const value = isPlainObject(component?.value) ? component.value : {};
+
+    // jira.issue.assign -- the assignee it sets.
+    if (component.type === "jira.issue.assign" || value.assignee !== undefined) {
+      add(value.assignee, REF_KIND.WRITE, component.type);
+    }
+
+    // An edit action's operations that set a user field.
+    if (Array.isArray(value.operations)) {
+      for (const operation of value.operations) {
+        const fieldName = String(operation?.field?.value || "").toLowerCase();
+        const isUserField = USER_FIELD_NAMES.has(fieldName)
+          || /user|people|assignee|owner|approver/.test(fieldName);
+        if (isUserField) add(operation?.value, REF_KIND.WRITE, component.type);
+      }
+    }
+
+    // A condition comparing a user field against a specific account.
+    const selected = value.selectedField;
+    if (isPlainObject(selected) && USER_FIELD_NAMES.has(String(selected.value).toLowerCase())) {
+      for (const v of parseCompareValues(value.compareValue)) add(v, REF_KIND.READ, component.type);
+    }
+
+    // jira.user.condition / "user is in role/group" blocks carry the user under a few keys.
+    for (const key of ["user", "checkUser", "accountId"]) {
+      if (value[key] !== undefined) add(value[key], REF_KIND.READ, component.type);
+    }
+  });
+
+  return dedupeRefs(refs);
 }
 
 const PROJECT_ARI_RE = /ari:cloud:jira[^:]*:[^:]+:project\/(\d+)/g;
@@ -322,6 +456,8 @@ export function analyzeRuleRisks(rule, { now = Date.now() } = {}) {
 export function summarizeRule(rule, options = {}) {
   const fields = extractFieldReferences(rule);
   const statuses = extractStatusReferences(rule);
+  const issueTypes = extractIssueTypeReferences(rule);
+  const users = extractUserReferences(rule);
   const counts = countComponents(rule);
   const risks = analyzeRuleRisks(rule, options);
 
@@ -330,6 +466,14 @@ export function summarizeRule(rule, options = {}) {
     name: rule?.name ?? "",
     state: rule?.state ?? "UNKNOWN",
     enabled: rule?.state === "ENABLED",
+    // Who owns the rule. Automation exports spell this a few ways; the top-level
+    // authorAccountId is the common one, with actor/actingUser as fallbacks. Null when the
+    // export does not carry it -- the People pillar treats that as "unknown", not "nobody".
+    authorAccountId: rule?.authorAccountId
+      ?? rule?.actor?.value
+      ?? rule?.actingUser?.accountId
+      ?? rule?.state?.actor?.value
+      ?? null,
     triggerType: rule?.trigger?.type ?? null,
     created: rule?.created ?? null,
     updated: rule?.updated ?? null,
@@ -340,6 +484,8 @@ export function summarizeRule(rule, options = {}) {
     projectIds: extractProjectReferences(rule),
     fieldRefs: fields,
     statusRefs: statuses,
+    issueTypeRefs: issueTypes,
+    userRefs: users,
     writesFields: fields.filter((f) => f.kind === REF_KIND.WRITE).map((f) => f.name ?? f.id),
     risks,
     // Highest severity present, so a table can sort without re-deriving it per row.
@@ -354,6 +500,8 @@ const SEVERITY_ORDER = { high: 0, medium: 1, low: 2, info: 3 };
 export function buildReferenceIndex(rules = [], options = {}) {
   const fields = new Map();
   const statuses = new Map();
+  const issueTypes = new Map();
+  const users = new Map();
   const summaries = options.summaries ?? rules.map((rule) => summarizeRule(rule, options));
 
   for (const summary of summaries) {
@@ -368,9 +516,23 @@ export function buildReferenceIndex(rules = [], options = {}) {
       if (!statuses.has(key)) statuses.set(key, { label: ref.name, write: [], read: [], trigger: [] });
       statuses.get(key)[ref.kind].push(summary.id);
     }
+    for (const ref of summary.issueTypeRefs ?? []) {
+      const key = (ref.name ?? ref.id ?? "").toLowerCase();
+      if (!key) continue;
+      if (!issueTypes.has(key)) issueTypes.set(key, { label: ref.name ?? ref.id, write: [], read: [], trigger: [] });
+      issueTypes.get(key)[ref.kind].push(summary.id);
+    }
+    // Keyed by accountId -- a rule names a person by id, never a spelling. The label starts
+    // as the id and getAutomationIndex resolves it to a display name from the roster.
+    for (const ref of summary.userRefs ?? []) {
+      const key = (ref.id ?? "").toLowerCase();
+      if (!key) continue;
+      if (!users.has(key)) users.set(key, { label: ref.id, write: [], read: [], trigger: [] });
+      users.get(key)[ref.kind].push(summary.id);
+    }
   }
 
-  return { fields, statuses, summaries };
+  return { fields, statuses, issueTypes, users, summaries };
 }
 
 // Two rules can only cascade if they can act on the same issues. An empty project list
@@ -606,8 +768,9 @@ export function buildRuleDirectory(summaries = []) {
     schemaVersion: 1,
     total: summaries.length,
     // Array of tuples rather than objects: over 1,477 rules the repeated key names cost more
-    // than the data. Rehydrated by the UI on load.
-    rules: summaries.map((s) => [s.id, s.name, s.enabled ? 1 : 0, s.triggerType ?? "", s.projectIds.length]),
+    // than the data. Rehydrated by the UI on load. Position 6 is the author accountId, added
+    // for the People pillar -- older documents are 5-tuples and rehydrate with author null.
+    rules: summaries.map((s) => [s.id, s.name, s.enabled ? 1 : 0, s.triggerType ?? "", s.projectIds.length, s.authorAccountId ?? ""]),
     // The project ids themselves, which used to be computed on every import and then thrown
     // away -- only their count survived, as the fifth tuple position. That discard is the
     // whole reason the Projects tab could not say a word about automation.
@@ -642,8 +805,11 @@ export function buildCascadeDocument(cascades = []) {
 
 export function hydrateRuleDirectory(document) {
   const byId = new Map();
-  for (const [id, name, enabled, triggerType, projectCount] of document?.rules ?? []) {
-    byId.set(id, { id, name, enabled: enabled === 1, triggerType: triggerType || null, projectCount });
+  for (const [id, name, enabled, triggerType, projectCount, authorAccountId] of document?.rules ?? []) {
+    byId.set(id, {
+      id, name, enabled: enabled === 1, triggerType: triggerType || null, projectCount,
+      authorAccountId: authorAccountId || null,
+    });
   }
   return byId;
 }
@@ -655,7 +821,7 @@ export function analyzeRules(rules = [], { source = "unknown", now = Date.now() 
   const summaries = rules.map((rule) => summarizeRule(rule, { now }));
   const options = { now, summaries };
 
-  const { fields, statuses } = buildReferenceIndex(rules, options);
+  const { fields, statuses, issueTypes, users } = buildReferenceIndex(rules, options);
   const cascades = findTriggerCascades(rules, options);
   const enabledById = new Map(summaries.map((s) => [s.id, s.enabled]));
 
@@ -669,6 +835,8 @@ export function analyzeRules(rules = [], { source = "unknown", now = Date.now() 
     }),
     fields: buildIndexDocument(fields, "field", enabledById),
     statuses: buildIndexDocument(statuses, "status", enabledById),
+    issueTypes: buildIndexDocument(issueTypes, "issueType", enabledById),
+    users: buildIndexDocument(users, "user", enabledById),
     directory: buildRuleDirectory(summaries),
     findings: buildFindingsDocument(summaries),
     cascades: buildCascadeDocument(cascades),
@@ -694,7 +862,7 @@ export function summarizeAutomationHealth(summaries = [], cascades = []) {
 }
 
 export function summarizeEstate(rules = [], options = {}) {
-  const { fields, statuses, summaries } = buildReferenceIndex(rules, options);
+  const { fields, statuses, issueTypes, users, summaries } = buildReferenceIndex(rules, options);
   // Reused for both the cascade count and the health rates; deriving them twice walks every
   // rule again.
   const cascades = options.cascades ?? findTriggerCascades(rules, { ...options, summaries });
@@ -716,6 +884,8 @@ export function summarizeEstate(rules = [], options = {}) {
     disabledCount: summaries.filter((s) => !s.enabled).length,
     fieldsReferenced: fields.size,
     statusesReferenced: statuses.size,
+    issueTypesReferenced: issueTypes.size,
+    usersReferenced: users.size,
     triggerBreakdown: [...byTrigger.entries()].map(([type, count]) => ({ type, count })).sort((a, b) => b.count - a.count),
     risks: [...risksByCode.values()].sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]),
     cascadeCount: cascades.length,

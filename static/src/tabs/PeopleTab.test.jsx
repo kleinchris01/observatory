@@ -1,0 +1,208 @@
+import React from "react";
+import { describe, test, expect, vi, beforeEach } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { invoke } from "@forge/bridge";
+import { PeopleTab } from "./PeopleTab";
+
+vi.mock("@forge/bridge", () => ({
+  invoke: vi.fn(),
+  view: { getContext: vi.fn().mockResolvedValue({}) },
+  router: { open: vi.fn() },
+}));
+
+const roster = (over = {}) => ({
+  neverBuilt: false,
+  state: "ready",
+  staleBuild: false,
+  version: "v1",
+  refreshedAt: new Date().toISOString(),
+  governance: {
+    totalUsers: 3, activeUsers: 3, appUsers: 1, multiProductUsers: 1,
+    orphanedOwners: 1, orphanedFilters: 4, orphanedDashboards: 1, orphanedRules: 0,
+  },
+  applicationSummary: [
+    { key: "jira-software", name: "Jira Software", numberOfSeats: 5, remainingSeats: 2, userCount: 3, hasUnlimitedSeats: false },
+    { key: "jira-servicedesk", name: "Jira Service Management", numberOfSeats: 2, remainingSeats: 1, userCount: 1, hasUnlimitedSeats: false },
+  ],
+  users: [
+    { accountId: "a1", displayName: "Ann Admin", active: true, accountType: "atlassian",
+      applications: [{ key: "jira-software", name: "Jira Software" }, { key: "jira-servicedesk", name: "JSM" }],
+      groups: [{ id: "g1", name: "jira-software-users" }, { id: "g2", name: "jsm-users" }],
+      ownedFilters: 2, ownedDashboards: 1, authoredRules: 0, automationRefs: 3 },
+    { accountId: "a2", displayName: "Bot Account", active: true, accountType: "app",
+      applications: [{ key: "jira-software", name: "Jira Software" }], groups: [{ id: "g1", name: "jira-software-users" }],
+      ownedFilters: 0, ownedDashboards: 0, authoredRules: 0, automationRefs: 0 },
+  ],
+  ...over,
+});
+
+beforeEach(() => vi.clearAllMocks());
+
+describe("PeopleTab", () => {
+  test("reports never-built rather than an empty roster", async () => {
+    invoke.mockResolvedValue({ neverBuilt: true, state: "idle" });
+    render(<PeopleTab />);
+    expect(await screen.findByText(/No licensed-user roster has been built yet/i)).toBeInTheDocument();
+  });
+
+  test("shows the seat summary and licensed-user count", async () => {
+    invoke.mockImplementation((fn) => fn === "getUserInventory" ? Promise.resolve(roster()) : Promise.resolve({}));
+    render(<PeopleTab />);
+
+    expect(await screen.findByText("People")).toBeInTheDocument();
+    expect(screen.getByText("Licensed users")).toBeInTheDocument();
+    // 4 of 7 total product seats used across the two products.
+    expect(screen.getByText("4 / 7")).toBeInTheDocument();
+    // The app account is surfaced as something to review.
+    expect(screen.getByText("App accounts")).toBeInTheDocument();
+  });
+
+  test("lists each user with their products and access groups on the Roster view", async () => {
+    invoke.mockImplementation((fn) => fn === "getUserInventory" ? Promise.resolve(roster()) : Promise.resolve({}));
+    render(<PeopleTab />);
+
+    await screen.findByText("People");
+    await userEvent.click(screen.getByRole("button", { name: /^Roster/ }));
+
+    expect(await screen.findByText("Ann Admin")).toBeInTheDocument();
+    expect(screen.getByText(/via jira-software-users, jsm-users/)).toBeInTheDocument();
+    // The app account is chipped.
+    expect(screen.getByText("Bot Account")).toBeInTheDocument();
+    expect(screen.getByText("app")).toBeInTheDocument();
+  });
+
+  test("the roster toolbar filters by search and by the Show select", async () => {
+    invoke.mockImplementation((fn) => fn === "getUserInventory" ? Promise.resolve(roster()) : Promise.resolve({}));
+    render(<PeopleTab />);
+    await screen.findByText("People");
+    await userEvent.click(screen.getByRole("button", { name: /^Roster/ }));
+    await screen.findByText("Ann Admin");
+
+    // Search narrows the list and the count reflects it.
+    await userEvent.type(screen.getByRole("searchbox", { name: /search the roster/i }), "bot");
+    expect(screen.queryByText("Ann Admin")).not.toBeInTheDocument();
+    expect(screen.getByText("Bot Account")).toBeInTheDocument();
+    expect(screen.getByText("1 of 2 matching")).toBeInTheDocument();
+
+    // Clear all resets it.
+    await userEvent.click(screen.getByRole("button", { name: /clear all/i }));
+    expect(await screen.findByText("Ann Admin")).toBeInTheDocument();
+
+    // The Show select keeps only app accounts.
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: /show/i }), "app");
+    expect(screen.queryByText("Ann Admin")).not.toBeInTheDocument();
+    expect(screen.getByText("Bot Account")).toBeInTheDocument();
+  });
+
+  test("shows an owns-summary chip and expands to the owned artifacts on click", async () => {
+    invoke.mockImplementation((fn, payload) => {
+      if (fn === "getUserInventory") return Promise.resolve(roster());
+      if (fn === "getUserDetails" && payload.accountId === "a1") {
+        return Promise.resolve({
+          available: true, inRoster: true,
+          user: roster().users[0],
+          ownedFilters: [{ id: "10", name: "My board filter", viewUrl: "https://x/f/10" }],
+          ownedDashboards: [{ id: "20", name: "Ops dashboard", viewUrl: null }],
+          authoredRules: [],
+          referencedInRules: [
+            { id: 7, name: "Assign incidents to Ann", direction: "write", enabled: true },
+            { id: 9, name: "Escalation check", direction: "read", enabled: false },
+          ],
+          fieldAppearances: [
+            { fieldId: "customfield_500", fieldName: "Reviewer", issueCount: 30 },
+            { fieldId: "assignee", fieldName: "Assignee", issueCount: 900 },
+          ],
+          grantedBySchemes: [
+            { schemeType: "permission", schemeId: "1", schemeName: "Prod permissions", context: "ADMINISTER_PROJECTS", contextLabel: "Administer Projects" },
+            { schemeType: "notification", schemeId: "n1", schemeName: "Prod notifications", context: "1", contextLabel: "Issue Created" },
+          ],
+          accessGrantsAvailable: true,
+          automationRefsAvailable: true,
+          fieldAppearancesAvailable: true,
+          ownershipAvailable: { filters: true, dashboards: true, rules: false },
+        });
+      }
+      return Promise.resolve({});
+    });
+    render(<PeopleTab />);
+    await screen.findByText("People");
+    await userEvent.click(screen.getByRole("button", { name: /^Roster/ }));
+
+    expect(await screen.findByText(/owns 2 filters · 1 dashboard/)).toBeInTheDocument();
+    // The roster row also shows the cross-pillar automation reference count.
+    expect(screen.getByText("in 3 rules")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /Ann Admin/ }));
+
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("getUserDetails", { accountId: "a1" }));
+    expect(await screen.findByText("My board filter")).toBeInTheDocument();
+    expect(screen.getByText("Ops dashboard")).toBeInTheDocument();
+    expect(screen.getByText(/Rule authorship needs a rule export/i)).toBeInTheDocument();
+    // The rules that NAME this person, joined to rule names.
+    expect(screen.getByText("Assign incidents to Ann")).toBeInTheDocument();
+    expect(screen.getByText("Escalation check")).toBeInTheDocument();
+    // The user-picker fields this person is held as a value in.
+    expect(screen.getByText("Reviewer")).toBeInTheDocument();
+    expect(screen.getByText("Assignee")).toBeInTheDocument();
+    // The cross-pillar access join: schemes that name this account directly.
+    expect(screen.getByText("Granted by schemes")).toBeInTheDocument();
+    expect(screen.getByText("Prod permissions")).toBeInTheDocument();
+    expect(screen.getByText(/permission: Administer Projects/i)).toBeInTheDocument();
+  });
+
+  test("surfaces orphaned ownership on the overview", async () => {
+    invoke.mockImplementation((fn) => fn === "getUserInventory" ? Promise.resolve(roster()) : Promise.resolve({}));
+    render(<PeopleTab />);
+    expect(await screen.findByText("Orphaned ownership")).toBeInTheDocument();
+    // 4 filters + 1 dashboard owned by an account not in the roster.
+    expect(screen.getByText("Filters")).toBeInTheDocument();
+  });
+
+  test("surfaces the cross-pillar automation reference counts on the overview", async () => {
+    invoke.mockImplementation((fn) => fn === "getUserInventory"
+      ? Promise.resolve(roster({ governance: { ...roster().governance, automationRefUsers: 40, orphanedAutomationRefUsers: 3 }, automationRefsAvailable: true }))
+      : Promise.resolve({}));
+    render(<PeopleTab />);
+    expect(await screen.findByText("Cross-pillar references")).toBeInTheDocument();
+    expect(screen.getByText("Named in automation")).toBeInTheDocument();
+    expect(screen.getByText("Referenced off-roster")).toBeInTheDocument();
+  });
+
+  test("shows the People pillar of the site health score on the overview", async () => {
+    invoke.mockImplementation((fn) => {
+      if (fn === "getUserInventory") return Promise.resolve(roster());
+      if (fn === "getPillarHealth") return Promise.resolve({
+        pillar: {
+          key: "users", available: true, score: 74, grade: "C", total: 2,
+          dimensions: [
+            { key: "user-licence-hygiene", label: "Licence hygiene", available: true, score: 60, detail: "12 of 500 accounts are deactivated." },
+            { key: "user-ownership", label: "Ownership continuity", available: true, score: 88, detail: "5 of 300 owned artifacts are orphaned." },
+          ],
+        },
+      });
+      return Promise.resolve({});
+    });
+    render(<PeopleTab />);
+
+    await screen.findByText("People");
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("getPillarHealth", { pillar: "users" }));
+    expect(await screen.findByText("Licence hygiene")).toBeInTheDocument();
+    expect(screen.getByText("Ownership continuity")).toBeInTheDocument();
+  });
+
+  test("queues a build and reports it", async () => {
+    invoke.mockImplementation((fn) => {
+      if (fn === "getUserInventory") return Promise.resolve(roster());
+      if (fn === "buildUserInventory") return Promise.resolve({ queued: true });
+      return Promise.resolve({});
+    });
+    render(<PeopleTab />);
+
+    await screen.findByText("People");
+    await userEvent.click(screen.getByRole("button", { name: /Rebuild/ }));
+
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("buildUserInventory", {}));
+    expect(await screen.findByText(/Build queued/i)).toBeInTheDocument();
+  });
+});

@@ -90,6 +90,47 @@ const automation = (overrides = {}) => ({
   ...overrides,
 });
 
+const issueTypes = (overrides = {}) => ({
+  available: true,
+  totalTypes: 63,
+  totalSchemes: 24,
+  orphanTypeCount: 7,
+  hierarchyFlaggedSchemeCount: 2,
+  reducibleTypeCount: 4,
+  duplicateTypeGroupCount: 2,
+  unusedSchemeCount: 3,
+  ...overrides,
+});
+
+const users = (overrides = {}) => ({
+  available: true,
+  totalUsers: 500,
+  deactivatedUsers: 12,
+  orphanedArtifacts: 5,
+  orphanedOwners: 2,
+  orphanedAutomationRefUsers: 3,
+  ...overrides,
+});
+
+const assets = (overrides = {}) => ({
+  available: true,
+  assetsEnabled: true,
+  totalSchemas: 12,
+  deadSchemaCount: 3,
+  brokenReferenceCount: 4,
+  brokenHierarchyCount: 2,
+  bareTypeCount: 6,
+  ...overrides,
+});
+
+const access = (overrides = {}) => ({
+  available: true,
+  permissions: { available: true, riskySchemeCount: 2, unusedSchemeCount: 1 },
+  security: { available: true, emptyLevelCount: 1, noLevelSchemeCount: 1, unusedSchemeCount: 2 },
+  notifications: { available: true, fragileSchemeCount: 3, unusedSchemeCount: 0 },
+  ...overrides,
+});
+
 beforeEach(() => vi.clearAllMocks());
 
 describe("OverviewDashboard — findings", () => {
@@ -176,6 +217,7 @@ describe("OverviewDashboard — automation and screen findings", () => {
     findingsSummary={findingsSummary}
     workflow={workflow()}
     screens={screens()}
+    issueTypes={issueTypes()}
     automation={automation()}
     onNavigate={vi.fn()}
     {...over}
@@ -215,6 +257,74 @@ describe("OverviewDashboard — automation and screen findings", () => {
 
     await userEvent.click(screen.getAllByRole("button", { name: /^Screens$/ })[0]);
     expect(onNavigate).toHaveBeenCalledWith("screens", expect.objectContaining({ view: expect.any(String) }));
+  });
+
+  test("surfaces the issue type findings and routes them to the Issue Types tab", async () => {
+    const onNavigate = vi.fn();
+    renderAll({ onNavigate });
+
+    expect(screen.getByText("Issue types on no scheme")).toBeInTheDocument();
+    expect(screen.getByText("Schemes that cannot start an issue")).toBeInTheDocument();
+    expect(screen.getByText("Near-duplicate issue type names")).toBeInTheDocument();
+    expect(screen.getByText("Issue type schemes assigned to no project")).toBeInTheDocument();
+
+    await userEvent.click(screen.getAllByRole("button", { name: /^Issue Types$/ })[0]);
+    expect(onNavigate).toHaveBeenCalledWith("issueTypes", expect.objectContaining({ view: expect.any(String) }));
+  });
+
+  test("omits the issue type findings entirely when the pillar has not been built", () => {
+    renderAll({ issueTypes: { available: false } });
+    expect(screen.queryByText("Issue types on no scheme")).not.toBeInTheDocument();
+  });
+
+  test("surfaces the people findings and routes them to the People tab", async () => {
+    const onNavigate = vi.fn();
+    renderAll({ users: users(), onNavigate });
+
+    expect(screen.getByText("Deactivated accounts still holding a licence")).toBeInTheDocument();
+    expect(screen.getByText("Filters, dashboards and rules with no owner on the roster")).toBeInTheDocument();
+    expect(screen.getByText("Automation rules routing work to someone off the roster")).toBeInTheDocument();
+
+    await userEvent.click(screen.getAllByRole("button", { name: /^People$/ })[0]);
+    expect(onNavigate).toHaveBeenCalledWith("people", expect.objectContaining({ view: expect.any(String) }));
+  });
+
+  test("omits the people findings entirely when the pillar has not been built", () => {
+    renderAll({ users: { available: false } });
+    expect(screen.queryByText("Deactivated accounts still holding a licence")).not.toBeInTheDocument();
+  });
+
+  test("surfaces the assets findings and routes them to the Assets tab", async () => {
+    const onNavigate = vi.fn();
+    renderAll({ assets: assets(), onNavigate });
+
+    expect(screen.getByText("Assets reference attributes pointing at a type that is gone")).toBeInTheDocument();
+    expect(screen.getByText("Object schemas with nothing in them")).toBeInTheDocument();
+
+    await userEvent.click(screen.getAllByRole("button", { name: /^Assets$/ })[0]);
+    expect(onNavigate).toHaveBeenCalledWith("assets", expect.objectContaining({ view: expect.any(String) }));
+  });
+
+  test("omits the assets findings when Assets is not enabled on the site", () => {
+    renderAll({ assets: { available: false, assetsEnabled: false } });
+    expect(screen.queryByText("Object schemas with nothing in them")).not.toBeInTheDocument();
+  });
+
+  test("surfaces the access findings and routes them to the Access tab", async () => {
+    const onNavigate = vi.fn();
+    renderAll({ access: access(), onNavigate });
+
+    expect(screen.getByText("Permission schemes that break least privilege")).toBeInTheDocument();
+    expect(screen.getByText("Issue security levels nobody can see through")).toBeInTheDocument();
+    expect(screen.getByText("Notification schemes routing to a named individual")).toBeInTheDocument();
+
+    await userEvent.click(screen.getAllByRole("button", { name: /^Access$/ })[0]);
+    expect(onNavigate).toHaveBeenCalledWith("access", expect.objectContaining({ view: expect.any(String) }));
+  });
+
+  test("omits the access findings entirely when the pillar has not been built", () => {
+    renderAll({ access: { available: false } });
+    expect(screen.queryByText("Permission schemes that break least privilege")).not.toBeInTheDocument();
   });
 
   // The same rule the workflow findings already follow, now enforced for the two pillars
@@ -517,111 +627,6 @@ describe("OverviewDashboard — health pillars", () => {
     const integrityCard = screen.getByText("Screen scheme integrity").closest(".ui-gov");
     const danglingCard = screen.getByText("Scheme operations pointing at a missing screen").closest(".ui-gov");
     expect(danglingCard).not.toBe(integrityCard);
-  });
-});
-
-describe("OverviewDashboard — workflow panel", () => {
-  test("reports scheme sharing, which is what makes correlation possible", () => {
-    render(<OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} onNavigate={vi.fn()} />);
-    expect(screen.getByText(/40 shared by more than one project/i)).toBeInTheDocument();
-  });
-
-  test("says so when nothing is shared, because then comparison has no leverage", () => {
-    render(<OverviewDashboard
-      dashboard={dashboard()}
-      findingsSummary={findingsSummary}
-      workflow={workflow({ sharedSchemes: 0 })}
-      onNavigate={vi.fn()}
-    />);
-    expect(screen.getByText(/no shared process to compare field usage against/i)).toBeInTheDocument();
-  });
-
-  test("shows a dash, not a zero, when workflow status data is unavailable", () => {
-    render(<OverviewDashboard
-      dashboard={dashboard()}
-      findingsSummary={findingsSummary}
-      workflow={workflow({ schemeStatusesAvailable: false, orphanCount: 0 })}
-      onNavigate={vi.fn()}
-    />);
-    expect(screen.getByText(/workflow status data unavailable/i)).toBeInTheDocument();
-  });
-
-  test("prompts for a scan when counts are missing rather than implying zero usage", () => {
-    render(<OverviewDashboard
-      dashboard={dashboard()}
-      findingsSummary={findingsSummary}
-      workflow={workflow({ hasIssueCounts: false })}
-      onNavigate={vi.fn()}
-    />);
-    expect(screen.getByText(/run a scan to confirm usage/i)).toBeInTheDocument();
-  });
-});
-
-describe("OverviewDashboard — projects panel", () => {
-  test("reports distribution alongside the leaders", () => {
-    render(<OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} onNavigate={vi.fn()} />);
-    // A leader list is unreadable without knowing what normal looks like.
-    expect(screen.getByText(/90th percentile 30/i)).toBeInTheDocument();
-    expect(screen.getByText("Median fields per project")).toBeInTheDocument();
-  });
-
-  test("surfaces stale projects with when they were last touched", () => {
-    render(<OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} onNavigate={vi.fn()} />);
-    // Exact match, not a substring: stale projects are now also a finding row titled
-    // "Projects with no activity in over six months", and a loose regex matches both.
-    expect(screen.getByText("No activity in over six months")).toBeInTheDocument();
-    expect(screen.getByText("ECHO")).toBeInTheDocument();
-  });
-
-  test("prompts for a scan when there is no project data at all", () => {
-    render(<OverviewDashboard
-      dashboard={{ fieldUsage: {}, projects: { totalProjects: 0 } }}
-      findingsSummary={findingsSummary}
-      workflow={workflow()}
-      onNavigate={vi.fn()}
-    />);
-    expect(screen.getByText(/No project usage data yet/i)).toBeInTheDocument();
-  });
-
-  // The defect this guards: field fills were rendered under an "Issues covered" label.
-  // snapshot_project_usage carries one row per field x project, so the sum counts an issue
-  // once per populated field -- on a site with 90 fields per project that is a ~90x
-  // overstatement presented as a precise figure.
-  test("shows distinct issues, not field fills, when the scan has measured them", () => {
-    render(<OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} onNavigate={vi.fn()} />);
-
-    expect(screen.getByText("Issues covered")).toBeInTheDocument();
-    expect(screen.getByText("1,000")).toBeInTheDocument();
-    // The fills figure must not appear anywhere in the panel under any label.
-    expect(screen.queryByText("90,000")).not.toBeInTheDocument();
-  });
-
-  test("labels the figure as field fills when no scan has measured issues", () => {
-    const noScan = dashboard({
-      projects: { ...dashboard().projects, hasUniqueCounts: false, totalUniqueIssues: null },
-    });
-    render(<OverviewDashboard dashboard={noScan} findingsSummary={findingsSummary} workflow={workflow()} onNavigate={vi.fn()} />);
-
-    // Says what it is, and says how to get the real number -- rather than presenting
-    // an unmeasurable quantity under an issue-shaped label.
-    expect(screen.getByText("Field fills")).toBeInTheDocument();
-    expect(screen.getByText("90,000")).toBeInTheDocument();
-    expect(screen.queryByText("Issues covered")).not.toBeInTheDocument();
-    expect(screen.getByText(/run a universe scan for issue counts/i)).toBeInTheDocument();
-  });
-
-  test("retitles the volume list to match whichever measure it is plotting", () => {
-    const { unmount } = render(
-      <OverviewDashboard dashboard={dashboard()} findingsSummary={findingsSummary} workflow={workflow()} onNavigate={vi.fn()} />
-    );
-    expect(screen.getByText("Highest issue volume")).toBeInTheDocument();
-    unmount();
-
-    const noScan = dashboard({
-      projects: { ...dashboard().projects, hasUniqueCounts: false, totalUniqueIssues: null },
-    });
-    render(<OverviewDashboard dashboard={noScan} findingsSummary={findingsSummary} workflow={workflow()} onNavigate={vi.fn()} />);
-    expect(screen.getByText("Most field fills")).toBeInTheDocument();
   });
 });
 

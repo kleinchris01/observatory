@@ -10,19 +10,18 @@ import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
 const mockRequestJira = vi.fn();
 const mockRequestJiraAsUser = vi.fn();
 
-const mockRequestStargate = vi.fn();
+// The api.atlassian.com gateway surface. Distinct from requestJira: it targets the gateway
+// host, and JSM Assets is the reason it exists here.
+const mockRequestAtlassian = vi.fn();
 
 vi.mock("@forge/api", () => ({
   default: {
-    asApp: () => ({ requestJira: mockRequestJira }),
+    asApp: () => ({ requestJira: mockRequestJira, requestAtlassian: mockRequestAtlassian }),
     asUser: () => ({ requestJira: mockRequestJiraAsUser }),
   },
   // The real `route` is a tagged template that escapes interpolated values. The
   // stub keeps the assembled string so tests can assert on the path that was built.
   route: (strings, ...values) => strings.reduce((acc, s, i) => acc + s + (values[i] ?? ""), ""),
-  // The gateway transport. Distinct from requestJira: it takes a plain URL string rather
-  // than a Route, which is the distinction that made the automation probe work at all.
-  createRequestStargateAsApp: () => mockRequestStargate,
 }));
 
 const mockCounter = { incr: vi.fn(), incrBy: vi.fn() };
@@ -62,6 +61,8 @@ import {
   probeEndpoint,
   probeEndpointAsUser,
   probeStargateEndpoint,
+  requestAtlassianJson,
+  getAssetsWorkspaceId,
   getCloudId,
   getAllScreens,
   getAllScreenSchemes,
@@ -72,6 +73,13 @@ import {
   getAllIssueTypeSchemes,
   getIssueTypeSchemeItems,
   getIssueTypeSchemeProjects,
+  getAllPermissionSchemes,
+  getProjectPermissionScheme,
+  getAllIssueSecuritySchemes,
+  getIssueSecurityLevels,
+  getIssueSecurityLevelMembers,
+  getIssueSecuritySchemeProjects,
+  getAllNotificationSchemes,
   getScreenTabs,
   getScreenTabFields,
   getWorkflowSchemesForProjects,
@@ -923,27 +931,61 @@ describe("probeEndpointAsUser", () => {
 });
 
 describe("probeStargateEndpoint", () => {
-  test("goes through the gateway transport, not requestJira", async () => {
-    mockRequestStargate.mockResolvedValueOnce(jiraResponse({ status: 200, ok: true, text: "{\"rules\":[]}" }));
+  test("routes the /jsm/assets/ path through requestJira's gateway proxy", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ status: 200, ok: true, text: "{\"objectSchemas\":[]}" }));
 
-    const path = "https://api.atlassian.com/automation/public/jira/abc/rest/v1/rule";
+    const path = "/jsm/assets/workspace/abc/v1/objectschema/list";
     const result = await probeStargateEndpoint(path);
 
-    expect(mockRequestStargate).toHaveBeenCalledWith(path, expect.objectContaining({ method: "GET" }));
-    // The distinction that made this work: every site-relative attempt 401'd because it
-    // was asked of the wrong server, and requestJira cannot reach the gateway at all.
-    expect(mockRequestJira).not.toHaveBeenCalled();
+    // route([path]) collapses to the bare path; Forge's requestJira proxy recognises the
+    // /jsm/assets/ prefix and forwards it to api.atlassian.com. requestAtlassian / Stargate
+    // rejected the same path as INVALID_TARGET_URL, which is what this replaced.
+    expect(mockRequestJira).toHaveBeenCalledWith(path, expect.objectContaining({ method: "GET" }));
     expect(result).toMatchObject({ status: 200, ok: true });
   });
 
   test("returns a null status instead of throwing", async () => {
-    mockRequestStargate.mockRejectedValueOnce(new Error("gateway rejected the route"));
+    mockRequestJira.mockRejectedValueOnce(new Error("gateway rejected the route"));
 
-    const result = await probeStargateEndpoint("https://api.atlassian.com/x");
+    const result = await probeStargateEndpoint("/jsm/assets/workspace/x/v1/x");
 
     expect(result.status).toBeNull();
     expect(result.ok).toBe(false);
     expect(result.sample).toContain("gateway rejected");
+  });
+});
+
+describe("requestAtlassianJson", () => {
+  test("parses a 2xx JSON body from the Assets API", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ status: 200, ok: true, text: "{\"objectSchemas\":[{\"id\":\"1\"}]}" }));
+    const body = await requestAtlassianJson("/jsm/assets/workspace/w/v1/objectschema/list");
+    expect(body).toEqual({ objectSchemas: [{ id: "1" }] });
+  });
+
+  test("throws with the status attached on a non-2xx", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ status: 403, ok: false, text: "app not authorised for Assets" }));
+    await expect(requestAtlassianJson("/jsm/assets/workspace/w/v1/config/statustype"))
+      .rejects.toMatchObject({ status: 403 });
+  });
+});
+
+describe("getAssetsWorkspaceId", () => {
+  test("pulls the first workspaceId out of the servicedeskapi payload", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({
+      status: 200, ok: true,
+      body: { values: [{ workspaceId: "c77afb26" }] },
+    }));
+    expect(await getAssetsWorkspaceId()).toBe("c77afb26");
+  });
+
+  test("returns null when the site has no workspace", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ status: 200, ok: true, body: { values: [] } }));
+    expect(await getAssetsWorkspaceId()).toBeNull();
+  });
+
+  test("throws with the status on a non-2xx", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ status: 401, ok: false, text: "scope does not match" }));
+    await expect(getAssetsWorkspaceId()).rejects.toMatchObject({ status: 401 });
   });
 });
 
@@ -1152,6 +1194,85 @@ describe("issue type fetchers", () => {
     mockRequestJira.mockResolvedValue(jiraResponse({ body: { values: [], isLast: true } }));
     await getIssueTypeSchemeProjects(Array.from({ length: 120 }, (_, i) => 10000 + i));
     expect(mockRequestJira).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe("access & routing schemes", () => {
+  test("getAllPermissionSchemes unwraps the permissionSchemes array and asks for grants", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({
+      body: { permissionSchemes: [{ id: 1, name: "Prod" }, { id: 2, name: "Default Permission Scheme" }] },
+    }));
+    const rows = await getAllPermissionSchemes();
+    expect(rows).toHaveLength(2);
+    expect(String(mockRequestJira.mock.calls[0][0])).toContain("/rest/api/3/permissionscheme?expand=permissions");
+  });
+
+  test("getAllPermissionSchemes returns [] when the payload has no array", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: {} }));
+    await expect(getAllPermissionSchemes()).resolves.toEqual([]);
+  });
+
+  test("getProjectPermissionScheme requests the project-scoped scheme", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: { id: 3, name: "Prod" } }));
+    const scheme = await getProjectPermissionScheme("OPS");
+    expect(scheme).toEqual({ id: 3, name: "Prod" });
+    expect(String(mockRequestJira.mock.calls[0][0])).toContain("/rest/api/3/project/OPS/permissionscheme");
+  });
+
+  test("getAllIssueSecuritySchemes unwraps issueSecuritySchemes", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: { issueSecuritySchemes: [{ id: "s1", name: "Restricted" }] } }));
+    await expect(getAllIssueSecuritySchemes()).resolves.toEqual([{ id: "s1", name: "Restricted" }]);
+  });
+
+  test("getAllIssueSecuritySchemes returns [] on an unexpected shape", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: null }));
+    await expect(getAllIssueSecuritySchemes()).resolves.toEqual([]);
+  });
+
+  test("getIssueSecurityLevels paginates the scheme's levels", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: { values: [{ id: "L1" }, { id: "L2" }], isLast: true } }));
+    const levels = await getIssueSecurityLevels("s1");
+    expect(levels.map((l) => l.id)).toEqual(["L1", "L2"]);
+    expect(String(mockRequestJira.mock.calls[0][0])).toContain("/rest/api/3/issuesecurityschemes/level?schemeId=s1");
+  });
+
+  test("getIssueSecurityLevelMembers paginates the scheme's members", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({
+      body: { values: [{ issueSecurityLevelId: "L1", holder: { type: "group", value: "g" } }], isLast: true },
+    }));
+    const members = await getIssueSecurityLevelMembers("s1");
+    expect(members[0].issueSecurityLevelId).toBe("L1");
+    expect(String(mockRequestJira.mock.calls[0][0])).toContain("/rest/api/3/issuesecurityschemes/level/member?schemeId=s1");
+  });
+
+  test("getIssueSecuritySchemeProjects sends the repeatable projectId parameters and makes no call for none", async () => {
+    await expect(getIssueSecuritySchemeProjects([])).resolves.toEqual([]);
+    expect(mockRequestJira).not.toHaveBeenCalled();
+
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({
+      body: { values: [{ issueSecuritySchemeId: "s1", projectIds: ["10000"] }], isLast: true },
+    }));
+    const rows = await getIssueSecuritySchemeProjects(["10000", "10001"]);
+    expect(rows[0].issueSecuritySchemeId).toBe("s1");
+    const path = String(mockRequestJira.mock.calls[0][0]);
+    expect(path).toContain("/rest/api/3/issuesecurityschemes/project");
+    expect(path).toContain("projectId=10000");
+    expect(path).toContain("projectId=10001");
+  });
+
+  test("getIssueSecuritySchemeProjects batches large project lists at 50 per request", async () => {
+    mockRequestJira.mockResolvedValue(jiraResponse({ body: { values: [], isLast: true } }));
+    await getIssueSecuritySchemeProjects(Array.from({ length: 120 }, (_, i) => 10000 + i));
+    expect(mockRequestJira).toHaveBeenCalledTimes(3);
+  });
+
+  test("getAllNotificationSchemes paginates with expand=all", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({
+      body: { values: [{ id: "n1", name: "Prod", notificationSchemeEvents: [], projects: [] }], isLast: true },
+    }));
+    const rows = await getAllNotificationSchemes();
+    expect(rows[0].id).toBe("n1");
+    expect(String(mockRequestJira.mock.calls[0][0])).toContain("/rest/api/3/notificationscheme?expand=all");
   });
 });
 

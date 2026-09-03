@@ -33,6 +33,17 @@ vi.mock("./lib/issuetype-engine.js", () => ({
   buildIssueTypeSnapshot: vi.fn().mockResolvedValue({ issueTypes: 42, schemes: 7 }),
 }));
 
+vi.mock("./lib/user-engine.js", () => ({
+  buildUserSnapshot: vi.fn().mockResolvedValue({ users: 377, groups: 3 }),
+}));
+
+vi.mock("./lib/asset-engine.js", () => ({
+  buildAssetSnapshot: vi.fn().mockResolvedValue({ schemas: 12, objectTypes: 140, attributes: 900 }),
+}));
+vi.mock("./lib/access-engine.js", () => ({
+  buildAccessSnapshot: vi.fn().mockResolvedValue({ version: "v1", permission: 8, security: 2, notification: 5 }),
+}));
+
 vi.mock("./lib/full-scan-runner.js", () => ({
   runFullScanStep: vi.fn().mockResolvedValue({ advanced: true, done: 2, total: 8 }),
   runQuickScanStep: vi.fn().mockResolvedValue({ advanced: true, done: 1, total: 6 }),
@@ -51,6 +62,7 @@ vi.mock("./lib/dashboard-engine.js", () => ({
 vi.mock("./lib/scan-engine.js", () => ({
   runIssueScanCoordinator: vi.fn().mockResolvedValue(undefined),
   runIssueScanWorkerV2: vi.fn().mockResolvedValue(undefined),
+  reviveStalledIssueScanWorkers: vi.fn().mockResolvedValue({ revived: 0, checked: 0 }),
   cacheFieldOptionsForField: vi.fn().mockResolvedValue({ optionCount: 3 }),
   // Pure classifier; the consumer's backpressure branch calls it. Kept faithful to the real
   // one so the "leaves the job queued" cases still exercise the right phrases.
@@ -151,11 +163,15 @@ import {
   runIssueScanCoordinator,
   runIssueScanWorkerV2,
   cacheFieldOptionsForField,
+  reviveStalledIssueScanWorkers,
 } from "./lib/scan-engine.js";
 import { processProjectUsageReportJob } from "./lib/report-engine.js";
 import { buildWorkflowSnapshot, buildStatusHistorySnapshot } from "./lib/workflow-engine.js";
 import { buildScreenSnapshot } from "./lib/screen-engine.js";
 import { buildIssueTypeSnapshot } from "./lib/issuetype-engine.js";
+import { buildUserSnapshot } from "./lib/user-engine.js";
+import { buildAssetSnapshot } from "./lib/asset-engine.js";
+import { buildAccessSnapshot } from "./lib/access-engine.js";
 import { runFullScanStep, runQuickScanStep, startQuickScan, recoverStalledScan } from "./lib/full-scan-runner.js";
 import { buildFilterSnapshot } from "./lib/filter-engine.js";
 import { buildDashboardSnapshot } from "./lib/dashboard-engine.js";
@@ -426,6 +442,17 @@ describe("quickScanScheduleCheck", () => {
 
     expect(result).toMatchObject({ recovery: { recovered: false, reason: "error" } });
   });
+
+  test("revives stalled issue-scan workers, and a revive failure does not stop the trigger", async () => {
+    readAdminConfig.mockResolvedValue({ quickScanSchedule: schedule({ enabled: false }) });
+    recoverStalledScan.mockResolvedValueOnce({ recovered: false, reason: "not-running" });
+    reviveStalledIssueScanWorkers.mockRejectedValueOnce(new Error("SQL rate limit"));
+
+    const result = await quickScanScheduleCheck({}, CONTEXT);
+
+    expect(reviveStalledIssueScanWorkers).toHaveBeenCalledWith("scope-1");
+    expect(result).toMatchObject({ skipped: true, reason: "disabled" });
+  });
 });
 
 describe("runProjectStorageMigrations", () => {
@@ -442,12 +469,17 @@ describe("consumeSnapshot job routing", () => {
 
   test("defaults to a full snapshot when no jobType is given", async () => {
     await consumeSnapshot(event({}));
-    expect(runSnapshot).toHaveBeenCalledWith("scope-1");
+    expect(runSnapshot).toHaveBeenCalledWith("scope-1", { continuationToken: null });
   });
 
   test("routes run-snapshot to the snapshot engine", async () => {
     await consumeSnapshot(event({ jobType: "run-snapshot" }));
-    expect(runSnapshot).toHaveBeenCalledWith("scope-1");
+    expect(runSnapshot).toHaveBeenCalledWith("scope-1", { continuationToken: null });
+  });
+
+  test("passes a run-snapshot continuation token through to the engine", async () => {
+    await consumeSnapshot(event({ jobType: "run-snapshot", jobToken: "chunk-tok-9" }));
+    expect(runSnapshot).toHaveBeenCalledWith("scope-1", { continuationToken: "chunk-tok-9" });
   });
 
   test("routes build-field-summary with its cursor state", async () => {
@@ -554,6 +586,41 @@ describe("consumeSnapshot job routing", () => {
   test("logs a build-issue-type-snapshot that returned nothing without throwing", async () => {
     buildIssueTypeSnapshot.mockResolvedValueOnce(undefined);
     await expect(consumeSnapshot(event({ jobType: "build-issue-type-snapshot" }))).resolves.toBeUndefined();
+  });
+
+  test("routes build-user-snapshot to the user engine", async () => {
+    await consumeSnapshot(event({ jobType: "build-user-snapshot" }));
+    expect(buildUserSnapshot).toHaveBeenCalledWith("scope-1");
+  });
+
+  test("logs a build-user-snapshot that returned nothing without throwing", async () => {
+    buildUserSnapshot.mockResolvedValueOnce(undefined);
+    await expect(consumeSnapshot(event({ jobType: "build-user-snapshot" }))).resolves.toBeUndefined();
+  });
+
+  test("routes build-asset-snapshot to the asset engine", async () => {
+    await consumeSnapshot(event({ jobType: "build-asset-snapshot" }));
+    expect(buildAssetSnapshot).toHaveBeenCalledWith("scope-1");
+  });
+
+  test("logs a build-asset-snapshot that came back 'Assets not enabled' without throwing", async () => {
+    buildAssetSnapshot.mockResolvedValueOnce({ unavailable: true, reason: "no workspace" });
+    await expect(consumeSnapshot(event({ jobType: "build-asset-snapshot" }))).resolves.toBeUndefined();
+  });
+
+  test("logs a build-asset-snapshot that returned nothing without throwing", async () => {
+    buildAssetSnapshot.mockResolvedValueOnce(undefined);
+    await expect(consumeSnapshot(event({ jobType: "build-asset-snapshot" }))).resolves.toBeUndefined();
+  });
+
+  test("routes build-access-snapshot to the access engine", async () => {
+    await consumeSnapshot(event({ jobType: "build-access-snapshot" }));
+    expect(buildAccessSnapshot).toHaveBeenCalledWith("scope-1");
+  });
+
+  test("logs a build-access-snapshot that returned nothing without throwing", async () => {
+    buildAccessSnapshot.mockResolvedValueOnce(undefined);
+    await expect(consumeSnapshot(event({ jobType: "build-access-snapshot" }))).resolves.toBeUndefined();
   });
 
   // The cheapest structural build here: one paginated endpoint with everything expanded, so
@@ -788,7 +855,7 @@ describe("consumeSnapshot job routing", () => {
   // contract; pinning it means a future dispatch-table edit has to be deliberate.
   test("falls through to a full snapshot for an unknown jobType", async () => {
     await consumeSnapshot(event({ jobType: "totally-unknown" }));
-    expect(runSnapshot).toHaveBeenCalledWith("scope-1");
+    expect(runSnapshot).toHaveBeenCalledWith("scope-1", { continuationToken: null });
   });
 
   test("falls back to the global scope when no installation key is present", async () => {

@@ -2588,6 +2588,13 @@ a.macro-pillar__name:hover { color: var(--cool); text-decoration: underline; }
   color: var(--muted);
 }
 
+/* The shared search box, sized down for the log header and pushed to the right. */
+.universe-scan-panel__log-search {
+  margin-left: auto;
+  flex: 0 1 220px;
+  height: 30px;
+}
+
 /* This element carries both `universe-scan-panel__log` and `scan-log`. The latter caps
    itself at 160px because it is also used as a compact inline log inside cards -- too
    short for a run that can hold hundreds of entries. Embedded in Full/Quick Scan there is
@@ -4268,6 +4275,10 @@ a.macro-pillar__name:hover { color: var(--cool); text-decoration: underline; }
   flex-wrap: wrap;
   align-items: center;
 }
+
+/* The search / sort / type row is the shared SortFilterBar now; it takes the full width
+   and the advanced-filter "Clear all" wraps beneath it. */
+.admin-field-browser__toolbar > .ui-controls { flex: 1 1 100%; }
 
 .admin-field-browser__toolbar .admin-jobs-search {
   flex: 1 1 220px;
@@ -6726,4 +6737,128 @@ a.dash-row__name:hover { text-decoration: underline; }
   .issue-type-row { flex-direction: column; align-items: flex-start; gap: 6px; }
   .issue-type-row__meta { justify-content: flex-start; }
   .issue-type-row__desc { max-width: 100%; white-space: normal; }
+}
+
+/* Assets tab. Built from the same row grammar as Issue Types and Screens, so a schema row
+   reads like a screen-scheme card and an object-type row like an issue-type row. */
+.admin-assets { display: flex; flex-direction: column; gap: 16px; }
+
+/* People tab. The roster is an expandable list, built on the same row grammar as the
+   Automation reference explorer -- chevron, identity, meta chips, a detail drawer -- so a
+   user row reads like a field row. */
+.admin-people { display: flex; flex-direction: column; gap: 16px; }
+
+.people-list { display: flex; flex-direction: column; }
+
+.people-row { border-bottom: 1px solid var(--stroke); }
+.people-row:last-child { border-bottom: none; }
+.people-row--open { background: rgba(255, 255, 255, 0.05); }
+
+.people-row__head {
+  width: 100%; display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px; cursor: pointer;
+  background: none; border: none; color: inherit; font: inherit; text-align: left;
+}
+.people-row__head:hover { background: rgba(255, 255, 255, 0.04); }
+.people-row__head:focus-visible { outline: 2px solid var(--cool); outline-offset: -2px; }
+
+.people-row__chevron { flex: none; color: var(--muted); font-size: 0.7rem; width: 0.8rem; }
+
+.people-row__identity { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
+.people-row__name { font-weight: 600; font-size: 0.85rem; }
+.people-row__via {
+  font-size: 0.75rem; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60ch;
+}
+
+.people-row__meta {
+  display: flex; align-items: center; gap: 6px; flex: none; flex-wrap: wrap;
+  justify-content: flex-end; max-width: 48%;
+}
+
+.people-row__detail {
+  padding: 12px 12px 16px 32px;
+  background: rgba(0, 0, 0, 0.12);
+  border-top: 1px solid var(--stroke);
+}
+.people-row__detail .ui-split { gap: 1rem; }
+
+.people-owned__count { color: var(--muted); font-weight: 500; font-variant-numeric: tabular-nums; }
+.people-owned-list {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; flex-direction: column; gap: 3px;
+  font-size: 0.79rem;
+}
+.people-owned-list li {
+  display: flex; align-items: baseline; gap: 6px;
+  border-left: 2px solid var(--stroke); padding-left: 8px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.people-owned-list a { color: var(--cool); text-decoration: none; }
+.people-owned-list a:hover { text-decoration: underline; }
+
+@media (max-width: 700px) {
+  .people-row__head { align-items: flex-start; flex-wrap: wrap; }
+  .people-row__meta { justify-content: flex-start; max-width: 100%; }
+  .people-row__via { max-width: 100%; white-space: normal; }
+  .people-row__detail { padding-left: 16px; }
+}
+
+/* Access tab. Permission / issue-security / notification schemes, on the same expandable
+   row grammar as the People roster -- chevron, identity, meta chips, a detail drawer that
+   lists the grants / members / recipients behind the scheme. */
+.admin-access { display: flex; flex-direction: column; gap: 16px; }
+
+.access-list { display: flex; flex-direction: column; }
+.access-row { border-bottom: 1px solid var(--stroke); }
+.access-row:last-child { border-bottom: none; }
+.access-row--open { background: rgba(255, 255, 255, 0.05); }
+
+.access-row__head {
+  width: 100%; display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px; cursor: pointer;
+  background: none; border: none; color: inherit; font: inherit; text-align: left;
+}
+.access-row__head:hover { background: rgba(255, 255, 255, 0.04); }
+.access-row__head:focus-visible { outline: 2px solid var(--cool); outline-offset: -2px; }
+
+.access-row__chevron { flex: none; color: var(--muted); font-size: 0.7rem; width: 0.8rem; }
+.access-row__identity { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
+.access-row__name { font-weight: 600; font-size: 0.85rem; }
+.access-row__desc {
+  font-size: 0.75rem; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60ch;
+}
+.access-row__meta {
+  display: flex; align-items: center; gap: 6px; flex: none; flex-wrap: wrap;
+  justify-content: flex-end; max-width: 55%;
+}
+.access-row__detail {
+  padding: 12px 12px 16px 32px;
+  background: rgba(0, 0, 0, 0.12);
+  border-top: 1px solid var(--stroke);
+}
+
+.access-holder-list {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; flex-direction: column; gap: 3px;
+  font-size: 0.79rem;
+}
+.access-holder-list li {
+  display: flex; align-items: baseline; gap: 6px;
+  border-left: 2px solid var(--stroke); padding-left: 8px;
+}
+.access-holder-list__context { color: var(--muted); min-width: 12ch; }
+
+/* Project overview: the three schemes a project resolves to. */
+.project-schemes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.project-schemes__item { display: flex; align-items: baseline; gap: 8px; font-size: 0.82rem; }
+.project-schemes__label { color: var(--muted); min-width: 12ch; flex: none; }
+.project-schemes__name { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.project-schemes__name--none { font-weight: 400; color: var(--muted); }
+
+@media (max-width: 700px) {
+  .access-row__head { align-items: flex-start; flex-wrap: wrap; }
+  .access-row__meta { justify-content: flex-start; max-width: 100%; }
+  .access-row__detail { padding-left: 16px; }
 }

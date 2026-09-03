@@ -262,6 +262,11 @@ permissions:
     - read:screenable-field:jira
     - manage:jira-configuration
     - read:jira-user
+    # The People pillar. GET /rest/api/3/applicationrole (admin-only) returns, per Jira
+    # product, the access groups whose members get a licence plus the seat numbers -- how
+    # "who is licensed" is answered without any admin configuration. read:jira-user above
+    # already covers the group/member enumeration that follows.
+    - read:application-role:jira
     # Saved filters. The only endpoint that enumerates them site-wide is
     # /rest/api/3/filter/search -- /rest/api/3/filter returns the caller's favourites, which
     # is a personal list rather than an inventory. One new scope, and it is the one that
@@ -279,5 +284,34 @@ permissions:
     # With it, dashboard -> gadget -> filter -> field resolves exactly, which is what lets a
     # field card say which dashboards break if the field goes.
     - read:dashboard.property:jira
+    # The access pillar: permission schemes, issue-security schemes and notification schemes,
+    # with their holders and project assignments. All admin-only reads -- Observatory reports
+    # who can do what where, it never edits a grant. Granular scopes are conjunctive, so each
+    # scheme family's specific scope is declared alongside manage:jira-configuration (which
+    # carries the Jira-admin gate every one of these endpoints also requires):
+    #   permissionscheme            -> read:permission-scheme:jira
+    #   issuesecurityschemes(+level)-> read:issue-security-scheme:jira, read:issue-security-level:jira
+    #   notificationscheme          -> read:notification-scheme:jira
+    # notificationscheme?expand=all also resolves role and group recipients, so both of those
+    # read scopes are declared too.
+    - read:permission-scheme:jira
+    - read:issue-security-scheme:jira
+    - read:issue-security-level:jira
+    - read:notification-scheme:jira
+    - read:project-role:jira
+    - read:group:jira
+    # The JSM Assets (CMDB) pillar. Assets is a gateway API (api.atlassian.com), reached via
+    # Stargate. The read:cmdb-* scopes cover the structure endpoints (schemas, object types,
+    # attributes). The workspace-id discovery hop (/rest/servicedeskapi/assets/workspace)
+    # returned 401 "scope does not match" on the first probe with only the cmdb scopes and
+    # read:jira-work -- it is a servicedeskapi endpoint, so it takes read:servicedesk-request;
+    # read:servicemanagement-insight-objects is the legacy Insight object-read scope, added
+    # alongside because the gateway object endpoints may want it too. The probe confirms.
+    - read:cmdb-object:jira
+    - read:cmdb-schema:jira
+    - read:cmdb-attribute:jira
+    - read:cmdb-type:jira
+    - read:servicedesk-request
+    - read:servicemanagement-insight-objects
     - read:chat:rovo
     - storage:app

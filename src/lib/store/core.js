@@ -84,6 +84,83 @@ export const CREATE_SNAPSHOT_PROJECT_USAGE_INDEX = `
   ON snapshot_project_usage (scope_key, version, field_id, issue_count)
 `;
 
+// Which issue types a field actually carries a value on, from the issue crawl. The Field
+// Browser can already say how many issues and which projects use a field; this is the third
+// axis -- a field on a screen for issue types no issue of that type ever populates is
+// configured wider than it is used. Mirrors snapshot_project_usage's shape and lifecycle:
+// staged in issue_scan_type_buffer as pages arrive, promoted here on a clean finalize.
+export const CREATE_SNAPSHOT_FIELD_TYPE_USAGE_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_field_type_usage (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    field_id VARCHAR(191) NOT NULL,
+    issue_type_id VARCHAR(191) NOT NULL,
+    issue_type_name TEXT NOT NULL,
+    issue_count BIGINT NOT NULL,
+    PRIMARY KEY (scope_key, version, field_id, issue_type_id)
+  )
+`;
+
+export const CREATE_SNAPSHOT_FIELD_TYPE_USAGE_INDEX = `
+  CREATE INDEX idx_snapshot_field_type_usage_field
+  ON snapshot_field_type_usage (scope_key, version, field_id, issue_count)
+`;
+
+// The fourth usage axis for a field: WHICH PEOPLE hold a value in it. Only user-picker
+// fields (single and multi) contribute -- the crawl tests a value for an accountId before
+// tallying. One row per field x account, promoted from issue_scan_field_user_buffer on a
+// clean finalize, same lifecycle as snapshot_field_type_usage. Powers "how many distinct
+// people does this picker actually reference" on the Field Browser and "which pickers does
+// this person appear in" on the People tab.
+export const CREATE_SNAPSHOT_FIELD_USER_USAGE_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_field_user_usage (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    field_id VARCHAR(191) NOT NULL,
+    account_id VARCHAR(128) NOT NULL,
+    display_name TEXT NULL,
+    issue_count BIGINT NOT NULL,
+    PRIMARY KEY (scope_key, version, field_id, account_id)
+  )
+`;
+
+// The reverse-lookup index: every field one account appears in, biggest first. The forward
+// lookup (field -> people) is covered by the primary key's leading columns.
+export const CREATE_SNAPSHOT_FIELD_USER_USAGE_BY_ACCOUNT_INDEX = `
+  CREATE INDEX idx_snapshot_field_user_usage_account
+  ON snapshot_field_user_usage (scope_key, version, account_id, issue_count)
+`;
+
+// The crawl accumulator. One row per field x account, incremented as pages land, cleared at
+// the start of every scan like issue_scan_type_buffer -- a re-scan on stale rows would
+// double every count.
+export const CREATE_ISSUE_SCAN_FIELD_USER_BUFFER_TABLE = `
+  CREATE TABLE IF NOT EXISTS issue_scan_field_user_buffer (
+    scope_key VARCHAR(191) NOT NULL,
+    field_id VARCHAR(191) NOT NULL,
+    account_id VARCHAR(128) NOT NULL,
+    display_name TEXT NULL,
+    issue_count BIGINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (scope_key, field_id, account_id)
+  )
+`;
+
+// The crawl accumulator behind it. One row per field x issue type, incremented as pages land,
+// cleared at the start of every scan for the same reason issue_scan_buffer is -- a re-scan
+// on top of stale rows would double every count. No project dimension: a slice restart can
+// double-count a field x type pair for the restarted projects, which is accepted here
+// because the governance question is "used on this type at all", not an exact tally.
+export const CREATE_ISSUE_SCAN_TYPE_BUFFER_TABLE = `
+  CREATE TABLE IF NOT EXISTS issue_scan_type_buffer (
+    scope_key VARCHAR(191) NOT NULL,
+    field_id VARCHAR(191) NOT NULL,
+    issue_type_id VARCHAR(191) NOT NULL,
+    issue_type_name TEXT NOT NULL,
+    issue_count BIGINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (scope_key, field_id, issue_type_id)
+  )
+`;
+
 export const CREATE_SNAPSHOT_META_TABLE = `
   CREATE TABLE IF NOT EXISTS snapshot_meta (
     scope_key VARCHAR(191) NOT NULL,
@@ -1092,6 +1169,237 @@ export const CREATE_ISSUE_TYPE_SNAPSHOT_META_TABLE = `
   )
 `;
 
+// The People pillar. One row per licensed Jira user, from enumerating the members of the
+// application-access groups (see getApplicationRoles). account_id is the durable Atlassian
+// identifier; display_name is stored so the tab reads without a per-row lookup, matching how
+// filter owner names are already kept. No email -- Jira Cloud is in GDPR strict mode and the
+// accountId is the identifier the rest of the app joins on.
+export const CREATE_SNAPSHOT_USERS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_users (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    account_id VARCHAR(128) NOT NULL,
+    display_name VARCHAR(255) NULL,
+    active TINYINT NOT NULL DEFAULT 1,
+    account_type VARCHAR(32) NULL,
+    avatar_url VARCHAR(512) NULL,
+    PRIMARY KEY (scope_key, version, account_id)
+  )
+`;
+
+// Which Jira products each user is licensed for, and via which access group. A user in both
+// jira-software-users and jira-servicedesk-users gets one row per product; the group is kept
+// so the tab can say "licensed for Jira Software via <group>" and so a later governance
+// check can flag a user who only holds a licence through a group nobody meant to grant it.
+export const CREATE_SNAPSHOT_USER_ACCESS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_user_access (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    account_id VARCHAR(128) NOT NULL,
+    application_key VARCHAR(64) NOT NULL,
+    application_name VARCHAR(128) NULL,
+    via_group_id VARCHAR(128) NOT NULL,
+    via_group_name VARCHAR(255) NULL,
+    PRIMARY KEY (scope_key, version, account_id, application_key, via_group_id)
+  )
+`;
+
+export const CREATE_SNAPSHOT_USER_ACCESS_BY_APP_INDEX = `
+  CREATE INDEX IF NOT EXISTS idx_snapshot_user_access_by_app
+    ON snapshot_user_access (scope_key, version, application_key)
+`;
+
+// Build state plus the site's own seat numbers, read straight from getApplicationRoles at
+// build time. application_summary is a small JSON array -- one entry per product with
+// numberOfSeats / remainingSeats / userCount -- so the tab can show "377 of 500 Jira
+// Software seats used" and cross-check it against the roster this snapshot built.
+export const CREATE_USER_SNAPSHOT_META_TABLE = `
+  CREATE TABLE IF NOT EXISTS user_snapshot_meta (
+    scope_key VARCHAR(191) NOT NULL,
+    state VARCHAR(32) NOT NULL DEFAULT 'idle',
+    version VARCHAR(64) NULL,
+    started_at VARCHAR(64) NULL,
+    completed_at VARCHAR(64) NULL,
+    refreshed_at VARCHAR(64) NULL,
+    total_users INTEGER NOT NULL DEFAULT 0,
+    active_users INTEGER NOT NULL DEFAULT 0,
+    application_summary LONGTEXT NULL,
+    last_error TEXT NULL,
+    PRIMARY KEY (scope_key)
+  )
+`;
+
+// The JSM Assets (CMDB) pillar. Structure only: one row per object schema, per object type
+// and per attribute. Object counts run to hundreds of thousands and are never stored here;
+// the schema row carries the per-schema total the list API already returns, and per-type
+// counts are a later opt-in stage.
+export const CREATE_SNAPSHOT_ASSET_SCHEMAS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_asset_schemas (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    schema_id VARCHAR(64) NOT NULL,
+    name VARCHAR(255) NULL,
+    schema_key VARCHAR(64) NULL,
+    description TEXT NULL,
+    object_type_count INTEGER NOT NULL DEFAULT 0,
+    object_count INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (scope_key, version, schema_id)
+  )
+`;
+
+// Hierarchical: parent_id points at another row's object_type_id. A parent_id that resolves
+// to nothing in the same version is a broken hierarchy -- surfaced as a finding, not fixed.
+export const CREATE_SNAPSHOT_ASSET_OBJECT_TYPES_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_asset_object_types (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    object_type_id VARCHAR(64) NOT NULL,
+    schema_id VARCHAR(64) NOT NULL,
+    name VARCHAR(255) NULL,
+    description TEXT NULL,
+    parent_id VARCHAR(64) NULL,
+    inherited TINYINT NOT NULL DEFAULT 0,
+    is_abstract TINYINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (scope_key, version, object_type_id)
+  )
+`;
+
+// reference_object_type_id is set only for an object-reference attribute: the object type it
+// points at. A value that resolves to no row in the same version is the Assets analogue of a
+// filter scoped to a deleted project.
+export const CREATE_SNAPSHOT_ASSET_ATTRIBUTES_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_asset_attributes (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    attribute_id VARCHAR(64) NOT NULL,
+    object_type_id VARCHAR(64) NULL,
+    schema_id VARCHAR(64) NOT NULL,
+    name VARCHAR(255) NULL,
+    data_type VARCHAR(48) NULL,
+    reference_object_type_id VARCHAR(64) NULL,
+    is_system TINYINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (scope_key, version, attribute_id)
+  )
+`;
+
+export const CREATE_SNAPSHOT_ASSET_OBJECT_TYPES_BY_SCHEMA_INDEX = `
+  CREATE INDEX IF NOT EXISTS idx_snapshot_asset_object_types_by_schema
+    ON snapshot_asset_object_types (scope_key, version, schema_id)
+`;
+
+// Build state plus the workspace id the gateway URLs need, and assets_enabled: false when
+// the build ran fine and the answer was "Assets is not licensed here". The tab reads that
+// flag to explain rather than show an empty catalogue.
+export const CREATE_ASSET_SNAPSHOT_META_TABLE = `
+  CREATE TABLE IF NOT EXISTS asset_snapshot_meta (
+    scope_key VARCHAR(191) NOT NULL,
+    state VARCHAR(32) NOT NULL DEFAULT 'idle',
+    version VARCHAR(64) NULL,
+    started_at VARCHAR(64) NULL,
+    completed_at VARCHAR(64) NULL,
+    refreshed_at VARCHAR(64) NULL,
+    workspace_id VARCHAR(64) NULL,
+    assets_enabled TINYINT NOT NULL DEFAULT 0,
+    total_schemas INTEGER NOT NULL DEFAULT 0,
+    total_object_types INTEGER NOT NULL DEFAULT 0,
+    total_attributes INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT NULL,
+    PRIMARY KEY (scope_key)
+  )
+`;
+
+// ── Access & routing schemes: permission, issue-security, notification ────────
+//
+// Three scheme types, one shape: a header, a set of holders (users / groups / project roles
+// / application roles / special tokens like "anyone" or "assignee"), and a set of project
+// assignments. scheme_type keeps them in one set of tables so the cross-pillar joins ("which
+// schemes name this account", "which schemes does this project use") are one query, not three.
+export const CREATE_SNAPSHOT_SCHEMES_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_schemes (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    scheme_type VARCHAR(16) NOT NULL,
+    scheme_id VARCHAR(64) NOT NULL,
+    name VARCHAR(255) NULL,
+    description TEXT NULL,
+    is_default TINYINT NOT NULL DEFAULT 0,
+    default_level_id VARCHAR(64) NULL,
+    PRIMARY KEY (scope_key, version, scheme_type, scheme_id)
+  )
+`;
+
+// One row per (scheme, context, holder). `context` is the permission key for a permission
+// scheme, the level id for a security scheme, the event id for a notification scheme --
+// context_label carries its human name. holder_value is "" (not NULL) for the value-less
+// holder types so it can sit in the primary key.
+export const CREATE_SNAPSHOT_SCHEME_HOLDERS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_scheme_holders (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    scheme_type VARCHAR(16) NOT NULL,
+    scheme_id VARCHAR(64) NOT NULL,
+    context VARCHAR(128) NOT NULL,
+    context_label VARCHAR(255) NULL,
+    holder_type VARCHAR(48) NOT NULL,
+    holder_value VARCHAR(191) NOT NULL DEFAULT '',
+    holder_label VARCHAR(255) NULL,
+    PRIMARY KEY (scope_key, version, scheme_type, scheme_id, context, holder_type, holder_value)
+  )
+`;
+
+// The reverse-lookup index for the People cross-pillar join: every scheme that names one
+// account / group / role directly.
+export const CREATE_SNAPSHOT_SCHEME_HOLDERS_BY_HOLDER_INDEX = `
+  CREATE INDEX idx_snapshot_scheme_holders_by_holder
+  ON snapshot_scheme_holders (scope_key, version, holder_type, holder_value)
+`;
+
+// Security scheme levels, including the ones with no members (a level nobody is in makes any
+// issue set to it invisible to everyone but a site admin -- a data black hole).
+export const CREATE_SNAPSHOT_SCHEME_LEVELS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_scheme_levels (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    scheme_id VARCHAR(64) NOT NULL,
+    level_id VARCHAR(64) NOT NULL,
+    name VARCHAR(255) NULL,
+    description TEXT NULL,
+    is_default TINYINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (scope_key, version, scheme_id, level_id)
+  )
+`;
+
+// Which projects each scheme is assigned to -- across all three types. A scheme with no row
+// here is unused clutter; two projects with wildly different schemes is sprawl.
+export const CREATE_SNAPSHOT_SCHEME_PROJECTS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_scheme_projects (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    scheme_type VARCHAR(16) NOT NULL,
+    scheme_id VARCHAR(64) NOT NULL,
+    project_id VARCHAR(64) NOT NULL,
+    project_key VARCHAR(64) NULL,
+    project_name VARCHAR(255) NULL,
+    PRIMARY KEY (scope_key, version, scheme_type, scheme_id, project_id)
+  )
+`;
+
+export const CREATE_ACCESS_SNAPSHOT_META_TABLE = `
+  CREATE TABLE IF NOT EXISTS access_snapshot_meta (
+    scope_key VARCHAR(191) NOT NULL,
+    state VARCHAR(32) NOT NULL DEFAULT 'idle',
+    version VARCHAR(64) NULL,
+    started_at VARCHAR(64) NULL,
+    completed_at VARCHAR(64) NULL,
+    refreshed_at VARCHAR(64) NULL,
+    total_permission_schemes INTEGER NOT NULL DEFAULT 0,
+    total_security_schemes INTEGER NOT NULL DEFAULT 0,
+    total_notification_schemes INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT NULL,
+    PRIMARY KEY (scope_key)
+  )
+`;
+
 // Append-only record of privileged actions: who did what, when, and whether it was
 // allowed. Deliberately not versioned by snapshot and deliberately NOT wiped by
 // clearAllSnapshotData -- an audit trail that a privileged action can erase is not an
@@ -1306,7 +1614,38 @@ const projectStoreMigrations = migrationRunner
   .enqueue("v114_create_snapshot_issue_type_scheme_items_table", CREATE_SNAPSHOT_ISSUE_TYPE_SCHEME_ITEMS_TABLE)
   .enqueue("v115_create_snapshot_issue_type_scheme_projects_table", CREATE_SNAPSHOT_ISSUE_TYPE_SCHEME_PROJECTS_TABLE)
   .enqueue("v116_create_snapshot_its_projects_by_project_index", CREATE_SNAPSHOT_ISSUE_TYPE_SCHEME_PROJECTS_BY_PROJECT_INDEX)
-  .enqueue("v117_create_issue_type_snapshot_meta_table", CREATE_ISSUE_TYPE_SNAPSHOT_META_TABLE);
+  .enqueue("v117_create_issue_type_snapshot_meta_table", CREATE_ISSUE_TYPE_SNAPSHOT_META_TABLE)
+  // Field x issue-type usage: the third axis of the Field Browser, filled by the issue crawl.
+  .enqueue("v118_create_issue_scan_type_buffer_table", CREATE_ISSUE_SCAN_TYPE_BUFFER_TABLE)
+  .enqueue("v119_create_snapshot_field_type_usage_table", CREATE_SNAPSHOT_FIELD_TYPE_USAGE_TABLE)
+  .enqueue("v120_create_snapshot_field_type_usage_index", CREATE_SNAPSHOT_FIELD_TYPE_USAGE_INDEX)
+  // The People pillar: the licensed-user roster (from application-access group membership)
+  // and which products each user holds, versioned on its own cadence like the issue-type
+  // pillar. Project roles, activity and ownership joins land in follow-up migrations.
+  .enqueue("v121_create_snapshot_users_table", CREATE_SNAPSHOT_USERS_TABLE)
+  .enqueue("v122_create_snapshot_user_access_table", CREATE_SNAPSHOT_USER_ACCESS_TABLE)
+  .enqueue("v123_create_snapshot_user_access_by_app_index", CREATE_SNAPSHOT_USER_ACCESS_BY_APP_INDEX)
+  .enqueue("v124_create_user_snapshot_meta_table", CREATE_USER_SNAPSHOT_META_TABLE)
+
+  // ── v125-v129: the JSM Assets (CMDB) pillar ──────────────────────────────
+  .enqueue("v125_create_snapshot_asset_schemas_table", CREATE_SNAPSHOT_ASSET_SCHEMAS_TABLE)
+  .enqueue("v126_create_snapshot_asset_object_types_table", CREATE_SNAPSHOT_ASSET_OBJECT_TYPES_TABLE)
+  .enqueue("v127_create_snapshot_asset_attributes_table", CREATE_SNAPSHOT_ASSET_ATTRIBUTES_TABLE)
+  .enqueue("v128_create_snapshot_asset_object_types_by_schema_index", CREATE_SNAPSHOT_ASSET_OBJECT_TYPES_BY_SCHEMA_INDEX)
+  .enqueue("v129_create_asset_snapshot_meta_table", CREATE_ASSET_SNAPSHOT_META_TABLE)
+
+  // ── v130-v132: field x user (user-picker value) usage, a fourth field axis ──
+  .enqueue("v130_create_snapshot_field_user_usage_table", CREATE_SNAPSHOT_FIELD_USER_USAGE_TABLE)
+  .enqueue("v131_create_snapshot_field_user_usage_by_account_index", CREATE_SNAPSHOT_FIELD_USER_USAGE_BY_ACCOUNT_INDEX)
+  .enqueue("v132_create_issue_scan_field_user_buffer_table", CREATE_ISSUE_SCAN_FIELD_USER_BUFFER_TABLE)
+
+  // ── v133-v138: the access pillar — permission / security / notification schemes ──
+  .enqueue("v133_create_snapshot_schemes_table", CREATE_SNAPSHOT_SCHEMES_TABLE)
+  .enqueue("v134_create_snapshot_scheme_holders_table", CREATE_SNAPSHOT_SCHEME_HOLDERS_TABLE)
+  .enqueue("v135_create_snapshot_scheme_holders_by_holder_index", CREATE_SNAPSHOT_SCHEME_HOLDERS_BY_HOLDER_INDEX)
+  .enqueue("v136_create_snapshot_scheme_levels_table", CREATE_SNAPSHOT_SCHEME_LEVELS_TABLE)
+  .enqueue("v137_create_snapshot_scheme_projects_table", CREATE_SNAPSHOT_SCHEME_PROJECTS_TABLE)
+  .enqueue("v138_create_access_snapshot_meta_table", CREATE_ACCESS_SNAPSHOT_META_TABLE);
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history

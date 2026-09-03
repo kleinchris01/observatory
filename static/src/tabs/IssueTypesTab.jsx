@@ -2,7 +2,7 @@ import React from "react";
 import { invoke } from "@forge/bridge";
 import { formatNumber, formatRelativeTime } from "../utils";
 import { Icon } from "../components/Icons";
-import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, PanelGrid, GridSpan, BarList } from "../components/ui";
+import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, PanelGrid, GridSpan, BarList, PillarHealthPanel, FindingRow, SortFilterBar } from "../components/ui";
 import { SubNavLayout } from "../components/admin/primitives";
 import { useNavIntent, useVisiblePolling } from "../hooks";
 
@@ -137,6 +137,57 @@ export function SchemeCard({ scheme }) {
   );
 }
 
+// The governance findings behind the pillar score, as one uniform list. Ordered most
+// consequential first: types nothing can create, then schemes that cannot start an issue,
+// then near-duplicate names, then schemes nobody uses.
+export function IssueTypeFindings({ findings }) {
+  if (!findings || !findings.available) {
+    return (
+      <Panel title="Findings" icon="alertTriangle">
+        <EmptyState inline>No issue type inventory has been built yet.</EmptyState>
+      </Panel>
+    );
+  }
+
+  const rows = [];
+  if (findings.orphanTypeCount > 0) {
+    rows.push({
+      tone: "critical", count: findings.orphanTypeCount,
+      title: "Issue types on no scheme",
+      detail: `No project can create ${findings.orphanTypeCount === 1 ? "this type" : "these"}. ${findings.orphanSubtaskCount > 0 ? `${findings.orphanSubtaskCount} are sub-tasks. ` : ""}${(findings.orphanTypes || []).slice(0, 6).map((t) => t.name).join(", ")}${findings.orphanTypes?.length > 6 ? "…" : ""}`,
+    });
+  }
+  if (findings.hierarchyFlaggedSchemeCount > 0) {
+    rows.push({
+      tone: "critical", count: findings.hierarchyFlaggedSchemeCount,
+      title: "Schemes that cannot start an issue",
+      detail: `Sub-tasks with no standalone type, or a default that cannot be created. ${(findings.flaggedSchemes || []).slice(0, 4).map((s) => s.name).join(", ")}${findings.flaggedSchemes?.length > 4 ? "…" : ""}`,
+    });
+  }
+  if (findings.reducibleTypeCount > 0) {
+    rows.push({
+      tone: "warning", count: findings.reducibleTypeCount,
+      title: "Near-duplicate type names",
+      detail: `${findings.duplicateTypeGroupCount} group${findings.duplicateTypeGroupCount === 1 ? "" : "s"} — a Bug / Defect split makes every by-type report wrong by however many issues sit on the wrong one.`,
+    });
+  }
+  if (findings.unusedSchemeCount > 0) {
+    rows.push({
+      tone: "warning", count: findings.unusedSchemeCount,
+      title: "Issue type schemes assigned to no project",
+      detail: "A scheme no project uses is a decision nobody made.",
+    });
+  }
+
+  return (
+    <Panel title="Findings" icon="alertTriangle" description="What the issue types pillar of the site health score is built from.">
+      {rows.length === 0
+        ? <EmptyState inline>No issue type governance findings. Every type is reachable, every scheme is in use, and no names collide.</EmptyState>
+        : rows.map((r) => <FindingRow key={r.title} tone={r.tone} title={r.title} detail={r.detail} count={r.count} />)}
+    </Panel>
+  );
+}
+
 export function IssueTypesTab({ intent }) {
   const [view, setView] = React.useState("overview");
   const [data, setData] = React.useState(null);
@@ -165,6 +216,17 @@ export function IssueTypesTab({ intent }) {
   }, []);
 
   React.useEffect(() => { load(); }, [load]);
+
+  // The issue types pillar of the site health score, fetched on its own so this tab shows
+  // the same governance reading the Overview does -- matching ScreensTab.
+  const [pillar, setPillar] = React.useState(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    invoke("getPillarHealth", { pillar: "issueTypes" })
+      .then((result) => { if (!cancelled) setPillar(result?.pillar || null); })
+      .catch(() => { if (!cancelled) setPillar(null); });
+    return () => { cancelled = true; };
+  }, [data?.refreshedAt]);
 
   // "queued" counts as in flight, not just "building" -- the row is marked building at queue
   // time, but a consumer that has not picked the job up can leave either value on the meta.
@@ -250,14 +312,20 @@ export function IssueTypesTab({ intent }) {
     { key: "screen-schemes", label: "Screen schemes", icon: "copy", badge: formatNumber(data?.issueTypeScreenSchemes?.length ?? 0) },
   ];
 
+  const term = search.trim().toLowerCase();
+
   const filteredSchemes = (() => {
-    const term = search.trim().toLowerCase();
     if (!term) return data?.schemes || [];
     return (data?.schemes || []).filter((s) =>
       s.name.toLowerCase().includes(term) ||
       s.issueTypes.some((t) => (t.name || "").toLowerCase().includes(term)) ||
       s.projects.some((p) => p.projectKey.toLowerCase().includes(term)));
   })();
+
+  const matchingTypeCount = term
+    ? (data?.hierarchy || []).reduce((n, level) => n + level.types.filter(
+        (t) => t.name.toLowerCase().includes(term) || String(t.id) === term).length, 0)
+    : (data?.totalTypes ?? 0);
 
   return (
     <div className="admin-issue-types">
@@ -311,6 +379,14 @@ export function IssueTypesTab({ intent }) {
         {view === "overview" && (
           <PanelGrid>
             <GridSpan>
+              <PillarHealthPanel pillar={pillar} />
+            </GridSpan>
+
+            <GridSpan>
+              <IssueTypeFindings findings={data?.governanceFindings} />
+            </GridSpan>
+
+            <GridSpan>
               <Panel title="Types by hierarchy level" icon="layers" description="Jira's level: −1 sub-task, 0 base, 1 Epic, 2+ custom hierarchy above Epic.">
                 <BarList
                   items={(data?.hierarchy || []).map((h) => ({ label: h.label, count: h.types.length }))}
@@ -353,16 +429,15 @@ export function IssueTypesTab({ intent }) {
 
         {view === "hierarchy" && (
           <div className="issue-type-hierarchy">
-            <div className="admin-field-browser__search">
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Filter types by name or id…"
-                aria-label="Filter issue types"
-                className="admin-input"
-              />
-            </div>
+            <SortFilterBar
+              search={search}
+              onSearchChange={setSearch}
+              searchLabel="Search issue types"
+              searchPlaceholder="Search types by name or id…"
+              resultCount={matchingTypeCount}
+              totalCount={data?.totalTypes ?? 0}
+              onClear={() => setSearch("")}
+            />
             {(data?.hierarchy || []).length === 0 ? (
               <EmptyState inline>No issue types in this snapshot.</EmptyState>
             ) : (
@@ -379,16 +454,15 @@ export function IssueTypesTab({ intent }) {
             icon="folder"
             description="Which set of types each project is allowed to use, in the order they appear on the create dialog."
           >
-            <div className="admin-field-browser__search">
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Filter schemes by name, type or project key…"
-                aria-label="Filter issue type schemes"
-                className="admin-input"
-              />
-            </div>
+            <SortFilterBar
+              search={search}
+              onSearchChange={setSearch}
+              searchLabel="Search issue type schemes"
+              searchPlaceholder="Search schemes by name, type or project key…"
+              resultCount={filteredSchemes.length}
+              totalCount={data?.schemes?.length ?? 0}
+              onClear={() => setSearch("")}
+            />
             {filteredSchemes.length === 0 ? (
               <EmptyState inline>{search ? "No schemes match that search." : "No issue type schemes in this snapshot."}</EmptyState>
             ) : (

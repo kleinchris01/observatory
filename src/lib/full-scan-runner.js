@@ -48,6 +48,7 @@ import {
   readWorkflowSnapshotMeta,
   readScreenSnapshotMeta,
   readIssueTypeSnapshotMeta,
+  readAccessSnapshotMeta,
   readSnapshotMeta,
   recordFullScanRun,
 } from "./project-store.js";
@@ -56,8 +57,9 @@ import { isDashboardBuildStale, queueDashboardSnapshotBuild } from "./dashboard-
 import { buildWorkflowSnapshot, buildStatusHistorySnapshot } from "./workflow-engine.js";
 import { buildScreenSnapshot } from "./screen-engine.js";
 import { buildIssueTypeSnapshot } from "./issuetype-engine.js";
-import { runSnapshot } from "./snapshot-engine.js";
-import { runIssueScanCoordinator } from "./scan-engine.js";
+import { buildAccessSnapshot } from "./access-engine.js";
+import { queueSnapshotBuild, isSnapshotBuildStale, requeueStaleSnapshotBuild } from "./snapshot-engine.js";
+import { runIssueScanCoordinator, reviveStalledIssueScanWorkers } from "./scan-engine.js";
 
 // The four structural stages, shared verbatim between full and quick scan.
 //
@@ -69,6 +71,7 @@ import { runIssueScanCoordinator } from "./scan-engine.js";
 const workflows = { run: (key) => buildWorkflowSnapshot(key) };
 const screens = { run: (key) => buildScreenSnapshot(key) };
 const issueTypes = { run: (key) => buildIssueTypeSnapshot(key) };
+const access = { run: (key) => buildAccessSnapshot(key) };
 const statusHistory = { run: (key) => buildStatusHistorySnapshot(key) };
 
 // captureSiteHealth is dependency-injected so site-health.js stays testable without the Forge
@@ -105,6 +108,26 @@ const dashboards = {
   },
 };
 
+// The field snapshot. Unlike filters and dashboards it is NOT failed-and-restarted when it
+// goes stale -- runSnapshot checkpoints every field to the DB, so a killed chunk is resumed
+// from where it stopped, not from zero. The poll re-queues a stale chunk itself and keeps
+// reporting "running"; the orchestrator's own frozen-signature guard (no change in
+// processedFields across maxPolls) is the backstop if a resume never makes progress.
+const fields = {
+  start: (key) => queueSnapshotBuild(key),
+  poll: async (key) => {
+    let meta = await readSnapshotMeta(key);
+    if (isSnapshotBuildStale(meta)) {
+      meta = await requeueStaleSnapshotBuild(key, meta);
+    }
+    return {
+      state: handoffStageState(meta),
+      sig: meta ? `${meta.state ?? ""}|${meta.processedFields ?? ""}|${meta.buildingVersion ?? ""}` : null,
+      lastError: meta?.lastError ?? null,
+    };
+  },
+};
+
 // What each FULL-scan stage actually does.
 //
 // `run` for an inline stage: do the work, return, stage is done. `start` + `poll` for a
@@ -119,9 +142,10 @@ export const STAGE_RUNNERS = {
   screens,
   filters,
   dashboards,
-  fields: { run: (key) => runSnapshot(key) },
+  fields,
   "status-history": statusHistory,
   "issue-types": issueTypes,
+  access,
   issues: {
     // Move the crawl's own meta into "queued" BEFORE handing off. runIssueScanCoordinator
     // refuses to run from any other state -- so without this it reads the previous run's
@@ -141,6 +165,12 @@ export const STAGE_RUNNERS = {
       await runIssueScanCoordinator(key);
     },
     poll: async (key) => {
+      // Re-kick any worker that paused on a Forge queue limit. This poll runs on the
+      // orchestrator's chain, not the crawl's, so its re-queue starts fresh and lands even
+      // when the crawl's own chain is against the ceiling. A paused worker holds its slot
+      // open, so finalisation waits for it -- this is what turns a transient limit into a
+      // pause-and-resume instead of a dropped ~30k issues marked clean.
+      await reviveStalledIssueScanWorkers(key).catch(() => ({ revived: 0 }));
       const meta = await readIssueScanMeta(key);
       // The issue crawl spells its running state "building" like the rest, but it also has a
       // "cancelled" that handoffStageState treats as failed -- a user who stopped the crawl
@@ -183,6 +213,7 @@ export const QUICK_SCAN_RUNNERS = {
   },
   "status-history": statusHistory,
   "issue-types": issueTypes,
+  access,
   health,
 };
 
@@ -514,6 +545,7 @@ export async function readStageProducedCounts(installationKey, scanType) {
     put("workflows", readWorkflowSnapshotMeta, (m) => m.totalSchemes),
     put("screens", readScreenSnapshotMeta, (m) => m.totalScreens),
     put("issue-types", readIssueTypeSnapshotMeta, (m) => m.totalTypes),
+    put("access", readAccessSnapshotMeta, (m) => m.totalPermissionSchemes + m.totalSecuritySchemes + m.totalNotificationSchemes),
     put("filters", readFilterSnapshotMeta, (m) => m.totalFilters),
     put("dashboards", readDashboardSnapshotMeta, (m) => m.totalDashboards),
     put("fields", readSnapshotMeta, (m) => m.totalFields),

@@ -11,6 +11,7 @@ import {
   runIssueScanWorkerV2,
   cacheFieldOptionsForField,
   isForgeBackpressureError,
+  reviveStalledIssueScanWorkers,
 } from "./lib/scan-engine.js";
 import {
   runSnapshot,
@@ -23,6 +24,9 @@ import { processProjectUsageReportJob } from "./lib/report-engine.js";
 import { buildWorkflowSnapshot, buildStatusHistorySnapshot } from "./lib/workflow-engine.js";
 import { buildScreenSnapshot } from "./lib/screen-engine.js";
 import { buildIssueTypeSnapshot } from "./lib/issuetype-engine.js";
+import { buildUserSnapshot } from "./lib/user-engine.js";
+import { buildAssetSnapshot } from "./lib/asset-engine.js";
+import { buildAccessSnapshot } from "./lib/access-engine.js";
 import { runFullScanStep, runQuickScanStep, startQuickScan, recoverStalledScan } from "./lib/full-scan-runner.js";
 import { buildFilterSnapshot } from "./lib/filter-engine.js";
 import { buildDashboardSnapshot } from "./lib/dashboard-engine.js";
@@ -158,6 +162,13 @@ export async function quickScanScheduleCheck(_event, context) {
   const recovery = await recoverStalledScan(installationKey).catch((error) => {
     logger.error("scan.watchdog_failed", { installationKey, error: error?.message || String(error) });
     return { recovered: false, reason: "error" };
+  });
+
+  // Same idea one level down: an issue-crawl worker that paused on a Forge queue limit needs
+  // a kick from outside its own (blocked) chain. The full scan's issues poll does this every
+  // 30s while it is waiting; this covers a standalone crawl, which has no poller of its own.
+  await reviveStalledIssueScanWorkers(installationKey).catch((error) => {
+    logger.warn("scan.worker_revive_watchdog_failed", { installationKey, error: error?.message || String(error) });
   });
 
   const config = await readAdminConfig();
@@ -409,7 +420,36 @@ export async function consumeSnapshot(event) {
       return;
     }
 
-    await runSnapshot(installationKey);
+    if (jobType === "build-user-snapshot") {
+      const result = await buildUserSnapshot(installationKey);
+      console.log(
+        `build-user-snapshot: ${result?.users ?? 0} licensed users across ${result?.groups ?? 0} access groups`
+      );
+      return;
+    }
+
+    if (jobType === "build-asset-snapshot") {
+      const result = await buildAssetSnapshot(installationKey);
+      console.log(
+        result?.unavailable
+          ? `build-asset-snapshot: Assets not enabled — ${result.reason}`
+          : `build-asset-snapshot: ${result?.schemas ?? 0} schemas, ${result?.objectTypes ?? 0} object types, ${result?.attributes ?? 0} attributes`
+      );
+      return;
+    }
+
+    if (jobType === "build-access-snapshot") {
+      const result = await buildAccessSnapshot(installationKey);
+      console.log(
+        `build-access-snapshot: ${result?.permission ?? 0} permission, ${result?.security ?? 0} security, ${result?.notification ?? 0} notification schemes`
+      );
+      return;
+    }
+
+    // jobToken is present only on a continuation the build re-queued for itself (it chunks
+    // now, rather than trying to finish inside one 900s invocation). runSnapshot uses it to
+    // resume its own next chunk without being turned away by the duplicate-build guard.
+    await runSnapshot(installationKey, { continuationToken: event?.body?.jobToken || null });
   } catch (error) {
     incrMetric(METRIC_NAMES.snapshotConsumerFailed);
     // Last-resort catch — runSnapshot already handles its own errors, but never rethrow

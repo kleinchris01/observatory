@@ -79,6 +79,35 @@ export const DEFAULT_HEALTH_TOLERANCES = {
   editableDashboards: 0.25,
   unusedDashboards: 0.35,
   emptyDashboards: 0.15,
+  // Issue types. A type on no scheme cannot be created anywhere -- a broken state rather than
+  // an untidy one, so it is tighter; a scheme assigned to no project is clutter, so it is the
+  // most forgiving of the four. Near-duplicate type names sit where duplicate statuses do.
+  orphanIssueTypes: 0.12,
+  unusedTypeSchemes: 0.40,
+  duplicateIssueTypeNames: 0.15,
+  // Schemes whose type set does not hang together: sub-tasks enabled with no standalone
+  // type to hang them off, or a default type that cannot be created on its own.
+  brokenTypeHierarchy: 0.25,
+  // People. A deactivated account still in an access group is a licence being paid for and
+  // a login that should not exist -- tight. An orphaned filter/dashboard/rule is config
+  // whose owner is gone; it still works until Jira garbage-collects it, so a touch looser.
+  deactivatedLicenceHolders: 0.05,
+  orphanedOwnership: 0.10,
+  // Assets (CMDB). A schema with nothing in it is clutter, forgiving like an unused issue
+  // type scheme. A concrete object type nobody added an attribute to is unfinished, looser
+  // still. A reference attribute pointing at a type that is gone is a broken pointer, tight
+  // -- it is the Assets analogue of a filter scoped to a deleted project.
+  deadAssetSchemas: 0.20,
+  bareAssetTypes: 0.30,
+  brokenAssetReferences: 0.10,
+  // Access schemes. A permission scheme that opens browse to anyone or hands project admin
+  // to a whole group is a least-privilege failure -- tight. An unused scheme of any kind is
+  // clutter -- forgiving. A security level nobody is in is a data black hole, tight. A
+  // notification scheme routing to a named individual is fragile but not dangerous.
+  riskyPermissionSchemes: 0.15,
+  unusedAccessSchemes: 0.35,
+  brokenSecurityLevels: 0.15,
+  fragileNotificationSchemes: 0.30,
 };
 
 // rate 0 -> 100, rate >= tolerance -> 0, linear between. Deliberately linear: a curve
@@ -124,6 +153,20 @@ export const PILLAR_WEIGHTS = {
   // somebody opens it. Equal here because the pillar's own dimensions grade that difference.
   filters: 1,
   dashboards: 1,
+  // Structural like screens: it decides what an issue can be, not how it behaves after.
+  issueTypes: 1,
+  // The who. Licence waste and orphaned ownership are real costs, but neither changes what
+  // an issue does day to day, so it sits with the structural pillars, not above them.
+  users: 1,
+  // The CMDB's shape. Only relevant on a JSM Premium site, and it reports itself
+  // not-applicable everywhere else rather than dragging the score down with unmeasured bars.
+  assets: 1,
+  // Who can do what, where. Permissions carries the most consequence of the three -- a
+  // scheme that opens browse to anyone is a data-exposure fact, not a tidiness one -- so it
+  // outweighs security and notifications.
+  permissions: 1.5,
+  security: 1,
+  notifications: 0.5,
 };
 
 export const HEALTH_PILLARS = [
@@ -132,6 +175,12 @@ export const HEALTH_PILLARS = [
   { key: "dashboards", label: "Dashboards" },
   { key: "workflows", label: "Workflows and statuses" },
   { key: "screens", label: "Screens" },
+  { key: "issueTypes", label: "Issue types" },
+  { key: "users", label: "People" },
+  { key: "assets", label: "Assets (CMDB)" },
+  { key: "permissions", label: "Permission schemes" },
+  { key: "security", label: "Issue security" },
+  { key: "notifications", label: "Notification schemes" },
   { key: "automation", label: "Automation" },
   { key: "projects", label: "Projects" },
 ];
@@ -158,7 +207,7 @@ export function resolveHealthTolerances(overrides = {}) {
   return out;
 }
 
-export function computeSiteHealth({ fieldUsage, workflow, projects, automation, screens, adoption, filters, dashboards, tolerances } = {}) {
+export function computeSiteHealth({ fieldUsage, workflow, projects, automation, screens, adoption, filters, dashboards, issueTypes, users, assets, permissions, security, notifications, tolerances } = {}) {
   const TOLERANCE = resolveHealthTolerances(tolerances);
   const dimensions = [];
 
@@ -563,13 +612,19 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
   }
 
   // ── Project activity ──────────────────────────────────────────────────────
-  // Configuration outliving the work it was built for. Distinct from consistency: a
-  // project can be perfectly ordinary in shape and have had nothing touched in a year,
-  // and that is the cheapest field cleanup on the site.
+  // Configuration standing over a project that carries NO work at all -- fields
+  // configured, not one issue recorded. Either abandoned before it started or never
+  // started, and the cheapest field cleanup on the site because there is nothing to lose.
+  //
+  // Staleness ("nothing touched in six months") used to be scored here too. It is not any
+  // more: the project-adoption dimension below already grades a project that went quiet,
+  // age-relative and with the decline month named, and a stale project is always old enough
+  // for adoption to judge. Scoring both charged one abandoned project twice into the same
+  // pillar. The stale-projects LIST still lives on the Projects tab; it is just not a
+  // second score.
   if (totalProjects > 0) {
     const unused = Number(projects.unusedProjectCount) || 0;
-    const stale = Number(projects.staleProjectCount) || 0;
-    const rate = (unused + stale) / totalProjects;
+    const rate = unused / totalProjects;
     dimensions.push({
       key: "project-activity",
       label: "Project activity",
@@ -577,11 +632,11 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       available: true,
       weight: 1,
       score: scoreFromRate(rate, TOLERANCE.inactiveProjects),
-      detail: unused + stale === 0
-        ? `All ${totalProjects} projects carry work and have been touched in the last six months.`
-        : `${stale} projects have had no activity in six months and ${unused} carry fields but no work at all.`,
-      action: unused + stale > 0
-        ? "Retiring fields from a project nobody is using costs nothing and is not reversible by accident."
+      detail: unused === 0
+        ? `Every one of the ${totalProjects} projects carries at least some work.`
+        : `${unused} of ${totalProjects} projects carry fields but no recorded work at all.`,
+      action: unused > 0
+        ? "Retiring fields from a project nobody has ever used costs nothing and is not reversible by accident."
         : null,
     });
   } else {
@@ -788,6 +843,341 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
   } else {
     dimensions.push(unavailable("screen-hygiene", "Screen hygiene", "screens",
       screens?.available ? "No screen contents could be read." : "No screen inventory yet."));
+  }
+
+  // ── Issue type reach ──────────────────────────────────────────────────────
+  // Types the site defines that no scheme allows. A type on no scheme cannot be created in
+  // any project -- it is inventory that does nothing, and every one is a line an admin
+  // scrolls past looking for the ones that matter. Sub-tasks are still counted: a sub-task
+  // type on no scheme is exactly as unreachable as a standard one.
+  const totalIssueTypes = Number(issueTypes?.totalTypes) || 0;
+  if (issueTypes?.available && totalIssueTypes > 0) {
+    const orphans = Number(issueTypes.orphanTypeCount) || 0;
+    dimensions.push({
+      key: "issue-type-reach",
+      label: "Issue type reach",
+      pillar: "issueTypes",
+      available: true,
+      weight: 1.5,
+      score: scoreFromRate(orphans / totalIssueTypes, TOLERANCE.orphanIssueTypes),
+      detail: orphans === 0
+        ? `All ${totalIssueTypes} issue types are allowed by at least one scheme.`
+        : `${orphans} of ${totalIssueTypes} issue types are on no scheme — no project can create one.`,
+      action: orphans > 0
+        ? "Add each to the scheme that should own it, or delete it. An issue type nothing can use is pure clutter in every type picker."
+        : null,
+    });
+  } else {
+    dimensions.push(unavailable("issue-type-reach", "Issue type reach", "issueTypes", "No issue type inventory yet."));
+  }
+
+  // ── Issue type scheme usage ───────────────────────────────────────────────
+  const totalTypeSchemes = Number(issueTypes?.totalSchemes) || 0;
+  if (issueTypes?.available && totalTypeSchemes > 0) {
+    const unused = Number(issueTypes.unusedSchemeCount) || 0;
+    dimensions.push({
+      key: "issue-type-scheme-usage",
+      label: "Issue type scheme usage",
+      pillar: "issueTypes",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(unused / totalTypeSchemes, TOLERANCE.unusedTypeSchemes),
+      detail: unused === 0
+        ? `Every one of the ${totalTypeSchemes} issue type schemes is assigned to a project.`
+        : `${unused} of ${totalTypeSchemes} issue type schemes are assigned to no project.`,
+      action: unused > 0
+        ? "A scheme no project uses is a decision nobody made. Delete it, or find the project it was built for."
+        : null,
+    });
+  } else {
+    dimensions.push(unavailable("issue-type-scheme-usage", "Issue type scheme usage", "issueTypes", "No issue type inventory yet."));
+  }
+
+  // ── Issue type naming ─────────────────────────────────────────────────────
+  // "Bug" and "Defect", "Task" and "Task " -- the same thing named twice, so a report that
+  // groups by type splits its own data and nobody can tell which one to use. Scored where
+  // duplicate statuses are.
+  if (issueTypes?.available && totalIssueTypes > 0) {
+    const removable = Number(issueTypes.reducibleTypeCount) || 0;
+    dimensions.push({
+      key: "issue-type-naming",
+      label: "Issue type naming",
+      pillar: "issueTypes",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(removable / totalIssueTypes, TOLERANCE.duplicateIssueTypeNames),
+      detail: removable === 0
+        ? "No near-duplicate issue type names."
+        : `${removable} of ${totalIssueTypes} issue types duplicate another's name across ${issueTypes.duplicateTypeGroupCount} groups.`,
+      action: removable > 0
+        ? "Consolidate them in Jira's issue type admin — a split like Bug / Defect makes every by-type report wrong by however many issues sit on the wrong one."
+        : null,
+    });
+  } else {
+    dimensions.push(unavailable("issue-type-naming", "Issue type naming", "issueTypes", "No issue type inventory yet."));
+  }
+
+  // ── Issue type hierarchy ──────────────────────────────────────────────────
+  // Schemes whose type set does not hold together: sub-tasks enabled with no standalone type
+  // to attach them to, or a default type that is a sub-task (which cannot be created on its
+  // own, so the create dialog opens on an option nobody can pick). A correctness problem,
+  // like a workflow with no Done status.
+  if (issueTypes?.available && totalTypeSchemes > 0) {
+    const flagged = Number(issueTypes.hierarchyFlaggedSchemeCount) || 0;
+    dimensions.push({
+      key: "issue-type-hierarchy",
+      label: "Issue type hierarchy",
+      pillar: "issueTypes",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(flagged / totalTypeSchemes, TOLERANCE.brokenTypeHierarchy),
+      detail: flagged === 0
+        ? "Every scheme's type set hangs together."
+        : `${flagged} of ${totalTypeSchemes} schemes have a broken type set — sub-tasks with no parent-level type, or an uncreatable default.`,
+      action: flagged > 0
+        ? "Add a standalone type, or change the default. A scheme with only sub-tasks cannot start an issue at all."
+        : null,
+    });
+  } else {
+    dimensions.push(unavailable("issue-type-hierarchy", "Issue type hierarchy", "issueTypes", "No issue type inventory yet."));
+  }
+
+  // ── Licence hygiene ───────────────────────────────────────────────────────
+  // Accounts still in a Jira access group that Jira has deactivated. Every one is a seat
+  // being paid for and a login that, if reactivated, comes back with its old access intact.
+  const totalLicensed = Number(users?.totalUsers) || 0;
+  if (users?.available && totalLicensed > 0) {
+    const deactivated = Number(users.deactivatedUsers) || 0;
+    dimensions.push({
+      key: "user-licence-hygiene",
+      label: "Licence hygiene",
+      pillar: "users",
+      available: true,
+      weight: 1.5,
+      score: scoreFromRate(deactivated / totalLicensed, TOLERANCE.deactivatedLicenceHolders),
+      detail: deactivated === 0
+        ? `All ${totalLicensed} licensed users have an active account.`
+        : `${deactivated} of ${totalLicensed} accounts in a Jira access group are deactivated.`,
+      action: deactivated > 0
+        ? "Remove each from the access group. The seat frees up, and a reactivated account no longer returns with a licence nobody re-granted."
+        : null,
+    });
+  } else {
+    dimensions.push(unavailable("user-licence-hygiene", "Licence hygiene", "users",
+      "No licensed-user roster yet. Build one from the People tab or run a full scan."));
+  }
+
+  // ── Ownership continuity ──────────────────────────────────────────────────
+  // Filters, dashboards and automation rules whose owner is not in the licensed roster --
+  // deleted or unlicensed accounts still holding site config. It works until Jira garbage-
+  // collects the account, and then every board and dashboard built on it breaks at once.
+  const ownedTotal = Number(users?.ownedArtifactTotal) || 0;
+  if (users?.available && ownedTotal > 0) {
+    const orphaned = Number(users.orphanedArtifacts) || 0;
+    dimensions.push({
+      key: "user-ownership",
+      label: "Ownership continuity",
+      pillar: "users",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(orphaned / ownedTotal, TOLERANCE.orphanedOwnership),
+      detail: orphaned === 0
+        ? `Every one of the ${ownedTotal} owned filters, dashboards and rules belongs to a licensed user.`
+        : `${orphaned} of ${ownedTotal} owned filters, dashboards and rules belong to an account not in the roster.`,
+      action: orphaned > 0
+        ? "Reassign these before the accounts are purged — the filter or dashboard goes with the account, and every board built on it goes at the same moment."
+        : null,
+    });
+  } else {
+    dimensions.push(unavailable("user-ownership", "Ownership continuity", "users",
+      users?.available
+        ? "No filter, dashboard or automation ownership data to join against yet."
+        : "No licensed-user roster yet. Build one from the People tab or run a full scan."));
+  }
+
+  // ── Assets (CMDB) ─────────────────────────────────────────────────────────
+  // Only meaningful on a JSM Premium/Enterprise site. `assetsEnabled: false` is not a gap
+  // in the data -- it is the correct answer for most sites -- so all three dimensions report
+  // "not applicable" there rather than "not measured", and the roll-up drops the pillar
+  // entirely rather than scoring it.
+  const assetsNotApplicable = assets && assets.assetsEnabled === false;
+  const assetSchemaTotal = Number(assets?.totalSchemas) || 0;
+  if (assets?.available && assetSchemaTotal > 0) {
+    const dead = Number(assets.deadSchemaCount) || 0;
+    dimensions.push({
+      key: "asset-schema-hygiene",
+      label: "Schema hygiene",
+      pillar: "assets",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(dead / assetSchemaTotal, TOLERANCE.deadAssetSchemas),
+      detail: dead === 0
+        ? `All ${assetSchemaTotal} object schemas contain object types and objects.`
+        : `${dead} of ${assetSchemaTotal} object schemas have no object types or no objects.`,
+      action: dead > 0
+        ? "Delete or repopulate the empty schemas — each one is a namespace in every AQL autocomplete that resolves to nothing."
+        : null,
+    });
+  } else {
+    dimensions.push(unavailable("asset-schema-hygiene", "Schema hygiene", "assets",
+      assetsNotApplicable
+        ? "Assets (JSM Premium/Enterprise) is not enabled on this site."
+        : "No Assets inventory yet. Build one from the Assets tab or run a full scan."));
+  }
+
+  const assetConcreteTypes = Number(assets?.concreteObjectTypes) || 0;
+  if (assets?.available && assetConcreteTypes > 0) {
+    const bare = Number(assets.bareTypeCount) || 0;
+    dimensions.push({
+      key: "asset-type-completeness",
+      label: "Object type completeness",
+      pillar: "assets",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(bare / assetConcreteTypes, TOLERANCE.bareAssetTypes),
+      detail: bare === 0
+        ? `Every one of the ${assetConcreteTypes} concrete object types carries at least one attribute someone added.`
+        : `${bare} of ${assetConcreteTypes} concrete object types have no attribute beyond the built-in Name.`,
+      action: bare > 0
+        ? "Give each a defining attribute or retire it — a type with only a name records nothing about the thing it represents."
+        : null,
+    });
+  } else {
+    dimensions.push(unavailable("asset-type-completeness", "Object type completeness", "assets",
+      assetsNotApplicable
+        ? "Assets (JSM Premium/Enterprise) is not enabled on this site."
+        : "No Assets inventory yet. Build one from the Assets tab or run a full scan."));
+  }
+
+  const assetRefTotal = Number(assets?.referenceAttributeCount) || 0;
+  if (assets?.available && assetRefTotal > 0) {
+    const broken = Number(assets.brokenReferenceCount) || 0;
+    dimensions.push({
+      key: "asset-reference-integrity",
+      label: "Reference integrity",
+      pillar: "assets",
+      available: true,
+      weight: 1.5,
+      score: scoreFromRate(broken / assetRefTotal, TOLERANCE.brokenAssetReferences),
+      detail: broken === 0
+        ? `All ${assetRefTotal} object-reference attributes point at an object type that exists.`
+        : `${broken} of ${assetRefTotal} object-reference attributes point at an object type that is gone.`,
+      action: broken > 0
+        ? "Repoint or remove them — the attribute still shows on every object of its type and resolves to nothing."
+        : null,
+    });
+  } else {
+    dimensions.push(unavailable("asset-reference-integrity", "Reference integrity", "assets",
+      assetsNotApplicable
+        ? "Assets (JSM Premium/Enterprise) is not enabled on this site."
+        : assets?.available
+          ? "No object-reference attributes to check."
+          : "No Assets inventory yet. Build one from the Assets tab or run a full scan."));
+  }
+
+  // ── Access schemes: permission / issue-security / notification ─────────────
+  // Three pillars, one scan stage. "No access inventory yet" is the unmeasured state for all
+  // of them; each dimension scores a rate over its own scheme count.
+  const noAccess = "No access inventory yet. Run a full scan to populate it.";
+
+  // Permission schemes: least-privilege violations, then unused clutter.
+  if (permissions?.available && permissions.totalSchemes > 0) {
+    const risky = Number(permissions.riskySchemeCount) || 0;
+    dimensions.push({
+      key: "permission-least-privilege",
+      label: "Least privilege",
+      pillar: "permissions",
+      available: true,
+      weight: 1.5,
+      score: scoreFromRate(risky / permissions.totalSchemes, TOLERANCE.riskyPermissionSchemes),
+      detail: risky === 0
+        ? `None of the ${permissions.totalSchemes} permission schemes open browse to anyone or hand project admin to a group.`
+        : `${risky} of ${permissions.totalSchemes} permission schemes grant browse to anyone, project admin to a whole group, or a permission to a named individual.`,
+      action: risky > 0 ? "Replace direct and blanket grants with project roles; a permission held by an individual is a permission nobody reviews." : null,
+    });
+    const unused = Number(permissions.unusedSchemeCount) || 0;
+    dimensions.push({
+      key: "permission-scheme-sprawl",
+      label: "Scheme sprawl",
+      pillar: "permissions",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(unused / permissions.totalSchemes, TOLERANCE.unusedAccessSchemes),
+      detail: unused === 0
+        ? `Every permission scheme is assigned to at least one project.`
+        : `${unused} of ${permissions.totalSchemes} permission schemes are assigned to no project.`,
+      action: unused > 0 ? "Delete the unused schemes — each is a decision nobody made that still shows in every scheme picker." : null,
+    });
+  } else {
+    dimensions.push(unavailable("permission-least-privilege", "Least privilege", "permissions", noAccess));
+    dimensions.push(unavailable("permission-scheme-sprawl", "Scheme sprawl", "permissions", noAccess));
+  }
+
+  // Issue security: data black holes, then unused clutter.
+  if (security?.available && security.totalSchemes > 0) {
+    const broken = Number(security.brokenLevelCount) || 0;
+    const denom = Math.max(1, Number(security.totalLevels) || 0);
+    dimensions.push({
+      key: "security-level-integrity",
+      label: "Level integrity",
+      pillar: "security",
+      available: true,
+      weight: 1.5,
+      score: scoreFromRate(broken / denom, TOLERANCE.brokenSecurityLevels),
+      detail: broken === 0
+        ? `Every one of the ${denom} security levels has members and every scheme has a level.`
+        : `${broken} security levels have no members, or belong to a scheme with no levels — an issue set to one is invisible to everyone but a site admin.`,
+      action: broken > 0 ? "Add members or delete the level. An empty security level is a way to lose an issue in plain sight." : null,
+    });
+    const unused = Number(security.unusedSchemeCount) || 0;
+    dimensions.push({
+      key: "security-scheme-sprawl",
+      label: "Scheme sprawl",
+      pillar: "security",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(unused / security.totalSchemes, TOLERANCE.unusedAccessSchemes),
+      detail: unused === 0
+        ? `Every issue security scheme is assigned to a project.`
+        : `${unused} of ${security.totalSchemes} issue security schemes are assigned to no project.`,
+      action: unused > 0 ? "Delete the unused schemes." : null,
+    });
+  } else {
+    dimensions.push(unavailable("security-level-integrity", "Level integrity", "security", noAccess));
+    dimensions.push(unavailable("security-scheme-sprawl", "Scheme sprawl", "security", noAccess));
+  }
+
+  // Notification schemes: fragile routing, then unused clutter.
+  if (notifications?.available && notifications.totalSchemes > 0) {
+    const fragile = Number(notifications.fragileSchemeCount) || 0;
+    dimensions.push({
+      key: "notification-routing",
+      label: "Routing resilience",
+      pillar: "notifications",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(fragile / notifications.totalSchemes, TOLERANCE.fragileNotificationSchemes),
+      detail: fragile === 0
+        ? `No notification scheme routes an event to a named individual.`
+        : `${fragile} of ${notifications.totalSchemes} notification schemes send an event to a specific person — the notification stops silently the day they leave.`,
+      action: fragile > 0 ? "Route to a project role or group instead of a named account." : null,
+    });
+    const unused = Number(notifications.unusedSchemeCount) || 0;
+    dimensions.push({
+      key: "notification-scheme-sprawl",
+      label: "Scheme sprawl",
+      pillar: "notifications",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(unused / notifications.totalSchemes, TOLERANCE.unusedAccessSchemes),
+      detail: unused === 0
+        ? `Every notification scheme is assigned to a project.`
+        : `${unused} of ${notifications.totalSchemes} notification schemes are assigned to no project.`,
+      action: unused > 0 ? "Delete the unused schemes." : null,
+    });
+  } else {
+    dimensions.push(unavailable("notification-routing", "Routing resilience", "notifications", noAccess));
+    dimensions.push(unavailable("notification-scheme-sprawl", "Scheme sprawl", "notifications", noAccess));
   }
 
   // ── Roll-up ───────────────────────────────────────────────────────────────

@@ -33,14 +33,38 @@ import {
   loadWorkflowSchemes,
   readScreenSnapshotMeta,
   readWorkflowSnapshotMeta,
+  readIssueTypeSnapshotMeta,
+  loadIssueTypes,
+  readAssetSnapshotMeta,
+  loadAssetSchemas,
+  loadAssetObjectTypes,
+  loadAssetAttributes,
+  readAccessSnapshotMeta,
+  loadSchemes,
+  loadSchemeHolders,
+  loadSchemeLevels,
+  loadSchemeProjects,
+  loadIssueTypeSchemes,
+  loadIssueTypeSchemeItems,
+  readUserSnapshotMeta,
+  loadUsers,
+  loadUserGovernanceSummary,
 } from "./project-store.js";
 // Imported from the automation store directly: project-store.js re-exports the other eight
 // store modules but not this one, because the automation pillar is written by an import
 // rather than built by a snapshot job and never needed to be part of that surface.
-import { loadStatusAutomationReferences } from "./store/automation.js";
+import { loadStatusAutomationReferences, readAutomationPart } from "./store/automation.js";
 import { summarizeAdoption } from "./project-adoption.js";
 import { summarizeFilters, summarizeFilterHealth } from "./filter-insights.js";
 import { summarizeDashboards, summarizeDashboardHealth } from "./dashboard-insights.js";
+import { summarizeIssueTypeInsights, summarizeIssueTypeHealth } from "./issuetype-insights.js";
+import { summarizeAssetInsights, summarizeAssetHealth } from "./asset-insights.js";
+import {
+  summarizePermissionInsights, summarizePermissionHealth,
+  summarizeSecurityInsights, summarizeSecurityHealth,
+  summarizeNotificationInsights, summarizeNotificationHealth,
+} from "./access-insights.js";
+import { buildOwnershipIndex, summarizeOrphanedOwnership } from "./user-ownership.js";
 
 // Top finding-type/field-type breakdowns are capped -- Overview is a glance-level
 // summary, not the full Field Browser, and shipping ~1500 hydrated fields' worth of
@@ -56,7 +80,14 @@ export function buildFieldUsageInsights(hydratedFields) {
 
   for (const f of hydratedFields) {
     for (const reason of f.findings?.reasons || []) {
-      if (reason.severity in findingsBySeverity) findingsBySeverity[reason.severity]++;
+      // "duplicate-naming" is deliberately kept OUT of the severity roll-up. It has its own
+      // scored dimension (field-naming, built from duplicateClusters below), and folding it
+      // into findingsBySeverity too would charge the same defect twice inside the fields
+      // pillar -- once per cluster and again per field in the cluster. It still appears in
+      // findingsByType, which is the tab's informational breakdown, not a score input.
+      if (reason.code !== "duplicate-naming" && reason.severity in findingsBySeverity) {
+        findingsBySeverity[reason.severity]++;
+      }
       findingsByTitle.set(reason.title, (findingsByTitle.get(reason.title) || 0) + 1);
     }
 
@@ -356,13 +387,13 @@ export async function buildWorkflowOverview(installationKey) {
 // project list and loading it twice to answer one join would double the cost of the page.
 // Without it the broken-project check is skipped and says so -- "no broken references" and
 // "nobody looked" are different claims.
-export async function buildFilterOverview(installationKey, { projectKeys = null } = {}) {
+export async function buildFilterOverview(installationKey, { projectKeys = null, typeNames = null } = {}) {
   try {
     const meta = await readFilterSnapshotMeta(installationKey);
     if (!meta?.version) return { available: false, state: meta?.state || "idle", lastError: meta?.lastError || null };
 
     const filters = await loadFilters(installationKey, meta.version);
-    const summary = summarizeFilters(filters, { projectKeys });
+    const summary = summarizeFilters(filters, { projectKeys, typeNames });
 
     return {
       available: summary.available,
@@ -375,6 +406,7 @@ export async function buildFilterOverview(installationKey, { projectKeys = null 
       filters: undefined,
       duplicateGroups: undefined,
       brokenProjects: undefined,
+      unknownTypeRefs: undefined,
       worst: summary.filters.slice(0, 8).map((f) => ({
         id: f.id, name: f.name, ownerName: f.ownerName,
         subscriptionCount: f.subscriptionCount,
@@ -457,6 +489,197 @@ export async function buildScreenOverview(installationKey) {
 }
 
 
+// Issue type health for the Overview.
+//
+// Mirrors buildScreenOverview, including its failure posture: a pillar that cannot be built
+// reports unavailable and the score excludes it, rather than 500ing an overview that has
+// seven other pillars to show. `.health` is what feeds computeSiteHealth; the rest is for
+// the tab.
+export async function buildIssueTypeOverview(installationKey) {
+  try {
+    const meta = await readIssueTypeSnapshotMeta(installationKey);
+    if (!meta?.version) return { available: false, state: meta?.state || "idle", lastError: meta?.lastError || null };
+
+    const [types, schemes, schemeItems] = await Promise.all([
+      loadIssueTypes(installationKey, meta.version),
+      loadIssueTypeSchemes(installationKey, meta.version),
+      loadIssueTypeSchemeItems(installationKey, meta.version),
+    ]);
+    const summary = summarizeIssueTypeInsights({ types, schemes, schemeItems });
+
+    return {
+      available: summary.available,
+      state: meta.state || "idle",
+      refreshedAt: meta.refreshedAt || null,
+      lastError: meta.lastError || null,
+      ...summary,
+      // The full catalog stays on the tab.
+      duplicateGroups: summary.duplicateGroups,
+      orphanTypes: summary.orphanTypes,
+      flaggedSchemes: summary.flaggedSchemes,
+      // The set of defined type names, lowercased -- the filter pillar joins its JQL type
+      // references against this to find saved searches that name a type nothing defines.
+      typeNames: new Set(types.map((t) => String(t.name || "").toLowerCase()).filter(Boolean)),
+      health: summarizeIssueTypeHealth(summary),
+    };
+  } catch (error) {
+    console.warn("buildIssueTypeOverview failed:", error?.message || error);
+    return { available: false, state: "error" };
+  }
+}
+
+// The People pillar's health inputs: how many licensed accounts are deactivated, and how
+// much owned config (filters / dashboards / rules) belongs to an account not in the roster.
+export async function buildUserOverview(installationKey) {
+  try {
+    const meta = await readUserSnapshotMeta(installationKey);
+    if (!meta?.version) return { available: false, state: meta?.state || "idle", lastError: meta?.lastError || null };
+
+    const [users, summary, ownership, ruleUserIndex] = await Promise.all([
+      loadUsers(installationKey, meta.version),
+      loadUserGovernanceSummary(installationKey, meta.version),
+      buildOwnershipIndex(installationKey).catch(() => ({ byAccount: new Map(), available: {} })),
+      Promise.resolve().then(() => readAutomationPart(installationKey, "users")).catch(() => null),
+    ]);
+
+    const rosterIds = new Set(users.map((u) => u.accountId));
+    const orphaned = summarizeOrphanedOwnership(ownership, rosterIds);
+    const totalUsers = Number(summary?.totalUsers) || users.length;
+    const deactivatedUsers = Math.max(0, totalUsers - (Number(summary?.activeUsers) || totalUsers));
+
+    // People an automation rule names, and how many of those are not on the roster -- a rule
+    // routing work to someone who has left. Estate counts only; the finding is on the Overview.
+    let automationRefUsers = 0;
+    let orphanedAutomationRefUsers = 0;
+    for (const entry of ruleUserIndex?.entries ?? []) {
+      automationRefUsers += 1;
+      if (!rosterIds.has(String(entry.label))) orphanedAutomationRefUsers += 1;
+    }
+
+    return {
+      available: totalUsers > 0,
+      state: meta.state || "idle",
+      refreshedAt: meta.refreshedAt || null,
+      lastError: meta.lastError || null,
+      totalUsers,
+      deactivatedUsers,
+      automationRefUsers,
+      orphanedAutomationRefUsers,
+      ...orphaned,
+      health: {
+        available: totalUsers > 0,
+        totalUsers,
+        deactivatedUsers,
+        orphanedArtifacts: orphaned.orphanedArtifacts,
+        ownedArtifactTotal: orphaned.ownedArtifactTotal,
+      },
+    };
+  } catch (error) {
+    console.warn("buildUserOverview failed:", error?.message || error);
+    return { available: false, state: "error" };
+  }
+}
+
+// The JSM Assets pillar's inputs: the schema / object-type / attribute structure, and the
+// four things wrong with it a scan can find. `assetsEnabled: false` is a distinct outcome
+// -- the build ran and Assets is not licensed on this site -- and the score treats that
+// pillar as not-applicable rather than scoring it zero.
+export async function buildAssetOverview(installationKey) {
+  try {
+    const meta = await readAssetSnapshotMeta(installationKey);
+    if (!meta?.version && meta?.state !== "unavailable") {
+      return { available: false, state: meta?.state || "idle", lastError: meta?.lastError || null };
+    }
+
+    if (meta?.state === "unavailable") {
+      const summary = summarizeAssetInsights({ assetsEnabled: false });
+      return {
+        available: false,
+        assetsEnabled: false,
+        state: "unavailable",
+        refreshedAt: meta?.refreshedAt || null,
+        lastError: meta?.lastError || null,
+        ...summary,
+        health: summarizeAssetHealth(summary),
+      };
+    }
+
+    const [schemas, objectTypes, attributes] = await Promise.all([
+      loadAssetSchemas(installationKey, meta.version),
+      loadAssetObjectTypes(installationKey, meta.version),
+      loadAssetAttributes(installationKey, meta.version),
+    ]);
+    const summary = summarizeAssetInsights({ schemas, objectTypes, attributes, assetsEnabled: true });
+
+    return {
+      available: summary.available,
+      assetsEnabled: true,
+      state: meta.state || "idle",
+      refreshedAt: meta.refreshedAt || null,
+      workspaceId: meta.workspaceId || null,
+      lastError: meta.lastError || null,
+      ...summary,
+      health: summarizeAssetHealth(summary),
+    };
+  } catch (error) {
+    console.warn("buildAssetOverview failed:", error?.message || error);
+    return { available: false, state: "error" };
+  }
+}
+
+// The access pillar's inputs: permission, issue-security and notification schemes, and the
+// governance signal for each -- least-privilege violations, data black holes, fragile
+// routing, plus off-roster grants (the People cross-pillar join). Returns one object per
+// scheme type, each with its own `health` block feeding a distinct pillar.
+export async function buildAccessOverview(installationKey) {
+  try {
+    const meta = await readAccessSnapshotMeta(installationKey);
+    if (!meta?.version) return { available: false, state: meta?.state || "idle", lastError: meta?.lastError || null };
+
+    // Roster accountIds for the "grant to someone off the roster" checks.
+    let rosterAccountIds = new Set();
+    const userMeta = await readUserSnapshotMeta(installationKey).catch(() => null);
+    if (userMeta?.version) {
+      const users = await loadUsers(installationKey, userMeta.version).catch(() => []);
+      rosterAccountIds = new Set(users.map((u) => u.accountId));
+    }
+
+    const [
+      permSchemes, permHolders, permProjects,
+      secSchemes, secHolders, secProjects, levels,
+      notifSchemes, notifHolders, notifProjects,
+    ] = await Promise.all([
+      loadSchemes(installationKey, meta.version, "permission"),
+      loadSchemeHolders(installationKey, meta.version, "permission"),
+      loadSchemeProjects(installationKey, meta.version, "permission"),
+      loadSchemes(installationKey, meta.version, "security"),
+      loadSchemeHolders(installationKey, meta.version, "security"),
+      loadSchemeProjects(installationKey, meta.version, "security"),
+      loadSchemeLevels(installationKey, meta.version),
+      loadSchemes(installationKey, meta.version, "notification"),
+      loadSchemeHolders(installationKey, meta.version, "notification"),
+      loadSchemeProjects(installationKey, meta.version, "notification"),
+    ]);
+
+    const permissions = summarizePermissionInsights({ schemes: permSchemes, holders: permHolders, schemeProjects: permProjects, rosterAccountIds });
+    const security = summarizeSecurityInsights({ schemes: secSchemes, levels, holders: secHolders, schemeProjects: secProjects, rosterAccountIds });
+    const notifications = summarizeNotificationInsights({ schemes: notifSchemes, holders: notifHolders, schemeProjects: notifProjects, rosterAccountIds });
+
+    return {
+      available: true,
+      state: meta.state || "idle",
+      refreshedAt: meta.refreshedAt || null,
+      lastError: meta.lastError || null,
+      permissions: { ...permissions, health: summarizePermissionHealth(permissions) },
+      security: { ...security, health: summarizeSecurityHealth(security) },
+      notifications: { ...notifications, health: summarizeNotificationHealth(notifications) },
+    };
+  } catch (error) {
+    console.warn("buildAccessOverview failed:", error?.message || error);
+    return { available: false, state: "error" };
+  }
+}
+
 // Compute the score from scratch and record it.
 //
 // The one entry point anything outside the Overview should use. It gathers the same five
@@ -486,11 +709,15 @@ export async function captureSiteHealth(installationKey, deps) {
   }
 
   try {
-    const [meta, config, workflow, screens, automationAnalysis] = await Promise.all([
+    const [meta, config, workflow, screens, issueTypeOverview, userOverview, assetOverview, accessOverview, automationAnalysis] = await Promise.all([
       readSnapshotMeta(installationKey),
       readAdminConfig(),
       buildWorkflowOverview(installationKey),
       buildScreenOverview(installationKey),
+      buildIssueTypeOverview(installationKey),
+      buildUserOverview(installationKey),
+      buildAssetOverview(installationKey),
+      buildAccessOverview(installationKey),
       readAutomationAnalysis(installationKey).catch(() => null),
     ]);
     let filters = null;
@@ -521,9 +748,10 @@ export async function captureSiteHealth(installationKey, deps) {
       adoption = summarizeAdoption(withCounts, activity);
 
       // The project keys the filter pillar needs for its broken-reference join, taken from
-      // the rows already loaded rather than fetched again.
+      // the rows already loaded rather than fetched again. `typeNames` is the same idea for
+      // the JQL issue-type join, reusing what the issue-type overview already loaded.
       const projectKeys = new Set(withCounts.map((p) => p.projectKey).filter(Boolean));
-      filters = (await buildFilterOverview(installationKey, { projectKeys })).health ?? null;
+      filters = (await buildFilterOverview(installationKey, { projectKeys, typeNames: issueTypeOverview?.typeNames ?? null })).health ?? null;
       dashboards = (await buildDashboardOverview(installationKey)).health ?? null;
     }
 
@@ -536,6 +764,12 @@ export async function captureSiteHealth(installationKey, deps) {
       adoption,
       filters,
       dashboards,
+      issueTypes: issueTypeOverview?.health ?? null,
+      users: userOverview?.health ?? null,
+      assets: assetOverview?.health ?? null,
+      permissions: accessOverview?.permissions?.health ?? null,
+      security: accessOverview?.security?.health ?? null,
+      notifications: accessOverview?.notifications?.health ?? null,
       tolerances: config?.healthTolerances,
     });
 

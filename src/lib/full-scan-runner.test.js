@@ -24,16 +24,23 @@ vi.mock("./project-store.js", () => ({
   readWorkflowSnapshotMeta: vi.fn(async () => null),
   readScreenSnapshotMeta: vi.fn(async () => null),
   readIssueTypeSnapshotMeta: vi.fn(async () => null),
+  readAccessSnapshotMeta: vi.fn(async () => null),
   readSnapshotMeta: vi.fn(async () => null),
   recordFullScanRun: vi.fn(async () => ({ recorded: true })),
 }));
+
+vi.mock("./access-engine.js", () => ({ buildAccessSnapshot: vi.fn() }));
 
 vi.mock("./filter-engine.js", () => ({ isFilterBuildStale: vi.fn(() => false), queueFilterSnapshotBuild: vi.fn() }));
 vi.mock("./dashboard-engine.js", () => ({ isDashboardBuildStale: vi.fn(() => false), queueDashboardSnapshotBuild: vi.fn() }));
 vi.mock("./workflow-engine.js", () => ({ buildWorkflowSnapshot: vi.fn(), buildStatusHistorySnapshot: vi.fn() }));
 vi.mock("./screen-engine.js", () => ({ buildScreenSnapshot: vi.fn() }));
 vi.mock("./issuetype-engine.js", () => ({ buildIssueTypeSnapshot: vi.fn() }));
-vi.mock("./snapshot-engine.js", () => ({ runSnapshot: vi.fn() }));
+vi.mock("./snapshot-engine.js", () => ({
+  queueSnapshotBuild: vi.fn(),
+  isSnapshotBuildStale: vi.fn(() => false),
+  requeueStaleSnapshotBuild: vi.fn(async (_key, meta) => meta),
+}));
 vi.mock("./scan-engine.js", () => ({ runIssueScanCoordinator: vi.fn() }));
 vi.mock("./site-health.js", () => ({ captureSiteHealth: vi.fn() }));
 
@@ -76,6 +83,8 @@ import { runIssueScanCoordinator } from "./scan-engine.js";
 import { buildWorkflowSnapshot } from "./workflow-engine.js";
 import { buildIssueTypeSnapshot } from "./issuetype-engine.js";
 import { queueFilterSnapshotBuild } from "./filter-engine.js";
+import { queueSnapshotBuild, isSnapshotBuildStale, requeueStaleSnapshotBuild } from "./snapshot-engine.js";
+import { readSnapshotMeta } from "./project-store.js";
 import { runDeltaIssueScanJob } from "../resolvers.js";
 
 const lastWrite = () => {
@@ -186,7 +195,7 @@ describe("running a stage", () => {
   // one poll interval later -- a whole-site crawl "finishing" in ~31 seconds.
   test("the issue-crawl handoff flips the crawl meta to queued before starting the coordinator", async () => {
     readFullScanMeta.mockResolvedValue(running({
-      stages: withDone(["workflows", "screens", "filters", "dashboards", "fields", "status-history", "issue-types"]),
+      stages: withDone(["workflows", "screens", "filters", "dashboards", "fields", "status-history", "issue-types", "access"]),
     }));
 
     const result = await runFullScanStep("inst", { jobToken: "job-token" });
@@ -277,6 +286,68 @@ describe("running a stage", () => {
     expect(inventorySnapshotQueue.push).not.toHaveBeenCalled();
     // Crucially, no later stage was started.
     expect(lastWrite()).toBeNull();
+  });
+});
+
+// The field snapshot was the last stage to run inline, and on a large estate runSnapshot
+// cannot finish in one 900s invocation -- run inline it was killed mid-walk every time, the
+// orchestrator never re-queued, and the watchdog burned three recoveries before failing it
+// out. It is a handoff stage now: runSnapshot chunks and re-queues itself, the orchestrator
+// starts it and polls its meta. Unlike filters/dashboards a stale field build is RESUMED from
+// its checkpoint, never failed-and-restarted from zero.
+describe("field snapshot handoff", () => {
+  const upTo = () => running({ stages: withDone(["workflows", "screens", "filters", "dashboards"]) });
+
+  test("is catalogued as a handoff stage, not inline", () => {
+    expect(fullScanStageCatalog().find((s) => s.key === "fields")?.mode).toBe("handoff");
+  });
+
+  test("starts the resumable build instead of running it inline", async () => {
+    readFullScanMeta.mockResolvedValue(upTo());
+
+    const result = await runFullScanStep("inst", { jobToken: "job-token" });
+
+    expect(queueSnapshotBuild).toHaveBeenCalledWith("inst");
+    expect(result).toMatchObject({ handedOff: true, stage: "fields" });
+    expect(lastWrite().currentStage).toBe("fields");
+    expect(inventorySnapshotQueue.push).toHaveBeenCalledWith(
+      expect.objectContaining({ delayInSeconds: FULL_SCAN_POLL_DELAY_SECONDS })
+    );
+  });
+
+  test("keeps waiting while the build reports progress", async () => {
+    readFullScanMeta.mockResolvedValue(running({ currentStage: "fields", polls: 2, stageProgressSig: "building|40|v1" }));
+    readSnapshotMeta.mockResolvedValue({ state: "building", processedFields: 900, buildingVersion: "v1" });
+
+    const result = await runFullScanStep("inst", { jobToken: "job-token" });
+
+    // processedFields moved 40 -> 900, so the signature changed and patience resets.
+    expect(result).toMatchObject({ waiting: true, stage: "fields", polls: 1 });
+    expect(lastWrite()).toMatchObject({ stageProgressSig: "building|900|v1" });
+  });
+
+  test("marks the stage done once the snapshot reports ready", async () => {
+    readFullScanMeta.mockResolvedValue(running({ currentStage: "fields", stages: withDone(["workflows", "screens"]) }));
+    readSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1", processedFields: 1200 });
+
+    await runFullScanStep("inst", { jobToken: "job-token" });
+
+    expect(lastWrite().stages.find((s) => s.key === "fields").state).toBe("done");
+    expect(lastWrite().currentStage).toBeNull();
+  });
+
+  test("resumes a stale field build from its checkpoint rather than failing the stage", async () => {
+    readFullScanMeta.mockResolvedValue(running({ currentStage: "fields", polls: 1 }));
+    const staleMeta = { state: "building", processedFields: 300, buildingVersion: "v1", startedAt: "old" };
+    readSnapshotMeta.mockResolvedValue(staleMeta);
+    isSnapshotBuildStale.mockReturnValueOnce(true);
+    requeueStaleSnapshotBuild.mockResolvedValueOnce({ ...staleMeta, state: "queued" });
+
+    const result = await runFullScanStep("inst", { jobToken: "job-token" });
+
+    expect(requeueStaleSnapshotBuild).toHaveBeenCalledWith("inst", staleMeta);
+    // "queued" is still in flight -- the stage keeps waiting, it is not retried or failed.
+    expect(result).toMatchObject({ waiting: true, stage: "fields" });
   });
 });
 

@@ -84,6 +84,73 @@ export function AutomationProbePanel() {
   );
 }
 
+export function AssetsProbePanel() {
+  const [result, setResult] = React.useState(null);
+  const [running, setRunning] = React.useState(false);
+  const [error, setError] = React.useState(null);
+
+  async function run() {
+    setRunning(true);
+    setError(null);
+    try {
+      setResult(await invoke("probeAssetsApi", {}));
+    } catch (err) {
+      setError(err?.message || "Probe failed.");
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  return (
+    <ConfigSection title="JSM Assets API" icon="layers">
+      <p className="admin-config-row__hint" style={{ marginBottom: 10 }}>
+        Assets (CMDB) is a gateway API — it lives on api.atlassian.com, not this site, and
+        needs JSM Premium. This confirms the workspace and which structure endpoints answer
+        before an Assets pillar is built on them. <b>site</b> rows are the workspace-id
+        discovery hop; <b>gateway</b> rows are the Assets API itself.
+      </p>
+
+      <button type="button" className="secondary-button" onClick={run} disabled={running}>
+        <Icon name="layers" size={13} />
+        {running ? "Probing…" : "Probe Assets endpoints"}
+      </button>
+
+      {error && <div className="danger-zone__error" role="alert">{error}</div>}
+
+      {result && (
+        <div className="probe-results">
+          {result.assetsEnabled ? (
+            <p className="probe-results__summary probe-results__summary--ok">
+              Assets is reachable. Workspace <code>{result.workspaceId}</code> —{" "}
+              {result.reachable.length} structure endpoint{result.reachable.length === 1 ? "" : "s"} answered.
+            </p>
+          ) : (
+            <p className="probe-results__summary">
+              {result.reason || "Assets is not reachable with the current scopes on this site."}
+            </p>
+          )}
+          <table className="probe-results__table">
+            <thead>
+              <tr><th>Step</th><th>Via</th><th>Endpoint</th><th>Status</th><th>Response</th></tr>
+            </thead>
+            <tbody>
+              {result.results.map((row) => (
+                <tr key={row.path} className={row.ok && (row.looksLikeAssets ?? true) ? "probe-results__row--ok" : ""}>
+                  <td>{row.step}</td>
+                  <td>{row.via === "stargate" ? "gateway" : "site"}</td>
+                  <td className="probe-results__path">{row.path}</td>
+                  <td>{row.status === null ? "—" : row.status}</td>
+                  <td className="probe-results__sample">{row.sample || "(empty)"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </ConfigSection>
+  );
+}
+
 export function ConfigTab({ config, onSave, saving }) {
 // Mirrors DEFAULT_HEALTH_TOLERANCES in src/lib/health-score.js. Stored as rates; shown as
 // percentages, because "flag once 15% of statuses are duplicates" is how an admin thinks
@@ -99,6 +166,19 @@ const DEFAULT_TOLERANCES = {
   credentialRules: 0.02,
   selfTriggeringRules: 0.10,
   disabledRules: 0.50,
+  orphanIssueTypes: 0.12,
+  unusedTypeSchemes: 0.40,
+  duplicateIssueTypeNames: 0.15,
+  brokenTypeHierarchy: 0.25,
+  deactivatedLicenceHolders: 0.05,
+  orphanedOwnership: 0.10,
+  deadAssetSchemas: 0.20,
+  bareAssetTypes: 0.30,
+  brokenAssetReferences: 0.10,
+  riskyPermissionSchemes: 0.15,
+  unusedAccessSchemes: 0.35,
+  brokenSecurityLevels: 0.15,
+  fragileNotificationSchemes: 0.30,
 };
 
   const [local, setLocal] = React.useState(() => {
@@ -268,6 +348,7 @@ function ConfigAreas({ area, local, t, set, setThreshold, setMacroAccess, pct, s
       />
       <ScreenCostProbePanel />
       <AutomationProbePanel />
+      <AssetsProbePanel />
       <AuditLogPanel />
     </>
   );
@@ -702,6 +783,71 @@ function RulesArea({ t, setThreshold, pct, setTolerancePercent }) {
         </div>
       </ConfigSection>
 
+      <ConfigSection title="Issue types" icon="layers">
+        <p className="admin-config-section__desc">
+          What an issue can be, and which projects can create it. A type on no scheme cannot be
+          created anywhere; a scheme on no project is a decision nobody made.
+        </p>
+        <div className="admin-threshold-rules">
+          <ToleranceRule tone="risk" badge="Issue type" name="Orphan issue types" pct={pct} set={setTolerancePercent} k="orphanIssueTypes"
+            tail="of issue types on no scheme — nothing can create one, so every one is clutter in every type picker." />
+          <ToleranceRule tone="cleanup" badge="Issue type" name="Unassigned type schemes" pct={pct} set={setTolerancePercent} k="unusedTypeSchemes"
+            tail="of issue type schemes assigned to no project." />
+          <ToleranceRule tone="standardize" badge="Issue type" name="Duplicate type names" pct={pct} set={setTolerancePercent} k="duplicateIssueTypeNames"
+            tail="of issue types duplicating another's name. A Bug / Defect split makes every by-type report wrong." />
+          <ToleranceRule tone="risk" badge="Issue type" name="Broken type hierarchy" pct={pct} set={setTolerancePercent} k="brokenTypeHierarchy"
+            tail="of schemes with only sub-tasks, or an uncreatable default type — an issue cannot be started." />
+        </div>
+      </ConfigSection>
+
+      <ConfigSection title="People" icon="user">
+        <p className="admin-config-section__desc">
+          Licence waste and orphaned ownership. A deactivated account in an access group is a
+          seat being paid for; a filter or dashboard whose owner is gone breaks the moment Jira
+          purges the account.
+        </p>
+        <div className="admin-threshold-rules">
+          <ToleranceRule tone="risk" badge="People" name="Deactivated licence holders" pct={pct} set={setTolerancePercent} k="deactivatedLicenceHolders"
+            tail="of licensed accounts that Jira has deactivated — a paid seat and a login that should not exist." />
+          <ToleranceRule tone="risk" badge="People" name="Orphaned ownership" pct={pct} set={setTolerancePercent} k="orphanedOwnership"
+            tail="of owned filters, dashboards and rules whose owner is not in the licensed roster." />
+        </div>
+      </ConfigSection>
+
+      <ConfigSection title="Assets (CMDB)" icon="database">
+        <p className="admin-config-section__desc">
+          The JSM Assets structure. Only scored on a Jira Service Management Premium site &mdash;
+          everywhere else the pillar reports itself not applicable.
+        </p>
+        <div className="admin-threshold-rules">
+          <ToleranceRule tone="cleanup" badge="Assets" name="Dead object schemas" pct={pct} set={setTolerancePercent} k="deadAssetSchemas"
+            tail="of object schemas with no object types or no objects — a namespace that resolves to nothing." />
+          <ToleranceRule tone="standardize" badge="Assets" name="Bare object types" pct={pct} set={setTolerancePercent} k="bareAssetTypes"
+            tail="of concrete object types carrying no attribute beyond the built-in Name." />
+          <ToleranceRule tone="risk" badge="Assets" name="Broken references" pct={pct} set={setTolerancePercent} k="brokenAssetReferences"
+            tail="of object-reference attributes pointing at an object type that is gone." />
+        </div>
+      </ConfigSection>
+
+      <ConfigSection title="Access schemes" icon="shield">
+        <p className="admin-config-section__desc">
+          Permission, issue-security and notification schemes. Least privilege carries the most
+          consequence &mdash; a scheme that opens browse to anyone is a data-exposure fact, not a
+          tidiness one &mdash; so it is bounded tightest; unused schemes of any kind are the most
+          forgiving.
+        </p>
+        <div className="admin-threshold-rules">
+          <ToleranceRule tone="risk" badge="Permissions" name="Least-privilege violations" pct={pct} set={setTolerancePercent} k="riskyPermissionSchemes"
+            tail="of permission schemes granting browse to anyone, project admin to a whole group, or a permission to a named individual." />
+          <ToleranceRule tone="risk" badge="Issue security" name="Unreachable security levels" pct={pct} set={setTolerancePercent} k="brokenSecurityLevels"
+            tail="of security levels with no members, or belonging to a scheme with no levels — an issue set to one is invisible." />
+          <ToleranceRule tone="standardize" badge="Notifications" name="Fragile routing" pct={pct} set={setTolerancePercent} k="fragileNotificationSchemes"
+            tail="of notification schemes sending an event to a named individual rather than a role or group." />
+          <ToleranceRule tone="cleanup" badge="Access" name="Unused schemes" pct={pct} set={setTolerancePercent} k="unusedAccessSchemes"
+            tail="of permission, security and notification schemes assigned to no project." />
+        </div>
+      </ConfigSection>
+
       <ConfigSection title="Automation" icon="refreshCw">
         <p className="admin-config-section__desc">
           Fed by a rule export rather than a scan &mdash; Jira publishes no API to enumerate automation
@@ -728,7 +874,7 @@ function RulesArea({ t, setThreshold, pct, setTolerancePercent }) {
           <ToleranceRule tone="standardize" badge="Project" name="Irregular projects" pct={pct} set={setTolerancePercent} k="irregularProjects"
             tail="of projects carrying far more fields than the site median." />
           <ToleranceRule tone="cleanup" badge="Project" name="Inactive projects" pct={pct} set={setTolerancePercent} k="inactiveProjects"
-            tail="of projects with no activity in six months, or fields but no work at all." />
+            tail="of projects that carry fields but no recorded work at all." />
           <ToleranceRule tone="standardize" badge="Project" name="Unadopted projects" pct={pct} set={setTolerancePercent} k="unadoptedProjects"
             tail="of projects running well below their own historical rate, or that never took off." />
         </div>

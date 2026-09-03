@@ -3,6 +3,7 @@ import {
   extractJqlFields,
   extractJqlProjects,
   extractJqlStatuses,
+  extractJqlIssueTypes,
   extractJqlReferences,
   normalizeJql,
   scanJql,
@@ -139,16 +140,32 @@ describe("normalizeJql", () => {
 });
 
 describe("extractJqlReferences", () => {
-  test("returns the three kinds a filter can depend on", () => {
-    const refs = extractJqlReferences('project = ADVEV AND status IN ("In Progress", Done) AND "Story Points" >= 5 ORDER BY created DESC');
+  test("returns the four kinds a filter can depend on", () => {
+    const refs = extractJqlReferences('project = ADVEV AND issuetype = Bug AND status IN ("In Progress", Done) AND "Story Points" >= 5 ORDER BY created DESC');
     expect(refs).toEqual({
-      fields: ["project", "status", "Story Points", "created"],
+      fields: ["project", "issuetype", "status", "Story Points", "created"],
       projects: ["ADVEV"],
       statuses: ["In Progress", "Done"],
+      issueTypes: ["Bug"],
     });
   });
 
+  test("reads the `type` shorthand as well as `issuetype`", () => {
+    expect(extractJqlReferences('type IN (Story, "Sub-task")').issueTypes).toEqual(["Story", "Sub-task"]);
+  });
+
   test("returns empty lists rather than throwing on nothing", () => {
-    expect(extractJqlReferences(null)).toEqual({ fields: [], projects: [], statuses: [] });
+    expect(extractJqlReferences(null)).toEqual({ fields: [], projects: [], statuses: [], issueTypes: [] });
+  });
+});
+
+describe("extractJqlIssueTypes", () => {
+  test("pulls issue type names, from either alias, deduped", () => {
+    expect(extractJqlIssueTypes('issuetype = Bug OR type = bug OR issuetype IN (Story, Epic)').sort())
+      .toEqual(["Bug", "Epic", "Story"]);
+  });
+
+  test("ignores a quoted value that merely contains the word", () => {
+    expect(extractJqlIssueTypes('summary ~ "issuetype = Bug"')).toEqual([]);
   });
 });

@@ -98,6 +98,10 @@ const mocks = vi.hoisted(() => ({
   migrateOldScopeKeys: vi.fn(),
   loadSnapshotFieldIssueSums: vi.fn().mockResolvedValue(new Map()),
   sumSnapshotFieldIssueCount: vi.fn().mockResolvedValue(0),
+  loadFieldTypeUsage: vi.fn().mockResolvedValue([]),
+  loadFieldUserUsage: vi.fn().mockResolvedValue({ distinctUsers: 0, issueTotal: 0, top: [] }),
+  loadUserFieldAppearances: vi.fn().mockResolvedValue([]),
+  loadSnapshotFieldNames: vi.fn().mockResolvedValue(new Map()),
   upsertProjectTotalsForDelta: vi.fn(),
   upsertDeltaFieldProjectUsage: vi.fn(),
   upsertRqtFieldHits: vi.fn(),
@@ -158,6 +162,32 @@ const mocks = vi.hoisted(() => ({
   loadIssueTypeGovernanceSummary: vi.fn(async () => null),
   queueIssueTypeSnapshotBuild: vi.fn(),
   isIssueTypeBuildStale: vi.fn(() => false),
+
+  // user store + user-engine.js
+  readUserSnapshotMeta: vi.fn(),
+  loadUsers: vi.fn(async () => []),
+  loadUserGovernanceSummary: vi.fn(async () => null),
+  queueUserSnapshotBuild: vi.fn(),
+  isUserBuildStale: vi.fn(() => false),
+
+  // asset store + asset-engine.js
+  readAssetSnapshotMeta: vi.fn(),
+  loadAssetSchemas: vi.fn(async () => []),
+  loadAssetObjectTypes: vi.fn(async () => []),
+  loadAssetAttributes: vi.fn(async () => []),
+  queueAssetSnapshotBuild: vi.fn(),
+  isAssetBuildStale: vi.fn(() => false),
+
+  // access store + access-engine.js
+  readAccessSnapshotMeta: vi.fn(),
+  loadSchemes: vi.fn(async () => []),
+  loadSchemeHolders: vi.fn(async () => []),
+  loadSchemeLevels: vi.fn(async () => []),
+  loadSchemeProjects: vi.fn(async () => []),
+  loadSchemesGrantingHolder: vi.fn(async () => []),
+  loadProjectSchemes: vi.fn(async () => []),
+  queueAccessSnapshotBuild: vi.fn(),
+  isAccessBuildStale: vi.fn(() => false),
 
   loadRulesForProject: vi.fn(),
   loadStatusAutomationReferences: vi.fn(),
@@ -244,7 +274,7 @@ vi.mock("./lib/store/automation.js", () => ({
   loadRulesForProject: mocks.loadRulesForProject,
   loadStatusAutomationReferences: mocks.loadStatusAutomationReferences,
   loadGlobalRulesAffectingProject: mocks.loadGlobalRulesAffectingProject,
-  AUTOMATION_PARTS: { analysis: "a:", fields: "f:", statuses: "s:", directory: "d:", findings: "fi:" },
+  AUTOMATION_PARTS: { analysis: "a:", fields: "f:", statuses: "s:", issueTypes: "it:", users: "u:", directory: "d:", findings: "fi:", cascades: "c:" },
   MAX_PREVIEW_FINDINGS: 20,
   MAX_STORED_CASCADES: 150,
 }));
@@ -311,6 +341,10 @@ vi.mock("./lib/project-store.js", () => ({
   migrateOldScopeKeys: mocks.migrateOldScopeKeys,
   loadSnapshotFieldIssueSums: mocks.loadSnapshotFieldIssueSums,
   sumSnapshotFieldIssueCount: mocks.sumSnapshotFieldIssueCount,
+  loadFieldTypeUsage: mocks.loadFieldTypeUsage,
+  loadFieldUserUsage: mocks.loadFieldUserUsage,
+  loadUserFieldAppearances: mocks.loadUserFieldAppearances,
+  loadSnapshotFieldNames: mocks.loadSnapshotFieldNames,
   upsertProjectTotalsForDelta: mocks.upsertProjectTotalsForDelta,
   upsertDeltaFieldProjectUsage: mocks.upsertDeltaFieldProjectUsage,
   upsertRqtFieldHits: mocks.upsertRqtFieldHits,
@@ -344,6 +378,20 @@ vi.mock("./lib/project-store.js", () => ({
   loadIssueTypeSchemeProjects: mocks.loadIssueTypeSchemeProjects,
   loadIssueTypeSchemeForProject: mocks.loadIssueTypeSchemeForProject,
   loadIssueTypeGovernanceSummary: mocks.loadIssueTypeGovernanceSummary,
+  readUserSnapshotMeta: mocks.readUserSnapshotMeta,
+  loadUsers: mocks.loadUsers,
+  loadUserGovernanceSummary: mocks.loadUserGovernanceSummary,
+  readAssetSnapshotMeta: mocks.readAssetSnapshotMeta,
+  readAccessSnapshotMeta: mocks.readAccessSnapshotMeta,
+  loadSchemes: mocks.loadSchemes,
+  loadSchemeHolders: mocks.loadSchemeHolders,
+  loadSchemeLevels: mocks.loadSchemeLevels,
+  loadSchemeProjects: mocks.loadSchemeProjects,
+  loadSchemesGrantingHolder: mocks.loadSchemesGrantingHolder,
+  loadProjectSchemes: mocks.loadProjectSchemes,
+  loadAssetSchemas: mocks.loadAssetSchemas,
+  loadAssetObjectTypes: mocks.loadAssetObjectTypes,
+  loadAssetAttributes: mocks.loadAssetAttributes,
   recordHealthSnapshot: mocks.recordHealthSnapshot,
   loadHealthHistory: mocks.loadHealthHistory,
   // Real values, not mocks: the resolver whitelists the sort token against these, so a
@@ -368,6 +416,21 @@ vi.mock("./lib/screen-engine.js", () => ({
 vi.mock("./lib/issuetype-engine.js", () => ({
   queueIssueTypeSnapshotBuild: mocks.queueIssueTypeSnapshotBuild,
   isIssueTypeBuildStale: mocks.isIssueTypeBuildStale,
+}));
+
+vi.mock("./lib/user-engine.js", () => ({
+  queueUserSnapshotBuild: mocks.queueUserSnapshotBuild,
+  isUserBuildStale: mocks.isUserBuildStale,
+}));
+
+vi.mock("./lib/asset-engine.js", () => ({
+  queueAssetSnapshotBuild: mocks.queueAssetSnapshotBuild,
+  isAssetBuildStale: mocks.isAssetBuildStale,
+}));
+
+vi.mock("./lib/access-engine.js", () => ({
+  queueAccessSnapshotBuild: mocks.queueAccessSnapshotBuild,
+  isAccessBuildStale: mocks.isAccessBuildStale,
 }));
 
 vi.mock("./lib/workflow-engine.js", () => ({
@@ -493,6 +556,13 @@ const {
   buildScreenInventory,
   getIssueTypeInventory,
   buildIssueTypeInventory,
+  getUserInventory,
+  getUserDetails,
+  buildUserInventory,
+  getAssetInventory,
+  buildAssetInventory,
+  getAccessInventory,
+  buildAccessInventory,
 } = __RAW_ADMIN_ONLY_FUNCTIONS;
 
 const {
@@ -590,6 +660,13 @@ beforeEach(() => {
   mocks.getBrowsableProjectIds.mockImplementation(async (_accountId, projectIds) => new Set((projectIds || []).map(String)));
   mocks.readWorkflowSnapshotMeta.mockResolvedValue(null);
   mocks.readScreenSnapshotMeta.mockResolvedValue(null);
+  // Default: no licensed-user roster. The People pillar then reports unavailable rather
+  // than being scored on absent data, the same posture as screens and automation above.
+  mocks.readUserSnapshotMeta.mockResolvedValue(null);
+  // Default: no Assets snapshot. The Assets pillar reports unmeasured, same posture.
+  mocks.readAssetSnapshotMeta.mockResolvedValue(null);
+  // Default: no access snapshot. The three access pillars report unmeasured.
+  mocks.readAccessSnapshotMeta.mockResolvedValue(null);
   mocks.loadScreensPage.mockResolvedValue({ total: 0, rows: [] });
   mocks.loadScreensForField.mockResolvedValue([]);
   mocks.loadScreenSchemes.mockResolvedValue([]);
@@ -1154,6 +1231,30 @@ describe("getFieldDetails", () => {
     expect(result.projectUsageTotalProjects).toBe(1);
   });
 
+  test("attaches the field x user usage, with roster names and a not-licensed flag", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: 1 });
+    mocks.loadSnapshotField.mockResolvedValue(snapshotField());
+    mocks.loadSnapshotProjectUsage.mockResolvedValue([]);
+    mocks.countSnapshotProjectUsage.mockResolvedValue(0);
+    mocks.loadFieldSummary.mockResolvedValue(null);
+    mocks.loadSnapshotFields.mockResolvedValue([snapshotField()]);
+    mocks.loadFieldUserUsage.mockResolvedValue({
+      distinctUsers: 2, issueTotal: 12,
+      top: [
+        { accountId: "acc-1", displayName: "stale name", issueCount: 10 },
+        { accountId: "acc-gone", displayName: "Ghost", issueCount: 2 },
+      ],
+    });
+    mocks.readUserSnapshotMeta.mockResolvedValue({ version: "u1" });
+    mocks.loadUsers.mockResolvedValue([{ accountId: "acc-1", displayName: "Ann Admin" }]);
+
+    const result = await getFieldDetails({ payload: { fieldId: "customfield_10001" }, context: {} });
+
+    expect(result.userValueUsage.distinctUsers).toBe(2);
+    expect(result.userValueUsage.top[0]).toMatchObject({ displayName: "Ann Admin", onRoster: true });
+    expect(result.userValueUsage.top[1]).toMatchObject({ displayName: "Ghost", onRoster: false });
+  });
+
   test("marks summaryStatus as failed when a 'ready' summary claims active projects but has none listed (self-healing detection)", async () => {
     mocks.readSnapshotMeta.mockResolvedValue({ version: 1 });
     mocks.loadSnapshotField.mockResolvedValue(snapshotField({ activeProjectCount: 3 }));
@@ -1625,6 +1726,61 @@ describe("getAdminOverview", () => {
 
     expect(result.screens).toEqual({ available: false, state: "error" });
     expect(result.health).toBeDefined();
+  });
+
+  test("carries the people overview into the payload and the score", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "idle" });
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+    mocks.readUserSnapshotMeta.mockResolvedValue({ state: "ready", version: "u1", refreshedAt: "2026-09-01T00:00:00Z" });
+    mocks.loadUsers.mockResolvedValue([{ accountId: "a1", displayName: "Ann", applications: [], groups: [] }]);
+    mocks.loadUserGovernanceSummary.mockResolvedValue({ totalUsers: 200, activeUsers: 180 });
+
+    const result = await getAdminOverview({ context: {} });
+
+    expect(result.users.available).toBe(true);
+    expect(result.users.deactivatedUsers).toBe(20);
+    const hygiene = result.health.dimensions.find((d) => d.key === "user-licence-hygiene");
+    expect(hygiene.available).toBe(true);
+  });
+
+  test("reports people unavailable rather than failing the overview when no roster exists", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "idle" });
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+    mocks.readUserSnapshotMeta.mockResolvedValue(null);
+
+    const result = await getAdminOverview({ context: {} });
+
+    expect(result.users.available).toBe(false);
+    expect(result.health.dimensions.find((d) => d.key === "user-licence-hygiene").available).toBe(false);
+  });
+
+  test("carries the assets overview into the payload and the score", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "idle" });
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+    mocks.readAssetSnapshotMeta.mockResolvedValue({ state: "ready", version: "as1", assetsEnabled: true, refreshedAt: "2026-09-02T00:00:00Z" });
+    mocks.loadAssetSchemas.mockResolvedValue([
+      { id: "1", name: "Infra", objectTypeCount: 2, objectCount: 40 },
+      { id: "2", name: "Empty", objectTypeCount: 0, objectCount: 0 },
+    ]);
+    mocks.loadAssetObjectTypes.mockResolvedValue([{ id: "9", schemaId: "1", name: "Server", parentId: null, abstract: false }]);
+    mocks.loadAssetAttributes.mockResolvedValue([{ id: "a", objectTypeId: "9", name: "OS", referenceObjectTypeId: null, system: false }]);
+
+    const result = await getAdminOverview({ context: {} });
+
+    expect(result.assets.available).toBe(true);
+    expect(result.assets.deadSchemaCount).toBe(1);
+    expect(result.health.dimensions.find((d) => d.key === "asset-schema-hygiene").available).toBe(true);
+  });
+
+  test("reports assets not-applicable rather than failing the overview when Assets is off", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ state: "idle" });
+    mocks.countOldScopeKeyRows.mockResolvedValue(0);
+    mocks.readAssetSnapshotMeta.mockResolvedValue({ state: "unavailable", assetsEnabled: false });
+
+    const result = await getAdminOverview({ context: {} });
+
+    expect(result.assets.assetsEnabled).toBe(false);
+    expect(result.health.dimensions.find((d) => d.key === "asset-reference-integrity").available).toBe(false);
   });
 
   test("passes the whole automation health summary through, not just the rule count", async () => {
@@ -3651,6 +3807,74 @@ describe("getAutomationIndex", () => {
     ).rejects.toThrow(/unknown automation index part/);
   });
 
+  // A rule that creates an issue of a type names it by numeric id, so the issue-type index
+  // arrives half-labelled with "10022". Resolved against the inventory on read.
+  test("resolves issue-type id labels to names from the inventory", async () => {
+    mocks.readAutomationPart.mockResolvedValue({
+      schemaVersion: 1, total: 2, entries: [
+        { label: "10022", writeCount: 3, readCount: 0, triggerCount: 0, total: 3, ruleCount: 3, write: ["r1", "r2", "r3"], read: [], trigger: [] },
+        { label: "current", writeCount: 1, readCount: 0, triggerCount: 0, total: 1, ruleCount: 1, write: ["r9"], read: [], trigger: [] },
+      ],
+    });
+    mocks.readIssueTypeSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
+    mocks.loadIssueTypes.mockResolvedValue([{ id: "10022", name: "Incident" }, { id: "10000", name: "Bug" }]);
+
+    const result = await getAutomationIndex({ payload: { part: "issueTypes" }, context: ctxWithAccount() });
+
+    const labels = result.entries.map((e) => e.label);
+    expect(labels).toContain("Incident");
+    expect(labels).not.toContain("10022");
+    // A label that is not a known id -- a smart-value literal -- is left alone.
+    expect(labels).toContain("current");
+  });
+
+  test("merges an issue type referenced once by id and once by name", async () => {
+    mocks.readAutomationPart.mockResolvedValue({
+      schemaVersion: 1, total: 2, entries: [
+        { label: "10022", writeCount: 2, readCount: 0, triggerCount: 0, total: 2, ruleCount: 2, write: ["r1", "r2"], read: [], trigger: [] },
+        { label: "Incident", writeCount: 0, readCount: 1, triggerCount: 0, total: 1, ruleCount: 1, write: [], read: ["r3"], trigger: [] },
+      ],
+    });
+    mocks.readIssueTypeSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
+    mocks.loadIssueTypes.mockResolvedValue([{ id: "10022", name: "Incident" }]);
+
+    const result = await getAutomationIndex({ payload: { part: "issueTypes" }, context: ctxWithAccount() });
+
+    expect(result.entries).toHaveLength(1);
+    expect(result.entries[0]).toMatchObject({ label: "Incident", writeCount: 2, readCount: 1, total: 3, ruleCount: 3 });
+    expect(result.total).toBe(1);
+  });
+
+  test("leaves the issue-type index untouched when no inventory has been built", async () => {
+    mocks.readAutomationPart.mockResolvedValue({
+      schemaVersion: 1, total: 1, entries: [{ label: "10022", writeCount: 1, readCount: 0, triggerCount: 0, total: 1, write: ["r1"], read: [], trigger: [] }],
+    });
+    mocks.readIssueTypeSnapshotMeta.mockResolvedValue(null);
+
+    const result = await getAutomationIndex({ payload: { part: "issueTypes" }, context: ctxWithAccount() });
+
+    expect(result.entries[0].label).toBe("10022");
+    expect(mocks.loadIssueTypes).not.toHaveBeenCalled();
+  });
+
+  test("resolves user-index accountId labels to display names from the roster", async () => {
+    mocks.readAutomationPart.mockResolvedValue({
+      schemaVersion: 1, total: 2, entries: [
+        { label: "acc-1", writeCount: 4, readCount: 0, triggerCount: 0, total: 4, ruleCount: 4, write: ["r1", "r2", "r3", "r4"], read: [], trigger: [] },
+        { label: "acc-gone", writeCount: 1, readCount: 0, triggerCount: 0, total: 1, ruleCount: 1, write: ["r9"], read: [], trigger: [] },
+      ],
+    });
+    mocks.readUserSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
+    mocks.loadUsers.mockResolvedValue([{ accountId: "acc-1", displayName: "Ann Admin" }]);
+
+    const result = await getAutomationIndex({ payload: { part: "users" }, context: ctxWithAccount() });
+
+    const labels = result.entries.map((e) => e.label);
+    expect(labels).toContain("Ann Admin");
+    // An account not on the roster is left as its id -- an orphaned reference.
+    expect(labels).toContain("acc-gone");
+  });
+
   test("both index resolvers are admin-only", () => {
     for (const name of ["getAutomationIndex", "saveAutomationIndex"]) {
       expect(Object.keys(ADMIN_ONLY_FUNCTIONS)).toContain(name);
@@ -4242,6 +4466,30 @@ describe("probeAutomationApi — gateway transport", () => {
   });
 });
 
+describe("probeAssetsApi", () => {
+  const probeAssetsApi = __RAW_ADMIN_ONLY_FUNCTIONS.probeAssetsApi;
+
+  test("reports Assets not enabled when the workspace hop fails, and never touches the gateway", async () => {
+    mocks.probeEndpoint.mockResolvedValue({ path: "w", status: 404, ok: false, ms: 4, sample: "no" });
+
+    const result = await probeAssetsApi({ context: {} });
+
+    expect(result).toMatchObject({ assetsEnabled: false, workspaceId: null });
+    expect(mocks.probeStargateEndpoint).not.toHaveBeenCalled();
+  });
+
+  test("probes the Assets gateway endpoints once a workspace is discovered", async () => {
+    mocks.probeEndpoint.mockResolvedValue({ path: "w", status: 200, ok: true, ms: 4, sample: '{"values":[{"workspaceId":"ws-1"}]}' });
+    mocks.probeStargateEndpoint.mockResolvedValue({ path: "s", status: 200, ok: true, ms: 6, sample: '{"objectSchemas":[{"id":"1"}]}' });
+
+    const result = await probeAssetsApi({ context: {} });
+
+    expect(result.workspaceId).toBe("ws-1");
+    const gatewayPaths = mocks.probeStargateEndpoint.mock.calls.map((c) => c[0]);
+    expect(gatewayPaths.some((p) => p.includes("/jsm/assets/workspace/ws-1/v1/objectschema/list"))).toBe(true);
+  });
+});
+
 
 // ── Screen and scheme inventory ──────────────────────────────────────────────
 
@@ -4492,6 +4740,52 @@ describe("getPillarHealth", () => {
   test("rejects a missing pillar name", async () => {
     await expect(getPillarHealth({ payload: {}, ...ctx })).rejects.toThrow(/pillar/);
   });
+
+  test("builds the people pillar from the user snapshot when one exists", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue(null);
+    mocks.readUserSnapshotMeta.mockResolvedValue({ version: "u1", state: "ready" });
+    mocks.loadUsers.mockResolvedValue([{ accountId: "a1", displayName: "Ann", applications: [], groups: [] }]);
+    mocks.loadUserGovernanceSummary.mockResolvedValue({ totalUsers: 200, activeUsers: 180 });
+
+    const result = await getPillarHealth({ payload: { pillar: "users" }, ...ctx });
+
+    expect(result.pillar.key).toBe("users");
+    expect(result.pillar.available).toBe(true);
+    expect(result.pillar.dimensions.some((d) => d.key === "user-licence-hygiene")).toBe(true);
+  });
+
+  test("reports the people pillar unavailable rather than empty when no roster exists", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue(null);
+    mocks.readUserSnapshotMeta.mockResolvedValue(null);
+
+    const result = await getPillarHealth({ payload: { pillar: "users" }, ...ctx });
+
+    expect(result.pillar.available).toBe(false);
+  });
+
+  test("builds the assets pillar from the asset snapshot when one exists", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue(null);
+    mocks.readAssetSnapshotMeta.mockResolvedValue({ version: "as1", state: "ready", assetsEnabled: true });
+    mocks.loadAssetSchemas.mockResolvedValue([{ id: "1", name: "Infra", objectTypeCount: 3, objectCount: 40 }]);
+    mocks.loadAssetObjectTypes.mockResolvedValue([{ id: "9", schemaId: "1", name: "Server", parentId: null, abstract: false }]);
+    mocks.loadAssetAttributes.mockResolvedValue([{ id: "a", objectTypeId: "9", name: "OS", referenceObjectTypeId: null, system: false }]);
+
+    const result = await getPillarHealth({ payload: { pillar: "assets" }, ...ctx });
+
+    expect(result.pillar.key).toBe("assets");
+    expect(result.pillar.available).toBe(true);
+    expect(result.pillar.dimensions.some((d) => d.key === "asset-schema-hygiene")).toBe(true);
+  });
+
+  test("reports the assets pillar not-applicable when Assets is not licensed", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue(null);
+    mocks.readAssetSnapshotMeta.mockResolvedValue({ state: "unavailable", assetsEnabled: false });
+
+    const result = await getPillarHealth({ payload: { pillar: "assets" }, ...ctx });
+
+    expect(result.pillar.available).toBe(false);
+    expect(result.pillar.dimensions.every((d) => /not enabled on this site/i.test(d.reason))).toBe(true);
+  });
 });
 
 describe("getProjectOverview", () => {
@@ -4544,6 +4838,36 @@ describe("getProjectOverview", () => {
     expect(result.workflow.reason).toMatch(/workflow inventory/i);
     // The pillar that IS built still renders.
     expect(result.automation.available).toBe(true);
+  });
+
+  // Cross-pillar (Access): the three schemes this project resolves to, each flagged if it
+  // is the site default. Tri-state like the rest.
+  test("joins the project's permission / security / notification schemes when the access inventory exists", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: "f1" });
+    mocks.readAccessSnapshotMeta.mockResolvedValue({ version: "a1" });
+    mocks.loadProjectSchemes.mockResolvedValue([
+      { schemeType: "permission", schemeId: "1", schemeName: "Prod permissions", isDefault: false },
+      { schemeType: "notification", schemeId: "n1", schemeName: "Default Notification Scheme", isDefault: true },
+    ]);
+
+    const result = await getProjectOverview({ payload: { projectId: "10000" }, ...ctx });
+
+    expect(result.schemes).toMatchObject({
+      available: true,
+      permission: { schemeName: "Prod permissions" },
+      security: null,
+      notification: { isDefault: true },
+    });
+  });
+
+  test("reports the access schemes unavailable when that inventory has not been built", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: "f1" });
+    mocks.readAccessSnapshotMeta.mockResolvedValue(null);
+
+    const result = await getProjectOverview({ payload: { projectId: "10000" }, ...ctx });
+
+    expect(result.schemes).toMatchObject({ available: false });
+    expect(mocks.loadProjectSchemes).not.toHaveBeenCalled();
   });
 
 
@@ -5032,6 +5356,329 @@ describe("buildIssueTypeInventory", () => {
 
     expect(result.queued).toBe(true);
     expect(mocks.queueIssueTypeSnapshotBuild).toHaveBeenCalled();
+  });
+});
+
+describe("getUserInventory", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x" } };
+
+  test("reports never-built rather than an empty roster", async () => {
+    mocks.readUserSnapshotMeta.mockResolvedValue(null);
+    const result = await getUserInventory(ctx);
+    expect(result).toMatchObject({ neverBuilt: true, users: [], applicationSummary: [] });
+  });
+
+  test("returns the roster, seat summary and governance once built", async () => {
+    mocks.readUserSnapshotMeta.mockResolvedValue({
+      state: "ready", version: "v1", refreshedAt: "2026-09-02T00:00:00.000Z",
+      applicationSummary: [{ key: "jira-software", numberOfSeats: 5, userCount: 3 }],
+    });
+    mocks.loadUsers.mockResolvedValue([{ accountId: "a1", displayName: "Ann", applications: [], groups: [] }]);
+    mocks.loadUserGovernanceSummary.mockResolvedValue({ totalUsers: 1, activeUsers: 1, appUsers: 0, multiProductUsers: 0 });
+
+    const result = await getUserInventory(ctx);
+
+    expect(result).toMatchObject({
+      neverBuilt: false,
+      version: "v1",
+      users: [{ accountId: "a1" }],
+      applicationSummary: [{ key: "jira-software" }],
+      governance: { totalUsers: 1 },
+    });
+  });
+
+  test("attaches per-user ownership counts and an estate orphan count", async () => {
+    mocks.readUserSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
+    mocks.loadUsers.mockResolvedValue([{ accountId: "a1", displayName: "Ann", applications: [], groups: [] }]);
+    mocks.loadUserGovernanceSummary.mockResolvedValue({ totalUsers: 1 });
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "f1" });
+    mocks.readDashboardSnapshotMeta.mockResolvedValue({ version: "d1" });
+    mocks.loadFilters.mockResolvedValue([
+      { id: "10", name: "Ann filter", ownerAccountId: "a1" },
+      { id: "11", name: "Ghost filter", ownerAccountId: "gone" },
+    ]);
+    mocks.loadDashboards.mockResolvedValue([{ dashboardId: "20", name: "Ann dash", ownerAccountId: "a1" }]);
+    mocks.readAutomationPart.mockResolvedValue(null);
+
+    const result = await getUserInventory(ctx);
+
+    expect(result.users[0]).toMatchObject({ ownedFilters: 1, ownedDashboards: 1, authoredRules: 0 });
+    // The filter owned by "gone" (not in the roster) is an orphan.
+    expect(result.governance).toMatchObject({ orphanedFilters: 1, orphanedOwners: 1 });
+  });
+
+  test("counts the automation rules that name each account, and the off-roster ones", async () => {
+    mocks.readUserSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
+    mocks.loadUsers.mockResolvedValue([{ accountId: "a1", displayName: "Ann", applications: [], groups: [] }]);
+    mocks.loadUserGovernanceSummary.mockResolvedValue({ totalUsers: 1 });
+    mocks.readFilterSnapshotMeta.mockResolvedValue(null);
+    mocks.readDashboardSnapshotMeta.mockResolvedValue(null);
+    mocks.readAutomationPart.mockImplementation((_k, part) =>
+      part === "users"
+        ? Promise.resolve({ entries: [
+            { label: "a1", write: [1, 2], read: [2], trigger: [] },
+            { label: "gone", write: [3], read: [], trigger: [] },
+          ] })
+        : Promise.resolve(null));
+
+    const result = await getUserInventory(ctx);
+
+    // a1 is named by two distinct rules (1 and 2).
+    expect(result.users[0].automationRefs).toBe(2);
+    expect(result.automationRefsAvailable).toBe(true);
+    expect(result.governance).toMatchObject({ automationRefUsers: 2, orphanedAutomationRefUsers: 1 });
+  });
+});
+
+describe("getUserDetails", () => {
+  const ctx = { payload: { accountId: "a1" }, context: { installContext: "ari:cloud:jira::site/x" } };
+
+  test("returns the user's owned filters and dashboards as lists", async () => {
+    mocks.readUserSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
+    mocks.loadUsers.mockResolvedValue([{ accountId: "a1", displayName: "Ann", applications: [], groups: [] }]);
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "f1" });
+    mocks.readDashboardSnapshotMeta.mockResolvedValue({ version: "d1" });
+    mocks.loadFilters.mockResolvedValue([{ id: "10", name: "Ann filter", ownerAccountId: "a1", viewUrl: "u" }]);
+    mocks.loadDashboards.mockResolvedValue([{ dashboardId: "20", name: "Ann dash", ownerAccountId: "a1" }]);
+    mocks.readAutomationPart.mockResolvedValue(null);
+
+    const result = await getUserDetails(ctx);
+
+    expect(result).toMatchObject({
+      available: true, inRoster: true,
+      ownedFilters: [{ id: "10", name: "Ann filter" }],
+      ownedDashboards: [{ id: "20", name: "Ann dash" }],
+      authoredRules: [],
+    });
+  });
+
+  test("reports no-roster when nothing has been built", async () => {
+    mocks.readUserSnapshotMeta.mockResolvedValue(null);
+    expect(await getUserDetails(ctx)).toMatchObject({ available: false });
+  });
+
+  test("lists the user-picker fields this account is a value in, joined to field names", async () => {
+    mocks.readUserSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
+    mocks.loadUsers.mockResolvedValue([{ accountId: "a1", displayName: "Ann", applications: [], groups: [] }]);
+    mocks.readSnapshotMeta.mockResolvedValue({ version: "f1" });
+    mocks.readAutomationPart.mockResolvedValue(null);
+    mocks.loadUserFieldAppearances.mockResolvedValue([
+      { fieldId: "customfield_500", issueCount: 30 },
+      { fieldId: "assignee", issueCount: 900 },
+    ]);
+    mocks.loadSnapshotFieldNames.mockResolvedValue(new Map([["customfield_500", "Reviewer"], ["assignee", "Assignee"]]));
+
+    const result = await getUserDetails(ctx);
+
+    expect(result.fieldAppearancesAvailable).toBe(true);
+    expect(result.fieldAppearances).toEqual([
+      { fieldId: "customfield_500", fieldName: "Reviewer", issueCount: 30 },
+      { fieldId: "assignee", fieldName: "Assignee", issueCount: 900 },
+    ]);
+  });
+
+  test("lists the automation rules that name this account, joined to rule names", async () => {
+    mocks.readUserSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
+    mocks.loadUsers.mockResolvedValue([{ accountId: "a1", displayName: "Ann", applications: [], groups: [] }]);
+    mocks.readFilterSnapshotMeta.mockResolvedValue(null);
+    mocks.readDashboardSnapshotMeta.mockResolvedValue(null);
+    mocks.readAutomationPart.mockImplementation((_k, part) => {
+      if (part === "users") return Promise.resolve({ entries: [{ label: "a1", write: [7], read: [9], trigger: [] }] });
+      if (part === "directory") return Promise.resolve({ rules: [[7, "Assign to Ann", 1, "t", 0], [9, "Escalate", 0, "t", 0]] });
+      return Promise.resolve(null);
+    });
+
+    const result = await getUserDetails(ctx);
+
+    expect(result.automationRefsAvailable).toBe(true);
+    expect(result.referencedInRules).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 7, name: "Assign to Ann", direction: "write", enabled: true }),
+      expect.objectContaining({ id: 9, name: "Escalate", direction: "read", enabled: false }),
+    ]));
+  });
+
+  // Cross-pillar (Access): permission grants, security-level memberships and notification
+  // recipients that name this account directly.
+  test("lists the schemes that name this account directly when the access inventory exists", async () => {
+    mocks.readUserSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
+    mocks.loadUsers.mockResolvedValue([{ accountId: "a1", displayName: "Ann", applications: [], groups: [] }]);
+    mocks.readAutomationPart.mockResolvedValue(null);
+    mocks.readAccessSnapshotMeta.mockResolvedValue({ version: "a1" });
+    mocks.loadSchemesGrantingHolder.mockResolvedValue([
+      { schemeType: "permission", schemeId: "1", schemeName: "Prod", context: "ADMINISTER_PROJECTS", contextLabel: "Administer Projects" },
+    ]);
+
+    const result = await getUserDetails(ctx);
+
+    expect(result.accessGrantsAvailable).toBe(true);
+    expect(result.grantedBySchemes).toEqual([
+      expect.objectContaining({ schemeType: "permission", schemeName: "Prod", contextLabel: "Administer Projects" }),
+    ]);
+    expect(mocks.loadSchemesGrantingHolder).toHaveBeenCalledWith("test-install", "a1", "user", "a1");
+  });
+
+  test("reports access grants unavailable when the access inventory has not been built", async () => {
+    mocks.readUserSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
+    mocks.loadUsers.mockResolvedValue([{ accountId: "a1", displayName: "Ann", applications: [], groups: [] }]);
+    mocks.readAutomationPart.mockResolvedValue(null);
+    mocks.readAccessSnapshotMeta.mockResolvedValue(null);
+
+    const result = await getUserDetails(ctx);
+
+    expect(result.accessGrantsAvailable).toBe(false);
+    expect(result.grantedBySchemes).toEqual([]);
+  });
+});
+
+describe("buildUserInventory", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x" } };
+
+  test("queues a build when nothing is running", async () => {
+    mocks.readUserSnapshotMeta.mockResolvedValue({ state: "idle" });
+    mocks.readAdminConfig?.mockResolvedValue?.({ readOnlyMode: false });
+
+    const result = await buildUserInventory(ctx);
+
+    expect(result.queued).toBe(true);
+    expect(mocks.queueUserSnapshotBuild).toHaveBeenCalledWith("test-install");
+  });
+
+  test("refuses while a live build is running", async () => {
+    mocks.readUserSnapshotMeta.mockResolvedValue({ state: "building" });
+    mocks.isUserBuildStale.mockReturnValue(false);
+
+    const result = await buildUserInventory(ctx);
+
+    expect(result).toMatchObject({ queued: false, reason: "already-building" });
+    expect(mocks.queueUserSnapshotBuild).not.toHaveBeenCalled();
+  });
+});
+
+describe("getAssetInventory", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x" } };
+
+  test("reports never-built when no snapshot exists", async () => {
+    mocks.readAssetSnapshotMeta.mockResolvedValue(null);
+    const result = await getAssetInventory(ctx);
+    expect(result).toMatchObject({ neverBuilt: true, schemas: [], governance: null });
+  });
+
+  test("surfaces 'Assets not enabled' as a first-class state, not an empty catalogue", async () => {
+    mocks.readAssetSnapshotMeta.mockResolvedValue({ state: "unavailable", assetsEnabled: false, lastError: "no workspace" });
+    const result = await getAssetInventory(ctx);
+    expect(result).toMatchObject({ state: "unavailable", assetsEnabled: false, neverBuilt: false });
+    expect(result.governance).toMatchObject({ assetsEnabled: false });
+    expect(mocks.loadAssetSchemas).not.toHaveBeenCalled();
+  });
+
+  test("returns the structure and the governance summary when built", async () => {
+    mocks.readAssetSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1", assetsEnabled: true, workspaceId: "ws-1" });
+    mocks.loadAssetSchemas.mockResolvedValue([
+      { id: "1", name: "Infra", objectTypeCount: 2, objectCount: 40 },
+      { id: "2", name: "Empty", objectTypeCount: 0, objectCount: 0 },
+    ]);
+    mocks.loadAssetObjectTypes.mockResolvedValue([{ id: "9", schemaId: "1", name: "Server", parentId: null, abstract: false }]);
+    mocks.loadAssetAttributes.mockResolvedValue([{ id: "a", objectTypeId: "9", name: "OS", referenceObjectTypeId: "404", system: false }]);
+
+    const result = await getAssetInventory(ctx);
+
+    expect(result).toMatchObject({ state: "ready", assetsEnabled: true, version: "v1", workspaceId: "ws-1" });
+    expect(result.schemas).toHaveLength(2);
+    expect(result.governance).toMatchObject({ deadSchemaCount: 1, brokenReferenceCount: 1 });
+  });
+});
+
+describe("buildAssetInventory", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x" } };
+
+  test("queues a build when nothing is running", async () => {
+    mocks.readAssetSnapshotMeta.mockResolvedValue({ state: "idle" });
+    mocks.readAdminConfig?.mockResolvedValue?.({ readOnlyMode: false });
+
+    const result = await buildAssetInventory(ctx);
+
+    expect(result.queued).toBe(true);
+    expect(mocks.queueAssetSnapshotBuild).toHaveBeenCalledWith("test-install");
+  });
+
+  test("refuses while a live build is running", async () => {
+    mocks.readAssetSnapshotMeta.mockResolvedValue({ state: "building" });
+    mocks.isAssetBuildStale.mockReturnValue(false);
+
+    const result = await buildAssetInventory(ctx);
+
+    expect(result).toMatchObject({ queued: false, reason: "already-building" });
+    expect(mocks.queueAssetSnapshotBuild).not.toHaveBeenCalled();
+  });
+});
+
+describe("getAccessInventory", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x" } };
+
+  test("reports never-built when no snapshot exists", async () => {
+    mocks.readAccessSnapshotMeta.mockResolvedValue(null);
+    const result = await getAccessInventory(ctx);
+    expect(result).toMatchObject({ neverBuilt: true, permissions: null, security: null, notifications: null });
+    expect(mocks.loadSchemes).not.toHaveBeenCalled();
+  });
+
+  test("returns the three scheme families with a project count and a governance summary each", async () => {
+    mocks.readAccessSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1", refreshedAt: "2026-09-01T00:00:00Z" });
+    mocks.readUserSnapshotMeta.mockResolvedValue({ version: "u1" });
+    mocks.loadUsers.mockResolvedValue([{ accountId: "acc-1" }]);
+    mocks.loadSchemes.mockImplementation(async (_k, _v, type) => {
+      if (type === "permission") return [
+        { id: "1", name: "Prod", isDefault: false },
+        { id: "3", name: "Legacy", isDefault: false },
+      ];
+      if (type === "security") return [{ id: "s1", name: "Restricted", defaultLevelId: "L1" }];
+      if (type === "notification") return [{ id: "n1", name: "Prod notif", isDefault: false }];
+      return [];
+    });
+    mocks.loadSchemeHolders.mockImplementation(async (_k, _v, type) => {
+      if (type === "permission") return [
+        { schemeId: "3", context: "BROWSE_PROJECTS", holderType: "anyone", holderValue: "" },
+      ];
+      if (type === "notification") return [
+        { schemeId: "n1", context: "1", holderType: "user", holderValue: "acc-gone" },
+      ];
+      return [];
+    });
+    mocks.loadSchemeProjects.mockImplementation(async (_k, _v, type) =>
+      type === "permission" ? [{ schemeId: "1", projectId: "10" }] : []);
+    mocks.loadSchemeLevels.mockResolvedValue([{ schemeId: "s1", id: "L1", name: "Internal" }]);
+
+    const result = await getAccessInventory(ctx);
+
+    expect(result.neverBuilt).toBe(false);
+    expect(result.permissions.schemes.find((s) => s.id === "1").projectCount).toBe(1);
+    expect(result.permissions.governance).toMatchObject({ available: true, riskySchemeCount: 1, unusedSchemeCount: 1 });
+    expect(result.security.governance).toMatchObject({ available: true, noLevelSchemeCount: 0 });
+    expect(result.notifications.governance).toMatchObject({ fragileSchemeCount: 1 });
+  });
+});
+
+describe("buildAccessInventory", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x" } };
+
+  test("queues a build when nothing is running", async () => {
+    mocks.readAccessSnapshotMeta.mockResolvedValue({ state: "idle" });
+    mocks.readAdminConfig?.mockResolvedValue?.({ readOnlyMode: false });
+
+    const result = await buildAccessInventory(ctx);
+
+    expect(result.queued).toBe(true);
+    expect(mocks.queueAccessSnapshotBuild).toHaveBeenCalledWith("test-install");
+  });
+
+  test("refuses while a live build is running", async () => {
+    mocks.readAccessSnapshotMeta.mockResolvedValue({ state: "building" });
+    mocks.isAccessBuildStale.mockReturnValue(false);
+
+    const result = await buildAccessInventory(ctx);
+
+    expect(result).toMatchObject({ queued: false, reason: "already-building" });
+    expect(mocks.queueAccessSnapshotBuild).not.toHaveBeenCalled();
   });
 });
 

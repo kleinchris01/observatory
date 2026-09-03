@@ -3,6 +3,24 @@ import { describe, test, expect, vi } from "vitest";
 // site-health.js reaches the store for the workflow and screen pillars, so the store is
 // mocked wholesale. Nothing below exercises those paths -- these tests are about
 // buildProjectInsights, which is pure -- but the imports have to resolve.
+const userStore = {
+  readUserSnapshotMeta: vi.fn(async () => null),
+  loadUsers: vi.fn(async () => []),
+  loadUserGovernanceSummary: vi.fn(async () => ({})),
+};
+const assetStore = {
+  readAssetSnapshotMeta: vi.fn(async () => null),
+  loadAssetSchemas: vi.fn(async () => []),
+  loadAssetObjectTypes: vi.fn(async () => []),
+  loadAssetAttributes: vi.fn(async () => []),
+};
+const accessStore = {
+  readAccessSnapshotMeta: vi.fn(async () => null),
+  loadSchemes: vi.fn(async () => []),
+  loadSchemeHolders: vi.fn(async () => []),
+  loadSchemeLevels: vi.fn(async () => []),
+  loadSchemeProjects: vi.fn(async () => []),
+};
 vi.mock("./project-store.js", () => ({
   loadIssueScanProjectTotals: vi.fn(async () => []),
   loadScreenGovernanceSummary: vi.fn(async () => ({})),
@@ -12,12 +30,48 @@ vi.mock("./project-store.js", () => ({
   loadWorkflowSchemes: vi.fn(async () => []),
   readScreenSnapshotMeta: vi.fn(async () => null),
   readWorkflowSnapshotMeta: vi.fn(async () => null),
+  readFilterSnapshotMeta: vi.fn(async () => null),
+  readDashboardSnapshotMeta: vi.fn(async () => null),
+  loadFilters: vi.fn(async () => []),
+  loadDashboards: vi.fn(async () => []),
+  ...userStore,
+  ...assetStore,
+  ...accessStore,
 }));
-vi.mock("./store/automation.js", () => ({
+const automationStore = {
   loadStatusAutomationReferences: vi.fn(async () => ({})),
-}));
+  readAutomationPart: vi.fn(async () => null),
+};
+vi.mock("./store/automation.js", () => automationStore);
 
-const { buildProjectInsights, captureSiteHealth } = await import("./site-health.js");
+const { buildProjectInsights, buildFieldUsageInsights, captureSiteHealth, buildUserOverview, buildAssetOverview, buildAccessOverview } = await import("./site-health.js");
+
+// The fields pillar scores duplicate naming once, through the dedicated field-naming
+// dimension (built from duplicateClusters). The per-field "duplicate-naming" finding must
+// stay out of findingsBySeverity, which the separate field-governance dimension scores --
+// otherwise one duplicated name is charged twice inside the same pillar.
+describe("buildFieldUsageInsights — duplicate naming is not double-counted", () => {
+  const field = (name, reasons) => ({ name, type: "text", findings: { reasons } });
+
+  test("a duplicate-naming reason is excluded from findingsBySeverity", () => {
+    const insights = buildFieldUsageInsights([
+      field("Story Points", [{ code: "duplicate-naming", severity: "medium", title: "Similar field naming detected" }]),
+      field("Story Points ", [{ code: "duplicate-naming", severity: "medium", title: "Similar field naming detected" }]),
+    ]);
+    expect(insights.findingsBySeverity.medium).toBe(0);
+    // The cluster is still counted where it IS scored, and still shown on the tab breakdown.
+    expect(insights.duplicateClusters).toBe(1);
+    expect(insights.findingsByType).toContainEqual({ title: "Similar field naming detected", count: 2 });
+  });
+
+  test("other findings of the same severity are still counted", () => {
+    const insights = buildFieldUsageInsights([
+      field("A", [{ code: "duplicate-naming", severity: "medium", title: "Similar field naming detected" }]),
+      field("B", [{ code: "orphaned", severity: "medium", title: "Orphaned field" }]),
+    ]);
+    expect(insights.findingsBySeverity.medium).toBe(1);
+  });
+});
 
 // captureSiteHealth is dependency-injected. It was once called with no deps at all -- from
 // the scan orchestrator's health stage -- and crashed every scan with "Cannot destructure
@@ -27,6 +81,127 @@ describe("captureSiteHealth — missing deps", () => {
   test("no-ops instead of throwing when called without its dependencies", async () => {
     await expect(captureSiteHealth("inst")).resolves.toEqual({ recorded: false, reason: "missing-deps" });
     await expect(captureSiteHealth("inst", {})).resolves.toEqual({ recorded: false, reason: "missing-deps" });
+  });
+});
+
+// buildUserOverview is the People pillar's health input: it joins the licensed roster
+// against the seat summary and the filter/dashboard/rule ownership index, then hands
+// computeSiteHealth a small `health` object. It must report unavailable, never zero, when
+// no roster has been built.
+describe("buildUserOverview", () => {
+  test("reports unavailable when no user snapshot exists", async () => {
+    userStore.readUserSnapshotMeta.mockResolvedValueOnce(null);
+    const overview = await buildUserOverview("inst");
+    expect(overview.available).toBe(false);
+    expect(overview.health).toBeUndefined();
+  });
+
+  test("derives deactivated count from the seat summary, not the roster length", async () => {
+    userStore.readUserSnapshotMeta.mockResolvedValueOnce({ version: "v1", state: "ready", refreshedAt: "2026-09-01T00:00:00Z" });
+    userStore.loadUsers.mockResolvedValueOnce([{ accountId: "a1" }, { accountId: "a2" }]);
+    userStore.loadUserGovernanceSummary.mockResolvedValueOnce({ totalUsers: 500, activeUsers: 470 });
+
+    const overview = await buildUserOverview("inst");
+    expect(overview.available).toBe(true);
+    expect(overview.totalUsers).toBe(500);
+    expect(overview.deactivatedUsers).toBe(30);
+    expect(overview.health).toMatchObject({ available: true, totalUsers: 500, deactivatedUsers: 30 });
+  });
+
+  test("counts owned artifacts whose owner is off the roster as orphaned", async () => {
+    userStore.readUserSnapshotMeta.mockResolvedValueOnce({ version: "v1", state: "ready" });
+    userStore.loadUsers.mockResolvedValueOnce([{ accountId: "a1" }]);
+    userStore.loadUserGovernanceSummary.mockResolvedValueOnce({ totalUsers: 1, activeUsers: 1 });
+    const store = await import("./project-store.js");
+    store.readFilterSnapshotMeta.mockResolvedValueOnce({ version: "f1" });
+    store.loadFilters.mockResolvedValueOnce([
+      { id: "10", name: "Mine", ownerAccountId: "a1" },
+      { id: "11", name: "Ghost", ownerAccountId: "gone" },
+    ]);
+
+    const overview = await buildUserOverview("inst");
+    expect(overview.ownedArtifactTotal).toBe(2);
+    expect(overview.orphanedArtifacts).toBe(1);
+    expect(overview.orphanedOwners).toBe(1);
+    expect(overview.health).toMatchObject({ orphanedArtifacts: 1, ownedArtifactTotal: 2 });
+  });
+
+  test("counts the automation user references, and the off-roster ones", async () => {
+    userStore.readUserSnapshotMeta.mockResolvedValueOnce({ version: "v1", state: "ready" });
+    userStore.loadUsers.mockResolvedValueOnce([{ accountId: "a1" }]);
+    userStore.loadUserGovernanceSummary.mockResolvedValueOnce({ totalUsers: 1, activeUsers: 1 });
+    automationStore.readAutomationPart.mockImplementation((_k, part) =>
+      Promise.resolve(part === "users"
+        ? { entries: [{ label: "a1" }, { label: "gone-1" }, { label: "gone-2" }] }
+        : null));
+
+    const overview = await buildUserOverview("inst");
+    expect(overview.automationRefUsers).toBe(3);
+    expect(overview.orphanedAutomationRefUsers).toBe(2);
+    automationStore.readAutomationPart.mockResolvedValue(null);
+  });
+});
+
+describe("buildAssetOverview", () => {
+  test("reports unmeasured when no snapshot exists", async () => {
+    assetStore.readAssetSnapshotMeta.mockResolvedValueOnce(null);
+    const overview = await buildAssetOverview("inst");
+    expect(overview.available).toBe(false);
+    expect(overview.health).toBeUndefined();
+  });
+
+  test("reports not-applicable, with a health input, when the meta says Assets is off", async () => {
+    assetStore.readAssetSnapshotMeta.mockResolvedValueOnce({ state: "unavailable", assetsEnabled: false, lastError: "no workspace" });
+    const overview = await buildAssetOverview("inst");
+    expect(overview).toMatchObject({ available: false, assetsEnabled: false, state: "unavailable" });
+    expect(overview.health).toEqual({ available: false, assetsEnabled: false });
+  });
+
+  test("summarises the structure and hands computeSiteHealth its inputs", async () => {
+    assetStore.readAssetSnapshotMeta.mockResolvedValueOnce({ state: "ready", version: "v1", assetsEnabled: true, refreshedAt: "2026-09-02T00:00:00Z" });
+    assetStore.loadAssetSchemas.mockResolvedValueOnce([
+      { id: "1", name: "Infra", objectTypeCount: 2, objectCount: 40 },
+      { id: "2", name: "Empty", objectTypeCount: 0, objectCount: 0 },
+    ]);
+    assetStore.loadAssetObjectTypes.mockResolvedValueOnce([
+      { id: "9", schemaId: "1", name: "Server", parentId: null, abstract: false },
+      { id: "10", schemaId: "1", name: "VM", parentId: "9", abstract: false },
+    ]);
+    assetStore.loadAssetAttributes.mockResolvedValueOnce([
+      { id: "a", objectTypeId: "9", name: "OS", referenceObjectTypeId: null, system: false },
+      { id: "b", objectTypeId: "10", name: "Host", referenceObjectTypeId: "404", system: false },
+    ]);
+
+    const overview = await buildAssetOverview("inst");
+    expect(overview).toMatchObject({ available: true, assetsEnabled: true, totalSchemas: 2, deadSchemaCount: 1, brokenReferenceCount: 1 });
+    expect(overview.health).toMatchObject({ available: true, totalSchemas: 2, deadSchemaCount: 1, brokenReferenceCount: 1 });
+  });
+});
+
+describe("buildAccessOverview", () => {
+  test("reports unmeasured when no snapshot exists", async () => {
+    accessStore.readAccessSnapshotMeta.mockResolvedValueOnce(null);
+    const overview = await buildAccessOverview("inst");
+    expect(overview.available).toBe(false);
+  });
+
+  test("summarises each scheme type and hands each its own health block", async () => {
+    accessStore.readAccessSnapshotMeta.mockResolvedValueOnce({ state: "ready", version: "v1", refreshedAt: "2026-09-02T00:00:00Z" });
+    accessStore.loadSchemes.mockImplementation(async (_k, _v, type) => type === "permission"
+      ? [{ id: "1", name: "Prod", isDefault: false }, { id: "2", name: "Default Permission Scheme", isDefault: true }]
+      : type === "security" ? [{ id: "s1", name: "Sec" }]
+      : [{ id: "n1", name: "Notif" }]);
+    accessStore.loadSchemeHolders.mockImplementation(async (_k, _v, type) => type === "permission"
+      ? [{ schemeId: "1", context: "BROWSE_PROJECTS", holderType: "anyone", holderValue: "" }]
+      : []);
+    accessStore.loadSchemeLevels.mockResolvedValue([{ schemeId: "s1", id: "L1", name: "Internal" }]);
+    accessStore.loadSchemeProjects.mockImplementation(async (_k, _v, type) => type === "permission" ? [{ schemeId: "1", projectId: "10" }] : []);
+
+    const overview = await buildAccessOverview("inst");
+    expect(overview.available).toBe(true);
+    expect(overview.permissions.health).toMatchObject({ available: true, riskySchemeCount: 1 });
+    expect(overview.security.health).toMatchObject({ available: true, brokenLevelCount: 1 });
+    expect(overview.notifications.health).toMatchObject({ available: true });
   });
 });
 

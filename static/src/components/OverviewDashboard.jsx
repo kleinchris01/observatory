@@ -1,8 +1,8 @@
 import React from "react";
 import { invoke } from "@forge/bridge";
 import { Icon } from "./Icons";
-import { formatNumber, formatRelativeTime } from "../utils";
-import { StatTile, StatRow, Panel, EmptyState, BarList, LinkButton, GovernanceRow, TrendDelta, bandFromScore } from "./ui";
+import { formatNumber } from "../utils";
+import { StatTile, StatRow, Panel, EmptyState, LinkButton, GovernanceRow, TrendDelta, bandFromScore } from "./ui";
 import { HEALTH_PILLARS } from "../../../src/lib/health-score";
 
 // The admin landing page.
@@ -19,7 +19,7 @@ import { HEALTH_PILLARS } from "../../../src/lib/health-score";
 // omitted rather than rendered as zero, because "0 duplicate statuses" and "we have never
 // looked for duplicate statuses" are completely different statements.
 
-function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, screens, automation, filters, dashboards, onNavigate }) {
+function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, screens, issueTypes, users, assets, access, automation, filters, dashboards, onNavigate }) {
   const findings = [];
 
   if (findingsSummary?.adminAttention > 0) {
@@ -473,6 +473,23 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
     });
   }
 
+  // Cross-pillar: the filter's JQL names an issue type the site does not define, so the
+  // clause can never match and the search silently returns fewer issues than its author
+  // meant. Surfaced, not scored -- the same call the duplicate count makes.
+  if (filters?.available && filters.unknownTypeRefCount > 0) {
+    findings.push({
+      key: "filters-unknown-type",
+      dimension: "filter-hygiene",
+      pillar: "filters",
+      tone: "info",
+      count: filters.unknownTypeRefCount,
+      title: "Filters naming an issue type nothing defines",
+      detail: "The JQL references a type no scheme allows, so that clause matches nothing and the filter returns less than expected — with no error to say why.",
+      onOpen: () => onNavigate("filters", { view: "broken" }),
+      openLabel: "Filters",
+    });
+  }
+
   if (filters?.available && filters.subscribedButUnusedCount > 0) {
     findings.push({
       key: "filters-zombie-subscriptions",
@@ -608,6 +625,263 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
       detail: "They cannot route anything to a project until an issue type screen scheme references them.",
       onOpen: () => onNavigate("screens", { view: "schemes", schemes: "unused" }),
       openLabel: "Screens",
+    });
+  }
+
+  // ── Issue types ─────────────────────────────────────────────────────────
+  // "issue-type-findings" deliberately does not match a scored dimension key -- the scored
+  // cards state the rate, these state the list to act on, same split as screens.
+
+  if (issueTypes?.available && issueTypes.orphanTypeCount > 0) {
+    findings.push({
+      key: "issue-type-orphans",
+      dimension: "issue-type-findings",
+      pillar: "issueTypes",
+      tone: "critical",
+      count: issueTypes.orphanTypeCount,
+      title: "Issue types on no scheme",
+      detail: "No project can create these, so every one is clutter in every type picker.",
+      onOpen: () => onNavigate("issueTypes", { view: "hierarchy" }),
+      openLabel: "Issue Types",
+    });
+  }
+
+  if (issueTypes?.available && issueTypes.hierarchyFlaggedSchemeCount > 0) {
+    findings.push({
+      key: "issue-type-hierarchy",
+      dimension: "issue-type-findings",
+      pillar: "issueTypes",
+      tone: "critical",
+      count: issueTypes.hierarchyFlaggedSchemeCount,
+      title: "Schemes that cannot start an issue",
+      detail: "Sub-tasks with no standalone type, or a default type that cannot be created on its own.",
+      onOpen: () => onNavigate("issueTypes", { view: "schemes" }),
+      openLabel: "Issue Types",
+    });
+  }
+
+  if (issueTypes?.available && issueTypes.reducibleTypeCount > 0) {
+    findings.push({
+      key: "issue-type-duplicates",
+      dimension: "issue-type-findings",
+      pillar: "issueTypes",
+      tone: "warning",
+      count: issueTypes.reducibleTypeCount,
+      title: "Near-duplicate issue type names",
+      detail: `${issueTypes.duplicateTypeGroupCount} group${issueTypes.duplicateTypeGroupCount === 1 ? "" : "s"} — a Bug / Defect split makes every by-type report wrong.`,
+      onOpen: () => onNavigate("issueTypes", { view: "hierarchy" }),
+      openLabel: "Issue Types",
+    });
+  }
+
+  if (issueTypes?.available && issueTypes.unusedSchemeCount > 0) {
+    findings.push({
+      key: "issue-type-unused-schemes",
+      dimension: "issue-type-findings",
+      pillar: "issueTypes",
+      tone: "info",
+      count: issueTypes.unusedSchemeCount,
+      title: "Issue type schemes assigned to no project",
+      detail: "A scheme no project uses is a decision nobody made.",
+      onOpen: () => onNavigate("issueTypes", { view: "schemes" }),
+      openLabel: "Issue Types",
+    });
+  }
+
+  // ── People ─────────────────────────────────────────────────────────────
+  // "people-findings" is not a scored dimension key -- the scored cards state the rate,
+  // these state the list to act on, same split as screens and issue types.
+
+  if (users?.available && users.deactivatedUsers > 0) {
+    findings.push({
+      key: "people-deactivated-licence",
+      dimension: "people-findings",
+      pillar: "users",
+      tone: "warning",
+      count: users.deactivatedUsers,
+      title: "Deactivated accounts still holding a licence",
+      detail: "They count against the seat total and clutter every user picker until the licence is reclaimed.",
+      onOpen: () => onNavigate("people", { view: "roster" }),
+      openLabel: "People",
+    });
+  }
+
+  if (users?.available && users.orphanedArtifacts > 0) {
+    findings.push({
+      key: "people-orphaned-ownership",
+      dimension: "people-findings",
+      pillar: "users",
+      tone: "warning",
+      count: users.orphanedArtifacts,
+      title: "Filters, dashboards and rules with no owner on the roster",
+      detail: `${users.orphanedOwners} account${users.orphanedOwners === 1 ? "" : "s"} no longer licensed still own site config — nobody can be asked to fix or retire it.`,
+      onOpen: () => onNavigate("people", { view: "overview" }),
+      openLabel: "People",
+    });
+  }
+
+  if (users?.available && users.orphanedAutomationRefUsers > 0) {
+    findings.push({
+      key: "people-offroster-automation-refs",
+      dimension: "people-findings",
+      pillar: "users",
+      tone: "critical",
+      count: users.orphanedAutomationRefUsers,
+      title: "Automation rules routing work to someone off the roster",
+      detail: "A rule assigns to or conditions on an account that is no longer licensed — the work lands nowhere, or the condition silently never matches.",
+      onOpen: () => onNavigate("people", { view: "overview" }),
+      openLabel: "People",
+    });
+  }
+
+  // ── Assets (CMDB) ──────────────────────────────────────────────────────
+  // Only present on a JSM Premium site. `assets.available` is false everywhere else, so
+  // none of these render rather than the pillar shipping empty findings.
+
+  if (assets?.available && assets.brokenReferenceCount > 0) {
+    findings.push({
+      key: "asset-broken-references",
+      dimension: "asset-findings",
+      pillar: "assets",
+      tone: "critical",
+      count: assets.brokenReferenceCount,
+      title: "Assets reference attributes pointing at a type that is gone",
+      detail: "The attribute still shows on every object of its type and resolves to nothing — the CMDB analogue of a filter scoped to a deleted project.",
+      onOpen: () => onNavigate("assets", { view: "attributes" }),
+      openLabel: "Assets",
+    });
+  }
+
+  if (assets?.available && assets.brokenHierarchyCount > 0) {
+    findings.push({
+      key: "asset-broken-hierarchy",
+      dimension: "asset-findings",
+      pillar: "assets",
+      tone: "critical",
+      count: assets.brokenHierarchyCount,
+      title: "Assets object types whose parent is missing",
+      detail: "Every child under the gap inherits attributes from a type that is not in the catalogue.",
+      onOpen: () => onNavigate("assets", { view: "types" }),
+      openLabel: "Assets",
+    });
+  }
+
+  if (assets?.available && assets.deadSchemaCount > 0) {
+    findings.push({
+      key: "asset-dead-schemas",
+      dimension: "asset-findings",
+      pillar: "assets",
+      tone: "warning",
+      count: assets.deadSchemaCount,
+      title: "Object schemas with nothing in them",
+      detail: "No object types, or types but no objects — a namespace in every AQL autocomplete that resolves to nothing.",
+      onOpen: () => onNavigate("assets", { view: "schemas" }),
+      openLabel: "Assets",
+    });
+  }
+
+  if (assets?.available && assets.bareTypeCount > 0) {
+    findings.push({
+      key: "asset-bare-types",
+      dimension: "asset-findings",
+      pillar: "assets",
+      tone: "info",
+      count: assets.bareTypeCount,
+      title: "Concrete object types with no attribute of their own",
+      detail: "Only the built-in Name — the type records nothing about the thing it represents.",
+      onOpen: () => onNavigate("assets", { view: "types" }),
+      openLabel: "Assets",
+    });
+  }
+
+  // ── Access schemes: permissions / issue security / notifications ────────
+  // Three pillars, one scan stage. The "*-findings" dimension keys deliberately do not match
+  // a scored dimension -- the scored cards state the rate, these state the list to act on.
+
+  const perm = access?.permissions;
+  if (perm?.available && perm.riskySchemeCount > 0) {
+    findings.push({
+      key: "permission-risky",
+      dimension: "permission-findings",
+      pillar: "permissions",
+      tone: "critical",
+      count: perm.riskySchemeCount,
+      title: "Permission schemes that break least privilege",
+      detail: "Browse open to anyone, project admin handed to a whole group, or a permission held by a named individual — grants nobody reviews.",
+      onOpen: () => onNavigate("access", { view: "permissions" }),
+      openLabel: "Access",
+    });
+  }
+
+  if (perm?.available && perm.unusedSchemeCount > 0) {
+    findings.push({
+      key: "permission-unused",
+      dimension: "permission-findings",
+      pillar: "permissions",
+      tone: "info",
+      count: perm.unusedSchemeCount,
+      title: "Permission schemes assigned to no project",
+      detail: "A scheme no project uses is a decision nobody made that still shows in every scheme picker.",
+      onOpen: () => onNavigate("access", { view: "permissions" }),
+      openLabel: "Access",
+    });
+  }
+
+  const sec = access?.security;
+  if (sec?.available && (sec.emptyLevelCount > 0 || sec.noLevelSchemeCount > 0)) {
+    findings.push({
+      key: "security-broken-levels",
+      dimension: "security-findings",
+      pillar: "security",
+      tone: "critical",
+      count: (sec.emptyLevelCount || 0) + (sec.noLevelSchemeCount || 0),
+      title: "Issue security levels nobody can see through",
+      detail: "Levels with no members, or schemes with no levels at all. An issue set to one is invisible to everyone but a site admin.",
+      onOpen: () => onNavigate("access", { view: "security" }),
+      openLabel: "Access",
+    });
+  }
+
+  if (sec?.available && sec.unusedSchemeCount > 0) {
+    findings.push({
+      key: "security-unused",
+      dimension: "security-findings",
+      pillar: "security",
+      tone: "info",
+      count: sec.unusedSchemeCount,
+      title: "Issue security schemes assigned to no project",
+      detail: "Nothing enforces them. Clutter in the scheme picker.",
+      onOpen: () => onNavigate("access", { view: "security" }),
+      openLabel: "Access",
+    });
+  }
+
+  const notif = access?.notifications;
+  if (notif?.available && notif.fragileSchemeCount > 0) {
+    findings.push({
+      key: "notification-fragile",
+      dimension: "notification-findings",
+      pillar: "notifications",
+      tone: "warning",
+      count: notif.fragileSchemeCount,
+      title: "Notification schemes routing to a named individual",
+      detail: "The notification stops silently the day that person leaves. Route to a project role or group instead.",
+      onOpen: () => onNavigate("access", { view: "notifications" }),
+      openLabel: "Access",
+    });
+  }
+
+  if (notif?.available && notif.unusedSchemeCount > 0) {
+    findings.push({
+      key: "notification-unused",
+      dimension: "notification-findings",
+      pillar: "notifications",
+      tone: "info",
+      count: notif.unusedSchemeCount,
+      title: "Notification schemes assigned to no project",
+      detail: "A scheme no project uses.",
+      onOpen: () => onNavigate("access", { view: "notifications" }),
+      openLabel: "Access",
     });
   }
 
@@ -895,7 +1169,7 @@ export function useHealthHistory({ days = 90, load = invoke } = {}) {
   return history;
 }
 
-function GovernanceLedgerPanel({ health, findings, history, workflow, screens, automation, filters, dashboards, onNavigate }) {
+function GovernanceLedgerPanel({ health, findings, history, workflow, screens, access, automation, filters, dashboards, onNavigate }) {
   const ledger = React.useMemo(() => buildGovernanceLedger({ health, findings, history }), [health, findings, history]);
 
   // Which pillars have never been built. Named individually, because "nothing flagged" while
@@ -907,6 +1181,7 @@ function GovernanceLedgerPanel({ health, findings, history, workflow, screens, a
     !automation?.available && { label: "automation analysis", tab: "automation" },
     !filters?.available && { label: "saved filter inventory", tab: "filters" },
     !dashboards?.available && { label: "dashboard inventory", tab: "dashboards" },
+    !access?.available && { label: "access scheme inventory", tab: "access" },
   ].filter(Boolean);
 
   // No rows at all. Two different reasons, and they must not be worded the same: a site
@@ -1060,248 +1335,6 @@ function GovernanceLedgerPanel({ health, findings, history, workflow, screens, a
   );
 }
 
-
-// ── Workflow ────────────────────────────────────────────────────────────────
-
-function WorkflowPanel({ workflow, onNavigate }) {
-  if (!workflow?.available) {
-    return (
-      <Panel title="Workflows and statuses" icon="activity">
-        <EmptyState action={<LinkButton onClick={() => onNavigate("workflows")}>Open Workflows</LinkButton>}>
-          {workflow?.state === "building"
-            ? "Building the workflow inventory…"
-            : "No workflow inventory yet. Build one to see scheme sharing and status health."}
-        </EmptyState>
-      </Panel>
-    );
-  }
-
-  return (
-    <Panel
-      title="Workflows and statuses"
-      icon="activity"
-      description={workflow.refreshedAt ? `Built ${formatRelativeTime(workflow.refreshedAt)}` : undefined}
-      action={<LinkButton onClick={() => onNavigate("workflows")}>Open Workflows</LinkButton>}
-    >
-      <StatRow>
-        <StatTile
-          label="Workflow schemes"
-          value={formatNumber(workflow.schemeCount)}
-          hint={`${formatNumber(workflow.sharedSchemes)} shared by more than one project`}
-          icon="activity"
-        />
-        <StatTile label="Statuses" value={formatNumber(workflow.statusCount)} icon="layers" />
-        <StatTile
-          label="Duplicate groups"
-          value={formatNumber(workflow.duplicateGroupCount)}
-          hint={workflow.reducibleStatusCount > 0 ? `${formatNumber(workflow.reducibleStatusCount)} removable` : undefined}
-          tone={workflow.duplicateGroupCount > 0 ? "warning" : "neutral"}
-        />
-        <StatTile
-          label="Unreachable"
-          value={workflow.schemeStatusesAvailable ? formatNumber(workflow.orphanCount) : "—"}
-          hint={
-            !workflow.schemeStatusesAvailable
-              ? "workflow status data unavailable"
-              : workflow.hasIssueCounts
-                ? `${formatNumber(workflow.safeToRemoveCount)} never used`
-                : "run a scan to confirm usage"
-          }
-          tone={workflow.schemeStatusesAvailable && workflow.orphanCount > 0 ? "warning" : "neutral"}
-        />
-      </StatRow>
-
-      {/* Scheme sharing is the premise the whole correlation rests on. If nothing is
-          shared, per-scheme comparison has no leverage and it is better to say so. */}
-      {workflow.sharedSchemes === 0 && workflow.schemeCount > 0 && (
-        <p className="ui-note">
-          <Icon name="info" size={13} />
-          <span>
-            No scheme governs more than one project, so there is no shared process to compare
-            field usage against.
-          </span>
-        </p>
-      )}
-    </Panel>
-  );
-}
-
-// ── Projects ────────────────────────────────────────────────────────────────
-
-function ProjectsPanel({ projects, onNavigate }) {
-  if (!projects || !projects.totalProjects) {
-    return (
-      <Panel title="Projects" icon="folder">
-        <EmptyState>No project usage data yet. Run a scan to populate it.</EmptyState>
-      </Panel>
-    );
-  }
-
-  return (
-    <Panel
-      title="Projects"
-      icon="folder"
-      action={<LinkButton onClick={() => onNavigate("projects")}>Open Project Usage</LinkButton>}
-    >
-      <StatRow>
-        <StatTile label="Projects with field usage" value={formatNumber(projects.totalProjects)} icon="folder" />
-        {/*
-          Two different measures, never one label. totalFieldFills counts field VALUES --
-          an issue with 90 populated fields contributes 90 -- so presenting it as "issues"
-          overstates by roughly the median field count. Only the Universal Scan measures
-          distinct issues, so when it has not run the tile says what it is actually showing.
-        */}
-        {projects.hasUniqueCounts ? (
-          <StatTile
-            label="Issues covered"
-            value={formatNumber(projects.totalUniqueIssues)}
-            hint="distinct issues, from the universe scan"
-            icon="barChart"
-          />
-        ) : (
-          <StatTile
-            label="Field fills"
-            value={formatNumber(projects.totalFieldFills)}
-            hint="field values, not issues — run a universe scan for issue counts"
-            icon="barChart"
-          />
-        )}
-        <StatTile
-          label="Median fields per project"
-          value={formatNumber(projects.medianFieldCount)}
-          hint={`90th percentile ${formatNumber(projects.p90FieldCount)}`}
-          icon="layers"
-        />
-        <StatTile
-          label="No issues recorded"
-          value={formatNumber(projects.unusedProjects?.length ?? 0)}
-          hint="fields configured, nothing filed"
-          tone={projects.unusedProjects?.length ? "warning" : "neutral"}
-        />
-      </StatRow>
-
-      <div className="ui-split">
-        <div className="ui-split__col">
-          <h4 className="ui-subhead">
-            {projects.hasUniqueCounts ? "Highest issue volume" : "Most field fills"}
-          </h4>
-          <BarList
-            items={projects.topByIssueVolume}
-            labelKey="projectKey"
-            valueKey="volume"
-            formatValue={formatNumber}
-            emptyMessage="No issue data yet"
-          />
-        </div>
-        <div className="ui-split__col">
-          <h4 className="ui-subhead">Most fields configured</h4>
-          <BarList
-            items={projects.topByFieldCount}
-            labelKey="projectKey"
-            valueKey="fieldCount"
-            formatValue={formatNumber}
-            tone="warn"
-            emptyMessage="No field data yet"
-          />
-        </div>
-      </div>
-
-      {projects.overConfigured?.length > 0 && (
-        <div className="ui-split__col">
-          <h4 className="ui-subhead">Configured past the norm, low volume</h4>
-          <p className="ui-subhead__desc">
-            Well above the median field count while carrying little work — the cost is real
-            and the usage is not.
-          </p>
-          <BarList
-            items={projects.overConfigured}
-            labelKey="projectKey"
-            valueKey="fieldCount"
-            formatValue={formatNumber}
-            tone="warn"
-          />
-        </div>
-      )}
-
-      {projects.staleProjects?.length > 0 && (
-        <div className="ui-split__col">
-          <h4 className="ui-subhead">No activity in over six months</h4>
-          <div className="ui-stale-list">
-            {projects.staleProjects.map((project) => (
-              <div key={project.projectKey} className="ui-stale">
-                <span className="ui-stale__key">{project.projectKey}</span>
-                <span className="ui-stale__name">{project.projectName}</span>
-                <span className="ui-stale__when">{formatRelativeTime(project.latestIssueUpdatedAt)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </Panel>
-  );
-}
-
-// ── Fields ──────────────────────────────────────────────────────────────────
-
-function FieldsPanel({ fieldUsage, onNavigate }) {
-  const severity = fieldUsage?.findingsBySeverity || { high: 0, medium: 0, low: 0 };
-  const origin = fieldUsage?.origin || { builtin: 0, appProvided: 0, custom: 0 };
-
-  return (
-    <Panel
-      title="Field usage"
-      icon="layers"
-      action={<LinkButton onClick={() => onNavigate("fields")}>Open Field Browser</LinkButton>}
-    >
-      <StatRow>
-        <StatTile
-          label="High severity"
-          value={formatNumber(severity.high)}
-          tone={severity.high > 0 ? "critical" : "neutral"}
-          icon="alertTriangle"
-        />
-        <StatTile
-          label="Medium severity"
-          value={formatNumber(severity.medium)}
-          tone={severity.medium > 0 ? "warning" : "neutral"}
-          icon="alertTriangle"
-        />
-        <StatTile label="Low severity" value={formatNumber(severity.low)} icon="info" />
-        <StatTile
-          label="Duplicate-name clusters"
-          value={formatNumber(fieldUsage?.duplicateClusters ?? 0)}
-          hint={`${formatNumber(origin.custom)} custom fields total`}
-          icon="scissors"
-        />
-      </StatRow>
-
-      <div className="ui-split">
-        <div className="ui-split__col">
-          <h4 className="ui-subhead">Most common findings</h4>
-          <BarList
-            items={fieldUsage?.findingsByType}
-            labelKey="title"
-            valueKey="count"
-            formatValue={formatNumber}
-            tone="warn"
-            emptyMessage="No governance findings yet"
-          />
-        </div>
-        <div className="ui-split__col">
-          <h4 className="ui-subhead">Field types</h4>
-          <BarList
-            items={fieldUsage?.fieldTypeBreakdown}
-            labelKey="type"
-            valueKey="count"
-            formatValue={formatNumber}
-            emptyMessage="No field data yet"
-          />
-        </div>
-      </div>
-    </Panel>
-  );
-}
-
 // ── RQT ─────────────────────────────────────────────────────────────────────
 
 function RqtPanel({ onOpenRqtIndex }) {
@@ -1335,11 +1368,11 @@ function RqtPanel({ onOpenRqtIndex }) {
   );
 }
 
-export function OverviewDashboard({ dashboard, findingsSummary, findingsByCode, workflow, screens, automation, filters, dashboards, health, history, onOpenRqtIndex, onNavigate }) {
+export function OverviewDashboard({ dashboard, findingsSummary, findingsByCode, workflow, screens, issueTypes, users, assets, access, automation, filters, dashboards, health, history, onOpenRqtIndex, onNavigate }) {
   // onNavigate is optional so this stays renderable in isolation; without it the deep
   // links become inert rather than throwing.
   const navigate = onNavigate || (() => {});
-  const findings = buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, screens, automation, filters, dashboards, onNavigate: navigate });
+  const findings = buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, screens, issueTypes, users, assets, access, automation, filters, dashboards, onNavigate: navigate });
   // A caller may pass history in -- tests do -- but nobody has to.
   const fetched = useHealthHistory();
   const series = history ?? fetched;
@@ -1352,14 +1385,17 @@ export function OverviewDashboard({ dashboard, findingsSummary, findingsByCode, 
         history={series}
         workflow={workflow}
         screens={screens}
+        access={access}
         automation={automation}
         filters={filters}
         dashboards={dashboards}
         onNavigate={navigate}
       />
-      <WorkflowPanel workflow={workflow} onNavigate={navigate} />
-      <ProjectsPanel projects={dashboard?.projects} onNavigate={navigate} />
-      <FieldsPanel fieldUsage={dashboard?.fieldUsage} onNavigate={navigate} />
+      {/* The per-pillar stat blocks that used to sit here -- Workflows, Projects, Field
+          usage -- were removed: each is a duplicate of its own tab's Overview sub-view, and
+          two copies of the same numbers on two pages is how the product starts reading as
+          several. The cross-pillar findings ledger above is the landing page's job; the
+          detail lives one click away on the pillar tab. */}
       <RqtPanel onOpenRqtIndex={onOpenRqtIndex} />
     </div>
   );

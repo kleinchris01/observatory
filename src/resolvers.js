@@ -44,6 +44,7 @@ import {
   listAuditEvents,
   loadSnapshotFields,
   loadSnapshotField,
+  loadSnapshotFieldNames,
   loadSnapshotProjectUsage,
   loadAllSnapshotProjectUsage,
   loadAnySnapshotProjectUsage,
@@ -88,6 +89,9 @@ import {
   migrateOldScopeKeys,
   loadSnapshotFieldIssueSums,
   sumSnapshotFieldIssueCount,
+  loadFieldTypeUsage,
+  loadFieldUserUsage,
+  loadUserFieldAppearances,
   upsertProjectTotalsForDelta,
   upsertDeltaFieldProjectUsage,
   upsertRqtFieldHits,
@@ -132,6 +136,20 @@ import {
   loadIssueTypeSchemeProjects,
   loadIssueTypeSchemeForProject,
   loadIssueTypeGovernanceSummary,
+  readUserSnapshotMeta,
+  loadUsers,
+  loadUserGovernanceSummary,
+  readAssetSnapshotMeta,
+  loadAssetSchemas,
+  loadAssetObjectTypes,
+  loadAssetAttributes,
+  readAccessSnapshotMeta,
+  loadSchemes,
+  loadSchemeHolders,
+  loadSchemeLevels,
+  loadSchemeProjects,
+  loadSchemesGrantingHolder,
+  loadProjectSchemes,
   recordHealthSnapshot,
   readFullScanMeta,
   loadHealthHistory,
@@ -139,8 +157,17 @@ import {
 } from "./lib/project-store.js";
 import { queueWorkflowSnapshotBuild, isWorkflowBuildStale, queueStatusHistoryBuild } from "./lib/workflow-engine.js";
 import { measureScreenFetchCost, probeScreenEndpoints, DEFAULT_SAMPLE_SIZE } from "./lib/screen-probe.js";
+import { probeAssetsApi as probeAssetsApiProbe } from "./lib/asset-probe.js";
 import { queueScreenSnapshotBuild, isScreenBuildStale } from "./lib/screen-engine.js";
 import { queueIssueTypeSnapshotBuild, isIssueTypeBuildStale } from "./lib/issuetype-engine.js";
+import { queueUserSnapshotBuild, isUserBuildStale } from "./lib/user-engine.js";
+import { queueAssetSnapshotBuild, isAssetBuildStale } from "./lib/asset-engine.js";
+import { queueAccessSnapshotBuild, isAccessBuildStale } from "./lib/access-engine.js";
+import { summarizeIssueTypeInsights } from "./lib/issuetype-insights.js";
+import { summarizeAssetInsights } from "./lib/asset-insights.js";
+import {
+  summarizePermissionInsights, summarizeSecurityInsights, summarizeNotificationInsights,
+} from "./lib/access-insights.js";
 import { computeSiteHealth, DEFAULT_HEALTH_TOLERANCES } from "./lib/health-score.js";
 // Moved out of this file so a scan can record a measurement without importing the
 // resolver layer. Same implementation, both callers.
@@ -151,6 +178,10 @@ import {
   buildScreenOverview,
   buildFilterOverview,
   buildDashboardOverview,
+  buildIssueTypeOverview,
+  buildUserOverview,
+  buildAssetOverview,
+  buildAccessOverview,
   attachUniqueIssueCounts,
   captureSiteHealth,
 } from "./lib/site-health.js";
@@ -170,6 +201,8 @@ import {
   summarizeWorkflowInsights,
 } from "./lib/workflow-insights.js";
 import { analyzeCascadeGraph, MAX_CHAIN_DEPTH } from "./lib/cascade-graph.js";
+import { buildOwnershipIndex, summarizeOrphanedOwnership } from "./lib/user-ownership.js";
+import { hydrateRuleDirectory } from "./lib/automation-analysis.js";
 import {
   readAutomationAnalysis,
   writeAutomationAnalysis,
@@ -1468,6 +1501,10 @@ async function getIssueTypeInventory({ context }) {
     hierarchy,
     schemes: schemesResolved,
     governance,
+    // The finding-shaped detail behind the governance counts: near-duplicate name groups,
+    // the orphan list, and the schemes whose type set does not hang together. Computed from
+    // the rows already loaded above so the tab renders findings without a second round trip.
+    governanceFindings: summarizeIssueTypeInsights({ types: issueTypes, schemes, schemeItems }),
     issueTypeScreenSchemes,
     neverBuilt: false,
   };
@@ -1491,6 +1528,394 @@ async function buildIssueTypeInventory({ context }) {
   }
 
   await queueIssueTypeSnapshotBuild(installationKey);
+  return { queued: true };
+}
+
+// The People pillar's read: the licensed-user roster with each user's products and access
+// groups, plus the site's own seat numbers for the header.
+async function getUserInventory({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  const meta = await readUserSnapshotMeta(installationKey);
+  const staleBuild = isUserBuildStale(meta);
+
+  if (!meta?.version) {
+    return {
+      state: meta?.state || "idle",
+      staleBuild,
+      startedAt: meta?.startedAt || null,
+      version: null,
+      users: [],
+      applicationSummary: [],
+      governance: null,
+      lastError: meta?.lastError || null,
+      neverBuilt: true,
+    };
+  }
+
+  const [users, governance, ownership, ruleUserIndex] = await Promise.all([
+    loadUsers(installationKey, meta.version),
+    loadUserGovernanceSummary(installationKey, meta.version),
+    buildOwnershipIndex(installationKey).catch(() => ({ byAccount: new Map(), available: {} })),
+    readAutomationPart(installationKey, "users").catch(() => null),
+  ]);
+
+  // accountId -> how many DISTINCT rules name this person. Built once from the automation
+  // user index so the roster can show it without a per-user lookup.
+  const ruleRefCountByAccount = new Map();
+  for (const entry of ruleUserIndex?.entries ?? []) {
+    const ids = new Set([...(entry.write ?? []), ...(entry.read ?? []), ...(entry.trigger ?? [])]);
+    ruleRefCountByAccount.set(String(entry.label), ids.size);
+  }
+
+  const rosterIds = new Set(users.map((u) => u.accountId));
+  const withOwnership = users.map((u) => {
+    const owned = ownership.byAccount.get(u.accountId);
+    return {
+      ...u,
+      ownedFilters: owned?.filters.length ?? 0,
+      ownedDashboards: owned?.dashboards.length ?? 0,
+      authoredRules: owned?.rules.length ?? 0,
+      automationRefs: ruleRefCountByAccount.get(u.accountId) ?? 0,
+    };
+  });
+
+  const orphaned = summarizeOrphanedOwnership(ownership, rosterIds);
+
+  // People an automation rule names who are not on the licensed roster -- a rule assigning
+  // work to a deactivated or unlicensed account. Estate-level count; the People tab lists
+  // them per rule from getUserDetails.
+  let automationRefUsers = 0;
+  let orphanedAutomationRefUsers = 0;
+  for (const accountId of ruleRefCountByAccount.keys()) {
+    automationRefUsers += 1;
+    if (!rosterIds.has(accountId)) orphanedAutomationRefUsers += 1;
+  }
+
+  return {
+    state: meta.state || "ready",
+    staleBuild,
+    startedAt: meta.startedAt || null,
+    refreshedAt: meta.refreshedAt || null,
+    version: meta.version,
+    users: withOwnership,
+    applicationSummary: meta.applicationSummary || [],
+    governance: { ...governance, ...orphaned, automationRefUsers, orphanedAutomationRefUsers },
+    automationRefsAvailable: Boolean(ruleUserIndex),
+    ownershipAvailable: ownership.available,
+    lastError: meta.lastError || null,
+    neverBuilt: false,
+  };
+}
+
+// One user's full cross-pillar footprint: products, groups, and the filters, dashboards and
+// automation rules they own. The roster gives counts; this gives the lists.
+async function getUserDetails({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+  const accountId = String(payload?.accountId || "");
+  if (!accountId) throw new Error("accountId is required");
+
+  const meta = await readUserSnapshotMeta(installationKey);
+  if (!meta?.version) return { available: false, reason: "no-roster" };
+
+  const [fieldMeta, accessMeta] = await Promise.all([
+    readSnapshotMeta(installationKey).catch(() => null),
+    readAccessSnapshotMeta(installationKey).catch(() => null),
+  ]);
+
+  const [users, ownership, ruleUserIndex, ruleDirectoryDoc, fieldAppearanceRows, grantedBySchemes] = await Promise.all([
+    loadUsers(installationKey, meta.version),
+    buildOwnershipIndex(installationKey).catch(() => ({ byAccount: new Map(), available: {} })),
+    readAutomationPart(installationKey, "users").catch(() => null),
+    readAutomationPart(installationKey, "directory").catch(() => null),
+    fieldMeta?.version
+      ? loadUserFieldAppearances(installationKey, fieldMeta.version, accountId).catch(() => [])
+      : Promise.resolve([]),
+    accessMeta?.version
+      ? loadSchemesGrantingHolder(installationKey, accessMeta.version, "user", accountId).catch(() => [])
+      : Promise.resolve([]),
+  ]);
+
+  const user = users.find((u) => u.accountId === accountId) || null;
+  const owned = ownership.byAccount.get(accountId) || { filters: [], dashboards: [], rules: [] };
+
+  // The rules that NAME this person -- assign to them, condition on them being the assignee,
+  // set a user field to their account. Distinct from authoredRules (rules they own): a
+  // deactivated account can still be the assignee half a dozen rules route work to.
+  const referencedInRules = collectRuleUserReferences(accountId, ruleUserIndex, ruleDirectoryDoc);
+
+  // The user-picker fields this account holds a value in, from the last full crawl. Names
+  // joined from the field snapshot. Empty until a scan has run since this feature landed.
+  let fieldAppearances = [];
+  if (fieldAppearanceRows.length && fieldMeta?.version) {
+    const names = await loadSnapshotFieldNames(installationKey, fieldMeta.version, fieldAppearanceRows.map((r) => r.fieldId)).catch(() => new Map());
+    fieldAppearances = fieldAppearanceRows.map((r) => ({
+      fieldId: r.fieldId,
+      fieldName: names.get(r.fieldId) || r.fieldId,
+      issueCount: r.issueCount,
+    }));
+  }
+
+  return {
+    available: true,
+    inRoster: Boolean(user),
+    user: user || { accountId, displayName: accountId, applications: [], groups: [], active: null },
+    ownedFilters: owned.filters,
+    ownedDashboards: owned.dashboards,
+    authoredRules: owned.rules,
+    referencedInRules,
+    fieldAppearances,
+    // Permission grants, security-level memberships and notification recipients that name
+    // this account directly (a direct grant is an anti-pattern -- it should be a role).
+    grantedBySchemes,
+    automationRefsAvailable: Boolean(ruleUserIndex),
+    fieldAppearancesAvailable: Boolean(fieldMeta?.version),
+    accessGrantsAvailable: Boolean(accessMeta?.version),
+    ownershipAvailable: ownership.available,
+  };
+}
+
+// One account's entry in the automation user index, joined to rule names. `direction` is
+// "write" when a rule assigns/sets the account and "read" when it only conditions on it --
+// the write side is what breaks loudest if the account goes away.
+function collectRuleUserReferences(accountId, userIndex, directoryDoc) {
+  const entry = (userIndex?.entries ?? []).find((e) => String(e.label) === String(accountId));
+  if (!entry) return [];
+  const names = directoryDoc ? hydrateRuleDirectory(directoryDoc) : new Map();
+  const byId = new Map();
+  for (const direction of ["write", "read", "trigger"]) {
+    for (const ruleId of entry[direction] ?? []) {
+      const existing = byId.get(ruleId);
+      const rule = names.get(ruleId);
+      if (existing) {
+        if (direction === "write") existing.direction = "write";
+      } else {
+        byId.set(ruleId, {
+          id: ruleId,
+          name: rule?.name || `Rule ${ruleId}`,
+          enabled: rule?.enabled ?? null,
+          direction,
+        });
+      }
+    }
+  }
+  return [...byId.values()];
+}
+
+async function buildUserInventory({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  const meta = await readUserSnapshotMeta(installationKey);
+  if (meta?.state === "building" && !isUserBuildStale(meta)) {
+    return { queued: false, reason: "already-building", meta };
+  }
+
+  const adminConfig = await readAdminConfig();
+  if (adminConfig.readOnlyMode) {
+    return { queued: false, error: "Read-only mode is enabled. Disable it before building the people inventory." };
+  }
+
+  await queueUserSnapshotBuild(installationKey);
+  return { queued: true };
+}
+
+// The JSM Assets (CMDB) pillar's read: object schemas, their object types and those types'
+// attributes, plus the governance summary. `assetsEnabled: false` is a first-class state --
+// the build ran and Assets is not licensed here -- and the tab renders the explanation
+// rather than an empty catalogue.
+async function getAssetInventory({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  const meta = await readAssetSnapshotMeta(installationKey);
+  const staleBuild = isAssetBuildStale(meta);
+
+  if (meta?.state === "unavailable") {
+    return {
+      state: "unavailable",
+      assetsEnabled: false,
+      staleBuild: false,
+      refreshedAt: meta?.refreshedAt || null,
+      workspaceId: meta?.workspaceId || null,
+      schemas: [],
+      objectTypes: [],
+      attributes: [],
+      governance: summarizeAssetInsights({ assetsEnabled: false }),
+      lastError: meta?.lastError || null,
+      neverBuilt: false,
+    };
+  }
+
+  if (!meta?.version) {
+    return {
+      state: meta?.state || "idle",
+      assetsEnabled: null,
+      staleBuild,
+      startedAt: meta?.startedAt || null,
+      version: null,
+      schemas: [],
+      objectTypes: [],
+      attributes: [],
+      governance: null,
+      lastError: meta?.lastError || null,
+      neverBuilt: true,
+    };
+  }
+
+  const [schemas, objectTypes, attributes] = await Promise.all([
+    loadAssetSchemas(installationKey, meta.version),
+    loadAssetObjectTypes(installationKey, meta.version),
+    loadAssetAttributes(installationKey, meta.version),
+  ]);
+
+  const governance = summarizeAssetInsights({ schemas, objectTypes, attributes, assetsEnabled: true });
+
+  return {
+    state: meta.state || "ready",
+    assetsEnabled: true,
+    staleBuild,
+    startedAt: meta.startedAt || null,
+    refreshedAt: meta.refreshedAt || null,
+    version: meta.version,
+    workspaceId: meta.workspaceId || null,
+    schemas,
+    objectTypes,
+    attributes,
+    governance,
+    lastError: meta.lastError || null,
+    neverBuilt: false,
+  };
+}
+
+async function buildAssetInventory({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  const meta = await readAssetSnapshotMeta(installationKey);
+  if (meta?.state === "building" && !isAssetBuildStale(meta)) {
+    return { queued: false, reason: "already-building", meta };
+  }
+
+  const adminConfig = await readAdminConfig();
+  if (adminConfig.readOnlyMode) {
+    return { queued: false, error: "Read-only mode is enabled. Disable it before building the Assets inventory." };
+  }
+
+  await queueAssetSnapshotBuild(installationKey);
+  return { queued: true };
+}
+
+// The access pillar's read: permission / issue-security / notification schemes, their
+// holders and project assignments, with the governance summary for each type. Roster
+// accountIds are joined in so an off-roster grant reads as such.
+async function getAccessInventory({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  const meta = await readAccessSnapshotMeta(installationKey);
+  const staleBuild = isAccessBuildStale(meta);
+
+  if (!meta?.version) {
+    return {
+      state: meta?.state || "idle",
+      staleBuild,
+      startedAt: meta?.startedAt || null,
+      version: null,
+      permissions: null,
+      security: null,
+      notifications: null,
+      lastError: meta?.lastError || null,
+      neverBuilt: true,
+    };
+  }
+
+  let rosterAccountIds = new Set();
+  const userMeta = await readUserSnapshotMeta(installationKey).catch(() => null);
+  if (userMeta?.version) {
+    const users = await loadUsers(installationKey, userMeta.version).catch(() => []);
+    rosterAccountIds = new Set(users.map((u) => u.accountId));
+  }
+
+  const [
+    permSchemes, permHolders, permProjects,
+    secSchemes, secHolders, secProjects, levels,
+    notifSchemes, notifHolders, notifProjects,
+  ] = await Promise.all([
+    loadSchemes(installationKey, meta.version, "permission"),
+    loadSchemeHolders(installationKey, meta.version, "permission"),
+    loadSchemeProjects(installationKey, meta.version, "permission"),
+    loadSchemes(installationKey, meta.version, "security"),
+    loadSchemeHolders(installationKey, meta.version, "security"),
+    loadSchemeProjects(installationKey, meta.version, "security"),
+    loadSchemeLevels(installationKey, meta.version),
+    loadSchemes(installationKey, meta.version, "notification"),
+    loadSchemeHolders(installationKey, meta.version, "notification"),
+    loadSchemeProjects(installationKey, meta.version, "notification"),
+  ]);
+
+  const projectCountFor = (rows) => {
+    const m = new Map();
+    for (const r of rows) m.set(r.schemeId, (m.get(r.schemeId) || 0) + 1);
+    return m;
+  };
+
+  const decorate = (schemes, projRows) => {
+    const counts = projectCountFor(projRows);
+    return schemes.map((s) => ({ ...s, projectCount: counts.get(s.id) || 0 }));
+  };
+
+  return {
+    state: meta.state || "ready",
+    staleBuild,
+    startedAt: meta.startedAt || null,
+    refreshedAt: meta.refreshedAt || null,
+    version: meta.version,
+    neverBuilt: false,
+    lastError: meta.lastError || null,
+    permissions: {
+      schemes: decorate(permSchemes, permProjects),
+      holders: permHolders,
+      governance: summarizePermissionInsights({ schemes: permSchemes, holders: permHolders, schemeProjects: permProjects, rosterAccountIds }),
+    },
+    security: {
+      schemes: decorate(secSchemes, secProjects),
+      levels,
+      holders: secHolders,
+      governance: summarizeSecurityInsights({ schemes: secSchemes, levels, holders: secHolders, schemeProjects: secProjects, rosterAccountIds }),
+    },
+    notifications: {
+      schemes: decorate(notifSchemes, notifProjects),
+      holders: notifHolders,
+      governance: summarizeNotificationInsights({ schemes: notifSchemes, holders: notifHolders, schemeProjects: notifProjects, rosterAccountIds }),
+    },
+  };
+}
+
+async function buildAccessInventory({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  const meta = await readAccessSnapshotMeta(installationKey);
+  if (meta?.state === "building" && !isAccessBuildStale(meta)) {
+    return { queued: false, reason: "already-building", meta };
+  }
+
+  const adminConfig = await readAdminConfig();
+  if (adminConfig.readOnlyMode) {
+    return { queued: false, error: "Read-only mode is enabled. Disable it before building the access inventory." };
+  }
+
+  await queueAccessSnapshotBuild(installationKey);
   return { queued: true };
 }
 
@@ -1723,7 +2148,17 @@ async function getFilterInventory({ payload, context }) {
       if (projects.length) projectKeys = new Set(projects.map((p) => p.projectKey).filter(Boolean));
     }
 
-    const summary = summarizeFilters(filters, { projectKeys });
+    // The issue type catalog, for the "JQL names a type nothing defines" join. Same
+    // best-effort posture: skipped and flagged rather than reported as zero.
+    let typeNames = null;
+    const itMeta = await readIssueTypeSnapshotMeta(installationKey).catch(() => null);
+    if (itMeta?.version) {
+      const types = await loadIssueTypes(installationKey, itMeta.version)
+        .catch(fallbackOn("filters.type_names_load_failed", () => [], { installationKey }));
+      if (types.length) typeNames = new Set(types.map((t) => String(t.name || "").toLowerCase()).filter(Boolean));
+    }
+
+    const summary = summarizeFilters(filters, { projectKeys, typeNames });
     // `summary.filters` is analyzeFilter's own output -- every filter with findings attached,
     // unbounded, sorted worst-first. It exists so buildFilterOverview (the Overview's "worst"
     // list) can slice(0, 8) from it. Spreading the whole summary into this response used to
@@ -2344,6 +2779,60 @@ async function getStatusAutomationUsage({ payload, context }) {
 }
 
 
+// A rule that creates an issue of a type, or scopes its trigger to one, names that type by
+// numeric id -- only conditions and JQL carry the display name. So the issue-type index
+// arrives labelled with a mix of ids and names, and the tab was rendering "10022" where the
+// Issue Types tab says "Incident". Resolved here, against the issue-type inventory, rather
+// than in the browser-side analysis: the id -> name map is the inventory's to own, and the
+// analysis pipeline is shared with the backend importer which has no reason to load it.
+//
+// Relabelling can collide -- one rule referencing a type by id and another by name produces
+// two entries that are the same type -- so entries that land on the same name are merged.
+// Swap each entry's id label for a human name from `nameById`, merging any entries that
+// land on the same name (an issue type a rule referenced by id AND another by name; two
+// accounts that share a display name). Shared by the issue-type and user index resolvers.
+function relabelIndexEntries(entries, nameById) {
+  if (!nameById.size) return entries;
+  const merged = new Map();
+  for (const entry of entries) {
+    const label = nameById.get(String(entry.label)) ?? entry.label;
+    const key = String(label).toLowerCase();
+    const existing = merged.get(key);
+    if (!existing) {
+      merged.set(key, { ...entry, label });
+      continue;
+    }
+    for (const dir of ["write", "read", "trigger"]) {
+      existing[dir] = [...new Set([...(existing[dir] ?? []), ...(entry[dir] ?? [])])].slice(0, 50);
+      existing[`${dir}Count`] = (existing[`${dir}Count`] ?? 0) + (entry[`${dir}Count`] ?? 0);
+    }
+    existing.total = existing.writeCount + existing.readCount + existing.triggerCount;
+    existing.ruleCount = new Set([...existing.write, ...existing.read, ...existing.trigger]).size;
+    existing.enabledRules = (existing.enabledRules ?? 0) + (entry.enabledRules ?? 0);
+    existing.disabledRules = (existing.disabledRules ?? 0) + (entry.disabledRules ?? 0);
+  }
+  return [...merged.values()].sort((a, b) => b.total - a.total || String(a.label).localeCompare(String(b.label)));
+}
+
+async function resolveIssueTypeIndexLabels(installationKey, entries) {
+  const meta = await readIssueTypeSnapshotMeta(installationKey).catch(() => null);
+  if (!meta?.version) return entries;
+  const types = await loadIssueTypes(installationKey, meta.version).catch(() => []);
+  const nameById = new Map(types.map((t) => [String(t.id), t.name]).filter(([, name]) => name));
+  return relabelIndexEntries(entries, nameById);
+}
+
+// An automation user index arrives keyed by accountId. Resolve those to display names from
+// the licensed-user roster; an id with no roster row (a deleted or unlicensed account) is
+// left as the id and reads as an orphaned reference.
+async function resolveUserIndexLabels(installationKey, entries) {
+  const meta = await readUserSnapshotMeta(installationKey).catch(() => null);
+  if (!meta?.version) return entries;
+  const users = await loadUsers(installationKey, meta.version).catch(() => []);
+  const nameById = new Map(users.map((u) => [String(u.accountId), u.displayName]).filter(([, name]) => name));
+  return relabelIndexEntries(entries, nameById);
+}
+
 // Fetch a supporting index on demand. The field index is ~116 KB; sending it with the
 // first paint would slow the tab for every visit that never opens the Fields section.
 async function getAutomationIndex({ payload, context }) {
@@ -2358,11 +2847,18 @@ async function getAutomationIndex({ payload, context }) {
     const document = await readAutomationPart(installationKey, part);
     if (!document) return { available: false, part, reason: "no-index" };
 
+    const rawEntries = document.entries ?? [];
+    const entries = part === "issueTypes"
+      ? await resolveIssueTypeIndexLabels(installationKey, rawEntries)
+      : part === "users"
+        ? await resolveUserIndexLabels(installationKey, rawEntries)
+        : rawEntries;
+
     return {
       available: true,
       part,
-      total: document.total ?? 0,
-      entries: document.entries ?? [],
+      total: entries === rawEntries ? (document.total ?? 0) : entries.length,
+      entries,
       rules: document.rules ?? [],
       // Sent whole rather than paged. All 675 on the reference site are 144 KB in compact
       // form, which is one fetch the section already pays for; paging server-side would
@@ -2590,6 +3086,14 @@ async function probeScreenFetchCost({ payload, context }) {
 
 // reports exactly what each one returned. Admin-only, read-only, and it never throws:
 // a diagnostic that can fail the page it runs on is worse than no diagnostic.
+// Confirms what the JSM Assets API answers on this site -- the first step of the Assets
+// pillar, done as a probe because Assets is a gateway API whose exact endpoint spelling and
+// availability (JSM Premium only) are worth verifying before an engine is built on them.
+async function probeAssetsApi() {
+  incrMetric(METRIC_NAMES.resolver);
+  return probeAssetsApiProbe();
+}
+
 async function probeAutomationApi({ context }) {
   incrMetric(METRIC_NAMES.resolver);
   const installationKey = getInstallationKey(context);
@@ -2669,15 +3173,40 @@ async function getFieldDetails({ payload, context }) {
     if (!meta?.version) throw new Error("No completed snapshot available â€” build one first.");
 
     const offset = (usagePage - 1) * usagePageSize;
-    const [snapshotField, projectUsageRows, projectCount, rawFieldSummary, projectUsageIssueSum] = await Promise.all([
+    const [snapshotField, projectUsageRows, projectCount, rawFieldSummary, projectUsageIssueSum, issueTypeUsage, userValueUsage] = await Promise.all([
       loadSnapshotField(installationKey, meta.version, fieldId),
       loadSnapshotProjectUsage(installationKey, meta.version, fieldId, usagePageSize, offset),
       countSnapshotProjectUsage(installationKey, meta.version, fieldId),
       loadFieldSummary(installationKey, fieldId),
       sumSnapshotFieldIssueCount(installationKey, meta.version, fieldId),
+      // The field x issue-type axis from the last full crawl. Empty when the crawl predates
+      // this feature or has not run since -- the UI treats [] as "not measured yet".
+      loadFieldTypeUsage(installationKey, meta.version, fieldId).catch(() => []),
+      // The field x user axis: how many distinct people hold a value, and the top holders.
+      // Only populated for user-picker fields (and assignee/reporter). Names are resolved
+      // against the licensed-user roster below so a deleted account still shows something.
+      loadFieldUserUsage(installationKey, meta.version, fieldId).catch(() => ({ distinctUsers: 0, issueTotal: 0, top: [] })),
     ]);
 
     if (!snapshotField) throw new Error(`Field not found in snapshot: ${fieldId}`);
+
+    // Prefer the roster's current display name over the one the crawl captured, and mark an
+    // account that is no longer licensed -- a picker still pointing at someone who has left.
+    if (userValueUsage?.top?.length) {
+      const userMeta = await readUserSnapshotMeta(installationKey).catch(() => null);
+      const roster = userMeta?.version
+        ? await loadUsers(installationKey, userMeta.version).catch(() => [])
+        : [];
+      const rosterById = new Map(roster.map((u) => [u.accountId, u]));
+      userValueUsage.top = userValueUsage.top.map((row) => {
+        const person = rosterById.get(row.accountId);
+        return {
+          ...row,
+          displayName: person?.displayName || row.displayName || row.accountId,
+          onRoster: userMeta?.version ? Boolean(person) : null,
+        };
+      });
+    }
     const fieldSummary = await ensureFieldSummaryJobRunning(
       installationKey,
       meta.version,
@@ -2779,6 +3308,8 @@ async function getFieldDetails({ payload, context }) {
       findings: hydratedField.findings || null,
       contexts: finalContexts,
       projects: projectUsage,
+      issueTypeUsage,
+      userValueUsage,
       projectUsagePage: usagePage,
       projectUsagePageSize: usagePageSize,
       projectUsageTotalProjects: finalProjectCount,
@@ -4850,7 +5381,7 @@ const EMPTY_DASHBOARD = {
 export async function getAdminOverview({ context }) {
   await ensureProjectStoreReady();
   const installationKey = getInstallationKey(context);
-  const [meta, summaryCounts, config, legacySummaryCount, workflow, screens, filterOverview, dashboardOverview, automationAnalysis] = await Promise.all([
+  const [meta, summaryCounts, config, legacySummaryCount, workflow, screens, issueTypeOverview, userOverview, assetOverview, accessOverview, filterOverview, dashboardOverview, automationAnalysis] = await Promise.all([
     readSnapshotMeta(installationKey),
     // Counted in SQL rather than loaded. This used to pull up to 5,000 summary rows --
     // including two LONGTEXT columns -- across the wire, and use them for a count grouped by
@@ -4861,6 +5392,10 @@ export async function getAdminOverview({ context }) {
     countOldScopeKeyRows(installationKey).catch(fallbackOn("overview.legacy_row_count_failed", 0, { installationKey })),
     buildWorkflowOverview(installationKey),
     buildScreenOverview(installationKey),
+    buildIssueTypeOverview(installationKey),
+    buildUserOverview(installationKey),
+    buildAssetOverview(installationKey),
+    buildAccessOverview(installationKey),
     // Without the project catalog the broken-reference check is skipped and says so. Passing
     // it would mean loading the project list before this Promise.all rather than inside the
     // dashboard build below, which is a bigger cost than the one finding is worth here -- the
@@ -4954,6 +5489,12 @@ export async function getAdminOverview({ context }) {
     screens,
     filters: filterOverview?.health ?? null,
     dashboards: dashboardOverview?.health ?? null,
+    issueTypes: issueTypeOverview?.health ?? null,
+    users: userOverview?.health ?? null,
+    assets: assetOverview?.health ?? null,
+    permissions: accessOverview?.permissions?.health ?? null,
+    security: accessOverview?.security?.health ?? null,
+    notifications: accessOverview?.notifications?.health ?? null,
     // Workflow, project and automation dimensions were scored against hardcoded constants
     // while every field rule was tunable. Same config surface now feeds both.
     tolerances: config?.healthTolerances,
@@ -4988,6 +5529,10 @@ export async function getAdminOverview({ context }) {
     findingsByCode,
     workflow,
     screens,
+    issueTypes: issueTypeOverview,
+    users: userOverview,
+    assets: assetOverview,
+    access: accessOverview,
     // The counts the Overview's findings list needs, not just the score's rate. Same lesson
     // the automation pillar learned: trimming this to the headline fields made every problem
     // the analysis had already found invisible on the page that exists to surface problems.
@@ -5086,6 +5631,12 @@ const PILLAR_INPUTS = {
   dashboards: ["dashboards"],
   workflows: ["workflow"],
   screens: ["screens"],
+  issueTypes: ["issueTypes"],
+  users: ["users"],
+  assets: ["assets"],
+  permissions: ["access"],
+  security: ["access"],
+  notifications: ["access"],
   automation: ["automation"],
   projects: ["projects", "adoption"],
 };
@@ -5103,11 +5654,15 @@ async function getPillarHealth({ payload, context }) {
   // already reports as unavailable -- and unavailable dimensions from other pillars are
   // discarded below anyway, so the returned pillar is byte-identical to what the full
   // computation produced for it.
-  const [workflow, screens, filterOverview, dashboardOverview, automationAnalysis] = await Promise.all([
+  const [workflow, screens, filterOverview, dashboardOverview, issueTypeOverview, userOverview, assetOverview, accessOverview, automationAnalysis] = await Promise.all([
     needs.has("workflow") ? buildWorkflowOverview(installationKey) : Promise.resolve(null),
     needs.has("screens") ? buildScreenOverview(installationKey) : Promise.resolve(null),
     needs.has("filters") ? buildFilterOverview(installationKey) : Promise.resolve(null),
     needs.has("dashboards") ? buildDashboardOverview(installationKey) : Promise.resolve(null),
+    needs.has("issueTypes") ? buildIssueTypeOverview(installationKey) : Promise.resolve(null),
+    needs.has("users") ? buildUserOverview(installationKey) : Promise.resolve(null),
+    needs.has("assets") ? buildAssetOverview(installationKey) : Promise.resolve(null),
+    needs.has("access") ? buildAccessOverview(installationKey) : Promise.resolve(null),
     needs.has("automation")
       ? readAutomationAnalysis(installationKey).catch(fallbackOn("pillar-health.automation_load_failed", () => null, { installationKey }))
       : Promise.resolve(null),
@@ -5159,6 +5714,12 @@ async function getPillarHealth({ payload, context }) {
     adoption,
     filters: filterOverview?.health ?? null,
     dashboards: dashboardOverview?.health ?? null,
+    issueTypes: issueTypeOverview?.health ?? null,
+    users: userOverview?.health ?? null,
+    assets: assetOverview?.health ?? null,
+    permissions: accessOverview?.permissions?.health ?? null,
+    security: accessOverview?.security?.health ?? null,
+    notifications: accessOverview?.notifications?.health ?? null,
     tolerances: config?.healthTolerances,
   });
 
@@ -5296,11 +5857,12 @@ async function getProjectOverview({ payload, context }) {
     return { available: false, reason: "You do not have Browse Projects on this project." };
   }
 
-  const [fieldMeta, workflowMeta, screenMeta, filterMeta] = await Promise.all([
+  const [fieldMeta, workflowMeta, screenMeta, filterMeta, accessMeta] = await Promise.all([
     readSnapshotMeta(installationKey),
     readWorkflowSnapshotMeta(installationKey).catch(() => null),
     readScreenSnapshotMeta(installationKey).catch(() => null),
     readFilterSnapshotMeta(installationKey).catch(() => null),
+    readAccessSnapshotMeta(installationKey).catch(() => null),
   ]);
 
   // The project's own row, plus every browsable project's activity -- needed both for this
@@ -5313,7 +5875,7 @@ async function getProjectOverview({ payload, context }) {
   const thisProject = allProjects.find((p) => String(p.projectId) === String(projectId)) || null;
   const projectKey = projectKeyHint || thisProject?.projectKey || "";
 
-  const [scheme, screens, rules, globalRules, projectFilters, activityByProject] = await Promise.all([
+  const [scheme, screens, rules, globalRules, projectFilters, activityByProject, projectSchemeRows] = await Promise.all([
     workflowMeta?.version
       ? loadWorkflowSchemeForProject(installationKey, workflowMeta.version, projectId).catch(() => null)
       : Promise.resolve(null),
@@ -5332,6 +5894,9 @@ async function getProjectOverview({ payload, context }) {
       ? loadFilterReferencesFor(installationKey, filterMeta.version, "project", projectKey).catch(() => null)
       : Promise.resolve(null),
     loadProjectActivity(installationKey).catch(() => new Map()),
+    accessMeta?.version
+      ? loadProjectSchemes(installationKey, accessMeta.version, projectId).catch(() => null)
+      : Promise.resolve(null),
   ]);
 
   const workflowPillar = workflowMeta?.version
@@ -5396,6 +5961,16 @@ async function getProjectOverview({ payload, context }) {
       }
       : { available: false, reason: "No saved-filter inventory has been built yet." },
     adoption: adoptionRow,
+    // The permission / issue-security / notification scheme this project uses, each flagged
+    // if it is the site default. Tri-state like the rest.
+    schemes: accessMeta?.version
+      ? {
+        available: true,
+        permission: (projectSchemeRows || []).find((s) => s.schemeType === "permission") || null,
+        security: (projectSchemeRows || []).find((s) => s.schemeType === "security") || null,
+        notification: (projectSchemeRows || []).find((s) => s.schemeType === "notification") || null,
+      }
+      : { available: false, reason: "No access scheme inventory has been built yet." },
     // One rolled-up read of the project's overall health, from the pillar signals above.
     health: buildProjectHealthRollup({
       perIssue,
@@ -5983,6 +6558,9 @@ const AUDITED_ADMIN_ACTIONS = new Set([
   "migrateNamespaceKeys",
   "buildScreenInventory",
   "buildIssueTypeInventory",
+  "buildUserInventory",
+  "buildAssetInventory",
+  "buildAccessInventory",
 ]);
 
 function withAuditTrail(functions) {
@@ -6083,6 +6661,19 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   getIssueTypeInventory,   // Admin read: issue types by hierarchy, schemes and their routing
   buildIssueTypeInventory, // Mutating: queues a full issue type and scheme snapshot build
 
+  // People pillar
+  getUserInventory,        // Admin read: the licensed-user roster with products, access groups and ownership counts
+  getUserDetails,          // Admin read: one user's owned filters / dashboards / automation rules
+  buildUserInventory,      // Mutating: queues a licensed-user roster build
+
+  // JSM Assets (CMDB) pillar
+  getAssetInventory,       // Admin read: object schemas, their object types and attributes, with the governance summary
+  buildAssetInventory,     // Mutating: queues a JSM Assets structure snapshot build
+
+  // Access pillar (permission / issue-security / notification schemes)
+  getAccessInventory,      // Admin read: the three scheme types, their holders and project assignments, with governance
+  buildAccessInventory,    // Mutating: queues an access scheme snapshot build
+
   getAutomationCascades,   // Admin read: one filtered page of cascade relationships
   getCascadeGraph,         // Admin read: loops and multi-rule chains across every edge
   getStatusAutomationUsage,// Admin read: which rules reference one status, by direction
@@ -6110,6 +6701,7 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   saveAdminConfig: saveAdminConfigResolver,    // Mutating: rewrites thresholds and access control
   getAdminOverview,                            // Admin read: dashboard aggregate
   probeAutomationApi,                          // Admin read: reports which Jira endpoints answer, for diagnosis
+  probeAssetsApi,                              // Admin read: confirms the JSM Assets API and workspace on this site
   probeScreenFetchCost,                        // Admin read: samples the cost of a full screen inventory pass
   migrateNamespaceKeys,                        // Mutating: rewrites scope keys across every table
 };

@@ -1,4 +1,4 @@
-import api, { route, createRequestStargateAsApp } from "@forge/api";
+import api, { route } from "@forge/api";
 import { fallbackOn } from "./logger.js";
 import { internalMetrics } from "@forge/metrics";
 import {
@@ -118,6 +118,15 @@ export const METRIC_NAMES = {
   issueTypeSnapshotStarted: "issue-type-snapshot-started",
   issueTypeSnapshotCompleted: "issue-type-snapshot-completed",
   issueTypeSnapshotFailed: "issue-type-snapshot-failed",
+  userSnapshotStarted: "user-snapshot-started",
+  userSnapshotCompleted: "user-snapshot-completed",
+  userSnapshotFailed: "user-snapshot-failed",
+  assetSnapshotStarted: "asset-snapshot-started",
+  assetSnapshotCompleted: "asset-snapshot-completed",
+  assetSnapshotFailed: "asset-snapshot-failed",
+  accessSnapshotStarted: "access-snapshot-started",
+  accessSnapshotCompleted: "access-snapshot-completed",
+  accessSnapshotFailed: "access-snapshot-failed",
 };
 
 // ----- Module-level rate limiter state -----
@@ -1145,6 +1154,25 @@ export async function getAllIssueTypes() {
   return Array.isArray(data) ? data : [];
 }
 
+// The Jira products defined on the site and, per product, the groups whose members get an
+// application licence for it plus the seat/usage numbers. This is how "who is licensed" is
+// answered without any admin configuration: the access groups are read live from here.
+// Admin-only endpoint; returns a bare array.
+export async function getApplicationRoles() {
+  const data = await jiraRequest(route`/rest/api/3/applicationrole`);
+  return Array.isArray(data) ? data : [];
+}
+
+// Members of one group, by groupId (name is also accepted by the API but ids are stable
+// across renames). Inactive users are excluded -- a licence held by a deactivated account
+// is a finding for the pillar, not part of the active roster, and is surfaced separately.
+export async function getGroupMembers(groupId) {
+  if (!groupId) return [];
+  return paginate(
+    (startAt) => route`/rest/api/3/group/member?groupId=${groupId}&includeInactiveUsers=false&startAt=${startAt}&maxResults=50`
+  );
+}
+
 // The issue type schemes: which set of types a project is allowed to use. Paginated the
 // usual way. Each value carries { id, name, description, defaultIssueTypeId, isDefault } --
 // isDefault marks the one every classic project starts on.
@@ -1180,6 +1208,68 @@ export async function getIssueTypeSchemeProjects(projectIds = []) {
     rows.push(...page);
   }
   return rows;
+}
+
+// ── Access & routing schemes: permission, issue-security, notification ────────
+//
+// All three are project-scoped schemes whose members are users, groups, project roles or
+// application roles -- the same "who can do what, where" shape. Small on any site (dozens of
+// schemes), so the fetch is a handful of calls plus, for permission schemes only, one call
+// per project to learn which scheme it uses (Jira has no bulk project->permissionscheme).
+
+// Every permission scheme with its grants inline. Not paginated -- one call returns all.
+// Each grant: { permission: "BROWSE_PROJECTS", holder: { type, value, parameter } }.
+export async function getAllPermissionSchemes() {
+  const data = await jiraRequest(route(["/rest/api/3/permissionscheme?expand=permissions"]));
+  return Array.isArray(data?.permissionSchemes) ? data.permissionSchemes : [];
+}
+
+// One project's permission scheme header { id, name }. Best-effort per caller -- a project
+// the app cannot read just goes unattributed rather than failing the build.
+export async function getProjectPermissionScheme(projectIdOrKey) {
+  return jiraRequest(route`/rest/api/3/project/${String(projectIdOrKey)}/permissionscheme`);
+}
+
+// Issue security scheme headers: { id, name, description, defaultSecurityLevelId }. Levels
+// and members are separate paginated calls per scheme.
+export async function getAllIssueSecuritySchemes() {
+  const data = await jiraRequest(route(["/rest/api/3/issuesecurityschemes"]));
+  return Array.isArray(data?.issueSecuritySchemes) ? data.issueSecuritySchemes : [];
+}
+
+export async function getIssueSecurityLevels(schemeId) {
+  return paginate((startAt) => route`/rest/api/3/issuesecurityschemes/level?schemeId=${schemeId}&startAt=${startAt}&maxResults=100`);
+}
+
+// Level members: [{ issueSecurityLevelId, holder: { type, value, parameter } }].
+export async function getIssueSecurityLevelMembers(schemeId) {
+  return paginate((startAt) => route`/rest/api/3/issuesecurityschemes/level/member?schemeId=${schemeId}&startAt=${startAt}&maxResults=100`);
+}
+
+// Security scheme -> projects. Bulk, projectId repeatable, batched like getIssueTypeSchemeProjects.
+export async function getIssueSecuritySchemeProjects(projectIds = []) {
+  const ids = [...new Set((projectIds || []).map((id) => String(id).trim()).filter(Boolean))];
+  if (!ids.length) return [];
+  const rows = [];
+  for (let i = 0; i < ids.length; i += ITSS_PROJECT_QUERY_BATCH) {
+    const query = ids
+      .slice(i, i + ITSS_PROJECT_QUERY_BATCH)
+      .map((id) => `projectId=${encodeURIComponent(id)}`)
+      .join("&");
+    const page = await paginate((startAt) =>
+      route([`/rest/api/3/issuesecurityschemes/project?maxResults=100&startAt=${Number(startAt) || 0}&${query}`])
+    );
+    rows.push(...page);
+  }
+  return rows;
+}
+
+// Notification schemes with events, recipients and project assignments inline (expand=all),
+// so no per-project call is needed. Each scheme: { id, name, description,
+// notificationSchemeEvents: [{ event: { id, name }, notifications: [{ notificationType, parameter, ... }] }],
+// projects: [projectId, ...] }.
+export async function getAllNotificationSchemes() {
+  return paginate((startAt) => route`/rest/api/3/notificationscheme?expand=all&startAt=${startAt}&maxResults=50`);
 }
 
 // GET /rest/api/3/status returns a flat array, not the usual {values, isLast} wrapper.
@@ -1619,20 +1709,62 @@ export function getCloudId(context) {
   return match ? match[1] : null;
 }
 
-// Probe an api.atlassian.com endpoint through Stargate.
+// Call a JSM Assets REST API path and parse the JSON.
 //
-// Distinct from probeEndpoint, which is site-relative. Every automation path probed
-// earlier returned 401 because they were asked of the wrong server entirely: the
-// automation API lives on the gateway host, not on the site. requestJira cannot reach it,
-// so this uses the Stargate request surface instead.
+// The Assets API is not on the site -- it lives on api.atlassian.com/jsm/assets/... -- but
+// Forge's `requestJira` proxy recognises the `/jsm/assets/` prefix and routes it to the
+// gateway with the app's OAuth token. This is the surface the official Forge assets-import
+// template uses (`api.asApp().requestJira(route\`/jsm/assets/workspace/${id}/v1/...\`)`);
+// `requestAtlassian` / Stargate rejects the same path as INVALID_TARGET_URL, and a bare
+// `fetch` to api.atlassian.com needs Basic auth Forge marketplace apps cannot store.
+//
+// `path` must start with "/jsm/assets/". `route([path])` passes it as one static segment,
+// so a UUID workspace id in it is not re-encoded. A 401/403 here means the app has not been
+// granted Assets access, not that the call was malformed.
+export async function requestAtlassianJson(path, { method = "GET", body = null } = {}) {
+  const init = { method, headers: { Accept: "application/json" } };
+  if (body != null) {
+    init.headers["Content-Type"] = "application/json";
+    init.body = typeof body === "string" ? body : JSON.stringify(body);
+  }
+  const response = await api.asApp().requestJira(route([path]), init);
+  const text = await response.text();
+  if (!response.ok) {
+    const error = new Error(`Assets API ${method} ${path} returned ${response.status}`);
+    error.status = response.status;
+    error.body = text.slice(0, 500);
+    throw error;
+  }
+  return text ? JSON.parse(text) : null;
+}
+
+// The Assets workspace id for this site. Site-relative (it is a servicedeskapi endpoint),
+// and it is the one identifier every gateway Assets URL needs. One workspace is the norm;
+// a Data Center migration can leave more than one, in which case the first is used and the
+// rest are ignored -- the pillar governs "the" workspace, not a chooser.
+export async function getAssetsWorkspaceId() {
+  const response = await api.asApp().requestJira(
+    route(["/rest/servicedeskapi/assets/workspace"]),
+    { headers: { Accept: "application/json" } }
+  );
+  if (!response.ok) {
+    const error = new Error(`assets workspace lookup returned ${response.status}`);
+    error.status = response.status;
+    throw error;
+  }
+  const body = await response.json();
+  const values = Array.isArray(body?.values) ? body.values : (Array.isArray(body) ? body : []);
+  const first = values[0];
+  return first?.workspaceId || first?.id || null;
+}
+
+// Probe a JSM Assets path. Same never-throws diagnostic contract as probeEndpoint. Goes
+// through requestJira, whose proxy routes the `/jsm/assets/` prefix to the gateway -- the
+// only Forge surface that reaches the Assets API.
 export async function probeStargateEndpoint(path) {
   const started = Date.now();
   try {
-    // A plain string, not a Route. createRequestStargateAsApp returns
-    // `(url: string, init?) => Promise<Response>` -- wrapping the path in
-    // assumeTrustedRoute produced INVALID_TARGET_URL before the request left the runtime.
-    const requestStargate = createRequestStargateAsApp();
-    const response = await requestStargate(path, {
+    const response = await api.asApp().requestJira(route([path]), {
       method: "GET",
       headers: { Accept: "application/json" },
     });

@@ -17,6 +17,8 @@ import {
   extractOutboundHosts,
   extractProjectReferences,
   extractStatusReferences,
+  extractIssueTypeReferences,
+  extractUserReferences,
   findTriggerCascades,
   scopesOverlap,
   summarizeEstate,
@@ -205,6 +207,100 @@ describe("extractStatusReferences", () => {
   it("ignores conditions on fields other than status", () => {
     const r = rule({ components: [condition("jira.issue.condition", { selectedField: { type: "ID", value: "issuetype" }, compareValue: { value: "Bug" } })] });
     expect(extractStatusReferences(r)).toEqual([]);
+  });
+});
+
+describe("extractIssueTypeReferences", () => {
+  it("records an issuetype condition as a read", () => {
+    const r = rule({ components: [condition("jira.issue.condition", {
+      selectedField: { type: "ID", value: "issuetype" },
+      compareValue: { multiValue: true, value: '["Bug","Incident"]' },
+    })] });
+    const names = extractIssueTypeReferences(r).map((t) => t.name);
+    expect(names).toEqual(expect.arrayContaining(["Bug", "Incident"]));
+    expect(extractIssueTypeReferences(r).every((t) => t.kind === REF_KIND.READ)).toBe(true);
+  });
+
+  it("records a create-issue action's target type as a write", () => {
+    const r = rule({ components: [action("jira.issue.create", { issueType: { type: "NAME", value: "Incident" } })] });
+    expect(extractIssueTypeReferences(r)).toContainEqual(
+      expect.objectContaining({ name: "Incident", kind: REF_KIND.WRITE })
+    );
+  });
+
+  it("records an edit operation that sets issuetype as a write", () => {
+    const r = rule({ components: [action("jira.issue.edit", {
+      operations: [{ field: { type: "NAME", value: "Issue Type" }, type: "SET", value: { value: "Task" } }],
+    })] });
+    expect(extractIssueTypeReferences(r)).toContainEqual(
+      expect.objectContaining({ name: "Task", kind: REF_KIND.WRITE })
+    );
+  });
+
+  it("pulls issue types out of a JQL condition", () => {
+    const r = rule({ components: [condition("jira.jql.condition", {
+      query: { value: 'issuetype in ("Sub-task", Story) AND status = Done' },
+    })] });
+    const names = extractIssueTypeReferences(r).map((t) => t.name.toLowerCase());
+    expect(names).toEqual(expect.arrayContaining(["sub-task", "story"]));
+  });
+
+  it("records the trigger's own issue-type scope as a trigger reference", () => {
+    const r = rule({
+      trigger: {
+        id: "t", component: "TRIGGER", type: "jira.issue.event.trigger:created", children: [], conditions: [],
+        value: { issueTypes: [{ type: "NAME", value: "Epic" }] },
+      },
+    });
+    expect(extractIssueTypeReferences(r)).toContainEqual(
+      expect.objectContaining({ name: "Epic", kind: REF_KIND.TRIGGER })
+    );
+  });
+
+  it("collapses the same type across components to one entry per direction", () => {
+    const r = rule({ components: [
+      condition("jira.issue.condition", { selectedField: { type: "ID", value: "issuetype" }, compareValue: { value: "Bug" } }),
+      condition("jira.issue.condition", { selectedField: { type: "ID", value: "type" }, compareValue: { value: "Bug" } }),
+    ] });
+    const bugReads = extractIssueTypeReferences(r).filter((t) => t.name === "Bug" && t.kind === REF_KIND.READ);
+    expect(bugReads).toHaveLength(1);
+  });
+
+  it("ignores conditions on fields other than issue type", () => {
+    const r = rule({ components: [condition("jira.issue.condition", { selectedField: { type: "ID", value: "status" }, compareValue: { value: "Done" } })] });
+    expect(extractIssueTypeReferences(r)).toEqual([]);
+  });
+});
+
+describe("extractUserReferences", () => {
+  const ACCT = "5b10ac8d82e05b22cc7d4ef5";
+
+  it("records an assign action's accountId as a write", () => {
+    const r = rule({ components: [action("jira.issue.assign", { assignee: { type: "ID", value: ACCT } })] });
+    expect(extractUserReferences(r)).toContainEqual(expect.objectContaining({ id: ACCT, kind: REF_KIND.WRITE }));
+  });
+
+  it("records an edit operation that sets a user field", () => {
+    const r = rule({ components: [action("jira.issue.edit", {
+      operations: [{ field: { type: "NAME", value: "Reviewer (User Picker)" }, type: "SET", value: { accountId: ACCT } }],
+    })] });
+    expect(extractUserReferences(r)).toContainEqual(expect.objectContaining({ id: ACCT, kind: REF_KIND.WRITE }));
+  });
+
+  it("records a condition on the assignee being a specific account as a read", () => {
+    const r = rule({ components: [condition("jira.issue.condition", {
+      selectedField: { type: "ID", value: "assignee" }, compareValue: { value: ACCT },
+    })] });
+    expect(extractUserReferences(r)).toContainEqual(expect.objectContaining({ id: ACCT, kind: REF_KIND.READ }));
+  });
+
+  it("ignores {{initiator}}, 'automatic' and bare display names", () => {
+    const r = rule({ components: [
+      action("jira.issue.assign", { assignee: { type: "COPY", value: "{{initiator.accountId}}" } }),
+      action("jira.issue.assign", { assignee: { type: "NAME", value: "automatic" } }),
+      condition("jira.issue.condition", { selectedField: { value: "reporter" }, compareValue: { value: "Jane Doe" } }),
+    ] });
+    expect(extractUserReferences(r)).toEqual([]);
   });
 });
 
@@ -544,20 +640,27 @@ describe("summarizeAutomationHealth", () => {
 
 describe("buildRuleDirectory", () => {
   const summaries = [
-    { id: 1, name: "Alpha", enabled: true, triggerType: "jira.issue.created", projectIds: ["10015", "10016"] },
+    { id: 1, name: "Alpha", enabled: true, triggerType: "jira.issue.created", projectIds: ["10015", "10016"], authorAccountId: "acc-1" },
     { id: 2, name: "Beta", enabled: false, triggerType: null, projectIds: [] },
   ];
 
   it("stores rules as tuples, which is smaller than objects over 1,477 rows", () => {
     const doc = buildRuleDirectory(summaries);
-    expect(doc.rules[0]).toEqual([1, "Alpha", 1, "jira.issue.created", 2]);
+    expect(doc.rules[0]).toEqual([1, "Alpha", 1, "jira.issue.created", 2, "acc-1"]);
+    // Position 6 falls back to "" when the export carried no author.
+    expect(doc.rules[1][5]).toBe("");
     expect(doc.total).toBe(2);
   });
 
-  it("round-trips through hydration without losing state", () => {
+  it("round-trips through hydration without losing state, including the author", () => {
     const byId = hydrateRuleDirectory(buildRuleDirectory(summaries));
-    expect(byId.get(1)).toEqual({ id: 1, name: "Alpha", enabled: true, triggerType: "jira.issue.created", projectCount: 2 });
-    expect(byId.get(2)).toMatchObject({ enabled: false, triggerType: null });
+    expect(byId.get(1)).toEqual({ id: 1, name: "Alpha", enabled: true, triggerType: "jira.issue.created", projectCount: 2, authorAccountId: "acc-1" });
+    expect(byId.get(2)).toMatchObject({ enabled: false, triggerType: null, authorAccountId: null });
+  });
+
+  it("hydrates a legacy 5-tuple document (no author) without throwing", () => {
+    const legacy = { schemaVersion: 1, total: 1, rules: [[9, "Old", 1, "jira.issue.created", 0]] };
+    expect(hydrateRuleDirectory(legacy).get(9)).toMatchObject({ id: 9, authorAccountId: null });
   });
 
   it("hydrates an absent document to an empty map rather than throwing", () => {
@@ -578,7 +681,7 @@ describe("analyzeRules", () => {
 
   it("returns every document the tab needs from one pass", () => {
     const out = analyzeRules(rules, { source: "export.json" });
-    expect(Object.keys(out).sort()).toEqual(["analysis", "cascades", "directory", "fields", "findings", "statuses"]);
+    expect(Object.keys(out).sort()).toEqual(["analysis", "cascades", "directory", "fields", "findings", "issueTypes", "statuses", "users"]);
     expect(out.analysis).toMatchObject({ schemaVersion: 1, source: "export.json" });
   });
 
