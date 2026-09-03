@@ -174,6 +174,28 @@ the list of what survives.
 
 ---
 
+## 3A. Rovo agents
+
+**Added 3 Sep 2026.** Observatory declares **eleven Rovo agents**, one per governance
+pillar (`observatory-<pillar>-expert`), each with a `search` / `inspect` / `impact` action
+set. See `resource/agent/prompts/` and `ROVO_AGENTS` in `static/src/utils.js`.
+
+- **Read-only.** Every agent action is a resolver that reads the app's own snapshot store
+  and returns structured data. No agent action writes to Jira or to the store. There is no
+  `write:*` scope; the only Rovo-related scope is `read:chat:rovo`, which was already
+  declared before this change — **adding the agents added no scope and no consent screen.**
+- **Permission-scoped.** The project agent (`inspect-project`) filters to the caller's
+  browsable projects via `getBrowsableProjectIds`, exactly as `getProjectOverview` does.
+  Other agents read structural configuration, which is admin-domain data the snapshot
+  already holds.
+- **No new personal data.** The people agent returns display names that are already in the
+  user snapshot and resolved at render time elsewhere; it persists nothing.
+- **Honesty contract.** Every action returns the snapshot `refreshedAt` and an explicit
+  `*-unavailable` status rather than an empty result, and the shared prompt preamble
+  (`resource/agent/prompts/_preamble.md`) forbids inferring "nothing uses this" from
+  missing data. `agent-prompts.test.js` asserts every prompt file carries the preamble and
+  that the manifest and the prompt files agree on the agent set.
+
 ## 4. Input validation
 
 **Enforced.** Resolver payloads are validated through `src/lib/validate.js` —

@@ -9,44 +9,18 @@ import {
   isUserPickerField,
   isUsageAvailable,
   mergeFieldMetrics,
-  buildFieldRovoPrompt,
-  buildProjectRovoPrompt,
-  buildFilterUsageRovoPrompt,
-  buildDashboardUsageRovoPrompt,
-  buildScreenUsageRovoPrompt,
-  buildContextsRovoPrompt,
-  openFieldExpertRovo,
   toDisplayName,
   formatTimestamp,
   formatNumber,
   copyToClipboard,
 } from "../utils";
 import { Icon } from "./Icons";
+import { AskRovo } from "./ui";
 import { FieldOptionsModal } from "./FieldOptionsModal";
 
-// The one Rovo button, used everywhere a panel can ask the agent about what it is showing.
-//
-// Every usage panel used to grow its own "Ask Rovo" button -- same two words, five different
-// places on the card, no way to tell from the label which of them would fire the automation
-// prompt versus the filter one versus the screen one, and no way to tell it was the SAME agent
-// each time rather than five different integrations. `description` is the one piece of real
-// information each call site actually has and the generic label threw away: it becomes both
-// the tooltip and the reason a disabled button gives for being disabled, so "why can't I click
-// this" and "what would it ask" are answered in the same place instead of neither.
-function RovoAskButton({ enabled, description, onClick }) {
-  return (
-    <button
-      className="secondary-button secondary-button--small rovo-ask-button"
-      type="button"
-      onClick={(event) => { event.stopPropagation(); onClick(); }}
-      disabled={!enabled}
-      title={enabled ? description : "Rovo is not available on this site."}
-    >
-      <Icon name="zap" size={13} />
-      <span>Ask Field Expert</span>
-    </button>
-  );
-}
+// The Rovo affordance is now the shared <AskRovo> from ./ui -- one label shape, one
+// tooltip that names the agent and the read-only guarantee, wired at every panel here and
+// on every pillar tab. The FieldCard-local button that used to live here is gone.
 
 // A one-line, client-side search box for a panel's own already-fetched list.
 //
@@ -379,17 +353,13 @@ export function AutomationUsageSection({ field, enabled = true, siteOrigin, rovo
       title="Automation Usage"
       badge={data?.referenced ? `${formatNumber(total)} rule${total === 1 ? "" : "s"}` : null}
       actions={
-        <button
-          className="secondary-button secondary-button--small"
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            openFieldExpertRovo(buildAutomationRovoPrompt(field, data)).catch(() => {});
-          }}
+        <AskRovo
+          agent="observatory-field-expert"
+          scope="automation on this field"
+          context="which rules write, read or trigger on this field"
           disabled={!rovoEnabled || loading}
-        >
-          Ask Rovo
-        </button>
+          buildPrompt={() => buildAutomationRovoPrompt(field, data)}
+        />
       }
     >
       {loading ? (
@@ -960,14 +930,7 @@ export function FieldCard({
                 </a>
                 <div className="field-query-bar__meta">
                   <span>Total populated issues: {usageAvailable ? formatNumber(details.totalIssueCount) : "Unavailable"}</span>
-                  <button
-                    className="secondary-button secondary-button--small"
-                    type="button"
-                    onClick={(event) => { event.stopPropagation(); onAskField(); }}
-                    disabled={!rovoEnabled}
-                  >
-                    Ask Rovo
-                  </button>
+                  <AskRovo agent="observatory-field-expert" scope="this field" context="this field's scope, usage and findings" disabled={!rovoEnabled} onAsk={onAskField} />
                 </div>
               </div>
 
@@ -992,17 +955,7 @@ export function FieldCard({
                     >
                       Refresh usage
                     </button>
-                    <button
-                      className="secondary-button secondary-button--small"
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onAskField();
-                      }}
-                      disabled={!rovoEnabled}
-                    >
-                      Ask Rovo
-                    </button>
+                    <AskRovo agent="observatory-field-expert" scope="this field" context="this field's scope, usage and findings" disabled={!rovoEnabled} onAsk={onAskField} />
                   </>
                 }
               >
@@ -1115,17 +1068,7 @@ export function FieldCard({
                     <span>
                       {`${details.activeProjectCount} active project${details.activeProjectCount === 1 ? "" : "s"} · Page ${details.projectUsagePage}/${details.projectUsageTotalPages}`}
                     </span>
-                    <button
-                      className="secondary-button secondary-button--small"
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onAskField();
-                      }}
-                      disabled={!rovoEnabled}
-                    >
-                      Ask Rovo
-                    </button>
+                    <AskRovo agent="observatory-field-expert" scope="this field" context="this field's scope, usage and findings" disabled={!rovoEnabled} onAsk={onAskField} />
                   </>
                 }
               >
@@ -1142,17 +1085,7 @@ export function FieldCard({
                             </div>
                             <div className="project-usage-card__head-actions">
                               <MetricChip label="Issues with value" value={project.issueCount} tone="success" />
-                              <button
-                                className="secondary-button secondary-button--small"
-                                type="button"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  onAskProject(project);
-                                }}
-                                disabled={!rovoEnabled}
-                              >
-                                Ask Rovo
-                              </button>
+                              <AskRovo agent="observatory-field-expert" scope={`${project.projectKey}`} context="how this one project uses the field" disabled={!rovoEnabled} onAsk={() => onAskProject(project)} />
                             </div>
                           </div>
                           <div className="project-usage-card__body">
