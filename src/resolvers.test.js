@@ -189,6 +189,13 @@ const mocks = vi.hoisted(() => ({
   queueAccessSnapshotBuild: vi.fn(),
   isAccessBuildStale: vi.fn(() => false),
 
+  // drift store + drift-engine.js
+  readDriftSnapshotMeta: vi.fn(),
+  loadConfigChanges: vi.fn(async () => []),
+  loadConfigChangeSummary: vi.fn(async () => ({ total: 0, byPillar: {}, byKind: { added: 0, removed: 0, modified: 0 } })),
+  queueDriftSnapshotBuild: vi.fn(),
+  isDriftBuildStale: vi.fn(() => false),
+
   loadRulesForProject: vi.fn(),
   loadStatusAutomationReferences: vi.fn(),
   loadGlobalRulesAffectingProject: vi.fn(),
@@ -389,6 +396,9 @@ vi.mock("./lib/project-store.js", () => ({
   loadSchemeProjects: mocks.loadSchemeProjects,
   loadSchemesGrantingHolder: mocks.loadSchemesGrantingHolder,
   loadProjectSchemes: mocks.loadProjectSchemes,
+  readDriftSnapshotMeta: mocks.readDriftSnapshotMeta,
+  loadConfigChanges: mocks.loadConfigChanges,
+  loadConfigChangeSummary: mocks.loadConfigChangeSummary,
   loadAssetSchemas: mocks.loadAssetSchemas,
   loadAssetObjectTypes: mocks.loadAssetObjectTypes,
   loadAssetAttributes: mocks.loadAssetAttributes,
@@ -431,6 +441,19 @@ vi.mock("./lib/asset-engine.js", () => ({
 vi.mock("./lib/access-engine.js", () => ({
   queueAccessSnapshotBuild: mocks.queueAccessSnapshotBuild,
   isAccessBuildStale: mocks.isAccessBuildStale,
+}));
+
+vi.mock("./lib/drift-engine.js", () => ({
+  queueDriftSnapshotBuild: mocks.queueDriftSnapshotBuild,
+  isDriftBuildStale: mocks.isDriftBuildStale,
+  DRIFT_PILLARS: [
+    { pillar: "fields", label: "Fields" },
+    { pillar: "workflow", label: "Workflows" },
+    { pillar: "issueTypes", label: "Issue types" },
+    { pillar: "access", label: "Access" },
+    { pillar: "filters", label: "Saved filters" },
+    { pillar: "dashboards", label: "Dashboards" },
+  ],
 }));
 
 vi.mock("./lib/workflow-engine.js", () => ({
@@ -563,6 +586,8 @@ const {
   buildAssetInventory,
   getAccessInventory,
   buildAccessInventory,
+  getChangeHistory,
+  buildChangeHistory,
 } = __RAW_ADMIN_ONLY_FUNCTIONS;
 
 const {
@@ -667,6 +692,8 @@ beforeEach(() => {
   mocks.readAssetSnapshotMeta.mockResolvedValue(null);
   // Default: no access snapshot. The three access pillars report unmeasured.
   mocks.readAccessSnapshotMeta.mockResolvedValue(null);
+  // Default: no drift snapshot. getChangeHistory reports never-built.
+  mocks.readDriftSnapshotMeta.mockResolvedValue(null);
   mocks.loadScreensPage.mockResolvedValue({ total: 0, rows: [] });
   mocks.loadScreensForField.mockResolvedValue([]);
   mocks.loadScreenSchemes.mockResolvedValue([]);
@@ -5679,6 +5706,72 @@ describe("buildAccessInventory", () => {
 
     expect(result).toMatchObject({ queued: false, reason: "already-building" });
     expect(mocks.queueAccessSnapshotBuild).not.toHaveBeenCalled();
+  });
+});
+
+describe("getChangeHistory", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x" } };
+
+  test("reports never-built, with the tracked-pillar list, when no drift pass has run", async () => {
+    mocks.readDriftSnapshotMeta.mockResolvedValue(null);
+    const result = await getChangeHistory({ payload: {}, ...ctx });
+    expect(result).toMatchObject({ neverBuilt: true, changes: [] });
+    expect(result.trackedPillars.map((p) => p.key)).toContain("access");
+    expect(mocks.loadConfigChanges).not.toHaveBeenCalled();
+  });
+
+  test("returns a page of changes plus the trailing-window summary", async () => {
+    mocks.readDriftSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1", refreshedAt: "2026-09-03T00:00:00Z", lastRunChanges: 2, totalChanges: 40 });
+    mocks.loadConfigChanges.mockResolvedValue([
+      { changeId: "v1-0", detectedAt: "2026-09-03T00:00:00Z", pillar: "access", entityType: "permission-scheme", entityId: "1", label: "Prod", changeKind: "modified", summary: 'Permission scheme "Prod" changed: name' },
+    ]);
+    mocks.loadConfigChangeSummary.mockResolvedValue({ total: 5, byPillar: { access: 5 }, byKind: { added: 2, removed: 1, modified: 2 } });
+
+    const result = await getChangeHistory({ payload: { pillar: "access", limit: 50 }, ...ctx });
+
+    expect(result.neverBuilt).toBe(false);
+    expect(result.changes).toHaveLength(1);
+    expect(result.summary.total).toBe(5);
+    expect(result.nextCursor).toBeNull();
+    // pillar filter threaded through; asked for limit+1 to detect a further page
+    expect(mocks.loadConfigChanges).toHaveBeenCalledWith("test-install", expect.objectContaining({ pillar: "access", limit: 51 }));
+  });
+
+  test("sets nextCursor when a further page exists", async () => {
+    mocks.readDriftSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
+    mocks.loadConfigChanges.mockResolvedValue(
+      Array.from({ length: 3 }, (_, i) => ({
+        changeId: `v1-${i}`, detectedAt: `2026-09-0${3 - i}T00:00:00Z`, pillar: "workflow",
+        entityType: "status", entityId: String(i), label: "S", changeKind: "added", summary: "x",
+      }))
+    );
+    const result = await getChangeHistory({ payload: { limit: 2 }, ...ctx });
+    expect(result.changes).toHaveLength(2);
+    expect(result.nextCursor).toBe("2026-09-02T00:00:00Z");
+  });
+});
+
+describe("buildChangeHistory", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x" } };
+
+  test("queues a drift pass when nothing is running", async () => {
+    mocks.readDriftSnapshotMeta.mockResolvedValue({ state: "idle" });
+    mocks.readAdminConfig?.mockResolvedValue?.({ readOnlyMode: false });
+
+    const result = await buildChangeHistory(ctx);
+
+    expect(result.queued).toBe(true);
+    expect(mocks.queueDriftSnapshotBuild).toHaveBeenCalledWith("test-install");
+  });
+
+  test("refuses while a live pass is running", async () => {
+    mocks.readDriftSnapshotMeta.mockResolvedValue({ state: "building" });
+    mocks.isDriftBuildStale.mockReturnValue(false);
+
+    const result = await buildChangeHistory(ctx);
+
+    expect(result).toMatchObject({ queued: false, reason: "already-building" });
+    expect(mocks.queueDriftSnapshotBuild).not.toHaveBeenCalled();
   });
 });
 
