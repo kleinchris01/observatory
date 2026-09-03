@@ -260,7 +260,7 @@ vi.mock("./lib/store/automation.js", () => ({
   loadRulesForProject: mocks.loadRulesForProject,
   loadStatusAutomationReferences: mocks.loadStatusAutomationReferences,
   loadGlobalRulesAffectingProject: mocks.loadGlobalRulesAffectingProject,
-  AUTOMATION_PARTS: { analysis: "a:", fields: "f:", statuses: "s:", issueTypes: "it:", directory: "d:", findings: "fi:", cascades: "c:" },
+  AUTOMATION_PARTS: { analysis: "a:", fields: "f:", statuses: "s:", issueTypes: "it:", users: "u:", directory: "d:", findings: "fi:", cascades: "c:" },
   MAX_PREVIEW_FINDINGS: 20,
   MAX_STORED_CASCADES: 150,
 }));
@@ -3800,6 +3800,24 @@ describe("getAutomationIndex", () => {
     expect(mocks.loadIssueTypes).not.toHaveBeenCalled();
   });
 
+  test("resolves user-index accountId labels to display names from the roster", async () => {
+    mocks.readAutomationPart.mockResolvedValue({
+      schemaVersion: 1, total: 2, entries: [
+        { label: "acc-1", writeCount: 4, readCount: 0, triggerCount: 0, total: 4, ruleCount: 4, write: ["r1", "r2", "r3", "r4"], read: [], trigger: [] },
+        { label: "acc-gone", writeCount: 1, readCount: 0, triggerCount: 0, total: 1, ruleCount: 1, write: ["r9"], read: [], trigger: [] },
+      ],
+    });
+    mocks.readUserSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
+    mocks.loadUsers.mockResolvedValue([{ accountId: "acc-1", displayName: "Ann Admin" }]);
+
+    const result = await getAutomationIndex({ payload: { part: "users" }, context: ctxWithAccount() });
+
+    const labels = result.entries.map((e) => e.label);
+    expect(labels).toContain("Ann Admin");
+    // An account not on the roster is left as its id -- an orphaned reference.
+    expect(labels).toContain("acc-gone");
+  });
+
   test("both index resolvers are admin-only", () => {
     for (const name of ["getAutomationIndex", "saveAutomationIndex"]) {
       expect(Object.keys(ADMIN_ONLY_FUNCTIONS)).toContain(name);
@@ -5301,6 +5319,28 @@ describe("getUserInventory", () => {
     // The filter owned by "gone" (not in the roster) is an orphan.
     expect(result.governance).toMatchObject({ orphanedFilters: 1, orphanedOwners: 1 });
   });
+
+  test("counts the automation rules that name each account, and the off-roster ones", async () => {
+    mocks.readUserSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
+    mocks.loadUsers.mockResolvedValue([{ accountId: "a1", displayName: "Ann", applications: [], groups: [] }]);
+    mocks.loadUserGovernanceSummary.mockResolvedValue({ totalUsers: 1 });
+    mocks.readFilterSnapshotMeta.mockResolvedValue(null);
+    mocks.readDashboardSnapshotMeta.mockResolvedValue(null);
+    mocks.readAutomationPart.mockImplementation((_k, part) =>
+      part === "users"
+        ? Promise.resolve({ entries: [
+            { label: "a1", write: [1, 2], read: [2], trigger: [] },
+            { label: "gone", write: [3], read: [], trigger: [] },
+          ] })
+        : Promise.resolve(null));
+
+    const result = await getUserInventory(ctx);
+
+    // a1 is named by two distinct rules (1 and 2).
+    expect(result.users[0].automationRefs).toBe(2);
+    expect(result.automationRefsAvailable).toBe(true);
+    expect(result.governance).toMatchObject({ automationRefUsers: 2, orphanedAutomationRefUsers: 1 });
+  });
 });
 
 describe("getUserDetails", () => {
@@ -5328,6 +5368,26 @@ describe("getUserDetails", () => {
   test("reports no-roster when nothing has been built", async () => {
     mocks.readUserSnapshotMeta.mockResolvedValue(null);
     expect(await getUserDetails(ctx)).toMatchObject({ available: false });
+  });
+
+  test("lists the automation rules that name this account, joined to rule names", async () => {
+    mocks.readUserSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
+    mocks.loadUsers.mockResolvedValue([{ accountId: "a1", displayName: "Ann", applications: [], groups: [] }]);
+    mocks.readFilterSnapshotMeta.mockResolvedValue(null);
+    mocks.readDashboardSnapshotMeta.mockResolvedValue(null);
+    mocks.readAutomationPart.mockImplementation((_k, part) => {
+      if (part === "users") return Promise.resolve({ entries: [{ label: "a1", write: [7], read: [9], trigger: [] }] });
+      if (part === "directory") return Promise.resolve({ rules: [[7, "Assign to Ann", 1, "t", 0], [9, "Escalate", 0, "t", 0]] });
+      return Promise.resolve(null);
+    });
+
+    const result = await getUserDetails(ctx);
+
+    expect(result.automationRefsAvailable).toBe(true);
+    expect(result.referencedInRules).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 7, name: "Assign to Ann", direction: "write", enabled: true }),
+      expect.objectContaining({ id: 9, name: "Escalate", direction: "read", enabled: false }),
+    ]));
   });
 });
 

@@ -187,6 +187,7 @@ import {
 } from "./lib/workflow-insights.js";
 import { analyzeCascadeGraph, MAX_CHAIN_DEPTH } from "./lib/cascade-graph.js";
 import { buildOwnershipIndex, summarizeOrphanedOwnership } from "./lib/user-ownership.js";
+import { hydrateRuleDirectory } from "./lib/automation-analysis.js";
 import {
   readAutomationAnalysis,
   writeAutomationAnalysis,
@@ -1539,11 +1540,20 @@ async function getUserInventory({ context }) {
     };
   }
 
-  const [users, governance, ownership] = await Promise.all([
+  const [users, governance, ownership, ruleUserIndex] = await Promise.all([
     loadUsers(installationKey, meta.version),
     loadUserGovernanceSummary(installationKey, meta.version),
     buildOwnershipIndex(installationKey).catch(() => ({ byAccount: new Map(), available: {} })),
+    readAutomationPart(installationKey, "users").catch(() => null),
   ]);
+
+  // accountId -> how many DISTINCT rules name this person. Built once from the automation
+  // user index so the roster can show it without a per-user lookup.
+  const ruleRefCountByAccount = new Map();
+  for (const entry of ruleUserIndex?.entries ?? []) {
+    const ids = new Set([...(entry.write ?? []), ...(entry.read ?? []), ...(entry.trigger ?? [])]);
+    ruleRefCountByAccount.set(String(entry.label), ids.size);
+  }
 
   const rosterIds = new Set(users.map((u) => u.accountId));
   const withOwnership = users.map((u) => {
@@ -1553,10 +1563,21 @@ async function getUserInventory({ context }) {
       ownedFilters: owned?.filters.length ?? 0,
       ownedDashboards: owned?.dashboards.length ?? 0,
       authoredRules: owned?.rules.length ?? 0,
+      automationRefs: ruleRefCountByAccount.get(u.accountId) ?? 0,
     };
   });
 
   const orphaned = summarizeOrphanedOwnership(ownership, rosterIds);
+
+  // People an automation rule names who are not on the licensed roster -- a rule assigning
+  // work to a deactivated or unlicensed account. Estate-level count; the People tab lists
+  // them per rule from getUserDetails.
+  let automationRefUsers = 0;
+  let orphanedAutomationRefUsers = 0;
+  for (const accountId of ruleRefCountByAccount.keys()) {
+    automationRefUsers += 1;
+    if (!rosterIds.has(accountId)) orphanedAutomationRefUsers += 1;
+  }
 
   return {
     state: meta.state || "ready",
@@ -1566,7 +1587,8 @@ async function getUserInventory({ context }) {
     version: meta.version,
     users: withOwnership,
     applicationSummary: meta.applicationSummary || [],
-    governance: { ...governance, ...orphaned },
+    governance: { ...governance, ...orphaned, automationRefUsers, orphanedAutomationRefUsers },
+    automationRefsAvailable: Boolean(ruleUserIndex),
     ownershipAvailable: ownership.available,
     lastError: meta.lastError || null,
     neverBuilt: false,
@@ -1585,13 +1607,20 @@ async function getUserDetails({ payload, context }) {
   const meta = await readUserSnapshotMeta(installationKey);
   if (!meta?.version) return { available: false, reason: "no-roster" };
 
-  const [users, ownership] = await Promise.all([
+  const [users, ownership, ruleUserIndex, ruleDirectoryDoc] = await Promise.all([
     loadUsers(installationKey, meta.version),
     buildOwnershipIndex(installationKey).catch(() => ({ byAccount: new Map(), available: {} })),
+    readAutomationPart(installationKey, "users").catch(() => null),
+    readAutomationPart(installationKey, "directory").catch(() => null),
   ]);
 
   const user = users.find((u) => u.accountId === accountId) || null;
   const owned = ownership.byAccount.get(accountId) || { filters: [], dashboards: [], rules: [] };
+
+  // The rules that NAME this person -- assign to them, condition on them being the assignee,
+  // set a user field to their account. Distinct from authoredRules (rules they own): a
+  // deactivated account can still be the assignee half a dozen rules route work to.
+  const referencedInRules = collectRuleUserReferences(accountId, ruleUserIndex, ruleDirectoryDoc);
 
   return {
     available: true,
@@ -1600,8 +1629,37 @@ async function getUserDetails({ payload, context }) {
     ownedFilters: owned.filters,
     ownedDashboards: owned.dashboards,
     authoredRules: owned.rules,
+    referencedInRules,
+    automationRefsAvailable: Boolean(ruleUserIndex),
     ownershipAvailable: ownership.available,
   };
+}
+
+// One account's entry in the automation user index, joined to rule names. `direction` is
+// "write" when a rule assigns/sets the account and "read" when it only conditions on it --
+// the write side is what breaks loudest if the account goes away.
+function collectRuleUserReferences(accountId, userIndex, directoryDoc) {
+  const entry = (userIndex?.entries ?? []).find((e) => String(e.label) === String(accountId));
+  if (!entry) return [];
+  const names = directoryDoc ? hydrateRuleDirectory(directoryDoc) : new Map();
+  const byId = new Map();
+  for (const direction of ["write", "read", "trigger"]) {
+    for (const ruleId of entry[direction] ?? []) {
+      const existing = byId.get(ruleId);
+      const rule = names.get(ruleId);
+      if (existing) {
+        if (direction === "write") existing.direction = "write";
+      } else {
+        byId.set(ruleId, {
+          id: ruleId,
+          name: rule?.name || `Rule ${ruleId}`,
+          enabled: rule?.enabled ?? null,
+          direction,
+        });
+      }
+    }
+  }
+  return [...byId.values()];
 }
 
 async function buildUserInventory({ context }) {
@@ -2580,15 +2638,11 @@ async function getStatusAutomationUsage({ payload, context }) {
 //
 // Relabelling can collide -- one rule referencing a type by id and another by name produces
 // two entries that are the same type -- so entries that land on the same name are merged.
-async function resolveIssueTypeIndexLabels(installationKey, entries) {
-  const meta = await readIssueTypeSnapshotMeta(installationKey).catch(() => null);
-  if (!meta?.version) return entries;
-  const types = await loadIssueTypes(installationKey, meta.version).catch(() => []);
-  if (!types.length) return entries;
-
-  const nameById = new Map(types.map((t) => [String(t.id), t.name]).filter(([, name]) => name));
+// Swap each entry's id label for a human name from `nameById`, merging any entries that
+// land on the same name (an issue type a rule referenced by id AND another by name; two
+// accounts that share a display name). Shared by the issue-type and user index resolvers.
+function relabelIndexEntries(entries, nameById) {
   if (!nameById.size) return entries;
-
   const merged = new Map();
   for (const entry of entries) {
     const label = nameById.get(String(entry.label)) ?? entry.label;
@@ -2607,8 +2661,26 @@ async function resolveIssueTypeIndexLabels(installationKey, entries) {
     existing.enabledRules = (existing.enabledRules ?? 0) + (entry.enabledRules ?? 0);
     existing.disabledRules = (existing.disabledRules ?? 0) + (entry.disabledRules ?? 0);
   }
-
   return [...merged.values()].sort((a, b) => b.total - a.total || String(a.label).localeCompare(String(b.label)));
+}
+
+async function resolveIssueTypeIndexLabels(installationKey, entries) {
+  const meta = await readIssueTypeSnapshotMeta(installationKey).catch(() => null);
+  if (!meta?.version) return entries;
+  const types = await loadIssueTypes(installationKey, meta.version).catch(() => []);
+  const nameById = new Map(types.map((t) => [String(t.id), t.name]).filter(([, name]) => name));
+  return relabelIndexEntries(entries, nameById);
+}
+
+// An automation user index arrives keyed by accountId. Resolve those to display names from
+// the licensed-user roster; an id with no roster row (a deleted or unlicensed account) is
+// left as the id and reads as an orphaned reference.
+async function resolveUserIndexLabels(installationKey, entries) {
+  const meta = await readUserSnapshotMeta(installationKey).catch(() => null);
+  if (!meta?.version) return entries;
+  const users = await loadUsers(installationKey, meta.version).catch(() => []);
+  const nameById = new Map(users.map((u) => [String(u.accountId), u.displayName]).filter(([, name]) => name));
+  return relabelIndexEntries(entries, nameById);
 }
 
 // Fetch a supporting index on demand. The field index is ~116 KB; sending it with the
@@ -2625,14 +2697,17 @@ async function getAutomationIndex({ payload, context }) {
     const document = await readAutomationPart(installationKey, part);
     if (!document) return { available: false, part, reason: "no-index" };
 
+    const rawEntries = document.entries ?? [];
     const entries = part === "issueTypes"
-      ? await resolveIssueTypeIndexLabels(installationKey, document.entries ?? [])
-      : (document.entries ?? []);
+      ? await resolveIssueTypeIndexLabels(installationKey, rawEntries)
+      : part === "users"
+        ? await resolveUserIndexLabels(installationKey, rawEntries)
+        : rawEntries;
 
     return {
       available: true,
       part,
-      total: part === "issueTypes" ? entries.length : (document.total ?? 0),
+      total: entries === rawEntries ? (document.total ?? 0) : entries.length,
       entries,
       rules: document.rules ?? [],
       // Sent whole rather than paged. All 675 on the reference site are 144 KB in compact

@@ -159,6 +159,7 @@ describe("clearAutomationAnalysis", () => {
       "automation:findings:scope-a",
       "automation:issueTypes:scope-a",
       "automation:statuses:scope-a",
+      "automation:users:scope-a",
     ]);
   });
 
@@ -175,7 +176,7 @@ describe("automation storage parts", () => {
   });
 
   it("exposes every part the pipeline writes", () => {
-    expect(Object.keys(AUTOMATION_PARTS).sort()).toEqual(["analysis", "directory", "fields", "findings", "issueTypes", "statuses"]);
+    expect(Object.keys(AUTOMATION_PARTS).sort()).toEqual(["analysis", "directory", "fields", "findings", "issueTypes", "statuses", "users"]);
   });
 
   it("refuses an unknown part rather than writing to a computed key", async () => {

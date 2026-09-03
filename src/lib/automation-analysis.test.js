@@ -18,6 +18,7 @@ import {
   extractProjectReferences,
   extractStatusReferences,
   extractIssueTypeReferences,
+  extractUserReferences,
   findTriggerCascades,
   scopesOverlap,
   summarizeEstate,
@@ -268,6 +269,38 @@ describe("extractIssueTypeReferences", () => {
   it("ignores conditions on fields other than issue type", () => {
     const r = rule({ components: [condition("jira.issue.condition", { selectedField: { type: "ID", value: "status" }, compareValue: { value: "Done" } })] });
     expect(extractIssueTypeReferences(r)).toEqual([]);
+  });
+});
+
+describe("extractUserReferences", () => {
+  const ACCT = "5b10ac8d82e05b22cc7d4ef5";
+
+  it("records an assign action's accountId as a write", () => {
+    const r = rule({ components: [action("jira.issue.assign", { assignee: { type: "ID", value: ACCT } })] });
+    expect(extractUserReferences(r)).toContainEqual(expect.objectContaining({ id: ACCT, kind: REF_KIND.WRITE }));
+  });
+
+  it("records an edit operation that sets a user field", () => {
+    const r = rule({ components: [action("jira.issue.edit", {
+      operations: [{ field: { type: "NAME", value: "Reviewer (User Picker)" }, type: "SET", value: { accountId: ACCT } }],
+    })] });
+    expect(extractUserReferences(r)).toContainEqual(expect.objectContaining({ id: ACCT, kind: REF_KIND.WRITE }));
+  });
+
+  it("records a condition on the assignee being a specific account as a read", () => {
+    const r = rule({ components: [condition("jira.issue.condition", {
+      selectedField: { type: "ID", value: "assignee" }, compareValue: { value: ACCT },
+    })] });
+    expect(extractUserReferences(r)).toContainEqual(expect.objectContaining({ id: ACCT, kind: REF_KIND.READ }));
+  });
+
+  it("ignores {{initiator}}, 'automatic' and bare display names", () => {
+    const r = rule({ components: [
+      action("jira.issue.assign", { assignee: { type: "COPY", value: "{{initiator.accountId}}" } }),
+      action("jira.issue.assign", { assignee: { type: "NAME", value: "automatic" } }),
+      condition("jira.issue.condition", { selectedField: { value: "reporter" }, compareValue: { value: "Jane Doe" } }),
+    ] });
+    expect(extractUserReferences(r)).toEqual([]);
   });
 });
 
@@ -648,7 +681,7 @@ describe("analyzeRules", () => {
 
   it("returns every document the tab needs from one pass", () => {
     const out = analyzeRules(rules, { source: "export.json" });
-    expect(Object.keys(out).sort()).toEqual(["analysis", "cascades", "directory", "fields", "findings", "issueTypes", "statuses"]);
+    expect(Object.keys(out).sort()).toEqual(["analysis", "cascades", "directory", "fields", "findings", "issueTypes", "statuses", "users"]);
     expect(out.analysis).toMatchObject({ schemaVersion: 1, source: "export.json" });
   });
 

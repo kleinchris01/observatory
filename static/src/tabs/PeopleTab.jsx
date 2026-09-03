@@ -86,6 +86,11 @@ function UserRow({ user, expanded, detail, detailLoading, onToggle }) {
         </span>
         <span className="people-row__meta">
           {owns && <Chip tone="neutral" title="Filters, dashboards and automation rules this user owns">owns {owns}</Chip>}
+          {user.automationRefs > 0 && (
+            <Chip tone={user.active ? "neutral" : "critical"} title="Automation rules that assign to or condition on this account">
+              in {user.automationRefs} rule{user.automationRefs === 1 ? "" : "s"}
+            </Chip>
+          )}
           {user.applications.map((p) => (
             <Chip key={p.key} tone="neutral" title={`Licensed for ${p.name}`}>{shortProduct(p.key)}</Chip>
           ))}
@@ -111,6 +116,28 @@ function UserRow({ user, expanded, detail, detailLoading, onToggle }) {
                   ? "Rule authorship needs a rule export that carries account ids — import one on the Automation tab."
                   : "Authored no automation rule."}
               />
+              <div className="ui-split__col">
+                <h4 className="ui-subhead">
+                  Named in rules <span className="people-owned__count">{(detail?.referencedInRules || []).length || ""}</span>
+                </h4>
+                {(detail?.referencedInRules || []).length ? (
+                  <ul className="people-owned-list">
+                    {detail.referencedInRules.map((r) => (
+                      <li key={r.id}>
+                        {r.name}
+                        {r.direction === "write" && <Chip tone="warning" title="A rule assigns to or sets a user field to this account">assigned</Chip>}
+                        {r.enabled === false && <Chip tone="neutral" title="Disabled rule">off</Chip>}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="admin-config-row__hint">
+                    {detail?.automationRefsAvailable === false
+                      ? "Import a rule export on the Automation tab to see which rules name this person."
+                      : "No automation rule assigns to or conditions on this person."}
+                  </p>
+                )}
+              </div>
             </div>
           )}
         </div>

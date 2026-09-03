@@ -94,6 +94,7 @@ export async function persistAnalysis(documents, { save = invoke } = {}) {
   await save("saveAutomationIndex", { part: "fields", document: documents.fields });
   await save("saveAutomationIndex", { part: "statuses", document: documents.statuses });
   await save("saveAutomationIndex", { part: "issueTypes", document: documents.issueTypes });
+  await save("saveAutomationIndex", { part: "users", document: documents.users });
   await save("saveAutomationIndex", { part: "directory", document: documents.directory });
   await save("saveAutomationIndex", { part: "findings", document: documents.findings });
   // Cascades go after the directory, because the cascade views join to it for rule names --
@@ -280,7 +281,7 @@ function ReferenceExplorer({ noun, index, directory, loading, error, onRetry, si
 
       <div className="ref-head" aria-hidden="true">
         <span />
-        <span>{noun === "fields" ? "Field" : noun === "statuses" ? "Status" : "Issue type"}</span>
+        <span>{{ fields: "Field", statuses: "Status", "issue types": "Issue type", users: "User" }[noun] || "Name"}</span>
         <span>Mix</span>
         {DIRECTIONS.map((d) => <span key={d.key} className="ref-head__num">{d.label}</span>)}
         <span className="ref-head__num">Total</span>
@@ -895,7 +896,7 @@ export function AutomationTab({ siteOrigin, intent = null }) {
   }, [directory]);
 
   React.useEffect(() => {
-    const part = ["fields", "statuses", "issueTypes", "findings"].includes(section) ? section : null;
+    const part = ["fields", "statuses", "issueTypes", "users", "findings"].includes(section) ? section : null;
     if (!part || !data?.available) return;
     // A previous error counts as settled. Without this the effect re-runs the moment the
     // failure is recorded -- nothing is cached and nothing is loading -- and retries in a
@@ -988,6 +989,7 @@ export function AutomationTab({ siteOrigin, intent = null }) {
     { key: "fields", label: "Fields", icon: "layers", badge: formatNumber(estate.fieldsReferenced ?? 0) },
     { key: "statuses", label: "Statuses", icon: "activity", badge: formatNumber(estate.statusesReferenced ?? 0) },
     { key: "issueTypes", label: "Issue types", icon: "layers", badge: formatNumber(estate.issueTypesReferenced ?? 0) },
+    { key: "users", label: "Users", icon: "user", badge: formatNumber(estate.usersReferenced ?? 0) },
     { key: "cascades", label: "Cascades", icon: "refreshCw", badge: formatNumber(data.cascadesTotal ?? 0) },
     { key: "findings", label: "Findings", icon: "alertTriangle", badge: formatNumber(data.findingsTotal ?? 0) },
   ];
@@ -1018,6 +1020,7 @@ export function AutomationTab({ siteOrigin, intent = null }) {
               <StatTile label="Fields referenced" value={formatNumber(estate.fieldsReferenced ?? 0)} icon="layers" />
               <StatTile label="Statuses referenced" value={formatNumber(estate.statusesReferenced ?? 0)} icon="activity" />
               <StatTile label="Issue types referenced" value={formatNumber(estate.issueTypesReferenced ?? 0)} icon="layers" />
+              <StatTile label="Users referenced" value={formatNumber(estate.usersReferenced ?? 0)} icon="user" hint="Assigned, set or conditioned on by name" />
             </StatRow>
 
             <Panel
@@ -1030,6 +1033,7 @@ export function AutomationTab({ siteOrigin, intent = null }) {
                   { label: "Fields", count: estate.fieldsReferenced ?? 0, key: "fields" },
                   { label: "Statuses", count: estate.statusesReferenced ?? 0, key: "statuses" },
                   { label: "Issue types", count: estate.issueTypesReferenced ?? 0, key: "issueTypes" },
+                  { label: "Users", count: estate.usersReferenced ?? 0, key: "users" },
                 ].map((row) => (
                   <button key={row.key} type="button" className="dep-summary__card" onClick={() => setSection(row.key)}>
                     <span className="dep-summary__count">{formatNumber(row.count)}</span>
@@ -1102,6 +1106,22 @@ export function AutomationTab({ siteOrigin, intent = null }) {
               loading={indexState.issueTypes?.loading}
               error={indexState.issueTypes?.error}
               onRetry={() => loadIndex("issueTypes")}
+              siteOrigin={siteOrigin}
+            />
+          </Panel>
+        ) : section === "users" ? (
+          <Panel
+            title="Users automation depends on"
+            icon="user"
+            description="People these rules name — assign work to, set a user field to, or condition on being the assignee. A rule assigning to someone who has left keeps routing work into a void; the People tab shows the reverse, per user."
+          >
+            <ReferenceExplorer
+              noun="users"
+              index={indexes.users}
+              directory={directory}
+              loading={indexState.users?.loading}
+              error={indexState.users?.error}
+              onRetry={() => loadIndex("users")}
               siteOrigin={siteOrigin}
             />
           </Panel>
