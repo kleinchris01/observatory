@@ -66,6 +66,7 @@ import {
   summarizePermissionInsights, summarizePermissionHealth,
   summarizeSecurityInsights, summarizeSecurityHealth,
   summarizeNotificationInsights, summarizeNotificationHealth,
+  summarizeRoleInsights, summarizeRoleHealth,
 } from "./access-insights.js";
 import { buildOwnershipIndex, summarizeOrphanedOwnership } from "./user-ownership.js";
 
@@ -651,6 +652,7 @@ export async function buildAccessOverview(installationKey) {
       permSchemes, permHolders, permProjects,
       secSchemes, secHolders, secProjects, levels,
       notifSchemes, notifHolders, notifProjects,
+      roleSchemes, roleHolders,
     ] = await Promise.all([
       loadSchemes(installationKey, meta.version, "permission"),
       loadSchemeHolders(installationKey, meta.version, "permission"),
@@ -662,11 +664,14 @@ export async function buildAccessOverview(installationKey) {
       loadSchemes(installationKey, meta.version, "notification"),
       loadSchemeHolders(installationKey, meta.version, "notification"),
       loadSchemeProjects(installationKey, meta.version, "notification"),
+      loadSchemes(installationKey, meta.version, "project-role"),
+      loadSchemeHolders(installationKey, meta.version, "project-role"),
     ]);
 
     const permissions = summarizePermissionInsights({ schemes: permSchemes, holders: permHolders, schemeProjects: permProjects, rosterAccountIds });
     const security = summarizeSecurityInsights({ schemes: secSchemes, levels, holders: secHolders, schemeProjects: secProjects, rosterAccountIds });
     const notifications = summarizeNotificationInsights({ schemes: notifSchemes, holders: notifHolders, schemeProjects: notifProjects, rosterAccountIds });
+    const roles = summarizeRoleInsights({ roles: roleSchemes, holders: roleHolders, rosterAccountIds });
 
     return {
       available: true,
@@ -676,6 +681,7 @@ export async function buildAccessOverview(installationKey) {
       permissions: { ...permissions, health: summarizePermissionHealth(permissions) },
       security: { ...security, health: summarizeSecurityHealth(security) },
       notifications: { ...notifications, health: summarizeNotificationHealth(notifications) },
+      roles: { ...roles, health: summarizeRoleHealth(roles) },
     };
   } catch (error) {
     console.warn("buildAccessOverview failed:", error?.message || error);
@@ -800,6 +806,7 @@ export async function captureSiteHealth(installationKey, deps) {
       permissions: accessOverview?.permissions?.health ?? null,
       security: accessOverview?.security?.health ?? null,
       notifications: accessOverview?.notifications?.health ?? null,
+      roles: accessOverview?.roles?.health ?? null,
       estate: estateOverview?.health ?? null,
       tolerances: config?.healthTolerances,
     });

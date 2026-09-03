@@ -26,6 +26,7 @@ import { vi, describe, test, expect, beforeEach } from "vitest";
 const mocks = vi.hoisted(() => ({
   getAllJiraProjects: vi.fn(),
   probeEndpoint: vi.fn(),
+  getPermissionCatalog: vi.fn(async () => ({})),
   probeStargateEndpoint: vi.fn(),
   getCloudId: vi.fn(),
   kvsGet: vi.fn(),
@@ -186,6 +187,7 @@ const mocks = vi.hoisted(() => ({
   loadSchemeProjects: vi.fn(async () => []),
   loadSchemesGrantingHolder: vi.fn(async () => []),
   loadProjectSchemes: vi.fn(async () => []),
+  loadProjectRoleActors: vi.fn(async () => []),
   queueAccessSnapshotBuild: vi.fn(),
   isAccessBuildStale: vi.fn(() => false),
 
@@ -402,6 +404,7 @@ vi.mock("./lib/project-store.js", () => ({
   loadSchemeProjects: mocks.loadSchemeProjects,
   loadSchemesGrantingHolder: mocks.loadSchemesGrantingHolder,
   loadProjectSchemes: mocks.loadProjectSchemes,
+  loadProjectRoleActors: mocks.loadProjectRoleActors,
   readDriftSnapshotMeta: mocks.readDriftSnapshotMeta,
   loadConfigChanges: mocks.loadConfigChanges,
   loadConfigChangeSummary: mocks.loadConfigChangeSummary,
@@ -499,6 +502,7 @@ vi.mock("./lib/jira-api.js", () => ({
   getBrowsableProjectIds: mocks.getBrowsableProjectIds,
   getAllJiraProjects: mocks.getAllJiraProjects,
   probeEndpoint: mocks.probeEndpoint,
+  getPermissionCatalog: mocks.getPermissionCatalog,
   probeStargateEndpoint: mocks.probeStargateEndpoint,
   getCloudId: mocks.getCloudId,
   PROJECT_USAGE_PAGE_SIZE: 12,
@@ -604,6 +608,7 @@ const {
   buildChangeHistory,
   getEstateInventory,
   buildEstateInventory,
+  probeGlobalPermissions,
 } = __RAW_ADMIN_ONLY_FUNCTIONS;
 
 const {
@@ -4905,6 +4910,23 @@ describe("getProjectOverview", () => {
     });
   });
 
+  test("groups this project's role actors by role", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: "f1" });
+    mocks.readAccessSnapshotMeta.mockResolvedValue({ version: "a1" });
+    mocks.loadProjectRoleActors.mockResolvedValue([
+      { roleId: "10002", roleName: "Administrators", holderType: "group", holderValue: "g-admins", holderLabel: "admins" },
+      { roleId: "10003", roleName: "Members", holderType: "empty", holderValue: "", holderLabel: null },
+    ]);
+
+    const result = await getProjectOverview({ payload: { projectId: "10000" }, ...ctx });
+
+    expect(result.roles.available).toBe(true);
+    const admin = result.roles.byRole.find((r) => r.roleName === "Administrators");
+    const members = result.roles.byRole.find((r) => r.roleName === "Members");
+    expect(admin.actors).toEqual([{ type: "group", value: "g-admins", label: "admins" }]);
+    expect(members.actors).toEqual([]); // the empty sentinel is not an actor
+  });
+
   test("reports the access schemes unavailable when that inventory has not been built", async () => {
     mocks.readSnapshotMeta.mockResolvedValue({ version: "f1" });
     mocks.readAccessSnapshotMeta.mockResolvedValue(null);
@@ -5678,6 +5700,7 @@ describe("getAccessInventory", () => {
       ];
       if (type === "security") return [{ id: "s1", name: "Restricted", defaultLevelId: "L1" }];
       if (type === "notification") return [{ id: "n1", name: "Prod notif", isDefault: false }];
+      if (type === "project-role") return [{ id: "10002", name: "Administrators" }];
       return [];
     });
     mocks.loadSchemeHolders.mockImplementation(async (_k, _v, type) => {
@@ -5686,6 +5709,10 @@ describe("getAccessInventory", () => {
       ];
       if (type === "notification") return [
         { schemeId: "n1", context: "1", holderType: "user", holderValue: "acc-gone" },
+      ];
+      if (type === "project-role") return [
+        { schemeId: "10002", context: "1", contextLabel: "OPS", holderType: "group", holderValue: "g-admins" },
+        { schemeId: "10002", context: "2", contextLabel: "DEV", holderType: "empty", holderValue: "" },
       ];
       return [];
     });
@@ -5700,6 +5727,26 @@ describe("getAccessInventory", () => {
     expect(result.permissions.governance).toMatchObject({ available: true, riskySchemeCount: 1, unusedSchemeCount: 1 });
     expect(result.security.governance).toMatchObject({ available: true, noLevelSchemeCount: 0 });
     expect(result.notifications.governance).toMatchObject({ fragileSchemeCount: 1 });
+    // Project roles folded in: OPS has a group in Administrators, DEV does not.
+    expect(result.roles.schemes.find((s) => s.id === "10002").projectCount).toBe(1);
+    expect(result.roles.governance).toMatchObject({ available: true, projectsMissingAdminActorCount: 1 });
+  });
+});
+
+describe("probeGlobalPermissions", () => {
+  test("reports the catalog is readable but grant enumeration is not available", async () => {
+    mocks.probeEndpoint.mockResolvedValue({ path: "x", ok: true, status: 200, sample: "{}" });
+    mocks.getPermissionCatalog.mockResolvedValue({
+      ADMINISTER: { key: "ADMINISTER", type: "GLOBAL" },
+      BROWSE_PROJECTS: { key: "BROWSE_PROJECTS", type: "PROJECT" },
+    });
+
+    const result = await probeGlobalPermissions();
+
+    expect(result.catalogAvailable).toBe(true);
+    expect(result.grantEnumerationAvailable).toBe(false);
+    expect(result.globalPermissionKeys).toEqual(["ADMINISTER"]);
+    expect(result.rows.length).toBeGreaterThan(0);
   });
 });
 

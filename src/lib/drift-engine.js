@@ -156,7 +156,7 @@ async function collectIssueTypes(installationKey, version) {
 
 async function collectAccess(installationKey, version) {
   const out = [];
-  for (const type of ["permission", "security", "notification"]) {
+  for (const type of ["permission", "security", "notification", "project-role"]) {
     const [schemes, holders] = await Promise.all([
       loadSchemes(installationKey, version, type),
       loadSchemeHolders(installationKey, version, type),
@@ -267,6 +267,8 @@ const TYPE_NOUNS = {
   "permission-grant": "Permission grant",
   "security-grant": "Security level member",
   "notification-grant": "Notification recipient",
+  "project-role-scheme": "Project role",
+  "project-role-grant": "Project role actor",
   "security-level": "Security level",
   filter: "Saved filter",
   dashboard: "Dashboard",

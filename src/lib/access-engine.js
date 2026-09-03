@@ -20,6 +20,8 @@ import {
   getIssueSecurityLevelMembers,
   getIssueSecuritySchemeProjects,
   getAllNotificationSchemes,
+  getAllProjectRoles,
+  getProjectRolesForProject,
 } from "./jira-api.js";
 import {
   ensureProjectStoreReady,
@@ -266,7 +268,61 @@ export async function buildAccessSnapshot(installationKey) {
       }
     }
 
-    const schemes = [...permSchemes, ...secSchemes, ...notifSchemes];
+    // ── Project roles & actors ─────────────────────────────────────────────
+    // The role DEFINITIONS are one site-wide call; the ACTORS are two hops per project
+    // (name->url map, then one call per role). Best-effort at concurrency -- a project the
+    // app cannot read is simply unattributed. Modelled on the same schemes/holders tables
+    // as the other three types: scheme_type "project-role", scheme_id = roleId,
+    // context = projectId. This is what makes "which roles is Ann in" one existing query.
+    const rawRoles = await getAllProjectRoles().catch(() => []);
+    const roleSchemes = rawRoles.filter((r) => r?.id != null).map((r) => ({
+      schemeType: "project-role",
+      id: String(r.id),
+      name: r.name || null,
+      description: r.description || null,
+      isDefault: false,
+      defaultLevelId: null,
+    }));
+    const roleNameById = new Map(roleSchemes.map((r) => [r.id, r.name]));
+
+    if (roleSchemes.length) {
+      const perProjectRoleRows = await mapWithConcurrency(projects, 8, async (p) => {
+        const roles = await getProjectRolesForProject(p.id).catch(() => []);
+        const rows = [];
+        for (const role of roles) {
+          const schemeId = String(role.roleId);
+          const named = (role.actors || []).filter((a) => a.type === "user" || a.type === "group");
+          for (const actor of named) {
+            rows.push({
+              schemeType: "project-role",
+              schemeId,
+              context: String(p.id),
+              contextLabel: p.key || String(p.id),
+              holderType: actor.type,
+              holderValue: actor.type === "user" ? (actor.accountId || "") : (actor.groupId || actor.id || ""),
+              holderLabel: actor.type === "user" ? actor.displayName : (actor.groupName || actor.displayName),
+            });
+          }
+          // A role present on the project with nobody in it: record the (role, project) pair
+          // with a sentinel holder so "Administrators is empty here" is a queryable fact.
+          if (named.length === 0) {
+            rows.push({
+              schemeType: "project-role",
+              schemeId,
+              context: String(p.id),
+              contextLabel: p.key || String(p.id),
+              holderType: "empty",
+              holderValue: "",
+              holderLabel: roleNameById.get(schemeId) || null,
+            });
+          }
+        }
+        return rows;
+      });
+      for (const rows of perProjectRoleRows) holders.push(...rows);
+    }
+
+    const schemes = [...permSchemes, ...secSchemes, ...notifSchemes, ...roleSchemes];
 
     await replaceAccessSnapshot(installationKey, version, { schemes, holders, levels, schemeProjects });
 
@@ -279,6 +335,7 @@ export async function buildAccessSnapshot(installationKey) {
       totalPermissionSchemes: permSchemes.length,
       totalSecuritySchemes: secSchemes.length,
       totalNotificationSchemes: notifSchemes.length,
+      totalProjectRoles: roleSchemes.length,
       lastError: null,
     });
 
@@ -288,11 +345,12 @@ export async function buildAccessSnapshot(installationKey) {
       permission: permSchemes.length,
       security: secSchemes.length,
       notification: notifSchemes.length,
+      projectRoles: roleSchemes.length,
       holders: holders.length,
       levels: levels.length,
       schemeProjects: schemeProjects.length,
     });
-    return { version, permission: permSchemes.length, security: secSchemes.length, notification: notifSchemes.length };
+    return { version, permission: permSchemes.length, security: secSchemes.length, notification: notifSchemes.length, projectRole: roleSchemes.length };
   } catch (error) {
     incrMetric(METRIC_NAMES.accessSnapshotFailed);
     const message = String(error?.message || error);

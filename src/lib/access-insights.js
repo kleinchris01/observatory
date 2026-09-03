@@ -162,3 +162,70 @@ export function summarizeNotificationHealth(s) {
     unusedSchemeCount: s.unusedSchemeCount,
   };
 }
+
+// ── Project roles & actors ──────────────────────────────────────────────────
+// `holders` are the project-role holder rows: { schemeId (roleId), context (projectId),
+// contextLabel (projectKey), holderType (user|group|empty), holderValue, holderLabel }.
+const ADMIN_ROLE = /admin/i;
+
+export function summarizeRoleInsights({ roles = [], holders = [], rosterAccountIds = new Set() } = {}) {
+  const roleName = new Map(roles.map((r) => [String(r.id), r.name || String(r.id)]));
+  const adminRoleIds = new Set(roles.filter((r) => ADMIN_ROLE.test(r.name || "")).map((r) => String(r.id)));
+
+  // Per (role, project): does it have a real actor, or only the "empty" sentinel?
+  const filledByRoleProject = new Set();
+  const seenRoleProject = new Set();
+  const projectsWithRoles = new Set();
+  let offRosterActors = 0;
+  let userActorCount = 0;
+
+  for (const h of holders) {
+    const rp = `${h.schemeId}|${h.context}`;
+    seenRoleProject.add(rp);
+    projectsWithRoles.add(h.context);
+    if (h.holderType === "user" || h.holderType === "group") {
+      filledByRoleProject.add(rp);
+      if (h.holderType === "user" && h.holderValue) {
+        userActorCount += 1;
+        if (!rosterAccountIds.has(h.holderValue)) offRosterActors += 1;
+      }
+    }
+  }
+
+  // Projects whose admin-named role has no group or user actor -- only a site admin can
+  // administer them.
+  const projectsMissingAdminActor = new Set();
+  for (const rp of seenRoleProject) {
+    const [roleId, projectId] = rp.split("|");
+    if (adminRoleIds.has(roleId) && !filledByRoleProject.has(rp)) projectsMissingAdminActor.add(projectId);
+  }
+  // Label the worst offenders for the finding detail.
+  const missingAdminSamples = [];
+  for (const h of holders) {
+    if (missingAdminSamples.length >= 25) break;
+    if (adminRoleIds.has(h.schemeId) && h.holderType === "empty"
+      && !filledByRoleProject.has(`${h.schemeId}|${h.context}`)) {
+      missingAdminSamples.push({ projectKey: h.contextLabel, role: roleName.get(h.schemeId) });
+    }
+  }
+
+  return {
+    available: roles.length > 0,
+    totalRoles: roles.length,
+    projectsWithRoles: projectsWithRoles.size,
+    projectsMissingAdminActorCount: projectsMissingAdminActor.size,
+    offRosterActorCount: offRosterActors,
+    directUserActorCount: userActorCount,
+    projectsMissingAdminActor: missingAdminSamples,
+  };
+}
+
+export function summarizeRoleHealth(s) {
+  if (!s?.available) return { available: false };
+  return {
+    available: true,
+    totalRoles: s.totalRoles,
+    projectsWithRoles: s.projectsWithRoles,
+    projectsMissingAdminActorCount: s.projectsMissingAdminActorCount,
+  };
+}

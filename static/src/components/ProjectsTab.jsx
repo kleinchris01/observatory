@@ -581,6 +581,46 @@ export function ProjectSchemesPanel({ schemes }) {
   );
 }
 
+// Who is in each project role here. A role with no actors is the finding: permission and
+// notification schemes grant to roles, so an empty Administrators role means only a site
+// admin can manage the project.
+export function ProjectRolesPanel({ roles }) {
+  if (!roles?.available) {
+    return (
+      <Panel title="Project roles" icon="user">
+        <EmptyState inline>{roles?.reason || "No access scheme inventory has been built yet."}</EmptyState>
+      </Panel>
+    );
+  }
+  const byRole = roles.byRole || [];
+  return (
+    <Panel title="Project roles" icon="user" description="Who is in each role on this project. Schemes grant to roles, so an empty admin role is an administrability gap.">
+      {byRole.length === 0 ? (
+        <EmptyState inline>No project roles resolved for this project.</EmptyState>
+      ) : (
+        <ul className="project-schemes">
+          {byRole.map((r) => (
+            <li key={r.roleId} className="project-schemes__item">
+              <span className="project-schemes__label">{r.roleName}</span>
+              {r.actors.length ? (
+                <span className="project-schemes__name">
+                  {r.actors.map((a) => (
+                    <Chip key={`${a.type}-${a.value}`} tone={a.type === "user" ? "warning" : "neutral"}>
+                      {a.type}: {a.label || a.value}
+                    </Chip>
+                  ))}
+                </span>
+              ) : (
+                <span className="project-schemes__name project-schemes__name--none">empty — nobody in this role</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Panel>
+  );
+}
+
 export function ProjectOverview({ project, overview, loading, fields = [], siteOrigin = "", adoption = null, adoptionContext = null, onBuildFieldReport }) {
   if (loading) return <EmptyState inline>Loading everything that touches this project…</EmptyState>;
   if (!overview?.available) {
@@ -770,6 +810,10 @@ export function ProjectOverview({ project, overview, loading, fields = [], siteO
 
       <GridSpan>
         <ProjectSchemesPanel schemes={overview.schemes} />
+      </GridSpan>
+
+      <GridSpan>
+        <ProjectRolesPanel roles={overview.roles} />
       </GridSpan>
 
       {onBuildFieldReport && (

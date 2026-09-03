@@ -196,6 +196,30 @@ export async function loadSchemesGrantingHolder(scopeKey, version, holderType, h
   }));
 }
 
+// Cross-pillar (Projects): the project-role actors for one project, grouped by role. An
+// "empty" holder_type row means the role exists on the project with nobody in it.
+export async function loadProjectRoleActors(scopeKey, version, projectId) {
+  await ensureProjectStoreReady();
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT h.scheme_id, s.name AS role_name, h.holder_type, h.holder_value, h.holder_label
+      FROM snapshot_scheme_holders h
+      LEFT JOIN snapshot_schemes s
+        ON s.scope_key = h.scope_key AND s.version = h.version
+       AND s.scheme_type = h.scheme_type AND s.scheme_id = h.scheme_id
+      WHERE h.scope_key = ? AND h.version = ? AND h.scheme_type = 'project-role' AND h.context = ?
+      ORDER BY s.name ASC
+    `).bindParams(scopeKey, version, String(projectId)).execute()
+  );
+  return (result.rows || []).map((row) => ({
+    roleId: row.scheme_id,
+    roleName: row.role_name || row.scheme_id,
+    holderType: row.holder_type,
+    holderValue: row.holder_value || "",
+    holderLabel: row.holder_label || null,
+  }));
+}
+
 // Cross-pillar (Projects): the three schemes one project uses, with a "default scheme" flag.
 export async function loadProjectSchemes(scopeKey, version, projectId) {
   await ensureProjectStoreReady();
@@ -225,7 +249,8 @@ export async function readAccessSnapshotMeta(scopeKey) {
   const result = await withSqlRetry(() =>
     sql.prepare(`
       SELECT state, version, started_at, completed_at, refreshed_at,
-             total_permission_schemes, total_security_schemes, total_notification_schemes, last_error
+             total_permission_schemes, total_security_schemes, total_notification_schemes,
+             total_project_roles, last_error
       FROM access_snapshot_meta WHERE scope_key = ?
     `).bindParams(scopeKey).execute()
   );
@@ -240,6 +265,7 @@ export async function readAccessSnapshotMeta(scopeKey) {
     totalPermissionSchemes: toNumber(row.total_permission_schemes),
     totalSecuritySchemes: toNumber(row.total_security_schemes),
     totalNotificationSchemes: toNumber(row.total_notification_schemes),
+    totalProjectRoles: toNumber(row.total_project_roles),
     lastError: row.last_error || null,
   };
 }
@@ -253,8 +279,9 @@ export async function writeAccessSnapshotMeta(scopeKey, patch = {}) {
     sql.prepare(`
       INSERT INTO access_snapshot_meta
         (scope_key, state, version, started_at, completed_at, refreshed_at,
-         total_permission_schemes, total_security_schemes, total_notification_schemes, last_error)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         total_permission_schemes, total_security_schemes, total_notification_schemes,
+         total_project_roles, last_error)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON DUPLICATE KEY UPDATE
         state = VALUES(state),
         version = VALUES(version),
@@ -264,6 +291,7 @@ export async function writeAccessSnapshotMeta(scopeKey, patch = {}) {
         total_permission_schemes = VALUES(total_permission_schemes),
         total_security_schemes = VALUES(total_security_schemes),
         total_notification_schemes = VALUES(total_notification_schemes),
+        total_project_roles = VALUES(total_project_roles),
         last_error = VALUES(last_error)
     `).bindParams(
       scopeKey,
@@ -275,6 +303,7 @@ export async function writeAccessSnapshotMeta(scopeKey, patch = {}) {
       next.totalPermissionSchemes ?? 0,
       next.totalSecuritySchemes ?? 0,
       next.totalNotificationSchemes ?? 0,
+      next.totalProjectRoles ?? 0,
       next.lastError || null
     ).execute()
   );

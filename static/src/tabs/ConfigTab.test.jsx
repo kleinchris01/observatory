@@ -3,7 +3,7 @@ import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { invoke } from "@forge/bridge";
-import { AutomationProbePanel, AssetsProbePanel, ConfigTab, ScreenCostProbePanel } from "./ConfigTab";
+import { AutomationProbePanel, AssetsProbePanel, GlobalPermissionsProbePanel, ConfigTab, ScreenCostProbePanel } from "./ConfigTab";
 import { DEFAULT_THRESHOLDS, DEFAULT_MACRO_ACCESS } from "../admin-defaults";
 
 // ConfigTab had no test file, which is how a panel calling an unimported `invoke` reached
@@ -67,6 +67,25 @@ describe("AssetsProbePanel", () => {
     await userEvent.click(screen.getByRole("button", { name: /Probe Assets endpoints/i }));
     expect(await screen.findByText("boom")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Probe Assets endpoints/i })).toBeEnabled();
+  });
+});
+
+describe("GlobalPermissionsProbePanel", () => {
+  test("reports the catalog is readable but grant enumeration is not available", async () => {
+    invoke.mockResolvedValue({
+      catalogAvailable: true,
+      globalPermissionKeys: ["ADMINISTER", "SYSTEM_ADMIN"],
+      grantEnumerationAvailable: false,
+      rows: [
+        { path: "/rest/api/3/permissions", ok: true, status: 200, note: "The permission catalog — definitions only, no holders" },
+      ],
+    });
+    render(<GlobalPermissionsProbePanel />);
+    await userEvent.click(screen.getByRole("button", { name: /Probe global-permissions API/i }));
+
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("probeGlobalPermissions", {}));
+    expect(await screen.findByText(/2 global permissions defined/i)).toBeInTheDocument();
+    expect(screen.getByText(/blocked on that gap/i)).toBeInTheDocument();
   });
 });
 

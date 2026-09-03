@@ -484,7 +484,28 @@ describe("ProjectOverview", () => {
       overview={overview({ schemes: { available: false, reason: "No access scheme inventory has been built yet." } })}
     />);
 
-    expect(screen.getByText(/No access scheme inventory/i)).toBeInTheDocument();
+    // Both the schemes and the roles panel report the same unbuilt inventory.
+    expect(screen.getAllByText(/No access scheme inventory/i).length).toBeGreaterThan(0);
+  });
+
+  it("lists this project's role actors, and flags a role with nobody in it", () => {
+    render(<ProjectOverview
+      project={project}
+      loading={false}
+      overview={overview({
+        roles: {
+          available: true,
+          byRole: [
+            { roleId: "10002", roleName: "Administrators", actors: [{ type: "group", value: "g-admins", label: "site-admins" }] },
+            { roleId: "10003", roleName: "Members", actors: [] },
+          ],
+        },
+      })}
+    />);
+
+    expect(screen.getByText("Administrators")).toBeInTheDocument();
+    expect(screen.getByText("group: site-admins")).toBeInTheDocument();
+    expect(screen.getByText(/nobody in this role/i)).toBeInTheDocument();
   });
 });
 

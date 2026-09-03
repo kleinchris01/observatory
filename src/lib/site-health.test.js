@@ -195,9 +195,12 @@ describe("buildAccessOverview", () => {
     accessStore.loadSchemes.mockImplementation(async (_k, _v, type) => type === "permission"
       ? [{ id: "1", name: "Prod", isDefault: false }, { id: "2", name: "Default Permission Scheme", isDefault: true }]
       : type === "security" ? [{ id: "s1", name: "Sec" }]
-      : [{ id: "n1", name: "Notif" }]);
+      : type === "notification" ? [{ id: "n1", name: "Notif" }]
+      : [{ id: "10002", name: "Administrators" }]);
     accessStore.loadSchemeHolders.mockImplementation(async (_k, _v, type) => type === "permission"
       ? [{ schemeId: "1", context: "BROWSE_PROJECTS", holderType: "anyone", holderValue: "" }]
+      : type === "project-role"
+      ? [{ schemeId: "10002", context: "1", contextLabel: "OPS", holderType: "empty", holderValue: "", holderLabel: "Administrators" }]
       : []);
     accessStore.loadSchemeLevels.mockResolvedValue([{ schemeId: "s1", id: "L1", name: "Internal" }]);
     accessStore.loadSchemeProjects.mockImplementation(async (_k, _v, type) => type === "permission" ? [{ schemeId: "1", projectId: "10" }] : []);
@@ -207,6 +210,8 @@ describe("buildAccessOverview", () => {
     expect(overview.permissions.health).toMatchObject({ available: true, riskySchemeCount: 1 });
     expect(overview.security.health).toMatchObject({ available: true, brokenLevelCount: 1 });
     expect(overview.notifications.health).toMatchObject({ available: true });
+    // The Administrators role on OPS has only the empty sentinel -> flagged.
+    expect(overview.roles.health).toMatchObject({ available: true, projectsMissingAdminActorCount: 1 });
   });
 });
 

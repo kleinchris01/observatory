@@ -16,6 +16,8 @@ vi.mock("./jira-api.js", () => ({
   getIssueSecurityLevelMembers: vi.fn(async () => []),
   getIssueSecuritySchemeProjects: vi.fn(async () => []),
   getAllNotificationSchemes: vi.fn(async () => []),
+  getAllProjectRoles: vi.fn(async () => []),
+  getProjectRolesForProject: vi.fn(async () => []),
 }));
 vi.mock("./queues.js", () => ({ inventorySnapshotQueue: { push: vi.fn() } }));
 vi.mock("./project-store.js", () => ({
@@ -125,11 +127,37 @@ describe("buildAccessSnapshot", () => {
     expect(writeAccessSnapshotMeta).toHaveBeenLastCalledWith("inst", expect.objectContaining({ state: "ready" }));
   });
 
+  test("folds project roles into the schemes/holders tables, with an empty-role sentinel", async () => {
+    jiraApi.getAllJiraProjects.mockResolvedValue([{ id: "10", key: "OPS", name: "Ops" }]);
+    jiraApi.getAllPermissionSchemes.mockResolvedValue([]);
+    jiraApi.getAllIssueSecuritySchemes.mockResolvedValue([]);
+    jiraApi.getAllNotificationSchemes.mockResolvedValue([]);
+    jiraApi.getAllProjectRoles.mockResolvedValue([
+      { id: 10002, name: "Administrators", description: "" },
+      { id: 10003, name: "Members", description: "" },
+    ]);
+    jiraApi.getProjectRolesForProject.mockResolvedValue([
+      { roleId: "10002", roleName: "Administrators", actors: [{ type: "group", groupId: "g-admins", displayName: "admins" }] },
+      { roleId: "10003", roleName: "Members", actors: [] },
+    ]);
+
+    const result = await buildAccessSnapshot("inst");
+
+    expect(result.projectRole).toBe(2);
+    const [, , payload] = replaceAccessSnapshot.mock.calls[0];
+    expect(payload.schemes.some((s) => s.schemeType === "project-role" && s.id === "10002")).toBe(true);
+    expect(payload.holders.some((h) => h.schemeType === "project-role" && h.holderType === "group" && h.holderValue === "g-admins")).toBe(true);
+    // Members has no actors on OPS -> a sentinel row so "empty here" is queryable.
+    expect(payload.holders.some((h) => h.schemeType === "project-role" && h.schemeId === "10003" && h.holderType === "empty")).toBe(true);
+    expect(writeAccessSnapshotMeta).toHaveBeenLastCalledWith("inst", expect.objectContaining({ totalProjectRoles: 2 }));
+  });
+
   test("marks the build failed and rethrows on a hard error", async () => {
     jiraApi.getAllJiraProjects.mockResolvedValue([]);
     jiraApi.getAllPermissionSchemes.mockResolvedValue([]);
     jiraApi.getAllIssueSecuritySchemes.mockResolvedValue([]);
     jiraApi.getAllNotificationSchemes.mockResolvedValue([]);
+    jiraApi.getAllProjectRoles.mockResolvedValue([]);
     replaceAccessSnapshot.mockRejectedValueOnce(new Error("sql down"));
 
     await expect(buildAccessSnapshot("inst")).rejects.toThrow("sql down");

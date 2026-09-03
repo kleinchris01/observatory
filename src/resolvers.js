@@ -150,6 +150,7 @@ import {
   loadSchemeProjects,
   loadSchemesGrantingHolder,
   loadProjectSchemes,
+  loadProjectRoleActors,
   readDriftSnapshotMeta,
   loadConfigChanges,
   loadConfigChangeSummary,
@@ -175,6 +176,7 @@ import { summarizeIssueTypeInsights } from "./lib/issuetype-insights.js";
 import { summarizeAssetInsights } from "./lib/asset-insights.js";
 import {
   summarizePermissionInsights, summarizeSecurityInsights, summarizeNotificationInsights,
+  summarizeRoleInsights,
 } from "./lib/access-insights.js";
 import { computeSiteHealth, DEFAULT_HEALTH_TOLERANCES } from "./lib/health-score.js";
 // Moved out of this file so a scan can record a measurement without importing the
@@ -202,7 +204,7 @@ import { filterRows, sortFilters, filterFindingCounts, FILTER_SORTS } from "./li
 import { isDashboardBuildStale, queueDashboardSnapshotBuild } from "./lib/dashboard-engine.js";
 import { startFullScan, fullScanStageCatalog, startQuickScan, quickScanStageCatalog, recoverStalledScan, resumeScanRun, cancelScan, readStageProducedCounts } from "./lib/full-scan-runner.js";
 import { FULL_SCAN_STALL_MS, MAX_SCAN_TOTAL_MS } from "./lib/full-scan.js";
-import { probeEndpoint, probeStargateEndpoint, getCloudId, getAllJiraProjects } from "./lib/jira-api.js";
+import { probeEndpoint, probeStargateEndpoint, getCloudId, getAllJiraProjects, getPermissionCatalog } from "./lib/jira-api.js";
 import {
   findDuplicateStatusGroups,
   findOrphanedStatuses,
@@ -1858,6 +1860,7 @@ async function getAccessInventory({ context }) {
     permSchemes, permHolders, permProjects,
     secSchemes, secHolders, secProjects, levels,
     notifSchemes, notifHolders, notifProjects,
+    roleSchemes, roleHolders,
   ] = await Promise.all([
     loadSchemes(installationKey, meta.version, "permission"),
     loadSchemeHolders(installationKey, meta.version, "permission"),
@@ -1869,6 +1872,8 @@ async function getAccessInventory({ context }) {
     loadSchemes(installationKey, meta.version, "notification"),
     loadSchemeHolders(installationKey, meta.version, "notification"),
     loadSchemeProjects(installationKey, meta.version, "notification"),
+    loadSchemes(installationKey, meta.version, "project-role"),
+    loadSchemeHolders(installationKey, meta.version, "project-role"),
   ]);
 
   const projectCountFor = (rows) => {
@@ -1905,6 +1910,22 @@ async function getAccessInventory({ context }) {
       schemes: decorate(notifSchemes, notifProjects),
       holders: notifHolders,
       governance: summarizeNotificationInsights({ schemes: notifSchemes, holders: notifHolders, schemeProjects: notifProjects, rosterAccountIds }),
+    },
+    roles: {
+      // projectCount here means "on how many projects does this role have at least one
+      // real actor", built from the role holder rows rather than a schemeProjects table.
+      schemes: (() => {
+        const withActor = new Map();
+        for (const h of roleHolders) {
+          if (h.holderType === "user" || h.holderType === "group") {
+            if (!withActor.has(h.schemeId)) withActor.set(h.schemeId, new Set());
+            withActor.get(h.schemeId).add(h.context);
+          }
+        }
+        return roleSchemes.map((s) => ({ ...s, projectCount: withActor.get(s.id)?.size || 0 }));
+      })(),
+      holders: roleHolders,
+      governance: summarizeRoleInsights({ roles: roleSchemes, holders: roleHolders, rosterAccountIds }),
     },
   };
 }
@@ -3234,6 +3255,44 @@ async function probeScreenFetchCost({ payload, context }) {
 async function probeAssetsApi() {
   incrMetric(METRIC_NAMES.resolver);
   return probeAssetsApiProbe();
+}
+
+// Global permissions: does the Jira Cloud REST API let this app enumerate WHO HOLDS each
+// global permission (ADMINISTER, SYSTEM_ADMIN, CREATE_SHARED_OBJECTS, ...)? As of writing
+// it exposes only the permission CATALOG, not the grants -- this probe confirms that
+// against the live site before an access-pillar view is built on it. Admin-only,
+// read-only, never throws.
+async function probeGlobalPermissions() {
+  incrMetric(METRIC_NAMES.resolver);
+  const rows = [];
+  const tryEndpoint = async (path, note) => {
+    try {
+      const data = await probeEndpoint(path);
+      rows.push({ path, ok: data.ok, status: data.status, note, sample: data.sample ?? null });
+    } catch (err) {
+      rows.push({ path, ok: false, status: null, note, error: String(err?.message || err) });
+    }
+  };
+
+  await tryEndpoint("/rest/api/3/permissions", "The permission catalog — definitions only, no holders");
+  await tryEndpoint("/rest/api/3/permissions/check", "Bulk permission check for the current user — not an enumeration");
+
+  let catalog = {};
+  try {
+    catalog = await getPermissionCatalog();
+  } catch { /* reflected in rows above */ }
+  const globalKeys = Object.values(catalog)
+    .filter((p) => String(p?.type || "").toUpperCase() === "GLOBAL")
+    .map((p) => p.key);
+
+  return {
+    // The catalog read is expected to succeed; grant enumeration is what is missing.
+    catalogAvailable: globalKeys.length > 0,
+    globalPermissionKeys: globalKeys,
+    grantEnumerationAvailable: false,
+    rows,
+    hint: "Jira Cloud's REST API returns the global-permission catalog but no endpoint that lists which groups hold each one. A global-permissions governance view is blocked on that gap; the access pillar covers PROJECT permission schemes, which the API does expose.",
+  };
 }
 
 async function probeAutomationApi({ context }) {
@@ -5638,6 +5697,7 @@ export async function getAdminOverview({ context }) {
     permissions: accessOverview?.permissions?.health ?? null,
     security: accessOverview?.security?.health ?? null,
     notifications: accessOverview?.notifications?.health ?? null,
+    roles: accessOverview?.roles?.health ?? null,
     estate: estateOverview?.health ?? null,
     // Workflow, project and automation dimensions were scored against hardcoded constants
     // while every field rule was tunable. Same config surface now feeds both.
@@ -5782,6 +5842,7 @@ const PILLAR_INPUTS = {
   permissions: ["access"],
   security: ["access"],
   notifications: ["access"],
+  roles: ["access"],
   estate: ["estate"],
   automation: ["automation"],
   projects: ["projects", "adoption"],
@@ -5867,6 +5928,7 @@ async function getPillarHealth({ payload, context }) {
     permissions: accessOverview?.permissions?.health ?? null,
     security: accessOverview?.security?.health ?? null,
     notifications: accessOverview?.notifications?.health ?? null,
+    roles: accessOverview?.roles?.health ?? null,
     estate: estateOverview?.health ?? null,
     tolerances: config?.healthTolerances,
   });
@@ -6023,7 +6085,7 @@ async function getProjectOverview({ payload, context }) {
   const thisProject = allProjects.find((p) => String(p.projectId) === String(projectId)) || null;
   const projectKey = projectKeyHint || thisProject?.projectKey || "";
 
-  const [scheme, screens, rules, globalRules, projectFilters, activityByProject, projectSchemeRows] = await Promise.all([
+  const [scheme, screens, rules, globalRules, projectFilters, activityByProject, projectSchemeRows, projectRoleRows] = await Promise.all([
     workflowMeta?.version
       ? loadWorkflowSchemeForProject(installationKey, workflowMeta.version, projectId).catch(() => null)
       : Promise.resolve(null),
@@ -6044,6 +6106,9 @@ async function getProjectOverview({ payload, context }) {
     loadProjectActivity(installationKey).catch(() => new Map()),
     accessMeta?.version
       ? loadProjectSchemes(installationKey, accessMeta.version, projectId).catch(() => null)
+      : Promise.resolve(null),
+    accessMeta?.version
+      ? loadProjectRoleActors(installationKey, accessMeta.version, projectId).catch(() => null)
       : Promise.resolve(null),
   ]);
 
@@ -6117,6 +6182,21 @@ async function getProjectOverview({ payload, context }) {
         permission: (projectSchemeRows || []).find((s) => s.schemeType === "permission") || null,
         security: (projectSchemeRows || []).find((s) => s.schemeType === "security") || null,
         notification: (projectSchemeRows || []).find((s) => s.schemeType === "notification") || null,
+      }
+      : { available: false, reason: "No access scheme inventory has been built yet." },
+    // Project-role actors, grouped by role. An "empty" holder means the role exists here
+    // with nobody in it.
+    roles: accessMeta?.version
+      ? {
+        available: true,
+        byRole: Object.values((projectRoleRows || []).reduce((acc, r) => {
+          const key = r.roleId;
+          acc[key] = acc[key] || { roleId: r.roleId, roleName: r.roleName, actors: [] };
+          if (r.holderType === "user" || r.holderType === "group") {
+            acc[key].actors.push({ type: r.holderType, value: r.holderValue, label: r.holderLabel });
+          }
+          return acc;
+        }, {})),
       }
       : { available: false, reason: "No access scheme inventory has been built yet." },
     // One rolled-up read of the project's overall health, from the pillar signals above.
@@ -6821,8 +6901,9 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   buildAssetInventory,     // Mutating: queues a JSM Assets structure snapshot build
 
   // Access pillar (permission / issue-security / notification schemes)
-  getAccessInventory,      // Admin read: the three scheme types, their holders and project assignments, with governance
+  getAccessInventory,      // Admin read: the scheme types + project roles, their holders and project assignments, with governance
   buildAccessInventory,    // Mutating: queues an access scheme snapshot build
+  probeGlobalPermissions,  // Admin read: whether the REST API exposes global-permission grants on this site
 
   // Configuration drift (the change-history timeline)
   getChangeHistory,        // Admin read: one page of detected config changes + a trailing-window summary

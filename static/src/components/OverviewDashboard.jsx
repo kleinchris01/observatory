@@ -856,6 +856,35 @@ function buildFindings({ findingsSummary, findingsByCode, dashboard, workflow, s
     });
   }
 
+  const roleGov = access?.roles;
+  if (roleGov?.available && roleGov.projectsMissingAdminActorCount > 0) {
+    findings.push({
+      key: "role-empty-admin",
+      dimension: "role-findings",
+      pillar: "roles",
+      tone: "critical",
+      count: roleGov.projectsMissingAdminActorCount,
+      title: "Projects with an empty administrator role",
+      detail: "No group or user is in the project's admin role — only a site admin can administer it.",
+      onOpen: () => onNavigate("access", { view: "roles" }),
+      openLabel: "Access",
+    });
+  }
+
+  if (roleGov?.available && roleGov.offRosterActorCount > 0) {
+    findings.push({
+      key: "role-offroster-actors",
+      dimension: "role-findings",
+      pillar: "roles",
+      tone: "warning",
+      count: roleGov.offRosterActorCount,
+      title: "Project-role actors off the licensed roster",
+      detail: "An account no longer licensed still sits in a project role.",
+      onOpen: () => onNavigate("access", { view: "roles" }),
+      openLabel: "Access",
+    });
+  }
+
   const notif = access?.notifications;
   if (notif?.available && notif.fragileSchemeCount > 0) {
     findings.push({

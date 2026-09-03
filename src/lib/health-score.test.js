@@ -148,6 +148,7 @@ const permissions = (over = {}) => ({ available: true, totalSchemes: 8, riskySch
 const security = (over = {}) => ({ available: true, totalSchemes: 4, totalLevels: 12, brokenLevelCount: 0, unusedSchemeCount: 0, ...over });
 const notifications = (over = {}) => ({ available: true, totalSchemes: 5, fragileSchemeCount: 0, unusedSchemeCount: 0, ...over });
 const estate = (over = {}) => ({ available: true, totalResolutions: 6, totalPriorities: 5, reducibleResolutionCount: 0, reduciblePriorityCount: 0, ...over });
+const roles = (over = {}) => ({ available: true, projectsWithRoles: 40, projectsMissingAdminActorCount: 0, offRosterActorCount: 0, directUserActorCount: 20, ...over });
 
 describe("computeSiteHealth — scoring", () => {
   test("a clean site scores at the top", () => {
@@ -155,7 +156,7 @@ describe("computeSiteHealth — scoring", () => {
       fieldUsage: fieldUsage(), workflow: workflow(), projects: projects(),
       automation: automation(), screens: screens(), adoption: adoption(), filters: filters(),
       dashboards: dashboards(), issueTypes: issueTypes(), users: users(), assets: assets(),
-      permissions: permissions(), security: security(), notifications: notifications(), estate: estate(),
+      permissions: permissions(), security: security(), notifications: notifications(), roles: roles(), estate: estate(),
     });
 
     expect(health.score).toBeGreaterThanOrEqual(90);
@@ -652,6 +653,31 @@ describe("access dimensions", () => {
     for (const key of ["permission-least-privilege", "security-level-integrity", "notification-routing"]) {
       expect(dim(health, key).available).toBe(false);
       expect(dim(health, key).reason).toMatch(/no access inventory/i);
+    }
+  });
+});
+
+describe("project-role dimensions", () => {
+  const dim = (health, key) => health.dimensions.find((d) => d.key === key);
+
+  test("clean role coverage scores both dimensions at the top", () => {
+    const health = computeSiteHealth({ roles: roles() });
+    expect(dim(health, "role-admin-coverage").score).toBe(100);
+    expect(dim(health, "role-actor-hygiene").score).toBe(100);
+  });
+
+  test("admin coverage scores empty-admin projects over the projects-with-roles total", () => {
+    const health = computeSiteHealth({ roles: roles({ projectsWithRoles: 50, projectsMissingAdminActorCount: 5 }) });
+    // 5/50 = 0.10 = the tolerance -> 0.
+    expect(dim(health, "role-admin-coverage").score).toBe(0);
+    expect(dim(health, "role-admin-coverage").weight).toBe(1.5);
+    expect(health.pillars.find((p) => p.key === "roles").total).toBe(2);
+  });
+
+  test("both dimensions are unmeasured until the access inventory exists", () => {
+    const health = computeSiteHealth({ fieldUsage: fieldUsage() });
+    for (const key of ["role-admin-coverage", "role-actor-hygiene"]) {
+      expect(dim(health, key).available).toBe(false);
     }
   });
 });

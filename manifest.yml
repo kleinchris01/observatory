@@ -300,6 +300,11 @@ permissions:
     - read:notification-scheme:jira
     - read:project-role:jira
     - read:group:jira
+    # Project role ACTORS: GET /rest/api/3/project/{id}/role/{roleId} resolves each actor to
+    # an accountId or a groupId, so it takes read:user:jira alongside the role scope. The
+    # global-permission catalog probe (GET /rest/api/3/permissions) takes read:permission:jira.
+    - read:user:jira
+    - read:permission:jira
     # The two global value lists every issue draws on. /rest/api/3/resolution/search and
     # /rest/api/3/priority/search are the current paginated endpoints; each takes its own
     # granular read scope.

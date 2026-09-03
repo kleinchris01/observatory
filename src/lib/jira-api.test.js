@@ -75,6 +75,9 @@ import {
   getIssueTypeSchemeProjects,
   getAllResolutions,
   getAllPriorities,
+  getAllProjectRoles,
+  getProjectRolesForProject,
+  getPermissionCatalog,
   getAllPermissionSchemes,
   getProjectPermissionScheme,
   getAllIssueSecuritySchemes,
@@ -1212,6 +1215,39 @@ describe("estate config value lists", () => {
     const rows = await getAllPriorities();
     expect(rows[0].name).toBe("High");
     expect(String(mockRequestJira.mock.calls[0][0])).toContain("/rest/api/3/priority/search");
+  });
+});
+
+describe("project roles & the global-permission catalog", () => {
+  test("getAllProjectRoles returns the site-wide role catalogue array", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: [{ id: 10002, name: "Administrators" }] }));
+    await expect(getAllProjectRoles()).resolves.toEqual([{ id: 10002, name: "Administrators" }]);
+    expect(String(mockRequestJira.mock.calls[0][0])).toContain("/rest/api/3/role");
+  });
+
+  test("getProjectRolesForProject resolves the name->url map then each role's actors", async () => {
+    mockRequestJira
+      .mockResolvedValueOnce(jiraResponse({ body: { Administrators: "https://x/rest/api/3/project/10000/role/10002" } }))
+      .mockResolvedValueOnce(jiraResponse({ body: {
+        id: 10002, name: "Administrators",
+        actors: [
+          { type: "atlassian-group-role-actor", actorGroup: { name: "site-admins", groupId: "g-1" } },
+          { type: "atlassian-user-role-actor", displayName: "Ann", actorUser: { accountId: "acc-1" } },
+        ],
+      } }));
+
+    const roles = await getProjectRolesForProject("10000");
+    expect(roles).toHaveLength(1);
+    expect(roles[0]).toMatchObject({ roleId: "10002", roleName: "Administrators" });
+    expect(roles[0].actors).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "group", groupId: "g-1", groupName: "site-admins" }),
+      expect.objectContaining({ type: "user", accountId: "acc-1", displayName: "Ann" }),
+    ]));
+  });
+
+  test("getPermissionCatalog unwraps the permissions object", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: { permissions: { ADMINISTER: { key: "ADMINISTER", type: "GLOBAL" } } } }));
+    await expect(getPermissionCatalog()).resolves.toEqual({ ADMINISTER: { key: "ADMINISTER", type: "GLOBAL" } });
   });
 });
 
