@@ -21,11 +21,12 @@ import React from "react";
 //   - once every 20-40s a shooting star crosses -- one in twelve of those a small shower.
 // The whole field parallaxes a few pixels against the pointer.
 //
-// And #3: `bearing` names which part of the sky we are pointed at (the active tab). When it
-// changes the telescope slews -- both fields pan past each other along a bearing-seeded
-// direction while a reticle reads RECALIBRATING -- and settles on a fresh, bearing-seeded
-// sky. All of the above is off under prefers-reduced-motion, where a bearing change is an
-// instant swap.
+// And #3: `bearing` names which part of the sky we are pointed at (the active tab). The tabs
+// sit on a line in nav order, so changing bearing is a single horizontal pan whose direction
+// is never in doubt -- a later tab is to the right. The incoming sky (seeded by that
+// bearing, the same every visit) decelerates in from one screen away while a reticle reads
+// RECALIBRATING; the outgoing one just drifts off and fades. Under prefers-reduced-motion it
+// is an instant swap with no reticle.
 
 const FRAME_MS = 1000 / 30;
 const STAR_COLOR = "226, 231, 242";      // the fallback warm white
@@ -60,10 +61,18 @@ function mulberry32(seed) {
   };
 }
 
-// The direction the sky turns when we slew to this bearing. Seeded so a tab always slews the
-// same way, spread around the compass so adjacent tabs do not all pan left.
-export function bearingAngle(bearing) {
-  return (hashString(bearing) % 3600) / 10 * (Math.PI / 180);
+// The tabs, in nav order. A bearing is a point on this line, so slewing between two of them
+// is a single horizontal pan whose direction is never in doubt: a later tab is to the right.
+// A bearing that is not on the list (or none) sits at 0.
+export const BEARING_ORDER = [
+  "overview", "fields", "projects", "workflows", "issueTypes", "priorities",
+  "people", "assets", "access", "screens", "filters", "dashboards", "boards",
+  "automation", "reports", "changes", "scans", "config",
+];
+
+export function bearingColumn(bearing) {
+  const i = BEARING_ORDER.indexOf(String(bearing));
+  return i === -1 ? 0 : i;
 }
 
 // ── Star colour ─────────────────────────────────────────────────────────────
@@ -159,23 +168,62 @@ export function makeField(w, h, rng) {
     };
   }
 
-  const GAL_TINTS = [[255, 220, 190], [205, 220, 255], [220, 226, 222]];
-  const galN = 2 + (rng() < 0.5 ? 1 : 0);
+  const galN = 1 + (rng() < 0.6 ? 1 : 0);
   const galaxies = [];
   for (let i = 0; i < galN; i++) {
-    const rx = 34 + rng() * 64;
-    galaxies.push({
-      x: w * (0.12 + rng() * 0.76),
-      y: h * (0.08 + rng() * 0.7),
-      rx,
-      ry: rx * (0.32 + rng() * 0.35),
-      rot: rng() * Math.PI,
-      tint: GAL_TINTS[i % GAL_TINTS.length].join(", "),
-      alpha: 0.04 + rng() * 0.05,
-    });
+    galaxies.push(makeGalaxy(w, h, rng));
   }
 
   return { stars, galaxies, bandAngle };
+}
+
+// A galaxy with actual structure -- a spiral of individual arm stars around a bright core, or
+// a concentrated elliptical -- rather than a gradient smudge. The arm points are baked in
+// local [-1,1] space at build time so drawing is a translate/scale and a run of tiny dots.
+export function makeGalaxy(w, h, rng) {
+  // Kept clear of the middle third, where the content and the recalibration reticle sit.
+  const left = rng() < 0.5;
+  const x = w * (left ? 0.06 + rng() * 0.22 : 0.72 + rng() * 0.22);
+  const y = h * (0.1 + rng() * 0.7);
+  const scale = 46 + rng() * 48;
+  const rot = rng() * Math.PI * 2;
+  const incl = 0.15 + rng() * 0.6;           // 0 face-on, ->1 edge-on: squashes the minor axis
+  const spiral = rng() < 0.66;
+
+  if (!spiral) {
+    return {
+      spiral: false, x, y, scale, rot, incl,
+      core: "255, 236, 205",                  // warm, like an old elliptical
+      halo: "255, 224, 190",
+    };
+  }
+
+  const arms = 2;
+  const perArm = 90;
+  const turns = 1.6 + rng() * 0.8;
+  const points = [];
+  for (let a = 0; a < arms; a++) {
+    const base = (a / arms) * Math.PI * 2;
+    for (let k = 0; k < perArm; k++) {
+      const t = k / perArm;
+      const theta = base + t * turns * Math.PI * 2;
+      const rad = 0.12 + t * 0.92;
+      const ja = (rng() - 0.5) * 0.5 * (0.3 + t);   // arm gets fuzzier outward
+      const jr = (rng() - 0.5) * 0.14;
+      points.push({
+        px: Math.cos(theta + ja) * (rad + jr),
+        py: Math.sin(theta + ja) * (rad + jr),
+        a: (1 - t * 0.55) * (0.25 + rng() * 0.75),
+        s: 0.5 + rng() * 1.0,
+      });
+    }
+  }
+  return {
+    spiral: true, x, y, scale, rot, incl, points,
+    core: "255, 240, 220",
+    arm: "205, 222, 255",                     // young blue arm stars
+    halo: "210, 220, 255",
+  };
 }
 
 // ── Shooting star ─────────────────────────────────────────────────────────────
@@ -234,8 +282,9 @@ export function meteorPose(m, now) {
   return { hx, hy, tx, ty, k: Math.max(0, Math.min(1, k)) };
 }
 
-const SLEW_MS = 780;
-const easeInOut = (p) => (p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2);
+const SLEW_MS = 1050;
+// Decelerate into place: fast off the mark, easing to a stop, which reads as "settling".
+const easeOut = (p) => 1 - Math.pow(1 - p, 3);
 
 export function Starfield({ active = true, bearing = "default" }) {
   const canvasRef = React.useRef(null);
@@ -265,7 +314,9 @@ export function Starfield({ active = true, bearing = "default" }) {
 
     let currentBearing = bearingRef.current;
     let field = null;
-    // Slew: { startAt, from, to, dx, dy } while the telescope is turning to a new bearing.
+    // Slew: { startAt, from, to, dir } while the telescope is panning to a new bearing. `dir`
+    // is +1 when the target tab is further right in the nav (sky scrolls left, new field
+    // enters from the right) and -1 the other way -- one axis, direction never in doubt.
     let slew = null;
 
     let flareIdx = -1;
@@ -298,17 +349,58 @@ export function Starfield({ active = true, bearing = "default" }) {
     }
 
     function beginSlew(nextBearing, now) {
+      const dir = Math.sign(bearingColumn(nextBearing) - bearingColumn(currentBearing)) || 1;
       slew = {
         startAt: now,
-        from: field,
+        // Interruptible: a tab change mid-pan continues from whatever is on screen.
+        from: slew ? slew.to : field,
         to: fieldFor(nextBearing),
-        dx: Math.cos(bearingAngle(nextBearing)),
-        dy: Math.sin(bearingAngle(nextBearing)),
+        dir,
       };
       currentBearing = nextBearing;
       flareIdx = -1;
       meteors = [];
       nextMeteorAt = now + 9000 + Math.random() * 12000;
+    }
+
+    // A galaxy: an inclined disk halo, spiral arm stars if it has them, and a bright core on
+    // top. The core is what stops it reading as a grey smudge.
+    function drawGalaxy(g, panX, panY, gAlpha) {
+      ctx.save();
+      ctx.translate(g.x + panX + ox * 0.12, g.y + panY + oy * 0.12);
+      ctx.rotate(g.rot);
+      ctx.scale(1, 1 - g.incl * 0.72);
+
+      const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, g.scale);
+      halo.addColorStop(0, `rgba(${g.halo}, ${(0.10 * gAlpha).toFixed(3)})`);
+      halo.addColorStop(0.5, `rgba(${g.halo}, ${(0.035 * gAlpha).toFixed(3)})`);
+      halo.addColorStop(1, `rgba(${g.halo}, 0)`);
+      ctx.fillStyle = halo;
+      ctx.beginPath();
+      ctx.arc(0, 0, g.scale, 0, Math.PI * 2);
+      ctx.fill();
+
+      if (g.spiral) {
+        for (let k = 0; k < g.points.length; k++) {
+          const pt = g.points[k];
+          ctx.fillStyle = `rgba(${g.arm}, ${(pt.a * 0.55 * gAlpha).toFixed(3)})`;
+          ctx.beginPath();
+          ctx.arc(pt.px * g.scale, pt.py * g.scale, pt.s, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      const coreR = g.scale * (g.spiral ? 0.24 : 0.44);
+      const core = ctx.createRadialGradient(0, 0, 0, 0, 0, coreR);
+      core.addColorStop(0, `rgba(${g.core}, ${(0.6 * gAlpha).toFixed(3)})`);
+      core.addColorStop(0.4, `rgba(${g.core}, ${(0.24 * gAlpha).toFixed(3)})`);
+      core.addColorStop(1, `rgba(${g.core}, 0)`);
+      ctx.fillStyle = core;
+      ctx.beginPath();
+      ctx.arc(0, 0, coreR, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
     }
 
     // One field -- galaxies, band haze, stars -- drawn at a pan offset and global alpha.
@@ -317,22 +409,7 @@ export function Starfield({ active = true, bearing = "default" }) {
     function drawField(f, panX, panY, gAlpha, now, effects) {
       if (!f) return;
 
-      for (let i = 0; i < f.galaxies.length; i++) {
-        const gx = f.galaxies[i];
-        ctx.save();
-        ctx.translate(gx.x + panX + ox * 0.15, gx.y + panY + oy * 0.15);
-        ctx.rotate(gx.rot);
-        ctx.scale(1, gx.ry / gx.rx);
-        const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, gx.rx);
-        grad.addColorStop(0, `rgba(${gx.tint}, ${(gx.alpha * gAlpha).toFixed(3)})`);
-        grad.addColorStop(0.6, `rgba(${gx.tint}, ${(gx.alpha * gAlpha * 0.4).toFixed(3)})`);
-        grad.addColorStop(1, `rgba(${gx.tint}, 0)`);
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.arc(0, 0, gx.rx, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-      }
+      for (let i = 0; i < f.galaxies.length; i++) drawGalaxy(f.galaxies[i], panX, panY, gAlpha);
 
       // Milky Way haze: a soft band, brightest along its spine.
       ctx.save();
@@ -438,15 +515,18 @@ export function Starfield({ active = true, bearing = "default" }) {
     function draw(now, force) {
       ctx.clearRect(0, 0, width, height);
 
-      if (!reduced && width > 0 && height > 0) {
+      // Parallax eases toward the pointer only while the field is at rest -- during a pan it
+      // would be a second, competing motion, which is what made the old slew look messy.
+      if (!reduced && !slew && width > 0 && height > 0) {
         const targetX = -((pointerX / width) * 2 - 1) * MAX_PARALLAX;
         const targetY = -((pointerY / height) * 2 - 1) * MAX_PARALLAX;
         ox += (targetX - ox) * 0.06;
         oy += (targetY - oy) * 0.06;
       }
 
-      // A bearing change: slew if we can, swap instantly if we cannot.
-      if (bearingRef.current !== currentBearing && !slew) {
+      // A bearing change: pan if we can, swap instantly if we cannot. Not gated on !slew --
+      // a change mid-pan retargets from whatever is on screen (see beginSlew).
+      if (bearingRef.current !== currentBearing) {
         if (reduced) {
           currentBearing = bearingRef.current;
           field = fieldFor(currentBearing);
@@ -457,10 +537,12 @@ export function Starfield({ active = true, bearing = "default" }) {
 
       if (slew) {
         const p = Math.min(1, (now - slew.startAt) / SLEW_MS);
-        const e = easeInOut(p);
-        const d = Math.hypot(width, height) * 0.55;
-        drawField(slew.from, -slew.dx * d * e, -slew.dy * d * e, Math.max(0, 1 - (p - 0.5) / 0.5), now, false);
-        drawField(slew.to, slew.dx * d * (1 - e), slew.dy * d * (1 - e), Math.min(1, p / 0.45), now, false);
+        const e = easeOut(p);
+        // One screen width, horizontal. The incoming field carries the motion -- it enters
+        // from `dir * width` and decelerates to rest. The outgoing field only drifts a little
+        // the other way and has faded out by the halfway mark, so two fields never race.
+        drawField(slew.from, slew.dir * -width * 0.22 * e, 0, Math.max(0, 1 - p / 0.5), now, false);
+        drawField(slew.to, slew.dir * width * (1 - e), 0, Math.min(1, p / 0.4), now, false);
         drawReticle(p);
         if (p >= 1) {
           field = slew.to;

@@ -1,7 +1,7 @@
 import React from "react";
 import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
-import { Starfield, makeMeteor, meteorPose, makeShowerSibling, starRGB, hashString, bearingAngle, makeField } from "./Starfield";
+import { Starfield, makeMeteor, meteorPose, makeShowerSibling, starRGB, hashString, bearingColumn, BEARING_ORDER, makeField } from "./Starfield";
 
 // A fake 2D context: every method the component calls, recording nothing but not throwing.
 function fakeCtx() {
@@ -157,17 +157,24 @@ describe("starRGB", () => {
   });
 });
 
-describe("hashString / bearingAngle", () => {
+describe("hashString / bearingColumn", () => {
   test("hashString is deterministic and order-sensitive", () => {
     expect(hashString("boards")).toBe(hashString("boards"));
     expect(hashString("boards")).not.toBe(hashString("fields"));
   });
 
-  test("bearingAngle is a stable radian value inside a full turn", () => {
-    const a = bearingAngle("overview");
-    expect(a).toBe(bearingAngle("overview"));
-    expect(a).toBeGreaterThanOrEqual(0);
-    expect(a).toBeLessThan(Math.PI * 2);
+  test("bearingColumn places tabs on the nav line, with unknowns at 0", () => {
+    expect(bearingColumn("overview")).toBe(0);
+    expect(bearingColumn("not-a-tab")).toBe(0);
+    // Direction follows nav order: a later tab has a higher column, so the pan goes right.
+    expect(bearingColumn("boards")).toBeGreaterThan(bearingColumn("dashboards"));
+    expect(bearingColumn("fields")).toBeLessThan(bearingColumn("projects"));
+  });
+
+  test("every admin tab key is on the bearing line", () => {
+    for (const key of ["overview", "fields", "projects", "workflows", "boards", "config"]) {
+      expect(BEARING_ORDER).toContain(key);
+    }
   });
 });
 
