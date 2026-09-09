@@ -17,7 +17,7 @@ import { invoke } from "@forge/bridge";
 import { Icon, useChartPalette } from "./Icons";
 import { SkeletonFieldCard, FindingsStrip, MetricChip } from "./FieldCard";
 import { SubNavLayout } from "./admin/primitives";
-import { Panel, StatRow, StatTile, BarList, PanelGrid, GridSpan, EmptyState, Chip, PageHeader, AskRovo, SortFilterBar } from "./ui";
+import { Panel, StatRow, StatTile, BarList, PanelGrid, GridSpan, EmptyState, Chip, PageHeader, AskRovo, SortFilterBar, CollapsiblePanels } from "./ui";
 import { buildRovoPrompt } from "../utils";
 
 function ChartTooltip({ active, payload }) {
@@ -1091,7 +1091,7 @@ export function ProjectCard({
             onSelect={setView}
           >
             {view === "overview" ? (
-              <>
+              <CollapsiblePanels>
                 <ProjectOverview
                   project={project}
                   overview={overview}
@@ -1103,7 +1103,7 @@ export function ProjectCard({
                   onBuildFieldReport={onBuildFieldReport}
                 />
                 <SchemePeerBars scheme={workflowScheme} project={project} allProjects={peerProjects} />
-              </>
+              </CollapsiblePanels>
             ) : (
               <>
                 <section className="report-filters">

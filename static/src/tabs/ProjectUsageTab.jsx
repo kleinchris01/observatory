@@ -51,12 +51,11 @@ export function ProjectUsageTab({ siteOrigin, intent = null, onBuildFieldReport 
       sortBy: fieldSort,
       page,
     }).then((result) => {
-      if (!cancelled) {
-        setData(result);
-        if (result?.selectedProject?.projectId && result.selectedProject.projectId !== selectedProjectId) {
-          setSelectedProjectId(result.selectedProject.projectId);
-        }
-      }
+      // No auto-adopt: the old rail always had a project selected, so the resolver returns a
+      // default one and the container used to sync to it. With the browse list, "" (nothing
+      // expanded) is a real state -- adopting the default here reopened a card the moment the
+      // user closed it.
+      if (!cancelled) setData(result);
     }).catch((err) => {
       if (!cancelled) setLoadError(err.message || "Failed to load project usage.");
     }).finally(() => {

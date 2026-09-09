@@ -5624,6 +5624,19 @@ a.macro-pillar__name:hover { color: var(--cool); text-decoration: underline; }
 .ui-panel__desc { font-size: 0.8rem; opacity: 0.65; margin: 0; max-width: 62ch; }
 .ui-panel__body { display: flex; flex-direction: column; gap: 1.1rem; }
 
+/* Collapsible panel: the whole head is the toggle. Reset the button so it reads as the head
+   it wraps, and let a collapsed panel shed its bottom padding so a folded stack stays tight. */
+.ui-panel__toggle {
+  appearance: none; background: none; border: 0; padding: 0; margin: 0;
+  font: inherit; color: inherit; text-align: left; cursor: pointer;
+  flex: 1 1 auto; min-width: 0;
+}
+.ui-panel__toggle .ui-panel__title { color: inherit; }
+.ui-panel--collapsible { gap: 0; }
+.ui-panel--collapsible .ui-panel__head { margin-bottom: 1rem; }
+.ui-panel--collapsed { padding-bottom: 1.1rem; }
+.ui-panel--collapsed .ui-panel__head { margin-bottom: 0; }
+
 .ui-stat-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
