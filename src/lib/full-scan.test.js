@@ -66,6 +66,14 @@ describe("quick scan stages", () => {
     }
   });
 
+  test("refetches boards in full, like the other structural stages", () => {
+    expect(QUICK_SCAN_STAGE_KEYS).toContain("boards");
+    expect(FULL_SCAN_STAGE_KEYS).toContain("boards");
+    // Structural: independent, and ahead of drift and health.
+    expect(QUICK_SCAN_STAGE_KEYS.indexOf("boards")).toBeLessThan(QUICK_SCAN_STAGE_KEYS.indexOf("drift"));
+    expect(FULL_SCAN_STAGE_KEYS.indexOf("boards")).toBeLessThan(FULL_SCAN_STAGE_KEYS.indexOf("issues"));
+  });
+
   // Not two stages that happen to run back to back -- one stage. runDeltaIssueScanJob already
   // updates field x project usage counts in the same pass it counts issues, so a separate
   // field-catalog stage would have nothing left to do.

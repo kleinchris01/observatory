@@ -157,6 +157,9 @@ import {
   loadConfigChangeSummary,
   readEstateSnapshotMeta,
   loadEstateValues,
+  readBoardSnapshotMeta,
+  loadBoards,
+  loadBoardColumns,
   recordHealthSnapshot,
   readFullScanMeta,
   loadHealthHistory,
@@ -172,6 +175,7 @@ import { queueAssetSnapshotBuild, isAssetBuildStale } from "./lib/asset-engine.j
 import { queueAccessSnapshotBuild, isAccessBuildStale } from "./lib/access-engine.js";
 import { queueDriftSnapshotBuild, isDriftBuildStale, DRIFT_PILLARS } from "./lib/drift-engine.js";
 import { queueEstateSnapshotBuild, isEstateBuildStale } from "./lib/estate-engine.js";
+import { queueBoardSnapshotBuild, isBoardBuildStale } from "./lib/board-engine.js";
 import { summarizeEstateInsights } from "./lib/estate-insights.js";
 import { summarizeIssueTypeInsights } from "./lib/issuetype-insights.js";
 import { summarizeAssetInsights } from "./lib/asset-insights.js";
@@ -2080,6 +2084,98 @@ async function buildEstateInventory({ context }) {
   }
 
   await queueEstateSnapshotBuild(installationKey);
+  return { queued: true };
+}
+
+// The boards pillar's read: every agile board with its backing filter, location and column
+// mapping. Structure only -- the cross-pillar joins (broken backing filter, statuses not
+// mapped to a column, personal boards owned by inactive users) and the governance score
+// arrive with B2/B3.
+async function getBoardInventory({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  const meta = await readBoardSnapshotMeta(installationKey);
+  const staleBuild = isBoardBuildStale(meta);
+
+  if (!meta?.version) {
+    return {
+      state: meta?.state || "idle",
+      staleBuild,
+      startedAt: meta?.startedAt || null,
+      neverBuilt: true,
+      boards: [],
+      summary: { total: 0, byType: {}, personal: 0, unreadable: 0, missingFilter: 0, totalColumns: 0 },
+      lastError: meta?.lastError || null,
+    };
+  }
+
+  const [boards, columns] = await Promise.all([
+    loadBoards(installationKey, meta.version),
+    loadBoardColumns(installationKey, meta.version),
+  ]);
+
+  const columnsByBoard = new Map();
+  for (const col of columns) {
+    if (!columnsByBoard.has(col.boardId)) columnsByBoard.set(col.boardId, []);
+    columnsByBoard.get(col.boardId).push(col);
+  }
+
+  const rows = boards.map((board) => {
+    const cols = columnsByBoard.get(board.boardId) || [];
+    return {
+      ...board,
+      columns: cols,
+      // A column with no statuses mapped is a column issues can never land in -- the first
+      // cross-pillar finding this pillar will grow, surfaced here already so the tab can show it.
+      unmappedColumns: cols.filter((c) => c.statusIds.length === 0).length,
+    };
+  });
+
+  const byType = {};
+  for (const board of rows) {
+    const key = board.type || "unknown";
+    byType[key] = (byType[key] || 0) + 1;
+  }
+
+  return {
+    state: meta.state || "ready",
+    staleBuild,
+    refreshedAt: meta.refreshedAt || null,
+    neverBuilt: false,
+    lastError: meta.lastError || null,
+    boards: rows,
+    summary: {
+      total: rows.length,
+      byType,
+      personal: rows.filter((board) => board.locationType === "user").length,
+      // Boards whose /configuration endpoint 404'd -- their column and filter facts are unknown.
+      unreadable: Number(meta.boardsUnreadable) || 0,
+      // Config was readable but named no backing filter: a team-managed board, or one whose
+      // filter was deleted out from under it.
+      missingFilter: rows.filter((board) => board.configReadable && !board.filterId).length,
+      totalColumns: columns.length,
+    },
+  };
+}
+
+async function buildBoardInventory({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  const meta = await readBoardSnapshotMeta(installationKey);
+  if (meta?.state === "building" && !isBoardBuildStale(meta)) {
+    return { queued: false, reason: "already-building", meta };
+  }
+
+  const adminConfig = await readAdminConfig();
+  if (adminConfig.readOnlyMode) {
+    return { queued: false, error: "Read-only mode is enabled. Disable it before building the board inventory." };
+  }
+
+  await queueBoardSnapshotBuild(installationKey);
   return { queued: true };
 }
 
@@ -7749,6 +7845,7 @@ const AUDITED_ADMIN_ACTIONS = new Set([
   "buildAccessInventory",
   "buildChangeHistory",
   "buildEstateInventory",
+  "buildBoardInventory",
 ]);
 
 function withAuditTrail(functions) {
@@ -7870,6 +7967,10 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   // Estate config (the global value lists — resolutions, priorities)
   getEstateInventory,      // Admin read: the resolution and priority lists with the duplicate-name governance summary
   buildEstateInventory,    // Mutating: queues an estate-config snapshot build
+
+  // Boards pillar (agile boards, their backing filters and column mapping)
+  getBoardInventory,       // Admin read: every board with its filter, location and columns (structure only for now)
+  buildBoardInventory,     // Mutating: queues a board snapshot build
 
   getAutomationCascades,   // Admin read: one filtered page of cascade relationships
   getCascadeGraph,         // Admin read: loops and multi-rule chains across every edge

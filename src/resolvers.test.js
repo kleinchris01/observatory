@@ -204,6 +204,13 @@ const mocks = vi.hoisted(() => ({
   queueEstateSnapshotBuild: vi.fn(),
   isEstateBuildStale: vi.fn(() => false),
 
+  // board store + board-engine.js
+  readBoardSnapshotMeta: vi.fn(),
+  loadBoards: vi.fn(async () => []),
+  loadBoardColumns: vi.fn(async () => []),
+  queueBoardSnapshotBuild: vi.fn(),
+  isBoardBuildStale: vi.fn(() => false),
+
   loadRulesForProject: vi.fn(),
   loadStatusAutomationReferences: vi.fn(),
   loadGlobalRulesAffectingProject: vi.fn(),
@@ -410,6 +417,9 @@ vi.mock("./lib/project-store.js", () => ({
   loadConfigChangeSummary: mocks.loadConfigChangeSummary,
   readEstateSnapshotMeta: mocks.readEstateSnapshotMeta,
   loadEstateValues: mocks.loadEstateValues,
+  readBoardSnapshotMeta: mocks.readBoardSnapshotMeta,
+  loadBoards: mocks.loadBoards,
+  loadBoardColumns: mocks.loadBoardColumns,
   loadAssetSchemas: mocks.loadAssetSchemas,
   loadAssetObjectTypes: mocks.loadAssetObjectTypes,
   loadAssetAttributes: mocks.loadAssetAttributes,
@@ -471,6 +481,11 @@ vi.mock("./lib/drift-engine.js", () => ({
 vi.mock("./lib/estate-engine.js", () => ({
   queueEstateSnapshotBuild: mocks.queueEstateSnapshotBuild,
   isEstateBuildStale: mocks.isEstateBuildStale,
+}));
+
+vi.mock("./lib/board-engine.js", () => ({
+  queueBoardSnapshotBuild: mocks.queueBoardSnapshotBuild,
+  isBoardBuildStale: mocks.isBoardBuildStale,
 }));
 
 vi.mock("./lib/workflow-engine.js", () => ({
@@ -632,6 +647,8 @@ const {
   buildChangeHistory,
   getEstateInventory,
   buildEstateInventory,
+  getBoardInventory,
+  buildBoardInventory,
   probeGlobalPermissions,
 } = __RAW_ADMIN_ONLY_FUNCTIONS;
 
@@ -5911,6 +5928,72 @@ describe("buildEstateInventory", () => {
 
     expect(result).toMatchObject({ queued: false, reason: "already-building" });
     expect(mocks.queueEstateSnapshotBuild).not.toHaveBeenCalled();
+  });
+});
+
+describe("getBoardInventory", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x" } };
+
+  test("reports never-built when no snapshot exists", async () => {
+    mocks.readBoardSnapshotMeta.mockResolvedValue(null);
+    const result = await getBoardInventory(ctx);
+    expect(result).toMatchObject({ neverBuilt: true, boards: [] });
+    expect(result.summary.total).toBe(0);
+    expect(mocks.loadBoards).not.toHaveBeenCalled();
+  });
+
+  test("joins columns onto boards and summarises the estate", async () => {
+    mocks.readBoardSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1", refreshedAt: "2026-09-09T00:00:00Z", boardsUnreadable: 1 });
+    mocks.loadBoards.mockResolvedValue([
+      { boardId: "1", name: "Scrum", type: "scrum", locationType: "project", locationKey: "AAA", filterId: "4001", configReadable: true, columnCount: 2 },
+      { boardId: "2", name: "Mine", type: "kanban", locationType: "user", locationName: "Alex", filterId: null, configReadable: true, columnCount: 1 },
+      { boardId: "3", name: "TM", type: "simple", locationType: "project", locationKey: "BBB", filterId: null, configReadable: false, columnCount: 0 },
+    ]);
+    mocks.loadBoardColumns.mockResolvedValue([
+      { boardId: "1", index: 0, name: "To Do", statusIds: ["1"] },
+      { boardId: "1", index: 1, name: "Done", statusIds: ["5"] },
+      { boardId: "2", index: 0, name: "Backlog", statusIds: [] },
+    ]);
+
+    const result = await getBoardInventory(ctx);
+
+    expect(result.neverBuilt).toBe(false);
+    expect(result.boards).toHaveLength(3);
+    expect(result.boards.find((b) => b.boardId === "1").columns).toHaveLength(2);
+    expect(result.boards.find((b) => b.boardId === "2").unmappedColumns).toBe(1);
+    expect(result.summary).toMatchObject({
+      total: 3,
+      personal: 1,
+      unreadable: 1,
+      // board 2: config readable, no filter
+      missingFilter: 1,
+      totalColumns: 3,
+    });
+    expect(result.summary.byType).toEqual({ scrum: 1, kanban: 1, simple: 1 });
+  });
+});
+
+describe("buildBoardInventory", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x" } };
+
+  test("queues a build when nothing is running", async () => {
+    mocks.readBoardSnapshotMeta.mockResolvedValue({ state: "idle" });
+    mocks.readAdminConfig?.mockResolvedValue?.({ readOnlyMode: false });
+
+    const result = await buildBoardInventory(ctx);
+
+    expect(result.queued).toBe(true);
+    expect(mocks.queueBoardSnapshotBuild).toHaveBeenCalledWith("test-install");
+  });
+
+  test("refuses while a live build is running", async () => {
+    mocks.readBoardSnapshotMeta.mockResolvedValue({ state: "building" });
+    mocks.isBoardBuildStale.mockReturnValue(false);
+
+    const result = await buildBoardInventory(ctx);
+
+    expect(result).toMatchObject({ queued: false, reason: "already-building" });
+    expect(mocks.queueBoardSnapshotBuild).not.toHaveBeenCalled();
   });
 });
 

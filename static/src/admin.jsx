@@ -57,6 +57,9 @@ const ChangesTab = React.lazy(() =>
 const PrioritiesTab = React.lazy(() =>
   import("./tabs/PrioritiesTab").then((m) => ({ default: m.PrioritiesTab }))
 );
+const BoardsTab = React.lazy(() =>
+  import("./tabs/BoardsTab").then((m) => ({ default: m.BoardsTab }))
+);
 const ScreensTab = React.lazy(() =>
   import("./tabs/ScreensTab").then((m) => ({ default: m.ScreensTab }))
 );
@@ -235,6 +238,7 @@ export function AdminApp() {
     { key: "screens", label: "Screens", icon: "copy" },
     { key: "filters", label: "Saved Filters", icon: "search" },
     { key: "dashboards", label: "Dashboards", icon: "barChart" },
+    { key: "boards", label: "Boards", icon: "activity" },
     { key: "automation", label: "Automation", icon: "refreshCw" },
     { key: "reports", label: "Reports", icon: "barChart" },
     { key: "changes", label: "Changes", icon: "clock" },
@@ -335,6 +339,8 @@ export function AdminApp() {
             <IssueTypesTab intent={navIntent} />
           ) : activeTab === "priorities" ? (
             <PrioritiesTab intent={navIntent} />
+          ) : activeTab === "boards" ? (
+            <BoardsTab intent={navIntent} />
           ) : activeTab === "people" ? (
             <PeopleTab intent={navIntent} />
           ) : activeTab === "assets" ? (

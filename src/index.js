@@ -28,6 +28,7 @@ import { buildUserSnapshot } from "./lib/user-engine.js";
 import { buildAssetSnapshot } from "./lib/asset-engine.js";
 import { buildAccessSnapshot } from "./lib/access-engine.js";
 import { buildEstateSnapshot } from "./lib/estate-engine.js";
+import { buildBoardSnapshot } from "./lib/board-engine.js";
 import { buildDriftSnapshot } from "./lib/drift-engine.js";
 import { runFullScanStep, runQuickScanStep, startQuickScan, recoverStalledScan } from "./lib/full-scan-runner.js";
 import { buildFilterSnapshot } from "./lib/filter-engine.js";
@@ -483,6 +484,14 @@ export async function consumeSnapshot(event) {
       const result = await buildEstateSnapshot(installationKey);
       console.log(
         `build-estate-snapshot: ${result?.resolutions ?? 0} resolutions, ${result?.priorities ?? 0} priorities`
+      );
+      return;
+    }
+
+    if (jobType === "build-board-snapshot") {
+      const result = await buildBoardSnapshot(installationKey);
+      console.log(
+        `build-board-snapshot: ${result?.boards ?? 0} boards, ${result?.columns ?? 0} columns, ${result?.unreadable ?? 0} unreadable`
       );
       return;
     }
