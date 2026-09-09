@@ -1,7 +1,7 @@
 import React from "react";
 import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
-import { Starfield, makeMeteor, meteorPose, makeShowerSibling } from "./Starfield";
+import { Starfield, makeMeteor, meteorPose, makeShowerSibling, starRGB, hashString, bearingAngle, makeField } from "./Starfield";
 
 // A fake 2D context: every method the component calls, recording nothing but not throwing.
 function fakeCtx() {
@@ -11,15 +11,24 @@ function fakeCtx() {
     beginPath: vi.fn(),
     arc: vi.fn(),
     fill: vi.fn(),
+    fillRect: vi.fn(),
+    fillText: vi.fn(),
     moveTo: vi.fn(),
     lineTo: vi.fn(),
     stroke: vi.fn(),
+    save: vi.fn(),
+    restore: vi.fn(),
+    translate: vi.fn(),
+    rotate: vi.fn(),
+    scale: vi.fn(),
     createRadialGradient: vi.fn(() => ({ addColorStop: vi.fn() })),
     createLinearGradient: vi.fn(() => ({ addColorStop: vi.fn() })),
     fillStyle: "",
     strokeStyle: "",
     lineWidth: 1,
     lineCap: "butt",
+    font: "",
+    textAlign: "left",
   };
 }
 
@@ -102,6 +111,91 @@ describe("Starfield", () => {
     const add = vi.spyOn(window, "addEventListener");
     render(<Starfield active />);
     expect(add).not.toHaveBeenCalledWith("pointermove", expect.any(Function), expect.anything());
+  });
+
+  test("a bearing change does not tear down or restart the animation loop", () => {
+    const { rerender } = render(<Starfield active bearing="overview" />);
+    const rafCalls = window.requestAnimationFrame.mock.calls.length;
+    const cafCalls = window.cancelAnimationFrame.mock.calls.length;
+    rerender(<Starfield active bearing="boards" />);
+    // The effect is keyed on `active`, not `bearing` -- the slew is picked up inside the
+    // running loop, so no cancel/restart.
+    expect(window.cancelAnimationFrame.mock.calls.length).toBe(cafCalls);
+    expect(window.requestAnimationFrame.mock.calls.length).toBe(rafCalls);
+  });
+
+  test("renders without throwing when a bearing is supplied", () => {
+    expect(() => render(<Starfield active bearing="fields" />)).not.toThrow();
+  });
+});
+
+describe("starRGB", () => {
+  test("runs cool at u=0 and hot-blue at u=1", () => {
+    const cool = starRGB(0, 1);
+    const hot = starRGB(1, 1);
+    // Cool: red channel dominates blue. Hot: blue channel dominates red.
+    expect(cool[0]).toBeGreaterThan(cool[2]);
+    expect(hot[2]).toBeGreaterThan(hot[0]);
+  });
+
+  test("low saturation collapses toward white", () => {
+    const [r, g, b] = starRGB(0, 0);
+    expect(r).toBe(255);
+    expect(g).toBe(255);
+    expect(b).toBe(255);
+  });
+
+  test("stays in gamut for any input", () => {
+    for (const u of [-1, 0, 0.3, 0.7, 1, 2]) {
+      for (const [r, g, b] of [starRGB(u, 1), starRGB(u, 0.4)]) {
+        for (const c of [r, g, b]) {
+          expect(c).toBeGreaterThanOrEqual(0);
+          expect(c).toBeLessThanOrEqual(255);
+        }
+      }
+    }
+  });
+});
+
+describe("hashString / bearingAngle", () => {
+  test("hashString is deterministic and order-sensitive", () => {
+    expect(hashString("boards")).toBe(hashString("boards"));
+    expect(hashString("boards")).not.toBe(hashString("fields"));
+  });
+
+  test("bearingAngle is a stable radian value inside a full turn", () => {
+    const a = bearingAngle("overview");
+    expect(a).toBe(bearingAngle("overview"));
+    expect(a).toBeGreaterThanOrEqual(0);
+    expect(a).toBeLessThan(Math.PI * 2);
+  });
+});
+
+describe("makeField", () => {
+  const rng = () => 0.5;
+
+  test("produces stars, galaxies and a band angle", () => {
+    const f = makeField(1600, 900, rng);
+    expect(f.stars.length).toBeGreaterThan(0);
+    expect(f.galaxies.length).toBeGreaterThanOrEqual(2);
+    expect(f.bandAngle).toBeGreaterThanOrEqual(0);
+    expect(f.bandAngle).toBeLessThanOrEqual(Math.PI);
+  });
+
+  test("every star carries a colour triplet and a depth in [0,1]", () => {
+    const f = makeField(1200, 800, rng);
+    for (const s of f.stars) {
+      expect(s.col).toMatch(/^\d+, \d+, \d+$/);
+      expect(s.depth).toBeGreaterThanOrEqual(0);
+      expect(s.depth).toBeLessThanOrEqual(1);
+    }
+  });
+
+  test("is reproducible from the same seed", () => {
+    const a = makeField(1000, 1000, () => 0.42);
+    const b = makeField(1000, 1000, () => 0.42);
+    expect(a.stars[0]).toEqual(b.stars[0]);
+    expect(a.bandAngle).toBe(b.bandAngle);
   });
 });
 

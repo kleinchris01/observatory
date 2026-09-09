@@ -248,7 +248,7 @@ export function AdminApp() {
 
   return (
     <div className="admin-shell">
-      <Starfield active={theme === "dark"} />
+      <Starfield active={theme === "dark"} bearing={activeTab} />
       <div className="admin-layout">
         <aside className="admin-sidebar">
           <div className="admin-sidebar__brand">
