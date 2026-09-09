@@ -205,7 +205,7 @@ const mocks = vi.hoisted(() => ({
   isEstateBuildStale: vi.fn(() => false),
 
   // board store + board-engine.js
-  readBoardSnapshotMeta: vi.fn(),
+  readBoardSnapshotMeta: vi.fn(async () => null),
   loadBoards: vi.fn(async () => []),
   loadBoardColumns: vi.fn(async () => []),
   queueBoardSnapshotBuild: vi.fn(),
@@ -5970,6 +5970,35 @@ describe("getBoardInventory", () => {
       totalColumns: 3,
     });
     expect(result.summary.byType).toEqual({ scrum: 1, kanban: 1, simple: 1 });
+  });
+
+  test("joins against the filter and status snapshots and flags a deleted backing filter", async () => {
+    mocks.readBoardSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1", refreshedAt: "x" });
+    mocks.loadBoards.mockResolvedValue([
+      { boardId: "1", name: "Scrum", type: "scrum", locationType: "project", locationKey: "AAA", filterId: "GONE", configReadable: true, columnCount: 1 },
+    ]);
+    mocks.loadBoardColumns.mockResolvedValue([{ boardId: "1", index: 0, name: "To Do", statusIds: ["1", "deleted"] }]);
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "fv1" });
+    mocks.loadFilters.mockResolvedValue([{ id: "4001", ownerActive: true }]); // no filter GONE
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "wv1" });
+    mocks.loadStatusesCatalog.mockResolvedValue([{ id: "1", name: "To Do" }]); // no status "deleted"
+
+    const result = await getBoardInventory(ctx);
+
+    expect(result.insights).toMatchObject({ missingFilter: 1, staleColumnBoards: 1, joinedFilters: true, joinedStatuses: true });
+    expect(result.summary.brokenFilter).toBe(1);
+    expect(result.summary.staleColumnBoards).toBe(1);
+  });
+
+  test("reports the joins as not-run when the other snapshots are absent", async () => {
+    mocks.readBoardSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1", refreshedAt: "x" });
+    mocks.loadBoards.mockResolvedValue([{ boardId: "1", name: "B", type: "scrum", locationType: "project", filterId: "4001", configReadable: true, columnCount: 0 }]);
+    mocks.loadBoardColumns.mockResolvedValue([]);
+    mocks.readFilterSnapshotMeta.mockResolvedValue(null);
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue(null);
+
+    const result = await getBoardInventory(ctx);
+    expect(result.insights).toMatchObject({ joinedFilters: false, joinedStatuses: false, missingFilter: 0 });
   });
 });
 

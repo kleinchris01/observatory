@@ -628,6 +628,47 @@ function ProjectRoleRow({ role }) {
   );
 }
 
+// The agile boards that live in this project. A board on no backing filter, or one whose
+// config could not be read, is flagged -- those are the fragile ones.
+export function ProjectBoardsPanel({ boards }) {
+  if (!boards?.available) {
+    return (
+      <Panel title="Boards" icon="activity">
+        <EmptyState inline>{boards?.reason || "No board inventory has been built yet."}</EmptyState>
+      </Panel>
+    );
+  }
+  const list = boards.boards || [];
+  return (
+    <Panel
+      title="Boards"
+      icon="activity"
+      description={list.length
+        ? `${formatNumber(list.length)} agile board${list.length === 1 ? "" : "s"} in this project.`
+        : "No agile board is scoped to this project."}
+    >
+      {list.length === 0 ? (
+        <EmptyState inline>No agile board is scoped to this project.</EmptyState>
+      ) : (
+        <ul className="project-schemes">
+          {list.map((b) => (
+            <li key={b.boardId} className="project-schemes__item">
+              <span className="project-schemes__label">{b.name}</span>
+              <span className="project-schemes__name">
+                {b.type && <Chip tone="neutral">{b.type}</Chip>}
+                {!b.configReadable && <Chip tone="warning" title="Configuration endpoint returned 404 — columns and backing filter unknown.">config unreadable</Chip>}
+                {b.configReadable && !b.filterId && <Chip tone="warning">no backing filter</Chip>}
+                {b.filterId && <Chip tone="neutral">filter {b.filterId}</Chip>}
+                {b.configReadable && <Chip tone="neutral">{formatNumber(b.columnCount)} {b.columnCount === 1 ? "column" : "columns"}</Chip>}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Panel>
+  );
+}
+
 export function ProjectRolesPanel({ roles }) {
   if (!roles?.available) {
     return (
@@ -855,6 +896,10 @@ export function ProjectOverview({ project, overview, loading, fields = [], siteO
 
       <GridSpan>
         <ProjectRolesPanel roles={overview.roles} />
+      </GridSpan>
+
+      <GridSpan>
+        <ProjectBoardsPanel boards={overview.boards} />
       </GridSpan>
 
       {onBuildFieldReport && (

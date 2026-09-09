@@ -176,6 +176,7 @@ import { queueAccessSnapshotBuild, isAccessBuildStale } from "./lib/access-engin
 import { queueDriftSnapshotBuild, isDriftBuildStale, DRIFT_PILLARS } from "./lib/drift-engine.js";
 import { queueEstateSnapshotBuild, isEstateBuildStale } from "./lib/estate-engine.js";
 import { queueBoardSnapshotBuild, isBoardBuildStale } from "./lib/board-engine.js";
+import { summarizeBoardInsights } from "./lib/board-insights.js";
 import { summarizeEstateInsights } from "./lib/estate-insights.js";
 import { summarizeIssueTypeInsights } from "./lib/issuetype-insights.js";
 import { summarizeAssetInsights } from "./lib/asset-insights.js";
@@ -2136,10 +2137,21 @@ async function getBoardInventory({ context }) {
     };
   }
 
-  const [boards, columns] = await Promise.all([
+  const [boards, columns, filterMeta, workflowMeta] = await Promise.all([
     loadBoards(installationKey, meta.version),
     loadBoardColumns(installationKey, meta.version),
+    readFilterSnapshotMeta(installationKey).catch(() => null),
+    readWorkflowSnapshotMeta(installationKey).catch(() => null),
   ]);
+
+  // The two cross-pillar joins. Each is best-effort: a missing snapshot means that check did
+  // not run, which summarizeBoardInsights reports as joinedFilters / joinedStatuses rather
+  // than as a clean bill of health.
+  const [filters, statusCatalog] = await Promise.all([
+    filterMeta?.version ? loadFilters(installationKey, filterMeta.version).catch(() => null) : Promise.resolve(null),
+    workflowMeta?.version ? loadStatusesCatalog(installationKey, workflowMeta.version).catch(() => null) : Promise.resolve(null),
+  ]);
+  const knownStatusIds = statusCatalog ? new Set(statusCatalog.map((s) => String(s.id ?? s.statusId))) : null;
 
   const columnsByBoard = new Map();
   for (const col of columns) {
@@ -2152,8 +2164,6 @@ async function getBoardInventory({ context }) {
     return {
       ...board,
       columns: cols,
-      // A column with no statuses mapped is a column issues can never land in -- the first
-      // cross-pillar finding this pillar will grow, surfaced here already so the tab can show it.
       unmappedColumns: cols.filter((c) => c.statusIds.length === 0).length,
     };
   });
@@ -2164,6 +2174,8 @@ async function getBoardInventory({ context }) {
     byType[key] = (byType[key] || 0) + 1;
   }
 
+  const insights = summarizeBoardInsights({ boards: rows, filters, knownStatusIds });
+
   return {
     state: meta.state || "ready",
     staleBuild,
@@ -2171,15 +2183,19 @@ async function getBoardInventory({ context }) {
     neverBuilt: false,
     lastError: meta.lastError || null,
     boards: rows,
+    insights,
     summary: {
       total: rows.length,
       byType,
       personal: rows.filter((board) => board.locationType === "user").length,
       // Boards whose /configuration endpoint 404'd -- their column and filter facts are unknown.
       unreadable: Number(meta.boardsUnreadable) || 0,
-      // Config was readable but named no backing filter: a team-managed board, or one whose
-      // filter was deleted out from under it.
+      // Config was readable but named no backing filter.
       missingFilter: rows.filter((board) => board.configReadable && !board.filterId).length,
+      // Config named a filter id that is not in the filter snapshot -- deleted out from under it.
+      brokenFilter: insights.missingFilter,
+      inactiveFilterOwner: insights.inactiveFilterOwner,
+      staleColumnBoards: insights.staleColumnBoards,
       totalColumns: columns.length,
     },
   };
@@ -7148,13 +7164,23 @@ async function getProjectOverview({ payload, context }) {
     return { available: false, reason: "You do not have Browse Projects on this project." };
   }
 
-  const [fieldMeta, workflowMeta, screenMeta, filterMeta, accessMeta] = await Promise.all([
+  const [fieldMeta, workflowMeta, screenMeta, filterMeta, accessMeta, boardMeta] = await Promise.all([
     readSnapshotMeta(installationKey),
     readWorkflowSnapshotMeta(installationKey).catch(() => null),
     readScreenSnapshotMeta(installationKey).catch(() => null),
     readFilterSnapshotMeta(installationKey).catch(() => null),
     readAccessSnapshotMeta(installationKey).catch(() => null),
+    readBoardSnapshotMeta(installationKey).catch(() => null),
   ]);
+
+  // The agile boards whose location is this project. loadBoards returns the whole estate for
+  // a version -- a few hundred rows -- so filtering in memory is cheaper than a scoped query.
+  const projectBoards = boardMeta?.version
+    ? (await loadBoards(installationKey, boardMeta.version).catch(() => []))
+        .filter((b) => b.locationType === "project" &&
+          (String(b.locationId) === String(projectId) ||
+           (projectKeyHint && String(b.locationKey || "").toLowerCase() === projectKeyHint.toLowerCase())))
+    : [];
 
   // The project's own row, plus every browsable project's activity -- needed both for this
   // project's fills-per-issue and for the site median it is judged against, and for the
@@ -7280,6 +7306,21 @@ async function getProjectOverview({ payload, context }) {
         }, {})),
       }
       : { available: false, reason: "No access scheme inventory has been built yet." },
+    // The agile boards that live in this project, with their backing filter and column state.
+    // Tri-state like the rest: no board snapshot is not "no boards".
+    boards: boardMeta?.version
+      ? {
+        available: true,
+        boards: projectBoards.map((b) => ({
+          boardId: b.boardId,
+          name: b.name,
+          type: b.type,
+          filterId: b.filterId,
+          columnCount: b.columnCount,
+          configReadable: b.configReadable,
+        })),
+      }
+      : { available: false, reason: "No board inventory has been built yet." },
     // One rolled-up read of the project's overall health, from the pillar signals above.
     health: buildProjectHealthRollup({
       perIssue,

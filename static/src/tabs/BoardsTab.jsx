@@ -3,7 +3,7 @@ import { invoke } from "@forge/bridge";
 import { formatNumber, formatRelativeTime } from "../utils";
 import { Icon } from "../components/Icons";
 import {
-  StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, SortFilterBar,
+  StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, SortFilterBar, FindingRow,
 } from "../components/ui";
 import { SubNavLayout } from "../components/admin/primitives";
 import { useNavIntent, useVisiblePolling } from "../hooks";
@@ -203,6 +203,25 @@ export function BoardsTab({ intent }) {
       </StatRow>
 
       <SubNavLayout items={items} activeKey={view} onSelect={setView}>
+        {view === "overview" && (
+          <Panel title="What needs attention" icon="alertTriangle" description="Boards break silently — a deleted backing filter shows every issue in the site, an unmapped column drops issues off the wall.">
+            {(() => {
+              const g = data?.insights || {};
+              const rows = [];
+              if (g.missingFilter > 0) rows.push({ tone: "critical", count: g.missingFilter, title: "Backing filter deleted", detail: "The board's saved filter no longer exists, so it falls back to every issue in the site." });
+              if (g.noFilter > 0) rows.push({ tone: "warning", count: g.noFilter, title: "No backing filter", detail: "Config was readable but named no saved filter." });
+              if (g.inactiveFilterOwner > 0) rows.push({ tone: "warning", count: g.inactiveFilterOwner, title: "Backing filter owned by an inactive user", detail: "One departure from breaking — Jira deletes a filter with its owner." });
+              if (g.staleColumnBoards > 0) rows.push({ tone: "warning", count: g.staleColumnBoards, title: "Column maps a status that no longer exists", detail: "Issues in that status vanish from the board with no error anywhere." });
+              if (g.unmappedColumnBoards > 0) rows.push({ tone: "info", count: g.unmappedColumnBoards, title: "Column with no status mapped", detail: "A column issues can never land in." });
+              if (g.joinedFilters === false) rows.push({ tone: "info", title: "Backing-filter checks did not run", detail: "Build the Saved Filters inventory to check for deleted filters and inactive owners." });
+              if (g.joinedStatuses === false) rows.push({ tone: "info", title: "Column-status checks did not run", detail: "Build the Workflow inventory to check for columns mapping deleted statuses." });
+              return rows.length === 0
+                ? <EmptyState inline>Nothing flagged. Every board has a live backing filter and every column maps a status.</EmptyState>
+                : rows.map((r) => <FindingRow key={r.title} tone={r.tone} title={r.title} detail={r.detail} count={r.count} />);
+            })()}
+          </Panel>
+        )}
+
         {view === "overview" && (
           <Panel title="By type" icon="barChart" description="Scrum, kanban and team-managed (simple) boards on this site.">
             {summary.total === 0 ? (
