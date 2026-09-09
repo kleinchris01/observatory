@@ -1501,6 +1501,64 @@ export const CREATE_ESTATE_SNAPSHOT_META_TABLE = `
   )
 `;
 
+// ── Agile boards ────────────────────────────────────────────────────────────
+//
+// One row per board plus one row per column. Versioned and fully replaced per scope, like
+// the estate lists: a site has a few hundred boards at most and the build finishes in one
+// invocation, so nothing appends to a partial version. `config_readable` records that a
+// team-managed board's configuration endpoint 404'd -- the board is still listed, its column
+// and backing-filter facts are just unknown rather than absent.
+export const CREATE_SNAPSHOT_BOARDS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_boards (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    board_id VARCHAR(64) NOT NULL,
+    name VARCHAR(255) NULL,
+    type VARCHAR(24) NULL,
+    location_type VARCHAR(24) NULL,
+    location_id VARCHAR(64) NULL,
+    location_key VARCHAR(64) NULL,
+    location_name VARCHAR(255) NULL,
+    filter_id VARCHAR(64) NULL,
+    sub_query TEXT NULL,
+    estimation_field VARCHAR(255) NULL,
+    ranking_field VARCHAR(64) NULL,
+    column_count INTEGER NOT NULL DEFAULT 0,
+    config_readable TINYINT NOT NULL DEFAULT 1,
+    PRIMARY KEY (scope_key, version, board_id)
+  )
+`;
+
+export const CREATE_SNAPSHOT_BOARD_COLUMNS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_board_columns (
+    scope_key VARCHAR(191) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    board_id VARCHAR(64) NOT NULL,
+    column_index INTEGER NOT NULL,
+    name VARCHAR(255) NULL,
+    status_ids TEXT NULL,
+    min_constraint INTEGER NULL,
+    max_constraint INTEGER NULL,
+    PRIMARY KEY (scope_key, version, board_id, column_index)
+  )
+`;
+
+export const CREATE_BOARD_SNAPSHOT_META_TABLE = `
+  CREATE TABLE IF NOT EXISTS board_snapshot_meta (
+    scope_key VARCHAR(191) NOT NULL,
+    state VARCHAR(32) NOT NULL DEFAULT 'idle',
+    version VARCHAR(64) NULL,
+    started_at VARCHAR(64) NULL,
+    completed_at VARCHAR(64) NULL,
+    refreshed_at VARCHAR(64) NULL,
+    total_boards INTEGER NOT NULL DEFAULT 0,
+    total_columns INTEGER NOT NULL DEFAULT 0,
+    boards_unreadable INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT NULL,
+    PRIMARY KEY (scope_key)
+  )
+`;
+
 // Append-only record of privileged actions: who did what, when, and whether it was
 // allowed. Deliberately not versioned by snapshot and deliberately NOT wiped by
 // clearAllSnapshotData -- an audit trail that a privileged action can erase is not an
@@ -1762,7 +1820,12 @@ const projectStoreMigrations = migrationRunner
   .enqueue(
     "v145_alter_access_snapshot_meta_add_project_roles",
     "ALTER TABLE access_snapshot_meta ADD COLUMN IF NOT EXISTS total_project_roles INTEGER NOT NULL DEFAULT 0"
-  );
+  )
+
+  // ── v146-v148: agile boards — one row per board and per column, plus the build meta ──
+  .enqueue("v146_create_snapshot_boards_table", CREATE_SNAPSHOT_BOARDS_TABLE)
+  .enqueue("v147_create_snapshot_board_columns_table", CREATE_SNAPSHOT_BOARD_COLUMNS_TABLE)
+  .enqueue("v148_create_board_snapshot_meta_table", CREATE_BOARD_SNAPSHOT_META_TABLE);
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history

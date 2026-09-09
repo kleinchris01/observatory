@@ -91,6 +91,8 @@ import {
   getAllJiraProjectKeys,
   getFilterPage,
   getDashboardPage,
+  getBoardPage,
+  getBoardConfiguration,
   getGadgetFilterId,
   extractFilterId,
   BASE_JIRA_REQUEST_INTERVAL_MS,
@@ -824,6 +826,23 @@ describe("getDashboardPage", () => {
     for (const field of ["description", "owner", "favouritedCount", "sharePermissions", "editPermissions"]) {
       expect(url).toContain(field);
     }
+  });
+});
+
+describe("agile boards", () => {
+  test("getBoardPage hits /rest/agile/1.0/board with paging params", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: { values: [], isLast: true } }));
+    await getBoardPage(50, 50);
+    const url = decodeURIComponent(mockRequestJira.mock.calls[0][0]);
+    expect(url).toContain("/rest/agile/1.0/board");
+    expect(url).toContain("startAt=50");
+    expect(url).toContain("maxResults=50");
+  });
+
+  test("getBoardConfiguration hits the per-board configuration endpoint", async () => {
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: { id: 7, columnConfig: { columns: [] } } }));
+    await getBoardConfiguration(7);
+    expect(mockRequestJira.mock.calls[0][0]).toContain("/rest/agile/1.0/board/7/configuration");
   });
 });
 
