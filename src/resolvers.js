@@ -2733,6 +2733,10 @@ async function getDashboardInventory({ context }) {
       // How much of the estate the gadget walk actually reached. Without this the tab would
       // present a partial pass as a complete one.
       gadgetsWalked: meta.gadgetsWalked,
+      // Enumeration pages Jira's dashboard/search returned a permanent 400 on and the build
+      // stepped over rather than failing on. Non-zero means the inventory is missing up to
+      // ~50 dashboards per page skipped -- same "say what we couldn't read" reason as above.
+      pagesUnreadable: meta.pagesUnreadable || 0,
       // Whether the filter -> field join could run at all, separate from whether any one
       // dashboard's fieldRefs came back empty.
       fieldRefsAvailable,
