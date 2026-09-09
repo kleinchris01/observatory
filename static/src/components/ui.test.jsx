@@ -381,7 +381,7 @@ describe("AskRovo", () => {
     const button = screen.getByRole("button", { name: /ask rovo/i });
     expect(button).toHaveTextContent("Ask Rovo about this scheme");
     const tip = button.getAttribute("title");
-    expect(tip).toContain("Workflow & Status Expert");
+    expect(tip).toContain("Workflow Expert");
     expect(tip).toContain("its status list and findings");
     expect(tip).toContain("never changes Jira");
   });
