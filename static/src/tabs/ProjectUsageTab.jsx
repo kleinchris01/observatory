@@ -86,8 +86,10 @@ export function ProjectUsageTab({ siteOrigin, intent = null, onBuildFieldReport 
     return () => { cancelled = true; };
   }, [selectedProjectId, selectedProjectKey]);
 
+  // "" collapses the open card. The browse list is always visible now, so selecting nothing
+  // is a real state rather than the old "nothing in the right pane".
   function handleSelectProject(projectId) {
-    setSelectedProjectId(projectId);
+    setSelectedProjectId(projectId || "");
     setPage(1);
   }
 

@@ -15,9 +15,9 @@ import {
 } from "../utils";
 import { invoke } from "@forge/bridge";
 import { Icon, useChartPalette } from "./Icons";
-import { SkeletonProjectItem, FindingsStrip, MetricChip } from "./FieldCard";
+import { SkeletonFieldCard, FindingsStrip, MetricChip } from "./FieldCard";
 import { SubNavLayout } from "./admin/primitives";
-import { Panel, StatRow, StatTile, BarList, PanelGrid, GridSpan, EmptyState, Chip, PageHeader, AskRovo } from "./ui";
+import { Panel, StatRow, StatTile, BarList, PanelGrid, GridSpan, EmptyState, Chip, PageHeader, AskRovo, SortFilterBar } from "./ui";
 import { buildRovoPrompt } from "../utils";
 
 function ChartTooltip({ active, payload }) {
@@ -851,14 +851,21 @@ function measuredVolume(project, hasUniqueCounts) {
 
 const STALE_MS = 180 * 24 * 60 * 60 * 1000;
 
+// The "configured well past the site norm" threshold, and the median it is derived from.
+//
+// max(10, median * 2) -- the same floor the score judges against, and guarded the same way:
+// on a site whose median project carries one field, "twice the median" is noise. Shared so
+// buildProjectFilters and the card's own finding badge agree on what "over-configured" means.
+export function overConfiguredFloor(projects = []) {
+  const counts = projects.map((p) => p.fieldCount ?? 0).sort((a, b) => a - b);
+  const median = counts.length ? counts[Math.min(counts.length - 1, Math.floor(counts.length * 0.5))] : 0;
+  return { median, floor: Math.max(10, median * 2) };
+}
+
 export function buildProjectFilters(projects = []) {
   const hasUniqueCounts = projects.some((p) => p.uniqueIssueCount != null);
 
-  // max(10, median * 2) -- the same floor the score judges against, and guarded the same
-  // way: on a site whose median project carries one field, "twice the median" is noise.
-  const counts = projects.map((p) => p.fieldCount ?? 0).sort((a, b) => a - b);
-  const median = counts.length ? counts[Math.min(counts.length - 1, Math.floor(counts.length * 0.5))] : 0;
-  const floor = Math.max(10, median * 2);
+  const { median, floor } = overConfiguredFloor(projects);
   const now = Date.now();
 
   // Whether the input a filter needs was ever collected.
@@ -925,6 +932,291 @@ export function projectFilterCount(option, projects) {
   return projects.filter(option.match).length;
 }
 
+const PROJECT_LIST_PAGE_SIZE = 25;
+
+const PROJECT_SORT_OPTIONS = [
+  { value: "adoption-desc", label: "Adoption: highest" },
+  { value: "adoption-asc", label: "Adoption: lowest" },
+  { value: "issues-desc", label: "Most issues" },
+  { value: "fields-desc", label: "Most fields in use" },
+  { value: "activity-desc", label: "Recently active" },
+  { value: "activity-asc", label: "Quietest" },
+  { value: "name-asc", label: "Key A–Z" },
+];
+
+const numOr = (v, fallback) => (Number.isFinite(Number(v)) ? Number(v) : fallback);
+const tsOr = (v, fallback) => {
+  const t = Date.parse(v || "");
+  return Number.isFinite(t) ? t : fallback;
+};
+
+export function sortProjectList(list, sortBy) {
+  const rows = [...list];
+  switch (sortBy) {
+    case "adoption-asc":
+      return rows.sort((a, b) => numOr(a.adoption?.score, Infinity) - numOr(b.adoption?.score, Infinity));
+    case "issues-desc":
+      return rows.sort((a, b) => numOr(b.uniqueIssueCount ?? b.totalIssueCount, -1) - numOr(a.uniqueIssueCount ?? a.totalIssueCount, -1));
+    case "fields-desc":
+      return rows.sort((a, b) => numOr(b.fieldCount, -1) - numOr(a.fieldCount, -1));
+    case "activity-desc":
+      return rows.sort((a, b) => tsOr(b.latestIssueUpdatedAt, -Infinity) - tsOr(a.latestIssueUpdatedAt, -Infinity));
+    case "activity-asc":
+      return rows.sort((a, b) => tsOr(a.latestIssueUpdatedAt, Infinity) - tsOr(b.latestIssueUpdatedAt, Infinity));
+    case "name-asc":
+      return rows.sort((a, b) => String(a.projectKey).localeCompare(String(b.projectKey)));
+    case "adoption-desc":
+    default:
+      return rows.sort((a, b) => numOr(b.adoption?.score, -1) - numOr(a.adoption?.score, -1));
+  }
+}
+
+// Which of the rail's own finding filters a project trips. Computed once so the card can
+// flag with the shared FindingsStrip exactly the way a FieldCard does, rather than growing
+// a parallel badge vocabulary.
+export function projectCardFindings(project, floor) {
+  const at = Date.parse(project.latestIssueUpdatedAt || "");
+  const volume = project.uniqueIssueCount != null ? project.uniqueIssueCount : project.totalIssueCount;
+  return {
+    stale: (project.totalIssueCount ?? 0) > 0 && Number.isFinite(at) && Date.now() - at > STALE_MS,
+    overConfigured: (project.fieldCount ?? 0) >= floor,
+    noWork: (project.fieldCount ?? 0) > 0 && volume === 0,
+    fellOff: Boolean(project.adoption?.fellOff),
+  };
+}
+
+// One project as an expand-in-place card: a collapsed metric grid plus the shared
+// FindingsStrip, and on expand the full cross-pillar ProjectOverview and this project's
+// field list. The same shape as FieldCard so Fields and Projects read as one product; the
+// report checkbox FieldCard carries is absent, because a project is inspected, not reported on.
+export function ProjectCard({
+  project, floor, expanded, loading, onToggle,
+  overview, overviewLoading, siteOrigin,
+  selectedAdoption, adoptionContext, workflowScheme, peerProjects, onBuildFieldReport,
+  fields, availableTypes, totalFields, fieldPage, fieldTotalPages, fieldPageSize,
+  fieldQuery, onFieldQueryChange, fieldType, onFieldTypeChange, fieldSort, onFieldSortChange, onChangePage,
+}) {
+  const [view, setView] = React.useState("overview");
+
+  const issues = Number(project.uniqueIssueCount);
+  const fills = Number(project.totalIssueCount);
+  const hasIssues = Number.isFinite(issues) && issues > 0;
+  const perIssue = hasIssues && Number.isFinite(fills) ? (fills / issues).toFixed(1) : null;
+
+  const { stale, overConfigured, noWork, fellOff } = projectCardFindings(project, floor);
+  const findings = { tags: { risky: fellOff, cleanup: noWork || stale, standardize: overConfigured } };
+  const severityClass = fellOff
+    ? "field-card--has-danger"
+    : (overConfigured || noWork || stale) ? "field-card--has-warn" : "";
+
+  return (
+    <article className={`field-card field-card--project ${expanded ? "field-card--open" : ""} ${severityClass}`}>
+      <button
+        className={`field-card__header${expanded && overviewLoading ? " field-card__header--loading" : ""}`}
+        onClick={onToggle}
+        type="button"
+        aria-expanded={expanded}
+      >
+        <div className="field-card__title-wrap">
+          <div className="field-card__field-id">
+            <span className="copy-field-id__value">{project.projectKey}</span>
+          </div>
+          <h3>{project.projectName}</h3>
+          <p>
+            {hasIssues
+              ? `${formatNumber(issues)} issues · ${formatNumber(fills)} field values`
+              : `${formatNumber(Number.isFinite(fills) ? fills : 0)} field values — run a universe scan for issue counts`}
+          </p>
+          <FindingsStrip findings={findings} />
+        </div>
+        <div className="field-card__meta">
+          <MetricChip label="Issues" value={hasIssues ? formatNumber(issues) : "—"} />
+          <MetricChip label="Field values" value={formatNumber(Number.isFinite(fills) ? fills : 0)} tone="cool" />
+          <MetricChip label="Fields in use" value={formatNumber(project.fieldCount ?? 0)} tone="warm" />
+          <MetricChip label="Fields per issue" value={perIssue ?? "—"} />
+          <MetricChip
+            label="Adoption"
+            value={project.adoption?.score ?? "—"}
+            tone={fellOff ? "danger" : project.adoption ? "success" : "neutral"}
+          />
+          <MetricChip label="Issues per day" value={project.adoption ? formatRate(project.adoption.issuesPerDay) : "—"} />
+          <MetricChip label="Age" value={project.adoption ? formatAge(project.adoption.ageDays) : "—"} tone="cool" />
+          <MetricChip
+            label="Last activity"
+            value={project.latestIssueUpdatedAt ? formatRelativeTime(project.latestIssueUpdatedAt) : "—"}
+            tone={stale ? "warm" : "neutral"}
+          />
+          <MetricChip
+            label="Trend"
+            value={fellOff ? "Fell off" : project.adoption ? "Active" : "—"}
+            tone={fellOff ? "danger" : "neutral"}
+          />
+        </div>
+        <span className="field-card__toggle-icon" aria-hidden="true" />
+      </button>
+
+      {expanded && (
+        <div className="field-card__body">
+          <div className="section-heading">
+            <div>
+              <div className="snapshot-log-entries__heading">{project.projectKey} · {project.projectName}</div>
+            </div>
+            <div className="section-heading__actions">
+              <AskRovo
+                agent="observatory-project-expert"
+                scope={project.projectKey}
+                context="this project's key, its workflow scheme and how many projects share it, and its cached field-usage count"
+                buildPrompt={() =>
+                  buildRovoPrompt({
+                    task: `Explain project ${project.projectKey} (${project.projectName}): which schemes it resolves to, how it compares with its siblings, and anything worth reviewing.`,
+                    facts: [
+                      ["Project key", project.projectKey],
+                      ["Project id", project.projectId],
+                      ["Workflow scheme", workflowScheme?.name || "unknown"],
+                      ["Projects sharing that workflow scheme", workflowScheme?.sharedWithCount ?? null],
+                      ["Fields in use", project.fieldCount ?? null],
+                    ],
+                  })
+                }
+              />
+            </div>
+          </div>
+
+          <SubNavLayout
+            items={[
+              { key: "overview", label: "Overview", icon: "barChart" },
+              { key: "fields", label: "Fields", icon: "layers", badge: formatNumber(totalFields) },
+            ]}
+            activeKey={view}
+            onSelect={setView}
+          >
+            {view === "overview" ? (
+              <>
+                <ProjectOverview
+                  project={project}
+                  overview={overview}
+                  loading={overviewLoading}
+                  fields={fields}
+                  siteOrigin={siteOrigin}
+                  adoption={selectedAdoption}
+                  adoptionContext={adoptionContext}
+                  onBuildFieldReport={onBuildFieldReport}
+                />
+                <SchemePeerBars scheme={workflowScheme} project={project} allProjects={peerProjects} />
+              </>
+            ) : (
+              <>
+                <section className="report-filters">
+                  <label className="toolbar__field">
+                    <span>Field search</span>
+                    <input
+                      type="search"
+                      placeholder="Field name, id, or description"
+                      value={fieldQuery}
+                      onChange={(event) => onFieldQueryChange(event.target.value)}
+                    />
+                  </label>
+                  <label className="toolbar__field">
+                    <span>Field type</span>
+                    <select value={fieldType} onChange={(event) => onFieldTypeChange(event.target.value)}>
+                      <option value="all">All types</option>
+                      {availableTypes.map((typeOption) => (
+                        <option key={typeOption} value={typeOption}>{typeOption}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="toolbar__field">
+                    <span>Sort</span>
+                    <select value={fieldSort} onChange={(event) => onFieldSortChange(event.target.value)}>
+                      <option value="issues-desc">Most issues on project</option>
+                      <option value="issues-asc">Fewest issues on project</option>
+                      <option value="updated-desc">Most recently updated</option>
+                      <option value="updated-asc">Least recently updated</option>
+                      <option value="name-asc">Name A-Z</option>
+                      <option value="name-desc">Name Z-A</option>
+                    </select>
+                  </label>
+                </section>
+
+                <div className="project-usage-list projects-view__fields">
+                  {loading && !fields.length ? (
+                    Array.from({ length: 4 }, (_, i) => (
+                      <div key={i} className="skel-field-card" style={{ marginBottom: 8 }}>
+                        <div className="skel-field-card__title">
+                          <div className="skel" style={{ height: 10, width: "28%" }} />
+                          <div className="skel" style={{ height: 16, width: "65%" }} />
+                          <div className="skel" style={{ height: 11, width: "85%" }} />
+                        </div>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <div className="skel" style={{ flex: 1, height: 48 }} />
+                          <div className="skel" style={{ flex: 1, height: 48 }} />
+                          <div className="skel" style={{ flex: 1, height: 48 }} />
+                        </div>
+                        <div />
+                      </div>
+                    ))
+                  ) : fields.length ? fields.map((field) => {
+                    const href = buildJiraSearchUrl(siteOrigin, field.jql);
+                    return (
+                      <article className="project-usage-card" key={`${project.projectId}-${field.fieldId}`}>
+                        <div className="project-usage-card__head">
+                          <div>
+                            <div className="field-card__eyebrow">{field.fieldId}</div>
+                            <h4>{field.fieldName}</h4>
+                            <p>{field.description || "No admin description is set for this field."}</p>
+                          </div>
+                          <div className="project-usage-card__head-actions">
+                            <MetricChip label="Type" value={field.fieldType} tone="cool" />
+                            <MetricChip label="Issues on project" value={formatNumber(field.issueCount)} tone="success" />
+                            <MetricChip label="Active projects" value={formatNumber(field.activeProjectCount)} tone="cool" />
+                          </div>
+                        </div>
+                        <div className="project-usage-card__body">
+                          <div className="section-heading">
+                            <div className="section-heading__actions">
+                              <FindingsStrip findings={field.findings} />
+                            </div>
+                          </div>
+                          {href ? (
+                            <a className="smart-link-card" href={href} target="_blank" rel="noreferrer" onClick={(e) => handleJiraLinkClick(e, href)}>
+                              <span className="smart-link-card__title">Open Jira search for {formatNumber(field.issueCount)} issues</span>
+                              <code>{field.jql}</code>
+                            </a>
+                          ) : (
+                            <div className="empty-state empty-state--inline">No JQL link is available for this field/project pair.</div>
+                          )}
+                        </div>
+                      </article>
+                    );
+                  }) : (
+                    <div className="empty-state empty-state--inline">
+                      No fields matched the current project filters.
+                    </div>
+                  )}
+                </div>
+
+                <section className="pagination-bar">
+                  <span className="pagination-bar__status">
+                    {totalFields
+                      ? `Showing ${(fieldPage - 1) * fieldPageSize + 1}-${Math.min(fieldPage * fieldPageSize, totalFields)} of ${totalFields} fields on ${project.projectKey}`
+                      : `No field usage rows are cached for ${project.projectKey}`}
+                  </span>
+                  <div className="pagination-bar__actions">
+                    <button className="secondary-button" type="button" onClick={() => onChangePage(1)} disabled={fieldPage === 1 || !totalFields}>First</button>
+                    <button className="secondary-button" type="button" onClick={() => onChangePage(Math.max(1, fieldPage - 1))} disabled={fieldPage === 1 || !totalFields}>Previous</button>
+                    <button className="secondary-button" type="button" onClick={() => onChangePage(Math.min(fieldTotalPages, fieldPage + 1))} disabled={fieldPage === fieldTotalPages || !totalFields}>Next</button>
+                    <button className="secondary-button" type="button" onClick={() => onChangePage(fieldTotalPages)} disabled={fieldPage === fieldTotalPages || !totalFields}>Last</button>
+                  </div>
+                </section>
+              </>
+            )}
+          </SubNavLayout>
+        </div>
+      )}
+    </article>
+  );
+}
+
 export function ProjectsTabView({
   data,
   loading,
@@ -948,130 +1240,118 @@ export function ProjectsTabView({
   onProjectFilterChange,
   onBuildFieldReport,
 }) {
-  // Overview first: on a project you have never looked at, what runs it matters before
-  // which 170 fields it carries.
-  const [view, setView] = React.useState("overview");
   const allProjects = data?.projects || [];
-
   const projectFilters = React.useMemo(() => buildProjectFilters(allProjects), [allProjects]);
   const activeProjectFilter = projectFilters.find((f) => f.key === projectFilter) ?? projectFilters[0];
-  const projects = React.useMemo(
-    () => allProjects.filter(activeProjectFilter.match),
-    [allProjects, activeProjectFilter]
-  );
-  const selectedProject = data?.selectedProject || null;
-  const fields = data?.fields || [];
-  const availableTypes = data?.availableTypes || [];
-  const totalFields = Number(data?.totalFields || 0);
-  const page = Number(data?.page || 1);
-  const totalPages = Number(data?.totalPages || 1);
+  const { floor } = React.useMemo(() => overConfiguredFloor(allProjects), [allProjects]);
+
+  const [projectSort, setProjectSort] = React.useState("adoption-desc");
+  const [listPage, setListPage] = React.useState(1);
+
+  const term = (projectQuery || "").trim().toLowerCase();
+  const visible = React.useMemo(() => {
+    const matched = allProjects.filter(activeProjectFilter.match);
+    const searched = term
+      ? matched.filter((p) =>
+          String(p.projectKey).toLowerCase().includes(term) ||
+          String(p.projectName).toLowerCase().includes(term))
+      : matched;
+    return sortProjectList(searched, projectSort);
+  }, [allProjects, activeProjectFilter, term, projectSort]);
+
+  // The result set changed out from under the pager -- go back to page one rather than
+  // stranding the reader on a page that no longer exists.
+  React.useEffect(() => { setListPage(1); }, [term, projectFilter, projectSort, allProjects.length]);
+
+  const totalProjects = visible.length;
+  const totalListPages = Math.max(1, Math.ceil(totalProjects / PROJECT_LIST_PAGE_SIZE));
+  const pageNum = Math.min(listPage, totalListPages);
+  const pageStart = (pageNum - 1) * PROJECT_LIST_PAGE_SIZE;
+  const pageProjects = visible.slice(pageStart, pageStart + PROJECT_LIST_PAGE_SIZE);
+
   const refreshedAt = data?.refreshedAt || null;
-  const currentProjectIndex = Math.max(0, projects.findIndex((project) => project.projectId === selectedProjectId));
-  const previousProject = currentProjectIndex > 0 ? projects[currentProjectIndex - 1] : null;
-  const nextProject = currentProjectIndex >= 0 && currentProjectIndex < projects.length - 1 ? projects[currentProjectIndex + 1] : null;
+  const showFilterChips = Boolean(onProjectFilterChange) && allProjects.length > 0;
 
   return (
-    <section className="snapshot-log-view">
-      <div className="snapshot-log-layout projects-view">
-        <aside className="builds-panel projects-rail">
-          <div className="section-heading">
-            <div>
-              <div className="snapshot-log-entries__heading">Projects</div>
-              <div className="saved-reports-panel__subtitle">
-                Switch between projects and review every field with detected usage on that project.
-              </div>
-            </div>
-          </div>
-          <label className="toolbar__field">
-            <span>Project search</span>
-            <input
-              type="search"
-              placeholder="Project key or name"
-              value={projectQuery}
-              onChange={(event) => onProjectQueryChange(event.target.value)}
-              data-search-input="primary"
-            />
-          </label>
+    <div className="admin-field-browser projects-browser">
+      <PageHeader
+        title="Projects"
+        description="Every project with cached field usage, and the workflow, screen, automation, filter and access context that touches it. Click a project to expand it in place."
+        meta={refreshedAt ? `Usage refreshed ${formatTimestamp(refreshedAt)}` : undefined}
+      />
 
-          {/* The findings the Overview counts, as a way into the rail. Arriving from
-              "64 projects configured well past the site norm" used to drop the reader at
-              whichever project happened to sort first. */}
-          {onProjectFilterChange && allProjects.length > 0 && (
-            <div className="findings-filter-bar projects-rail__filters">
-              {projectFilters.map((option) => {
-                const count = projectFilterCount(option, allProjects);
-                const unmeasured = count === null;
-                return (
-                  <button
-                    key={option.key}
-                    type="button"
-                    // The reason it cannot be answered, not the description of what it would
-                    // have meant -- a reader hovering a dash wants to know what to build.
-                    title={unmeasured ? option.unmeasuredHint : option.hint}
-                    disabled={unmeasured}
-                    className={`findings-filter-button${projectFilter === option.key ? " findings-filter-button--active" : ""}${unmeasured ? " findings-filter-button--unmeasured" : ""}`}
-                    onClick={() => onProjectFilterChange(option.key)}
-                  >
-                    <span>{option.label}</span>
-                    <strong>{unmeasured ? "—" : formatNumber(count)}</strong>
-                  </button>
-                );
-              })}
-            </div>
-          )}
+      <div className="admin-field-browser__toolbar">
+        <SortFilterBar
+          search={projectQuery}
+          onSearchChange={onProjectQueryChange}
+          searchLabel="Search projects"
+          searchPlaceholder="Project key or name…"
+          sort={projectSort}
+          onSortChange={setProjectSort}
+          sortOptions={PROJECT_SORT_OPTIONS}
+          onClear={() => {
+            onProjectQueryChange("");
+            setProjectSort("adoption-desc");
+            onProjectFilterChange?.("all");
+          }}
+        />
+      </div>
 
-          <div className="projects-rail__list">
-            {loading && !projects.length ? (
-              Array.from({ length: 5 }, (_, i) => <SkeletonProjectItem key={i} />)
-            ) : projects.length ? projects.map((project) => {
-              const active = project.projectId === selectedProjectId;
-              return (
-                <button
-                  key={project.projectId}
-                  className={`projects-rail__item ${active ? "projects-rail__item--active" : ""}`}
-                  type="button"
-                  onClick={() => onSelectProject(project.projectId)}
-                >
-                  <div className="projects-rail__item-top">
-                    <strong>{project.projectKey}</strong>
-                    {/* Both, when both are known. The rail is where projects get compared,
-                        and issues alone hide that one project asks 50 fields per issue and
-                        its neighbour on the same scheme asks 8. */}
-                    <span>
-                      {project.uniqueIssueCount != null
-                        ? `${formatNumber(project.uniqueIssueCount)} issues · ${formatNumber(project.totalIssueCount)} fills`
-                        : `${formatNumber(project.totalIssueCount)} fills`}
-                    </span>
-                  </div>
-                  <div className="projects-rail__item-bottom">
-                    <span>{project.projectName}</span>
-                    <span>{formatNumber(project.fieldCount)} fields</span>
-                  </div>
-                  {/* The rate, not the total. A lifetime count says how long a project has
-                      existed at least as much as how used it is. */}
-                  {project.adoption && (
-                    <div className="projects-rail__item-adoption">
-                      <span className={`projects-rail__score${project.adoption.fellOff ? " projects-rail__score--fell" : ""}`}>
-                        {project.adoption.score}
-                      </span>
-                      <span>{formatRate(project.adoption.issuesPerDay)}/day</span>
-                      <span className="projects-rail__age">{formatAge(project.adoption.ageDays)}</span>
-                      {project.adoption.fellOff && <span className="projects-rail__fell">fell off</span>}
-                    </div>
-                  )}
-                </button>
-              );
-            }) : (
-              <div className="empty-state empty-state--inline">
-                {loading ? "Loading projects..." : projectFilter !== "all" && allProjects.length > 0 ? (
-                  <p style={{ margin: 0 }}>
-                    {activeProjectFilter.measurable
-                      ? `No project matches “${activeProjectFilter.label}”.`
-                      : activeProjectFilter.unmeasuredHint}
-                  </p>
-                ) : (
+      {showFilterChips && (
+        <div className="findings-filter-bar" style={{ marginTop: 4 }}>
+          {projectFilters.map((option) => {
+            const count = projectFilterCount(option, allProjects);
+            const unmeasured = count === null;
+            return (
+              <button
+                key={option.key}
+                type="button"
+                // The reason it cannot be answered, not what it would have meant -- a reader
+                // hovering a dash wants to know what to build.
+                title={unmeasured ? option.unmeasuredHint : option.hint}
+                disabled={unmeasured}
+                className={`findings-filter-button${projectFilter === option.key ? " findings-filter-button--active" : ""}${unmeasured ? " findings-filter-button--unmeasured" : ""}`}
+                onClick={() => onProjectFilterChange(option.key)}
+              >
+                <span>{option.label}</span>
+                <strong>{unmeasured ? "—" : formatNumber(count)}</strong>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="admin-field-browser__pagebar admin-field-browser__pagebar--top">
+        <span className="admin-pagination__info">
+          {totalProjects > 0
+            ? `Showing ${pageStart + 1}–${Math.min(pageStart + PROJECT_LIST_PAGE_SIZE, totalProjects)} of ${formatNumber(totalProjects)} projects`
+            : loading ? "Loading…" : "No projects match the current filter"}
+        </span>
+        <div className="admin-field-browser__page-nav">
+          <button disabled={pageNum <= 1} className="secondary-button secondary-button--small" type="button" onClick={() => setListPage(1)}>First</button>
+          <button disabled={pageNum <= 1} className="secondary-button secondary-button--small" type="button" onClick={() => setListPage((p) => Math.max(1, p - 1))}>Previous</button>
+          <button disabled={pageNum >= totalListPages} className="secondary-button secondary-button--small" type="button" onClick={() => setListPage((p) => Math.min(totalListPages, p + 1))}>Next</button>
+          <button disabled={pageNum >= totalListPages} className="secondary-button secondary-button--small" type="button" onClick={() => setListPage(totalListPages)}>Last</button>
+        </div>
+      </div>
+
+      {loading && !allProjects.length ? (
+        <div className="admin-field-list">
+          {Array.from({ length: 5 }, (_, i) => <SkeletonFieldCard key={i} />)}
+        </div>
+      ) : totalProjects === 0 ? (
+        <EmptyState>
+          {loading
+            ? "Loading projects…"
+            : projectFilter !== "all" && allProjects.length > 0
+              ? (activeProjectFilter.measurable
+                  ? `No project matches “${activeProjectFilter.label}”.`
+                  : activeProjectFilter.unmeasuredHint)
+              : term
+                ? `No project matches “${projectQuery}”.`
+                : (
                   <>
-                    <p style={{ margin: "0 0 8px" }}>No projects with cached field usage were found.</p>
+                    No projects with cached field usage were found.{" "}
                     {onRestoreProjectUsageCache ? (
                       <button
                         className="secondary-button secondary-button--small"
@@ -1079,233 +1359,50 @@ export function ProjectsTabView({
                         onClick={onRestoreProjectUsageCache}
                         disabled={projectUsageRestoring}
                       >
-                        {projectUsageRestoring ? "Restoring..." : "Restore from field summaries"}
+                        {projectUsageRestoring ? "Restoring…" : "Restore from field summaries"}
                       </button>
                     ) : null}
                   </>
                 )}
-              </div>
-            )}
-          </div>
-        </aside>
-
-        <div className="snapshot-log-entries">
-          <div className="section-heading">
-            <div>
-              <div className="snapshot-log-entries__heading">
-                {selectedProject ? `${selectedProject.projectKey} project usage` : "Project usage"}
-              </div>
-              <div className="saved-reports-panel__subtitle">
-                {selectedProject
-                  ? `${selectedProject.projectName} · refreshed ${formatTimestamp(refreshedAt)}`
-                  : "Select a project to inspect cached field usage."}
-              </div>
-            </div>
-            {selectedProject ? (
-              <div className="section-heading__actions">
-                <AskRovo
-                  agent="observatory-project-expert"
-                  scope={`${selectedProject.projectKey}`}
-                  context="this project's key, its workflow scheme and how many projects share it, and its cached field-usage count"
-                  buildPrompt={() =>
-                    buildRovoPrompt({
-                      task: `Explain project ${selectedProject.projectKey} (${selectedProject.projectName}): which schemes it resolves to, how it compares with its siblings, and anything worth reviewing.`,
-                      facts: [
-                        ["Project key", selectedProject.projectKey],
-                        ["Project id", selectedProject.projectId],
-                        ["Workflow scheme", data?.workflowScheme?.name || "unknown"],
-                        ["Projects sharing that workflow scheme", data?.workflowScheme?.sharedWithCount ?? null],
-                        ["Fields in use", Array.isArray(data?.fields) ? data.fields.length : null],
-                        ["Usage refreshed", refreshedAt || "unknown"],
-                      ],
-                    })
-                  }
-                />
-                <button
-                  className="secondary-button secondary-button--small"
-                  type="button"
-                  onClick={() => previousProject && onSelectProject(previousProject.projectId)}
-                  disabled={!previousProject}
-                >
-                  Previous project
-                </button>
-                <button
-                  className="secondary-button secondary-button--small"
-                  type="button"
-                  onClick={() => nextProject && onSelectProject(nextProject.projectId)}
-                  disabled={!nextProject}
-                >
-                  Next project
-                </button>
-              </div>
-            ) : null}
-          </div>
-
-          {selectedProject ? (
-            <>
-              {/*
-                One hero that states the three relationships, replacing five stat cards, a
-                workflow band and two charts. What went, and why:
-
-                * "Projects in snapshot" was a SITE figure among project figures. It now
-                  labels the rail, which is the thing it actually describes.
-                * "Top fields by issue count" plotted one visible bar on this site, because
-                  a field present on every issue and a field present on most of them differ
-                  by less than a pixel at this scale. It was chart-shaped, not informative.
-                * The donut became the inline type strip -- same information, a tenth of
-                  the space, and adjacent to the field count it qualifies.
-              */}
-              {/* Overview and Fields, as sub-navigation, matching every other tab. The old
-                  page was one column: connection map, peer bars, filters, then a field list
-                  that ran for screens -- so the cross-pillar context scrolled away the
-                  moment you started reading fields. */}
-              <SubNavLayout
-                items={[
-                  { key: "overview", label: "Overview", icon: "barChart" },
-                  { key: "fields", label: "Fields", icon: "layers", badge: formatNumber(totalFields) },
-                ]}
-                activeKey={view}
-                onSelect={setView}
-              >
-              {view === "overview" ? (
-                <>
-                  <ProjectOverview
-                    project={selectedProject}
-                    overview={overview}
-                    loading={overviewLoading}
-                    fields={fields}
-                    siteOrigin={siteOrigin}
-                    adoption={data?.selectedAdoption ?? null}
-                    adoptionContext={data?.adoptionContext ?? null}
-                    onBuildFieldReport={onBuildFieldReport}
-                  />
-                  <SchemePeerBars
-                    scheme={data?.workflowScheme}
-                    project={selectedProject}
-                    allProjects={projects}
-                  />
-                </>
-              ) : (
-                <>
-              <section className="report-filters">
-                <label className="toolbar__field">
-                  <span>Field search</span>
-                  <input
-                    type="search"
-                    placeholder="Field name, id, or description"
-                    value={fieldQuery}
-                    onChange={(event) => onFieldQueryChange(event.target.value)}
-                  />
-                </label>
-                <label className="toolbar__field">
-                  <span>Field type</span>
-                  <select value={fieldType} onChange={(event) => onFieldTypeChange(event.target.value)}>
-                    <option value="all">All types</option>
-                    {availableTypes.map((typeOption) => (
-                      <option key={typeOption} value={typeOption}>{typeOption}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="toolbar__field">
-                  <span>Sort</span>
-                  <select value={fieldSort} onChange={(event) => onFieldSortChange(event.target.value)}>
-                    <option value="issues-desc">Most issues on project</option>
-                    <option value="issues-asc">Fewest issues on project</option>
-                    <option value="updated-desc">Most recently updated</option>
-                    <option value="updated-asc">Least recently updated</option>
-                    <option value="name-asc">Name A-Z</option>
-                    <option value="name-desc">Name Z-A</option>
-                  </select>
-                </label>
-              </section>
-
-              <div className="project-usage-list projects-view__fields">
-                {loading && !fields.length ? (
-                  Array.from({ length: 4 }, (_, i) => (
-                    <div key={i} className="skel-field-card" style={{ marginBottom: 8 }}>
-                      <div className="skel-field-card__title">
-                        <div className="skel" style={{ height: 10, width: "28%" }} />
-                        <div className="skel" style={{ height: 16, width: "65%" }} />
-                        <div className="skel" style={{ height: 11, width: "85%" }} />
-                      </div>
-                      <div style={{ display: "flex", gap: 8 }}>
-                        <div className="skel" style={{ flex: 1, height: 48 }} />
-                        <div className="skel" style={{ flex: 1, height: 48 }} />
-                        <div className="skel" style={{ flex: 1, height: 48 }} />
-                      </div>
-                      <div />
-                    </div>
-                  ))
-                ) : fields.length ? fields.map((field) => {
-                  const href = buildJiraSearchUrl(siteOrigin, field.jql);
-                  return (
-                    <article className="project-usage-card" key={`${selectedProject.projectId}-${field.fieldId}`}>
-                      <div className="project-usage-card__head">
-                        <div>
-                          <div className="field-card__eyebrow">{field.fieldId}</div>
-                          <h4>{field.fieldName}</h4>
-                          <p>{field.description || "No admin description is set for this field."}</p>
-                        </div>
-                        <div className="project-usage-card__head-actions">
-                          <MetricChip label="Type" value={field.fieldType} tone="cool" />
-                          <MetricChip label="Issues on project" value={formatNumber(field.issueCount)} tone="success" />
-                          <MetricChip label="Active projects" value={formatNumber(field.activeProjectCount)} tone="cool" />
-                        </div>
-                      </div>
-                      <div className="project-usage-card__body">
-                        <div className="section-heading">
-                          <div className="section-heading__actions">
-                            <FindingsStrip findings={field.findings} />
-                          </div>
-                        </div>
-                        {href ? (
-                          <a className="smart-link-card" href={href} target="_blank" rel="noreferrer" onClick={(e) => handleJiraLinkClick(e, href)}>
-                            <span className="smart-link-card__title">Open Jira search for {formatNumber(field.issueCount)} issues</span>
-                            <code>{field.jql}</code>
-                          </a>
-                        ) : (
-                          <div className="empty-state empty-state--inline">No JQL link is available for this field/project pair.</div>
-                        )}
-                      </div>
-                    </article>
-                  );
-                }) : (
-                  <div className="empty-state empty-state--inline">
-                    No fields matched the current project filters.
-                  </div>
-                )}
-              </div>
-
-              <section className="pagination-bar">
-                <span className="pagination-bar__status">
-                  {totalFields
-                    ? `Showing ${(page - 1) * (data?.pageSize || 24) + 1}-${Math.min(page * (data?.pageSize || 24), totalFields)} of ${totalFields} fields on ${selectedProject.projectKey}`
-                    : `No field usage rows are cached for ${selectedProject.projectKey}`}
-                </span>
-                <div className="pagination-bar__actions">
-                  <button className="secondary-button" type="button" onClick={() => onChangePage(1)} disabled={page === 1 || !totalFields}>
-                    First
-                  </button>
-                  <button className="secondary-button" type="button" onClick={() => onChangePage(Math.max(1, page - 1))} disabled={page === 1 || !totalFields}>
-                    Previous
-                  </button>
-                  <button className="secondary-button" type="button" onClick={() => onChangePage(Math.min(totalPages, page + 1))} disabled={page === totalPages || !totalFields}>
-                    Next
-                  </button>
-                  <button className="secondary-button" type="button" onClick={() => onChangePage(totalPages)} disabled={page === totalPages || !totalFields}>
-                    Last
-                  </button>
-                </div>
-              </section>
-                </>
-              )}
-              </SubNavLayout>
-            </>
-          ) : (
-            <div className="empty-state">No cached projects are available yet. Build project usage for at least one field first.</div>
-          )}
+        </EmptyState>
+      ) : (
+        <div className="admin-field-list">
+          {pageProjects.map((project) => {
+            const isOpen = project.projectId === selectedProjectId;
+            return (
+              <ProjectCard
+                key={project.projectId}
+                project={project}
+                floor={floor}
+                expanded={isOpen}
+                loading={loading}
+                overviewLoading={overviewLoading}
+                onToggle={() => onSelectProject(isOpen ? "" : project.projectId)}
+                overview={isOpen ? overview : null}
+                siteOrigin={siteOrigin}
+                selectedAdoption={isOpen ? (data?.selectedAdoption ?? null) : null}
+                adoptionContext={data?.adoptionContext ?? null}
+                workflowScheme={isOpen ? data?.workflowScheme : null}
+                peerProjects={visible}
+                onBuildFieldReport={onBuildFieldReport}
+                fields={isOpen ? (data?.fields || []) : []}
+                availableTypes={data?.availableTypes || []}
+                totalFields={Number(data?.totalFields || 0)}
+                fieldPage={Number(data?.page || 1)}
+                fieldTotalPages={Number(data?.totalPages || 1)}
+                fieldPageSize={Number(data?.pageSize || 24)}
+                fieldQuery={fieldQuery}
+                onFieldQueryChange={onFieldQueryChange}
+                fieldType={fieldType}
+                onFieldTypeChange={onFieldTypeChange}
+                fieldSort={fieldSort}
+                onFieldSortChange={onFieldSortChange}
+                onChangePage={onChangePage}
+              />
+            );
+          })}
         </div>
-      </div>
-    </section>
+      )}
+    </div>
   );
 }
