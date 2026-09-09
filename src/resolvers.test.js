@@ -7942,6 +7942,34 @@ describe("rovo project agent", () => {
     const r = await rovoProjectInspect({ projectKey: "NOPE" }, ctx());
     expect(r.status).toBe("not-found");
   });
+
+  // The bug: a Rovo agent action arrives with no user principal, so getBrowsableProjectIds
+  // (which needs an accountId) returns an empty set and every project reads as un-browsable.
+  // With no caller to check against, the agent falls back to the app's own snapshot.
+  test("search: falls back to the snapshot when the context carries no account", async () => {
+    seedProjects();
+    mocks.getBrowsableProjectIds.mockResolvedValue(new Set()); // as it behaves with no accountId
+    const r = await rovoProjectSearch({ query: "alpha" }, { installContext: "ari:cloud:jira::site/x" });
+    expect(r.status).toBe("ok");
+    expect(r.projects.map((p) => p.projectKey)).toContain("ABC");
+  });
+
+  test("search: still filters by browse permission when the context DOES carry an account", async () => {
+    seedProjects();
+    mocks.getBrowsableProjectIds.mockResolvedValue(new Set(["11"])); // ABC not browsable for this user
+    const r = await rovoProjectSearch({ query: "alpha" }, ctxWithAccount("limited-user"));
+    expect(r.status).toBe("ok");
+    expect(r.projects.map((p) => p.projectKey)).not.toContain("ABC");
+  });
+
+  test("inspect: an agent action (no account) reads a project the browse check would have hidden", async () => {
+    seedProjects();
+    mocks.getBrowsableProjectIds.mockResolvedValue(new Set());
+    mocks.attachUniqueIssueCounts?.mockImplementation?.(async (_k, rows) => rows);
+    const r = await rovoProjectInspect({ projectId: "10", projectKey: "ABC" }, { installContext: "ari:cloud:jira::site/x" });
+    // getProjectOverview no longer short-circuits to not-authorised; it proceeds to build.
+    expect(r.status).not.toBe("not-authorised");
+  });
 });
 
 // ---------------------------------------------------------------------------

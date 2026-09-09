@@ -985,6 +985,31 @@ function macroPaginate(rows, page, pageSize = MACRO_PILLAR_PAGE_SIZE) {
   return { slice: rows.slice(start, start + pageSize), page: current, pageSize, totalPages };
 }
 
+// The account behind a call, wherever the runtime put it. A resolver invocation carries it
+// on context.accountId; a Rovo agent action's context nests it under principal, or -- for an
+// agent-identity invocation with no end user -- does not carry one at all.
+function callerAccountId(context) {
+  return (
+    context?.accountId ||
+    context?.principal?.accountId ||
+    context?.context?.accountId ||
+    context?.principal?.id ||
+    null
+  );
+}
+
+// Browse-permission filter that degrades to "trust the snapshot" when there is no caller to
+// check against. Observatory is an admin-only app and its snapshots only ever hold what the
+// app itself (asApp, broad read scopes) could see, so a Rovo agent action -- which reaches
+// here with no user principal -- gets the project set the app already has rather than an
+// empty one. Every resolver-driven caller still carries an accountId and stays filtered.
+async function browsableOrAll(context, projectIds) {
+  const ids = (projectIds || []).map(String);
+  const accountId = callerAccountId(context);
+  if (!accountId) return new Set(ids);
+  return getBrowsableProjectIds(accountId, ids);
+}
+
 // The viewer's browsable projects, with both id and key -- filters reference a project by
 // KEY (from JQL), dashboard shares and the workflow map by ID.
 async function viewerProjects(installationKey, context) {
@@ -992,7 +1017,7 @@ async function viewerProjects(installationKey, context) {
   if (!fieldMeta?.version) return { available: false, projectIds: new Set(), projectKeys: new Set(), projects: [] };
 
   const all = await listSnapshotProjects(installationKey, fieldMeta.version).catch(() => []);
-  const browsable = await getBrowsableProjectIds(context?.accountId, all.map((p) => p.projectId));
+  const browsable = await browsableOrAll(context, all.map((p) => p.projectId));
   const projects = all
     .filter((p) => browsable.has(String(p.projectId)))
     .map((p) => ({ projectId: String(p.projectId), projectKey: p.projectKey, projectName: p.projectName }));
@@ -7115,8 +7140,10 @@ async function getProjectOverview({ payload, context }) {
 
   // Permission first, and before any pillar is read. Every other project read in this file
   // filters by browsable project, and a cross-pillar view must not become the one place a
-  // caller can learn about a project they cannot see.
-  const browsable = await getBrowsableProjectIds(context?.accountId, [projectId]);
+  // caller can learn about a project they cannot see. browsableOrAll keeps that check for
+  // every resolver caller and only relaxes it for a Rovo agent action, which arrives with no
+  // user principal to check against (see its comment).
+  const browsable = await browsableOrAll(context, [projectId]);
   if (!browsable.has(String(projectId))) {
     return { available: false, reason: "You do not have Browse Projects on this project." };
   }
