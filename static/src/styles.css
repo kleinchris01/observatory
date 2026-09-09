@@ -6908,6 +6908,22 @@ a.dash-row__name:hover { text-decoration: underline; }
 .project-schemes__name { display: flex; align-items: center; gap: 6px; font-weight: 600; }
 .project-schemes__name--none { font-weight: 400; color: var(--muted); }
 
+/* Project roles: a compact per-role summary, actor chips only on request. On a real project
+   a role can hold hundreds of members, so the old flat chip dump ran off the screen. */
+.project-role-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.project-role-row { border-radius: 6px; padding: 4px 6px; }
+.project-role-row--empty { background: var(--ds-surface-sunken, rgba(255, 180, 84, 0.08)); }
+.project-role-row__head { display: flex; align-items: center; gap: 10px; font-size: 0.82rem; }
+.project-role-row__head .project-schemes__label { min-width: 16ch; }
+.project-role-row__toggle {
+  appearance: none; border: 0; background: none; padding: 0; margin: 0;
+  font: inherit; color: var(--muted); cursor: pointer;
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.project-role-row__toggle:hover { color: inherit; }
+.project-role-row__actors { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 0 4px 16px; }
+.project-role-row__more { font-size: 0.78rem; color: var(--muted); align-self: center; }
+
 @media (max-width: 700px) {
   .access-row__head { align-items: flex-start; flex-wrap: wrap; }
   .access-row__meta { justify-content: flex-start; max-width: 100%; }

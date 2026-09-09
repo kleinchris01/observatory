@@ -585,6 +585,49 @@ export function ProjectSchemesPanel({ schemes }) {
 // Who is in each project role here. A role with no actors is the finding: permission and
 // notification schemes grant to roles, so an empty Administrators role means only a site
 // admin can manage the project.
+// One role. Collapsed to a member count; the actor list -- which on a real project runs to
+// hundreds of chips -- opens only on request, and is capped even then. An empty role is the
+// finding this panel exists for, so it is flagged rather than hidden behind the toggle.
+const ROLE_ACTOR_CAP = 60;
+
+function ProjectRoleRow({ role }) {
+  const [open, setOpen] = React.useState(false);
+  const actors = role.actors || [];
+  const users = actors.filter((a) => a.type === "user");
+  const groups = actors.filter((a) => a.type !== "user");
+  const empty = actors.length === 0;
+  const shown = actors.slice(0, ROLE_ACTOR_CAP);
+  const hidden = actors.length - shown.length;
+
+  return (
+    <li className={`project-role-row${empty ? " project-role-row--empty" : ""}`}>
+      <div className="project-role-row__head">
+        <span className="project-schemes__label">{role.roleName}</span>
+        {empty ? (
+          <Chip tone="warning">empty — nobody in this role</Chip>
+        ) : (
+          <button type="button" className="project-role-row__toggle" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+            {users.length ? `${formatNumber(users.length)} ${users.length === 1 ? "user" : "users"}` : null}
+            {users.length && groups.length ? " · " : null}
+            {groups.length ? `${formatNumber(groups.length)} ${groups.length === 1 ? "group" : "groups"}` : null}
+            <Icon name={open ? "chevronUp" : "chevronDown"} size={12} aria-hidden="true" />
+          </button>
+        )}
+      </div>
+      {open && !empty && (
+        <div className="project-role-row__actors">
+          {shown.map((a) => (
+            <Chip key={`${a.type}-${a.value}`} tone={a.type === "user" ? "neutral" : "active"}>
+              {a.type === "user" ? "" : "group: "}{a.label || a.value}
+            </Chip>
+          ))}
+          {hidden > 0 && <span className="project-role-row__more">…and {formatNumber(hidden)} more</span>}
+        </div>
+      )}
+    </li>
+  );
+}
+
 export function ProjectRolesPanel({ roles }) {
   if (!roles?.available) {
     return (
@@ -594,28 +637,25 @@ export function ProjectRolesPanel({ roles }) {
     );
   }
   const byRole = roles.byRole || [];
+  // Empty roles first -- they are the administrability gap this panel is here to surface.
+  const ordered = [...byRole].sort((a, b) => (a.actors?.length ? 1 : 0) - (b.actors?.length ? 1 : 0));
+  const emptyCount = byRole.filter((r) => !r.actors?.length).length;
+
   return (
-    <Panel title="Project roles" icon="user" description="Who is in each role on this project. Schemes grant to roles, so an empty admin role is an administrability gap.">
+    <Panel
+      title="Project roles"
+      icon="user"
+      description={
+        byRole.length === 0
+          ? "Who is in each role on this project."
+          : `${formatNumber(byRole.length)} roles${emptyCount ? ` · ${formatNumber(emptyCount)} empty` : ""}. Schemes grant to roles, so an empty admin role is an administrability gap.`
+      }
+    >
       {byRole.length === 0 ? (
         <EmptyState inline>No project roles resolved for this project.</EmptyState>
       ) : (
-        <ul className="project-schemes">
-          {byRole.map((r) => (
-            <li key={r.roleId} className="project-schemes__item">
-              <span className="project-schemes__label">{r.roleName}</span>
-              {r.actors.length ? (
-                <span className="project-schemes__name">
-                  {r.actors.map((a) => (
-                    <Chip key={`${a.type}-${a.value}`} tone={a.type === "user" ? "warning" : "neutral"}>
-                      {a.type}: {a.label || a.value}
-                    </Chip>
-                  ))}
-                </span>
-              ) : (
-                <span className="project-schemes__name project-schemes__name--none">empty — nobody in this role</span>
-              )}
-            </li>
-          ))}
+        <ul className="project-role-list">
+          {ordered.map((r) => <ProjectRoleRow key={r.roleId} role={r} />)}
         </ul>
       )}
     </Panel>

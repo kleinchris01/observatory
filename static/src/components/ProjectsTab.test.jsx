@@ -487,7 +487,7 @@ describe("ProjectOverview", () => {
     expect(screen.getAllByText(/No access scheme inventory/i).length).toBeGreaterThan(0);
   });
 
-  it("lists this project's role actors, and flags a role with nobody in it", () => {
+  it("summarises each role, flags an empty one, and reveals actors on request", async () => {
     render(<ProjectOverview
       project={project}
       loading={false}
@@ -503,8 +503,12 @@ describe("ProjectOverview", () => {
     />);
 
     expect(screen.getByText("Administrators")).toBeInTheDocument();
-    expect(screen.getByText("group: site-admins")).toBeInTheDocument();
+    // Empty role is flagged without a click; it is the finding this panel exists for.
     expect(screen.getByText(/nobody in this role/i)).toBeInTheDocument();
+    // The actor list is behind a per-role toggle -- a real project holds hundreds.
+    expect(screen.queryByText("group: site-admins")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: /1 group/i }));
+    expect(screen.getByText("group: site-admins")).toBeInTheDocument();
   });
 });
 

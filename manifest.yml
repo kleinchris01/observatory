@@ -834,5 +834,13 @@ permissions:
     - read:cmdb-type:jira
     - read:servicedesk-request
     - read:servicemanagement-insight-objects
+    # The boards pillar. Agile boards live under /rest/agile/1.0, and their scopes are
+    # jira-software, not jira. Granular scopes are conjunctive:
+    #   GET /rest/agile/1.0/board                     -> read:board-scope:jira-software, read:project:jira
+    #   GET /rest/agile/1.0/board/{id}/configuration  -> read:board-scope.admin:jira-software, read:project:jira
+    # read:project:jira is already declared above. Both board scopes are read-only --
+    # Observatory reports a board's backing filter and column mapping, it never edits one.
+    - read:board-scope:jira-software
+    - read:board-scope.admin:jira-software
     - read:chat:rovo
     - storage:app
