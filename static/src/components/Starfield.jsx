@@ -21,12 +21,12 @@ import React from "react";
 //   - once every 20-40s a shooting star crosses -- one in twelve of those a small shower.
 // The whole field parallaxes a few pixels against the pointer.
 //
-// And #3: `bearing` names which part of the sky we are pointed at (the active tab). The tabs
-// sit on a line in nav order, so changing bearing is a single horizontal pan whose direction
-// is never in doubt -- a later tab is to the right. The incoming sky (seeded by that
-// bearing, the same every visit) decelerates in from one screen away while a reticle reads
-// RECALIBRATING; the outgoing one just drifts off and fades. Under prefers-reduced-motion it
-// is an instant swap with no reticle.
+// And #3: `bearing` names which part of the sky we are pointed at (the active tab). Changing
+// it is a pivot, not a slide -- the outgoing sky pulls back, dims and twists away about the
+// centre while the incoming one (seeded by that bearing, the same every visit) pushes in
+// from behind and untwists to rest, a reticle rotating with it and reading RECALIBRATING.
+// Nothing translates, so there is no direction to read as clunky. Nav order sets which way
+// the small twist goes. Under prefers-reduced-motion it is an instant swap with no reticle.
 
 const FRAME_MS = 1000 / 30;
 const STAR_COLOR = "226, 231, 242";      // the fallback warm white
@@ -282,9 +282,10 @@ export function meteorPose(m, now) {
   return { hx, hy, tx, ty, k: Math.max(0, Math.min(1, k)) };
 }
 
-const SLEW_MS = 1050;
-// Decelerate into place: fast off the mark, easing to a stop, which reads as "settling".
+const SLEW_MS = 900;
 const easeOut = (p) => 1 - Math.pow(1 - p, 3);
+const easeIn = (p) => p * p * p;
+const clamp01 = (v) => Math.max(0, Math.min(1, v));
 
 export function Starfield({ active = true, bearing = "default" }) {
   const canvasRef = React.useRef(null);
@@ -349,10 +350,12 @@ export function Starfield({ active = true, bearing = "default" }) {
     }
 
     function beginSlew(nextBearing, now) {
+      // Nav order still sets a direction, but it is the direction of a small twist, not a
+      // slide: a later tab settles clockwise, an earlier one counter-clockwise.
       const dir = Math.sign(bearingColumn(nextBearing) - bearingColumn(currentBearing)) || 1;
       slew = {
         startAt: now,
-        // Interruptible: a tab change mid-pan continues from whatever is on screen.
+        // Interruptible: a tab change mid-pivot continues from whatever is on screen.
         from: slew ? slew.to : field,
         to: fieldFor(nextBearing),
         dir,
@@ -365,9 +368,9 @@ export function Starfield({ active = true, bearing = "default" }) {
 
     // A galaxy: an inclined disk halo, spiral arm stars if it has them, and a bright core on
     // top. The core is what stops it reading as a grey smudge.
-    function drawGalaxy(g, panX, panY, gAlpha) {
+    function drawGalaxy(g, gAlpha) {
       ctx.save();
-      ctx.translate(g.x + panX + ox * 0.12, g.y + panY + oy * 0.12);
+      ctx.translate(g.x + ox * 0.12, g.y + oy * 0.12);
       ctx.rotate(g.rot);
       ctx.scale(1, 1 - g.incl * 0.72);
 
@@ -403,17 +406,28 @@ export function Starfield({ active = true, bearing = "default" }) {
       ctx.restore();
     }
 
-    // One field -- galaxies, band haze, stars -- drawn at a pan offset and global alpha.
-    // `effects` gates the twinkle-time-driven bits (flare, diffraction spikes); the slew
-    // turns them off so the two panning fields stay quiet.
-    function drawField(f, panX, panY, gAlpha, now, effects) {
+    // One field -- galaxies, band haze, stars. `xf` is an optional { scale, rot, alpha }
+    // applied about the viewport centre: the slew uses it to pull the outgoing sky back and
+    // twist it out, and push the incoming one in, so the transition reads as the telescope
+    // pivoting to a new target rather than a picture sliding sideways. `effects` gates the
+    // twinkle-time bits (flare, diffraction spikes), which the slew turns off.
+    function drawField(f, xf, now, effects) {
       if (!f) return;
+      const gAlpha = xf?.alpha ?? 1;
+      const xfActive = xf && ((xf.scale ?? 1) !== 1 || (xf.rot ?? 0) !== 0);
+      if (xfActive) {
+        ctx.save();
+        ctx.translate(width / 2, height / 2);
+        ctx.rotate(xf.rot ?? 0);
+        ctx.scale(xf.scale ?? 1, xf.scale ?? 1);
+        ctx.translate(-width / 2, -height / 2);
+      }
 
-      for (let i = 0; i < f.galaxies.length; i++) drawGalaxy(f.galaxies[i], panX, panY, gAlpha);
+      for (let i = 0; i < f.galaxies.length; i++) drawGalaxy(f.galaxies[i], gAlpha);
 
       // Milky Way haze: a soft band, brightest along its spine.
       ctx.save();
-      ctx.translate(width / 2 + panX + ox * 0.08, height / 2 + panY + oy * 0.08);
+      ctx.translate(width / 2 + ox * 0.08, height / 2 + oy * 0.08);
       ctx.rotate(f.bandAngle);
       const bandW = Math.hypot(width, height) * 1.3;
       const bandH = Math.min(width, height) * 0.55;
@@ -427,8 +441,8 @@ export function Starfield({ active = true, bearing = "default" }) {
 
       for (let i = 0; i < f.stars.length; i++) {
         const s = f.stars[i];
-        const sx = s.x + panX + ox * s.depth;
-        const sy = s.y + panY + oy * s.depth;
+        const sx = s.x + ox * s.depth;
+        const sy = s.y + oy * s.depth;
 
         const osc = effects && !reduced && (s.tw || s.spike) ? Math.sin(now * s.ts + s.tp) : 0;
         let alpha = s.a + (s.tw ? s.tw * osc : 0);
@@ -473,15 +487,23 @@ export function Starfield({ active = true, bearing = "default" }) {
         ctx.arc(sx, sy, radius, 0, Math.PI * 2);
         ctx.fill();
       }
+
+      if (xfActive) ctx.restore();
     }
 
-    // The recalibration overlay: a reticle and a label, fading in and out across the slew.
-    function drawReticle(p) {
+    // The recalibration overlay: a reticle and a label, fading in and out across the slew and
+    // rotating a few degrees with it so the whole transition reads as one pivot.
+    function drawReticle(p, dir = 1) {
       const vis = p < 0.3 ? p / 0.3 : p > 0.72 ? Math.max(0, (1 - p) / 0.28) : 1;
       if (vis <= 0) return;
       const cx = width / 2;
       const cy = height / 2;
       const R = Math.min(width, height) * 0.16;
+
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(dir * (p - 0.5) * 0.4);
+      ctx.translate(-cx, -cy);
 
       ctx.strokeStyle = `rgba(${FLARE_COLOR}, ${(0.45 * vis).toFixed(3)})`;
       ctx.lineWidth = 1;
@@ -510,6 +532,8 @@ export function Starfield({ active = true, bearing = "default" }) {
       ctx.font = "10px ui-monospace, SFMono-Regular, Menlo, monospace";
       ctx.textAlign = "center";
       ctx.fillText("RECALIBRATING", cx, cy + R + 22);
+
+      ctx.restore();
     }
 
     function draw(now, force) {
@@ -537,13 +561,28 @@ export function Starfield({ active = true, bearing = "default" }) {
 
       if (slew) {
         const p = Math.min(1, (now - slew.startAt) / SLEW_MS);
-        const e = easeOut(p);
-        // One screen width, horizontal. The incoming field carries the motion -- it enters
-        // from `dir * width` and decelerates to rest. The outgoing field only drifts a little
-        // the other way and has faded out by the halfway mark, so two fields never race.
-        drawField(slew.from, slew.dir * -width * 0.22 * e, 0, Math.max(0, 1 - p / 0.5), now, false);
-        drawField(slew.to, slew.dir * width * (1 - e), 0, Math.min(1, p / 0.4), now, false);
-        drawReticle(p);
+        // A pivot, not a slide. First half: the old sky pulls back, dims and twists away.
+        // Overlapping second half: the new sky pushes in from behind, untwisting to rest.
+        // Nothing translates, so there is no "which direction" to read as clunky.
+        const R = 0.10; // ~5.7 degrees of twist
+        const outP = clamp01(p / 0.55);
+        const inP = clamp01((p - 0.4) / 0.6);
+
+        if (outP < 1) {
+          drawField(slew.from, {
+            scale: 1 - 0.18 * easeIn(outP),
+            rot: -slew.dir * R * easeIn(outP),
+            alpha: clamp01(1 - 1.3 * outP),
+          }, now, false);
+        }
+        if (inP > 0) {
+          drawField(slew.to, {
+            scale: 0.82 + 0.18 * easeOut(inP),
+            rot: slew.dir * R * (1 - easeOut(inP)),
+            alpha: clamp01(1.3 * inP),
+          }, now, false);
+        }
+        drawReticle(p, slew.dir);
         if (p >= 1) {
           field = slew.to;
           slew = null;
@@ -576,7 +615,7 @@ export function Starfield({ active = true, bearing = "default" }) {
         }
       }
 
-      drawField(field, 0, 0, 1, now, true);
+      drawField(field, null, now, true);
 
       for (let m = 0; m < meteors.length; m++) {
         const mp = meteorPose(meteors[m], now);
