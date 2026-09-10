@@ -150,6 +150,14 @@ export const DEFAULT_HEALTH_TARGETS = {
   // Boards running on a live, owned backing filter. A board with a broken one shows every
   // issue in the site; weighted by the boards + dashboards that hang off those filters.
   boardBackingIntegrity: { target: 0.98, floor: 0.75, direction: "up", blast: "dependents" },
+  // Share of workflow schemes that govern more than one project -- there is nothing to
+  // standardise against on a site where every project has a bespoke scheme. >50% is the
+  // good state; 0% means no shared process at all.
+  schemeReuse: { target: 0.5, floor: 0, direction: "up", blast: "issues" },
+  // Share of issue-security levels that have at least one member and belong to a scheme
+  // with levels. An issue set to a level nobody is in is invisible -- near-total integrity
+  // is the only acceptable state.
+  securityLevelIntegrity: { target: 0.95, floor: 0.7, direction: "up", blast: "issues" },
 };
 
 // Same contract as resolveHealthTolerances: strict on type, ignore unknown keys, and fall
@@ -754,19 +762,27 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
   // Higher is better and it is measured directly rather than as a defect rate: a site
   // where every project has a bespoke scheme cannot standardise anything.
   if (workflow?.available && workflow.schemeCount > 0) {
-    const sharedRatio = (Number(workflow.sharedSchemes) || 0) / workflow.schemeCount;
-    dimensions.push({
+    const schemeCount = Number(workflow.schemeCount) || 0;
+    const shared = Number(workflow.sharedSchemes) || 0;
+    const sharedRatio = schemeCount > 0 ? shared / schemeCount : 0;
+    dimensions.push(targetDimension({
       key: "standardisation",
       label: "Process standardisation",
       pillar: "workflows",
-      available: true,
       weight: 1,
-      score: Math.round(Math.min(100, sharedRatio * 200)),
-      detail: `${workflow.sharedSchemes} of ${workflow.schemeCount} schemes govern more than one project.`,
+      value: sharedRatio,
+      ...TARGET.schemeReuse,
+      // Blast by issues under a bespoke (single-project) scheme, against every issue with a
+      // status. No per-scheme issue count here yet, so approximate with the single-project
+      // scheme share of the catalogue; a later pass swaps in the real issue tally.
+      affected: schemeCount - shared,
+      estate: schemeCount,
+      prior: prior("standardisation"),
+      detail: `${shared} of ${schemeCount} schemes govern more than one project.`,
       action: sharedRatio < 0.25
         ? "Most schemes are used by a single project, so there is little shared process to standardise against."
         : null,
-    });
+    }));
   } else {
     dimensions.push(unavailable("standardisation", "Process standardisation", "workflows", "No workflow inventory yet."));
   }
@@ -1349,18 +1365,22 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
   if (security?.available && security.totalSchemes > 0) {
     const broken = Number(security.brokenLevelCount) || 0;
     const denom = Math.max(1, Number(security.totalLevels) || 0);
-    dimensions.push({
+    const integrity = (denom - broken) / denom;
+    dimensions.push(targetDimension({
       key: "security-level-integrity",
       label: "Level integrity",
       pillar: "security",
-      available: true,
       weight: 1.5,
-      score: scoreFromRate(broken / denom, TOLERANCE.brokenSecurityLevels),
+      value: integrity,
+      ...TARGET.securityLevelIntegrity,
+      affected: broken,
+      estate: denom,
+      prior: prior("security-level-integrity"),
       detail: broken === 0
         ? `Every one of the ${denom} security levels has members and every scheme has a level.`
         : `${broken} security levels have no members, or belong to a scheme with no levels — an issue set to one is invisible to everyone but a site admin.`,
       action: broken > 0 ? "Add members or delete the level. An empty security level is a way to lose an issue in plain sight." : null,
-    });
+    }));
     const unused = Number(security.unusedSchemeCount) || 0;
     dimensions.push({
       key: "security-scheme-sprawl",

@@ -523,6 +523,23 @@ describe("computeSiteHealth — scoring", () => {
     expect(dim(bespoke).action).toMatch(/single project/i);
   });
 
+  test("standardisation is a v2 'up' target on the shared-scheme ratio, with a directional term", () => {
+    // 40 of 80 schemes shared -> ratio 0.50 == target -> level 100.
+    const at = computeSiteHealth({ workflow: workflow({ schemeCount: 80, sharedSchemes: 40 }) });
+    const d = at.dimensions.find((x) => x.key === "standardisation");
+    expect(d.level).toBe(100);
+    expect(d.direction).toBe("up");
+    expect(d.value).toBeCloseTo(0.5, 5);
+
+    // Slipped from 0.4 to 0.25 since the last scan -> worsening, score below the level.
+    const slipped = computeSiteHealth({
+      workflow: workflow({ schemeCount: 80, sharedSchemes: 20 }),
+      priorValues: { standardisation: 0.4 },
+    }).dimensions.find((x) => x.key === "standardisation");
+    expect(slipped.trend).toBe("worsening");
+    expect(slipped.score).toBeLessThan(slipped.level);
+  });
+
   test("names the weakest dimension so the score has somewhere to go", () => {
     const health = computeSiteHealth({
       fieldUsage: fieldUsage(),
@@ -794,10 +811,14 @@ describe("access dimensions", () => {
     expect(slipped.trend).toBe("worsening");
   });
 
-  test("security level integrity scores broken levels over the level total", () => {
-    const health = computeSiteHealth({ security: security({ totalLevels: 20, brokenLevelCount: 3 }) });
-    // 3/20 = 0.15 = the tolerance -> 0.
-    expect(dim(health, "security-level-integrity").score).toBe(0);
+  test("security level integrity is a v2 target: integrity rate against the 0.95 / 0.70 band", () => {
+    // 17 of 20 levels intact -> integrity 0.85. 100 * (0.85 - 0.70) / (0.95 - 0.70) = 60.
+    const d = dim(computeSiteHealth({ security: security({ totalLevels: 20, brokenLevelCount: 3 }) }), "security-level-integrity");
+    expect(d.level).toBe(60);
+    expect(d.value).toBeCloseTo(0.85, 5);
+    expect(d.direction).toBe("up");
+    // 6 of 20 broken -> integrity 0.70 == floor -> 0.
+    expect(dim(computeSiteHealth({ security: security({ totalLevels: 20, brokenLevelCount: 6 }) }), "security-level-integrity").level).toBe(0);
   });
 
   test("the three access pillars are weighted 1.5 / 1 / 0.5 and each rolls its two dimensions", () => {

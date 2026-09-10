@@ -242,7 +242,6 @@ const DEFAULT_TOLERANCES = {
   bareAssetTypes: 0.30,
   brokenAssetReferences: 0.10,
   unusedAccessSchemes: 0.35,
-  brokenSecurityLevels: 0.15,
   fragileNotificationSchemes: 0.30,
   projectsWithoutRoleAdmin: 0.10,
   offRosterRoleActors: 0.05,
@@ -257,6 +256,8 @@ const DEFAULT_TOLERANCES = {
 const DEFAULT_TARGETS = {
   leastPrivilegeConformance: { target: 0.90, floor: 0.50, direction: "up" },
   boardBackingIntegrity: { target: 0.98, floor: 0.75, direction: "up" },
+  schemeReuse: { target: 0.50, floor: 0.00, direction: "up" },
+  securityLevelIntegrity: { target: 0.95, floor: 0.70, direction: "up" },
 };
 
 // Deep-merge a stored { key: { target, floor } } map over the defaults, so a config that
@@ -705,6 +706,12 @@ function RulesArea({ t, setThreshold, pct, setTolerancePercent, targetPct, setTa
           <TargetRule tone="risky" badge="Boards" name="Board backing integrity"
             targetPct={targetPct} setTarget={setTarget} k="boardBackingIntegrity"
             tail="of boards running on a live, owned backing filter." />
+          <TargetRule tone="standardize" badge="Workflow" name="Scheme reuse"
+            targetPct={targetPct} setTarget={setTarget} k="schemeReuse"
+            tail="of workflow schemes governing more than one project — there is nothing to standardise against below this." />
+          <TargetRule tone="risk" badge="Issue security" name="Security level integrity"
+            targetPct={targetPct} setTarget={setTarget} k="securityLevelIntegrity"
+            tail="of issue-security levels that have members and belong to a scheme with levels." />
         </div>
       </ConfigSection>
 
@@ -964,10 +971,9 @@ function RulesArea({ t, setThreshold, pct, setTolerancePercent, targetPct, setTa
           forgiving.
         </p>
         <div className="admin-threshold-rules">
-          {/* Least-privilege moved to the Scoring targets section — it has a good state
-              (a conformance rate) to converge on, not just a bad rate to stay under. */}
-          <ToleranceRule tone="risk" badge="Issue security" name="Unreachable security levels" pct={pct} set={setTolerancePercent} k="brokenSecurityLevels"
-            tail="of security levels with no members, or belonging to a scheme with no levels — an issue set to one is invisible." />
+          {/* Least-privilege and security-level integrity moved to the Scoring targets
+              section — both have a good state (a conformance / integrity rate) to converge
+              on, not just a bad rate to stay under. */}
           <ToleranceRule tone="standardize" badge="Notifications" name="Fragile routing" pct={pct} set={setTolerancePercent} k="fragileNotificationSchemes"
             tail="of notification schemes sending an event to a named individual rather than a role or group." />
           <ToleranceRule tone="cleanup" badge="Access" name="Unused schemes" pct={pct} set={setTolerancePercent} k="unusedAccessSchemes"
