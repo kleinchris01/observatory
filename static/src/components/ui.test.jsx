@@ -1,9 +1,9 @@
 import React from "react";
-import { describe, test, expect, vi } from "vitest";
+import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { router } from "@forge/bridge";
-import { StatTile, StatRow, Panel, Chip, EmptyState, BarList, FindingRow, LinkButton, PageHeader, RuleLink, SortFilterBar, StageRail, formatDurationMs } from "./ui";
+import { router, rovo } from "@forge/bridge";
+import { StatTile, StatRow, Panel, Chip, EmptyState, BarList, FindingRow, LinkButton, PageHeader, RuleLink, SortFilterBar, StageRail, formatDurationMs, AskRovo } from "./ui";
 
 // These are the shared vocabulary that replaced four separate stat-card idioms. They are
 // small, but they now render on every tab, so a regression here is a regression
@@ -358,5 +358,78 @@ describe("StageRail", () => {
   test("renders nothing without stages", () => {
     const { container } = render(<StageRail stages={[]} />);
     expect(container.querySelector(".stage-rail")).toBeNull();
+  });
+});
+
+// The one Ask Rovo button. Every pillar tab uses it, so a person must be able to tell what
+// it will do before clicking -- the label carries the scope and the tooltip names the agent
+// and the read-only reassurance.
+describe("AskRovo", () => {
+  beforeEach(() => {
+    rovo.open.mockClear();
+  });
+
+  test("label carries the scope; tooltip names the agent and the read-only guarantee", () => {
+    render(
+      <AskRovo
+        agent="observatory-workflow-expert"
+        scope="this scheme"
+        context="its status list and findings"
+        buildPrompt={() => "prompt"}
+      />
+    );
+    const button = screen.getByRole("button", { name: /ask rovo/i });
+    expect(button).toHaveTextContent("Ask Rovo about this scheme");
+    const tip = button.getAttribute("title");
+    expect(tip).toContain("Workflow & Status Expert");
+    expect(tip).toContain("its status list and findings");
+    expect(tip).toContain("never changes Jira");
+  });
+
+  test("falls back to a bare label and the agent's own 'reads' phrase", () => {
+    render(<AskRovo agent="observatory-field-expert" buildPrompt={() => "p"} />);
+    const button = screen.getByRole("button", { name: /ask rovo/i });
+    expect(button).toHaveTextContent(/^Ask Rovo$/);
+    expect(button.getAttribute("title")).toContain("the custom field snapshot and per-project usage");
+  });
+
+  test("click opens the mapped agent with the lazily-built prompt", async () => {
+    const buildPrompt = vi.fn(() => "the built prompt");
+    render(<AskRovo agent="observatory-access-expert" scope="this project" buildPrompt={buildPrompt} />);
+    expect(buildPrompt).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: /ask rovo/i }));
+    expect(buildPrompt).toHaveBeenCalledTimes(1);
+    expect(rovo.open).toHaveBeenCalledWith({
+      type: "forge",
+      agentName: "Observatory Access Expert",
+      agentKey: "observatory-access-expert",
+      prompt: "the built prompt",
+    });
+  });
+
+  test("onAsk escape hatch is used instead of opening Rovo directly", async () => {
+    const onAsk = vi.fn().mockResolvedValue(undefined);
+    render(<AskRovo agent="observatory-field-expert" scope="this field" onAsk={onAsk} />);
+    await userEvent.click(screen.getByRole("button", { name: /ask rovo/i }));
+    expect(onAsk).toHaveBeenCalledTimes(1);
+    expect(rovo.open).not.toHaveBeenCalled();
+  });
+
+  test("disabled button does nothing", async () => {
+    const buildPrompt = vi.fn(() => "p");
+    render(<AskRovo agent="observatory-field-expert" buildPrompt={buildPrompt} disabled />);
+    const button = screen.getByRole("button", { name: /ask rovo/i });
+    expect(button).toBeDisabled();
+    await userEvent.click(button);
+    expect(buildPrompt).not.toHaveBeenCalled();
+    expect(rovo.open).not.toHaveBeenCalled();
+  });
+
+  test("a rejected rovo.open is swallowed, not thrown", async () => {
+    rovo.open.mockRejectedValueOnce(new Error("Rovo not enabled"));
+    render(<AskRovo agent="observatory-field-expert" scope="this field" buildPrompt={() => "p"} />);
+    await userEvent.click(screen.getByRole("button", { name: /ask rovo/i }));
+    // No assertion beyond "did not throw" -- getByRole would fail if the tree had crashed.
+    expect(screen.getByRole("button", { name: /ask rovo/i })).toBeInTheDocument();
   });
 });

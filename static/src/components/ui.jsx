@@ -1,6 +1,6 @@
 import React from "react";
 import { Icon, useLiveDuration } from "./Icons";
-import { buildAutomationRuleUrl, handleJiraLinkClick } from "../utils";
+import { buildAutomationRuleUrl, handleJiraLinkClick, ROVO_AGENTS, openRovo } from "../utils";
 
 // Shared presentation primitives.
 //
@@ -547,6 +547,69 @@ export function LinkButton({ children, onClick }) {
     <button type="button" className="ui-linkbutton" onClick={onClick}>
       {children}
       <span aria-hidden="true" className="ui-linkbutton__arrow">→</span>
+    </button>
+  );
+}
+
+// The one "Ask Rovo" button. Every pillar tab and every detail drawer uses this so the
+// affordance reads the same everywhere and, crucially, so a person can tell what it is
+// about to do before they press it:
+//
+//  - `agent`   the ROVO_AGENTS key for this pillar's expert
+//  - `scope`   what the question is about, in the label: "this scheme", "the workflow
+//              estate". Omit for a bare "Ask Rovo".
+//  - `context` a short phrase naming what gets sent, for the tooltip: "this scheme's
+//              status list, category balance and findings"
+//  - `buildPrompt`  () => string, called on click (lazy, so a heavy prompt is only built
+//              when the button is actually used)
+//  - `onAsk`   escape hatch: if given, called on click instead of opening Rovo here. For
+//              the few call sites where the prompt is assembled in a parent that owns the
+//              field-detail cache. Still gets the consistent label, tooltip and styling.
+//  - `disabled` typically !rovoEnabled or a still-loading view
+//
+// The tooltip always ends with the read-only reassurance, because "Ask Rovo" next to a
+// governance finding could otherwise read as "act on this".
+export function AskRovo({ agent, scope, context, buildPrompt, onAsk, disabled = false, size = "small" }) {
+  const [busy, setBusy] = React.useState(false);
+  const meta = ROVO_AGENTS[agent];
+  const shortName = meta ? meta.name.replace(/^Observatory /, "") : "the Observatory agent";
+  const label = scope ? `Ask Rovo about ${scope}` : "Ask Rovo";
+  const tip =
+    `Opens ${shortName} in Rovo` +
+    (context ? `, seeded with ${context}` : (meta ? `, seeded with ${meta.reads}` : "")) +
+    ". Rovo answers from the latest snapshot and never changes Jira.";
+
+  async function handleClick(event) {
+    event.stopPropagation();
+    if (busy || disabled) return;
+    setBusy(true);
+    try {
+      if (typeof onAsk === "function") {
+        await onAsk();
+      } else {
+        await openRovo(agent, typeof buildPrompt === "function" ? buildPrompt() : String(buildPrompt || ""));
+      }
+    } catch {
+      // rovo.open rejects when Rovo is not enabled on the site, or the deep link is
+      // dismissed. Nothing to recover -- the button is best-effort.
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Accessible name is the visible label ("Ask Rovo about this field") -- deliberately not
+  // overridden with the long sentence, which would break label-in-name and make the button
+  // impossible to find by its visible text. The sentence is the hover tooltip only.
+  return (
+    <button
+      type="button"
+      className={`ask-rovo${size === "small" ? " ask-rovo--small" : ""}`}
+      onClick={handleClick}
+      disabled={disabled || busy}
+      title={tip}
+    >
+      <Icon name="zap" size={13} aria-hidden="true" />
+      {busy ? "Opening Rovo…" : label}
     </button>
   );
 }
