@@ -24,6 +24,7 @@ import {
   getBrowsableProjectIds,
 } from "./lib/jira-api.js";
 import { queueIssueScanWorker, completeIssueScanFinalization } from "./lib/scan-engine.js";
+import { pillarUnavailable, agentOk, agentNotFound, rankMatches, clampResults } from "./lib/rovo-agents.js";
 import {
   requeueStaleSnapshotBuild,
   hydrateFieldForGovernance,
@@ -5372,6 +5373,959 @@ export async function rovoInspectField(payload, context) {
       jql: p.jql,
     })),
   };
+}
+
+// ── Rovo: workflow & status expert ──────────────────────────────────────────
+//
+// Three actions over the workflow snapshot, all reusing the loaders getWorkflowInsights
+// already uses so the agent and the tab never disagree. Every path returns refreshedAt and
+// an explicit "workflows-unavailable" when no snapshot exists.
+
+async function loadWorkflowForAgent(installationKey) {
+  const meta = await readWorkflowSnapshotMeta(installationKey);
+  if (!meta?.version) {
+    return { available: false, snapshotStatus: { state: meta?.state || "idle", refreshedAt: null } };
+  }
+  const [schemes, statuses, schemeStatuses] = await Promise.all([
+    loadWorkflowSchemes(installationKey, meta.version),
+    loadStatusesCatalog(installationKey, meta.version),
+    loadWorkflowSchemeStatuses(installationKey, meta.version),
+  ]);
+  const issueCounts = await loadStatusIssueCounts(installationKey).catch(() => new Map());
+  const history = await loadStatusHistoryCounts(installationKey).catch(() => ({ counts: new Map(), measuredAt: null }));
+  return {
+    available: true,
+    refreshedAt: meta.refreshedAt || null,
+    meta,
+    schemes,
+    statuses,
+    schemeStatuses,
+    issueCounts,
+    hasIssueCounts: issueCounts.size > 0,
+    historyCounts: history.counts,
+    hasHistoryCounts: history.counts.size > 0,
+  };
+}
+
+function statusRow(status, wf) {
+  const id = String(status.statusId ?? status.id);
+  return {
+    statusId: id,
+    name: status.name,
+    category: status.statusCategory || status.category || null,
+    issueCount: wf.hasIssueCounts ? Number(wf.issueCounts.get(id) ?? 0) : null,
+    everCount: wf.hasHistoryCounts ? (wf.historyCounts.get(id) ?? null) : null,
+  };
+}
+
+export async function rovoWorkflowSearch(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const installationKey = getInstallationKey(context);
+    const query = String(payload?.query || "").trim();
+    const kind = String(payload?.kind || "any").trim().toLowerCase();
+    const limit = clampResults(payload?.maxResults, 8, 20);
+    if (!query) return { status: "error", message: "A search query is required." };
+
+    const wf = await loadWorkflowForAgent(installationKey);
+    if (!wf.available) return pillarUnavailable("workflows", wf.snapshotStatus);
+
+    const schemeMatches = kind === "status" ? [] :
+      rankMatches(wf.schemes, query, (s) => [s.name, s.schemeId, s.description], limit);
+    const statusMatches = kind === "scheme" ? [] :
+      rankMatches(wf.statuses, query, (s) => [s.name, s.statusId ?? s.id], limit);
+
+    return agentOk(wf.refreshedAt, {
+      query,
+      schemes: schemeMatches.map((s) => ({
+        schemeId: s.schemeId, name: s.name, description: s.description || null,
+        defaultWorkflow: s.defaultWorkflow || null, projectCount: s.projectCount ?? null,
+      })),
+      statuses: statusMatches.map((s) => statusRow(s, wf)),
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoWorkflowSearch failed:", error);
+    throw error;
+  }
+}
+
+export async function rovoWorkflowInspect(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const installationKey = getInstallationKey(context);
+    const identifier = String(payload?.identifier || "").trim();
+    if (!identifier) return { status: "error", message: "A scheme or status name is required." };
+
+    const wf = await loadWorkflowForAgent(installationKey);
+    if (!wf.available) return pillarUnavailable("workflows", wf.snapshotStatus);
+    const idLower = identifier.toLowerCase();
+
+    const scheme = wf.schemes.find(
+      (s) => String(s.schemeId) === identifier || String(s.name || "").toLowerCase() === idLower
+    );
+    if (scheme) {
+      const balance = computeSchemeCategoryBalance([scheme], wf.schemeStatuses, wf.statuses)[0] || null;
+      const statusIds = new Set(
+        wf.schemeStatuses.filter((p) => String(p.schemeId) === String(scheme.schemeId)).map((p) => String(p.statusId))
+      );
+      const projects = await loadWorkflowSchemeProjects(installationKey, wf.meta.version, scheme.schemeId).catch(() => []);
+      return agentOk(wf.refreshedAt, {
+        kind: "scheme",
+        scheme: {
+          schemeId: scheme.schemeId, name: scheme.name, description: scheme.description || null,
+          defaultWorkflow: scheme.defaultWorkflow || null,
+        },
+        statuses: wf.statuses.filter((s) => statusIds.has(String(s.statusId ?? s.id))).map((s) => statusRow(s, wf)),
+        categoryBalance: balance,
+        projects: projects.slice(0, 50).map((p) => ({ projectKey: p.projectKey, projectName: p.projectName })),
+        projectCount: projects.length,
+      });
+    }
+
+    const status = wf.statuses.find(
+      (s) => String(s.statusId ?? s.id) === identifier || String(s.name || "").toLowerCase() === idLower
+    );
+    if (!status) return agentNotFound(wf.refreshedAt, `No workflow scheme or status matched "${identifier}".`);
+
+    const sid = String(status.statusId ?? status.id);
+    const reachingSchemeIds = new Set(
+      wf.schemeStatuses.filter((p) => String(p.statusId) === sid).map((p) => String(p.schemeId))
+    );
+    const dupGroup = findDuplicateStatusGroups(wf.statuses).find((g) =>
+      g.statuses.some((s) => String(s.statusId ?? s.id) === sid)
+    );
+    const automation = await loadStatusAutomationReferences(installationKey, [status.name]).catch(() => null);
+
+    return agentOk(wf.refreshedAt, {
+      kind: "status",
+      subject: statusRow(status, wf),
+      reachedBySchemes: wf.schemes
+        .filter((s) => reachingSchemeIds.has(String(s.schemeId)))
+        .map((s) => ({ schemeId: s.schemeId, name: s.name })),
+      reachedBySchemeCount: reachingSchemeIds.size,
+      duplicateSiblings: dupGroup
+        ? dupGroup.statuses.filter((s) => String(s.statusId ?? s.id) !== sid).map((s) => ({ statusId: String(s.statusId ?? s.id), name: s.name, kind: dupGroup.kind }))
+        : [],
+      automationChecked: Boolean(automation),
+      automationRules: automation?.[status.name.toLowerCase()] || automation?.[status.name] || null,
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoWorkflowInspect failed:", error);
+    throw error;
+  }
+}
+
+export async function rovoWorkflowImpact(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const installationKey = getInstallationKey(context);
+    const name = String(payload?.name || "").trim();
+    if (!name) return { status: "error", message: "A status name is required." };
+
+    const wf = await loadWorkflowForAgent(installationKey);
+    if (!wf.available) return pillarUnavailable("workflows", wf.snapshotStatus);
+
+    const status = wf.statuses.find((s) => String(s.name || "").toLowerCase() === name.toLowerCase());
+    if (!status) return agentNotFound(wf.refreshedAt, `No status named "${name}" is in the catalogue.`);
+
+    const sid = String(status.statusId ?? status.id);
+    const reachingSchemeIds = new Set(
+      wf.schemeStatuses.filter((p) => String(p.statusId) === sid).map((p) => String(p.schemeId))
+    );
+    const reachingSchemes = wf.schemes.filter((s) => reachingSchemeIds.has(String(s.schemeId)));
+    let projectCount = 0;
+    const projectSample = [];
+    for (const scheme of reachingSchemes.slice(0, 25)) {
+      const projects = await loadWorkflowSchemeProjects(installationKey, wf.meta.version, scheme.schemeId).catch(() => []);
+      projectCount += projects.length;
+      for (const p of projects.slice(0, 10)) projectSample.push(p.projectKey);
+    }
+    const automation = await loadStatusAutomationReferences(installationKey, [status.name]).catch(() => null);
+    const rules = automation?.[status.name.toLowerCase()] || automation?.[status.name] || null;
+
+    // The consequential judgement, phrased at its true strength. A status no scheme reaches
+    // and no rule touches has "no evidence of use" -- never "safe to delete".
+    const noEvidence =
+      reachingSchemeIds.size === 0 &&
+      (wf.hasIssueCounts ? Number(wf.issueCounts.get(sid) ?? 0) === 0 : false) &&
+      Boolean(automation) &&
+      !rules;
+
+    return agentOk(wf.refreshedAt, {
+      subject: statusRow(status, wf),
+      reachedBySchemes: reachingSchemes.map((s) => ({ schemeId: s.schemeId, name: s.name })),
+      reachedBySchemeCount: reachingSchemeIds.size,
+      governedProjectCount: projectCount,
+      projectSample: [...new Set(projectSample)].slice(0, 20),
+      automationChecked: Boolean(automation),
+      automationRules: rules,
+      issueCount: wf.hasIssueCounts ? Number(wf.issueCounts.get(sid) ?? 0) : null,
+      everCount: wf.hasHistoryCounts ? (wf.historyCounts.get(sid) ?? null) : null,
+      verdict: noEvidence
+        ? "no-evidence-of-use"
+        : (wf.hasIssueCounts ? "in-use" : "unknown"),
+      verdictCaveat:
+        "This covers workflow schemes, issue counts and (where an analysis exists) automation. " +
+        "It does not cover boards, filters, dashboards or apps.",
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoWorkflowImpact failed:", error);
+    throw error;
+  }
+}
+
+// ── Rovo: issue type expert ─────────────────────────────────────────────────
+//
+// Thin wrappers over getIssueTypeInventory so the agent and the tab read the same rows.
+
+export async function rovoIssueTypeSearch(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const query = String(payload?.query || "").trim();
+    const kind = String(payload?.kind || "any").trim().toLowerCase();
+    const limit = clampResults(payload?.maxResults, 8, 20);
+    if (!query) return { status: "error", message: "A search query is required." };
+
+    const inv = await getIssueTypeInventory({ context });
+    if (inv.neverBuilt || !inv.version) return pillarUnavailable("issue types", { state: inv.state, refreshedAt: null });
+
+    const types = kind === "scheme" ? [] :
+      rankMatches(inv.issueTypes, query, (t) => [t.name, t.id, t.description], limit);
+    const schemes = kind === "type" ? [] :
+      rankMatches(inv.schemes, query, (s) => [s.name, s.schemeId, s.description], limit);
+
+    return agentOk(inv.refreshedAt || null, {
+      query,
+      issueTypes: types.map((t) => ({
+        id: t.id, name: t.name, hierarchyLevel: t.hierarchyLevel ?? null,
+        subtask: Boolean(t.subtask), description: t.description || null,
+      })),
+      schemes: schemes.map((s) => ({
+        schemeId: s.schemeId, name: s.name, isDefault: Boolean(s.isDefault),
+        projectCount: (s.projects || []).length, typeCount: (s.issueTypes || []).length,
+      })),
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoIssueTypeSearch failed:", error);
+    throw error;
+  }
+}
+
+export async function rovoIssueTypeInspect(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const identifier = String(payload?.identifier || "").trim();
+    if (!identifier) return { status: "error", message: "An issue type or scheme name is required." };
+    const inv = await getIssueTypeInventory({ context });
+    if (inv.neverBuilt || !inv.version) return pillarUnavailable("issue types", { state: inv.state, refreshedAt: null });
+    const idLower = identifier.toLowerCase();
+
+    const scheme = (inv.schemes || []).find(
+      (s) => String(s.schemeId) === identifier || String(s.name || "").toLowerCase() === idLower
+    );
+    if (scheme) {
+      return agentOk(inv.refreshedAt || null, {
+        kind: "scheme",
+        scheme: {
+          schemeId: scheme.schemeId, name: scheme.name, isDefault: Boolean(scheme.isDefault),
+          defaultIssueType: scheme.defaultIssueTypeName || null,
+        },
+        issueTypes: (scheme.issueTypes || []).map((t) => ({ id: t.id, name: t.name, missing: Boolean(t.missing), hierarchyLevel: t.hierarchyLevel ?? null })),
+        projects: (scheme.projects || []).slice(0, 50).map((p) => ({ projectKey: p.projectKey, projectName: p.projectName })),
+        projectCount: (scheme.projects || []).length,
+      });
+    }
+
+    const type = (inv.issueTypes || []).find(
+      (t) => String(t.id) === identifier || String(t.name || "").toLowerCase() === idLower
+    );
+    if (!type) return agentNotFound(inv.refreshedAt || null, `No issue type or scheme matched "${identifier}".`);
+
+    const reachingSchemes = (inv.schemes || []).filter((s) => (s.issueTypes || []).some((m) => String(m.id) === String(type.id)));
+    return agentOk(inv.refreshedAt || null, {
+      kind: "type",
+      issueType: { id: type.id, name: type.name, hierarchyLevel: type.hierarchyLevel ?? null, subtask: Boolean(type.subtask), description: type.description || null },
+      reachedBySchemes: reachingSchemes.map((s) => ({ schemeId: s.schemeId, name: s.name })),
+      reachedBySchemeCount: reachingSchemes.length,
+      governedProjectCount: reachingSchemes.reduce((n, s) => n + (s.projects || []).length, 0),
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoIssueTypeInspect failed:", error);
+    throw error;
+  }
+}
+
+export async function rovoIssueTypeImpact(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const name = String(payload?.name || "").trim();
+    if (!name) return { status: "error", message: "An issue type name is required." };
+    const inv = await getIssueTypeInventory({ context });
+    if (inv.neverBuilt || !inv.version) return pillarUnavailable("issue types", { state: inv.state, refreshedAt: null });
+
+    const type = (inv.issueTypes || []).find((t) => String(t.name || "").toLowerCase() === name.toLowerCase());
+    if (!type) return agentNotFound(inv.refreshedAt || null, `No issue type named "${name}" is in the catalogue.`);
+
+    const reachingSchemes = (inv.schemes || []).filter((s) => (s.issueTypes || []).some((m) => String(m.id) === String(type.id)));
+    const projectSample = [];
+    for (const s of reachingSchemes) for (const p of (s.projects || []).slice(0, 10)) projectSample.push(p.projectKey);
+
+    return agentOk(inv.refreshedAt || null, {
+      issueType: { id: type.id, name: type.name, hierarchyLevel: type.hierarchyLevel ?? null },
+      reachedBySchemes: reachingSchemes.map((s) => ({ schemeId: s.schemeId, name: s.name })),
+      reachedBySchemeCount: reachingSchemes.length,
+      governedProjectCount: reachingSchemes.reduce((n, s) => n + (s.projects || []).length, 0),
+      projectSample: [...new Set(projectSample)].slice(0, 20),
+      verdict: reachingSchemes.length === 0 ? "no-scheme-reaches-it" : "in-use",
+      verdictCaveat:
+        "This covers issue type schemes and their project assignments. It does not measure how many issues of the type exist unless the universe scan has run, and does not cover automation, boards or apps.",
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoIssueTypeImpact failed:", error);
+    throw error;
+  }
+}
+
+// ── Rovo: access expert ─────────────────────────────────────────────────────
+//
+// Permission / issue-security / notification schemes and project roles, over
+// getAccessInventory. `family` selects which scheme set.
+
+const ACCESS_FAMILIES = ["permissions", "security", "notifications", "roles"];
+
+function accessSchemeList(inv, family) {
+  if (family && ACCESS_FAMILIES.includes(family)) return { [family]: inv[family]?.schemes || [] };
+  return Object.fromEntries(ACCESS_FAMILIES.map((f) => [f, inv[f]?.schemes || []]));
+}
+
+export async function rovoAccessSearch(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const query = String(payload?.query || "").trim();
+    const family = String(payload?.family || "").trim().toLowerCase();
+    const limit = clampResults(payload?.maxResults, 8, 20);
+    if (!query) return { status: "error", message: "A search query is required." };
+
+    const inv = await getAccessInventory({ context });
+    if (inv.neverBuilt || !inv.version) return pillarUnavailable("access", { state: inv.state, refreshedAt: null });
+
+    const sets = accessSchemeList(inv, family);
+    const matches = {};
+    for (const [f, schemes] of Object.entries(sets)) {
+      matches[f] = rankMatches(schemes, query, (s) => [s.name, s.id, s.description], limit)
+        .map((s) => ({ id: s.id, name: s.name, description: s.description || null, projectCount: s.projectCount ?? null }));
+    }
+    return agentOk(inv.refreshedAt || null, { query, schemes: matches });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoAccessSearch failed:", error);
+    throw error;
+  }
+}
+
+export async function rovoAccessInspect(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const identifier = String(payload?.identifier || "").trim();
+    if (!identifier) return { status: "error", message: "A scheme name is required." };
+    const inv = await getAccessInventory({ context });
+    if (inv.neverBuilt || !inv.version) return pillarUnavailable("access", { state: inv.state, refreshedAt: null });
+    const idLower = identifier.toLowerCase();
+
+    for (const family of ACCESS_FAMILIES) {
+      const schemes = inv[family]?.schemes || [];
+      const scheme = schemes.find((s) => String(s.id) === identifier || String(s.name || "").toLowerCase() === idLower);
+      if (!scheme) continue;
+      const holders = (inv[family]?.holders || []).filter((h) => String(h.schemeId) === String(scheme.id));
+      return agentOk(inv.refreshedAt || null, {
+        family,
+        scheme: { id: scheme.id, name: scheme.name, description: scheme.description || null, projectCount: scheme.projectCount ?? null },
+        holders: holders.slice(0, 100).map((h) => ({
+          type: h.holderType, value: h.holderName || h.holderValue || h.parameter || null,
+          permission: h.permission || h.eventName || h.level || null, offRoster: Boolean(h.offRoster),
+        })),
+        holderCount: holders.length,
+        findings: inv[family]?.governance?.findings || inv[family]?.governance || null,
+      });
+    }
+    return agentNotFound(inv.refreshedAt || null, `No permission, issue-security, notification scheme or project role matched "${identifier}".`);
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoAccessInspect failed:", error);
+    throw error;
+  }
+}
+
+export async function rovoAccessImpact(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const name = String(payload?.name || "").trim();
+    if (!name) return { status: "error", message: "An account id, group name or display name is required." };
+    const inv = await getAccessInventory({ context });
+    if (inv.neverBuilt || !inv.version) return pillarUnavailable("access", { state: inv.state, refreshedAt: null });
+    const needle = name.toLowerCase();
+
+    const naming = [];
+    for (const family of ACCESS_FAMILIES) {
+      const schemes = new Map((inv[family]?.schemes || []).map((s) => [String(s.id), s.name]));
+      for (const h of inv[family]?.holders || []) {
+        const value = String(h.holderName || h.holderValue || h.parameter || "").toLowerCase();
+        const account = String(h.accountId || "").toLowerCase();
+        if (value === needle || account === needle || (value && value.includes(needle))) {
+          naming.push({
+            family,
+            scheme: schemes.get(String(h.schemeId)) || String(h.schemeId),
+            as: h.holderType,
+            grants: h.permission || h.eventName || h.level || null,
+            offRoster: Boolean(h.offRoster),
+          });
+        }
+      }
+    }
+
+    return agentOk(inv.refreshedAt || null, {
+      subject: name,
+      namedIn: naming.slice(0, 200),
+      namedInCount: naming.length,
+      verdict: naming.length === 0 ? "not-named-in-any-scheme" : "named-in-schemes",
+      verdictCaveat:
+        "This covers permission, issue-security and notification schemes and project roles. It does not cover global permissions (Jira exposes no grant list for those), board or filter shares, or app-level access.",
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoAccessImpact failed:", error);
+    throw error;
+  }
+}
+
+// ── Rovo: people expert ─────────────────────────────────────────────────────
+//
+// The roster and the ownership / reference graph, over getUserInventory and getUserDetails.
+
+export async function rovoPeopleSearch(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const query = String(payload?.query || "").trim();
+    const limit = clampResults(payload?.maxResults, 8, 20);
+    if (!query) return { status: "error", message: "A search query is required." };
+
+    const inv = await getUserInventory({ context });
+    if (inv.neverBuilt || !inv.version) return pillarUnavailable("people", { state: inv.state, refreshedAt: null });
+
+    const users = rankMatches(inv.users, query, (u) => [u.displayName, u.accountId], limit);
+    const groups = new Map();
+    for (const u of inv.users) for (const g of u.groups || []) {
+      if (!groups.has(g.id)) groups.set(g.id, { id: g.id, name: g.name, memberCount: 0 });
+      groups.get(g.id).memberCount += 1;
+    }
+    const groupMatches = rankMatches([...groups.values()], query, (g) => [g.name, g.id], limit);
+
+    return agentOk(inv.refreshedAt || null, {
+      query,
+      users: users.map((u) => ({
+        accountId: u.accountId, displayName: u.displayName, active: u.active !== false,
+        ownedFilters: u.ownedFilters ?? 0, ownedDashboards: u.ownedDashboards ?? 0,
+        authoredRules: u.authoredRules ?? 0, automationRefs: u.automationRefs ?? 0,
+      })),
+      groups: groupMatches,
+      rosterSize: inv.users.length,
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoPeopleSearch failed:", error);
+    throw error;
+  }
+}
+
+export async function rovoPeopleInspect(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const accountId = String(payload?.accountId || "").trim();
+    if (!accountId) return { status: "error", message: "An accountId is required. Use search first to resolve a name." };
+    const details = await getUserDetails({ payload: { accountId }, context });
+    if (!details.available) return pillarUnavailable("people", { state: "idle", refreshedAt: null });
+
+    return agentOk(null, {
+      accountId,
+      inRoster: Boolean(details.inRoster),
+      user: {
+        displayName: details.user?.displayName || accountId,
+        active: details.user?.active ?? null,
+        products: details.user?.applications || details.user?.products || [],
+        groups: (details.user?.groups || []).map((g) => g.name || g.id),
+      },
+      ownedFilters: (details.ownedFilters || []).length,
+      ownedDashboards: (details.ownedDashboards || []).length,
+      authoredRules: (details.authoredRules || []).length,
+      referencedInRules: (details.referencedInRules || []).map((r) => ({ id: r.id, name: r.name, direction: r.direction })),
+      grantedBySchemes: (details.grantedBySchemes || []).map((s) => ({ scheme: s.schemeName || s.name, family: s.schemeType || s.family, grants: s.permission || s.level || s.eventName || null })),
+      fieldAppearances: (details.fieldAppearances || []).map((f) => ({ field: f.fieldName, issueCount: f.issueCount })),
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoPeopleInspect failed:", error);
+    throw error;
+  }
+}
+
+export async function rovoPeopleImpact(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const accountId = String(payload?.accountId || "").trim();
+    if (!accountId) return { status: "error", message: "An accountId is required." };
+    const details = await getUserDetails({ payload: { accountId }, context });
+    if (!details.available) return pillarUnavailable("people", { state: "idle", refreshedAt: null });
+
+    const ownedFilters = (details.ownedFilters || []).length;
+    const ownedDashboards = (details.ownedDashboards || []).length;
+    const authoredRules = (details.authoredRules || []).length;
+    const writeRefs = (details.referencedInRules || []).filter((r) => r.direction === "write");
+    const grants = (details.grantedBySchemes || []).length;
+    const anything = ownedFilters + ownedDashboards + authoredRules + (details.referencedInRules || []).length + grants;
+
+    return agentOk(null, {
+      accountId,
+      displayName: details.user?.displayName || accountId,
+      active: details.user?.active ?? null,
+      ownedFilters, ownedDashboards, authoredRules,
+      rulesRoutingWorkHere: writeRefs.map((r) => ({ id: r.id, name: r.name })),
+      referencedInRuleCount: (details.referencedInRules || []).length,
+      directSchemeGrants: grants,
+      verdict: anything === 0 ? "no-cross-pillar-footprint" : "has-footprint",
+      verdictCaveat:
+        "Deactivating an account leaves its filters, dashboards and rules ownerless (boards and any dashboard on a wall break), and any rule that routes work to it stops assigning. " +
+        "This does not cover board leads, project leads, or app-specific ownership.",
+      dataCaveats: {
+        automation: details.automationRefsAvailable ? "checked" : "no automation analysis imported",
+        access: details.accessGrantsAvailable ? "checked" : "no access snapshot built",
+        fields: details.fieldAppearancesAvailable ? "checked" : "no field crawl since this landed",
+      },
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoPeopleImpact failed:", error);
+    throw error;
+  }
+}
+
+// ── Rovo: assets (CMDB) expert ──────────────────────────────────────────────
+//
+// Object schemas, hierarchical object types and their attributes, over getAssetInventory.
+
+export async function rovoAssetSearch(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const query = String(payload?.query || "").trim();
+    const kind = String(payload?.kind || "any").trim().toLowerCase();
+    const limit = clampResults(payload?.maxResults, 8, 20);
+    if (!query) return { status: "error", message: "A search query is required." };
+
+    const inv = await getAssetInventory({ context });
+    if (inv.state === "unavailable" || inv.assetsEnabled === false) {
+      return { status: "assets-not-enabled", message: "JSM Assets is not enabled on this site (it needs JSM Premium or Enterprise), so there is no object structure to search." };
+    }
+    if (inv.neverBuilt || !inv.version) return pillarUnavailable("assets", { state: inv.state, refreshedAt: null });
+
+    const schemas = kind === "type" ? [] : rankMatches(inv.schemas, query, (s) => [s.name, s.objectSchemaKey, s.key], limit);
+    const types = kind === "schema" ? [] : rankMatches(inv.objectTypes, query, (t) => [t.name], limit);
+
+    return agentOk(inv.refreshedAt || null, {
+      query,
+      schemas: schemas.map((s) => ({ id: s.id, name: s.name, key: s.objectSchemaKey || s.key || null, objectTypeCount: s.objectTypeCount ?? null })),
+      objectTypes: types.map((t) => ({ id: t.id, name: t.name, schemaId: t.objectSchemaId ?? t.schemaId ?? null, parentId: t.parentObjectTypeId ?? t.parentId ?? null })),
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoAssetSearch failed:", error);
+    throw error;
+  }
+}
+
+export async function rovoAssetInspect(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const identifier = String(payload?.identifier || "").trim();
+    if (!identifier) return { status: "error", message: "An object schema or object type name is required." };
+    const inv = await getAssetInventory({ context });
+    if (inv.state === "unavailable" || inv.assetsEnabled === false) {
+      return { status: "assets-not-enabled", message: "JSM Assets is not enabled on this site." };
+    }
+    if (inv.neverBuilt || !inv.version) return pillarUnavailable("assets", { state: inv.state, refreshedAt: null });
+    const idLower = identifier.toLowerCase();
+
+    const schema = (inv.schemas || []).find((s) => String(s.id) === identifier || String(s.name || "").toLowerCase() === idLower);
+    if (schema) {
+      const types = (inv.objectTypes || []).filter((t) => String(t.objectSchemaId ?? t.schemaId) === String(schema.id));
+      return agentOk(inv.refreshedAt || null, {
+        kind: "schema",
+        schema: { id: schema.id, name: schema.name, key: schema.objectSchemaKey || schema.key || null },
+        objectTypes: types.slice(0, 100).map((t) => ({ id: t.id, name: t.name, parentId: t.parentObjectTypeId ?? t.parentId ?? null })),
+        objectTypeCount: types.length,
+      });
+    }
+
+    const type = (inv.objectTypes || []).find((t) => String(t.id) === identifier || String(t.name || "").toLowerCase() === idLower);
+    if (!type) return agentNotFound(inv.refreshedAt || null, `No object schema or object type matched "${identifier}".`);
+
+    const attrs = (inv.attributes || []).filter((a) => String(a.objectTypeId ?? a.typeId) === String(type.id));
+    const children = (inv.objectTypes || []).filter((t) => String(t.parentObjectTypeId ?? t.parentId) === String(type.id));
+    const referencedBy = (inv.attributes || []).filter((a) => String(a.referenceObjectTypeId ?? a.referenceTypeId) === String(type.id));
+
+    return agentOk(inv.refreshedAt || null, {
+      kind: "type",
+      objectType: { id: type.id, name: type.name, schemaId: type.objectSchemaId ?? type.schemaId ?? null, parentId: type.parentObjectTypeId ?? type.parentId ?? null },
+      attributes: attrs.slice(0, 100).map((a) => ({ name: a.name, type: a.type || a.dataType || null, referenceType: a.referenceObjectTypeName || null })),
+      attributeCount: attrs.length,
+      childTypes: children.map((c) => ({ id: c.id, name: c.name })),
+      referencedByAttributeCount: referencedBy.length,
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoAssetInspect failed:", error);
+    throw error;
+  }
+}
+
+export async function rovoAssetImpact(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const name = String(payload?.name || "").trim();
+    if (!name) return { status: "error", message: "An object type name is required." };
+    const inv = await getAssetInventory({ context });
+    if (inv.state === "unavailable" || inv.assetsEnabled === false) {
+      return { status: "assets-not-enabled", message: "JSM Assets is not enabled on this site." };
+    }
+    if (inv.neverBuilt || !inv.version) return pillarUnavailable("assets", { state: inv.state, refreshedAt: null });
+
+    const type = (inv.objectTypes || []).find((t) => String(t.name || "").toLowerCase() === name.toLowerCase());
+    if (!type) return agentNotFound(inv.refreshedAt || null, `No object type named "${name}" was found.`);
+
+    const children = (inv.objectTypes || []).filter((t) => String(t.parentObjectTypeId ?? t.parentId) === String(type.id));
+    const referencingAttrs = (inv.attributes || []).filter((a) => String(a.referenceObjectTypeId ?? a.referenceTypeId) === String(type.id));
+
+    return agentOk(inv.refreshedAt || null, {
+      objectType: { id: type.id, name: type.name },
+      childTypes: children.map((c) => ({ id: c.id, name: c.name })),
+      childTypeCount: children.length,
+      referencedByAttributes: referencingAttrs.slice(0, 100).map((a) => ({ attribute: a.name, onType: a.objectTypeName || a.objectTypeId })),
+      referencedByAttributeCount: referencingAttrs.length,
+      verdict: children.length === 0 && referencingAttrs.length === 0 ? "nothing-references-it" : "referenced",
+      verdictCaveat:
+        "This covers the object type hierarchy and reference attributes within Assets. It does not cover the objects themselves, Assets automation, or object-reference custom fields on Jira issues.",
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoAssetImpact failed:", error);
+    throw error;
+  }
+}
+
+// ── Rovo: priorities & resolutions expert ───────────────────────────────────
+//
+// The two global value lists, over getEstateInventory. Search + inspect only: priority
+// schemes (which projects use which list) are not captured, so there is no "impact".
+
+export async function rovoEstateSearch(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const query = String(payload?.query || "").trim();
+    const kind = String(payload?.kind || "any").trim().toLowerCase();
+    const limit = clampResults(payload?.maxResults, 10, 20);
+    if (!query) return { status: "error", message: "A search query is required." };
+
+    const inv = await getEstateInventory({ context });
+    if (inv.neverBuilt) return pillarUnavailable("priorities & resolutions", { state: inv.state, refreshedAt: null });
+
+    const resolutions = kind === "priority" ? [] : rankMatches(inv.resolutions, query, (r) => [r.name, r.description], limit);
+    const priorities = kind === "resolution" ? [] : rankMatches(inv.priorities, query, (p) => [p.name, p.description], limit);
+
+    return agentOk(inv.refreshedAt || null, {
+      query,
+      resolutions: resolutions.map((r) => ({ id: r.id, name: r.name, isDefault: Boolean(r.isDefault), description: r.description || null })),
+      priorities: priorities.map((p) => ({ id: p.id, name: p.name, isDefault: Boolean(p.isDefault), description: p.description || null })),
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoEstateSearch failed:", error);
+    throw error;
+  }
+}
+
+export async function rovoEstateInspect(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const kind = String(payload?.list || "both").trim().toLowerCase();
+    const inv = await getEstateInventory({ context });
+    if (inv.neverBuilt) return pillarUnavailable("priorities & resolutions", { state: inv.state, refreshedAt: null });
+
+    const shape = (rows) => ({
+      count: rows.length,
+      hasDefault: rows.some((r) => r.isDefault),
+      values: rows.map((r) => ({ name: r.name, isDefault: Boolean(r.isDefault) })),
+    });
+    const out = { status: "ok", refreshedAt: inv.refreshedAt || null, findings: inv.governance?.findings || inv.governance || null };
+    if (kind !== "priorities") out.resolutions = shape(inv.resolutions || []);
+    if (kind !== "resolutions") out.priorities = shape(inv.priorities || []);
+    return out;
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoEstateInspect failed:", error);
+    throw error;
+  }
+}
+
+// ── Rovo: screen expert ────────────────────────────────────────────────────
+//
+// Screens, their tabs and fields, and the scheme chain that routes to them, over
+// getScreenInventory (which pages screens -- the agent asks for a large page).
+
+export async function rovoScreenSearch(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const query = String(payload?.query || "").trim();
+    const kind = String(payload?.kind || "any").trim().toLowerCase();
+    const limit = clampResults(payload?.maxResults, 8, 20);
+    if (!query) return { status: "error", message: "A search query is required." };
+
+    const inv = await getScreenInventory({ payload: { pageSize: 100, search: kind === "scheme" ? "" : query }, context });
+    if (inv.neverBuilt || !inv.version) return pillarUnavailable("screens", { state: inv.state, refreshedAt: null });
+
+    const screenRows = kind === "scheme" ? [] : (inv.screens?.rows || inv.screens || []);
+    const screens = rankMatches(screenRows, query, (s) => [s.name, s.id, s.screenId], limit);
+    const schemes = kind === "screen" ? [] :
+      rankMatches(inv.screenSchemes || [], query, (s) => [s.name, s.id], limit);
+
+    return agentOk(inv.refreshedAt || null, {
+      query,
+      screens: screens.map((s) => ({
+        screenId: s.screenId ?? s.id, name: s.name,
+        fieldCount: s.fieldCount ?? s.totalFields ?? null,
+        tabCount: s.tabCount ?? null,
+        reachedByProjectCount: s.projectCount ?? s.reachableProjectCount ?? null,
+      })),
+      screenSchemes: schemes.map((s) => ({ id: s.id, name: s.name })),
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoScreenSearch failed:", error);
+    throw error;
+  }
+}
+
+export async function rovoScreenInspect(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const identifier = String(payload?.identifier || "").trim();
+    if (!identifier) return { status: "error", message: "A screen or screen scheme name is required." };
+    const inv = await getScreenInventory({ payload: { pageSize: 100, search: identifier }, context });
+    if (inv.neverBuilt || !inv.version) return pillarUnavailable("screens", { state: inv.state, refreshedAt: null });
+    const idLower = identifier.toLowerCase();
+
+    const scheme = (inv.screenSchemes || []).find((s) => String(s.id) === identifier || String(s.name || "").toLowerCase() === idLower);
+    if (scheme) {
+      const ops = (inv.schemeOperations || []).filter((o) => String(o.schemeId) === String(scheme.id));
+      return agentOk(inv.refreshedAt || null, {
+        kind: "scheme",
+        scheme: { id: scheme.id, name: scheme.name },
+        operations: ops.map((o) => ({ operation: o.operation, screenId: o.screenId, screenName: o.screenName || null, inherited: Boolean(o.inherited) })),
+      });
+    }
+
+    const rows = inv.screens?.rows || inv.screens || [];
+    const screen = rows.find((s) => String(s.screenId ?? s.id) === identifier || String(s.name || "").toLowerCase() === idLower);
+    if (!screen) return agentNotFound(inv.refreshedAt || null, `No screen or screen scheme matched "${identifier}" on the current page. Try a more exact name.`);
+
+    return agentOk(inv.refreshedAt || null, {
+      kind: "screen",
+      screen: {
+        screenId: screen.screenId ?? screen.id, name: screen.name,
+        fieldCount: screen.fieldCount ?? screen.totalFields ?? null,
+        tabCount: screen.tabCount ?? null,
+        tabs: (screen.tabs || []).map((t) => ({ name: t.name, fieldCount: (t.fields || []).length })),
+        findings: screen.findings || null,
+        unresolved: Boolean(screen.unresolved),
+      },
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoScreenInspect failed:", error);
+    throw error;
+  }
+}
+
+export async function rovoScreenImpact(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const name = String(payload?.name || "").trim();
+    if (!name) return { status: "error", message: "A screen name is required." };
+    const inv = await getScreenInventory({ payload: { pageSize: 100, search: name }, context });
+    if (inv.neverBuilt || !inv.version) return pillarUnavailable("screens", { state: inv.state, refreshedAt: null });
+
+    const rows = inv.screens?.rows || inv.screens || [];
+    const screen = rows.find((s) => String(s.name || "").toLowerCase() === name.toLowerCase());
+    if (!screen) return agentNotFound(inv.refreshedAt || null, `No screen named "${name}" was found on the current page.`);
+
+    const sid = String(screen.screenId ?? screen.id);
+    const ops = (inv.schemeOperations || []).filter((o) => String(o.screenId) === sid);
+    const schemeIds = new Set(ops.map((o) => String(o.schemeId)));
+    const transitions = (inv.transitionScreens || []).filter((t) => String(t.screenId) === sid);
+
+    return agentOk(inv.refreshedAt || null, {
+      screen: { screenId: sid, name: screen.name, fieldCount: screen.fieldCount ?? screen.totalFields ?? null },
+      routedBySchemeOperations: ops.map((o) => ({ scheme: o.schemeName || o.schemeId, operation: o.operation })),
+      routedBySchemeCount: schemeIds.size,
+      openedByTransitionCount: transitions.length,
+      reachedByProjectCount: screen.projectCount ?? screen.reachableProjectCount ?? null,
+      verdict: schemeIds.size === 0 && transitions.length === 0 ? "nothing-routes-to-it" : "routed",
+      verdictCaveat:
+        "This covers screen scheme operation mappings and workflow transition screens (where the workflow inventory recorded them). Reachability by project depends on the issue-type-screen-scheme chain, which may be partial.",
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoScreenImpact failed:", error);
+    throw error;
+  }
+}
+
+// ── Rovo: configuration change expert ──────────────────────────────────────
+//
+// The change-history timeline, over loadConfigChanges. Search filters by pillar/kind and
+// substring-matches the label; inspect returns one entity's whole recorded history.
+
+export async function rovoChangeSearch(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    await ensureProjectStoreReady();
+    const installationKey = getInstallationKey(context);
+    const query = String(payload?.query || "").trim().toLowerCase();
+    const pillar = payload?.pillar && payload.pillar !== "all" ? String(payload.pillar) : null;
+    const kind = payload?.kind && payload.kind !== "all" ? String(payload.kind) : null;
+    const limit = clampResults(payload?.maxResults, 20, 100);
+
+    const meta = await readDriftSnapshotMeta(installationKey);
+    if (!meta?.version) return pillarUnavailable("configuration changes", { state: meta?.state || "idle", refreshedAt: null });
+
+    const rows = await loadConfigChanges(installationKey, { pillar, kind, limit: 300 });
+    const filtered = (query
+      ? rows.filter((r) => String(r.label || "").toLowerCase().includes(query) || String(r.summary || "").toLowerCase().includes(query))
+      : rows
+    ).slice(0, limit);
+
+    return agentOk(meta.refreshedAt || null, {
+      query: query || null, pillar, kind,
+      totalRecorded: meta.totalChanges || 0,
+      changes: filtered.map((r) => ({
+        detectedAt: r.detectedAt, pillar: r.pillar, entityType: r.entityType,
+        label: r.label, kind: r.changeKind, summary: r.summary,
+      })),
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoChangeSearch failed:", error);
+    throw error;
+  }
+}
+
+export async function rovoChangeInspect(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    await ensureProjectStoreReady();
+    const installationKey = getInstallationKey(context);
+    const label = String(payload?.label || "").trim();
+    if (!label) return { status: "error", message: "The name of a scheme, status, field, filter or other entity is required." };
+
+    const meta = await readDriftSnapshotMeta(installationKey);
+    if (!meta?.version) return pillarUnavailable("configuration changes", { state: meta?.state || "idle", refreshedAt: null });
+
+    const rows = await loadConfigChanges(installationKey, { limit: 500 });
+    const forEntity = rows.filter((r) => String(r.label || "").toLowerCase() === label.toLowerCase());
+    if (!forEntity.length) {
+      return agentNotFound(meta.refreshedAt || null,
+        `No recorded configuration change names "${label}". Either it has not changed since the drift baseline was set, or it is not one of the tracked entity kinds.`);
+    }
+
+    return agentOk(meta.refreshedAt || null, {
+      label,
+      pillar: forEntity[0].pillar,
+      entityType: forEntity[0].entityType,
+      changeCount: forEntity.length,
+      history: forEntity.map((r) => ({ detectedAt: r.detectedAt, kind: r.changeKind, summary: r.summary })),
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoChangeInspect failed:", error);
+    throw error;
+  }
+}
+
+// ── Rovo: project expert ───────────────────────────────────────────────────
+//
+// Per-project scheme identity, adoption and field usage, over getProjectOverview. Read
+// only what the viewer can Browse, exactly as getProjectOverview does.
+
+export async function rovoProjectSearch(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const installationKey = getInstallationKey(context);
+    const query = String(payload?.query || "").trim();
+    const limit = clampResults(payload?.maxResults, 8, 20);
+    if (!query) return { status: "error", message: "A search query is required." };
+
+    const vp = await viewerProjects(installationKey, context);
+    if (!vp.available) return pillarUnavailable("projects", { state: "idle", refreshedAt: null });
+
+    const matches = rankMatches(vp.projects, query, (p) => [p.projectKey, p.projectName], limit);
+    return agentOk(null, {
+      query,
+      projects: matches.map((p) => ({ projectId: p.projectId, projectKey: p.projectKey, projectName: p.projectName })),
+      browsableProjectCount: vp.projects.length,
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoProjectSearch failed:", error);
+    throw error;
+  }
+}
+
+export async function rovoProjectInspect(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const installationKey = getInstallationKey(context);
+    let projectId = String(payload?.projectId || "").trim();
+    const projectKey = String(payload?.projectKey || "").trim();
+
+    if (!projectId) {
+      if (!projectKey) return { status: "error", message: "A projectId or projectKey is required. Use search first." };
+      const vp = await viewerProjects(installationKey, context);
+      const hit = vp.projects.find((p) => String(p.projectKey || "").toLowerCase() === projectKey.toLowerCase());
+      if (!hit) return agentNotFound(null, `No browsable project has the key "${projectKey}".`);
+      projectId = hit.projectId;
+    }
+
+    const ov = await getProjectOverview({ payload: { projectId, projectKey }, context });
+    if (!ov.available) return { status: "not-authorised", message: ov.reason || "You do not have Browse Projects on this project." };
+
+    return agentOk(ov.refreshedAt || null, {
+      project: { projectId, projectKey: ov.projectKey || projectKey, projectName: ov.projectName || null, type: ov.projectType || null, lead: ov.lead || null },
+      workflowScheme: ov.workflowScheme ? { name: ov.workflowScheme.name, sharedWithCount: ov.workflowScheme.sharedWithCount ?? null } : null,
+      schemes: ov.schemes || null,
+      roleActors: ov.roleActors || null,
+      adoption: ov.adoption || ov.selectedAdoption || null,
+      fieldsInUse: Array.isArray(ov.fields) ? ov.fields.length : (ov.fieldsInUse ?? null),
+      dataCaveats:
+        "Project activity and archetype-divergence measurement are not built yet -- this is scheme identity, adoption where measured, and field usage.",
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoProjectInspect failed:", error);
+    throw error;
+  }
 }
 
 // ── Rovo: automation expert ──────────────────────────────────────────────────

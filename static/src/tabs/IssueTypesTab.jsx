@@ -2,7 +2,8 @@ import React from "react";
 import { invoke } from "@forge/bridge";
 import { formatNumber, formatRelativeTime } from "../utils";
 import { Icon } from "../components/Icons";
-import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, PanelGrid, GridSpan, BarList, PillarHealthPanel, FindingRow, SortFilterBar } from "../components/ui";
+import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, PanelGrid, GridSpan, BarList, PillarHealthPanel, FindingRow, SortFilterBar, AskRovo } from "../components/ui";
+import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
 import { useNavIntent, useVisiblePolling } from "../hooks";
 
@@ -255,10 +256,31 @@ export function IssueTypesTab({ intent }) {
   }
 
   const buildAction = (
-    <button type="button" className="secondary-button" onClick={startBuild} disabled={building || isBuilding}>
-      <Icon name="refreshCw" size={13} />
-      {isBuilding ? "Building…" : data?.neverBuilt ? "Build inventory" : "Rebuild"}
-    </button>
+    <>
+      <AskRovo
+        agent="observatory-issuetype-expert"
+        scope="the issue type catalogue"
+        context="the snapshot age and the current orphan / near-duplicate / unused-scheme counts"
+        disabled={Boolean(data?.neverBuilt)}
+        buildPrompt={() =>
+          buildRovoPrompt({
+            task: "Give me an overview of this site's issue type catalogue and its schemes, and what to look at first.",
+            facts: [
+              ["Snapshot built", data?.refreshedAt || "unknown"],
+              ["Issue types", data?.totalTypes ?? null],
+              ["Issue type schemes", data?.totalSchemes ?? null],
+              ["Types no scheme reaches", data?.governance?.orphanTypeCount ?? null],
+              ["Near-duplicate type names", data?.governance?.reducibleTypeCount ?? null],
+              ["Schemes no project uses", data?.governance?.unusedSchemeCount ?? null],
+            ],
+          })
+        }
+      />
+      <button type="button" className="secondary-button" onClick={startBuild} disabled={building || isBuilding}>
+        <Icon name="refreshCw" size={13} />
+        {isBuilding ? "Building…" : data?.neverBuilt ? "Build inventory" : "Rebuild"}
+      </button>
+    </>
   );
 
   if (loading && !data) {

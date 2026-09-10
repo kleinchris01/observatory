@@ -18,6 +18,7 @@ import {
   toDisplayName,
 } from "../utils";
 import { Icon, CHART_PALETTE } from "./Icons";
+import { AskRovo } from "./ui";
 import { FieldOptionsModal } from "./FieldOptionsModal";
 
 export class ReportErrorBoundary extends React.Component {
@@ -517,14 +518,13 @@ export function ProjectUsageReportView({
             </div>
             <div className="section-heading__actions">
               <span>{filteredFields.length} fields · {filteredProjects.length} projects shown</span>
-              <button
-                className="secondary-button secondary-button--small"
-                type="button"
-                onClick={() => onAskReport({ fields: filteredFields, projects: filteredProjects, pendingFields, reportSummary })}
+              <AskRovo
+                agent="observatory-field-expert"
+                scope="this report"
+                context="the fields and projects in the current report view"
                 disabled={!rovoEnabled}
-              >
-                Ask Rovo
-              </button>
+                onAsk={() => onAskReport({ fields: filteredFields, projects: filteredProjects, pendingFields, reportSummary })}
+              />
               <button
                 className="secondary-button secondary-button--small"
                 type="button"

@@ -486,7 +486,7 @@ export const ROVO_AGENTS = {
     reads: "the imported automation rule analysis",
   },
   "observatory-workflow-expert": {
-    name: "Observatory Workflow & Status Expert",
+    name: "Observatory Workflow Expert",
     reads: "the workflow scheme and status inventory",
   },
   "observatory-issuetype-expert": {
@@ -510,11 +510,11 @@ export const ROVO_AGENTS = {
     reads: "the JSM Assets object schema and type structure",
   },
   "observatory-estate-expert": {
-    name: "Observatory Priorities & Resolutions Expert",
+    name: "Observatory Priorities Expert",
     reads: "the resolution and priority value lists",
   },
   "observatory-change-expert": {
-    name: "Observatory Configuration Change Expert",
+    name: "Observatory Change Expert",
     reads: "the configuration change-history timeline",
   },
   "observatory-project-expert": {

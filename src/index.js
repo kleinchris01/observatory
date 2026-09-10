@@ -57,6 +57,30 @@ import {
   rovoSearchAutomationRules,
   rovoInspectAutomationRule,
   rovoAutomationUsage,
+  rovoWorkflowSearch,
+  rovoWorkflowInspect,
+  rovoWorkflowImpact,
+  rovoIssueTypeSearch,
+  rovoIssueTypeInspect,
+  rovoIssueTypeImpact,
+  rovoAccessSearch,
+  rovoAccessInspect,
+  rovoAccessImpact,
+  rovoPeopleSearch,
+  rovoPeopleInspect,
+  rovoPeopleImpact,
+  rovoAssetSearch,
+  rovoAssetInspect,
+  rovoAssetImpact,
+  rovoEstateSearch,
+  rovoEstateInspect,
+  rovoScreenSearch,
+  rovoScreenInspect,
+  rovoScreenImpact,
+  rovoChangeSearch,
+  rovoChangeInspect,
+  rovoProjectSearch,
+  rovoProjectInspect,
   SHARED_RESOLVER_FUNCTIONS,
   ADMIN_ONLY_FUNCTIONS,
 } from "./resolvers.js";
@@ -542,3 +566,12 @@ export const adminHandler = makeResolver({
 
 export { rovoSearchFields, rovoInspectField };
 export { rovoSearchAutomationRules, rovoInspectAutomationRule, rovoAutomationUsage };
+export { rovoWorkflowSearch, rovoWorkflowInspect, rovoWorkflowImpact };
+export { rovoIssueTypeSearch, rovoIssueTypeInspect, rovoIssueTypeImpact };
+export { rovoAccessSearch, rovoAccessInspect, rovoAccessImpact };
+export { rovoPeopleSearch, rovoPeopleInspect, rovoPeopleImpact };
+export { rovoAssetSearch, rovoAssetInspect, rovoAssetImpact };
+export { rovoEstateSearch, rovoEstateInspect };
+export { rovoScreenSearch, rovoScreenInspect, rovoScreenImpact };
+export { rovoChangeSearch, rovoChangeInspect };
+export { rovoProjectSearch, rovoProjectInspect };

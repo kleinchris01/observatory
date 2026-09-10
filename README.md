@@ -88,10 +88,23 @@ The gap between them is the signal: a status with no current issues but tens of 
 
 **A status whose usage was never measured is reported as unknown, never as zero.** Zero is what marks a status safe to delete, so it is only ever asserted when a scan actually observed the catalog.
 
-### Rovo AI agent
-An embedded Rovo agent ("Observatory Field Expert") with two callable actions:
-- **Search field catalog** — natural-language search over the snapshot
-- **Inspect field governance** — detailed breakdown for a specific field, by field ID or name
+### Rovo AI agents
+One Rovo agent per governance pillar — Field, Workflow & Status, Issue Type, Screen,
+Access, People, Assets, Priorities & Resolutions, Automation, Configuration Change and
+Project — plus the two that predate the pattern. Each agent has the same shape:
+
+- **`search-<pillar>`** — ranked matches for a name or phrase
+- **`inspect-<pillar>`** — the full governance detail for one entity
+- **`<pillar>-impact`** — "what references / breaks if I change this" (where the pillar can
+  answer it)
+
+Every action returns the snapshot's `refreshedAt` and an explicit `*-unavailable` status
+rather than an empty result. All agent keys are `observatory-<pillar>-expert` and are
+listed in `ROVO_AGENTS` (`static/src/utils.js`); prompt files are in
+`resource/agent/prompts/`, each starting from the shared preamble. In the UI, every
+"Ask Rovo about …" button is the shared `<AskRovo>` primitive — its tooltip names the
+agent and states that Rovo answers from the latest snapshot and never changes Jira. All
+read-only; no `write:*` scope.
 
 ---
 
