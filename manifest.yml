@@ -63,7 +63,7 @@ modules:
         - inspect-automation-rule
         - automation-usage
     - key: observatory-workflow-expert
-      name: Observatory Workflow & Status Expert
+      name: Observatory Workflow Expert
       description: A Jira workflow and status specialist that explains the site's workflow schemes and status catalogue, which schemes and projects a status reaches, and whether a status is safe to consolidate or retire.
       prompt: resource:agent-resources;prompts/workflow-expert.txt
       conversationStarters:
@@ -128,14 +128,14 @@ modules:
         - inspect-asset
         - asset-impact
     - key: observatory-estate-expert
-      name: Observatory Priorities & Resolutions Expert
+      name: Observatory Priorities Expert
       description: A specialist in Jira's two global value lists, priorities and resolutions, explaining what each list contains, whether it has a default, and near-duplicate names.
       prompt: resource:agent-resources;prompts/estate-expert.txt
       conversationStarters:
         - Give me an overview of the priority and resolution lists
         - Which resolution names look like duplicates of each other?
         - Do the priority and resolution lists each have a default?
-        - Explain why having "Done", "Fixed" and "Complete" as separate resolutions is a problem
+        - Why split "Done", "Fixed" and "Complete" into separate resolutions?
       actions:
         - search-estate
         - inspect-estate
@@ -153,7 +153,7 @@ modules:
         - inspect-screen
         - screen-impact
     - key: observatory-change-expert
-      name: Observatory Configuration Change Expert
+      name: Observatory Change Expert
       description: A specialist in Observatory's configuration change-history timeline, explaining what changed in the estate's configuration and when.
       prompt: resource:agent-resources;prompts/change-expert.txt
       conversationStarters:
