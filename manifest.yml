@@ -842,5 +842,11 @@ permissions:
     # Observatory reports a board's backing filter and column mapping, it never edits one.
     - read:board-scope:jira-software
     - read:board-scope.admin:jira-software
+    # Remediation ticketing. The one place Observatory writes to Jira: it creates an epic
+    # per governance finding and a task per item to fix, in a project the admin configures.
+    # Every write is behind an explicit button, gated by read-only mode, and audited. The
+    # issue is created by the app with `reporter` set to the admin who clicked it.
+    - write:jira-work
+    - read:issue:jira
     - read:chat:rovo
     - storage:app

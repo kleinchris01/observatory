@@ -53,6 +53,11 @@ const mocks = vi.hoisted(() => ({
   readFilterSnapshotMeta: vi.fn(async () => null),
   readFullScanMeta: vi.fn(async () => null),
   writeFullScanMeta: vi.fn(async () => ({})),
+  createJiraIssue: vi.fn(async () => ({ id: "10001", key: "OPS-1", self: "https://x/OPS-1" })),
+  recordRemediationTicket: vi.fn(async () => undefined),
+  loadRemediationTickets: vi.fn(async () => []),
+  getRemediationEpic: vi.fn(async () => null),
+  loadTicketedItemIds: vi.fn(async () => new Set()),
   readRecentFullScanRuns: vi.fn(async () => []),
   recoverStalledScan: vi.fn(async () => ({ recovered: false, reason: "healthy" })),
   resumeScanRun: vi.fn(async () => ({ resumed: true, retrying: ["dashboards"] })),
@@ -445,6 +450,10 @@ vi.mock("./lib/project-store.js", () => ({
   loadWorkflowSchemeStatuses: mocks.loadWorkflowSchemeStatuses,
   loadStatusIssueCounts: mocks.loadStatusIssueCounts,
   loadStatusHistoryCounts: mocks.loadStatusHistoryCounts,
+  recordRemediationTicket: mocks.recordRemediationTicket,
+  loadRemediationTickets: mocks.loadRemediationTickets,
+  getRemediationEpic: mocks.getRemediationEpic,
+  loadTicketedItemIds: mocks.loadTicketedItemIds,
 }));
 
 vi.mock("./lib/screen-engine.js", () => ({
@@ -523,6 +532,7 @@ vi.mock("./lib/jira-api.js", () => ({
   collectRecentFieldProjectCandidates: mocks.collectRecentFieldProjectCandidates,
   loadFieldOptionsFromJira: mocks.loadFieldOptionsFromJira,
   getBrowsableProjectIds: mocks.getBrowsableProjectIds,
+  createJiraIssue: mocks.createJiraIssue,
   getAllJiraProjects: mocks.getAllJiraProjects,
   probeEndpoint: mocks.probeEndpoint,
   getPermissionCatalog: mocks.getPermissionCatalog,
@@ -636,6 +646,8 @@ const {
   getAutomationCascades,
   getCascadeGraph,
   getAutomationBlast,
+  createRemediationEpic,
+  getRemediationTickets,
   getStatusAutomationUsage,
   getAutomationFieldUsage,
   getAutomationFieldCounts,
@@ -1584,6 +1596,24 @@ describe("saveAdminConfigResolver", () => {
       .rejects.toThrow(/quickScanSchedule\.hourUtc/);
     await expect(saveAdminConfigResolver({ payload: { quickScanSchedule: { windowHours: 0 } } }))
       .rejects.toThrow(/quickScanSchedule\.windowHours/);
+  });
+
+  test("rejects a remediation project key that is not a Jira key", async () => {
+    await expect(saveAdminConfigResolver({ payload: { remediation: { projectKey: "not a key!" } } }))
+      .rejects.toThrow(/remediation\.projectKey/);
+    await expect(saveAdminConfigResolver({ payload: { remediation: { epicIssueType: 123 } } }))
+      .rejects.toThrow(/remediation\.epicIssueType/);
+  });
+
+  test("accepts and merges a valid remediation config, keeping the rest", async () => {
+    mocks.kvsGet.mockResolvedValue({ remediation: { projectKey: "OLD", epicIssueType: "Epic", taskIssueType: "Task", defaultAssigneeAccountId: "" } });
+    const result = await saveAdminConfigResolver({ payload: { remediation: { projectKey: "ADMIN" } } });
+    expect(result.config.remediation).toMatchObject({ projectKey: "ADMIN", epicIssueType: "Epic", taskIssueType: "Task" });
+  });
+
+  test("an empty remediation project key is allowed — it just disables the feature", async () => {
+    const result = await saveAdminConfigResolver({ payload: { remediation: { projectKey: "" } } });
+    expect(result.ok).toBe(true);
   });
 
   test("merges a partial schedule update over the stored one, keeping the rest", async () => {
@@ -6166,6 +6196,129 @@ describe("getAutomationBlast", () => {
     mocks.loadBlastRules.mockResolvedValueOnce({ rules: [], total: 0 });
     const result = await getAutomationBlast({ payload: { page: 3 }, context: ctxWithAccount() });
     expect(result.available).toBe(true);
+  });
+});
+
+describe("createRemediationEpic", () => {
+  const ITEMS = [
+    { id: "4001", name: "Open Bugs", ownerName: "Gone Person", ownerActive: false },
+    { id: "4002", name: "Sprint Board Filter" },
+  ];
+
+  beforeEach(() => {
+    mocks.kvsGet.mockResolvedValue({ readOnlyMode: false, remediation: { projectKey: "ADMIN", epicIssueType: "Epic", taskIssueType: "Task", defaultAssigneeAccountId: "" } });
+    mocks.getRemediationEpic.mockResolvedValue(null);
+    mocks.loadTicketedItemIds.mockResolvedValue(new Set());
+    mocks.createJiraIssue.mockImplementation(async (fields) => ({
+      id: "1" + Math.random().toString().slice(2, 7),
+      key: fields.parent ? `ADMIN-T${Math.floor(Math.random() * 999)}` : "ADMIN-1",
+      self: "https://x",
+    }));
+  });
+
+  test("refuses an unknown finding key", async () => {
+    const r = await createRemediationEpic({ payload: { findingKey: "not-real", items: ITEMS }, context: ctxWithAccount() });
+    expect(r.error).toMatch(/No remediation playbook/);
+    expect(mocks.createJiraIssue).not.toHaveBeenCalled();
+  });
+
+  test("refuses when read-only mode is on", async () => {
+    mocks.kvsGet.mockResolvedValue({ readOnlyMode: true, remediation: { projectKey: "ADMIN" } });
+    const r = await createRemediationEpic({ payload: { findingKey: "filter-ownership", items: ITEMS }, context: ctxWithAccount() });
+    expect(r.error).toMatch(/Read-only mode/);
+  });
+
+  test("refuses when no remediation project is configured", async () => {
+    mocks.kvsGet.mockResolvedValue({ readOnlyMode: false, remediation: { projectKey: "" } });
+    const r = await createRemediationEpic({ payload: { findingKey: "filter-ownership", items: ITEMS }, context: ctxWithAccount() });
+    expect(r.error).toMatch(/No remediation project/);
+  });
+
+  test("creates the epic then a task per item, records every ticket, and returns a summary", async () => {
+    const r = await createRemediationEpic({ payload: { findingKey: "filter-ownership", items: ITEMS }, context: ctxWithAccount("admin-1") });
+
+    expect(r).toMatchObject({ ok: true, epicKey: "ADMIN-1", epicCreated: true, tasksCreated: 2, itemsTotal: 2, itemsRemaining: 0 });
+    // 1 epic + 2 tasks
+    expect(mocks.createJiraIssue).toHaveBeenCalledTimes(3);
+    // Epic first, no parent; tasks carry parent + the reporter is the caller.
+    const [epicFields, epicOpts] = mocks.createJiraIssue.mock.calls[0];
+    expect(epicOpts).toEqual({ asUser: true });
+    expect(epicFields.parent).toBeUndefined();
+    expect(epicFields.reporter).toEqual({ id: "admin-1" });
+    expect(epicFields.labels).toEqual(["observatory-remediation", "filters"]);
+    expect(epicFields.description).toMatchObject({ type: "doc", version: 1 });
+    const [taskFields] = mocks.createJiraIssue.mock.calls[1];
+    expect(taskFields.parent).toEqual({ key: "ADMIN-1" });
+    expect(mocks.recordRemediationTicket).toHaveBeenCalledTimes(3);
+  });
+
+  test("is idempotent: an existing epic is reused and only un-ticketed items get a task", async () => {
+    mocks.getRemediationEpic.mockResolvedValue({ issueKey: "ADMIN-1", issueId: "10001" });
+    mocks.loadTicketedItemIds.mockResolvedValue(new Set(["4001"]));
+
+    const r = await createRemediationEpic({ payload: { findingKey: "filter-ownership", items: ITEMS }, context: ctxWithAccount() });
+
+    expect(r.epicCreated).toBe(false);
+    expect(r.tasksCreated).toBe(1);
+    // Only the task create, no epic create.
+    expect(mocks.createJiraIssue).toHaveBeenCalledTimes(1);
+    expect(mocks.createJiraIssue.mock.calls[0][0].parent).toEqual({ key: "ADMIN-1" });
+  });
+
+  test("a task-create failure is collected, not thrown, and the others still land", async () => {
+    mocks.createJiraIssue
+      .mockResolvedValueOnce({ id: "1", key: "ADMIN-1" })            // epic
+      .mockRejectedValueOnce(Object.assign(new Error("field 'parent' cannot be set"), { status: 400 }))
+      .mockResolvedValueOnce({ id: "3", key: "ADMIN-T2" });          // second task
+
+    const r = await createRemediationEpic({ payload: { findingKey: "filter-ownership", items: ITEMS }, context: ctxWithAccount() });
+
+    expect(r.ok).toBe(true);
+    expect(r.tasksCreated).toBe(1);
+    expect(r.failures).toEqual([{ itemId: "4001", error: expect.stringContaining("parent") }]);
+  });
+
+  test("caps the synchronous batch and reports the remainder", async () => {
+    const many = Array.from({ length: 30 }, (_, i) => ({ id: `f${i}`, name: `Filter ${i}` }));
+    const r = await createRemediationEpic({ payload: { findingKey: "filter-ownership", items: many }, context: ctxWithAccount() });
+    expect(r.tasksCreated).toBe(20);
+    expect(r.itemsRemaining).toBe(10);
+  });
+
+  test("a failure creating the epic itself aborts with an error and no tasks", async () => {
+    mocks.createJiraIssue.mockRejectedValueOnce(Object.assign(new Error("project ADMIN not found"), { status: 404 }));
+    const r = await createRemediationEpic({ payload: { findingKey: "filter-ownership", items: ITEMS }, context: ctxWithAccount() });
+    expect(r.error).toMatch(/Creating the epic failed.*ADMIN not found/);
+    expect(mocks.recordRemediationTicket).not.toHaveBeenCalled();
+  });
+
+  test("is admin-only and audited", () => {
+    expect(Object.keys(ADMIN_ONLY_FUNCTIONS)).toContain("createRemediationEpic");
+    expect(Object.keys(SHARED_RESOLVER_FUNCTIONS)).not.toContain("createRemediationEpic");
+  });
+});
+
+describe("getRemediationTickets", () => {
+  test("groups tickets by finding, epic separated from tasks, with open counts", async () => {
+    mocks.loadRemediationTickets.mockResolvedValue([
+      { findingKey: "filter-ownership", pillar: "filters", isEpic: true, issueKey: "ADMIN-1" },
+      { findingKey: "filter-ownership", pillar: "filters", isEpic: false, issueKey: "ADMIN-2", lastStatusCategory: "done" },
+      { findingKey: "filter-ownership", pillar: "filters", isEpic: false, issueKey: "ADMIN-3", lastStatusCategory: "indeterminate" },
+    ]);
+
+    const r = await getRemediationTickets({ payload: {}, context: ctxWithAccount() });
+
+    expect(r.available).toBe(true);
+    expect(r.groups).toHaveLength(1);
+    expect(r.groups[0]).toMatchObject({ findingKey: "filter-ownership", pillar: "filters", taskCount: 2, openCount: 1 });
+    expect(r.groups[0].epic.issueKey).toBe("ADMIN-1");
+  });
+
+  test("passes a finding filter through and reports unavailable when empty", async () => {
+    mocks.loadRemediationTickets.mockResolvedValue([]);
+    const r = await getRemediationTickets({ payload: { findingKey: "board-backing" }, context: ctxWithAccount() });
+    expect(mocks.loadRemediationTickets).toHaveBeenCalledWith(expect.any(String), "board-backing");
+    expect(r.available).toBe(false);
   });
 });
 
