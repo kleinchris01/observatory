@@ -3775,6 +3775,39 @@ describe("saveAutomationAnalysis", () => {
     expect(Object.keys(ADMIN_ONLY_FUNCTIONS)).toContain("saveAutomationAnalysis");
     expect(Object.keys(SHARED_RESOLVER_FUNCTIONS)).not.toContain("saveAutomationAnalysis");
   });
+
+  test("coerces the blast rollup and caps its top list", async () => {
+    const blast = {
+      available: true,
+      total: 1477,
+      byTier: { estate: 12, "cross-project": 40, project: 300, contained: 1125, junk: 9 },
+      estateWideCount: 12,
+      estateWideShare: 12 / 1477,
+      estateWideCredentialCount: "3",
+      estimatedCount: 1477,
+      top: Array.from({ length: 40 }, (_, i) => ({ ruleId: i, score: `${i}`, tier: "estate" })),
+    };
+    await saveAutomationAnalysis({ payload: { analysis: { ...valid, blast } }, context: ctxWithAccount() });
+
+    const [, stored] = mocks.writeAutomationAnalysis.mock.calls[0];
+    expect(stored.blast.byTier).toEqual({ estate: 12, "cross-project": 40, project: 300, contained: 1125 });
+    expect(stored.blast.estateWideCredentialCount).toBe(3);
+    expect(stored.blast.top).toHaveLength(20);
+    expect(stored.blast.top[0]).toEqual({ ruleId: "0", score: 0, tier: "estate" });
+  });
+
+  test("a missing or malformed blast rollup stores null rather than throwing", async () => {
+    for (const bad of [undefined, null, "nope", [1, 2], { total: 5, top: "not-an-array" }]) {
+      mocks.writeAutomationAnalysis.mockClear();
+      await saveAutomationAnalysis({ payload: { analysis: { ...valid, blast: bad } }, context: ctxWithAccount() });
+      const [, stored] = mocks.writeAutomationAnalysis.mock.calls[0];
+      if (bad && typeof bad === "object" && !Array.isArray(bad)) {
+        expect(stored.blast.top).toEqual([]);
+      } else {
+        expect(stored.blast).toBeNull();
+      }
+    }
+  });
 });
 
 describe("saveAutomationIndex", () => {
@@ -6121,6 +6154,17 @@ describe("getAutomationBlast", () => {
     expect(Object.keys(ADMIN_ONLY_FUNCTIONS)).toContain("getAutomationBlast");
     expect(Object.keys(SHARED_RESOLVER_FUNCTIONS)).not.toContain("getAutomationBlast");
   });
+
+  test("propagates a store failure rather than swallowing it", async () => {
+    mocks.loadBlastRules.mockRejectedValueOnce(new Error("sql down"));
+    await expect(getAutomationBlast({ payload: {}, context: ctxWithAccount() })).rejects.toThrow("sql down");
+  });
+
+  test("reports available on a later page even when this page is empty", async () => {
+    mocks.loadBlastRules.mockResolvedValueOnce({ rules: [], total: 0 });
+    const result = await getAutomationBlast({ payload: { page: 3 }, context: ctxWithAccount() });
+    expect(result.available).toBe(true);
+  });
 });
 
 describe("getCascadeGraph", () => {
@@ -8133,6 +8177,27 @@ describe("rovo boards agent", () => {
 
   test("impact: requires a filterId or statusId", async () => {
     expect((await rovoBoardImpact({}, ctx())).status).toBe("error");
+  });
+
+  test("inspect: resolves a board by name, case-insensitively", async () => {
+    seedBoards();
+    const r = await rovoBoardInspect({ name: "kanban wall" }, ctx());
+    expect(r.status).toBe("ok");
+    expect(r.board.boardId).toBe("2");
+  });
+
+  test("inspect: an unknown name is not-found and names what was looked for", async () => {
+    seedBoards();
+    const r = await rovoBoardInspect({ name: "Ghost Board" }, ctx());
+    expect(r.status).toBe("not-found");
+    expect(r.message).toMatch(/Ghost Board/);
+  });
+
+  test("search / inspect / impact all propagate an inventory failure rather than swallowing it", async () => {
+    mocks.readBoardSnapshotMeta.mockRejectedValue(new Error("board store down"));
+    await expect(rovoBoardSearch({ query: "x" }, ctx())).rejects.toThrow("board store down");
+    await expect(rovoBoardInspect({ boardId: "1" }, ctx())).rejects.toThrow("board store down");
+    await expect(rovoBoardImpact({ filterId: "1" }, ctx())).rejects.toThrow("board store down");
   });
 });
 
