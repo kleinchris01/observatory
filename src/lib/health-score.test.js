@@ -1,5 +1,118 @@
 import { describe, test, expect } from "vitest";
-import { computeSiteHealth, gradeFor, resolveHealthTolerances, DEFAULT_HEALTH_TOLERANCES, HEALTH_PILLARS } from "./health-score.js";
+import {
+  computeSiteHealth,
+  gradeFor,
+  resolveHealthTolerances,
+  DEFAULT_HEALTH_TOLERANCES,
+  HEALTH_PILLARS,
+  scoreAgainstTarget,
+  blastMultiplier,
+  directionAdjust,
+  targetDimension,
+  resolveHealthTargets,
+  DEFAULT_HEALTH_TARGETS,
+} from "./health-score.js";
+
+describe("scoring model v2 primitives", () => {
+  describe("scoreAgainstTarget", () => {
+    test("down: 100 at/under target, 0 at/over floor, linear between", () => {
+      const band = { target: 0, floor: 0.1, direction: "down" };
+      expect(scoreAgainstTarget(0, band)).toBe(100);
+      expect(scoreAgainstTarget(0.05, band)).toBe(50);
+      expect(scoreAgainstTarget(0.1, band)).toBe(0);
+      expect(scoreAgainstTarget(0.4, band)).toBe(0);
+    });
+    test("up: 100 at/over target, 0 at/under floor", () => {
+      const band = { target: 0.9, floor: 0.5, direction: "up" };
+      expect(scoreAgainstTarget(0.95, band)).toBe(100);
+      expect(scoreAgainstTarget(0.7, band)).toBe(50);
+      expect(scoreAgainstTarget(0.5, band)).toBe(0);
+      expect(scoreAgainstTarget(0.2, band)).toBe(0);
+    });
+    test("returns null for an un-scoreable band or value", () => {
+      expect(scoreAgainstTarget(NaN, { target: 0, floor: 1, direction: "down" })).toBeNull();
+      expect(scoreAgainstTarget(0.5, { target: 0.5, floor: 0.5, direction: "down" })).toBeNull();
+      expect(scoreAgainstTarget(0.5, { target: 0.9, floor: 0.95, direction: "up" })).toBeNull(); // floor above target
+      expect(scoreAgainstTarget(0.5, { target: 0.1, floor: 0.05, direction: "down" })).toBeNull(); // floor below target
+    });
+  });
+
+  describe("blastMultiplier", () => {
+    test("0.5x when nothing is affected, ~2x at full estate reach, monotonic between", () => {
+      expect(blastMultiplier(0, 1000)).toBe(0.5);
+      expect(blastMultiplier(1000, 1000)).toBe(2);
+      const small = blastMultiplier(10, 1000);
+      const big = blastMultiplier(400, 1000);
+      expect(small).toBeGreaterThan(0.5);
+      expect(big).toBeGreaterThan(small);
+      expect(big).toBeLessThan(2);
+    });
+    test("guards a zero or missing estate", () => {
+      expect(blastMultiplier(5, 0)).toBeGreaterThanOrEqual(0.5);
+      expect(blastMultiplier(undefined, undefined)).toBe(0.5);
+    });
+  });
+
+  describe("directionAdjust", () => {
+    test("rewards improvement up to the bonus cap, penalises regression harder", () => {
+      expect(directionAdjust(0, 0.4)).toBe(0);
+      expect(directionAdjust(1, 0.4)).toBe(6);   // clamped to DIRECTION_MAX_BONUS
+      expect(directionAdjust(-1, 0.4)).toBe(-12); // clamped to DIRECTION_MAX_PENALTY
+      expect(directionAdjust(0.2, 0.4)).toBe(3);
+      expect(directionAdjust(-0.2, 0.4)).toBe(-6);
+    });
+    test("no adjustment without a usable scale", () => {
+      expect(directionAdjust(0.5, 0)).toBe(0);
+      expect(directionAdjust(0.5, NaN)).toBe(0);
+    });
+  });
+
+  describe("targetDimension", () => {
+    const base = {
+      key: "k", label: "K", pillar: "boards", weight: 1.5,
+      value: 0.9, target: 0.98, floor: 0.75, direction: "up",
+    };
+    test("scores the level, exposes value/target/floor/direction, and scales weight by blast", () => {
+      const d = targetDimension({ ...base, affected: 3, estate: 30 });
+      expect(d.available).toBe(true);
+      expect(d.level).toBe(65);
+      expect(d.score).toBe(65);
+      expect(d.value).toBe(0.9);
+      expect(d.baseWeight).toBe(1.5);
+      expect(d.blastMultiplier).toBeGreaterThan(1);
+      expect(d.weight).toBe(Math.round(1.5 * d.blastMultiplier * 100) / 100);
+      expect(d.delta).toBeNull();
+      expect(d.trend).toBe("flat");
+    });
+    test("folds a capped directional term in once there is a prior value, oriented so up is good", () => {
+      const improved = targetDimension({ ...base, prior: 0.8 });
+      const slipped = targetDimension({ ...base, prior: 0.97 });
+      expect(improved.score).toBeGreaterThan(improved.level);
+      expect(improved.trend).toBe("improving");
+      expect(slipped.score).toBeLessThan(slipped.level);
+      expect(slipped.trend).toBe("worsening");
+    });
+    test("marks the dimension unavailable rather than inventing a number when the band is bad", () => {
+      const d = targetDimension({ ...base, target: 0.5, floor: 0.5 });
+      expect(d.available).toBe(false);
+    });
+  });
+
+  describe("resolveHealthTargets", () => {
+    test("returns the shipped defaults untouched", () => {
+      expect(resolveHealthTargets()).toEqual(DEFAULT_HEALTH_TARGETS);
+    });
+    test("applies a valid override and keeps the direction/blast metadata", () => {
+      const out = resolveHealthTargets({ leastPrivilegeConformance: { target: 0.95, floor: 0.6 } });
+      expect(out.leastPrivilegeConformance).toMatchObject({ target: 0.95, floor: 0.6, direction: "up", blast: "users" });
+    });
+    test("keeps the whole default when the override pair is degenerate for the direction", () => {
+      // "up" band with floor above target -> reject, keep default.
+      const out = resolveHealthTargets({ leastPrivilegeConformance: { target: 0.5, floor: 0.8 } });
+      expect(out.leastPrivilegeConformance).toEqual(DEFAULT_HEALTH_TARGETS.leastPrivilegeConformance);
+    });
+  });
+});
 
 // The score is a way into the findings, not a finding itself. These tests mostly pin the
 // two properties that stop it from lying: it scores rates rather than counts, and it
@@ -652,11 +765,33 @@ describe("access dimensions", () => {
     }
   });
 
-  test("least privilege is the heaviest permission dimension and scores as a rate", () => {
-    const health = computeSiteHealth({ permissions: permissions({ totalSchemes: 10, riskySchemeCount: 3 }) });
-    // 3/10 past the 0.15 tolerance -> 0.
-    expect(dim(health, "permission-least-privilege").score).toBe(0);
-    expect(dim(health, "permission-least-privilege").weight).toBe(1.5);
+  test("least privilege is a v2 target: scored against a conformance band, weighted by blast", () => {
+    // 7 of 10 schemes clean -> conformance 0.70. Band is target 0.90, floor 0.50, "up".
+    // 100 * (0.70 - 0.50) / (0.90 - 0.50) = 50.
+    const d = dim(computeSiteHealth({ permissions: permissions({ totalSchemes: 10, riskySchemeCount: 3 }) }), "permission-least-privilege");
+    expect(d.level).toBe(50);
+    expect(d.score).toBe(50); // no prior -> no directional term
+    expect(d.value).toBeCloseTo(0.7, 5);
+    expect(d.direction).toBe("up");
+    expect(d.baseWeight).toBe(1.5);
+    // Weight is base × blast multiplier (0.5..2.0), so it exceeds the base once the
+    // dimension touches a meaningful share of the estate.
+    expect(d.weight).toBeGreaterThan(1.5);
+    expect(d.blastMultiplier).toBeGreaterThan(1);
+  });
+
+  test("least privilege at conformance floor scores 0, at target scores 100", () => {
+    expect(dim(computeSiteHealth({ permissions: permissions({ totalSchemes: 10, riskySchemeCount: 5 }) }), "permission-least-privilege").level).toBe(0);
+    expect(dim(computeSiteHealth({ permissions: permissions({ totalSchemes: 10, riskySchemeCount: 1 }) }), "permission-least-privilege").level).toBe(100);
+  });
+
+  test("least privilege folds in a small penalty when conformance slipped since the last scan", () => {
+    const base = { permissions: permissions({ totalSchemes: 10, riskySchemeCount: 3 }) }; // value 0.70, level 50
+    const steady = dim(computeSiteHealth({ ...base, priorValues: { "permission-least-privilege": 0.7 } }), "permission-least-privilege");
+    const slipped = dim(computeSiteHealth({ ...base, priorValues: { "permission-least-privilege": 0.85 } }), "permission-least-privilege");
+    expect(steady.score).toBe(50);
+    expect(slipped.score).toBeLessThan(50);
+    expect(slipped.trend).toBe("worsening");
   });
 
   test("security level integrity scores broken levels over the level total", () => {
@@ -741,11 +876,19 @@ describe("board dimensions", () => {
     expect(health.pillars.find((p) => p.key === "boards").total).toBe(2);
   });
 
-  test("backing scores broken and inactive-owner boards together, against the tight bound", () => {
-    // (2 broken + 1 inactive owner) / 30 = 0.1, well past the 0.08 tolerance -> 0.
-    const health = computeSiteHealth({ boards: boards({ total: 30, brokenBackingCount: 2, inactiveFilterOwner: 1 }) });
-    expect(dim(health, "board-backing").score).toBe(0);
-    expect(dim(health, "board-backing").pillar).toBe("boards");
+  test("backing is a v2 target: integrity of broken + inactive-owner boards against the band", () => {
+    // (2 broken + 1 inactive owner) / 30 -> integrity 0.90. Band target 0.98, floor 0.75, "up".
+    // 100 * (0.90 - 0.75) / (0.98 - 0.75) = 65.
+    const d = dim(computeSiteHealth({ boards: boards({ total: 30, brokenBackingCount: 2, inactiveFilterOwner: 1 }) }), "board-backing");
+    expect(d.level).toBe(65);
+    expect(d.value).toBeCloseTo(0.9, 5);
+    expect(d.pillar).toBe("boards");
+    expect(d.direction).toBe("up");
+  });
+
+  test("backing at the integrity floor scores 0", () => {
+    // 8 of 30 broken -> integrity 0.733, below the 0.75 floor.
+    expect(dim(computeSiteHealth({ boards: boards({ total: 30, brokenBackingCount: 8 }) }), "board-backing").level).toBe(0);
   });
 
   test("columns scores stale and unmapped boards against the softer bound", () => {
@@ -766,7 +909,9 @@ describe("board dimensions", () => {
   test("boards carry the structural pillar weight, 1", () => {
     const health = computeSiteHealth({ boards: boards({ total: 30, brokenBackingCount: 30 }) });
     // A wholly broken board estate drags the score but not as hard as automation would.
-    expect(dim(health, "board-backing").weight).toBe(1.5);
+    // board-backing is a v2 target now: its base weight is 1.5, scaled by blast radius.
+    expect(dim(health, "board-backing").baseWeight).toBe(1.5);
+    expect(dim(health, "board-backing").weight).toBeGreaterThanOrEqual(1.5);
     expect(dim(health, "board-columns").weight).toBe(1);
   });
 });

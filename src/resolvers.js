@@ -161,6 +161,7 @@ import {
   loadBoards,
   loadBoardColumns,
   recordHealthSnapshot,
+  loadPriorHealthDimensions,
   readFullScanMeta,
   loadHealthHistory,
   loadTransitionScreens,
@@ -184,7 +185,7 @@ import {
   summarizePermissionInsights, summarizeSecurityInsights, summarizeNotificationInsights,
   summarizeRoleInsights,
 } from "./lib/access-insights.js";
-import { computeSiteHealth, DEFAULT_HEALTH_TOLERANCES } from "./lib/health-score.js";
+import { computeSiteHealth, DEFAULT_HEALTH_TOLERANCES, DEFAULT_HEALTH_TARGETS } from "./lib/health-score.js";
 // Moved out of this file so a scan can record a measurement without importing the
 // resolver layer. Same implementation, both callers.
 import {
@@ -410,6 +411,24 @@ export async function saveAdminConfigResolver({ payload }) {
       throw new Error(`healthTolerances.${key} must be a rate greater than 0 and at most 1`);
     }
   }
+  // v2 scoring targets: each is { target, floor } as rates in [0,1]. Only the shape is
+  // enforced here -- resolveHealthTargets rejects a degenerate pair for the direction and
+  // keeps the default, so a bad band costs one tuned dimension, not the score.
+  const healthTargets = cfg.healthTargets || {};
+  for (const key of Object.keys(DEFAULT_HEALTH_TARGETS)) {
+    const band = healthTargets[key];
+    if (band === undefined || band === null) continue;
+    if (typeof band !== "object" || Array.isArray(band)) {
+      throw new Error(`healthTargets.${key} must be an object with target and floor rates`);
+    }
+    for (const field of ["target", "floor"]) {
+      const v = band[field];
+      if (v === undefined || v === null) continue;
+      if (typeof v !== "number" || !Number.isFinite(v) || v < 0 || v > 1) {
+        throw new Error(`healthTargets.${key}.${field} must be a rate between 0 and 1`);
+      }
+    }
+  }
   if (cfg.quickScanSchedule) {
     const sched = cfg.quickScanSchedule;
     if (sched.frequency !== undefined && sched.frequency !== null) {
@@ -436,6 +455,10 @@ export async function saveAdminConfigResolver({ payload }) {
     healthTolerances: {
       ...current.healthTolerances,
       ...(payload?.healthTolerances || {}),
+    },
+    healthTargets: {
+      ...current.healthTargets,
+      ...(payload?.healthTargets || {}),
     },
     macroAccess: {
       ...current.macroAccess,
@@ -5080,6 +5103,7 @@ export async function captureSiteHealthForScan(installationKey) {
     readAdminConfig,
     readAutomationAnalysis,
     recordHealthSnapshot,
+    loadPriorHealthDimensions,
   });
 }
 
@@ -6976,6 +7000,9 @@ export async function getAdminOverview({ context }) {
     }
   }
 
+  const priorHealthValues = await loadPriorHealthDimensions(installationKey)
+    .catch(fallbackOn("overview.prior_health_load_failed", () => ({}), { installationKey }));
+
   const health = computeSiteHealth({
     fieldUsage: dashboard?.fieldUsage,
     workflow,
@@ -6996,6 +7023,8 @@ export async function getAdminOverview({ context }) {
     // Workflow, project and automation dimensions were scored against hardcoded constants
     // while every field rule was tunable. Same config surface now feeds both.
     tolerances: config?.healthTolerances,
+    targets: config?.healthTargets,
+    priorValues: priorHealthValues,
   });
 
   // Recorded here because this is the only place the score is computed, and the series
@@ -7229,6 +7258,7 @@ async function getPillarHealth({ payload, context }) {
     estate: estateOverview?.health ?? null,
     boards: boardOverview?.health ?? null,
     tolerances: config?.healthTolerances,
+    targets: config?.healthTargets,
   });
 
   const pillar = (health.pillars || []).find((p) => p.key === key) || null;

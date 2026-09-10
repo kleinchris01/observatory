@@ -25,6 +25,7 @@ import { sql } from "@forge/sql";
 import {
   recordHealthSnapshot,
   loadHealthHistory,
+  loadPriorHealthDimensions,
   pruneHealthHistory,
   measurementDay,
   recordFullScanRun,
@@ -91,8 +92,22 @@ describe("recordHealthSnapshot", () => {
     await recordHealthSnapshot("scope-1", health());
 
     const stored = JSON.parse(issued[0].params.at(-1));
-    expect(stored).toEqual({ "field-naming": 79, "field-governance": 17 });
+    // v2 shape: { key: { s: score } }, plus v: rawValue for a target-scored dimension.
+    expect(stored).toEqual({ "field-naming": { s: 79 }, "field-governance": { s: 17 } });
     expect(stored).not.toHaveProperty("screen-hygiene");
+  });
+
+  test("stores the raw value alongside the score for a v2 dimension, so the next scan can diff it", async () => {
+    await recordHealthSnapshot("scope-1", health({
+      dimensions: [
+        { key: "board-backing", available: true, score: 65, value: 0.9 },
+        { key: "field-naming", available: true, score: 79 }, // v1, no value
+      ],
+    }));
+
+    const stored = JSON.parse(issued[0].params.at(-1));
+    expect(stored["board-backing"]).toEqual({ s: 65, v: 0.9 });
+    expect(stored["field-naming"]).toEqual({ s: 79 });
   });
 
   test("records nothing when the site has no score at all", async () => {
@@ -140,6 +155,31 @@ describe("loadHealthHistory", () => {
   test("survives an unparseable dimensions blob", async () => {
     nextRows = [{ measured_on: "2026-08-13", score: 58, dimensions_json: "{not json" }];
     expect((await loadHealthHistory("scope-1"))[0].dimensions).toEqual({});
+  });
+
+  test("flattens both stored shapes to { key: score } for the chart", async () => {
+    nextRows = [{
+      measured_on: "2026-08-13", score: 58,
+      // one v1 bare-number entry, one v2 { s, v } entry
+      dimensions_json: JSON.stringify({ "field-naming": 79, "board-backing": { s: 65, v: 0.9 } }),
+    }];
+    expect((await loadHealthHistory("scope-1"))[0].dimensions).toEqual({ "field-naming": 79, "board-backing": 65 });
+  });
+});
+
+describe("loadPriorHealthDimensions", () => {
+  test("returns the { key: rawValue } map from the most recent row before today", async () => {
+    nextRows = [{ dimensions_json: JSON.stringify({ "board-backing": { s: 65, v: 0.9 }, "field-naming": 79 }) }];
+    const prior = await loadPriorHealthDimensions("scope-1");
+    // Only v2 entries carrying a raw value survive; a bare score has nothing to diff.
+    expect(prior).toEqual({ "board-backing": 0.9 });
+    expect(issued[0].statement).toContain("measured_on <= ?");
+    expect(issued[0].statement).toContain("LIMIT 1");
+  });
+
+  test("returns {} when there is no prior row", async () => {
+    nextRows = [];
+    expect(await loadPriorHealthDimensions("scope-1")).toEqual({});
   });
 });
 

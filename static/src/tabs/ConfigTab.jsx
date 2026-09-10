@@ -241,7 +241,6 @@ const DEFAULT_TOLERANCES = {
   deadAssetSchemas: 0.20,
   bareAssetTypes: 0.30,
   brokenAssetReferences: 0.10,
-  riskyPermissionSchemes: 0.15,
   unusedAccessSchemes: 0.35,
   brokenSecurityLevels: 0.15,
   fragileNotificationSchemes: 0.30,
@@ -249,9 +248,26 @@ const DEFAULT_TOLERANCES = {
   offRosterRoleActors: 0.05,
   duplicateResolutions: 0.15,
   duplicatePriorities: 0.20,
-  boardsBrokenBacking: 0.08,
   boardsColumnHygiene: 0.25,
 };
+
+// Scoring model v2: dimensions with a definable good state, tuned as a { target, floor }
+// band of rates rather than a single bottom-out point. Mirrors DEFAULT_HEALTH_TARGETS in
+// src/lib/health-score.js; the parity test keeps the two in step.
+const DEFAULT_TARGETS = {
+  leastPrivilegeConformance: { target: 0.90, floor: 0.50, direction: "up" },
+  boardBackingIntegrity: { target: 0.98, floor: 0.75, direction: "up" },
+};
+
+// Deep-merge a stored { key: { target, floor } } map over the defaults, so a config that
+// only tuned one band keeps the shipped values for the rest.
+function mergeTargets(stored) {
+  const out = {};
+  for (const [key, def] of Object.entries(DEFAULT_TARGETS)) {
+    out[key] = { ...def, ...(stored?.[key] || {}) };
+  }
+  return out;
+}
 
   const [local, setLocal] = React.useState(() => {
     const c = config || DEFAULT_CONFIG;
@@ -260,6 +276,7 @@ const DEFAULT_TOLERANCES = {
       ...c,
       governanceThresholds: { ...DEFAULT_THRESHOLDS, ...(c.governanceThresholds || {}) },
       healthTolerances: { ...DEFAULT_TOLERANCES, ...(c.healthTolerances || {}) },
+      healthTargets: mergeTargets(c.healthTargets),
       macroAccess: { ...DEFAULT_MACRO_ACCESS, ...(c.macroAccess || {}) },
     };
   });
@@ -272,6 +289,7 @@ const DEFAULT_TOLERANCES = {
         ...config,
         governanceThresholds: { ...DEFAULT_THRESHOLDS, ...(config.governanceThresholds || {}) },
         healthTolerances: { ...DEFAULT_TOLERANCES, ...(config.healthTolerances || {}) },
+        healthTargets: mergeTargets(config.healthTargets),
         macroAccess: { ...DEFAULT_MACRO_ACCESS, ...(config.macroAccess || {}) },
       });
       setDirty(false);
@@ -310,6 +328,20 @@ const DEFAULT_TOLERANCES = {
     setDirty(true);
   }
 
+  // A v2 target band. `field` is "target" or "floor"; percentage in, rate stored, clamped
+  // 0-100 so it cannot leave the screen outside the band the resolver accepts.
+  function setTarget(key, field, percent) {
+    const rate = Math.max(0, Math.min(100, Number(percent) || 0)) / 100;
+    setLocal((prev) => ({
+      ...prev,
+      healthTargets: {
+        ...mergeTargets(prev.healthTargets),
+        [key]: { ...mergeTargets(prev.healthTargets)[key], [field]: rate },
+      },
+    }));
+    setDirty(true);
+  }
+
   function handleSave() {
     onSave(local);
     setDirty(false);
@@ -318,6 +350,8 @@ const DEFAULT_TOLERANCES = {
   const t = local.governanceThresholds || DEFAULT_THRESHOLDS;
   const hv = local.healthTolerances || DEFAULT_TOLERANCES;
   const pct = (key) => Math.round((hv[key] ?? DEFAULT_TOLERANCES[key]) * 100);
+  const targets = mergeTargets(local.healthTargets);
+  const targetPct = (key, field) => Math.round((targets[key]?.[field] ?? DEFAULT_TARGETS[key][field]) * 100);
 
   // One pane at a time, chosen from a rail, rather than five sections stacked into a
   // single scroll. The old layout put nine threshold rules between an admin and the Save
@@ -339,6 +373,8 @@ const DEFAULT_TOLERANCES = {
         setMacroAccess={setMacroAccess}
         pct={pct}
         setTolerancePercent={setTolerancePercent}
+        targetPct={targetPct}
+        setTarget={setTarget}
       />
 
       {/* Diagnostics change nothing, so the save bar would be noise there. */}
@@ -371,7 +407,7 @@ const CONFIG_AREAS = [
   { key: "diagnostics", label: "Diagnostics", icon: "activity" },
 ];
 
-function ConfigAreas({ area, local, t, set, setThreshold, setMacroAccess, pct, setTolerancePercent }) {
+function ConfigAreas({ area, local, t, set, setThreshold, setMacroAccess, pct, setTolerancePercent, targetPct, setTarget }) {
   if (area === "access") {
     return (
       <>
@@ -406,7 +442,7 @@ function ConfigAreas({ area, local, t, set, setThreshold, setMacroAccess, pct, s
           description="Every finding in the app comes from one of the rules below. Edit the numbers
                  inline — changes apply on the next inventory load, with no snapshot rebuild."
         />
-        <RulesArea t={t} setThreshold={setThreshold} pct={pct} setTolerancePercent={setTolerancePercent} />
+        <RulesArea t={t} setThreshold={setThreshold} pct={pct} setTolerancePercent={setTolerancePercent} targetPct={targetPct} setTarget={setTarget} />
       </>
     );
   }
@@ -651,9 +687,27 @@ function ScanningArea({ local, set }) {
 
 // Grouped by what the finding means, not listed flat. Nine rules in one undifferentiated
 // column reads as a wall; the same nine under three headings read as three decisions.
-function RulesArea({ t, setThreshold, pct, setTolerancePercent }) {
+function RulesArea({ t, setThreshold, pct, setTolerancePercent, targetPct, setTarget }) {
   return (
     <>
+      <ConfigSection title="Scoring targets" icon="sliders">
+        <p className="admin-config-section__desc">
+          Dimensions with a definable good state, tuned as a band. The dimension scores 100
+          at or past the <strong>target</strong>, 0 at or past the <strong>floor</strong>,
+          and its weight in the roll-up scales with how much of the estate it affects. A
+          small bonus or penalty is folded in for whether the number moved the right way
+          since the last scan.
+        </p>
+        <div className="admin-threshold-rules">
+          <TargetRule tone="risk" badge="Permissions" name="Least-privilege conformance"
+            targetPct={targetPct} setTarget={setTarget} k="leastPrivilegeConformance"
+            tail="of permission schemes with no anyone-browse, no group-level project admin and no named individuals." />
+          <TargetRule tone="risky" badge="Boards" name="Board backing integrity"
+            targetPct={targetPct} setTarget={setTarget} k="boardBackingIntegrity"
+            tail="of boards running on a live, owned backing filter." />
+        </div>
+      </ConfigSection>
+
       <ConfigSection title="Risk" icon="alertTriangle">
         <p className="admin-config-section__desc">
           Fields where a change or a removal carries consequences. These raise attention, not
@@ -910,8 +964,8 @@ function RulesArea({ t, setThreshold, pct, setTolerancePercent }) {
           forgiving.
         </p>
         <div className="admin-threshold-rules">
-          <ToleranceRule tone="risk" badge="Permissions" name="Least-privilege violations" pct={pct} set={setTolerancePercent} k="riskyPermissionSchemes"
-            tail="of permission schemes granting browse to anyone, project admin to a whole group, or a permission to a named individual." />
+          {/* Least-privilege moved to the Scoring targets section — it has a good state
+              (a conformance rate) to converge on, not just a bad rate to stay under. */}
           <ToleranceRule tone="risk" badge="Issue security" name="Unreachable security levels" pct={pct} set={setTolerancePercent} k="brokenSecurityLevels"
             tail="of security levels with no members, or belonging to a scheme with no levels — an issue set to one is invisible." />
           <ToleranceRule tone="standardize" badge="Notifications" name="Fragile routing" pct={pct} set={setTolerancePercent} k="fragileNotificationSchemes"
@@ -946,8 +1000,8 @@ function RulesArea({ t, setThreshold, pct, setTolerancePercent }) {
           removed one drops issues off the wall, which is bad but less immediate.
         </p>
         <div className="admin-threshold-rules">
-          <ToleranceRule tone="risky" badge="Boards" name="Broken backing filters" pct={pct} set={setTolerancePercent} k="boardsBrokenBacking"
-            tail="of boards with no backing filter, a deleted one, or one whose owner is deactivated." />
+          {/* Broken backing filters moved to the Scoring targets section — a board on a live
+              filter is the good state to hold at, weighted by what depends on it. */}
           <ToleranceRule tone="cleanup" badge="Boards" name="Column hygiene" pct={pct} set={setTolerancePercent} k="boardsColumnHygiene"
             tail="of boards with a column that maps no status, or one that has been deleted." />
         </div>
@@ -1021,6 +1075,22 @@ function ToleranceRule({ tone, badge, name, pct, set, k, tail }) {
       <span className="admin-threshold-rule__sentence">
         <strong>{name}:</strong> score bottoms out at{" "}
         <InlineThresholdInput value={pct(k)} onChange={(v) => set(k, v)} min={1} max={100} />{" "}
+        % {tail}
+      </span>
+    </div>
+  );
+}
+
+// A v2 target band: score 100 at the target, 0 at the floor.
+function TargetRule({ tone, badge, name, targetPct, setTarget, k, tail }) {
+  return (
+    <div className="admin-threshold-rule">
+      <span className={`admin-threshold-rule__badge admin-threshold-rule__badge--${tone}`}>{badge}</span>
+      <span className="admin-threshold-rule__sentence">
+        <strong>{name}:</strong> scores 100 at{" "}
+        <InlineThresholdInput value={targetPct(k, "target")} onChange={(v) => setTarget(k, "target", v)} min={0} max={100} />{" "}
+        %, 0 at{" "}
+        <InlineThresholdInput value={targetPct(k, "floor")} onChange={(v) => setTarget(k, "floor", v)} min={0} max={100} />{" "}
         % {tail}
       </span>
     </div>

@@ -105,11 +105,12 @@ export const DEFAULT_HEALTH_TOLERANCES = {
   deadAssetSchemas: 0.20,
   bareAssetTypes: 0.30,
   brokenAssetReferences: 0.10,
-  // Access schemes. A permission scheme that opens browse to anyone or hands project admin
-  // to a whole group is a least-privilege failure -- tight. An unused scheme of any kind is
-  // clutter -- forgiving. A security level nobody is in is a data black hole, tight. A
-  // notification scheme routing to a named individual is fragile but not dangerous.
-  riskyPermissionSchemes: 0.15,
+  // Access schemes. An unused scheme of any kind is clutter -- forgiving. A security level
+  // nobody is in is a data black hole, tight. A notification scheme routing to a named
+  // individual is fragile but not dangerous.
+  //
+  // (Least-privilege moved to DEFAULT_HEALTH_TARGETS: it has a definable good state -- a
+  // conformance rate to converge on -- rather than only a bad rate to stay under.)
   unusedAccessSchemes: 0.35,
   brokenSecurityLevels: 0.15,
   fragileNotificationSchemes: 0.30,
@@ -123,19 +124,172 @@ export const DEFAULT_HEALTH_TOLERANCES = {
   // less when they do.
   duplicateResolutions: 0.15,
   duplicatePriorities: 0.20,
-  // Agile boards. A board on a deleted or absent backing filter shows every issue in the
-  // site -- broken, not untidy, so it is bounded tight. Column hygiene (a column mapping no
-  // status, or one that has been removed) drops issues off the board silently: worse than
-  // clutter, less immediate than a wrong-scope board, so it sits between.
-  boardsBrokenBacking: 0.08,
+  // Agile boards. Column hygiene (a column mapping no status, or one that has been removed)
+  // drops issues off the board silently: worse than clutter, less immediate than a
+  // wrong-scope board.
+  //
+  // (Broken backing filters moved to DEFAULT_HEALTH_TARGETS -- a board on a live filter is
+  // the good state to hold at, weighted by the boards and dashboards that depend on it.)
   boardsColumnHygiene: 0.25,
 };
 
-// rate 0 -> 100, rate >= tolerance -> 0, linear between. Deliberately linear: a curve
-// would imply a precision this data does not have.
+// Scoring model v2: dimensions with a definable good state.
+//
+// A tolerance answers "how bad is unacceptable". A target answers "what does good look
+// like" -- and every metric here has one. `direction` says which way is good; `target` is
+// where the dimension scores 100; `floor` is where it scores 0. `blast` names the currency
+// the dimension's weight is scaled by (issues / users / dependents), or null for a plain
+// weight.
+//
+// Admin-tunable, like the tolerances. Both target and floor are rates in [0,1] except where
+// noted; the resolver enforces target ≠ floor and the right ordering for the direction.
+export const DEFAULT_HEALTH_TARGETS = {
+  // Permission schemes with no anyone-browse, no group-level project-admin, no named
+  // individual. A conformance rate: >90% is the good state, <50% is a failing estate.
+  leastPrivilegeConformance: { target: 0.9, floor: 0.5, direction: "up", blast: "users" },
+  // Boards running on a live, owned backing filter. A board with a broken one shows every
+  // issue in the site; weighted by the boards + dashboards that hang off those filters.
+  boardBackingIntegrity: { target: 0.98, floor: 0.75, direction: "up", blast: "dependents" },
+};
+
+// Same contract as resolveHealthTolerances: strict on type, ignore unknown keys, and fall
+// back to the default for a value that would not survive the resolver's own validation --
+// a bad config value should cost a tuned dimension, not the whole score.
+export function resolveHealthTargets(overrides = {}) {
+  const out = {};
+  for (const [key, def] of Object.entries(DEFAULT_HEALTH_TARGETS)) {
+    const o = overrides?.[key] || {};
+    const target = typeof o.target === "number" && Number.isFinite(o.target) && o.target > 0 && o.target <= 1 ? o.target : def.target;
+    const floor = typeof o.floor === "number" && Number.isFinite(o.floor) && o.floor >= 0 && o.floor <= 1 ? o.floor : def.floor;
+    // If the pair the admin supplied is degenerate for this direction, keep the whole
+    // default rather than a half-applied override.
+    const ok = def.direction === "up" ? floor < target : floor > target;
+    out[key] = ok ? { ...def, target, floor } : { ...def };
+  }
+  return out;
+}
+
+// ── Scoring model v2 ──────────────────────────────────────────────────────
+//
+// The original model scored one thing: a bad RATE against a FLOOR it bottomed out at
+// (scoreFromRate). Three limits, each addressed here:
+//
+//   1. It only knew "bad" and "how bad is unacceptable". A metric like scheme reuse has a
+//      GOOD state (>60%) to converge on, not just a bad one to stay under. scoreAgainstTarget
+//      takes a target and a floor and a direction.
+//   2. A dimension counted for its base weight regardless of how much of the estate it
+//      actually touched. blastMultiplier scales a dimension's weight by consequence -- the
+//      share of issues / users / dependents affected -- so the same finding rate on a bigger
+//      blast radius moves the score more.
+//   3. It was a snapshot. A site at 70% and climbing is not the same as 70% and sliding.
+//      directionAdjust applies a small, capped, asymmetric nudge from the change since the
+//      last scan, with regression penalised harder than improvement is rewarded.
+//
+// Both paths coexist: a dimension still on scoreFromRate is scored exactly as before.
+
+// value -> score, against a definable good state.
+//
+//   direction "down": value <= target -> 100, value >= floor -> 0   (exposure, sprawl, defects)
+//   direction "up"  : value >= target -> 100, value <= floor -> 0   (reuse, coverage, conformance)
+//
+// Linear between, like the rate model and for the same reason: the data does not support a
+// curve. Returns null for an un-scoreable band so the caller can mark the dimension
+// unavailable rather than invent a number.
+export function scoreAgainstTarget(value, { target, floor, direction = "down" } = {}) {
+  const v = Number(value);
+  const t = Number(target);
+  const f = Number(floor);
+  if (!Number.isFinite(v) || !Number.isFinite(t) || !Number.isFinite(f) || t === f) return null;
+  if (direction === "up") {
+    if (f >= t) return null; // floor must sit below target for an "up" band
+    if (v >= t) return 100;
+    if (v <= f) return 0;
+    return Math.round((100 * (v - f)) / (t - f));
+  }
+  if (f <= t) return null; // floor must sit above target for a "down" band
+  if (v <= t) return 100;
+  if (v >= f) return 0;
+  return Math.round((100 * (f - v)) / (f - t));
+}
+
+// rate 0 -> 100, rate >= tolerance -> 0. Kept as a named helper because most dimensions
+// still use it; it is now just the "down from zero" case of scoreAgainstTarget.
 function scoreFromRate(rate, tolerance) {
   if (!Number.isFinite(rate) || rate <= 0) return 100;
-  return Math.max(0, Math.round(100 * (1 - Math.min(1, rate / tolerance))));
+  return scoreAgainstTarget(rate, { target: 0, floor: tolerance, direction: "down" }) ?? 0;
+}
+
+// How much a dimension counts, scaled by consequence rather than object count. `affected`
+// is a count in one currency (issues, users, or dependents) and `estate` is the total in
+// that same currency. A dimension touching nothing still counts (0.5x); one touching the
+// whole estate counts double. Log-shaped like the automation blast-radius reach factor:
+// one very large project already reads as high reach, not 3%.
+export function blastMultiplier(affected, estate) {
+  const a = Math.max(0, Number(affected) || 0);
+  const e = Math.max(1, Number(estate) || 0);
+  const reach = Math.min(1, Math.log1p(a) / Math.log1p(e));
+  return Math.round((0.5 + 1.5 * reach) * 100) / 100; // 0.50 .. 2.00
+}
+
+// A capped nudge from movement since the last scan. `orientedDelta` is already signed so
+// positive means "better". `scale` is how large a move counts as decisive -- the band
+// width. Regression is penalised harder than improvement is rewarded, and neither can
+// outweigh the level.
+export const DIRECTION_MAX_BONUS = 6;
+export const DIRECTION_MAX_PENALTY = 12;
+export function directionAdjust(orientedDelta, scale) {
+  const d = Number(orientedDelta);
+  const s = Number(scale);
+  if (!Number.isFinite(d) || d === 0 || !Number.isFinite(s) || s <= 0) return 0;
+  const frac = Math.max(-1, Math.min(1, d / s));
+  return Math.round(frac * (frac >= 0 ? DIRECTION_MAX_BONUS : DIRECTION_MAX_PENALTY));
+}
+
+// Build a v2 dimension: level scored against a target, weight scaled by blast radius, and
+// (once there is a prior value) a directional adjustment folded into the score.
+//
+// `prior` is this dimension's `value` from the previous snapshot, or null on the first
+// scan -- the directional term stays out until there is history to compare against.
+export function targetDimension({
+  key, label, pillar, weight = 1,
+  value, target, floor, direction = "down",
+  affected = null, estate = null, prior = null,
+  detail, action = null,
+}) {
+  const level = scoreAgainstTarget(value, { target, floor, direction });
+  if (level === null) {
+    return unavailable(key, label, pillar, "This dimension's input was not collected.");
+  }
+
+  let score = level;
+  let delta = null;
+  let trend = "flat";
+  if (prior !== null && prior !== undefined && Number.isFinite(Number(prior))) {
+    const raw = Number(value) - Number(prior);
+    delta = direction === "up" ? raw : -raw; // orient: positive is always better
+    score = Math.max(0, Math.min(100, level + directionAdjust(delta, Math.abs(target - floor))));
+    trend = delta > 0 ? "improving" : delta < 0 ? "worsening" : "flat";
+  }
+
+  const bw = affected !== null && estate !== null ? blastMultiplier(affected, estate) : 1;
+  return {
+    key, label, pillar,
+    available: true,
+    weight: Math.round(weight * bw * 100) / 100,
+    baseWeight: weight,
+    blastMultiplier: bw,
+    score,
+    level,
+    value: Number(value),
+    target: Number(target),
+    floor: Number(floor),
+    direction,
+    affected: affected === null ? null : Number(affected),
+    delta,
+    trend,
+    detail,
+    action,
+  };
 }
 
 // Every dimension carries the pillar it belongs to, so the overview can group thirteen bars
@@ -240,9 +394,18 @@ export function resolveHealthTolerances(overrides = {}) {
   return out;
 }
 
-export function computeSiteHealth({ fieldUsage, workflow, projects, automation, screens, adoption, filters, dashboards, issueTypes, users, assets, permissions, security, notifications, roles, estate, boards, tolerances } = {}) {
+export function computeSiteHealth({ fieldUsage, workflow, projects, automation, screens, adoption, filters, dashboards, issueTypes, users, assets, permissions, security, notifications, roles, estate, boards, tolerances, targets, priorValues } = {}) {
   const TOLERANCE = resolveHealthTolerances(tolerances);
+  const TARGET = resolveHealthTargets(targets);
   const dimensions = [];
+
+  // The same dimension's `value` from the previous snapshot, for the directional term. A
+  // plain object keyed by dimension key; missing / non-finite entries leave the directional
+  // term out, which is the correct behaviour on the first scan and after a model change.
+  const prior = (key) => {
+    const v = priorValues && priorValues[key];
+    return Number.isFinite(Number(v)) ? Number(v) : null;
+  };
 
   // ── Field naming ──────────────────────────────────────────────────────────
   const totalFields = Number(fieldUsage?.totalFields) || 0;
@@ -1141,21 +1304,29 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
   // of them; each dimension scores a rate over its own scheme count.
   const noAccess = "No access inventory yet. Run a full scan to populate it.";
 
-  // Permission schemes: least-privilege violations, then unused clutter.
+  // Permission schemes: least-privilege conformance (v2 target), then unused clutter.
   if (permissions?.available && permissions.totalSchemes > 0) {
     const risky = Number(permissions.riskySchemeCount) || 0;
-    dimensions.push({
+    const total = Number(permissions.totalSchemes) || 0;
+    const conformance = total > 0 ? (total - risky) / total : 1;
+    dimensions.push(targetDimension({
       key: "permission-least-privilege",
       label: "Least privilege",
       pillar: "permissions",
-      available: true,
       weight: 1.5,
-      score: scoreFromRate(risky / permissions.totalSchemes, TOLERANCE.riskyPermissionSchemes),
+      value: conformance,
+      ...TARGET.leastPrivilegeConformance,
+      // No "users under a risky scheme" count yet, so blast is scaled by scheme share --
+      // still tells a 3-of-40 estate from a 30-of-40 one. A later pass swaps in the
+      // affected-user count once the access overview carries it.
+      affected: risky,
+      estate: total,
+      prior: prior("permission-least-privilege"),
       detail: risky === 0
-        ? `None of the ${permissions.totalSchemes} permission schemes open browse to anyone or hand project admin to a group.`
-        : `${risky} of ${permissions.totalSchemes} permission schemes grant browse to anyone, project admin to a whole group, or a permission to a named individual.`,
+        ? `All ${total} permission schemes keep least privilege — no anyone-browse, no group-level project admin, no named individuals.`
+        : `${risky} of ${total} permission schemes grant browse to anyone, project admin to a whole group, or a permission to a named individual.`,
       action: risky > 0 ? "Replace direct and blanket grants with project roles; a permission held by an individual is a permission nobody reviews." : null,
-    });
+    }));
     const unused = Number(permissions.unusedSchemeCount) || 0;
     dimensions.push({
       key: "permission-scheme-sprawl",
@@ -1327,20 +1498,26 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
   const boardTotal = Number(boards?.total) || 0;
   if (boards?.available && boardTotal > 0) {
     const broken = (Number(boards.brokenBackingCount) || 0) + (Number(boards.inactiveFilterOwner) || 0);
-    dimensions.push({
+    const integrity = (boardTotal - broken) / boardTotal;
+    dimensions.push(targetDimension({
       key: "board-backing",
       label: "Board backing filters",
       pillar: "boards",
-      available: true,
       weight: 1.5,
-      score: scoreFromRate(broken / boardTotal, TOLERANCE.boardsBrokenBacking),
+      value: integrity,
+      ...TARGET.boardBackingIntegrity,
+      // Dependents: the broken boards themselves plus the dashboards that sit on the same
+      // filters, against every board on the site as the estate.
+      affected: broken + (Number(boards.dependentDashboards) || 0),
+      estate: boardTotal,
+      prior: prior("board-backing"),
       detail: broken === 0
-        ? `All ${boardTotal} boards have a live backing filter.`
+        ? `All ${boardTotal} boards run on a live, owned backing filter.`
         : `${broken} of ${boardTotal} boards have no backing filter, name one that was deleted, or run on a filter whose owner is deactivated.`,
       action: broken > 0
         ? "A board with no live backing filter shows every issue in the site. Repoint it, or reassign the filter before the account is removed."
         : null,
-    });
+    }));
 
     const columnIssues = (Number(boards.staleColumnBoards) || 0) + (Number(boards.unmappedColumnBoards) || 0);
     dimensions.push({
