@@ -40,7 +40,7 @@ modules:
   rovo:agent:
     - key: observatory-field-expert
       name: Observatory Field Expert
-      description: A Jira custom field specialist that explains field usage, scope, contexts, and governance signals.
+      description: A Jira custom field specialist that explains field usage, scope, contexts, and...
       prompt: resource:agent-resources;prompts/jira-field-expert.txt
       conversationStarters:
         - Find the most heavily used custom fields on this site
@@ -51,7 +51,7 @@ modules:
         - inspect-field-governance
     - key: observatory-automation-expert
       name: Observatory Automation Expert
-      description: A Jira Automation specialist that explains what the site's rules do, what fields and statuses they depend on, and whether a change is safe to make.
+      description: A Jira Automation specialist that explains what the site's rules do, what fields and...
       prompt: resource:agent-resources;prompts/jira-automation-expert.txt
       conversationStarters:
         - Is the Story Points field safe to delete?
@@ -64,7 +64,7 @@ modules:
         - automation-usage
     - key: observatory-workflow-expert
       name: Observatory Workflow Expert
-      description: A Jira workflow and status specialist that explains the site's workflow schemes and status catalogue, which schemes and projects a status reaches, and whether a status is safe to consolidate or retire.
+      description: A Jira workflow and status specialist that explains the site's workflow schemes and...
       prompt: resource:agent-resources;prompts/workflow-expert.txt
       conversationStarters:
         - Give me an overview of the workflow and status estate
@@ -77,7 +77,7 @@ modules:
         - workflow-impact
     - key: observatory-issuetype-expert
       name: Observatory Issue Type Expert
-      description: A Jira issue type specialist that explains the type catalogue and its schemes, which schemes and projects a type reaches, near-duplicate type names, and whether a type is safe to retire.
+      description: A Jira issue type specialist that explains the type catalogue and its schemes, which...
       prompt: resource:agent-resources;prompts/issuetype-expert.txt
       conversationStarters:
         - Give me an overview of the issue type catalogue and its schemes
@@ -90,7 +90,7 @@ modules:
         - issue-type-impact
     - key: observatory-access-expert
       name: Observatory Access Expert
-      description: A Jira access specialist that explains permission, issue-security and notification schemes and project roles, who holds what, and everywhere an account or group is named.
+      description: A Jira access specialist that explains permission, issue-security and notification...
       prompt: resource:agent-resources;prompts/access-expert.txt
       conversationStarters:
         - Give me an overview of the access schemes on this site
@@ -103,7 +103,7 @@ modules:
         - access-impact
     - key: observatory-people-expert
       name: Observatory People Expert
-      description: A Jira user and group specialist that explains the licensed-user roster, who owns which filters, dashboards and rules, and what breaks if an account is deactivated.
+      description: A Jira user and group specialist that explains the licensed-user roster, who owns which...
       prompt: resource:agent-resources;prompts/people-expert.txt
       conversationStarters:
         - Give me an overview of the licensed-user roster and its ownership graph
@@ -116,7 +116,7 @@ modules:
         - person-impact
     - key: observatory-assets-expert
       name: Observatory Assets Expert
-      description: A JSM Assets (CMDB) specialist that explains the object schema and object type structure, attributes and references, and what depends on an object type.
+      description: A JSM Assets (CMDB) specialist that explains the object schema and object type...
       prompt: resource:agent-resources;prompts/assets-expert.txt
       conversationStarters:
         - Give me an overview of the Assets object schemas and their structure
@@ -129,7 +129,7 @@ modules:
         - asset-impact
     - key: observatory-estate-expert
       name: Observatory Priorities Expert
-      description: A specialist in Jira's two global value lists, priorities and resolutions, explaining what each list contains, whether it has a default, and near-duplicate names.
+      description: A specialist in Jira's two global value lists, priorities and resolutions, explaining...
       prompt: resource:agent-resources;prompts/estate-expert.txt
       conversationStarters:
         - Give me an overview of the priority and resolution lists
@@ -141,7 +141,7 @@ modules:
         - inspect-estate
     - key: observatory-screen-expert
       name: Observatory Screen Expert
-      description: A Jira screen specialist that explains the screen catalogue, tabs and fields, the screen-scheme operation mapping, and what routes to a screen.
+      description: A Jira screen specialist that explains the screen catalogue, tabs and fields, the...
       prompt: resource:agent-resources;prompts/screen-expert.txt
       conversationStarters:
         - Give me an overview of the screen catalogue and its schemes
@@ -154,7 +154,7 @@ modules:
         - screen-impact
     - key: observatory-change-expert
       name: Observatory Change Expert
-      description: A specialist in Observatory's configuration change-history timeline, explaining what changed in the estate's configuration and when.
+      description: A specialist in Observatory's configuration change-history timeline, explaining what...
       prompt: resource:agent-resources;prompts/change-expert.txt
       conversationStarters:
         - What has changed in the estate's configuration recently?
@@ -166,7 +166,7 @@ modules:
         - inspect-changes
     - key: observatory-project-expert
       name: Observatory Project Expert
-      description: A specialist in per-project configuration - which schemes a project resolves to, its adoption where measured, and its field usage. Limited to projects the caller can browse.
+      description: A specialist in per-project configuration - which schemes a project resolves to, its...
       prompt: resource:agent-resources;prompts/project-expert.txt
       conversationStarters:
         - Give me an overview of a specific project's configuration
@@ -181,92 +181,92 @@ modules:
       name: Search field catalog
       function: rovo-search-fields
       actionVerb: GET
-      description: Search the Observatory field snapshot by field name, id, type, or description and return ranked field matches with usage totals.
+      description: Search the Observatory field snapshot by field name, id, type, or description and return...
       inputs:
         query:
           title: Search query
           type: string
           required: true
-          description: Field name, field id, type, or a short phrase describing the field to find.
+          description: Field name, field id, type, or a short phras
         fieldType:
           title: Field type
           type: string
           required: false
-          description: Optional field type filter such as multiselect, datepicker, or textarea.
+          description: Optional field type filter such as multisele
         sortBy:
           title: Sort order
           type: string
           required: false
-          description: Optional sort order. Use usage-desc, usage-asc, name-asc, or name-desc.
+          description: Optional sort order
         maxResults:
           title: Maximum results
           type: integer
           required: false
-          description: Optional maximum number of matches to return, from 1 to 10.
+          description: Optional maximum number of matches to return
     - key: inspect-field-governance
       name: Inspect field governance
       function: rovo-inspect-field
       actionVerb: GET
-      description: Retrieve a detailed field governance summary for one Jira custom field, including full totals, contexts, and project usage.
+      description: Retrieve a detailed field governance summary for one Jira custom field, including full...
       inputs:
         fieldIdentifier:
           title: Field identifier
           type: string
           required: true
-          description: A field id like customfield_11492 or a field name such as SIT/Attribute.
+          description: A field id like customfield_11492 or a field
         projectPage:
           title: Project usage page
           type: integer
           required: false
-          description: Optional page number for the active-project breakdown list.
+          description: Optional page number for the active-project
         includeProjectBreakdown:
           title: Include project breakdown
           type: boolean
           required: false
-          description: Whether to include project-level usage rows in the response.
+          description: Whether to include project-level usage rows
     - key: search-automation-rules
       name: Search automation rules
       function: rovo-search-rules
       actionVerb: GET
-      description: Search the site's Jira Automation rules by name and return their state, trigger, project scope and any governance findings.
+      description: Search the site's Jira Automation rules by name and return their state, trigger, project...
       inputs:
         query:
           title: Search query
           type: string
           required: true
-          description: Words from the rule name, such as "approval" or "copy fields to subtasks".
+          description: Words from the rule name, such as "approval"
         state:
           title: Rule state
           type: string
           required: false
-          description: Optional filter. Use enabled, disabled, or any.
+          description: Optional filter
         maxResults:
           title: Maximum results
           type: integer
           required: false
-          description: Optional maximum number of rules to return, from 1 to 20.
+          description: Optional maximum number of rules to return,
     - key: inspect-automation-rule
       name: Inspect automation rule
       function: rovo-inspect-rule
       actionVerb: GET
-      description: Retrieve one automation rule's state, trigger, project scope, governance findings, and the fields and statuses it reads, writes or triggers on.
+      description: Retrieve one automation rule's state, trigger, project scope, governance findings, and...
       inputs:
         ruleIdentifier:
           title: Rule identifier
           type: string
           required: true
-          description: A numeric rule id such as 28499275, or words from the rule name.
+          description: A numeric rule id such as 28499275, or words
     - key: automation-usage
       name: Automation usage for a field or status
       function: rovo-auto-usage
       actionVerb: GET
-      description: Report which automation rules write, read or trigger on a named Jira field or status, and whether it is safe to delete. Use this for any question about whether changing a field or status will break automation.
+      description: Report which automation rules write, read or trigger on a named Jira field or status,...
       inputs:
         name:
           title: Field or status name
           type: string
           required: true
-          description: The exact field or status name, such as "Story Points" or "Waiting for customer".
+          description: The exact field or status name, such as "Sto
         kind:
           title: Kind
           type: string
@@ -276,13 +276,13 @@ modules:
       name: Search workflow schemes and statuses
       function: rovo-workflow-search
       actionVerb: GET
-      description: Search the workflow snapshot by name and return matching workflow schemes and statuses with their project counts and issue counts.
+      description: Search the workflow snapshot by name and return matching workflow schemes and statuses...
       inputs:
         query:
           title: Search query
           type: string
           required: true
-          description: A workflow scheme name, a status name, or a short phrase.
+          description: A workflow scheme name, a status name, or a
         kind:
           title: Kind
           type: string
@@ -292,40 +292,40 @@ modules:
           title: Maximum results
           type: integer
           required: false
-          description: Optional maximum number of matches to return, from 1 to 20.
+          description: Optional maximum number of matches to return
     - key: inspect-workflow
       name: Inspect a workflow scheme or status
       function: rovo-workflow-inspect
       actionVerb: GET
-      description: Retrieve one workflow scheme (its statuses, category balance and the projects it governs) or one status (its issue and history counts, which schemes reach it, and near-duplicate siblings).
+      description: Retrieve one workflow scheme (its statuses, category balance and the projects it...
       inputs:
         identifier:
           title: Scheme or status
           type: string
           required: true
-          description: A workflow scheme name or a status name, such as "Software Simplified Workflow Scheme" or "In Review".
+          description: A workflow scheme name or a status name, suc
     - key: workflow-impact
       name: Impact of changing a status
       function: rovo-workflow-impact
       actionVerb: GET
-      description: Report which workflow schemes reach a status, how many projects those schemes govern, which automation rules touch it, and whether there is any evidence the status is in use. Use this before consolidating or retiring a status.
+      description: Report which workflow schemes reach a status, how many projects those schemes govern,...
       inputs:
         name:
           title: Status name
           type: string
           required: true
-          description: The exact status name, such as "On Hold" or "Waiting for customer".
+          description: The exact status name, such as "On Hold" or
     - key: search-issue-types
       name: Search issue types and schemes
       function: rovo-issuetype-search
       actionVerb: GET
-      description: Search the issue type snapshot by name and return matching issue types and issue type schemes with their hierarchy level, project counts and membership counts.
+      description: Search the issue type snapshot by name and return matching issue types and issue type...
       inputs:
         query:
           title: Search query
           type: string
           required: true
-          description: An issue type name, a scheme name, or a short phrase.
+          description: An issue type name, a scheme name, or a shor
         kind:
           title: Kind
           type: string
@@ -335,34 +335,34 @@ modules:
           title: Maximum results
           type: integer
           required: false
-          description: Optional maximum number of matches to return, from 1 to 20.
+          description: Optional maximum number of matches to return
     - key: inspect-issue-type
       name: Inspect an issue type or scheme
       function: rovo-issuetype-inspect
       actionVerb: GET
-      description: Retrieve one issue type scheme (its members and the projects it governs) or one issue type (its hierarchy level and which schemes reach it).
+      description: Retrieve one issue type scheme (its members and the projects it governs) or one issue...
       inputs:
         identifier:
           title: Issue type or scheme
           type: string
           required: true
-          description: An issue type name or an issue type scheme name.
+          description: An issue type name or an issue type scheme n
     - key: issue-type-impact
       name: Impact of changing an issue type
       function: rovo-issuetype-impact
       actionVerb: GET
-      description: Report which issue type schemes reach a type and how many projects those schemes govern. Use this before retiring or merging an issue type.
+      description: Report which issue type schemes reach a type and how many projects those schemes govern.
       inputs:
         name:
           title: Issue type name
           type: string
           required: true
-          description: The exact issue type name, such as "Change Request".
+          description: The exact issue type name, such as "Change R
     - key: search-access
       name: Search access schemes
       function: rovo-access-search
       actionVerb: GET
-      description: Search permission, issue-security and notification schemes and project roles by name and return matches with their project counts.
+      description: Search permission, issue-security and notification schemes and project roles by name and...
       inputs:
         query:
           title: Search query
@@ -373,39 +373,39 @@ modules:
           title: Scheme family
           type: string
           required: false
-          description: Limit to permissions, security, notifications or roles. Defaults to all.
+          description: Limit to permissions, security, notification
         maxResults:
           title: Maximum results
           type: integer
           required: false
-          description: Optional maximum number of matches per family, from 1 to 20.
+          description: Optional maximum number of matches per famil
     - key: inspect-access
       name: Inspect an access scheme
       function: rovo-access-inspect
       actionVerb: GET
-      description: Retrieve one permission / issue-security / notification scheme or project role with its holders, project count and governance findings.
+      description: Retrieve one permission / issue-security / notification scheme or project role with its...
       inputs:
         identifier:
           title: Scheme or role
           type: string
           required: true
-          description: A permission, issue-security or notification scheme name, or a project role name.
+          description: A permission, issue-security or notification
     - key: access-impact
       name: Where an account or group is named
       function: rovo-access-impact
       actionVerb: GET
-      description: Report every permission / issue-security / notification scheme and project role that names a given account id, group name or display name, and how it is granted. Use this before deactivating an account or deleting a group.
+      description: Report every permission / issue-security / notification scheme and project role that...
       inputs:
         name:
           title: Account id, group or display name
           type: string
           required: true
-          description: An accountId, a group name such as "jira-administrators", or a display name.
+          description: An accountId, a group name such as "jira-adm
     - key: search-people
       name: Search the user roster and groups
       function: rovo-people-search
       actionVerb: GET
-      description: Search the licensed-user roster and access groups by name and return matching accounts (with their ownership counts) and groups (with member counts).
+      description: Search the licensed-user roster and access groups by name and return matching accounts...
       inputs:
         query:
           title: Search query
@@ -416,23 +416,23 @@ modules:
           title: Maximum results
           type: integer
           required: false
-          description: Optional maximum number of matches to return, from 1 to 20.
+          description: Optional maximum number of matches to return
     - key: inspect-person
       name: Inspect one account
       function: rovo-people-inspect
       actionVerb: GET
-      description: Retrieve one account's full cross-pillar footprint - products, groups, owned filters / dashboards / rules, rules that name it, direct scheme grants and user-picker field values.
+      description: Retrieve one account's full cross-pillar footprint - products, groups, owned filters /...
       inputs:
         accountId:
           title: Account id
           type: string
           required: true
-          description: The Atlassian accountId. Use search-people first to resolve a display name to an id.
+          description: The Atlassian accountId
     - key: person-impact
       name: What breaks if an account is deactivated
       function: rovo-people-impact
       actionVerb: GET
-      description: Report what an account owns, which automation rules route work to it, and which schemes grant it access directly, with a verdict. Use this before deactivating an account.
+      description: Report what an account owns, which automation rules route work to it, and which schemes...
       inputs:
         accountId:
           title: Account id
@@ -443,13 +443,13 @@ modules:
       name: Search Assets schemas and object types
       function: rovo-asset-search
       actionVerb: GET
-      description: Search the JSM Assets structure snapshot by name and return matching object schemas and object types.
+      description: Search the JSM Assets structure snapshot by name and return matching object schemas and...
       inputs:
         query:
           title: Search query
           type: string
           required: true
-          description: An object schema name, an object type name, or a short phrase.
+          description: An object schema name, an object type name,
         kind:
           title: Kind
           type: string
@@ -459,12 +459,12 @@ modules:
           title: Maximum results
           type: integer
           required: false
-          description: Optional maximum number of matches to return, from 1 to 20.
+          description: Optional maximum number of matches to return
     - key: inspect-asset
       name: Inspect an object schema or object type
       function: rovo-asset-inspect
       actionVerb: GET
-      description: Retrieve one object schema (its object types) or one object type (its attributes, child types, and how many attributes reference it).
+      description: Retrieve one object schema (its object types) or one object type (its attributes, child...
       inputs:
         identifier:
           title: Object schema or object type
@@ -475,7 +475,7 @@ modules:
       name: What depends on an object type
       function: rovo-asset-impact
       actionVerb: GET
-      description: Report the child types of an object type and the reference attributes that point at it, with a verdict. Use this before removing an object type.
+      description: Report the child types of an object type and the reference attributes that point at it,...
       inputs:
         name:
           title: Object type name
@@ -492,34 +492,34 @@ modules:
           title: Search query
           type: string
           required: true
-          description: A priority or resolution name, or a short phrase.
+          description: A priority or resolution name, or a short ph
         kind:
           title: Kind
           type: string
           required: false
-          description: Limit to priority or resolution. Defaults to any.
+          description: Limit to priority or resolution
     - key: inspect-estate
       name: Inspect the priority and resolution lists
       function: rovo-estate-inspect
       actionVerb: GET
-      description: Return the full priority and resolution lists, whether each has a default, and the near-duplicate-name findings.
+      description: Return the full priority and resolution lists, whether each has a default, and the...
       inputs:
         list:
           title: List
           type: string
           required: false
-          description: Limit to priorities or resolutions. Defaults to both.
+          description: Limit to priorities or resolutions
     - key: search-screens
       name: Search screens and screen schemes
       function: rovo-screen-search
       actionVerb: GET
-      description: Search the screen snapshot by name and return matching screens (with field and tab counts) and screen schemes.
+      description: Search the screen snapshot by name and return matching screens (with field and tab...
       inputs:
         query:
           title: Search query
           type: string
           required: true
-          description: A screen name, a screen scheme name, or a short phrase.
+          description: A screen name, a screen scheme name, or a sh
         kind:
           title: Kind
           type: string
@@ -529,12 +529,12 @@ modules:
           title: Maximum results
           type: integer
           required: false
-          description: Optional maximum number of matches to return, from 1 to 20.
+          description: Optional maximum number of matches to return
     - key: inspect-screen
       name: Inspect a screen or screen scheme
       function: rovo-screen-inspect
       actionVerb: GET
-      description: Retrieve one screen (its tabs, field count and findings) or one screen scheme (its create / edit / view / default operation mapping).
+      description: Retrieve one screen (its tabs, field count and findings) or one screen scheme (its...
       inputs:
         identifier:
           title: Screen or screen scheme
@@ -545,7 +545,7 @@ modules:
       name: What routes to a screen
       function: rovo-screen-impact
       actionVerb: GET
-      description: Report which screen scheme operations point at a screen and how many workflow transitions open it, with a verdict. Use this before editing or deleting a screen.
+      description: Report which screen scheme operations point at a screen and how many workflow...
       inputs:
         name:
           title: Screen name
@@ -556,18 +556,18 @@ modules:
       name: Search the configuration change history
       function: rovo-change-search
       actionVerb: GET
-      description: Search the change-history timeline. Filter by pillar and change kind and match a phrase against the changed entity's name.
+      description: Search the change-history timeline.
       inputs:
         query:
           title: Search phrase
           type: string
           required: false
-          description: A phrase to match against the changed entity's name or the change summary. Omit to list recent changes.
+          description: A phrase to match against the changed entity
         pillar:
           title: Pillar
           type: string
           required: false
-          description: Limit to one pillar, such as workflows, screens, fields, access, filters, dashboards, estate.
+          description: Limit to one pillar, such as workflows, scre
         kind:
           title: Change kind
           type: string
@@ -577,18 +577,18 @@ modules:
           title: Maximum results
           type: integer
           required: false
-          description: Optional maximum number of changes to return, from 1 to 100.
+          description: Optional maximum number of changes to return
     - key: inspect-changes
       name: Change history for one entity
       function: rovo-change-inspect
       actionVerb: GET
-      description: Return every recorded configuration change for one named entity (a scheme, status, field, filter, dashboard, priority or resolution).
+      description: Return every recorded configuration change for one named entity (a scheme, status,...
       inputs:
         label:
           title: Entity name
           type: string
           required: true
-          description: The exact name of the scheme, status, field or other tracked entity.
+          description: The exact name of the scheme, status, field
     - key: search-projects
       name: Search browsable projects
       function: rovo-project-search
@@ -604,23 +604,23 @@ modules:
           title: Maximum results
           type: integer
           required: false
-          description: Optional maximum number of matches to return, from 1 to 20.
+          description: Optional maximum number of matches to return
     - key: inspect-project
       name: Inspect one project's configuration
       function: rovo-project-inspect
       actionVerb: GET
-      description: Retrieve one project's workflow scheme, access schemes and role actors, adoption (where measured) and field-usage count. Only works for a project the caller can browse.
+      description: Retrieve one project's workflow scheme, access schemes and role actors, adoption (where...
       inputs:
         projectId:
           title: Project id
           type: string
           required: false
-          description: The numeric project id. Provide this or projectKey.
+          description: The numeric project id
         projectKey:
           title: Project key
           type: string
           required: false
-          description: The project key, such as ABC. Resolved to an id from the browsable set.
+          description: The project key, such as ABC
   consumer:
     - key: inventory-snapshot-consumer
       queue: inventory-snapshot-queue

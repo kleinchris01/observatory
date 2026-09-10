@@ -29,6 +29,9 @@ import {
   loadScreenGovernanceSummary,
   loadStatusIssueCounts,
   loadStatusesCatalog,
+  readBoardSnapshotMeta,
+  loadBoards,
+  loadBoardColumns,
   loadWorkflowSchemeStatuses,
   loadWorkflowSchemes,
   readScreenSnapshotMeta,
@@ -62,6 +65,7 @@ import { summarizeDashboards, summarizeDashboardHealth } from "./dashboard-insig
 import { summarizeIssueTypeInsights, summarizeIssueTypeHealth } from "./issuetype-insights.js";
 import { summarizeAssetInsights, summarizeAssetHealth } from "./asset-insights.js";
 import { summarizeEstateInsights, summarizeEstateHealth } from "./estate-insights.js";
+import { summarizeBoardInsights, summarizeBoardHealth } from "./board-insights.js";
 import {
   summarizePermissionInsights, summarizePermissionHealth,
   summarizeSecurityInsights, summarizeSecurityHealth,
@@ -715,6 +719,47 @@ export async function buildEstateOverview(installationKey) {
   }
 }
 
+// The boards pillar's input: the agile board inventory joined against the filter and status
+// snapshots for the broken-backing and stale-column reads. Same tri-state posture as the
+// rest -- a missing join snapshot means that check did not run, not that it passed.
+export async function buildBoardOverview(installationKey) {
+  try {
+    const meta = await readBoardSnapshotMeta(installationKey);
+    if (!meta?.version) return { available: false, state: meta?.state || "idle", lastError: meta?.lastError || null };
+
+    const [rawBoards, columns, filterMeta, workflowMeta] = await Promise.all([
+      loadBoards(installationKey, meta.version),
+      loadBoardColumns(installationKey, meta.version),
+      readFilterSnapshotMeta(installationKey).catch(() => null),
+      readWorkflowSnapshotMeta(installationKey).catch(() => null),
+    ]);
+    const [filters, statusCatalog] = await Promise.all([
+      filterMeta?.version ? loadFilters(installationKey, filterMeta.version).catch(() => null) : Promise.resolve(null),
+      workflowMeta?.version ? loadStatusesCatalog(installationKey, workflowMeta.version).catch(() => null) : Promise.resolve(null),
+    ]);
+    const knownStatusIds = statusCatalog ? new Set(statusCatalog.map((s) => String(s.id ?? s.statusId))) : null;
+
+    const byBoard = new Map();
+    for (const c of columns) {
+      if (!byBoard.has(c.boardId)) byBoard.set(c.boardId, []);
+      byBoard.get(c.boardId).push(c);
+    }
+    const boards = rawBoards.map((b) => ({ ...b, columns: byBoard.get(b.boardId) || [] }));
+
+    const summary = summarizeBoardInsights({ boards, filters, knownStatusIds });
+    return {
+      ...summary,
+      state: meta.state || "idle",
+      refreshedAt: meta.refreshedAt || null,
+      lastError: meta.lastError || null,
+      health: summarizeBoardHealth(summary),
+    };
+  } catch (error) {
+    console.warn("buildBoardOverview failed:", error?.message || error);
+    return { available: false, state: "error" };
+  }
+}
+
 // Compute the score from scratch and record it.
 //
 // The one entry point anything outside the Overview should use. It gathers the same five
@@ -744,7 +789,7 @@ export async function captureSiteHealth(installationKey, deps) {
   }
 
   try {
-    const [meta, config, workflow, screens, issueTypeOverview, userOverview, assetOverview, accessOverview, estateOverview, automationAnalysis] = await Promise.all([
+    const [meta, config, workflow, screens, issueTypeOverview, userOverview, assetOverview, accessOverview, estateOverview, boardOverview, automationAnalysis] = await Promise.all([
       readSnapshotMeta(installationKey),
       readAdminConfig(),
       buildWorkflowOverview(installationKey),
@@ -754,6 +799,7 @@ export async function captureSiteHealth(installationKey, deps) {
       buildAssetOverview(installationKey),
       buildAccessOverview(installationKey),
       buildEstateOverview(installationKey),
+      buildBoardOverview(installationKey),
       readAutomationAnalysis(installationKey).catch(() => null),
     ]);
     let filters = null;
@@ -808,6 +854,7 @@ export async function captureSiteHealth(installationKey, deps) {
       notifications: accessOverview?.notifications?.health ?? null,
       roles: accessOverview?.roles?.health ?? null,
       estate: estateOverview?.health ?? null,
+      boards: boardOverview?.health ?? null,
       tolerances: config?.healthTolerances,
     });
 

@@ -247,6 +247,8 @@ const DEFAULT_TOLERANCES = {
   offRosterRoleActors: 0.05,
   duplicateResolutions: 0.15,
   duplicatePriorities: 0.20,
+  boardsBrokenBacking: 0.08,
+  boardsColumnHygiene: 0.25,
 };
 
   const [local, setLocal] = React.useState(() => {
@@ -932,6 +934,20 @@ function RulesArea({ t, setThreshold, pct, setTolerancePercent }) {
             tail="of the resolution list duplicating another entry &mdash; a Done / Fixed / Complete split makes every resolution report wrong." />
           <ToleranceRule tone="standardize" badge="Priorities" name="Duplicate priority names" pct={pct} set={setTolerancePercent} k="duplicatePriorities"
             tail="of the priority list duplicating another entry." />
+        </div>
+      </ConfigSection>
+
+      <ConfigSection title="Boards" icon="activity">
+        <p className="admin-config-section__desc">
+          Agile boards break silently. A board on a deleted or absent backing filter shows
+          every issue in the site, so it is bounded tight; a column that maps no status or a
+          removed one drops issues off the wall, which is bad but less immediate.
+        </p>
+        <div className="admin-threshold-rules">
+          <ToleranceRule tone="risky" badge="Boards" name="Broken backing filters" pct={pct} set={setTolerancePercent} k="boardsBrokenBacking"
+            tail="of boards with no backing filter, a deleted one, or one whose owner is deactivated." />
+          <ToleranceRule tone="cleanup" badge="Boards" name="Column hygiene" pct={pct} set={setTolerancePercent} k="boardsColumnHygiene"
+            tail="of boards with a column that maps no status, or one that has been deleted." />
         </div>
       </ConfigSection>
 
