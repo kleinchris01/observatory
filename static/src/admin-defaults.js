@@ -22,6 +22,13 @@ export const DEFAULT_MACRO_ACCESS = {
   allowedGroups: [],
 };
 
+export const DEFAULT_REMEDIATION = {
+  projectKey: "",
+  epicIssueType: "Epic",
+  taskIssueType: "Task",
+  defaultAssigneeAccountId: "",
+};
+
 export const DEFAULT_CONFIG = {
   readOnlyMode: false,
   apiConcurrency: 4,
@@ -29,4 +36,5 @@ export const DEFAULT_CONFIG = {
   autoSnapshotFrequency: "weekly",
   governanceThresholds: DEFAULT_THRESHOLDS,
   macroAccess: DEFAULT_MACRO_ACCESS,
+  remediation: DEFAULT_REMEDIATION,
 };

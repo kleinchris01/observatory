@@ -1367,6 +1367,56 @@ export async function getBoardConfiguration(boardId) {
   return jiraRequest(route`/rest/agile/1.0/board/${boardId}/configuration`);
 }
 
+// ── Remediation: the one write path ─────────────────────────────────────────
+//
+// Create one Jira issue. `fields` is the raw create payload -- project, issuetype, summary,
+// an ADF description, labels, optionally parent (for an epic) and reporter. Deliberately not
+// wrapped in withRetry: issue creation is not idempotent, and a retry after a 5xx that
+// actually landed would create a duplicate. asApp by default so the task-creation job can
+// run it from the queue consumer; asUser for the synchronous epic create, so the epic is
+// attributed to and permission-checked against the admin who clicked.
+export async function createJiraIssue(fields, { asUser = false } = {}) {
+  const requester = asUser ? api.asUser() : api.asApp();
+  const response = await requester.requestJira(route`/rest/api/3/issue`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ fields }),
+  });
+  if (!response.ok) {
+    const message = await response.text();
+    const error = new Error(`Create issue failed (${response.status}): ${message}`);
+    error.status = response.status;
+    throw error;
+  }
+  return response.json(); // { id, key, self }
+}
+
+// Current status and assignee for a set of issue keys, in one search. Used by the hourly
+// remediation sync so the inventory shows live progress without one read per ticket.
+export async function getIssuesStatus(issueKeys = []) {
+  const keys = Array.from(new Set((issueKeys || []).map(String).filter(Boolean)));
+  if (!keys.length) return [];
+  const out = [];
+  for (let i = 0; i < keys.length; i += 90) {
+    const slice = keys.slice(i, i + 90);
+    incrMetric(METRIC_NAMES.jiraRequest);
+    const jql = `key in (${slice.join(",")})`;
+    const data = await jiraRequest(
+      route`/rest/api/3/search/jql?jql=${jql}&fields=status,assignee&maxResults=100`
+    );
+    for (const issue of data?.issues || []) {
+      out.push({
+        key: issue.key,
+        status: issue.fields?.status?.name || null,
+        statusCategory: issue.fields?.status?.statusCategory?.key || null,
+        assigneeAccountId: issue.fields?.assignee?.accountId || null,
+        assigneeName: issue.fields?.assignee?.displayName || null,
+      });
+    }
+  }
+  return out;
+}
+
 // Normalize a workflow-search response into [{ name, statusIds }].
 //
 // Exported and shape-agnostic on purpose: Jira has two generations of this endpoint and

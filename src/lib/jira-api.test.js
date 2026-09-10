@@ -93,6 +93,8 @@ import {
   getDashboardPage,
   getBoardPage,
   getBoardConfiguration,
+  createJiraIssue,
+  getIssuesStatus,
   getGadgetFilterId,
   extractFilterId,
   BASE_JIRA_REQUEST_INTERVAL_MS,
@@ -1504,5 +1506,67 @@ describe("getGadgetFilterId", () => {
   test("returns null rather than throwing when the gadget has no matching property at all", async () => {
     mockRequestJira.mockResolvedValueOnce(jiraResponse({ body: { keys: [] } }));
     await expect(getGadgetFilterId("9", "g1")).resolves.toBeNull();
+  });
+});
+
+describe("createJiraIssue (remediation: the one write path)", () => {
+  test("posts to /rest/api/3/issue and returns the created issue", async () => {
+    mockRequestJiraAsUser.mockResolvedValue(jiraResponse({ body: { id: "10001", key: "OPS-1", self: "https://x/OPS-1" } }));
+
+    const out = await createJiraIssue({ project: { key: "OPS" }, summary: "Fix it" }, { asUser: true });
+
+    expect(out).toEqual({ id: "10001", key: "OPS-1", self: "https://x/OPS-1" });
+    const [path, opts] = mockRequestJiraAsUser.mock.calls[0];
+    expect(String(path)).toContain("/rest/api/3/issue");
+    expect(opts).toMatchObject({ method: "POST" });
+    expect(JSON.parse(opts.body)).toEqual({ fields: { project: { key: "OPS" }, summary: "Fix it" } });
+  });
+
+  test("defaults to asApp when asUser is not requested", async () => {
+    mockRequestJira.mockResolvedValue(jiraResponse({ body: { id: "1", key: "OPS-2" } }));
+    await createJiraIssue({ summary: "x" });
+    expect(mockRequestJira).toHaveBeenCalled();
+    expect(mockRequestJiraAsUser).not.toHaveBeenCalled();
+  });
+
+  test("throws with the status and Jira's message on a non-2xx, and does NOT retry", async () => {
+    mockRequestJiraAsUser.mockResolvedValue(jiraResponse({ ok: false, status: 400, text: '{"errors":{"issuetype":"invalid"}}' }));
+
+    await expect(createJiraIssue({}, { asUser: true })).rejects.toMatchObject({
+      status: 400,
+      message: expect.stringContaining("issuetype"),
+    });
+    // Issue creation is not idempotent -- a retry after a 5xx that landed would duplicate.
+    expect(mockRequestJiraAsUser).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("getIssuesStatus (remediation sync)", () => {
+  test("returns [] without a request for an empty key list", async () => {
+    await expect(getIssuesStatus([])).resolves.toEqual([]);
+    expect(mockRequestJira).not.toHaveBeenCalled();
+  });
+
+  test("maps status and assignee for each issue", async () => {
+    mockRequestJira.mockResolvedValue(jiraResponse({
+      body: {
+        issues: [
+          { key: "OPS-1", fields: { status: { name: "Done", statusCategory: { key: "done" } }, assignee: { accountId: "a1", displayName: "Sam" } } },
+          { key: "OPS-2", fields: { status: { name: "To Do", statusCategory: { key: "new" } }, assignee: null } },
+        ],
+      },
+    }));
+
+    const out = await getIssuesStatus(["OPS-1", "OPS-2", "OPS-1"]);
+    expect(out).toEqual([
+      { key: "OPS-1", status: "Done", statusCategory: "done", assigneeAccountId: "a1", assigneeName: "Sam" },
+      { key: "OPS-2", status: "To Do", statusCategory: "new", assigneeAccountId: null, assigneeName: null },
+    ]);
+  });
+
+  test("chunks a large key list into batches of 90", async () => {
+    mockRequestJira.mockResolvedValue(jiraResponse({ body: { issues: [] } }));
+    await getIssuesStatus(Array.from({ length: 200 }, (_, i) => `OPS-${i}`));
+    expect(mockRequestJira).toHaveBeenCalledTimes(3);
   });
 });

@@ -1583,6 +1583,33 @@ export const CREATE_BOARD_SNAPSHOT_META_TABLE = `
   )
 `;
 
+// Remediation ticketing. One row per Jira issue Observatory created for a governance
+// finding: the epic (item_id = '') and one task per item to fix. Keyed on
+// (scope, finding, item) so re-running never creates a duplicate -- "this finding already
+// has an epic", "this filter already has a task". NOT versioned and NOT wiped with the
+// snapshots: a remediation ticket outlives the scan that flagged it.
+export const CREATE_REMEDIATION_TICKETS_TABLE = `
+  CREATE TABLE IF NOT EXISTS remediation_tickets (
+    scope_key VARCHAR(191) NOT NULL,
+    finding_key VARCHAR(64) NOT NULL,
+    pillar VARCHAR(24) NULL,
+    item_id VARCHAR(191) NOT NULL,
+    issue_key VARCHAR(32) NOT NULL,
+    issue_id VARCHAR(32) NULL,
+    is_epic TINYINT NOT NULL DEFAULT 0,
+    epic_key VARCHAR(32) NULL,
+    summary VARCHAR(500) NULL,
+    last_status VARCHAR(64) NULL,
+    last_status_category VARCHAR(24) NULL,
+    assignee_account_id VARCHAR(128) NULL,
+    assignee_name VARCHAR(255) NULL,
+    created_by VARCHAR(128) NULL,
+    created_at VARCHAR(64) NULL,
+    synced_at VARCHAR(64) NULL,
+    PRIMARY KEY (scope_key, finding_key, item_id)
+  )
+`;
+
 // Append-only record of privileged actions: who did what, when, and whether it was
 // allowed. Deliberately not versioned by snapshot and deliberately NOT wiped by
 // clearAllSnapshotData -- an audit trail that a privileged action can erase is not an
@@ -1853,7 +1880,10 @@ const projectStoreMigrations = migrationRunner
 
   // ── v149-v150: automation blast radius — one row per rule, scored on every import ──
   .enqueue("v149_create_automation_rule_blast_table", CREATE_AUTOMATION_RULE_BLAST_TABLE)
-  .enqueue("v150_create_automation_rule_blast_score_index", CREATE_AUTOMATION_RULE_BLAST_SCORE_INDEX);
+  .enqueue("v150_create_automation_rule_blast_score_index", CREATE_AUTOMATION_RULE_BLAST_SCORE_INDEX)
+
+  // ── v151: remediation ticketing -- the epics and tasks Observatory creates in Jira ──
+  .enqueue("v151_create_remediation_tickets_table", CREATE_REMEDIATION_TICKETS_TABLE);
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history

@@ -2,7 +2,7 @@ import React from "react";
 import { AuditLogPanel } from "../components/admin/AuditLogPanel";
 import { invoke, view } from "@forge/bridge";
 import { Icon } from "../components/Icons";
-import { DEFAULT_THRESHOLDS, DEFAULT_MACRO_ACCESS, DEFAULT_CONFIG } from "../admin-defaults";
+import { DEFAULT_THRESHOLDS, DEFAULT_MACRO_ACCESS, DEFAULT_REMEDIATION, DEFAULT_CONFIG } from "../admin-defaults";
 import { Toggle, ConfigSection, ConfigRow, InlineThresholdInput, SubNavLayout } from "../components/admin/primitives";
 import { PageHeader, StickyActions } from "../components/ui";
 
@@ -280,6 +280,7 @@ function mergeTargets(stored) {
       healthTolerances: { ...DEFAULT_TOLERANCES, ...(c.healthTolerances || {}) },
       healthTargets: mergeTargets(c.healthTargets),
       macroAccess: { ...DEFAULT_MACRO_ACCESS, ...(c.macroAccess || {}) },
+      remediation: { ...DEFAULT_REMEDIATION, ...(c.remediation || {}) },
     };
   });
   const [dirty, setDirty] = React.useState(false);
@@ -293,6 +294,7 @@ function mergeTargets(stored) {
         healthTolerances: { ...DEFAULT_TOLERANCES, ...(config.healthTolerances || {}) },
         healthTargets: mergeTargets(config.healthTargets),
         macroAccess: { ...DEFAULT_MACRO_ACCESS, ...(config.macroAccess || {}) },
+        remediation: { ...DEFAULT_REMEDIATION, ...(config.remediation || {}) },
       });
       setDirty(false);
     }
@@ -344,6 +346,14 @@ function mergeTargets(stored) {
     setDirty(true);
   }
 
+  function setRemediation(key, value) {
+    setLocal((prev) => ({
+      ...prev,
+      remediation: { ...(prev.remediation || DEFAULT_REMEDIATION), [key]: value },
+    }));
+    setDirty(true);
+  }
+
   function handleSave() {
     onSave(local);
     setDirty(false);
@@ -373,6 +383,7 @@ function mergeTargets(stored) {
         set={set}
         setThreshold={setThreshold}
         setMacroAccess={setMacroAccess}
+        setRemediation={setRemediation}
         pct={pct}
         setTolerancePercent={setTolerancePercent}
         targetPct={targetPct}
@@ -409,7 +420,7 @@ const CONFIG_AREAS = [
   { key: "diagnostics", label: "Diagnostics", icon: "activity" },
 ];
 
-function ConfigAreas({ area, local, t, set, setThreshold, setMacroAccess, pct, setTolerancePercent, targetPct, setTarget }) {
+function ConfigAreas({ area, local, t, set, setThreshold, setMacroAccess, setRemediation, pct, setTolerancePercent, targetPct, setTarget }) {
   if (area === "access") {
     return (
       <>
@@ -418,7 +429,7 @@ function ConfigAreas({ area, local, t, set, setThreshold, setMacroAccess, pct, s
           description="The admin page is gated by Jira at the platform level and is not affected by
                  anything here. These settings govern the Confluence macro."
         />
-        <AccessArea local={local} set={set} setMacroAccess={setMacroAccess} />
+        <AccessArea local={local} set={set} setMacroAccess={setMacroAccess} setRemediation={setRemediation} />
       </>
     );
   }
@@ -593,7 +604,7 @@ export function ScreenCostProbePanel() {
   );
 }
 
-function AccessArea({ local, set, setMacroAccess }) {
+function AccessArea({ local, set, setMacroAccess, setRemediation }) {
   return (
     <>
       <ConfigSection title="Macro access" icon="lock">
@@ -637,6 +648,64 @@ function AccessArea({ local, set, setMacroAccess }) {
             </div>
           </ConfigRow>
         )}
+      </ConfigSection>
+
+      <ConfigSection title="Remediation" icon="flag">
+        <p className="admin-config-section__desc">
+          Turning a governance finding into work. When set up, a finding can be pushed to
+          Jira as an epic with a task per item to fix. Every ticket is created as you, in
+          this project, and no ticket is created while the app is locked for changes.
+        </p>
+        <ConfigRow
+          label="Remediation project key"
+          hint="The project epics and tasks are created in — a key like OPS or ADMIN, not the project name. Leave blank to disable remediation ticketing."
+        >
+          <input
+            type="text"
+            className="ui-input"
+            value={local.remediation?.projectKey || ""}
+            onChange={(e) => setRemediation("projectKey", e.target.value.trim().toUpperCase())}
+            placeholder="ADMIN"
+            spellCheck={false}
+            style={{ maxWidth: "12rem" }}
+          />
+        </ConfigRow>
+        <ConfigRow label="Epic issue type" hint="The issue type used for the per-finding epic.">
+          <input
+            type="text"
+            className="ui-input"
+            value={local.remediation?.epicIssueType || ""}
+            onChange={(e) => setRemediation("epicIssueType", e.target.value)}
+            placeholder="Epic"
+            spellCheck={false}
+            style={{ maxWidth: "12rem" }}
+          />
+        </ConfigRow>
+        <ConfigRow label="Task issue type" hint="The issue type used for each item to fix.">
+          <input
+            type="text"
+            className="ui-input"
+            value={local.remediation?.taskIssueType || ""}
+            onChange={(e) => setRemediation("taskIssueType", e.target.value)}
+            placeholder="Task"
+            spellCheck={false}
+            style={{ maxWidth: "12rem" }}
+          />
+        </ConfigRow>
+        <ConfigRow
+          label="Default task assignee"
+          hint="Optional. An Atlassian accountId every created task is assigned to. Leave blank to create them unassigned."
+        >
+          <input
+            type="text"
+            className="ui-input"
+            value={local.remediation?.defaultAssigneeAccountId || ""}
+            onChange={(e) => setRemediation("defaultAssigneeAccountId", e.target.value.trim())}
+            placeholder="(unassigned)"
+            spellCheck={false}
+            style={{ maxWidth: "22rem" }}
+          />
+        </ConfigRow>
       </ConfigSection>
     </>
   );

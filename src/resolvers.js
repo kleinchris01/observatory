@@ -22,6 +22,7 @@ import {
   BASE_JIRA_CONCURRENCY,
   loadFieldOptionsFromJira,
   getBrowsableProjectIds,
+  createJiraIssue,
 } from "./lib/jira-api.js";
 import { queueIssueScanWorker, completeIssueScanFinalization } from "./lib/scan-engine.js";
 import { pillarUnavailable, agentOk, agentNotFound, rankMatches, clampResults } from "./lib/rovo-agents.js";
@@ -165,7 +166,13 @@ import {
   readFullScanMeta,
   loadHealthHistory,
   loadTransitionScreens,
+  recordRemediationTicket,
+  loadRemediationTickets,
+  getRemediationEpic,
+  loadTicketedItemIds,
 } from "./lib/project-store.js";
+import { getPlaybook } from "./lib/remediation-playbooks.js";
+import { renderADF } from "./lib/adf.js";
 import { queueWorkflowSnapshotBuild, isWorkflowBuildStale, queueStatusHistoryBuild } from "./lib/workflow-engine.js";
 import { measureScreenFetchCost, probeScreenEndpoints, DEFAULT_SAMPLE_SIZE } from "./lib/screen-probe.js";
 import { probeAssetsApi as probeAssetsApiProbe } from "./lib/asset-probe.js";
@@ -340,6 +347,16 @@ const DEFAULT_QUICK_SCAN_SCHEDULE = {
   lastScheduledRunAt: null,
 };
 
+const DEFAULT_REMEDIATION_CONFIG = {
+  // The project remediation epics and tasks are created in. Empty means "not set up yet" --
+  // every create action refuses until an admin picks one.
+  projectKey: "",
+  epicIssueType: "Epic",
+  taskIssueType: "Task",
+  // Optional: an accountId every created task is assigned to. Empty means unassigned.
+  defaultAssigneeAccountId: "",
+};
+
 const DEFAULT_ADMIN_CONFIG = {
   readOnlyMode: false,
   apiConcurrency: BASE_JIRA_CONCURRENCY,
@@ -348,6 +365,7 @@ const DEFAULT_ADMIN_CONFIG = {
   governanceThresholds: DEFAULT_GOVERNANCE_THRESHOLDS,
   macroAccess: DEFAULT_MACRO_ACCESS,
   quickScanSchedule: DEFAULT_QUICK_SCAN_SCHEDULE,
+  remediation: DEFAULT_REMEDIATION_CONFIG,
 };
 
 export async function readAdminConfig() {
@@ -368,6 +386,10 @@ export async function readAdminConfig() {
       quickScanSchedule: {
         ...DEFAULT_QUICK_SCAN_SCHEDULE,
         ...(stored.quickScanSchedule || {}),
+      },
+      remediation: {
+        ...DEFAULT_REMEDIATION_CONFIG,
+        ...(stored.remediation || {}),
       },
     };
   } catch {
@@ -429,6 +451,30 @@ export async function saveAdminConfigResolver({ payload }) {
       }
     }
   }
+  // Remediation ticketing target. Every field is optional here; a create action does its
+  // own "is this actually set up" check. What is enforced is the shape, so a typo cannot
+  // wedge issue creation for everyone — a project KEY, not a name or an id, and issue-type
+  // names that are non-empty strings.
+  if (cfg.remediation) {
+    const rem = cfg.remediation;
+    if (rem.projectKey !== undefined && rem.projectKey !== null && rem.projectKey !== "") {
+      if (typeof rem.projectKey !== "string" || !/^[A-Za-z][A-Za-z0-9_]{1,49}$/.test(rem.projectKey)) {
+        throw new Error("remediation.projectKey must be a Jira project key (letters, digits and underscores, starting with a letter).");
+      }
+    }
+    for (const key of ["epicIssueType", "taskIssueType"]) {
+      if (rem[key] !== undefined && rem[key] !== null && rem[key] !== "") {
+        if (typeof rem[key] !== "string" || rem[key].length > 100) {
+          throw new Error(`remediation.${key} must be an issue type name.`);
+        }
+      }
+    }
+    if (rem.defaultAssigneeAccountId !== undefined && rem.defaultAssigneeAccountId !== null && rem.defaultAssigneeAccountId !== "") {
+      if (typeof rem.defaultAssigneeAccountId !== "string" || rem.defaultAssigneeAccountId.length > 128) {
+        throw new Error("remediation.defaultAssigneeAccountId must be an Atlassian accountId.");
+      }
+    }
+  }
   if (cfg.quickScanSchedule) {
     const sched = cfg.quickScanSchedule;
     if (sched.frequency !== undefined && sched.frequency !== null) {
@@ -467,6 +513,10 @@ export async function saveAdminConfigResolver({ payload }) {
     quickScanSchedule: {
       ...current.quickScanSchedule,
       ...(payload?.quickScanSchedule || {}),
+    },
+    remediation: {
+      ...current.remediation,
+      ...(payload?.remediation || {}),
     },
   };
   updated.apiConcurrency = Math.max(1, Math.min(10, Number(updated.apiConcurrency) || BASE_JIRA_CONCURRENCY));
@@ -3124,6 +3174,147 @@ async function getAutomationBlast({ payload, context }) {
     console.error("getAutomationBlast failed:", error);
     throw error;
   }
+}
+
+// ── Remediation ticketing ──────────────────────────────────────────────────
+//
+// The one place Observatory writes to Jira. A governance finding becomes an epic in a
+// project the admin configures, and each item to fix becomes a task under it. Every write
+// is as the calling admin (attribution + their permissions), behind the read-only-mode
+// gate, and audited. Idempotent: the epic is keyed on the finding and a task on the item,
+// so re-running only fills in what is missing.
+
+// A synchronous resolver creates a bounded batch. A finding with hundreds of items is
+// finished by the queued job (a later change); this covers the common case in one click.
+const MAX_SYNC_REMEDIATION_TASKS = 20;
+
+async function getRemediationTickets({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+  const findingKey = payload?.findingKey ? String(payload.findingKey) : null;
+  const tickets = await loadRemediationTickets(installationKey, findingKey);
+
+  // Grouped by finding, epic first, so the UI can render one block per finding without
+  // re-grouping. `open` counts anything not in the "done" status category.
+  const byFinding = new Map();
+  for (const t of tickets) {
+    if (!byFinding.has(t.findingKey)) byFinding.set(t.findingKey, { findingKey: t.findingKey, pillar: t.pillar, epic: null, tasks: [] });
+    const g = byFinding.get(t.findingKey);
+    if (t.isEpic) g.epic = t;
+    else g.tasks.push(t);
+  }
+  const groups = [...byFinding.values()].map((g) => ({
+    ...g,
+    taskCount: g.tasks.length,
+    openCount: g.tasks.filter((t) => t.lastStatusCategory !== "done").length,
+  }));
+
+  return { available: tickets.length > 0, total: tickets.length, groups };
+}
+
+async function createRemediationEpic({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  const findingKey = String(payload?.findingKey || "").trim();
+  const playbook = getPlaybook(findingKey);
+  if (!playbook) return { error: `No remediation playbook for "${findingKey}".` };
+
+  const adminConfig = await readAdminConfig();
+  if (adminConfig.readOnlyMode) {
+    return { error: "Read-only mode is enabled. Disable it before creating remediation tickets." };
+  }
+
+  const rc = adminConfig.remediation || {};
+  if (!rc.projectKey) {
+    return { error: "No remediation project is configured. Set one in Configuration → Remediation first." };
+  }
+
+  const accountId = callerAccountId(context);
+  if (!accountId) return { error: "Could not identify the calling user, so the tickets would have no reporter." };
+
+  const rawItems = Array.isArray(payload?.items) ? payload.items : [];
+  const items = rawItems
+    .filter((it) => it && (it.id != null || it.name))
+    .map((it) => ({ ...it, id: String(it.id ?? it.name), name: it.name != null ? String(it.name).slice(0, 240) : null }));
+  const pillar = payload?.pillar ? String(payload.pillar) : playbook.pillar;
+  const nowIso = () => new Date().toISOString();
+
+  // Idempotency: an epic already exists for this finding -> add missing tasks under it.
+  let epic = await getRemediationEpic(installationKey, findingKey);
+  let epicCreated = false;
+  if (!epic) {
+    try {
+      const fields = {
+        project: { key: rc.projectKey },
+        issuetype: { name: rc.epicIssueType || "Epic" },
+        summary: playbook.epicSummary(items.length).slice(0, 250),
+        description: renderADF(playbook.epicDescription({ count: items.length })),
+        labels: playbook.labels,
+        reporter: { id: accountId },
+      };
+      const created = await createJiraIssue(fields, { asUser: true });
+      await recordRemediationTicket(installationKey, {
+        findingKey, pillar, isEpic: true,
+        issueKey: created.key, issueId: created.id, epicKey: created.key,
+        summary: fields.summary, createdBy: accountId, createdAt: nowIso(),
+      });
+      epic = { issueKey: created.key, issueId: created.id };
+      epicCreated = true;
+    } catch (error) {
+      return { error: `Creating the epic failed: ${error?.message || error}` };
+    }
+  }
+
+  const alreadyTicketed = await loadTicketedItemIds(installationKey, findingKey);
+  const todo = items.filter((it) => !alreadyTicketed.has(it.id));
+  const batch = todo.slice(0, MAX_SYNC_REMEDIATION_TASKS);
+
+  let tasksCreated = 0;
+  const failures = [];
+  for (const it of batch) {
+    const fields = {
+      project: { key: rc.projectKey },
+      issuetype: { name: rc.taskIssueType || "Task" },
+      summary: playbook.taskSummary(it).slice(0, 250),
+      description: renderADF(playbook.taskDescription(it)),
+      labels: playbook.labels,
+      parent: { key: epic.issueKey },
+      reporter: { id: accountId },
+    };
+    if (rc.defaultAssigneeAccountId) fields.assignee = { id: rc.defaultAssigneeAccountId };
+    try {
+      // eslint-disable-next-line no-await-in-loop -- sequential on purpose: each task links
+      // to the epic and issue creation is rate-limited and non-idempotent.
+      const created = await createJiraIssue(fields, { asUser: true });
+      // eslint-disable-next-line no-await-in-loop
+      await recordRemediationTicket(installationKey, {
+        findingKey, pillar, itemId: it.id,
+        issueKey: created.key, issueId: created.id, epicKey: epic.issueKey,
+        summary: fields.summary, createdBy: accountId, createdAt: nowIso(),
+      });
+      tasksCreated += 1;
+    } catch (error) {
+      failures.push({ itemId: it.id, error: String(error?.message || error) });
+    }
+  }
+
+  logger.info("remediation.epic_created", {
+    installationKey, findingKey, epicKey: epic.issueKey, epicCreated,
+    tasksCreated, itemsTotal: items.length, failures: failures.length,
+  });
+
+  return {
+    ok: true,
+    epicKey: epic.issueKey,
+    epicCreated,
+    tasksCreated,
+    itemsTotal: items.length,
+    itemsRemaining: Math.max(0, todo.length - batch.length),
+    failures,
+  };
 }
 
 // Which rules reference one status, by direction.
@@ -8147,6 +8338,7 @@ const AUDITED_ADMIN_ACTIONS = new Set([
   "buildChangeHistory",
   "buildEstateInventory",
   "buildBoardInventory",
+  "createRemediationEpic",
 ]);
 
 function withAuditTrail(functions) {
@@ -8276,6 +8468,8 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   getAutomationCascades,   // Admin read: one filtered page of cascade relationships
   getCascadeGraph,         // Admin read: loops and multi-rule chains across every edge
   getAutomationBlast,      // Admin read: one page of rules ordered by blast radius
+  getRemediationTickets,   // Admin read: remediation epics and tasks, grouped by finding
+  createRemediationEpic,   // Mutating: creates a Jira epic + tasks for a governance finding
   getStatusAutomationUsage,// Admin read: which rules reference one status, by direction
   getDashboardInventory,   // Admin read: dashboards, their gadgets and their findings
   buildDashboardInventory, // Mutating: queues a rebuild of the dashboard snapshot
