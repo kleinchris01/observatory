@@ -218,6 +218,7 @@ const mocks = vi.hoisted(() => ({
   loadStatusAutomationReferences: vi.fn(),
   loadGlobalRulesAffectingProject: vi.fn(),
   recordHealthSnapshot: vi.fn(),
+  loadPriorHealthDimensions: vi.fn(async () => ({})),
   loadHealthHistory: vi.fn(),
   queueScreenSnapshotBuild: vi.fn(),
   isScreenBuildStale: vi.fn(() => false),
@@ -430,6 +431,7 @@ vi.mock("./lib/project-store.js", () => ({
   loadAssetObjectTypes: mocks.loadAssetObjectTypes,
   loadAssetAttributes: mocks.loadAssetAttributes,
   recordHealthSnapshot: mocks.recordHealthSnapshot,
+  loadPriorHealthDimensions: mocks.loadPriorHealthDimensions,
   loadHealthHistory: mocks.loadHealthHistory,
   // Real values, not mocks: the resolver whitelists the sort token against these, so a
   // vi.fn() here would make every sort fall back to the default and hide a regression.

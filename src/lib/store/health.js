@@ -41,12 +41,19 @@ export async function recordHealthSnapshot(scopeKey, health, at = Date.now()) {
   try {
     await ensureProjectStoreReady();
 
-    // {key: score} for scored dimensions only. An unavailable dimension is omitted rather
-    // than stored as null, so a gap in the chart means "not measured that day" instead of
-    // "measured as zero" -- the same distinction the score itself is careful about.
+    // Per scored dimension: {s: score, v: raw value}. The raw value is what the next scan's
+    // directional term diffs against -- a score can be identical for two different underlying
+    // values, so storing only the score would make "did it actually move" unanswerable.
+    //
+    // A v1 dimension (still on scoreFromRate) has no `value`, so it stores {s} only; the
+    // reader tolerates both, and an older row of bare `{key: score}` still parses.
+    // Unavailable dimensions are omitted, so a gap means "not measured", not "measured zero".
     const dimensions = {};
     for (const dimension of health.dimensions || []) {
-      if (dimension?.available && dimension.key) dimensions[dimension.key] = dimension.score;
+      if (!dimension?.available || !dimension.key) continue;
+      const entry = { s: dimension.score };
+      if (Number.isFinite(Number(dimension.value))) entry.v = Number(dimension.value);
+      dimensions[dimension.key] = entry;
     }
 
     const measuredAt = new Date(at).toISOString();
@@ -107,8 +114,43 @@ export async function loadHealthHistory(scopeKey, { days = 90 } = {}) {
     grade: row.grade || null,
     dimensionsScored: toNumber(row.dimensions_scored),
     dimensionsTotal: toNumber(row.dimensions_total),
-    dimensions: safeParseJson(row.dimensions_json, {}) || {},
+    // {key: score}, flattening both stored shapes: a v1 row is { key: 84 }, a v2 row is
+    // { key: { s: 84, v: 0.03 } }. Consumers plot the score; the raw value is only for the
+    // directional term, read separately by loadPriorHealthDimensions.
+    dimensions: flattenDimensionScores(safeParseJson(row.dimensions_json, {}) || {}),
   })).reverse();
+}
+
+function flattenDimensionScores(raw) {
+  const out = {};
+  for (const [key, entry] of Object.entries(raw || {})) {
+    out[key] = entry && typeof entry === "object" ? toNumber(entry.s) : toNumber(entry);
+  }
+  return out;
+}
+
+// The most recent snapshot's raw dimension values, keyed by dimension key, for the next
+// scan's directional term. Only rows strictly before today, so a same-day rebuild compares
+// against the last real measurement rather than against itself.
+export async function loadPriorHealthDimensions(scopeKey, { onOrBefore = Date.now() } = {}) {
+  await ensureProjectStoreReady();
+  const before = measurementDay(onOrBefore - 24 * 60 * 60 * 1000);
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT dimensions_json
+      FROM health_history
+      WHERE scope_key = ? AND measured_on <= ?
+      ORDER BY measured_on DESC
+      LIMIT 1
+    `).bindParams(scopeKey, before).execute()
+  );
+  const raw = safeParseJson(result.rows?.[0]?.dimensions_json, {}) || {};
+  const out = {};
+  for (const [key, entry] of Object.entries(raw)) {
+    const v = entry && typeof entry === "object" ? entry.v : undefined;
+    if (v !== undefined && v !== null && Number.isFinite(Number(v))) out[key] = Number(v);
+  }
+  return out;
 }
 
 // 400 days, longer than any other retention here.

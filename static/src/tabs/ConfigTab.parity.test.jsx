@@ -2,7 +2,7 @@ import { describe, test, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { DEFAULT_HEALTH_TOLERANCES } from "../../../src/lib/health-score.js";
+import { DEFAULT_HEALTH_TOLERANCES, DEFAULT_HEALTH_TARGETS } from "../../../src/lib/health-score.js";
 
 // The governance rules page and the scoring algorithm, checked against each other.
 //
@@ -19,13 +19,22 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const configSource = fs.readFileSync(path.join(ROOT, "static/src/tabs/ConfigTab.jsx"), "utf8");
 const scoreSource = fs.readFileSync(path.join(ROOT, "src/lib/health-score.js"), "utf8");
 
-// Tolerances the algorithm actually reads.
-const consumed = new Set([...scoreSource.matchAll(/TOLERANCE\.([a-zA-Z]+)/g)].map((m) => m[1]));
+// Rules the algorithm actually reads -- v1 tolerances (TOLERANCE.x) and v2 target bands
+// (TARGET.x). Both are keyed the same way on the page.
+const consumed = new Set([
+  ...[...scoreSource.matchAll(/TOLERANCE\.([a-zA-Z]+)/g)].map((m) => m[1]),
+  ...[...scoreSource.matchAll(/TARGET\.([a-zA-Z]+)/g)].map((m) => m[1]),
+]);
 
-// Tolerances the page lets an admin change, in either markup form.
+// Rules the page lets an admin change, in any markup form.
 const exposed = new Set([
   ...[...configSource.matchAll(/setTolerancePercent\("([a-zA-Z]+)"/g)].map((m) => m[1]),
   ...[...configSource.matchAll(/\bk="([a-zA-Z]+)"/g)].map((m) => m[1]),
+]);
+
+const defined = new Set([
+  ...Object.keys(DEFAULT_HEALTH_TOLERANCES),
+  ...Object.keys(DEFAULT_HEALTH_TARGETS),
 ]);
 
 describe("governance rules page", () => {
@@ -39,7 +48,7 @@ describe("governance rules page", () => {
   });
 
   test("every tunable rule has a default", () => {
-    expect([...consumed].filter((k) => !(k in DEFAULT_HEALTH_TOLERANCES)).sort()).toEqual([]);
+    expect([...consumed].filter((k) => !defined.has(k)).sort()).toEqual([]);
   });
 
   // Guards the guards. Regexes that stop matching would make all three pass by comparing two

@@ -779,6 +779,7 @@ export async function captureSiteHealth(installationKey, deps) {
     readAdminConfig,
     readAutomationAnalysis,
     recordHealthSnapshot,
+    loadPriorHealthDimensions,
   } = deps || {};
 
   // Called with no deps once, from the scan orchestrator, and it crashed every scan's health
@@ -837,6 +838,15 @@ export async function captureSiteHealth(installationKey, deps) {
       dashboards = (await buildDashboardOverview(installationKey)).health ?? null;
     }
 
+    // The previous snapshot's raw dimension values, for the directional term. Best-effort:
+    // no history (first scan) or a read failure both mean "score the level only", which is
+    // the right behaviour, not an error.
+    const priorValues = typeof loadPriorHealthDimensions === "function"
+      ? await loadPriorHealthDimensions(installationKey).catch(
+          fallbackOn("health.prior_dimensions_load_failed", () => ({}), { installationKey })
+        )
+      : {};
+
     const health = computeSiteHealth({
       fieldUsage,
       workflow,
@@ -856,6 +866,8 @@ export async function captureSiteHealth(installationKey, deps) {
       estate: estateOverview?.health ?? null,
       boards: boardOverview?.health ?? null,
       tolerances: config?.healthTolerances,
+      targets: config?.healthTargets,
+      priorValues,
     });
 
     await recordHealthSnapshot(installationKey, health);
