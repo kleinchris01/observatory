@@ -168,39 +168,52 @@ export function makeField(w, h, rng) {
     };
   }
 
-  const galN = 1 + (rng() < 0.6 ? 1 : 0);
+  // Two to four galaxies. The first is a "near" one that may resolve into a spiral; the
+  // rest lean far and small, so most of what you see is a faint smudge with a bright core.
+  const galN = 2 + ((rng() * 3) | 0);
   const galaxies = [];
   for (let i = 0; i < galN; i++) {
-    galaxies.push(makeGalaxy(w, h, rng));
+    galaxies.push(makeGalaxy(w, h, rng, i === 0 ? rng() * 0.4 : 0.35 + rng() * 0.65));
   }
 
   return { stars, galaxies, bandAngle };
 }
 
-// A galaxy with actual structure -- a spiral of individual arm stars around a bright core, or
-// a concentrated elliptical -- rather than a gradient smudge. The arm points are baked in
-// local [-1,1] space at build time so drawing is a translate/scale and a run of tiny dots.
-export function makeGalaxy(w, h, rng) {
+// One galaxy. `dist` in [0,1] is how far off it reads: near galaxies are large, brighter and
+// can resolve into a spiral of individual arm stars; far ones are small, dim, and just a
+// bright core in a faint halo -- you cannot make out structure at that distance. Arm points
+// are baked in local [-1,1] space so drawing is a translate/scale and a run of tiny dots.
+export function makeGalaxy(w, h, rng, dist = rng()) {
+  const near = 1 - Math.max(0, Math.min(1, dist));
   // Kept clear of the middle third, where the content and the recalibration reticle sit.
   const left = rng() < 0.5;
-  const x = w * (left ? 0.06 + rng() * 0.22 : 0.72 + rng() * 0.22);
-  const y = h * (0.1 + rng() * 0.7);
-  const scale = 46 + rng() * 48;
+  const x = w * (left ? 0.04 + rng() * 0.24 : 0.72 + rng() * 0.24);
+  const y = h * (0.06 + rng() * 0.78);
+  // 14px at the far end to ~110px near, biased small: most galaxies are far.
+  const scale = 14 + near * near * 96;
   const rot = rng() * Math.PI * 2;
-  const incl = 0.15 + rng() * 0.6;           // 0 face-on, ->1 edge-on: squashes the minor axis
-  const spiral = rng() < 0.66;
+  // Never perfectly face-on, so no galaxy reads as a plain circle. Far ones tilt more on
+  // average, which also helps sell the distance.
+  const incl = 0.28 + rng() * 0.55 + dist * 0.12;
+  const bright = 0.45 + near * 0.55;          // multiplies every alpha at draw time
+  // Only near galaxies resolve into a spiral; a far one is an unresolved core + halo.
+  const spiral = dist < 0.5 && rng() < 0.6;
 
   if (!spiral) {
+    // Warm for an old elliptical, cool for a distant unresolved disk -- pick by chance.
+    const warm = rng() < 0.5;
     return {
-      spiral: false, x, y, scale, rot, incl,
-      core: "255, 236, 205",                  // warm, like an old elliptical
-      halo: "255, 224, 190",
+      spiral: false, x, y, scale, rot, incl, bright,
+      core: warm ? "255, 236, 205" : "224, 232, 245",
+      halo: warm ? "255, 224, 190" : "206, 218, 240",
     };
   }
 
-  const arms = 2;
-  const perArm = 90;
-  const turns = 1.6 + rng() * 0.8;
+  const arms = rng() < 0.72 ? 2 : 3;
+  // Fewer dots on a smaller galaxy, so a mid-distance spiral does not look denser than a
+  // near one, and the draw cost tracks the size.
+  const perArm = Math.round(48 + near * 70);
+  const turns = 1.3 + rng() * 1.1;
   const points = [];
   for (let a = 0; a < arms; a++) {
     const base = (a / arms) * Math.PI * 2;
@@ -208,8 +221,8 @@ export function makeGalaxy(w, h, rng) {
       const t = k / perArm;
       const theta = base + t * turns * Math.PI * 2;
       const rad = 0.12 + t * 0.92;
-      const ja = (rng() - 0.5) * 0.5 * (0.3 + t);   // arm gets fuzzier outward
-      const jr = (rng() - 0.5) * 0.14;
+      const ja = (rng() - 0.5) * 0.55 * (0.3 + t);   // arm gets fuzzier outward
+      const jr = (rng() - 0.5) * 0.15;
       points.push({
         px: Math.cos(theta + ja) * (rad + jr),
         py: Math.sin(theta + ja) * (rad + jr),
@@ -219,7 +232,7 @@ export function makeGalaxy(w, h, rng) {
     }
   }
   return {
-    spiral: true, x, y, scale, rot, incl, points,
+    spiral: true, x, y, scale, rot, incl, bright, points,
     core: "255, 240, 220",
     arm: "205, 222, 255",                     // young blue arm stars
     halo: "210, 220, 255",
@@ -369,6 +382,7 @@ export function Starfield({ active = true, bearing = "default" }) {
     // A galaxy: an inclined disk halo, spiral arm stars if it has them, and a bright core on
     // top. The core is what stops it reading as a grey smudge.
     function drawGalaxy(g, gAlpha) {
+      gAlpha *= g.bright ?? 1;
       ctx.save();
       ctx.translate(g.x + ox * 0.12, g.y + oy * 0.12);
       ctx.rotate(g.rot);
