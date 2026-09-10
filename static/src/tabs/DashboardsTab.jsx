@@ -283,6 +283,7 @@ export function DashboardsTab({ siteOrigin = "", intent = null }) {
   }
 
   const partialWalk = data.gadgetsWalked > 0 && data.gadgetsWalked < data.total;
+  const pagesUnreadable = Number(data.pagesUnreadable) || 0;
 
   return (
     <>
@@ -338,6 +339,20 @@ export function DashboardsTab({ siteOrigin = "", intent = null }) {
           <span>
             Gadgets were read for {formatNumber(data.gadgetsWalked)} of {formatNumber(data.total)} dashboards.
             The rest show their gadget count as unread, and are not counted as empty.
+          </span>
+        </p>
+      )}
+
+      {/* Jira's dashboard/search returns a permanent 400 past certain offsets. The build steps
+          over such a page rather than failing the whole scan, but the inventory is then short
+          the dashboards that page held. */}
+      {pagesUnreadable > 0 && (
+        <p className="ui-note">
+          <Icon name="info" size={13} />
+          <span>
+            Jira refused {formatNumber(pagesUnreadable)} page{pagesUnreadable === 1 ? "" : "s"} of the
+            dashboard list, so up to {formatNumber(pagesUnreadable * 50)} dashboards are missing from this
+            inventory. Rebuild to try them again.
           </span>
         </p>
       )}

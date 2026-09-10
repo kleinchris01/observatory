@@ -157,6 +157,9 @@ import {
   loadConfigChangeSummary,
   readEstateSnapshotMeta,
   loadEstateValues,
+  readBoardSnapshotMeta,
+  loadBoards,
+  loadBoardColumns,
   recordHealthSnapshot,
   readFullScanMeta,
   loadHealthHistory,
@@ -172,6 +175,8 @@ import { queueAssetSnapshotBuild, isAssetBuildStale } from "./lib/asset-engine.j
 import { queueAccessSnapshotBuild, isAccessBuildStale } from "./lib/access-engine.js";
 import { queueDriftSnapshotBuild, isDriftBuildStale, DRIFT_PILLARS } from "./lib/drift-engine.js";
 import { queueEstateSnapshotBuild, isEstateBuildStale } from "./lib/estate-engine.js";
+import { queueBoardSnapshotBuild, isBoardBuildStale } from "./lib/board-engine.js";
+import { summarizeBoardInsights } from "./lib/board-insights.js";
 import { summarizeEstateInsights } from "./lib/estate-insights.js";
 import { summarizeIssueTypeInsights } from "./lib/issuetype-insights.js";
 import { summarizeAssetInsights } from "./lib/asset-insights.js";
@@ -194,6 +199,7 @@ import {
   buildAssetOverview,
   buildAccessOverview,
   buildEstateOverview,
+  buildBoardOverview,
   attachUniqueIssueCounts,
   captureSiteHealth,
 } from "./lib/site-health.js";
@@ -227,6 +233,9 @@ import {
   loadGlobalRulesAffectingProject,
   replaceAutomationFindings,
   replaceAutomationCascades,
+  replaceAutomationBlast,
+  loadBlastSummary,
+  loadBlastRules,
   loadCascadeSummary,
   loadCascades,
   loadCascadeEdges,
@@ -981,6 +990,31 @@ function macroPaginate(rows, page, pageSize = MACRO_PILLAR_PAGE_SIZE) {
   return { slice: rows.slice(start, start + pageSize), page: current, pageSize, totalPages };
 }
 
+// The account behind a call, wherever the runtime put it. A resolver invocation carries it
+// on context.accountId; a Rovo agent action's context nests it under principal, or -- for an
+// agent-identity invocation with no end user -- does not carry one at all.
+function callerAccountId(context) {
+  return (
+    context?.accountId ||
+    context?.principal?.accountId ||
+    context?.context?.accountId ||
+    context?.principal?.id ||
+    null
+  );
+}
+
+// Browse-permission filter that degrades to "trust the snapshot" when there is no caller to
+// check against. Observatory is an admin-only app and its snapshots only ever hold what the
+// app itself (asApp, broad read scopes) could see, so a Rovo agent action -- which reaches
+// here with no user principal -- gets the project set the app already has rather than an
+// empty one. Every resolver-driven caller still carries an accountId and stays filtered.
+async function browsableOrAll(context, projectIds) {
+  const ids = (projectIds || []).map(String);
+  const accountId = callerAccountId(context);
+  if (!accountId) return new Set(ids);
+  return getBrowsableProjectIds(accountId, ids);
+}
+
 // The viewer's browsable projects, with both id and key -- filters reference a project by
 // KEY (from JQL), dashboard shares and the workflow map by ID.
 async function viewerProjects(installationKey, context) {
@@ -988,7 +1022,7 @@ async function viewerProjects(installationKey, context) {
   if (!fieldMeta?.version) return { available: false, projectIds: new Set(), projectKeys: new Set(), projects: [] };
 
   const all = await listSnapshotProjects(installationKey, fieldMeta.version).catch(() => []);
-  const browsable = await getBrowsableProjectIds(context?.accountId, all.map((p) => p.projectId));
+  const browsable = await browsableOrAll(context, all.map((p) => p.projectId));
   const projects = all
     .filter((p) => browsable.has(String(p.projectId)))
     .map((p) => ({ projectId: String(p.projectId), projectKey: p.projectKey, projectName: p.projectName }));
@@ -2083,6 +2117,113 @@ async function buildEstateInventory({ context }) {
   return { queued: true };
 }
 
+// The boards pillar's read: every agile board with its backing filter, location and column
+// mapping. Structure only -- the cross-pillar joins (broken backing filter, statuses not
+// mapped to a column, personal boards owned by inactive users) and the governance score
+// arrive with B2/B3.
+async function getBoardInventory({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  const meta = await readBoardSnapshotMeta(installationKey);
+  const staleBuild = isBoardBuildStale(meta);
+
+  if (!meta?.version) {
+    return {
+      state: meta?.state || "idle",
+      staleBuild,
+      startedAt: meta?.startedAt || null,
+      neverBuilt: true,
+      boards: [],
+      summary: { total: 0, byType: {}, personal: 0, unreadable: 0, missingFilter: 0, totalColumns: 0 },
+      lastError: meta?.lastError || null,
+    };
+  }
+
+  const [boards, columns, filterMeta, workflowMeta] = await Promise.all([
+    loadBoards(installationKey, meta.version),
+    loadBoardColumns(installationKey, meta.version),
+    readFilterSnapshotMeta(installationKey).catch(() => null),
+    readWorkflowSnapshotMeta(installationKey).catch(() => null),
+  ]);
+
+  // The two cross-pillar joins. Each is best-effort: a missing snapshot means that check did
+  // not run, which summarizeBoardInsights reports as joinedFilters / joinedStatuses rather
+  // than as a clean bill of health.
+  const [filters, statusCatalog] = await Promise.all([
+    filterMeta?.version ? loadFilters(installationKey, filterMeta.version).catch(() => null) : Promise.resolve(null),
+    workflowMeta?.version ? loadStatusesCatalog(installationKey, workflowMeta.version).catch(() => null) : Promise.resolve(null),
+  ]);
+  const knownStatusIds = statusCatalog ? new Set(statusCatalog.map((s) => String(s.id ?? s.statusId))) : null;
+
+  const columnsByBoard = new Map();
+  for (const col of columns) {
+    if (!columnsByBoard.has(col.boardId)) columnsByBoard.set(col.boardId, []);
+    columnsByBoard.get(col.boardId).push(col);
+  }
+
+  const rows = boards.map((board) => {
+    const cols = columnsByBoard.get(board.boardId) || [];
+    return {
+      ...board,
+      columns: cols,
+      unmappedColumns: cols.filter((c) => c.statusIds.length === 0).length,
+    };
+  });
+
+  const byType = {};
+  for (const board of rows) {
+    const key = board.type || "unknown";
+    byType[key] = (byType[key] || 0) + 1;
+  }
+
+  const insights = summarizeBoardInsights({ boards: rows, filters, knownStatusIds });
+
+  return {
+    state: meta.state || "ready",
+    staleBuild,
+    refreshedAt: meta.refreshedAt || null,
+    neverBuilt: false,
+    lastError: meta.lastError || null,
+    boards: rows,
+    insights,
+    summary: {
+      total: rows.length,
+      byType,
+      personal: rows.filter((board) => board.locationType === "user").length,
+      // Boards whose /configuration endpoint 404'd -- their column and filter facts are unknown.
+      unreadable: Number(meta.boardsUnreadable) || 0,
+      // Config was readable but named no backing filter.
+      missingFilter: rows.filter((board) => board.configReadable && !board.filterId).length,
+      // Config named a filter id that is not in the filter snapshot -- deleted out from under it.
+      brokenFilter: insights.missingFilter,
+      inactiveFilterOwner: insights.inactiveFilterOwner,
+      staleColumnBoards: insights.staleColumnBoards,
+      totalColumns: columns.length,
+    },
+  };
+}
+
+async function buildBoardInventory({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  const meta = await readBoardSnapshotMeta(installationKey);
+  if (meta?.state === "building" && !isBoardBuildStale(meta)) {
+    return { queued: false, reason: "already-building", meta };
+  }
+
+  const adminConfig = await readAdminConfig();
+  if (adminConfig.readOnlyMode) {
+    return { queued: false, error: "Read-only mode is enabled. Disable it before building the board inventory." };
+  }
+
+  await queueBoardSnapshotBuild(installationKey);
+  return { queued: true };
+}
+
 async function getAutomationInsights({ context }) {
   incrMetric(METRIC_NAMES.resolver);
   try {
@@ -2109,12 +2250,45 @@ async function getAutomationInsights({ context }) {
       cascades: analysis.cascades ?? [],
       cascadesTotal: analysis.cascadesTotal ?? (analysis.cascades?.length ?? 0),
       selfTriggeringTotal: analysis.selfTriggeringTotal ?? 0,
+      // The blast-radius tier histogram for the overview. Null on an analysis imported
+      // before blast scoring existed — the tab shows a "re-import" prompt for that section.
+      blast: analysis.blast ?? null,
     };
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
     console.error("getAutomationInsights failed:", error);
     throw error;
   }
+}
+
+// The blast rollup is admin-supplied like the rest of the analysis payload. An admin can
+// already read everything in it, so the risk is a malformed shape wedging the overview, not
+// disclosure — every field is coerced and the top list is capped.
+function sanitizeBlastSummary(blast) {
+  if (!blast || typeof blast !== "object" || Array.isArray(blast)) return null;
+  const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+  const tiers = blast.byTier && typeof blast.byTier === "object" ? blast.byTier : {};
+  return {
+    available: Boolean(blast.available),
+    total: num(blast.total),
+    byTier: {
+      estate: num(tiers.estate),
+      "cross-project": num(tiers["cross-project"]),
+      project: num(tiers.project),
+      contained: num(tiers.contained),
+    },
+    estateWideCount: num(blast.estateWideCount),
+    estateWideShare: num(blast.estateWideShare),
+    estateWideCredentialCount: num(blast.estateWideCredentialCount),
+    estimatedCount: num(blast.estimatedCount),
+    top: Array.isArray(blast.top)
+      ? blast.top.slice(0, 20).map((r) => ({
+          ruleId: String(r?.ruleId ?? ""),
+          score: num(r?.score),
+          tier: String(r?.tier ?? "contained").slice(0, 20),
+        }))
+      : [],
+  };
 }
 
 
@@ -2165,6 +2339,10 @@ async function saveAutomationAnalysis({ payload, context }) {
       cascades: cascades.slice(0, MAX_STORED_CASCADES),
       cascadesTotal: Number(document.cascadesTotal) || cascades.length,
       selfTriggeringTotal: Number(document.selfTriggeringTotal) || 0,
+      // The blast-radius rollup: a tier histogram and the two health inputs. Small, and read
+      // on first paint, so it rides here rather than costing a SQL round trip. The per-rule
+      // scores are shredded into automation_rule_blast by the "blast" index part.
+      blast: sanitizeBlastSummary(document.blast),
     };
 
     await writeAutomationAnalysis(installationKey, stored);
@@ -2241,6 +2419,8 @@ async function saveAutomationIndex({ payload, context }) {
         rowsWritten = await replaceAutomationFindings(installationKey, document);
       } else if (part === "cascades") {
         rowsWritten = await replaceAutomationCascades(installationKey, document);
+      } else if (part === "blast") {
+        rowsWritten = await replaceAutomationBlast(installationKey, document);
       }
     } catch (sqlError) {
       logger.warn("automation.sql_index_failed", {
@@ -2733,6 +2913,10 @@ async function getDashboardInventory({ context }) {
       // How much of the estate the gadget walk actually reached. Without this the tab would
       // present a partial pass as a complete one.
       gadgetsWalked: meta.gadgetsWalked,
+      // Enumeration pages Jira's dashboard/search returned a permanent 400 on and the build
+      // stepped over rather than failing on. Non-zero means the inventory is missing up to
+      // ~50 dashboards per page skipped -- same "say what we couldn't read" reason as above.
+      pagesUnreadable: meta.pagesUnreadable || 0,
       // Whether the filter -> field join could run at all, separate from whether any one
       // dashboard's fieldRefs came back empty.
       fieldRefsAvailable,
@@ -2779,7 +2963,7 @@ async function buildDashboardInventory({ context }) {
 // Everything in AUTOMATION_PARTS has a KVS document behind it; cascades deliberately do not.
 // Kept as its own set rather than a flag on the parts map so the map keeps meaning exactly
 // "these have a storage key".
-const SQL_ONLY_AUTOMATION_PARTS = new Set(["cascades"]);
+const SQL_ONLY_AUTOMATION_PARTS = new Set(["cascades", "blast"]);
 
 function isAutomationIndexPart(part) {
   return Object.prototype.hasOwnProperty.call(AUTOMATION_PARTS, part)
@@ -2886,6 +3070,35 @@ async function getCascadeGraph({ payload, context }) {
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
     console.error("getCascadeGraph failed:", error);
+    throw error;
+  }
+}
+
+// One page of rules ordered by blast radius, most first.
+//
+// The overview shows the tier histogram from the analysis document; this backs the
+// sortable list and carries the factor breakdown so the drawer can explain a score without
+// the raw rules it was built from.
+async function getAutomationBlast({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const installationKey = getInstallationKey(context);
+    const page = Math.max(1, Math.trunc(Number(payload?.page)) || 1);
+    const pageSize = Math.max(1, Math.min(200, Math.trunc(Number(payload?.pageSize)) || 50));
+    const tier = typeof payload?.tier === "string" ? payload.tier : null;
+    const search = typeof payload?.search === "string" ? payload.search : "";
+
+    const { rules, total } = await loadBlastRules(installationKey, {
+      tier,
+      search,
+      limit: pageSize,
+      offset: (page - 1) * pageSize,
+    });
+
+    return { available: total > 0 || page > 1, rules, total, page, pageSize };
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("getAutomationBlast failed:", error);
     throw error;
   }
 }
@@ -6193,6 +6406,131 @@ export async function rovoScreenImpact(payload, context) {
   }
 }
 
+// ── Rovo: boards expert ────────────────────────────────────────────────────
+//
+// Agile boards, their backing filter and column mapping, over getBoardInventory (which runs
+// the filter and status joins). Impact answers "which boards use this filter or status" --
+// what would break if it changed.
+
+export async function rovoBoardSearch(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const query = String(payload?.query || "").trim();
+    const type = String(payload?.type || "any").trim().toLowerCase();
+    const limit = clampResults(payload?.maxResults, 10, 25);
+    if (!query) return { status: "error", message: "A search query is required." };
+
+    const inv = await getBoardInventory({ context });
+    if (inv.neverBuilt) return pillarUnavailable("boards", { state: inv.state, refreshedAt: null });
+
+    let rows = inv.boards || [];
+    if (["scrum", "kanban", "simple"].includes(type)) rows = rows.filter((b) => b.type === type);
+    const matches = rankMatches(rows, query, (b) => [b.name, b.locationKey, b.locationName], limit);
+
+    return agentOk(inv.refreshedAt || null, {
+      query,
+      boards: matches.map((b) => ({
+        boardId: b.boardId,
+        name: b.name,
+        type: b.type,
+        location: b.locationType === "user" ? `personal (${b.locationName || "unknown"})` : (b.locationKey || "no project"),
+        backingFilterId: b.filterId,
+        columnCount: b.columnCount,
+        configReadable: b.configReadable,
+      })),
+      total: rows.length,
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoBoardSearch failed:", error);
+    throw error;
+  }
+}
+
+export async function rovoBoardInspect(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const boardId = String(payload?.boardId || "").trim();
+    const name = String(payload?.name || "").trim();
+    if (!boardId && !name) return { status: "error", message: "A boardId or name is required. Use search first." };
+
+    const inv = await getBoardInventory({ context });
+    if (inv.neverBuilt) return pillarUnavailable("boards", { state: inv.state, refreshedAt: null });
+
+    const rows = inv.boards || [];
+    const board = boardId
+      ? rows.find((b) => String(b.boardId) === boardId)
+      : rows.find((b) => String(b.name || "").toLowerCase() === name.toLowerCase());
+    if (!board) return agentNotFound(inv.refreshedAt || null, `No board ${boardId ? `with id ${boardId}` : `named "${name}"`} in the current snapshot.`);
+
+    const flagged = (inv.insights?.flagged || []).find((f) => String(f.boardId) === String(board.boardId));
+
+    return agentOk(inv.refreshedAt || null, {
+      board: {
+        boardId: board.boardId,
+        name: board.name,
+        type: board.type,
+        location: board.locationType === "user" ? `personal (${board.locationName || "unknown"})` : (board.locationKey || "no project"),
+        backingFilterId: board.filterId,
+        estimationField: board.estimationField || null,
+        rankingField: board.rankingField || null,
+        subQuery: board.subQuery || null,
+        configReadable: board.configReadable,
+      },
+      columns: (board.columns || []).map((c) => ({ index: c.index, name: c.name, statusCount: (c.statusIds || []).length })),
+      unmappedColumns: board.unmappedColumns,
+      issues: flagged?.issues || [],
+      joinsRun: { filters: inv.insights?.joinedFilters ?? false, statuses: inv.insights?.joinedStatuses ?? false },
+      dataCaveat:
+        "Board administrators are not exposed by the public REST API, so 'who can change this board' is not captured -- it is governed by the backing filter's edit permissions.",
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoBoardInspect failed:", error);
+    throw error;
+  }
+}
+
+export async function rovoBoardImpact(payload, context) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const filterId = String(payload?.filterId || "").trim();
+    const statusId = String(payload?.statusId || "").trim();
+    if (!filterId && !statusId) {
+      return { status: "error", message: "A filterId or statusId is required -- this answers which boards would break if that filter or status changed." };
+    }
+
+    const inv = await getBoardInventory({ context });
+    if (inv.neverBuilt) return pillarUnavailable("boards", { state: inv.state, refreshedAt: null });
+
+    const rows = inv.boards || [];
+    const byFilter = filterId ? rows.filter((b) => String(b.filterId) === filterId) : [];
+    const byStatus = statusId
+      ? rows.filter((b) => (b.columns || []).some((c) => (c.statusIds || []).map(String).includes(statusId)))
+      : [];
+
+    return agentOk(inv.refreshedAt || null, {
+      filterId: filterId || null,
+      statusId: statusId || null,
+      boardsBackedByFilter: byFilter.map((b) => ({ boardId: b.boardId, name: b.name, type: b.type })),
+      boardsMappingStatus: byStatus.map((b) => ({
+        boardId: b.boardId,
+        name: b.name,
+        columns: (b.columns || [])
+          .filter((c) => (c.statusIds || []).map(String).includes(statusId))
+          .map((c) => c.name),
+      })),
+      verdict: (byFilter.length + byStatus.length) === 0 ? "no-board-references-it" : "referenced",
+      verdictCaveat:
+        "Only boards whose configuration was readable are covered -- team-managed boards whose /configuration endpoint 404'd are not in this answer.",
+    });
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("rovoBoardImpact failed:", error);
+    throw error;
+  }
+}
+
 // ── Rovo: configuration change expert ──────────────────────────────────────
 //
 // The change-history timeline, over loadConfigChanges. Search filters by pillar/kind and
@@ -6536,7 +6874,7 @@ const EMPTY_DASHBOARD = {
 export async function getAdminOverview({ context }) {
   await ensureProjectStoreReady();
   const installationKey = getInstallationKey(context);
-  const [meta, summaryCounts, config, legacySummaryCount, workflow, screens, issueTypeOverview, userOverview, assetOverview, accessOverview, estateOverview, filterOverview, dashboardOverview, automationAnalysis] = await Promise.all([
+  const [meta, summaryCounts, config, legacySummaryCount, workflow, screens, issueTypeOverview, userOverview, assetOverview, accessOverview, estateOverview, boardOverview, filterOverview, dashboardOverview, automationAnalysis] = await Promise.all([
     readSnapshotMeta(installationKey),
     // Counted in SQL rather than loaded. This used to pull up to 5,000 summary rows --
     // including two LONGTEXT columns -- across the wire, and use them for a count grouped by
@@ -6552,6 +6890,7 @@ export async function getAdminOverview({ context }) {
     buildAssetOverview(installationKey),
     buildAccessOverview(installationKey),
     buildEstateOverview(installationKey),
+    buildBoardOverview(installationKey),
     // Without the project catalog the broken-reference check is skipped and says so. Passing
     // it would mean loading the project list before this Promise.all rather than inside the
     // dashboard build below, which is a bigger cost than the one finding is worth here -- the
@@ -6653,6 +6992,7 @@ export async function getAdminOverview({ context }) {
     notifications: accessOverview?.notifications?.health ?? null,
     roles: accessOverview?.roles?.health ?? null,
     estate: estateOverview?.health ?? null,
+    boards: boardOverview?.health ?? null,
     // Workflow, project and automation dimensions were scored against hardcoded constants
     // while every field rule was tunable. Same config surface now feeds both.
     tolerances: config?.healthTolerances,
@@ -6692,6 +7032,7 @@ export async function getAdminOverview({ context }) {
     assets: assetOverview,
     access: accessOverview,
     estate: estateOverview,
+    boards: boardOverview,
     // The counts the Overview's findings list needs, not just the score's rate. Same lesson
     // the automation pillar learned: trimming this to the headline fields made every problem
     // the analysis had already found invisible on the page that exists to surface problems.
@@ -6798,6 +7139,7 @@ const PILLAR_INPUTS = {
   notifications: ["access"],
   roles: ["access"],
   estate: ["estate"],
+  boards: ["boards"],
   automation: ["automation"],
   projects: ["projects", "adoption"],
 };
@@ -6815,7 +7157,7 @@ async function getPillarHealth({ payload, context }) {
   // already reports as unavailable -- and unavailable dimensions from other pillars are
   // discarded below anyway, so the returned pillar is byte-identical to what the full
   // computation produced for it.
-  const [workflow, screens, filterOverview, dashboardOverview, issueTypeOverview, userOverview, assetOverview, accessOverview, estateOverview, automationAnalysis] = await Promise.all([
+  const [workflow, screens, filterOverview, dashboardOverview, issueTypeOverview, userOverview, assetOverview, accessOverview, estateOverview, boardOverview, automationAnalysis] = await Promise.all([
     needs.has("workflow") ? buildWorkflowOverview(installationKey) : Promise.resolve(null),
     needs.has("screens") ? buildScreenOverview(installationKey) : Promise.resolve(null),
     needs.has("filters") ? buildFilterOverview(installationKey) : Promise.resolve(null),
@@ -6825,6 +7167,7 @@ async function getPillarHealth({ payload, context }) {
     needs.has("assets") ? buildAssetOverview(installationKey) : Promise.resolve(null),
     needs.has("access") ? buildAccessOverview(installationKey) : Promise.resolve(null),
     needs.has("estate") ? buildEstateOverview(installationKey) : Promise.resolve(null),
+    needs.has("boards") ? buildBoardOverview(installationKey) : Promise.resolve(null),
     needs.has("automation")
       ? readAutomationAnalysis(installationKey).catch(fallbackOn("pillar-health.automation_load_failed", () => null, { installationKey }))
       : Promise.resolve(null),
@@ -6884,6 +7227,7 @@ async function getPillarHealth({ payload, context }) {
     notifications: accessOverview?.notifications?.health ?? null,
     roles: accessOverview?.roles?.health ?? null,
     estate: estateOverview?.health ?? null,
+    boards: boardOverview?.health ?? null,
     tolerances: config?.healthTolerances,
   });
 
@@ -7015,19 +7359,31 @@ async function getProjectOverview({ payload, context }) {
 
   // Permission first, and before any pillar is read. Every other project read in this file
   // filters by browsable project, and a cross-pillar view must not become the one place a
-  // caller can learn about a project they cannot see.
-  const browsable = await getBrowsableProjectIds(context?.accountId, [projectId]);
+  // caller can learn about a project they cannot see. browsableOrAll keeps that check for
+  // every resolver caller and only relaxes it for a Rovo agent action, which arrives with no
+  // user principal to check against (see its comment).
+  const browsable = await browsableOrAll(context, [projectId]);
   if (!browsable.has(String(projectId))) {
     return { available: false, reason: "You do not have Browse Projects on this project." };
   }
 
-  const [fieldMeta, workflowMeta, screenMeta, filterMeta, accessMeta] = await Promise.all([
+  const [fieldMeta, workflowMeta, screenMeta, filterMeta, accessMeta, boardMeta] = await Promise.all([
     readSnapshotMeta(installationKey),
     readWorkflowSnapshotMeta(installationKey).catch(() => null),
     readScreenSnapshotMeta(installationKey).catch(() => null),
     readFilterSnapshotMeta(installationKey).catch(() => null),
     readAccessSnapshotMeta(installationKey).catch(() => null),
+    readBoardSnapshotMeta(installationKey).catch(() => null),
   ]);
+
+  // The agile boards whose location is this project. loadBoards returns the whole estate for
+  // a version -- a few hundred rows -- so filtering in memory is cheaper than a scoped query.
+  const projectBoards = boardMeta?.version
+    ? (await loadBoards(installationKey, boardMeta.version).catch(() => []))
+        .filter((b) => b.locationType === "project" &&
+          (String(b.locationId) === String(projectId) ||
+           (projectKeyHint && String(b.locationKey || "").toLowerCase() === projectKeyHint.toLowerCase())))
+    : [];
 
   // The project's own row, plus every browsable project's activity -- needed both for this
   // project's fills-per-issue and for the site median it is judged against, and for the
@@ -7153,6 +7509,21 @@ async function getProjectOverview({ payload, context }) {
         }, {})),
       }
       : { available: false, reason: "No access scheme inventory has been built yet." },
+    // The agile boards that live in this project, with their backing filter and column state.
+    // Tri-state like the rest: no board snapshot is not "no boards".
+    boards: boardMeta?.version
+      ? {
+        available: true,
+        boards: projectBoards.map((b) => ({
+          boardId: b.boardId,
+          name: b.name,
+          type: b.type,
+          filterId: b.filterId,
+          columnCount: b.columnCount,
+          configReadable: b.configReadable,
+        })),
+      }
+      : { available: false, reason: "No board inventory has been built yet." },
     // One rolled-up read of the project's overall health, from the pillar signals above.
     health: buildProjectHealthRollup({
       perIssue,
@@ -7745,6 +8116,7 @@ const AUDITED_ADMIN_ACTIONS = new Set([
   "buildAccessInventory",
   "buildChangeHistory",
   "buildEstateInventory",
+  "buildBoardInventory",
 ]);
 
 function withAuditTrail(functions) {
@@ -7867,8 +8239,13 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   getEstateInventory,      // Admin read: the resolution and priority lists with the duplicate-name governance summary
   buildEstateInventory,    // Mutating: queues an estate-config snapshot build
 
+  // Boards pillar (agile boards, their backing filters and column mapping)
+  getBoardInventory,       // Admin read: every board with its filter, location and columns (structure only for now)
+  buildBoardInventory,     // Mutating: queues a board snapshot build
+
   getAutomationCascades,   // Admin read: one filtered page of cascade relationships
   getCascadeGraph,         // Admin read: loops and multi-rule chains across every edge
+  getAutomationBlast,      // Admin read: one page of rules ordered by blast radius
   getStatusAutomationUsage,// Admin read: which rules reference one status, by direction
   getDashboardInventory,   // Admin read: dashboards, their gadgets and their findings
   buildDashboardInventory, // Mutating: queues a rebuild of the dashboard snapshot

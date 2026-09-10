@@ -12,6 +12,8 @@ import { invoke } from "@forge/bridge";
 import { TopFieldsChart, FieldTypeDonut, ProjectsTabView,
   ProjectOverview, buildProjectFilters, projectFilterCount, ProjectAdoptionPanel, ActivitySparkbars,
   ProjectHealthPanel, ProjectFiltersPanel, ProjectScreenReportPanel,
+  sortProjectList, projectCardFindings, overConfiguredFloor,
+  filterProjectsByRanges, activeRangeKeys, PROJECT_METRICS, PROJECT_SORT_OPTIONS,
 } from "./ProjectsTab";
 
 // ---------------------------------------------------------------------------
@@ -163,14 +165,9 @@ describe("ProjectsTabView", () => {
     expect(screen.getByText(/No projects with cached field usage were found/i)).toBeInTheDocument();
   });
 
-  it("shows 'Select a project' placeholder when no project is selected", () => {
-    render(<ProjectsTabView {...defaultProps} />);
-    expect(screen.getByText("Select a project to inspect cached field usage.")).toBeInTheDocument();
-  });
-
-  it("shows skeleton items when loading=true and no projects", () => {
+  it("shows skeleton cards when loading=true and no projects", () => {
     const { container } = render(<ProjectsTabView {...defaultProps} loading={true} />);
-    const skels = container.querySelectorAll(".skel-project-item");
+    const skels = container.querySelectorAll(".skel-field-card");
     expect(skels.length).toBeGreaterThan(0);
   });
 
@@ -213,7 +210,7 @@ describe("ProjectsTabView", () => {
       totalPages: 1,
       refreshedAt: null,
     };
-    render(<ProjectsTabView
+    const { container } = render(<ProjectsTabView
       {...defaultProps}
       data={data}
       selectedProjectId="P1"
@@ -224,9 +221,12 @@ describe("ProjectsTabView", () => {
         automation: { available: false, reason: "No automation analysis has been built yet." },
       }}
     />);
-    expect(screen.getByText("DEMO project usage")).toBeInTheDocument();
-    // The overview leads now: the field count is a stat on it rather than a standalone card.
-    expect(screen.getByText(/Fields in use/i)).toBeInTheDocument();
+    // The selected project's card is expanded in place, field-browser style.
+    expect(container.querySelector(".field-card--open")).toBeInTheDocument();
+    expect(screen.getByText("DEMO · Demo Project")).toBeInTheDocument();
+    // The collapsed grid carries the field count as a metric chip; the expanded overview
+    // repeats it as a stat tile.
+    expect(screen.getAllByText(/Fields in use/i).length).toBeGreaterThan(0);
   });
 
   it("shows the 'Restore from field summaries' button when handler is provided", () => {
@@ -339,7 +339,7 @@ describe("ProjectsTabView workflow correlation", () => {
     />);
 
     expect(screen.getByText(/No workflow inventory/i)).toBeInTheDocument();
-    expect(screen.getByText(/Fields in use/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Fields in use/i).length).toBeGreaterThan(0);
   });
 });
 
@@ -488,7 +488,7 @@ describe("ProjectOverview", () => {
     expect(screen.getAllByText(/No access scheme inventory/i).length).toBeGreaterThan(0);
   });
 
-  it("lists this project's role actors, and flags a role with nobody in it", () => {
+  it("summarises each role, flags an empty one, and reveals actors on request", async () => {
     render(<ProjectOverview
       project={project}
       loading={false}
@@ -504,8 +504,12 @@ describe("ProjectOverview", () => {
     />);
 
     expect(screen.getByText("Administrators")).toBeInTheDocument();
-    expect(screen.getByText("group: site-admins")).toBeInTheDocument();
+    // Empty role is flagged without a click; it is the finding this panel exists for.
     expect(screen.getByText(/nobody in this role/i)).toBeInTheDocument();
+    // The actor list is behind a per-role toggle -- a real project holds hundreds.
+    expect(screen.queryByText("group: site-admins")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: /1 group/i }));
+    expect(screen.getByText("group: site-admins")).toBeInTheDocument();
   });
 });
 
@@ -563,6 +567,122 @@ describe("ProjectOverview — inferred site-wide rules", () => {
     })} />);
 
     expect(screen.getByText(/No site-wide rule shows evidence/i)).toBeInTheDocument();
+  });
+});
+
+describe("overConfiguredFloor", () => {
+  it("is twice the median field count, floored at 10", () => {
+    const projects = [{ fieldCount: 2 }, { fieldCount: 4 }, { fieldCount: 6 }];
+    // median 4 -> 8, floored to 10
+    expect(overConfiguredFloor(projects).floor).toBe(10);
+  });
+  it("tracks the median once it is high enough to matter", () => {
+    const projects = Array.from({ length: 9 }, () => ({ fieldCount: 30 }));
+    expect(overConfiguredFloor(projects)).toEqual({ median: 30, floor: 60 });
+  });
+  it("survives an empty list", () => {
+    expect(overConfiguredFloor([])).toEqual({ median: 0, floor: 10 });
+  });
+});
+
+describe("sortProjectList", () => {
+  const rows = [
+    { projectKey: "CCC", fieldCount: 5, uniqueIssueCount: 10, latestIssueUpdatedAt: "2026-01-01T00:00:00Z", adoption: { score: 40 } },
+    { projectKey: "AAA", fieldCount: 90, uniqueIssueCount: 900, latestIssueUpdatedAt: "2026-09-01T00:00:00Z", adoption: { score: 99 } },
+    { projectKey: "BBB", fieldCount: 12, uniqueIssueCount: 50, latestIssueUpdatedAt: "2026-05-01T00:00:00Z", adoption: null },
+  ];
+  const keys = (list) => list.map((r) => r.projectKey);
+
+  it("does not mutate its input", () => {
+    const before = keys(rows);
+    sortProjectList(rows, "name-asc");
+    expect(keys(rows)).toEqual(before);
+  });
+  it("defaults to adoption, highest first, with no-adoption projects last", () => {
+    expect(keys(sortProjectList(rows, "adoption-desc"))).toEqual(["AAA", "CCC", "BBB"]);
+  });
+  it("sorts by issue volume", () => {
+    expect(keys(sortProjectList(rows, "issues-desc"))).toEqual(["AAA", "BBB", "CCC"]);
+  });
+  it("sorts by most fields in use", () => {
+    expect(keys(sortProjectList(rows, "fields-desc"))).toEqual(["AAA", "BBB", "CCC"]);
+  });
+  it("sorts by days since activity, both directions", () => {
+    // quietDays low = most recent; high = quietest.
+    expect(keys(sortProjectList(rows, "quietDays-asc"))).toEqual(["AAA", "BBB", "CCC"]);
+    expect(keys(sortProjectList(rows, "quietDays-desc"))).toEqual(["CCC", "BBB", "AAA"]);
+  });
+  it("sorts by key, both directions", () => {
+    expect(keys(sortProjectList(rows, "name-asc"))).toEqual(["AAA", "BBB", "CCC"]);
+    expect(keys(sortProjectList(rows, "name-desc"))).toEqual(["CCC", "BBB", "AAA"]);
+  });
+  it("every metric has an asc and a desc sort option", () => {
+    for (const m of PROJECT_METRICS) {
+      expect(PROJECT_SORT_OPTIONS.map((o) => o.value)).toEqual(expect.arrayContaining([`${m.key}-asc`, `${m.key}-desc`]));
+    }
+  });
+  it("an unknown sort key falls back to adoption desc", () => {
+    expect(keys(sortProjectList(rows, "garbage"))).toEqual(["AAA", "CCC", "BBB"]);
+  });
+});
+
+describe("filterProjectsByRanges", () => {
+  const rows = [
+    { projectKey: "A", uniqueIssueCount: 100, fieldCount: 5, totalIssueCount: 100, adoption: { score: 90 } },
+    { projectKey: "B", uniqueIssueCount: 5000, fieldCount: 40, totalIssueCount: 20000, adoption: { score: 50 } },
+    { projectKey: "C", uniqueIssueCount: 200, fieldCount: 12, totalIssueCount: 400, adoption: null }, // adoption unmeasured
+  ];
+  const keys = (r) => r.map((x) => x.projectKey);
+
+  it("returns the list untouched with no active bound", () => {
+    expect(filterProjectsByRanges(rows, {})).toBe(rows);
+    expect(filterProjectsByRanges(rows, { issues: { min: "", max: "" } })).toBe(rows);
+  });
+  it("applies a min bound", () => {
+    expect(keys(filterProjectsByRanges(rows, { issues: { min: "150" } }))).toEqual(["B", "C"]);
+  });
+  it("applies a max bound", () => {
+    expect(keys(filterProjectsByRanges(rows, { fields: { max: "10" } }))).toEqual(["A"]);
+  });
+  it("applies both bounds, and combines ranges across metrics with AND", () => {
+    expect(keys(filterProjectsByRanges(rows, { issues: { min: "50", max: "1000" }, fields: { min: "10" } }))).toEqual(["C"]);
+  });
+  it("a range on a metric a project has no value for excludes that project", () => {
+    // 'adoption' is null on C -> excluded by any adoption range
+    expect(keys(filterProjectsByRanges(rows, { adoption: { min: "1" } }))).toEqual(["A", "B"]);
+  });
+  it("computed metrics work: fields per issue", () => {
+    // A: 100/100 = 1, B: 20000/5000 = 4, C: 400/200 = 2
+    expect(keys(filterProjectsByRanges(rows, { perIssue: { min: "1.5", max: "3" } }))).toEqual(["C"]);
+  });
+});
+
+describe("activeRangeKeys", () => {
+  it("lists only the metrics with a real bound", () => {
+    expect(activeRangeKeys({ issues: { min: "10" }, fields: { min: "", max: "" }, adoption: { max: "5" } }).sort())
+      .toEqual(["adoption", "issues"]);
+  });
+});
+
+describe("projectCardFindings", () => {
+  const base = { projectKey: "X", fieldCount: 5, totalIssueCount: 100, uniqueIssueCount: 100, latestIssueUpdatedAt: new Date().toISOString() };
+
+  it("flags a project configured past the floor", () => {
+    expect(projectCardFindings({ ...base, fieldCount: 40 }, 30).overConfigured).toBe(true);
+    expect(projectCardFindings({ ...base, fieldCount: 20 }, 30).overConfigured).toBe(false);
+  });
+  it("flags fields with no work, using the measured volume", () => {
+    expect(projectCardFindings({ ...base, fieldCount: 8, uniqueIssueCount: 0 }, 30).noWork).toBe(true);
+    expect(projectCardFindings({ ...base, fieldCount: 0, uniqueIssueCount: 0 }, 30).noWork).toBe(false);
+  });
+  it("flags a project quiet for over six months", () => {
+    const old = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString();
+    expect(projectCardFindings({ ...base, latestIssueUpdatedAt: old }, 30).stale).toBe(true);
+    expect(projectCardFindings(base, 30).stale).toBe(false);
+  });
+  it("passes the adoption fell-off flag straight through", () => {
+    expect(projectCardFindings({ ...base, adoption: { fellOff: true } }, 30).fellOff).toBe(true);
+    expect(projectCardFindings(base, 30).fellOff).toBe(false);
   });
 });
 
@@ -662,7 +782,7 @@ describe("ProjectsTabView — arriving from a finding", () => {
       onChangePage={noop} projectFilter="over-configured" onProjectFilterChange={noop}
     />);
 
-    const keys = [...container.querySelectorAll(".projects-rail__item strong")].map((n) => n.textContent);
+    const keys = [...container.querySelectorAll(".field-card .copy-field-id__value")].map((n) => n.textContent);
     expect(keys).toEqual(["BIG"]);
   });
 
@@ -674,7 +794,7 @@ describe("ProjectsTabView — arriving from a finding", () => {
       onChangePage={noop} projectFilter="all" onProjectFilterChange={noop}
     />);
 
-    expect(container.querySelectorAll(".projects-rail__item")).toHaveLength(11);
+    expect(container.querySelectorAll(".field-card")).toHaveLength(11);
   });
 
   it("says the filter matched nothing rather than looking like an empty site", () => {

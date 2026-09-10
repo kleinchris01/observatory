@@ -594,6 +594,155 @@ export async function loadStatusAutomationReferences(scopeKey, labels = []) {
   return out;
 }
 
+// ── Blast radius ───────────────────────────────────────────────────────────
+//
+// SQL-only, like the cascade edges: one row per rule, replaced wholesale on every import.
+// The tier histogram the overview needs also rides in the KVS analysis document; these rows
+// back the sortable per-rule list and the factor breakdown the drawer shows.
+
+const BLAST_BATCH = 40;
+
+export function blastRowsFrom(document) {
+  const rows = [];
+  const seen = new Set();
+  for (const rule of document?.rules ?? []) {
+    const id = String(rule?.id ?? "").trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    rows.push([
+      id,
+      Math.max(0, Math.min(100, Math.trunc(Number(rule.score)) || 0)),
+      String(rule.tier || "contained").slice(0, 20),
+      rule.estimated ? 1 : 0,
+      rule.credential ? 1 : 0,
+      rule.factors
+        ? JSON.stringify({ factors: rule.factors, modifiers: rule.modifiers ?? [] }).slice(0, 8000)
+        : null,
+    ]);
+  }
+  return rows;
+}
+
+export async function replaceAutomationBlast(scopeKey, document) {
+  const rows = blastRowsFrom(document).map((row) => [scopeKey, ...row]);
+  return replaceRows(
+    scopeKey,
+    "automation_rule_blast",
+    ["scope_key", "rule_id", "score", "tier", "estimated", "credential", "factors_json"],
+    rows,
+    BLAST_BATCH
+  );
+}
+
+// The tier histogram plus the two health inputs, counted from the rows rather than trusted
+// from a number the writer had to carry.
+export async function loadBlastSummary(scopeKey) {
+  await ensureProjectStoreReady();
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT tier,
+             COUNT(*) AS n,
+             SUM(CASE WHEN estimated = 1 THEN 1 ELSE 0 END) AS estimated_n,
+             SUM(CASE WHEN tier = 'estate' AND credential = 1 THEN 1 ELSE 0 END) AS estate_cred_n
+      FROM automation_rule_blast
+      WHERE scope_key = ?
+      GROUP BY tier
+    `).bindParams(scopeKey).execute()
+  );
+
+  const byTier = { estate: 0, "cross-project": 0, project: 0, contained: 0 };
+  let total = 0;
+  let estimatedCount = 0;
+  let estateWideCredentialCount = 0;
+  for (const row of result.rows || []) {
+    const n = toNumber(row.n);
+    total += n;
+    if (byTier[row.tier] === undefined) byTier[row.tier] = 0;
+    byTier[row.tier] += n;
+    estimatedCount += toNumber(row.estimated_n);
+    estateWideCredentialCount += toNumber(row.estate_cred_n);
+  }
+  const estateWideCount = byTier.estate || 0;
+
+  return {
+    available: total > 0,
+    total,
+    byTier,
+    estateWideCount,
+    estateWideShare: total > 0 ? estateWideCount / total : 0,
+    estateWideCredentialCount,
+    estimatedCount,
+  };
+}
+
+function parseBlastFactors(json) {
+  if (!json) return { factors: [], modifiers: [] };
+  try {
+    const parsed = JSON.parse(json);
+    return {
+      factors: Array.isArray(parsed?.factors) ? parsed.factors : [],
+      modifiers: Array.isArray(parsed?.modifiers) ? parsed.modifiers : [],
+    };
+  } catch {
+    return { factors: [], modifiers: [] };
+  }
+}
+
+// One page of rules ordered by blast score, most first, with the rule's name and state
+// joined from the directory so the list reads as names rather than numeric ids.
+export async function loadBlastRules(scopeKey, { tier = null, search = "", limit = 100, offset = 0 } = {}) {
+  await ensureProjectStoreReady();
+  // Interpolated, never bound: Forge SQL rejects a placeholder in LIMIT/OFFSET.
+  const cap = Math.max(1, Math.min(500, Math.trunc(Number(limit)) || 100));
+  const skip = Math.max(0, Math.min(100000, Math.trunc(Number(offset)) || 0));
+
+  const where = ["b.scope_key = ?"];
+  const params = [scopeKey];
+  if (tier && tier !== "all") {
+    where.push("b.tier = ?");
+    params.push(String(tier));
+  }
+  if (String(search).trim()) {
+    where.push("LOWER(COALESCE(a.name, '')) LIKE LOWER(?)");
+    params.push(`%${String(search).trim()}%`);
+  }
+
+  const from = `
+    FROM automation_rule_blast b
+    LEFT JOIN automation_rules a ON a.scope_key = b.scope_key AND a.rule_id = b.rule_id
+    WHERE ${where.join(" AND ")}
+  `;
+
+  const rows = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT b.rule_id, b.score, b.tier, b.estimated, b.credential, b.factors_json,
+             a.name AS rule_name, a.enabled AS rule_enabled, a.trigger_type
+      ${from}
+      ORDER BY b.score DESC, b.rule_id ASC
+      LIMIT ${cap} OFFSET ${skip}
+    `).bindParams(...params).execute()
+  );
+
+  const counted = await withSqlRetry(() =>
+    sql.prepare(`SELECT COUNT(*) AS total ${from}`).bindParams(...params).execute()
+  );
+
+  return {
+    rules: (rows.rows || []).map((row) => ({
+      ruleId: String(row.rule_id),
+      name: row.rule_name || String(row.rule_id),
+      enabled: row.rule_enabled == null ? null : toNumber(row.rule_enabled) === 1,
+      triggerType: row.trigger_type || null,
+      score: toNumber(row.score),
+      tier: row.tier || "contained",
+      estimated: toNumber(row.estimated) === 1,
+      credential: toNumber(row.credential) === 1,
+      ...parseBlastFactors(row.factors_json),
+    })),
+    total: toNumber(counted.rows?.[0]?.total),
+  };
+}
+
 export async function loadAutomationReferencesFor(scopeKey, kind, label, limit = 200) {
   await ensureProjectStoreReady();
   // Forge's SQL dialect will not bind LIMIT as a parameter, so it is interpolated -- which

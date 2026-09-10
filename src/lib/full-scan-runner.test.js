@@ -26,6 +26,7 @@ vi.mock("./project-store.js", () => ({
   readIssueTypeSnapshotMeta: vi.fn(async () => null),
   readAccessSnapshotMeta: vi.fn(async () => null),
   readEstateSnapshotMeta: vi.fn(async () => null),
+  readBoardSnapshotMeta: vi.fn(async () => null),
   readDriftSnapshotMeta: vi.fn(async () => null),
   readSnapshotMeta: vi.fn(async () => null),
   recordFullScanRun: vi.fn(async () => ({ recorded: true })),
@@ -33,6 +34,7 @@ vi.mock("./project-store.js", () => ({
 
 vi.mock("./access-engine.js", () => ({ buildAccessSnapshot: vi.fn() }));
 vi.mock("./estate-engine.js", () => ({ buildEstateSnapshot: vi.fn() }));
+vi.mock("./board-engine.js", () => ({ buildBoardSnapshot: vi.fn() }));
 vi.mock("./drift-engine.js", () => ({ buildDriftSnapshot: vi.fn() }));
 
 vi.mock("./filter-engine.js", () => ({ isFilterBuildStale: vi.fn(() => false), queueFilterSnapshotBuild: vi.fn() }));
@@ -199,7 +201,7 @@ describe("running a stage", () => {
   // one poll interval later -- a whole-site crawl "finishing" in ~31 seconds.
   test("the issue-crawl handoff flips the crawl meta to queued before starting the coordinator", async () => {
     readFullScanMeta.mockResolvedValue(running({
-      stages: withDone(["workflows", "screens", "filters", "dashboards", "fields", "status-history", "issue-types", "access", "estate"]),
+      stages: withDone(["workflows", "screens", "filters", "dashboards", "fields", "status-history", "issue-types", "access", "estate", "boards"]),
     }));
 
     const result = await runFullScanStep("inst", { jobToken: "job-token" });

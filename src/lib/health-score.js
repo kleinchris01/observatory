@@ -52,6 +52,11 @@ export const DEFAULT_HEALTH_TOLERANCES = {
   // all because every one of these is data leaving the tenancy, and an admin who cannot say
   // how many there are cannot say what left.
   externalHttpRules: 0.15,
+  // Rules whose blast radius is estate-wide -- site-scoped, broad trigger, mutating actions,
+  // able to wake other rules. One or two is normal; a large share means a single misfire or
+  // a single compromised author can move every project at once, and nobody has kept the
+  // count. Scored between the credential and self-triggering bounds.
+  estateWideRules: 0.06,
   // A scheme operation pointing at a screen the catalog does not contain. Tight, like the
   // credential bound: this is a broken mapping rather than an untidy one, and Jira falls
   // back silently when it resolves.
@@ -118,6 +123,12 @@ export const DEFAULT_HEALTH_TOLERANCES = {
   // less when they do.
   duplicateResolutions: 0.15,
   duplicatePriorities: 0.20,
+  // Agile boards. A board on a deleted or absent backing filter shows every issue in the
+  // site -- broken, not untidy, so it is bounded tight. Column hygiene (a column mapping no
+  // status, or one that has been removed) drops issues off the board silently: worse than
+  // clutter, less immediate than a wrong-scope board, so it sits between.
+  boardsBrokenBacking: 0.08,
+  boardsColumnHygiene: 0.25,
 };
 
 // rate 0 -> 100, rate >= tolerance -> 0, linear between. Deliberately linear: a curve
@@ -183,6 +194,9 @@ export const PILLAR_WEIGHTS = {
   // The global value lists. Small surface, low blast radius -- a naming-hygiene pillar, not
   // a correctness one.
   estate: 0.5,
+  // Agile boards. Structural, like screens and issue types: a broken board changes what a
+  // person sees on the wall every day, not what an issue is.
+  boards: 1,
 };
 
 export const HEALTH_PILLARS = [
@@ -199,6 +213,7 @@ export const HEALTH_PILLARS = [
   { key: "notifications", label: "Notification schemes" },
   { key: "roles", label: "Project roles" },
   { key: "estate", label: "Priorities and resolutions" },
+  { key: "boards", label: "Boards" },
   { key: "automation", label: "Automation" },
   { key: "projects", label: "Projects" },
 ];
@@ -225,7 +240,7 @@ export function resolveHealthTolerances(overrides = {}) {
   return out;
 }
 
-export function computeSiteHealth({ fieldUsage, workflow, projects, automation, screens, adoption, filters, dashboards, issueTypes, users, assets, permissions, security, notifications, roles, estate, tolerances } = {}) {
+export function computeSiteHealth({ fieldUsage, workflow, projects, automation, screens, adoption, filters, dashboards, issueTypes, users, assets, permissions, security, notifications, roles, estate, boards, tolerances } = {}) {
   const TOLERANCE = resolveHealthTolerances(tolerances);
   const dimensions = [];
 
@@ -795,6 +810,34 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
     dimensions.push(unavailable("automation-exposure", "Automation exposure", "automation", "No automation analysis yet."));
   }
 
+  // ── Automation blast radius ───────────────────────────────────────────────
+  // How concentrated the estate is in rules that can move every project at once. A separate
+  // dimension from stability (which is about loops) and security (which is about secrets):
+  // this is about how much sits behind a single point of failure. estateWideCount is null
+  // on an analysis imported before blast scoring existed, so the dimension reports
+  // unavailable rather than scoring a zero it cannot stand behind.
+  const estateWideRules = Number(automation?.estateWideCount);
+  if (automation?.available && automationRules > 0 && Number.isFinite(estateWideRules)) {
+    const rate = estateWideRules / automationRules;
+    const estateWideWithCredential = Number(automation.estateWideCredentialCount) || 0;
+    dimensions.push({
+      key: "automation-blast",
+      label: "Automation blast radius",
+      pillar: "automation",
+      available: true,
+      weight: 1.5,
+      score: scoreFromRate(rate, TOLERANCE.estateWideRules),
+      detail: estateWideRules === 0
+        ? `No rule has an estate-wide blast radius across the ${automationRules} rules.`
+        : `${estateWideRules} of ${automationRules} rules can move every project at once${estateWideWithCredential > 0 ? `, and ${estateWideWithCredential} of those also store a credential` : ""}.`,
+      action: estateWideRules > 0
+        ? "Scope what you can to specific projects, and review who can edit the ones that must stay site-wide."
+        : null,
+    });
+  } else {
+    dimensions.push(unavailable("automation-blast", "Automation blast radius", "automation", "No blast-radius analysis yet. Re-import the rule export."));
+  }
+
   // ── Screen scheme integrity ───────────────────────────────────────────────
   // Weighted like automation stability: a scheme pointing at a screen that no longer exists
   // does not error, it silently falls back, so nobody finds it by using Jira.
@@ -1272,6 +1315,51 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
     });
   } else {
     dimensions.push(unavailable("priority-naming", "Priority naming", "estate", noEstate));
+  }
+
+  // ── Agile boards ─────────────────────────────────────────────────────────
+  // Boards break silently. A board on a deleted or absent backing filter falls back to
+  // every issue in the site; one whose backing filter is owned by an inactive user is a
+  // departure from the same failure. Column hygiene is the softer of the two -- a column
+  // that maps no status, or one that has been removed, drops issues off the wall with no
+  // error anywhere.
+  const noBoards = "No board inventory yet. Run a full scan to populate it.";
+  const boardTotal = Number(boards?.total) || 0;
+  if (boards?.available && boardTotal > 0) {
+    const broken = (Number(boards.brokenBackingCount) || 0) + (Number(boards.inactiveFilterOwner) || 0);
+    dimensions.push({
+      key: "board-backing",
+      label: "Board backing filters",
+      pillar: "boards",
+      available: true,
+      weight: 1.5,
+      score: scoreFromRate(broken / boardTotal, TOLERANCE.boardsBrokenBacking),
+      detail: broken === 0
+        ? `All ${boardTotal} boards have a live backing filter.`
+        : `${broken} of ${boardTotal} boards have no backing filter, name one that was deleted, or run on a filter whose owner is deactivated.`,
+      action: broken > 0
+        ? "A board with no live backing filter shows every issue in the site. Repoint it, or reassign the filter before the account is removed."
+        : null,
+    });
+
+    const columnIssues = (Number(boards.staleColumnBoards) || 0) + (Number(boards.unmappedColumnBoards) || 0);
+    dimensions.push({
+      key: "board-columns",
+      label: "Board columns",
+      pillar: "boards",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(columnIssues / boardTotal, TOLERANCE.boardsColumnHygiene),
+      detail: columnIssues === 0
+        ? `Every board column maps at least one live status.`
+        : `${columnIssues} of ${boardTotal} boards have a column that maps no status, or one that has been deleted.`,
+      action: columnIssues > 0
+        ? "Issues in an unmapped or deleted status vanish from the board with no error. Fix the column mapping in the board's configuration."
+        : null,
+    });
+  } else {
+    dimensions.push(unavailable("board-backing", "Board backing filters", "boards", noBoards));
+    dimensions.push(unavailable("board-columns", "Board columns", "boards", noBoards));
   }
 
   // ── Roll-up ───────────────────────────────────────────────────────────────

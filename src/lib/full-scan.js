@@ -68,6 +68,10 @@ export const FULL_SCAN_STAGES = [
   // The two global value lists (resolutions, priorities). Two paginated calls, no per-item
   // walk -- the cheapest structural stage here.
   { key: "estate", label: "Priorities & resolutions inventory", needs: [], mode: "inline" },
+  // Agile boards: one paginated list, then one configuration call per board. Heavier than
+  // the value lists but lighter than the screen walk, and independent -- inline like the
+  // other structural stages.
+  { key: "boards", label: "Board inventory", needs: [], mode: "inline" },
   {
     key: "issues",
     label: "Issue crawl",
@@ -128,6 +132,9 @@ export const QUICK_SCAN_STAGES = [
   // signal for permission / security / notification schemes either.
   { key: "access", label: "Access scheme inventory (full)", needs: [], mode: "inline" },
   { key: "estate", label: "Priorities & resolutions inventory (full)", needs: [], mode: "inline" },
+  // Boards carry no changed-since signal either, so quick scan refetches them in full like
+  // the other structural stages.
+  { key: "boards", label: "Board inventory (full)", needs: [], mode: "inline" },
   { key: "drift", label: "Configuration drift", needs: [], mode: "inline" },
   { key: "health", label: "Record site health", needs: [], mode: "inline" },
 ];

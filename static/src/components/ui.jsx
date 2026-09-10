@@ -77,20 +77,48 @@ export function StatRow({ children }) {
 
 // A titled region. `action` is for a single control that belongs to the section
 // (a deep link, a refresh); anything more belongs in a toolbar.
-export function Panel({ title, icon, description, action, children }) {
+// Panels are collapsible when the caller asks for it, or when an ancestor wraps a group of
+// them in <CollapsiblePanels> -- the project drawer does the latter so every cross-pillar
+// section folds without threading a prop through seven sub-components.
+export const PanelCollapsibleContext = React.createContext(false);
+
+export function CollapsiblePanels({ children }) {
+  return <PanelCollapsibleContext.Provider value>{children}</PanelCollapsibleContext.Provider>;
+}
+
+export function Panel({ title, icon, description, action, children, collapsible = false, defaultCollapsed = false }) {
+  const groupCollapsible = React.useContext(PanelCollapsibleContext);
+  const isCollapsible = collapsible || groupCollapsible;
+  const [collapsed, setCollapsed] = React.useState(isCollapsible && defaultCollapsed);
+  const open = !isCollapsible || !collapsed;
+
+  const titles = (
+    <div className="ui-panel__titles">
+      <h3 className="ui-panel__title">
+        {isCollapsible && <Icon name={open ? "chevronUp" : "chevronDown"} size={13} aria-hidden="true" />}
+        {icon && <Icon name={icon} size={15} />}
+        {title}
+      </h3>
+      {description && <p className="ui-panel__desc">{description}</p>}
+    </div>
+  );
+
   return (
-    <section className="ui-panel">
+    <section className={`ui-panel${isCollapsible ? " ui-panel--collapsible" : ""}${isCollapsible && !open ? " ui-panel--collapsed" : ""}`}>
       <div className="ui-panel__head">
-        <div className="ui-panel__titles">
-          <h3 className="ui-panel__title">
-            {icon && <Icon name={icon} size={15} />}
-            {title}
-          </h3>
-          {description && <p className="ui-panel__desc">{description}</p>}
-        </div>
+        {isCollapsible ? (
+          <button
+            type="button"
+            className="ui-panel__toggle"
+            aria-expanded={open}
+            onClick={() => setCollapsed((v) => !v)}
+          >
+            {titles}
+          </button>
+        ) : titles}
         {action}
       </div>
-      <div className="ui-panel__body">{children}</div>
+      {open && <div className="ui-panel__body">{children}</div>}
     </section>
   );
 }

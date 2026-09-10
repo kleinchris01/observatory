@@ -100,6 +100,9 @@ export async function persistAnalysis(documents, { save = invoke } = {}) {
   // Cascades go after the directory, because the cascade views join to it for rule names --
   // and before the analysis, which is the commit point.
   await save("saveAutomationIndex", { part: "cascades", document: documents.cascades });
+  // Blast radius joins to the directory for names too, and its fan-out factor is derived
+  // from the same cascade edges, so it follows both.
+  await save("saveAutomationIndex", { part: "blast", document: documents.blast });
   await save("saveAutomationAnalysis", { analysis: documents.analysis });
 }
 
@@ -663,6 +666,188 @@ function CascadeSection({ data, siteOrigin, load = invoke, intent = null }) {
   );
 }
 
+// ── Blast radius ────────────────────────────────────────────────────────────
+//
+// "Is this rule risky" (a credential, a loop) is the Findings question. This is the one an
+// admin asks next: if it misfires, how far does the damage reach. A rule scoped to the
+// whole site, on a broad trigger, that transitions issues and can wake other rules is a
+// different hazard from one scoped to a five-person project — and the tab has never put a
+// number on that difference.
+
+const BLAST_TIER_META = {
+  estate: { label: "Estate-wide", tone: "critical", hint: "Site-scoped, broad trigger, mutating actions — one misfire reaches every project." },
+  "cross-project": { label: "Cross-project", tone: "warning", hint: "Reaches several projects, or carries an exposure that does." },
+  project: { label: "Project", tone: "active", hint: "Contained to one project's issues." },
+  contained: { label: "Contained", tone: "neutral", hint: "Narrow scope and light actions." },
+};
+
+const BLAST_TIER_ORDER = ["estate", "cross-project", "project", "contained"];
+
+const BLAST_FILTERS = [
+  { value: "all", label: "All tiers" },
+  ...BLAST_TIER_ORDER.map((t) => ({ value: t, label: BLAST_TIER_META[t].label })),
+];
+
+const BLAST_PAGE_SIZE = 50;
+
+function BlastScoreBar({ score, tone }) {
+  return (
+    <span className="blast-score" title={`Blast radius ${score} of 100`}>
+      <span className={`blast-score__fill blast-score__fill--${tone}`} style={{ width: `${Math.max(2, score)}%` }} />
+      <span className="blast-score__num">{score}</span>
+    </span>
+  );
+}
+
+function BlastRow({ rule, siteOrigin, expanded, onToggle }) {
+  const meta = BLAST_TIER_META[rule.tier] ?? BLAST_TIER_META.contained;
+  return (
+    <>
+      <button type="button" className={`blast-row${expanded ? " blast-row--open" : ""}`} onClick={onToggle} aria-expanded={expanded}>
+        <span className="blast-row__chevron" aria-hidden="true">{expanded ? "▾" : "▸"}</span>
+        <span className="blast-row__name">
+          <RuleLink id={rule.ruleId} name={rule.name} siteOrigin={siteOrigin} />
+          {rule.enabled === false ? <Chip tone="neutral">disabled</Chip> : null}
+        </span>
+        <Chip tone={meta.tone} title={meta.hint}>{meta.label}</Chip>
+        <BlastScoreBar score={rule.score} tone={meta.tone} />
+      </button>
+      {expanded ? (
+        <div className="blast-detail">
+          {rule.estimated ? (
+            <p className="ui-note">
+              <Icon name="info" size={13} />
+              <span>Reach is estimated from project count — no issue-volume scan has run yet, so a scoped rule may read lower than its true blast.</span>
+            </p>
+          ) : null}
+          <ul className="blast-factors">
+            {(rule.factors ?? []).map((f) => (
+              <li key={f.key} className="blast-factor">
+                <span className="blast-factor__label">{f.label}</span>
+                <span className="blast-factor__bar" aria-hidden="true">
+                  <span className="blast-factor__fill" style={{ width: `${Math.round((f.value ?? 0) * 100)}%` }} />
+                </span>
+                <span className="blast-factor__weight">×{f.weight}</span>
+                <span className="blast-factor__detail">{f.detail}</span>
+              </li>
+            ))}
+          </ul>
+          {(rule.modifiers ?? []).length > 0 ? (
+            <ul className="blast-modifiers">
+              {rule.modifiers.map((m) => <li key={m.key}>{m.detail}</li>)}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function BlastSection({ data, siteOrigin, load = invoke }) {
+  const summary = data.blast ?? null;
+  const [tier, setTier] = React.useState("all");
+  const [search, setSearch] = React.useState("");
+  const [term, setTerm] = React.useState("");
+  const [page, setPage] = React.useState(1);
+  const [result, setResult] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+  const [expanded, setExpanded] = React.useState(null);
+
+  React.useEffect(() => {
+    const id = setTimeout(() => setTerm(search), 250);
+    return () => clearTimeout(id);
+  }, [search]);
+  React.useEffect(() => { setPage(1); }, [term, tier]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    load("getAutomationBlast", { tier, search: term, page, pageSize: BLAST_PAGE_SIZE })
+      .then((r) => { if (!cancelled) { setResult(r); setLoading(false); } })
+      .catch(() => { if (!cancelled) { setResult(null); setLoading(false); } });
+    return () => { cancelled = true; };
+  }, [tier, term, page, load]);
+
+  if (!summary?.available) {
+    return (
+      <EmptyState inline>
+        This analysis was imported before blast radius was scored. Re-import the rule export to build it.
+      </EmptyState>
+    );
+  }
+
+  const byTier = summary.byTier ?? {};
+  const total = result?.total ?? 0;
+  const pages = Math.max(1, Math.ceil(total / BLAST_PAGE_SIZE));
+  const rules = result?.rules ?? [];
+
+  return (
+    <>
+      <StatRow>
+        <StatTile
+          label="Estate-wide"
+          value={formatNumber(byTier.estate ?? 0)}
+          hint={summary.estateWideCredentialCount > 0 ? `${formatNumber(summary.estateWideCredentialCount)} also store a credential` : "Can move every project at once"}
+          icon="shield"
+          tone={(byTier.estate ?? 0) > 0 ? "critical" : "neutral"}
+        />
+        <StatTile label="Cross-project" value={formatNumber(byTier["cross-project"] ?? 0)} icon="layers" tone={(byTier["cross-project"] ?? 0) > 0 ? "warning" : "neutral"} />
+        <StatTile label="Project" value={formatNumber(byTier.project ?? 0)} icon="activity" />
+        <StatTile label="Contained" value={formatNumber(byTier.contained ?? 0)} icon="checkCircle" tone="success" />
+      </StatRow>
+
+      <p className="ui-note">
+        <Icon name="info" size={13} />
+        <span>
+          Score blends reach (scope × issue volume), trigger cadence, the weight of what the
+          actions do, and fan-out into other rules. A disabled rule keeps a reduced score —
+          it is a latent hazard, not a safe one.
+        </span>
+      </p>
+
+      <SortFilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Filter by rule name…"
+        searchLabel="Filter rules"
+        filters={[{ key: "tier", label: "Tier", value: tier, onChange: setTier, options: BLAST_FILTERS }]}
+        resultCount={total}
+        totalCount={summary.total}
+        onClear={() => { setSearch(""); setTier("all"); }}
+      />
+
+      {loading ? (
+        <EmptyState inline>Loading blast radius…</EmptyState>
+      ) : rules.length === 0 ? (
+        <EmptyState inline>No rules match these filters.</EmptyState>
+      ) : (
+        <>
+          <div className="blast-list">
+            {rules.map((rule) => (
+              <BlastRow
+                key={rule.ruleId}
+                rule={rule}
+                siteOrigin={siteOrigin}
+                expanded={expanded === rule.ruleId}
+                onToggle={() => setExpanded(expanded === rule.ruleId ? null : rule.ruleId)}
+              />
+            ))}
+          </div>
+          {pages > 1 ? (
+            <section className="pagination-bar">
+              <span className="pagination-bar__status">Page {formatNumber(page)} of {formatNumber(pages)} · {formatNumber(total)} rules</span>
+              <div className="pagination-bar__actions">
+                <button type="button" className="ghost-button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>Previous</button>
+                <button type="button" className="ghost-button" onClick={() => setPage((p) => Math.min(pages, p + 1))} disabled={page >= pages}>Next</button>
+              </div>
+            </section>
+          ) : null}
+        </>
+      )}
+    </>
+  );
+}
+
 // ── Findings ────────────────────────────────────────────────────────────────
 
 const PAGE_SIZE = 50;
@@ -991,6 +1176,7 @@ export function AutomationTab({ siteOrigin, intent = null }) {
     { key: "issueTypes", label: "Issue types", icon: "layers", badge: formatNumber(estate.issueTypesReferenced ?? 0) },
     { key: "users", label: "Users", icon: "user", badge: formatNumber(estate.usersReferenced ?? 0) },
     { key: "cascades", label: "Cascades", icon: "refreshCw", badge: formatNumber(data.cascadesTotal ?? 0) },
+    { key: "blast", label: "Blast radius", icon: "shield", badge: formatNumber(data.blast?.estateWideCount ?? 0) },
     { key: "findings", label: "Findings", icon: "alertTriangle", badge: formatNumber(data.findingsTotal ?? 0) },
   ];
 
@@ -1016,6 +1202,13 @@ export function AutomationTab({ siteOrigin, intent = null }) {
                 hint={`${disabledShare}% of the estate`}
                 icon="x"
                 tone={disabledShare >= 30 ? "warning" : "neutral"}
+              />
+              <StatTile
+                label="Estate-wide rules"
+                value={formatNumber(data.blast?.estateWideCount ?? 0)}
+                hint="Blast radius reaches every project"
+                icon="shield"
+                tone={(data.blast?.estateWideCount ?? 0) > 0 ? "critical" : "neutral"}
               />
               <StatTile label="Fields referenced" value={formatNumber(estate.fieldsReferenced ?? 0)} icon="layers" />
               <StatTile label="Statuses referenced" value={formatNumber(estate.statusesReferenced ?? 0)} icon="activity" />
@@ -1132,6 +1325,14 @@ export function AutomationTab({ siteOrigin, intent = null }) {
             description="A rule that writes a field another rule watches can start a cascade. Relationships are every single hop; loops and chains are what happens when those hops join up."
           >
             <CascadeSection data={data} siteOrigin={siteOrigin} intent={intent} />
+          </Panel>
+        ) : section === "blast" ? (
+          <Panel
+            title="Blast radius"
+            icon="shield"
+            description="How much of the estate each rule can move if it misfires. Global rules outrank project-scoped ones; a broad trigger, mutating actions and fan-out into other rules push a score up from there."
+          >
+            <BlastSection data={data} siteOrigin={siteOrigin} />
           </Panel>
         ) : (
           <Panel

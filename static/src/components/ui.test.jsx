@@ -3,7 +3,7 @@ import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { router, rovo } from "@forge/bridge";
-import { StatTile, StatRow, Panel, Chip, EmptyState, BarList, FindingRow, LinkButton, PageHeader, RuleLink, SortFilterBar, StageRail, formatDurationMs, AskRovo } from "./ui";
+import { StatTile, StatRow, Panel, CollapsiblePanels, Chip, EmptyState, BarList, FindingRow, LinkButton, PageHeader, RuleLink, SortFilterBar, StageRail, formatDurationMs, AskRovo } from "./ui";
 
 // These are the shared vocabulary that replaced four separate stat-card idioms. They are
 // small, but they now render on every tab, so a regression here is a regression
@@ -63,6 +63,45 @@ describe("Panel", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /Open/ }));
     expect(onClick).toHaveBeenCalled();
+  });
+
+  test("is not collapsible by default -- no toggle, body always shown", () => {
+    render(<Panel title="Plain"><p>always here</p></Panel>);
+    expect(screen.getByText("always here")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Plain/ })).toBeNull();
+  });
+
+  test("collapsible: the head toggles the body", async () => {
+    render(<Panel title="Foldable" collapsible><p>fold me</p></Panel>);
+    const toggle = screen.getByRole("button", { name: /Foldable/ });
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("fold me")).toBeInTheDocument();
+
+    await userEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("fold me")).toBeNull();
+
+    await userEvent.click(toggle);
+    expect(screen.getByText("fold me")).toBeInTheDocument();
+  });
+
+  test("defaultCollapsed starts folded", () => {
+    render(<Panel title="Closed" collapsible defaultCollapsed><p>hidden</p></Panel>);
+    expect(screen.queryByText("hidden")).toBeNull();
+    expect(screen.getByRole("button", { name: /Closed/ })).toHaveAttribute("aria-expanded", "false");
+  });
+
+  test("CollapsiblePanels makes every nested Panel collapsible without a prop", async () => {
+    render(
+      <CollapsiblePanels>
+        <Panel title="One"><p>one body</p></Panel>
+        <Panel title="Two"><p>two body</p></Panel>
+      </CollapsiblePanels>
+    );
+    await userEvent.click(screen.getByRole("button", { name: /One/ }));
+    expect(screen.queryByText("one body")).toBeNull();
+    // Independent: folding One leaves Two open.
+    expect(screen.getByText("two body")).toBeInTheDocument();
   });
 });
 

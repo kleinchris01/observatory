@@ -285,9 +285,8 @@ export function App() {
         page: projectTabPage,
       });
       setProjectsViewData(result);
-      if (result?.selectedProject?.projectId && result.selectedProject.projectId !== selectedProjectId) {
-        setSelectedProjectId(result.selectedProject.projectId);
-      }
+      // No auto-adopt of the resolver's default project: with the browse list, "" (nothing
+      // expanded) is a real state, and syncing to the default reopened a just-closed card.
     } catch (err) {
       setError(err.message || "Failed to load the projects view.");
     } finally {

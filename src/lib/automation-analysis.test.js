@@ -13,6 +13,8 @@ import {
   hydrateRuleDirectory,
   summarizeAutomationHealth,
   countComponents,
+  computeBlastEntries,
+  extractActionKinds,
   extractFieldReferences,
   extractOutboundHosts,
   extractProjectReferences,
@@ -351,6 +353,46 @@ describe("extractOutboundHosts", () => {
   });
 });
 
+describe("extractActionKinds", () => {
+  it("buckets each action by its component type", () => {
+    const r = rule({ components: [
+      action("jira.issue.transition", { destinationStatus: { type: "NAME", value: "Done" } }),
+      action("jira.issue.create", { issueType: { type: "NAME", value: "Bug" } }),
+      action("jira.issue.outgoing.webhook", { url: "https://example.com/hook" }),
+      action("jira.issue.assign", { assignee: { type: "ID", value: "abc" } }),
+    ] });
+    const kinds = extractActionKinds(r);
+    expect(kinds).toEqual(expect.arrayContaining(["transition", "create-issue", "outbound-http", "assign"]));
+  });
+
+  it("treats any component carrying an http url as an external call, whatever its type", () => {
+    const r = rule({ components: [action("codebarrel.action.something", { url: "https://hooks.slack.com/x" })] });
+    expect(extractActionKinds(r)).toContain("outbound-http");
+  });
+
+  it("ignores conditions and unrecognised actions rather than throwing", () => {
+    const r = rule({ components: [condition("jira.issue.condition", {}), action("jira.mystery.action", {})] });
+    expect(extractActionKinds(r)).toEqual([]);
+  });
+});
+
+describe("computeBlastEntries", () => {
+  it("scores every summary and lifts fan-out for a rule that sits in a cascade loop", () => {
+    const summaries = [
+      { id: "1", enabled: true, triggerType: "jira.jql.scheduled", canOtherRuleTrigger: true, projectIds: [], statusRefs: [], writesFields: ["A"], actionKinds: ["transition"], risks: [] },
+      { id: "2", enabled: true, triggerType: "jira.manual.trigger.issue", canOtherRuleTrigger: false, projectIds: ["p1"], statusRefs: [], writesFields: [], actionKinds: [], risks: [] },
+    ];
+    const cascades = [
+      { sourceId: "1", targetId: "1", field: "A", sourceName: "one", targetName: "one", selfTriggering: true },
+    ];
+    const entries = computeBlastEntries(summaries, cascades);
+    expect(entries).toHaveLength(2);
+    const one = entries.find((e) => e.ruleId === "1");
+    expect(one.factors.find((f) => f.key === "fanout").value).toBe(1);
+    expect(one.score).toBeGreaterThan(entries.find((e) => e.ruleId === "2").score);
+  });
+});
+
 describe("analyzeRuleRisks", () => {
   // The bug this pins. This used to test the serialized rule for the redactor's
   // `[[REDACTED:...]]` marker, which only exists in a rule the snapshot script has already
@@ -681,7 +723,7 @@ describe("analyzeRules", () => {
 
   it("returns every document the tab needs from one pass", () => {
     const out = analyzeRules(rules, { source: "export.json" });
-    expect(Object.keys(out).sort()).toEqual(["analysis", "cascades", "directory", "fields", "findings", "issueTypes", "statuses", "users"]);
+    expect(Object.keys(out).sort()).toEqual(["analysis", "blast", "cascades", "directory", "fields", "findings", "issueTypes", "statuses", "users"]);
     expect(out.analysis).toMatchObject({ schemaVersion: 1, source: "export.json" });
   });
 

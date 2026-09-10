@@ -118,6 +118,9 @@ const mocks = vi.hoisted(() => ({
   readWorkflowSnapshotMeta: vi.fn(),
   readAutomationAnalysis: vi.fn(),
   replaceAutomationCascades: vi.fn(async () => 0),
+  replaceAutomationBlast: vi.fn(async () => 0),
+  loadBlastSummary: vi.fn(async () => ({ available: false, total: 0, byTier: {}, estateWideCount: 0 })),
+  loadBlastRules: vi.fn(async () => ({ rules: [], total: 0 })),
   loadCascadeSummary: vi.fn(async () => ({ edges: 0, pairs: 0, selfTriggeringRules: 0, fields: 0 })),
   loadCascades: vi.fn(async () => ({ cascades: [], total: 0 })),
   loadCascadeEdges: vi.fn(async () => []),
@@ -204,6 +207,13 @@ const mocks = vi.hoisted(() => ({
   queueEstateSnapshotBuild: vi.fn(),
   isEstateBuildStale: vi.fn(() => false),
 
+  // board store + board-engine.js
+  readBoardSnapshotMeta: vi.fn(async () => null),
+  loadBoards: vi.fn(async () => []),
+  loadBoardColumns: vi.fn(async () => []),
+  queueBoardSnapshotBuild: vi.fn(),
+  isBoardBuildStale: vi.fn(() => false),
+
   loadRulesForProject: vi.fn(),
   loadStatusAutomationReferences: vi.fn(),
   loadGlobalRulesAffectingProject: vi.fn(),
@@ -281,6 +291,9 @@ vi.mock("./lib/store/automation.js", () => ({
   replaceAutomationRules: mocks.replaceAutomationRules,
   replaceAutomationFindings: mocks.replaceAutomationFindings,
   replaceAutomationCascades: mocks.replaceAutomationCascades,
+  replaceAutomationBlast: mocks.replaceAutomationBlast,
+  loadBlastSummary: mocks.loadBlastSummary,
+  loadBlastRules: mocks.loadBlastRules,
   loadCascadeSummary: mocks.loadCascadeSummary,
   loadCascades: mocks.loadCascades,
   loadCascadeEdges: mocks.loadCascadeEdges,
@@ -410,6 +423,9 @@ vi.mock("./lib/project-store.js", () => ({
   loadConfigChangeSummary: mocks.loadConfigChangeSummary,
   readEstateSnapshotMeta: mocks.readEstateSnapshotMeta,
   loadEstateValues: mocks.loadEstateValues,
+  readBoardSnapshotMeta: mocks.readBoardSnapshotMeta,
+  loadBoards: mocks.loadBoards,
+  loadBoardColumns: mocks.loadBoardColumns,
   loadAssetSchemas: mocks.loadAssetSchemas,
   loadAssetObjectTypes: mocks.loadAssetObjectTypes,
   loadAssetAttributes: mocks.loadAssetAttributes,
@@ -471,6 +487,11 @@ vi.mock("./lib/drift-engine.js", () => ({
 vi.mock("./lib/estate-engine.js", () => ({
   queueEstateSnapshotBuild: mocks.queueEstateSnapshotBuild,
   isEstateBuildStale: mocks.isEstateBuildStale,
+}));
+
+vi.mock("./lib/board-engine.js", () => ({
+  queueBoardSnapshotBuild: mocks.queueBoardSnapshotBuild,
+  isBoardBuildStale: mocks.isBoardBuildStale,
 }));
 
 vi.mock("./lib/workflow-engine.js", () => ({
@@ -578,6 +599,9 @@ import {
   rovoChangeInspect,
   rovoProjectSearch,
   rovoProjectInspect,
+  rovoBoardSearch,
+  rovoBoardInspect,
+  rovoBoardImpact,
   migrateNamespaceKeys,
   CLEAR_SNAPSHOT_CONFIRMATION,
   __RAW_ADMIN_ONLY_FUNCTIONS,
@@ -609,6 +633,7 @@ const {
   buildDashboardInventory,
   getAutomationCascades,
   getCascadeGraph,
+  getAutomationBlast,
   getStatusAutomationUsage,
   getAutomationFieldUsage,
   getAutomationFieldCounts,
@@ -632,6 +657,8 @@ const {
   buildChangeHistory,
   getEstateInventory,
   buildEstateInventory,
+  getBoardInventory,
+  buildBoardInventory,
   probeGlobalPermissions,
 } = __RAW_ADMIN_ONLY_FUNCTIONS;
 
@@ -3748,6 +3775,39 @@ describe("saveAutomationAnalysis", () => {
     expect(Object.keys(ADMIN_ONLY_FUNCTIONS)).toContain("saveAutomationAnalysis");
     expect(Object.keys(SHARED_RESOLVER_FUNCTIONS)).not.toContain("saveAutomationAnalysis");
   });
+
+  test("coerces the blast rollup and caps its top list", async () => {
+    const blast = {
+      available: true,
+      total: 1477,
+      byTier: { estate: 12, "cross-project": 40, project: 300, contained: 1125, junk: 9 },
+      estateWideCount: 12,
+      estateWideShare: 12 / 1477,
+      estateWideCredentialCount: "3",
+      estimatedCount: 1477,
+      top: Array.from({ length: 40 }, (_, i) => ({ ruleId: i, score: `${i}`, tier: "estate" })),
+    };
+    await saveAutomationAnalysis({ payload: { analysis: { ...valid, blast } }, context: ctxWithAccount() });
+
+    const [, stored] = mocks.writeAutomationAnalysis.mock.calls[0];
+    expect(stored.blast.byTier).toEqual({ estate: 12, "cross-project": 40, project: 300, contained: 1125 });
+    expect(stored.blast.estateWideCredentialCount).toBe(3);
+    expect(stored.blast.top).toHaveLength(20);
+    expect(stored.blast.top[0]).toEqual({ ruleId: "0", score: 0, tier: "estate" });
+  });
+
+  test("a missing or malformed blast rollup stores null rather than throwing", async () => {
+    for (const bad of [undefined, null, "nope", [1, 2], { total: 5, top: "not-an-array" }]) {
+      mocks.writeAutomationAnalysis.mockClear();
+      await saveAutomationAnalysis({ payload: { analysis: { ...valid, blast: bad } }, context: ctxWithAccount() });
+      const [, stored] = mocks.writeAutomationAnalysis.mock.calls[0];
+      if (bad && typeof bad === "object" && !Array.isArray(bad)) {
+        expect(stored.blast.top).toEqual([]);
+      } else {
+        expect(stored.blast).toBeNull();
+      }
+    }
+  });
 });
 
 describe("saveAutomationIndex", () => {
@@ -3813,6 +3873,22 @@ describe("saveAutomationIndex", () => {
       const result = await saveAutomationIndex({ payload: { part: "findings", document: doc }, context: ctxWithAccount() });
       expect(mocks.replaceAutomationFindings).toHaveBeenCalledWith(expect.any(String), doc);
       expect(result.rowsWritten).toBe(3);
+    });
+
+    test("routes the blast part through the blast writer and never touches KVS for it", async () => {
+      mocks.replaceAutomationBlast.mockResolvedValue(7);
+      const doc = { schemaVersion: 1, rules: [{ id: "1", score: 88, tier: "estate" }] };
+      const result = await saveAutomationIndex({ payload: { part: "blast", document: doc }, context: ctxWithAccount() });
+      expect(mocks.replaceAutomationBlast).toHaveBeenCalledWith(expect.any(String), doc);
+      expect(mocks.writeAutomationPart).not.toHaveBeenCalledWith(expect.any(String), "blast", expect.anything());
+      expect(result.rowsWritten).toBe(7);
+    });
+
+    test("a SQL failure on the blast part fails the import — there is no KVS copy behind it", async () => {
+      mocks.replaceAutomationBlast.mockRejectedValue(new Error("sql down"));
+      await expect(
+        saveAutomationIndex({ payload: { part: "blast", document: { schemaVersion: 1, rules: [] } }, context: ctxWithAccount() })
+      ).rejects.toThrow("sql down");
     });
 
     // The whole point of best-effort: SQL is the secondary copy while the UI still reads
@@ -5914,6 +5990,101 @@ describe("buildEstateInventory", () => {
   });
 });
 
+describe("getBoardInventory", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x" } };
+
+  test("reports never-built when no snapshot exists", async () => {
+    mocks.readBoardSnapshotMeta.mockResolvedValue(null);
+    const result = await getBoardInventory(ctx);
+    expect(result).toMatchObject({ neverBuilt: true, boards: [] });
+    expect(result.summary.total).toBe(0);
+    expect(mocks.loadBoards).not.toHaveBeenCalled();
+  });
+
+  test("joins columns onto boards and summarises the estate", async () => {
+    mocks.readBoardSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1", refreshedAt: "2026-09-09T00:00:00Z", boardsUnreadable: 1 });
+    mocks.loadBoards.mockResolvedValue([
+      { boardId: "1", name: "Scrum", type: "scrum", locationType: "project", locationKey: "AAA", filterId: "4001", configReadable: true, columnCount: 2 },
+      { boardId: "2", name: "Mine", type: "kanban", locationType: "user", locationName: "Alex", filterId: null, configReadable: true, columnCount: 1 },
+      { boardId: "3", name: "TM", type: "simple", locationType: "project", locationKey: "BBB", filterId: null, configReadable: false, columnCount: 0 },
+    ]);
+    mocks.loadBoardColumns.mockResolvedValue([
+      { boardId: "1", index: 0, name: "To Do", statusIds: ["1"] },
+      { boardId: "1", index: 1, name: "Done", statusIds: ["5"] },
+      { boardId: "2", index: 0, name: "Backlog", statusIds: [] },
+    ]);
+
+    const result = await getBoardInventory(ctx);
+
+    expect(result.neverBuilt).toBe(false);
+    expect(result.boards).toHaveLength(3);
+    expect(result.boards.find((b) => b.boardId === "1").columns).toHaveLength(2);
+    expect(result.boards.find((b) => b.boardId === "2").unmappedColumns).toBe(1);
+    expect(result.summary).toMatchObject({
+      total: 3,
+      personal: 1,
+      unreadable: 1,
+      // board 2: config readable, no filter
+      missingFilter: 1,
+      totalColumns: 3,
+    });
+    expect(result.summary.byType).toEqual({ scrum: 1, kanban: 1, simple: 1 });
+  });
+
+  test("joins against the filter and status snapshots and flags a deleted backing filter", async () => {
+    mocks.readBoardSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1", refreshedAt: "x" });
+    mocks.loadBoards.mockResolvedValue([
+      { boardId: "1", name: "Scrum", type: "scrum", locationType: "project", locationKey: "AAA", filterId: "GONE", configReadable: true, columnCount: 1 },
+    ]);
+    mocks.loadBoardColumns.mockResolvedValue([{ boardId: "1", index: 0, name: "To Do", statusIds: ["1", "deleted"] }]);
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "fv1" });
+    mocks.loadFilters.mockResolvedValue([{ id: "4001", ownerActive: true }]); // no filter GONE
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "wv1" });
+    mocks.loadStatusesCatalog.mockResolvedValue([{ id: "1", name: "To Do" }]); // no status "deleted"
+
+    const result = await getBoardInventory(ctx);
+
+    expect(result.insights).toMatchObject({ missingFilter: 1, staleColumnBoards: 1, joinedFilters: true, joinedStatuses: true });
+    expect(result.summary.brokenFilter).toBe(1);
+    expect(result.summary.staleColumnBoards).toBe(1);
+  });
+
+  test("reports the joins as not-run when the other snapshots are absent", async () => {
+    mocks.readBoardSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1", refreshedAt: "x" });
+    mocks.loadBoards.mockResolvedValue([{ boardId: "1", name: "B", type: "scrum", locationType: "project", filterId: "4001", configReadable: true, columnCount: 0 }]);
+    mocks.loadBoardColumns.mockResolvedValue([]);
+    mocks.readFilterSnapshotMeta.mockResolvedValue(null);
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue(null);
+
+    const result = await getBoardInventory(ctx);
+    expect(result.insights).toMatchObject({ joinedFilters: false, joinedStatuses: false, missingFilter: 0 });
+  });
+});
+
+describe("buildBoardInventory", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x" } };
+
+  test("queues a build when nothing is running", async () => {
+    mocks.readBoardSnapshotMeta.mockResolvedValue({ state: "idle" });
+    mocks.readAdminConfig?.mockResolvedValue?.({ readOnlyMode: false });
+
+    const result = await buildBoardInventory(ctx);
+
+    expect(result.queued).toBe(true);
+    expect(mocks.queueBoardSnapshotBuild).toHaveBeenCalledWith("test-install");
+  });
+
+  test("refuses while a live build is running", async () => {
+    mocks.readBoardSnapshotMeta.mockResolvedValue({ state: "building" });
+    mocks.isBoardBuildStale.mockReturnValue(false);
+
+    const result = await buildBoardInventory(ctx);
+
+    expect(result).toMatchObject({ queued: false, reason: "already-building" });
+    expect(mocks.queueBoardSnapshotBuild).not.toHaveBeenCalled();
+  });
+});
+
 // The cascade cap is the defect these exist to prevent recurring. 150 of this site's 1,457
 // edges were stored, the tab said so in a footnote, and the remaining 1,307 were unreachable
 // by any means at all.
@@ -5952,6 +6123,47 @@ describe("getAutomationCascades", () => {
     mocks.loadCascadeSummary.mockResolvedValue({ edges: 0, pairs: 0, selfTriggeringRules: 0, fields: 0 });
     const result = await getAutomationCascades({ payload: {}, context: ctxWithAccount() });
     expect(result.available).toBe(false);
+  });
+});
+
+describe("getAutomationBlast", () => {
+  beforeEach(() => {
+    mocks.loadBlastRules.mockResolvedValue({
+      rules: [{ ruleId: "1", name: "Sweep", score: 88, tier: "estate", estimated: true, credential: false, factors: [], modifiers: [] }],
+      total: 1,
+    });
+  });
+
+  test("returns a page ordered by blast score", async () => {
+    const result = await getAutomationBlast({ payload: { page: 2, pageSize: 50 }, context: ctxWithAccount() });
+    expect(result).toMatchObject({ available: true, total: 1, page: 2 });
+    expect(mocks.loadBlastRules).toHaveBeenCalledWith("test-install", expect.objectContaining({ limit: 50, offset: 50 }));
+  });
+
+  test("bounds the page size rather than trusting the payload", async () => {
+    await getAutomationBlast({ payload: { page: 1, pageSize: 9000 }, context: ctxWithAccount() });
+    expect(mocks.loadBlastRules).toHaveBeenCalledWith("test-install", expect.objectContaining({ limit: 200 }));
+  });
+
+  test("passes a tier filter through", async () => {
+    await getAutomationBlast({ payload: { tier: "estate" }, context: ctxWithAccount() });
+    expect(mocks.loadBlastRules).toHaveBeenCalledWith("test-install", expect.objectContaining({ tier: "estate" }));
+  });
+
+  test("is admin-only", () => {
+    expect(Object.keys(ADMIN_ONLY_FUNCTIONS)).toContain("getAutomationBlast");
+    expect(Object.keys(SHARED_RESOLVER_FUNCTIONS)).not.toContain("getAutomationBlast");
+  });
+
+  test("propagates a store failure rather than swallowing it", async () => {
+    mocks.loadBlastRules.mockRejectedValueOnce(new Error("sql down"));
+    await expect(getAutomationBlast({ payload: {}, context: ctxWithAccount() })).rejects.toThrow("sql down");
+  });
+
+  test("reports available on a later page even when this page is empty", async () => {
+    mocks.loadBlastRules.mockResolvedValueOnce({ rules: [], total: 0 });
+    const result = await getAutomationBlast({ payload: { page: 3 }, context: ctxWithAccount() });
+    expect(result.available).toBe(true);
   });
 });
 
@@ -7858,6 +8070,134 @@ describe("rovo project agent", () => {
     seedProjects();
     const r = await rovoProjectInspect({ projectKey: "NOPE" }, ctx());
     expect(r.status).toBe("not-found");
+  });
+
+  // The bug: a Rovo agent action arrives with no user principal, so getBrowsableProjectIds
+  // (which needs an accountId) returns an empty set and every project reads as un-browsable.
+  // With no caller to check against, the agent falls back to the app's own snapshot.
+  test("search: falls back to the snapshot when the context carries no account", async () => {
+    seedProjects();
+    mocks.getBrowsableProjectIds.mockResolvedValue(new Set()); // as it behaves with no accountId
+    const r = await rovoProjectSearch({ query: "alpha" }, { installContext: "ari:cloud:jira::site/x" });
+    expect(r.status).toBe("ok");
+    expect(r.projects.map((p) => p.projectKey)).toContain("ABC");
+  });
+
+  test("search: still filters by browse permission when the context DOES carry an account", async () => {
+    seedProjects();
+    mocks.getBrowsableProjectIds.mockResolvedValue(new Set(["11"])); // ABC not browsable for this user
+    const r = await rovoProjectSearch({ query: "alpha" }, ctxWithAccount("limited-user"));
+    expect(r.status).toBe("ok");
+    expect(r.projects.map((p) => p.projectKey)).not.toContain("ABC");
+  });
+
+  test("inspect: an agent action (no account) reads a project the browse check would have hidden", async () => {
+    seedProjects();
+    mocks.getBrowsableProjectIds.mockResolvedValue(new Set());
+    mocks.attachUniqueIssueCounts?.mockImplementation?.(async (_k, rows) => rows);
+    const r = await rovoProjectInspect({ projectId: "10", projectKey: "ABC" }, { installContext: "ari:cloud:jira::site/x" });
+    // getProjectOverview no longer short-circuits to not-authorised; it proceeds to build.
+    expect(r.status).not.toBe("not-authorised");
+  });
+});
+
+describe("rovo boards agent", () => {
+  const ctx = () => ctxWithAccount();
+
+  function seedBoards() {
+    mocks.readBoardSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1", refreshedAt: "2026-09-09T00:00:00Z" });
+    mocks.loadBoards.mockResolvedValue([
+      { boardId: "1", name: "PT2 Scrum", type: "scrum", locationType: "project", locationKey: "PT2", filterId: "4001", configReadable: true, columnCount: 2 },
+      { boardId: "2", name: "Kanban Wall", type: "kanban", locationType: "project", locationKey: "AAA", filterId: null, configReadable: true, columnCount: 1 },
+    ]);
+    mocks.loadBoardColumns.mockResolvedValue([
+      { boardId: "1", index: 0, name: "To Do", statusIds: ["10"] },
+      { boardId: "1", index: 1, name: "Done", statusIds: ["5"] },
+      { boardId: "2", index: 0, name: "Backlog", statusIds: [] },
+    ]);
+    mocks.readFilterSnapshotMeta.mockResolvedValue(null);
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue(null);
+  }
+
+  test("search: unavailable when no board snapshot exists", async () => {
+    mocks.readBoardSnapshotMeta.mockResolvedValue(null);
+    const r = await rovoBoardSearch({ query: "scrum" }, ctx());
+    expect(r.status).toBe("boards-unavailable");
+  });
+
+  test("search: matches by name and can filter by type", async () => {
+    seedBoards();
+    const all = await rovoBoardSearch({ query: "wall" }, ctx());
+    expect(all.status).toBe("ok");
+    expect(all.boards.map((b) => b.name)).toContain("Kanban Wall");
+
+    const scrum = await rovoBoardSearch({ query: "board", type: "scrum" }, ctx());
+    expect(scrum.boards.every((b) => b.type === "scrum")).toBe(true);
+  });
+
+  test("search: rejects an empty query", async () => {
+    expect((await rovoBoardSearch({ query: "" }, ctx())).status).toBe("error");
+  });
+
+  test("inspect: returns one board with its columns and flags", async () => {
+    seedBoards();
+    const r = await rovoBoardInspect({ boardId: "2" }, ctx());
+    expect(r.status).toBe("ok");
+    expect(r.board).toMatchObject({ name: "Kanban Wall", backingFilterId: null });
+    expect(r.unmappedColumns).toBe(1);
+    expect(r.issues).toContain("no-backing-filter");
+    expect(r.joinsRun).toEqual({ filters: false, statuses: false });
+  });
+
+  test("inspect: an unknown board is not-found", async () => {
+    seedBoards();
+    expect((await rovoBoardInspect({ boardId: "999" }, ctx())).status).toBe("not-found");
+  });
+
+  test("inspect: requires an id or a name", async () => {
+    expect((await rovoBoardInspect({}, ctx())).status).toBe("error");
+  });
+
+  test("impact: which boards a filter backs", async () => {
+    seedBoards();
+    const r = await rovoBoardImpact({ filterId: "4001" }, ctx());
+    expect(r.status).toBe("ok");
+    expect(r.boardsBackedByFilter.map((b) => b.boardId)).toEqual(["1"]);
+    expect(r.verdict).toBe("referenced");
+  });
+
+  test("impact: which boards map a status, and a clean verdict when none do", async () => {
+    seedBoards();
+    const hit = await rovoBoardImpact({ statusId: "10" }, ctx());
+    expect(hit.boardsMappingStatus[0]).toMatchObject({ boardId: "1", columns: ["To Do"] });
+
+    const miss = await rovoBoardImpact({ statusId: "nonexistent" }, ctx());
+    expect(miss.verdict).toBe("no-board-references-it");
+  });
+
+  test("impact: requires a filterId or statusId", async () => {
+    expect((await rovoBoardImpact({}, ctx())).status).toBe("error");
+  });
+
+  test("inspect: resolves a board by name, case-insensitively", async () => {
+    seedBoards();
+    const r = await rovoBoardInspect({ name: "kanban wall" }, ctx());
+    expect(r.status).toBe("ok");
+    expect(r.board.boardId).toBe("2");
+  });
+
+  test("inspect: an unknown name is not-found and names what was looked for", async () => {
+    seedBoards();
+    const r = await rovoBoardInspect({ name: "Ghost Board" }, ctx());
+    expect(r.status).toBe("not-found");
+    expect(r.message).toMatch(/Ghost Board/);
+  });
+
+  test("search / inspect / impact all propagate an inventory failure rather than swallowing it", async () => {
+    mocks.readBoardSnapshotMeta.mockRejectedValue(new Error("board store down"));
+    await expect(rovoBoardSearch({ query: "x" }, ctx())).rejects.toThrow("board store down");
+    await expect(rovoBoardInspect({ boardId: "1" }, ctx())).rejects.toThrow("board store down");
+    await expect(rovoBoardImpact({ filterId: "1" }, ctx())).rejects.toThrow("board store down");
   });
 });
 

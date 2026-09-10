@@ -133,6 +133,9 @@ export const METRIC_NAMES = {
   estateSnapshotStarted: "estate-snapshot-started",
   estateSnapshotCompleted: "estate-snapshot-completed",
   estateSnapshotFailed: "estate-snapshot-failed",
+  boardSnapshotStarted: "board-snapshot-started",
+  boardSnapshotCompleted: "board-snapshot-completed",
+  boardSnapshotFailed: "board-snapshot-failed",
 };
 
 // ----- Module-level rate limiter state -----
@@ -1340,6 +1343,28 @@ export async function getAllResolutions() {
 
 export async function getAllPriorities() {
   return paginate((startAt) => route`/rest/api/3/priority/search?startAt=${startAt}&maxResults=100`);
+}
+
+// ── Agile boards ─────────────────────────────────────────────────────────────
+//
+// Boards live under /rest/agile/1.0, not /rest/api/3. The list endpoint pages like the rest
+// of Jira but returns `isLast` rather than a reliable `total` for large sites, so the board
+// engine drives its own pagination off that flag. There is no modified-since parameter and
+// the board objects carry no last-edited timestamp -- a board is refetched in full every scan,
+// like screens and workflow schemes.
+
+// One page of boards. `type` is optional ("scrum" | "kanban" | "simple"); omitted, all types.
+export async function getBoardPage(startAt = 0, maxResults = 50) {
+  return jiraRequest(
+    route`/rest/agile/1.0/board?startAt=${startAt}&maxResults=${maxResults}`
+  );
+}
+
+// A board's configuration: the backing filter, the column-to-status mapping, the estimation
+// and ranking fields, and any sub-query JQL. Team-managed ("simple") boards can 404 or return
+// a partial body here -- the caller treats a failure as one unreadable board, not a dead build.
+export async function getBoardConfiguration(boardId) {
+  return jiraRequest(route`/rest/agile/1.0/board/${boardId}/configuration`);
 }
 
 // Normalize a workflow-search response into [{ name, statusIds }].

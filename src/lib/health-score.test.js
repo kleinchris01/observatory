@@ -53,6 +53,8 @@ const automation = (over = {}) => ({
   externalHttpCount: 0,
   noActionCount: 0,
   selfTriggeringCount: 0,
+  estateWideCount: 0,
+  estateWideCredentialCount: 0,
   ...over,
 });
 
@@ -149,6 +151,7 @@ const security = (over = {}) => ({ available: true, totalSchemes: 4, totalLevels
 const notifications = (over = {}) => ({ available: true, totalSchemes: 5, fragileSchemeCount: 0, unusedSchemeCount: 0, ...over });
 const estate = (over = {}) => ({ available: true, totalResolutions: 6, totalPriorities: 5, reducibleResolutionCount: 0, reduciblePriorityCount: 0, ...over });
 const roles = (over = {}) => ({ available: true, projectsWithRoles: 40, projectsMissingAdminActorCount: 0, offRosterActorCount: 0, directUserActorCount: 20, ...over });
+const boards = (over = {}) => ({ available: true, total: 30, brokenBackingCount: 0, inactiveFilterOwner: 0, staleColumnBoards: 0, unmappedColumnBoards: 0, ...over });
 
 describe("computeSiteHealth — scoring", () => {
   test("a clean site scores at the top", () => {
@@ -156,7 +159,7 @@ describe("computeSiteHealth — scoring", () => {
       fieldUsage: fieldUsage(), workflow: workflow(), projects: projects(),
       automation: automation(), screens: screens(), adoption: adoption(), filters: filters(),
       dashboards: dashboards(), issueTypes: issueTypes(), users: users(), assets: assets(),
-      permissions: permissions(), security: security(), notifications: notifications(), roles: roles(), estate: estate(),
+      permissions: permissions(), security: security(), notifications: notifications(), roles: roles(), estate: estate(), boards: boards(),
     });
 
     expect(health.score).toBeGreaterThanOrEqual(90);
@@ -231,6 +234,27 @@ describe("computeSiteHealth — scoring", () => {
       const many = computeSiteHealth({ automation: automation({ ruleCount: 1000, disabledCount: 410 }) });
       expect(dim(few, "automation-hygiene").action).toBeNull();
       expect(dim(many, "automation-hygiene").action).toMatch(/revive or delete/i);
+    });
+
+    test("estate-wide rules drive the blast-radius dimension", () => {
+      const clean = computeSiteHealth({ automation: automation({ ruleCount: 1000, estateWideCount: 0 }) });
+      const concentrated = computeSiteHealth({ automation: automation({ ruleCount: 1000, estateWideCount: 180 }) });
+      expect(dim(clean, "automation-blast").score).toBe(100);
+      expect(dim(concentrated, "automation-blast").score).toBeLessThan(40);
+      expect(dim(concentrated, "automation-blast").detail).toContain("180");
+    });
+
+    test("the blast dimension calls out estate-wide rules that also carry a credential", () => {
+      const health = computeSiteHealth({ automation: automation({ ruleCount: 1000, estateWideCount: 40, estateWideCredentialCount: 6 }) });
+      expect(dim(health, "automation-blast").detail).toMatch(/6 of those also store a credential/);
+    });
+
+    test("blast radius reports unavailable on an analysis imported before it was scored", () => {
+      // estateWideCount omitted entirely -> the field is undefined, not zero.
+      const stale = automation();
+      delete stale.estateWideCount;
+      const health = computeSiteHealth({ automation: stale });
+      expect(dim(health, "automation-blast").available).toBe(false);
     });
   });
 
@@ -704,6 +728,46 @@ describe("estate dimensions", () => {
       expect(dim(health, key).available).toBe(false);
       expect(dim(health, key).reason).toMatch(/no priorities\/resolutions inventory/i);
     }
+  });
+});
+
+describe("board dimensions", () => {
+  const dim = (health, key) => health.dimensions.find((d) => d.key === key);
+
+  test("a clean board estate scores both dimensions at the top", () => {
+    const health = computeSiteHealth({ boards: boards() });
+    expect(dim(health, "board-backing").score).toBe(100);
+    expect(dim(health, "board-columns").score).toBe(100);
+    expect(health.pillars.find((p) => p.key === "boards").total).toBe(2);
+  });
+
+  test("backing scores broken and inactive-owner boards together, against the tight bound", () => {
+    // (2 broken + 1 inactive owner) / 30 = 0.1, well past the 0.08 tolerance -> 0.
+    const health = computeSiteHealth({ boards: boards({ total: 30, brokenBackingCount: 2, inactiveFilterOwner: 1 }) });
+    expect(dim(health, "board-backing").score).toBe(0);
+    expect(dim(health, "board-backing").pillar).toBe("boards");
+  });
+
+  test("columns scores stale and unmapped boards against the softer bound", () => {
+    const health = computeSiteHealth({ boards: boards({ total: 40, staleColumnBoards: 2, unmappedColumnBoards: 3 }) });
+    // 5/40 = 0.125, half the 0.25 tolerance -> ~50.
+    expect(dim(health, "board-columns").score).toBeGreaterThan(40);
+    expect(dim(health, "board-columns").score).toBeLessThan(60);
+  });
+
+  test("both are unmeasured until the inventory exists", () => {
+    const health = computeSiteHealth({ fieldUsage: fieldUsage() });
+    for (const key of ["board-backing", "board-columns"]) {
+      expect(dim(health, key).available).toBe(false);
+      expect(dim(health, key).reason).toMatch(/no board inventory/i);
+    }
+  });
+
+  test("boards carry the structural pillar weight, 1", () => {
+    const health = computeSiteHealth({ boards: boards({ total: 30, brokenBackingCount: 30 }) });
+    // A wholly broken board estate drags the score but not as hard as automation would.
+    expect(dim(health, "board-backing").weight).toBe(1.5);
+    expect(dim(health, "board-columns").weight).toBe(1);
   });
 });
 

@@ -32,6 +32,7 @@ import {
   getGadgetFilterId,
   mapWithConcurrency,
 } from "./jira-api.js";
+import { shouldRetry } from "./analysis.js";
 import { inventorySnapshotQueue } from "./queues.js";
 import { isBuildStale, startResumableBuild, runBuildChunk } from "./resumable-build.js";
 import { isSharedWithEveryone, isEditableByEveryone } from "./dashboard-insights.js";
@@ -82,6 +83,18 @@ export const DASHBOARD_CONFIG_CHUNK = 30;
 // every phase already finished; only a chunk that fails this many times running fails the
 // build.
 export const MAX_DASHBOARD_CHUNK_ERRORS = 4;
+
+// How many enumeration pages may be individually unreadable before the build gives up.
+//
+// A transient failure (429, 5xx) on one page is rethrown and handled by MAX_DASHBOARD_CHUNK_ERRORS
+// above -- retrying the same offset is worth it. A NON-retryable one (a 400 Jira's
+// dashboard/search returns permanently past a certain offset, or on a corrupt row) is not:
+// retrying it nine times as the orchestrator restarts the stage from zero is exactly the
+// "one 400 wedged the whole scan" failure this guards against. Such a page is skipped like a
+// malformed dashboard entry already is -- 50 dashboards of coverage lost, not the pillar --
+// and the count is surfaced on the scan page. Only when the endpoint is wholesale broken
+// does the build actually fail.
+export const MAX_DASHBOARD_SKIPPED_PAGES = 20;
 
 // True when a build was started but can no longer be running.
 //
@@ -184,6 +197,7 @@ export const dashboardBuildSpec = {
     if (phase === "list") {
       let startAt = Number(cursor?.startAt) || 0;
       let total = Number(cursor?.total) || 0;
+      let skippedPages = Number(cursor?.skippedPages) || 0;
       let fetched = 0;
       let listDone = false;
 
@@ -192,7 +206,28 @@ export const dashboardBuildSpec = {
 
       for (let page = 0; page < DASHBOARD_CHUNK_PAGES; page++) {
         incrMetric(METRIC_NAMES.jiraRequest);
-        const data = await getDashboardPage(startAt, DASHBOARD_PAGE_SIZE);
+        let data;
+        try {
+          data = await getDashboardPage(startAt, DASHBOARD_PAGE_SIZE);
+        } catch (error) {
+          // Transient (429, 5xx): rethrow so the chunk-level retry re-runs this same offset
+          // -- worth retrying. Non-retryable (a 400 dashboard/search returns permanently past
+          // an offset): skip this page and advance, the way a malformed entry is skipped
+          // below. One bad page must not restart the whole pillar from zero.
+          if (shouldRetry(error)) throw error;
+          skippedPages += 1;
+          logger.warn("dashboard-snapshot.page_skipped", {
+            installationKey, startAt, skippedPages, error: String(error?.message || error),
+          });
+          if (skippedPages > MAX_DASHBOARD_SKIPPED_PAGES) {
+            throw new Error(
+              `dashboard/search unreadable after ${skippedPages} skipped pages: ${String(error?.message || error).slice(0, 180)}`
+            );
+          }
+          startAt += DASHBOARD_PAGE_SIZE;
+          if (total > 0 && startAt >= total) { listDone = true; break; }
+          continue;
+        }
         const values = Array.isArray(data?.values) ? data.values : [];
         total = Number(data?.total ?? total) || total;
 
@@ -226,7 +261,9 @@ export const dashboardBuildSpec = {
         done: false,
         processed: fetched,
         totalExpected: total,
-        cursor: listDone ? { phase: "gadgets", listTotal: total } : { phase: "list", startAt, total },
+        cursor: listDone
+          ? { phase: "gadgets", listTotal: total, skippedPages }
+          : { phase: "list", startAt, total, skippedPages },
       };
     }
 
@@ -237,6 +274,7 @@ export const dashboardBuildSpec = {
     // what is actually still missing rather than trusting a stale list.
     if (phase === "gadgets") {
       const listTotal = Number(cursor?.listTotal) || Number(meta?.totalExpected) || 0;
+      const skippedPages = Number(cursor?.skippedPages) || 0;
       const pending = await loadDashboardIdsNeedingGadgets(installationKey, version, DASHBOARD_GADGET_CHUNK);
 
       if (!pending.length) {
@@ -247,8 +285,8 @@ export const dashboardBuildSpec = {
           done: false,
           processed: 0,
           totalExpected: listTotal * 2 + gadgetTotal,
-          cursor: { phase: "configs", walked: Number(cursor?.walked) || 0, listTotal, gadgetTotal },
-          extra: { walked: Number(cursor?.walked) || 0 },
+          cursor: { phase: "configs", walked: Number(cursor?.walked) || 0, listTotal, gadgetTotal, skippedPages },
+          extra: { walked: Number(cursor?.walked) || 0, skippedPages },
         };
       }
 
@@ -285,8 +323,8 @@ export const dashboardBuildSpec = {
         done: false,
         processed: pending.length,
         totalExpected: listTotal ? listTotal * 2 : undefined,
-        cursor: { phase: "gadgets", walked, listTotal },
-        extra: { walked },
+        cursor: { phase: "gadgets", walked, listTotal, skippedPages },
+        extra: { walked, skippedPages },
       };
     }
 
@@ -299,6 +337,7 @@ export const dashboardBuildSpec = {
     // makes about what depends on what is load-bearing for a deletion decision.
     const listTotal = Number(cursor?.listTotal) || 0;
     const gadgetTotal = Number(cursor?.gadgetTotal) || 0;
+    const skippedPages = Number(cursor?.skippedPages) || 0;
     // undefined, not 0, when a pre-change cursor is resumed with neither figure -- the build
     // runner then keeps whatever totalExpected the meta already has rather than zeroing it.
     const cumulativeTotal = listTotal || gadgetTotal ? listTotal * 2 + gadgetTotal : undefined;
@@ -310,7 +349,7 @@ export const dashboardBuildSpec = {
         done: true,
         processed: 0,
         totalExpected: cumulativeTotal,
-        extra: { walked: Number(cursor?.walked) || 0, listTotal },
+        extra: { walked: Number(cursor?.walked) || 0, listTotal, skippedPages },
       };
     }
 
@@ -336,8 +375,8 @@ export const dashboardBuildSpec = {
       done: false,
       processed: configs.length,
       totalExpected: cumulativeTotal,
-      cursor: { phase: "configs", walked: Number(cursor?.walked) || 0, listTotal, gadgetTotal },
-      extra: { walked: Number(cursor?.walked) || 0 },
+      cursor: { phase: "configs", walked: Number(cursor?.walked) || 0, listTotal, gadgetTotal, skippedPages },
+      extra: { walked: Number(cursor?.walked) || 0, skippedPages },
     };
     } catch (error) {
       const message = String(error?.message || error);
@@ -365,6 +404,9 @@ export const dashboardBuildSpec = {
     // "Produced" for this stage always read 0. listTotal is the count from the search API,
     // carried through the cursor to here.
     totalDashboards: Number(result?.extra?.listTotal) || 0,
+    // Enumeration pages that 400'd permanently and were skipped rather than failing the
+    // build. Non-zero means the inventory is complete-but-partial; the scan page shows it.
+    pagesUnreadable: Number(result?.extra?.skippedPages) || 0,
   }),
 };
 

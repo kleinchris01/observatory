@@ -50,6 +50,7 @@ import {
   readIssueTypeSnapshotMeta,
   readAccessSnapshotMeta,
   readEstateSnapshotMeta,
+  readBoardSnapshotMeta,
   readDriftSnapshotMeta,
   readSnapshotMeta,
   recordFullScanRun,
@@ -61,6 +62,7 @@ import { buildScreenSnapshot } from "./screen-engine.js";
 import { buildIssueTypeSnapshot } from "./issuetype-engine.js";
 import { buildAccessSnapshot } from "./access-engine.js";
 import { buildEstateSnapshot } from "./estate-engine.js";
+import { buildBoardSnapshot } from "./board-engine.js";
 import { buildDriftSnapshot } from "./drift-engine.js";
 import { queueSnapshotBuild, isSnapshotBuildStale, requeueStaleSnapshotBuild } from "./snapshot-engine.js";
 import { runIssueScanCoordinator, reviveStalledIssueScanWorkers } from "./scan-engine.js";
@@ -77,6 +79,7 @@ const screens = { run: (key) => buildScreenSnapshot(key) };
 const issueTypes = { run: (key) => buildIssueTypeSnapshot(key) };
 const access = { run: (key) => buildAccessSnapshot(key) };
 const estate = { run: (key) => buildEstateSnapshot(key) };
+const boards = { run: (key) => buildBoardSnapshot(key) };
 const drift = { run: (key) => buildDriftSnapshot(key) };
 const statusHistory = { run: (key) => buildStatusHistorySnapshot(key) };
 
@@ -186,6 +189,7 @@ export const STAGE_RUNNERS = {
       return { state: handoffStageState(meta), sig: buildSig(meta), lastError: meta?.lastError ?? null };
     },
   },
+  boards,
   drift,
   health,
 };
@@ -223,6 +227,7 @@ export const QUICK_SCAN_RUNNERS = {
   "issue-types": issueTypes,
   access,
   estate,
+  boards,
   drift,
   health,
 };
@@ -557,6 +562,7 @@ export async function readStageProducedCounts(installationKey, scanType) {
     put("issue-types", readIssueTypeSnapshotMeta, (m) => m.totalTypes),
     put("access", readAccessSnapshotMeta, (m) => m.totalPermissionSchemes + m.totalSecuritySchemes + m.totalNotificationSchemes + (m.totalProjectRoles || 0)),
     put("estate", readEstateSnapshotMeta, (m) => m.totalResolutions + m.totalPriorities),
+    put("boards", readBoardSnapshotMeta, (m) => m.totalBoards),
     put("drift", readDriftSnapshotMeta, (m) => m.lastRunChanges),
     put("filters", readFilterSnapshotMeta, (m) => m.totalFilters),
     put("dashboards", readDashboardSnapshotMeta, (m) => m.totalDashboards),
