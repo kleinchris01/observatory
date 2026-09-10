@@ -57,6 +57,16 @@ function analysis(overrides = {}) {
     ],
     cascadesTotal: 2,
     selfTriggeringTotal: 1,
+    blast: {
+      available: true,
+      total: 1477,
+      byTier: { estate: 12, "cross-project": 40, project: 300, contained: 1125 },
+      estateWideCount: 12,
+      estateWideShare: 12 / 1477,
+      estateWideCredentialCount: 3,
+      estimatedCount: 1477,
+      top: [],
+    },
     ...overrides,
   };
 }
@@ -218,7 +228,7 @@ describe("filterFindings", () => {
 describe("analyzeExportFile", () => {
   it("derives every document from a real export shape", async () => {
     const docs = await analyzeExportFile(exportFile({ cloud: true, rules: [RULE] }));
-    expect(Object.keys(docs).sort()).toEqual(["analysis", "cascades", "directory", "fields", "findings", "issueTypes", "statuses", "users"]);
+    expect(Object.keys(docs).sort()).toEqual(["analysis", "blast", "cascades", "directory", "fields", "findings", "issueTypes", "statuses", "users"]);
     expect(docs.analysis.estate).toMatchObject({ ruleCount: 1, enabledCount: 1 });
     expect(docs.fields.entries.map((e) => e.label).sort()).toEqual(["Actual SEOBD", "Post sourcing cost review"]);
   });
@@ -250,7 +260,7 @@ describe("persistAnalysis", () => {
     const order = save.mock.calls.map((c) => (c[0] === "saveAutomationIndex" ? c[1].part : c[0]));
     // Cascades go after the directory, which the cascade views join to for rule names, and
     // before the analysis, which is the commit point.
-    expect(order).toEqual(["fields", "statuses", "issueTypes", "users", "directory", "findings", "cascades", "saveAutomationAnalysis"]);
+    expect(order).toEqual(["fields", "statuses", "issueTypes", "users", "directory", "findings", "cascades", "blast", "saveAutomationAnalysis"]);
   });
 
   it("stops before the commit point if an index write fails", async () => {
@@ -723,6 +733,74 @@ describe("AutomationTab", () => {
     });
   });
 
+  describe("blast radius", () => {
+    const blastPage = (over = {}) => ({
+      available: true,
+      total: 2,
+      page: 1,
+      pageSize: 50,
+      rules: [
+        {
+          ruleId: "1", name: "Site-wide status sweep", enabled: true, triggerType: "jira.jql.scheduled",
+          score: 88, tier: "estate", estimated: true, credential: false,
+          factors: [
+            { key: "reach", label: "Reach", weight: 0.4, value: 1, detail: "Scoped to the whole site." },
+            { key: "cadence", label: "Trigger cadence", weight: 0.15, value: 1, detail: "Scheduled." },
+            { key: "writes", label: "Action weight", weight: 0.25, value: 0.6, detail: "Actions: 2 transitions." },
+            { key: "fanout", label: "Fan-out", weight: 0.2, value: 0.3, detail: "Can wake other rules." },
+          ],
+          modifiers: [],
+        },
+        {
+          ruleId: "2", name: "One project label tidy", enabled: false, triggerType: "jira.manual.trigger.issue",
+          score: 8, tier: "contained", estimated: true, credential: false, factors: [], modifiers: [
+            { key: "disabled", detail: "Rule is disabled; this is its latent blast radius." },
+          ],
+        },
+      ],
+      ...over,
+    });
+
+    async function openBlast({ data = analysis(), page = blastPage() } = {}) {
+      const user = userEvent.setup();
+      routeInvoke({ getAutomationInsights: data, getAutomationBlast: page });
+      const view = render(<AutomationTab />);
+      await screen.findByText("1,477");
+      await user.click(within(view.container.querySelector(".sub-nav")).getByText("Blast radius"));
+      return { user, ...view };
+    }
+
+    it("shows the tier histogram from the analysis summary", async () => {
+      const { container } = await openBlast();
+      await screen.findByText("Site-wide status sweep");
+      const tiles = [...container.querySelectorAll(".ui-stat")].map((t) => t.textContent);
+      // Estate-wide tile carries byTier.estate (12) and the credential hint.
+      expect(tiles.some((t) => /Estate-wide/.test(t) && /12/.test(t))).toBe(true);
+      expect(tiles.some((t) => /also store a credential/.test(t))).toBe(true);
+    });
+
+    it("lists rules by score with a tier chip and expands to the factor breakdown", async () => {
+      const { user, container } = await openBlast();
+      const row = await screen.findByText("Site-wide status sweep");
+      await user.click(row.closest(".blast-row"));
+      expect(await screen.findByText(/Scheduled\./)).toBeInTheDocument();
+      expect(container.querySelector(".blast-factor")).toBeTruthy();
+    });
+
+    it("re-queries the resolver when the tier filter changes", async () => {
+      const { user } = await openBlast();
+      await screen.findByText("Site-wide status sweep");
+      await user.selectOptions(screen.getByLabelText(/tier/i), "estate");
+      await waitFor(() =>
+        expect(invoke).toHaveBeenCalledWith("getAutomationBlast", expect.objectContaining({ tier: "estate", page: 1 })));
+    });
+
+    it("prompts for a re-import when the analysis predates blast scoring", async () => {
+      await openBlast({ data: analysis({ blast: null }) });
+      expect(await screen.findByText(/imported before blast radius was scored/i)).toBeInTheDocument();
+    });
+  });
+
   describe("findings", () => {
     // 120 rows so pagination is exercised at the real page size of 50.
     const MANY = Array.from({ length: 120 }, (_, i) => ({
@@ -918,7 +996,7 @@ describe("AutomationTab", () => {
 
       await waitFor(() => expect(invoke).toHaveBeenCalledWith("saveAutomationAnalysis", expect.any(Object)));
       const parts = invoke.mock.calls.filter((c) => c[0] === "saveAutomationIndex").map((c) => c[1].part);
-      expect(parts).toEqual(["fields", "statuses", "issueTypes", "users", "directory", "findings", "cascades"]);
+      expect(parts).toEqual(["fields", "statuses", "issueTypes", "users", "directory", "findings", "cascades", "blast"]);
     });
 
     it("shows a parse error against the control and keeps it usable", async () => {

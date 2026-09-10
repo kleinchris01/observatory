@@ -118,6 +118,9 @@ const mocks = vi.hoisted(() => ({
   readWorkflowSnapshotMeta: vi.fn(),
   readAutomationAnalysis: vi.fn(),
   replaceAutomationCascades: vi.fn(async () => 0),
+  replaceAutomationBlast: vi.fn(async () => 0),
+  loadBlastSummary: vi.fn(async () => ({ available: false, total: 0, byTier: {}, estateWideCount: 0 })),
+  loadBlastRules: vi.fn(async () => ({ rules: [], total: 0 })),
   loadCascadeSummary: vi.fn(async () => ({ edges: 0, pairs: 0, selfTriggeringRules: 0, fields: 0 })),
   loadCascades: vi.fn(async () => ({ cascades: [], total: 0 })),
   loadCascadeEdges: vi.fn(async () => []),
@@ -288,6 +291,9 @@ vi.mock("./lib/store/automation.js", () => ({
   replaceAutomationRules: mocks.replaceAutomationRules,
   replaceAutomationFindings: mocks.replaceAutomationFindings,
   replaceAutomationCascades: mocks.replaceAutomationCascades,
+  replaceAutomationBlast: mocks.replaceAutomationBlast,
+  loadBlastSummary: mocks.loadBlastSummary,
+  loadBlastRules: mocks.loadBlastRules,
   loadCascadeSummary: mocks.loadCascadeSummary,
   loadCascades: mocks.loadCascades,
   loadCascadeEdges: mocks.loadCascadeEdges,
@@ -627,6 +633,7 @@ const {
   buildDashboardInventory,
   getAutomationCascades,
   getCascadeGraph,
+  getAutomationBlast,
   getStatusAutomationUsage,
   getAutomationFieldUsage,
   getAutomationFieldCounts,
@@ -3835,6 +3842,22 @@ describe("saveAutomationIndex", () => {
       expect(result.rowsWritten).toBe(3);
     });
 
+    test("routes the blast part through the blast writer and never touches KVS for it", async () => {
+      mocks.replaceAutomationBlast.mockResolvedValue(7);
+      const doc = { schemaVersion: 1, rules: [{ id: "1", score: 88, tier: "estate" }] };
+      const result = await saveAutomationIndex({ payload: { part: "blast", document: doc }, context: ctxWithAccount() });
+      expect(mocks.replaceAutomationBlast).toHaveBeenCalledWith(expect.any(String), doc);
+      expect(mocks.writeAutomationPart).not.toHaveBeenCalledWith(expect.any(String), "blast", expect.anything());
+      expect(result.rowsWritten).toBe(7);
+    });
+
+    test("a SQL failure on the blast part fails the import — there is no KVS copy behind it", async () => {
+      mocks.replaceAutomationBlast.mockRejectedValue(new Error("sql down"));
+      await expect(
+        saveAutomationIndex({ payload: { part: "blast", document: { schemaVersion: 1, rules: [] } }, context: ctxWithAccount() })
+      ).rejects.toThrow("sql down");
+    });
+
     // The whole point of best-effort: SQL is the secondary copy while the UI still reads
     // KVS, so losing it must degrade the index, never the import.
     test("still reports the import saved when the SQL shred throws", async () => {
@@ -6067,6 +6090,36 @@ describe("getAutomationCascades", () => {
     mocks.loadCascadeSummary.mockResolvedValue({ edges: 0, pairs: 0, selfTriggeringRules: 0, fields: 0 });
     const result = await getAutomationCascades({ payload: {}, context: ctxWithAccount() });
     expect(result.available).toBe(false);
+  });
+});
+
+describe("getAutomationBlast", () => {
+  beforeEach(() => {
+    mocks.loadBlastRules.mockResolvedValue({
+      rules: [{ ruleId: "1", name: "Sweep", score: 88, tier: "estate", estimated: true, credential: false, factors: [], modifiers: [] }],
+      total: 1,
+    });
+  });
+
+  test("returns a page ordered by blast score", async () => {
+    const result = await getAutomationBlast({ payload: { page: 2, pageSize: 50 }, context: ctxWithAccount() });
+    expect(result).toMatchObject({ available: true, total: 1, page: 2 });
+    expect(mocks.loadBlastRules).toHaveBeenCalledWith("test-install", expect.objectContaining({ limit: 50, offset: 50 }));
+  });
+
+  test("bounds the page size rather than trusting the payload", async () => {
+    await getAutomationBlast({ payload: { page: 1, pageSize: 9000 }, context: ctxWithAccount() });
+    expect(mocks.loadBlastRules).toHaveBeenCalledWith("test-install", expect.objectContaining({ limit: 200 }));
+  });
+
+  test("passes a tier filter through", async () => {
+    await getAutomationBlast({ payload: { tier: "estate" }, context: ctxWithAccount() });
+    expect(mocks.loadBlastRules).toHaveBeenCalledWith("test-install", expect.objectContaining({ tier: "estate" }));
+  });
+
+  test("is admin-only", () => {
+    expect(Object.keys(ADMIN_ONLY_FUNCTIONS)).toContain("getAutomationBlast");
+    expect(Object.keys(SHARED_RESOLVER_FUNCTIONS)).not.toContain("getAutomationBlast");
   });
 });
 

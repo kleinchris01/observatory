@@ -401,6 +401,30 @@ export const CREATE_AUTOMATION_CASCADES_TARGET_INDEX = `
   ON automation_cascades (scope_key, target_rule_id)
 `;
 
+// Blast radius per rule: how much of the estate the rule can move if it misfires. One row
+// per rule, replaced wholesale on every import like the cascade edges. `tier` is stored
+// rather than derived from `score` because it is what the tab filters and sorts on and a
+// computed column is not indexable here; `factors_json` is the weighted breakdown, so the
+// drawer can explain a number without the raw rules the score was built from.
+export const CREATE_AUTOMATION_RULE_BLAST_TABLE = `
+  CREATE TABLE IF NOT EXISTS automation_rule_blast (
+    scope_key VARCHAR(191) NOT NULL,
+    rule_id VARCHAR(64) NOT NULL,
+    score INT NOT NULL DEFAULT 0,
+    tier VARCHAR(20) NOT NULL DEFAULT 'contained',
+    estimated TINYINT NOT NULL DEFAULT 0,
+    credential TINYINT NOT NULL DEFAULT 0,
+    factors_json TEXT NULL,
+    PRIMARY KEY (scope_key, rule_id)
+  )
+`;
+
+// The order the tab reads in: most blast first.
+export const CREATE_AUTOMATION_RULE_BLAST_SCORE_INDEX = `
+  CREATE INDEX IF NOT EXISTS idx_automation_rule_blast_score
+  ON automation_rule_blast (scope_key, score)
+`;
+
 // The dashboard inventory, versioned like every other snapshot here.
 //
 // A dashboard is the most visible thing in Jira and the least owned: it goes on a wall
@@ -1825,7 +1849,11 @@ const projectStoreMigrations = migrationRunner
   // ── v146-v148: agile boards — one row per board and per column, plus the build meta ──
   .enqueue("v146_create_snapshot_boards_table", CREATE_SNAPSHOT_BOARDS_TABLE)
   .enqueue("v147_create_snapshot_board_columns_table", CREATE_SNAPSHOT_BOARD_COLUMNS_TABLE)
-  .enqueue("v148_create_board_snapshot_meta_table", CREATE_BOARD_SNAPSHOT_META_TABLE);
+  .enqueue("v148_create_board_snapshot_meta_table", CREATE_BOARD_SNAPSHOT_META_TABLE)
+
+  // ── v149-v150: automation blast radius — one row per rule, scored on every import ──
+  .enqueue("v149_create_automation_rule_blast_table", CREATE_AUTOMATION_RULE_BLAST_TABLE)
+  .enqueue("v150_create_automation_rule_blast_score_index", CREATE_AUTOMATION_RULE_BLAST_SCORE_INDEX);
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history

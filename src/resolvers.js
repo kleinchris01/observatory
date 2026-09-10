@@ -233,6 +233,9 @@ import {
   loadGlobalRulesAffectingProject,
   replaceAutomationFindings,
   replaceAutomationCascades,
+  replaceAutomationBlast,
+  loadBlastSummary,
+  loadBlastRules,
   loadCascadeSummary,
   loadCascades,
   loadCascadeEdges,
@@ -2247,12 +2250,45 @@ async function getAutomationInsights({ context }) {
       cascades: analysis.cascades ?? [],
       cascadesTotal: analysis.cascadesTotal ?? (analysis.cascades?.length ?? 0),
       selfTriggeringTotal: analysis.selfTriggeringTotal ?? 0,
+      // The blast-radius tier histogram for the overview. Null on an analysis imported
+      // before blast scoring existed — the tab shows a "re-import" prompt for that section.
+      blast: analysis.blast ?? null,
     };
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
     console.error("getAutomationInsights failed:", error);
     throw error;
   }
+}
+
+// The blast rollup is admin-supplied like the rest of the analysis payload. An admin can
+// already read everything in it, so the risk is a malformed shape wedging the overview, not
+// disclosure — every field is coerced and the top list is capped.
+function sanitizeBlastSummary(blast) {
+  if (!blast || typeof blast !== "object" || Array.isArray(blast)) return null;
+  const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+  const tiers = blast.byTier && typeof blast.byTier === "object" ? blast.byTier : {};
+  return {
+    available: Boolean(blast.available),
+    total: num(blast.total),
+    byTier: {
+      estate: num(tiers.estate),
+      "cross-project": num(tiers["cross-project"]),
+      project: num(tiers.project),
+      contained: num(tiers.contained),
+    },
+    estateWideCount: num(blast.estateWideCount),
+    estateWideShare: num(blast.estateWideShare),
+    estateWideCredentialCount: num(blast.estateWideCredentialCount),
+    estimatedCount: num(blast.estimatedCount),
+    top: Array.isArray(blast.top)
+      ? blast.top.slice(0, 20).map((r) => ({
+          ruleId: String(r?.ruleId ?? ""),
+          score: num(r?.score),
+          tier: String(r?.tier ?? "contained").slice(0, 20),
+        }))
+      : [],
+  };
 }
 
 
@@ -2303,6 +2339,10 @@ async function saveAutomationAnalysis({ payload, context }) {
       cascades: cascades.slice(0, MAX_STORED_CASCADES),
       cascadesTotal: Number(document.cascadesTotal) || cascades.length,
       selfTriggeringTotal: Number(document.selfTriggeringTotal) || 0,
+      // The blast-radius rollup: a tier histogram and the two health inputs. Small, and read
+      // on first paint, so it rides here rather than costing a SQL round trip. The per-rule
+      // scores are shredded into automation_rule_blast by the "blast" index part.
+      blast: sanitizeBlastSummary(document.blast),
     };
 
     await writeAutomationAnalysis(installationKey, stored);
@@ -2379,6 +2419,8 @@ async function saveAutomationIndex({ payload, context }) {
         rowsWritten = await replaceAutomationFindings(installationKey, document);
       } else if (part === "cascades") {
         rowsWritten = await replaceAutomationCascades(installationKey, document);
+      } else if (part === "blast") {
+        rowsWritten = await replaceAutomationBlast(installationKey, document);
       }
     } catch (sqlError) {
       logger.warn("automation.sql_index_failed", {
@@ -2921,7 +2963,7 @@ async function buildDashboardInventory({ context }) {
 // Everything in AUTOMATION_PARTS has a KVS document behind it; cascades deliberately do not.
 // Kept as its own set rather than a flag on the parts map so the map keeps meaning exactly
 // "these have a storage key".
-const SQL_ONLY_AUTOMATION_PARTS = new Set(["cascades"]);
+const SQL_ONLY_AUTOMATION_PARTS = new Set(["cascades", "blast"]);
 
 function isAutomationIndexPart(part) {
   return Object.prototype.hasOwnProperty.call(AUTOMATION_PARTS, part)
@@ -3028,6 +3070,35 @@ async function getCascadeGraph({ payload, context }) {
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
     console.error("getCascadeGraph failed:", error);
+    throw error;
+  }
+}
+
+// One page of rules ordered by blast radius, most first.
+//
+// The overview shows the tier histogram from the analysis document; this backs the
+// sortable list and carries the factor breakdown so the drawer can explain a score without
+// the raw rules it was built from.
+async function getAutomationBlast({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  try {
+    const installationKey = getInstallationKey(context);
+    const page = Math.max(1, Math.trunc(Number(payload?.page)) || 1);
+    const pageSize = Math.max(1, Math.min(200, Math.trunc(Number(payload?.pageSize)) || 50));
+    const tier = typeof payload?.tier === "string" ? payload.tier : null;
+    const search = typeof payload?.search === "string" ? payload.search : "";
+
+    const { rules, total } = await loadBlastRules(installationKey, {
+      tier,
+      search,
+      limit: pageSize,
+      offset: (page - 1) * pageSize,
+    });
+
+    return { available: total > 0 || page > 1, rules, total, page, pageSize };
+  } catch (error) {
+    incrMetric(METRIC_NAMES.resolverFailed);
+    console.error("getAutomationBlast failed:", error);
     throw error;
   }
 }
@@ -8174,6 +8245,7 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
 
   getAutomationCascades,   // Admin read: one filtered page of cascade relationships
   getCascadeGraph,         // Admin read: loops and multi-rule chains across every edge
+  getAutomationBlast,      // Admin read: one page of rules ordered by blast radius
   getStatusAutomationUsage,// Admin read: which rules reference one status, by direction
   getDashboardInventory,   // Admin read: dashboards, their gadgets and their findings
   buildDashboardInventory, // Mutating: queues a rebuild of the dashboard snapshot

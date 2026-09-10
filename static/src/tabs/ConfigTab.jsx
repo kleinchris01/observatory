@@ -230,6 +230,8 @@ const DEFAULT_TOLERANCES = {
   credentialRules: 0.02,
   selfTriggeringRules: 0.10,
   disabledRules: 0.50,
+  externalHttpRules: 0.15,
+  estateWideRules: 0.06,
   orphanIssueTypes: 0.12,
   unusedTypeSchemes: 0.40,
   duplicateIssueTypeNames: 0.15,
@@ -965,6 +967,8 @@ function RulesArea({ t, setThreshold, pct, setTolerancePercent }) {
             tail="of rules left switched off." />
           <ToleranceRule tone="cleanup" badge="Automation" name="Outbound HTTP" pct={pct} set={setTolerancePercent} k="externalHttpRules"
             tail="of rules calling an external service." />
+          <ToleranceRule tone="risk" badge="Risk" name="Estate-wide blast radius" pct={pct} set={setTolerancePercent} k="estateWideRules"
+            tail="of rules that can move every project at once. One misfire or one compromised author reaches the whole site." />
         </div>
       </ConfigSection>
 

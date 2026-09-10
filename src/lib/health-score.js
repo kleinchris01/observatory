@@ -52,6 +52,11 @@ export const DEFAULT_HEALTH_TOLERANCES = {
   // all because every one of these is data leaving the tenancy, and an admin who cannot say
   // how many there are cannot say what left.
   externalHttpRules: 0.15,
+  // Rules whose blast radius is estate-wide -- site-scoped, broad trigger, mutating actions,
+  // able to wake other rules. One or two is normal; a large share means a single misfire or
+  // a single compromised author can move every project at once, and nobody has kept the
+  // count. Scored between the credential and self-triggering bounds.
+  estateWideRules: 0.06,
   // A scheme operation pointing at a screen the catalog does not contain. Tight, like the
   // credential bound: this is a broken mapping rather than an untidy one, and Jira falls
   // back silently when it resolves.
@@ -803,6 +808,34 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
     });
   } else {
     dimensions.push(unavailable("automation-exposure", "Automation exposure", "automation", "No automation analysis yet."));
+  }
+
+  // ── Automation blast radius ───────────────────────────────────────────────
+  // How concentrated the estate is in rules that can move every project at once. A separate
+  // dimension from stability (which is about loops) and security (which is about secrets):
+  // this is about how much sits behind a single point of failure. estateWideCount is null
+  // on an analysis imported before blast scoring existed, so the dimension reports
+  // unavailable rather than scoring a zero it cannot stand behind.
+  const estateWideRules = Number(automation?.estateWideCount);
+  if (automation?.available && automationRules > 0 && Number.isFinite(estateWideRules)) {
+    const rate = estateWideRules / automationRules;
+    const estateWideWithCredential = Number(automation.estateWideCredentialCount) || 0;
+    dimensions.push({
+      key: "automation-blast",
+      label: "Automation blast radius",
+      pillar: "automation",
+      available: true,
+      weight: 1.5,
+      score: scoreFromRate(rate, TOLERANCE.estateWideRules),
+      detail: estateWideRules === 0
+        ? `No rule has an estate-wide blast radius across the ${automationRules} rules.`
+        : `${estateWideRules} of ${automationRules} rules can move every project at once${estateWideWithCredential > 0 ? `, and ${estateWideWithCredential} of those also store a credential` : ""}.`,
+      action: estateWideRules > 0
+        ? "Scope what you can to specific projects, and review who can edit the ones that must stay site-wide."
+        : null,
+    });
+  } else {
+    dimensions.push(unavailable("automation-blast", "Automation blast radius", "automation", "No blast-radius analysis yet. Re-import the rule export."));
   }
 
   // ── Screen scheme integrity ───────────────────────────────────────────────

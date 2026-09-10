@@ -53,6 +53,8 @@ const automation = (over = {}) => ({
   externalHttpCount: 0,
   noActionCount: 0,
   selfTriggeringCount: 0,
+  estateWideCount: 0,
+  estateWideCredentialCount: 0,
   ...over,
 });
 
@@ -232,6 +234,27 @@ describe("computeSiteHealth — scoring", () => {
       const many = computeSiteHealth({ automation: automation({ ruleCount: 1000, disabledCount: 410 }) });
       expect(dim(few, "automation-hygiene").action).toBeNull();
       expect(dim(many, "automation-hygiene").action).toMatch(/revive or delete/i);
+    });
+
+    test("estate-wide rules drive the blast-radius dimension", () => {
+      const clean = computeSiteHealth({ automation: automation({ ruleCount: 1000, estateWideCount: 0 }) });
+      const concentrated = computeSiteHealth({ automation: automation({ ruleCount: 1000, estateWideCount: 180 }) });
+      expect(dim(clean, "automation-blast").score).toBe(100);
+      expect(dim(concentrated, "automation-blast").score).toBeLessThan(40);
+      expect(dim(concentrated, "automation-blast").detail).toContain("180");
+    });
+
+    test("the blast dimension calls out estate-wide rules that also carry a credential", () => {
+      const health = computeSiteHealth({ automation: automation({ ruleCount: 1000, estateWideCount: 40, estateWideCredentialCount: 6 }) });
+      expect(dim(health, "automation-blast").detail).toMatch(/6 of those also store a credential/);
+    });
+
+    test("blast radius reports unavailable on an analysis imported before it was scored", () => {
+      // estateWideCount omitted entirely -> the field is undefined, not zero.
+      const stale = automation();
+      delete stale.estateWideCount;
+      const health = computeSiteHealth({ automation: stale });
+      expect(dim(health, "automation-blast").available).toBe(false);
     });
   });
 

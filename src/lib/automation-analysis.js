@@ -13,6 +13,8 @@
 
 import { detectRuleSecretKinds } from "./secret-detect.js";
 import { extractJqlIssueTypes } from "./jql-refs.js";
+import { buildCascadeGraph, findCascadeLoops } from "./cascade-graph.js";
+import { scoreRuleBlastRadius, summarizeBlastRadius, buildBlastDocument } from "./automation-blast.js";
 
 // A reference's direction matters more than its existence. A rule that WRITES a field
 // keeps it alive; a rule that merely READS it in a condition does not, but does break if
@@ -391,6 +393,40 @@ export function extractOutboundHosts(rule) {
   return [...hosts].sort();
 }
 
+// Coarse buckets for what a rule's actions actually do, matched on the component type
+// string. Used by the blast-radius score and the optimisation checks -- both want "does
+// this rule transition issues / call out / create issues", not the exact action list.
+//
+// Best-effort like every other extractor here: an unrecognised action contributes nothing.
+// Matched on substrings because the type strings drift with rule age
+// (jira.issue.outgoing.webhook vs codebarrel.action.webhook, and so on).
+const ACTION_KIND_PATTERNS = [
+  [/issue\.transition|workflow\.transition/, "transition"],
+  [/issue\.(create|clone)/, "create-issue"],
+  [/issue\.delete/, "delete-issue"],
+  [/issue\.assign/, "assign"],
+  [/issue\.comment|add.?comment/, "add-comment"],
+  [/outgoing\.webhook|action\.webhook|send.?web.?request|rest\.request/, "outbound-http"],
+  [/send.?email|issue\.email|\.email$/, "send-email"],
+  [/issue\.edit|edit\.issue|field\.edit/, "edit-field"],
+];
+
+export function extractActionKinds(rule) {
+  const kinds = new Set();
+  walkComponents(rule, (component) => {
+    if (component?.component !== ACTION_COMPONENT) return;
+    const type = String(component?.type || "").toLowerCase();
+    for (const [pattern, kind] of ACTION_KIND_PATTERNS) {
+      if (pattern.test(type)) kinds.add(kind);
+    }
+    // A component that carries an outbound URL is an external call whatever its type spells.
+    if (typeof component?.value?.url === "string" && /^https?:\/\//i.test(component.value.url)) {
+      kinds.add("outbound-http");
+    }
+  });
+  return [...kinds];
+}
+
 // Findings about a single rule, ordered most severe first by the caller. Each carries the
 // evidence rather than just a verdict, because "this rule is risky" is not actionable and
 // "this rule posts to hooks.slack.com with a credential in the URL" is.
@@ -481,6 +517,8 @@ export function summarizeRule(rule, options = {}) {
     actionCount: counts.actions,
     conditionCount: counts.conditions,
     componentCount: counts.total,
+    // Coarse action buckets ("transition", "outbound-http", ...) for the blast-radius score.
+    actionKinds: extractActionKinds(rule),
     projectIds: extractProjectReferences(rule),
     fieldRefs: fields,
     statusRefs: statuses,
@@ -617,7 +655,7 @@ export const MAX_PREVIEW_FINDINGS = 20;
 //
 // This module imports nothing, which is what makes that possible -- pulling in @forge/kvs
 // would make the whole analysis unimportable from the frontend bundle.
-export function buildAnalysisDocument({ estate, summaries = [], cascades = [], refreshedAt = Date.now(), source = "unknown" }) {
+export function buildAnalysisDocument({ estate, summaries = [], cascades = [], blastSummary = null, refreshedAt = Date.now(), source = "unknown" }) {
   // Rules with no findings are the majority and carry no information here; the estate
   // counts already say how many there are.
   const withFindings = sortByseverity(summaries.filter((summary) => summary.risks.length > 0));
@@ -640,6 +678,10 @@ export function buildAnalysisDocument({ estate, summaries = [], cascades = [], r
     // Self-triggering loops are both the most likely to be real and the cheapest to fix,
     // so they survive truncation ahead of cross-rule edges.
     cascades: [...selfTriggering, ...others].slice(0, MAX_STORED_CASCADES),
+    // The blast-radius tier histogram and its two health inputs. Small (a handful of
+    // numbers plus 20 rule ids), so it rides in the first-paint document; the per-rule
+    // scores live in SQL under their own part.
+    blast: blastSummary,
   };
 }
 
@@ -814,9 +856,40 @@ export function hydrateRuleDirectory(document) {
   return byId;
 }
 
+// Blast-radius score for every rule, most-hazardous-first not applied here (the caller
+// sorts). Builds the cascade graph once to get each rule's out-degree and whether it sits
+// in a loop -- both feed the fan-out factor. `context` carries the optional site-scale
+// inputs (project count, per-project issue volume) that turn the reach factor from an
+// estimate into a measurement.
+export function computeBlastEntries(summaries = [], cascades = [], context = {}) {
+  const graph = buildCascadeGraph(cascades);
+  const loopMembers = new Set(findCascadeLoops(graph).flatMap((l) => l.ruleIds.map(String)));
+
+  const outDegree = new Map();
+  for (const [from, list] of graph.edges) {
+    outDegree.set(String(from), new Set(list.map((e) => String(e.to))).size);
+  }
+
+  return summaries.map((summary) =>
+    scoreRuleBlastRadius(summary, {
+      projectCountTotal: context.projectCountTotal ?? 0,
+      projectIssueCounts: context.projectIssueCounts ?? null,
+      siteIssueTotal: context.siteIssueTotal ?? 0,
+      outDegree: outDegree.get(String(summary.id)) ?? 0,
+      inLoop: loopMembers.has(String(summary.id)),
+    })
+  );
+}
+
 // One call that turns raw rules into every document the tab reads. Wrapping the steps keeps
 // the browser and the backend from drifting into two slightly different pipelines.
-export function analyzeRules(rules = [], { source = "unknown", now = Date.now() } = {}) {
+export function analyzeRules(rules = [], {
+  source = "unknown",
+  now = Date.now(),
+  projectCountTotal = 0,
+  projectIssueCounts = null,
+  siteIssueTotal = 0,
+} = {}) {
   // Walked once, reused everywhere below.
   const summaries = rules.map((rule) => summarizeRule(rule, { now }));
   const options = { now, summaries };
@@ -825,11 +898,15 @@ export function analyzeRules(rules = [], { source = "unknown", now = Date.now() 
   const cascades = findTriggerCascades(rules, options);
   const enabledById = new Map(summaries.map((s) => [s.id, s.enabled]));
 
+  const blastEntries = computeBlastEntries(summaries, cascades, { projectCountTotal, projectIssueCounts, siteIssueTotal });
+  const blastSummary = summarizeBlastRadius(blastEntries);
+
   return {
     analysis: buildAnalysisDocument({
-      estate: summarizeEstate(rules, { ...options, cascades }),
+      estate: summarizeEstate(rules, { ...options, cascades, blastSummary }),
       summaries,
       cascades,
+      blastSummary,
       refreshedAt: now,
       source,
     }),
@@ -840,13 +917,14 @@ export function analyzeRules(rules = [], { source = "unknown", now = Date.now() 
     directory: buildRuleDirectory(summaries),
     findings: buildFindingsDocument(summaries),
     cascades: buildCascadeDocument(cascades),
+    blast: buildBlastDocument(blastEntries),
   };
 }
 
 // The inputs the site health score needs from automation, as rates over the estate rather
 // than raw counts. A site with 5,000 rules and 80 carrying credentials is in better shape
 // than one with 200 rules and 80, and scoring counts would rank them the other way.
-export function summarizeAutomationHealth(summaries = [], cascades = []) {
+export function summarizeAutomationHealth(summaries = [], cascades = [], blastSummary = null) {
   const ruleCount = summaries.length;
   const hasRisk = (summary, code) => summary.risks.some((r) => r.code === code);
 
@@ -858,6 +936,11 @@ export function summarizeAutomationHealth(summaries = [], cascades = []) {
     externalHttpCount: summaries.filter((s) => hasRisk(s, "external-http")).length,
     noActionCount: summaries.filter((s) => hasRisk(s, "no-actions")).length,
     selfTriggeringCount: new Set(cascades.filter((c) => c.selfTriggering).map((c) => c.sourceId)).size,
+    // How concentrated the estate is in rules that can move every project at once, and how
+    // many of those also carry a plaintext credential -- the worst pairing in the pillar.
+    estateWideCount: blastSummary?.estateWideCount ?? 0,
+    estateWideShare: blastSummary?.estateWideShare ?? 0,
+    estateWideCredentialCount: blastSummary?.estateWideCredentialCount ?? 0,
   };
 }
 
@@ -889,8 +972,9 @@ export function summarizeEstate(rules = [], options = {}) {
     triggerBreakdown: [...byTrigger.entries()].map(([type, count]) => ({ type, count })).sort((a, b) => b.count - a.count),
     risks: [...risksByCode.values()].sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]),
     cascadeCount: cascades.length,
+    blast: options.blastSummary ?? null,
     // Rates for the site health score. Computed here rather than in the score itself so the
     // score never needs the rules, only this summary.
-    health: summarizeAutomationHealth(summaries, cascades),
+    health: summarizeAutomationHealth(summaries, cascades, options.blastSummary ?? null),
   };
 }

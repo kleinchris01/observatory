@@ -316,6 +316,103 @@ describe("cascadeRowsFrom", () => {
   });
 });
 
+describe("blastRowsFrom", () => {
+  it("flattens the per-rule document into rows, JSON-encoding the factor breakdown", async () => {
+    const { blastRowsFrom } = await import("./automation.js");
+    const rows = blastRowsFrom({
+      rules: [
+        { id: "1", score: 88, tier: "estate", estimated: 1, credential: 0, factors: [{ key: "reach", value: 1 }], modifiers: [] },
+      ],
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].slice(0, 5)).toEqual(["1", 88, "estate", 1, 0]);
+    expect(JSON.parse(rows[0][5]).factors[0].key).toBe("reach");
+  });
+
+  it("clamps the score to 0..100 and defaults an unknown tier", async () => {
+    const { blastRowsFrom } = await import("./automation.js");
+    const rows = blastRowsFrom({ rules: [{ id: "1", score: 500 }, { id: "2", score: -3, tier: null }] });
+    expect(rows[0][1]).toBe(100);
+    expect(rows[1][1]).toBe(0);
+    expect(rows[1][2]).toBe("contained");
+  });
+
+  it("drops a rule with no id and de-duplicates by id", async () => {
+    const { blastRowsFrom } = await import("./automation.js");
+    const rows = blastRowsFrom({ rules: [{ score: 5 }, { id: "1", score: 5 }, { id: "1", score: 9 }] });
+    expect(rows.map((r) => r[0])).toEqual(["1"]);
+  });
+
+  it("handles a missing document rather than throwing", async () => {
+    const { blastRowsFrom } = await import("./automation.js");
+    expect(blastRowsFrom(null)).toEqual([]);
+    expect(blastRowsFrom({})).toEqual([]);
+  });
+});
+
+describe("loadBlastSummary", () => {
+  it("rolls the tier rows into a histogram and the two health inputs", async () => {
+    const { sql } = await import("@forge/sql");
+    sql.prepare.mockImplementation(() => ({
+      bindParams: () => ({
+        execute: async () => ({
+          rows: [
+            { tier: "estate", n: 12, estimated_n: 4, estate_cred_n: 3 },
+            { tier: "contained", n: 900, estimated_n: 900, estate_cred_n: 0 },
+          ],
+        }),
+      }),
+    }));
+    const { loadBlastSummary } = await import("./automation.js");
+    const s = await loadBlastSummary("scope");
+    expect(s.total).toBe(912);
+    expect(s.byTier.estate).toBe(12);
+    expect(s.estateWideCount).toBe(12);
+    expect(s.estateWideCredentialCount).toBe(3);
+    expect(s.available).toBe(true);
+  });
+});
+
+describe("loadBlastRules", () => {
+  it("returns a page ordered by score with the rule name joined and factors parsed", async () => {
+    const { sql } = await import("@forge/sql");
+    let n = 0;
+    sql.prepare.mockImplementation((text) => {
+      expect(text).not.toMatch(/LIMIT \?/);
+      return {
+        bindParams: () => ({
+          execute: async () =>
+            n++ === 0
+              ? { rows: [{ rule_id: "1", score: 88, tier: "estate", estimated: 1, credential: 0, factors_json: JSON.stringify({ factors: [{ key: "reach" }], modifiers: [] }), rule_name: "Sweep", rule_enabled: 1, trigger_type: "jira.jql.scheduled" }] }
+              : { rows: [{ total: 1 }] },
+        }),
+      };
+    });
+    const { loadBlastRules } = await import("./automation.js");
+    const out = await loadBlastRules("scope", { tier: "estate", limit: 50, offset: 0 });
+    expect(out.total).toBe(1);
+    expect(out.rules[0]).toMatchObject({ ruleId: "1", name: "Sweep", score: 88, tier: "estate", enabled: true });
+    expect(out.rules[0].factors[0].key).toBe("reach");
+  });
+
+  it("survives an unparseable factors blob", async () => {
+    const { sql } = await import("@forge/sql");
+    let n = 0;
+    sql.prepare.mockImplementation(() => ({
+      bindParams: () => ({
+        execute: async () =>
+          n++ === 0
+            ? { rows: [{ rule_id: "1", score: 10, tier: "contained", estimated: 0, credential: 0, factors_json: "{not json", rule_name: null, rule_enabled: null, trigger_type: null }] }
+            : { rows: [{ total: 1 }] },
+      }),
+    }));
+    const { loadBlastRules } = await import("./automation.js");
+    const out = await loadBlastRules("scope", {});
+    expect(out.rules[0].factors).toEqual([]);
+    expect(out.rules[0].enabled).toBeNull();
+  });
+});
+
 describe("loadCascades", () => {
   // Each call runs two statements -- the page and the group count -- so the harness answers
   // in order and records what was asked.
