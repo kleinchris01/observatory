@@ -1019,41 +1019,92 @@ export function projectFilterCount(option, projects) {
 
 const PROJECT_LIST_PAGE_SIZE = 25;
 
-const PROJECT_SORT_OPTIONS = [
-  { value: "adoption-desc", label: "Adoption: highest" },
-  { value: "adoption-asc", label: "Adoption: lowest" },
-  { value: "issues-desc", label: "Most issues" },
-  { value: "fields-desc", label: "Most fields in use" },
-  { value: "activity-desc", label: "Recently active" },
-  { value: "activity-asc", label: "Quietest" },
+// Every number on a project card, in one place: the collapsed grid, the sort dropdown and
+// the range filters all derive from this so they can never drift apart. `get` returns a
+// number or null (null = unmeasured; it always sorts last and a range excludes it).
+export const PROJECT_METRICS = [
+  { key: "issues", label: "Issues", get: (p) => p.uniqueIssueCount ?? null },
+  { key: "fills", label: "Field values", get: (p) => p.totalIssueCount ?? null },
+  { key: "fields", label: "Fields in use", get: (p) => p.fieldCount ?? null },
+  {
+    key: "perIssue", label: "Fields per issue",
+    get: (p) => {
+      const i = Number(p.uniqueIssueCount);
+      const f = Number(p.totalIssueCount);
+      return Number.isFinite(i) && i > 0 && Number.isFinite(f) ? f / i : null;
+    },
+  },
+  { key: "adoption", label: "Adoption score", get: (p) => p.adoption?.score ?? null },
+  { key: "perDay", label: "Issues per day", get: (p) => p.adoption?.issuesPerDay ?? null },
+  { key: "ageDays", label: "Age (days)", get: (p) => p.adoption?.ageDays ?? null },
+  {
+    key: "quietDays", label: "Days since last activity",
+    get: (p) => {
+      const t = Date.parse(p.latestIssueUpdatedAt || "");
+      return Number.isFinite(t) ? Math.floor((Date.now() - t) / 86400000) : null;
+    },
+  },
+];
+const METRIC_BY_KEY = Object.fromEntries(PROJECT_METRICS.map((m) => [m.key, m]));
+
+export const PROJECT_SORT_OPTIONS = [
+  ...PROJECT_METRICS.flatMap((m) => [
+    { value: `${m.key}-desc`, label: `${m.label} — high to low` },
+    { value: `${m.key}-asc`, label: `${m.label} — low to high` },
+  ]),
   { value: "name-asc", label: "Key A–Z" },
+  { value: "name-desc", label: "Key Z–A" },
 ];
 
-const numOr = (v, fallback) => (Number.isFinite(Number(v)) ? Number(v) : fallback);
-const tsOr = (v, fallback) => {
-  const t = Date.parse(v || "");
-  return Number.isFinite(t) ? t : fallback;
-};
+const DEFAULT_PROJECT_SORT = "adoption-desc";
 
 export function sortProjectList(list, sortBy) {
   const rows = [...list];
-  switch (sortBy) {
-    case "adoption-asc":
-      return rows.sort((a, b) => numOr(a.adoption?.score, Infinity) - numOr(b.adoption?.score, Infinity));
-    case "issues-desc":
-      return rows.sort((a, b) => numOr(b.uniqueIssueCount ?? b.totalIssueCount, -1) - numOr(a.uniqueIssueCount ?? a.totalIssueCount, -1));
-    case "fields-desc":
-      return rows.sort((a, b) => numOr(b.fieldCount, -1) - numOr(a.fieldCount, -1));
-    case "activity-desc":
-      return rows.sort((a, b) => tsOr(b.latestIssueUpdatedAt, -Infinity) - tsOr(a.latestIssueUpdatedAt, -Infinity));
-    case "activity-asc":
-      return rows.sort((a, b) => tsOr(a.latestIssueUpdatedAt, Infinity) - tsOr(b.latestIssueUpdatedAt, Infinity));
-    case "name-asc":
-      return rows.sort((a, b) => String(a.projectKey).localeCompare(String(b.projectKey)));
-    case "adoption-desc":
-    default:
-      return rows.sort((a, b) => numOr(b.adoption?.score, -1) - numOr(a.adoption?.score, -1));
-  }
+  if (sortBy === "name-asc") return rows.sort((a, b) => String(a.projectKey).localeCompare(String(b.projectKey)));
+  if (sortBy === "name-desc") return rows.sort((a, b) => String(b.projectKey).localeCompare(String(a.projectKey)));
+
+  const parsed = /^(.+)-(asc|desc)$/.exec(String(sortBy || ""));
+  const metric = (parsed && METRIC_BY_KEY[parsed[1]]) || METRIC_BY_KEY.adoption;
+  const dir = parsed && parsed[2] === "asc" ? 1 : -1;
+
+  return rows.sort((a, b) => {
+    const av = metric.get(a);
+    const bv = metric.get(b);
+    const an = av == null || !Number.isFinite(Number(av));
+    const bn = bv == null || !Number.isFinite(Number(bv));
+    if (an && bn) return 0;
+    if (an) return 1;   // unmeasured always last, whichever direction
+    if (bn) return -1;
+    return (Number(av) - Number(bv)) * dir;
+  });
+}
+
+// `ranges` is { <metricKey>: { min, max } }, either bound optional and "" meaning unset.
+function isBound(v) {
+  return v !== "" && v != null && Number.isFinite(Number(v));
+}
+
+export function activeRangeKeys(ranges) {
+  return Object.entries(ranges || {})
+    .filter(([, r]) => r && (isBound(r.min) || isBound(r.max)))
+    .map(([key]) => key);
+}
+
+export function filterProjectsByRanges(list, ranges) {
+  const active = activeRangeKeys(ranges);
+  if (!active.length) return list;
+  return list.filter((p) =>
+    active.every((key) => {
+      const metric = METRIC_BY_KEY[key];
+      if (!metric) return true;
+      const v = Number(metric.get(p));
+      if (!Number.isFinite(v)) return false; // a range excludes projects the metric was not measured for
+      const r = ranges[key];
+      if (isBound(r.min) && v < Number(r.min)) return false;
+      if (isBound(r.max) && v > Number(r.max)) return false;
+      return true;
+    })
+  );
 }
 
 // Which of the rail's own finding filters a project trips. Computed once so the card can
@@ -1330,9 +1381,40 @@ export function ProjectsTabView({
   const activeProjectFilter = projectFilters.find((f) => f.key === projectFilter) ?? projectFilters[0];
   const { floor } = React.useMemo(() => overConfiguredFloor(allProjects), [allProjects]);
 
-  const [projectSort, setProjectSort] = React.useState("adoption-desc");
+  const [projectSort, setProjectSort] = React.useState(DEFAULT_PROJECT_SORT);
   const [listPage, setListPage] = React.useState(1);
+  const [ranges, setRanges] = React.useState({});
+  const [deferredRanges, setDeferredRanges] = React.useState({});
+  const [filtersOpen, setFiltersOpen] = React.useState(false);
+  const filterPanelRef = React.useRef(null);
 
+  // Debounce range typing so the list is not re-filtered on every keystroke.
+  React.useEffect(() => {
+    const t = setTimeout(() => setDeferredRanges(ranges), 300);
+    return () => clearTimeout(t);
+  }, [ranges]);
+
+  React.useEffect(() => {
+    if (!filtersOpen) return undefined;
+    function onDown(e) {
+      if (filterPanelRef.current && !filterPanelRef.current.contains(e.target)) setFiltersOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [filtersOpen]);
+
+  function setBound(key, side, value) {
+    setRanges((prev) => ({ ...prev, [key]: { ...prev[key], [side]: value } }));
+  }
+  function clearAll() {
+    onProjectQueryChange("");
+    setProjectSort(DEFAULT_PROJECT_SORT);
+    onProjectFilterChange?.("all");
+    setRanges({});
+    setDeferredRanges({});
+  }
+
+  const rangeKeys = activeRangeKeys(ranges);
   const term = (projectQuery || "").trim().toLowerCase();
   const visible = React.useMemo(() => {
     const matched = allProjects.filter(activeProjectFilter.match);
@@ -1341,12 +1423,12 @@ export function ProjectsTabView({
           String(p.projectKey).toLowerCase().includes(term) ||
           String(p.projectName).toLowerCase().includes(term))
       : matched;
-    return sortProjectList(searched, projectSort);
-  }, [allProjects, activeProjectFilter, term, projectSort]);
+    return sortProjectList(filterProjectsByRanges(searched, deferredRanges), projectSort);
+  }, [allProjects, activeProjectFilter, term, projectSort, deferredRanges]);
 
   // The result set changed out from under the pager -- go back to page one rather than
   // stranding the reader on a page that no longer exists.
-  React.useEffect(() => { setListPage(1); }, [term, projectFilter, projectSort, allProjects.length]);
+  React.useEffect(() => { setListPage(1); }, [term, projectFilter, projectSort, deferredRanges, allProjects.length]);
 
   const totalProjects = visible.length;
   const totalListPages = Math.max(1, Math.ceil(totalProjects / PROJECT_LIST_PAGE_SIZE));
@@ -1374,13 +1456,69 @@ export function ProjectsTabView({
           sort={projectSort}
           onSortChange={setProjectSort}
           sortOptions={PROJECT_SORT_OPTIONS}
-          onClear={() => {
-            onProjectQueryChange("");
-            setProjectSort("adoption-desc");
-            onProjectFilterChange?.("all");
-          }}
-        />
+          onClear={clearAll}
+        >
+          <div className="admin-field-browser__filter-anchor" ref={filterPanelRef}>
+            <button
+              type="button"
+              className={`admin-field-browser__filter-toggle${filtersOpen ? " admin-field-browser__filter-toggle--active" : ""}`}
+              onClick={() => setFiltersOpen((v) => !v)}
+              aria-expanded={filtersOpen}
+            >
+              Ranges
+              {rangeKeys.length > 0 && <span className="admin-field-browser__filter-badge">{rangeKeys.length}</span>}
+            </button>
+
+            {filtersOpen && (
+              <div className="admin-field-browser__filter-panel">
+                {PROJECT_METRICS.map((m) => (
+                  <div key={m.key} className="admin-field-browser__filter-group">
+                    <span className="admin-field-browser__filter-group-label">{m.label}</span>
+                    <div className="admin-field-browser__range-inputs">
+                      <input
+                        type="number"
+                        placeholder="Min"
+                        aria-label={`Minimum ${m.label}`}
+                        value={ranges[m.key]?.min ?? ""}
+                        onChange={(e) => setBound(m.key, "min", e.target.value)}
+                      />
+                      <span className="admin-field-browser__range-sep">–</span>
+                      <input
+                        type="number"
+                        placeholder="Max"
+                        aria-label={`Maximum ${m.label}`}
+                        value={ranges[m.key]?.max ?? ""}
+                        onChange={(e) => setBound(m.key, "max", e.target.value)}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </SortFilterBar>
+        {rangeKeys.length > 0 && (
+          <button type="button" className="admin-field-browser__clear-filters" onClick={() => { setRanges({}); setDeferredRanges({}); }}>
+            Clear ranges
+          </button>
+        )}
       </div>
+
+      {rangeKeys.length > 0 && (
+        <div className="admin-field-browser__active-filters">
+          {rangeKeys.map((key) => {
+            const m = PROJECT_METRICS.find((x) => x.key === key);
+            const r = ranges[key] || {};
+            const lo = isBound(r.min) ? r.min : "0";
+            const hi = isBound(r.max) ? r.max : "∞";
+            return (
+              <Chip key={key} onRemove={() => setRanges((prev) => ({ ...prev, [key]: {} }))} removeLabel={`Clear ${m.label} range`}>
+                {`${m.label}: ${lo}–${hi}`}
+              </Chip>
+            );
+          })}
+        </div>
+      )}
 
       {showFilterChips && (
         <div className="findings-filter-bar" style={{ marginTop: 4 }}>

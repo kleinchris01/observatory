@@ -13,6 +13,7 @@ import { TopFieldsChart, FieldTypeDonut, ProjectsTabView,
   ProjectOverview, buildProjectFilters, projectFilterCount, ProjectAdoptionPanel, ActivitySparkbars,
   ProjectHealthPanel, ProjectFiltersPanel, ProjectScreenReportPanel,
   sortProjectList, projectCardFindings, overConfiguredFloor,
+  filterProjectsByRanges, activeRangeKeys, PROJECT_METRICS, PROJECT_SORT_OPTIONS,
 } from "./ProjectsTab";
 
 // ---------------------------------------------------------------------------
@@ -606,12 +607,60 @@ describe("sortProjectList", () => {
   it("sorts by most fields in use", () => {
     expect(keys(sortProjectList(rows, "fields-desc"))).toEqual(["AAA", "BBB", "CCC"]);
   });
-  it("sorts by recent and by quietest activity", () => {
-    expect(keys(sortProjectList(rows, "activity-desc"))).toEqual(["AAA", "BBB", "CCC"]);
-    expect(keys(sortProjectList(rows, "activity-asc"))).toEqual(["CCC", "BBB", "AAA"]);
+  it("sorts by days since activity, both directions", () => {
+    // quietDays low = most recent; high = quietest.
+    expect(keys(sortProjectList(rows, "quietDays-asc"))).toEqual(["AAA", "BBB", "CCC"]);
+    expect(keys(sortProjectList(rows, "quietDays-desc"))).toEqual(["CCC", "BBB", "AAA"]);
   });
-  it("sorts by key", () => {
+  it("sorts by key, both directions", () => {
     expect(keys(sortProjectList(rows, "name-asc"))).toEqual(["AAA", "BBB", "CCC"]);
+    expect(keys(sortProjectList(rows, "name-desc"))).toEqual(["CCC", "BBB", "AAA"]);
+  });
+  it("every metric has an asc and a desc sort option", () => {
+    for (const m of PROJECT_METRICS) {
+      expect(PROJECT_SORT_OPTIONS.map((o) => o.value)).toEqual(expect.arrayContaining([`${m.key}-asc`, `${m.key}-desc`]));
+    }
+  });
+  it("an unknown sort key falls back to adoption desc", () => {
+    expect(keys(sortProjectList(rows, "garbage"))).toEqual(["AAA", "CCC", "BBB"]);
+  });
+});
+
+describe("filterProjectsByRanges", () => {
+  const rows = [
+    { projectKey: "A", uniqueIssueCount: 100, fieldCount: 5, totalIssueCount: 100, adoption: { score: 90 } },
+    { projectKey: "B", uniqueIssueCount: 5000, fieldCount: 40, totalIssueCount: 20000, adoption: { score: 50 } },
+    { projectKey: "C", uniqueIssueCount: 200, fieldCount: 12, totalIssueCount: 400, adoption: null }, // adoption unmeasured
+  ];
+  const keys = (r) => r.map((x) => x.projectKey);
+
+  it("returns the list untouched with no active bound", () => {
+    expect(filterProjectsByRanges(rows, {})).toBe(rows);
+    expect(filterProjectsByRanges(rows, { issues: { min: "", max: "" } })).toBe(rows);
+  });
+  it("applies a min bound", () => {
+    expect(keys(filterProjectsByRanges(rows, { issues: { min: "150" } }))).toEqual(["B", "C"]);
+  });
+  it("applies a max bound", () => {
+    expect(keys(filterProjectsByRanges(rows, { fields: { max: "10" } }))).toEqual(["A"]);
+  });
+  it("applies both bounds, and combines ranges across metrics with AND", () => {
+    expect(keys(filterProjectsByRanges(rows, { issues: { min: "50", max: "1000" }, fields: { min: "10" } }))).toEqual(["C"]);
+  });
+  it("a range on a metric a project has no value for excludes that project", () => {
+    // 'adoption' is null on C -> excluded by any adoption range
+    expect(keys(filterProjectsByRanges(rows, { adoption: { min: "1" } }))).toEqual(["A", "B"]);
+  });
+  it("computed metrics work: fields per issue", () => {
+    // A: 100/100 = 1, B: 20000/5000 = 4, C: 400/200 = 2
+    expect(keys(filterProjectsByRanges(rows, { perIssue: { min: "1.5", max: "3" } }))).toEqual(["C"]);
+  });
+});
+
+describe("activeRangeKeys", () => {
+  it("lists only the metrics with a real bound", () => {
+    expect(activeRangeKeys({ issues: { min: "10" }, fields: { min: "", max: "" }, adoption: { max: "5" } }).sort())
+      .toEqual(["adoption", "issues"]);
   });
 });
 
