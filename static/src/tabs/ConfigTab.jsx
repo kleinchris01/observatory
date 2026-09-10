@@ -243,7 +243,6 @@ const DEFAULT_TOLERANCES = {
   brokenAssetReferences: 0.10,
   unusedAccessSchemes: 0.35,
   fragileNotificationSchemes: 0.30,
-  projectsWithoutRoleAdmin: 0.10,
   offRosterRoleActors: 0.05,
   duplicateResolutions: 0.15,
   duplicatePriorities: 0.20,
@@ -258,6 +257,8 @@ const DEFAULT_TARGETS = {
   boardBackingIntegrity: { target: 0.98, floor: 0.75, direction: "up" },
   schemeReuse: { target: 0.50, floor: 0.00, direction: "up" },
   securityLevelIntegrity: { target: 0.95, floor: 0.70, direction: "up" },
+  adminRoleCoverage: { target: 0.95, floor: 0.60, direction: "up" },
+  screenReachability: { target: 0.95, floor: 0.60, direction: "up" },
 };
 
 // Deep-merge a stored { key: { target, floor } } map over the defaults, so a config that
@@ -712,6 +713,12 @@ function RulesArea({ t, setThreshold, pct, setTolerancePercent, targetPct, setTa
           <TargetRule tone="risk" badge="Issue security" name="Security level integrity"
             targetPct={targetPct} setTarget={setTarget} k="securityLevelIntegrity"
             tail="of issue-security levels that have members and belong to a scheme with levels." />
+          <TargetRule tone="risk" badge="Roles" name="Admin role coverage"
+            targetPct={targetPct} setTarget={setTarget} k="adminRoleCoverage"
+            tail="of projects with roles that have a populated, group-based administrator role — the rest can only be managed by a site admin." />
+          <TargetRule tone="standardize" badge="Screens" name="Screen reachability"
+            targetPct={targetPct} setTarget={setTarget} k="screenReachability"
+            tail="of readable screens a user can arrive at through a scheme or a transition." />
         </div>
       </ConfigSection>
 
@@ -978,8 +985,8 @@ function RulesArea({ t, setThreshold, pct, setTolerancePercent, targetPct, setTa
             tail="of notification schemes sending an event to a named individual rather than a role or group." />
           <ToleranceRule tone="cleanup" badge="Access" name="Unused schemes" pct={pct} set={setTolerancePercent} k="unusedAccessSchemes"
             tail="of permission, security and notification schemes assigned to no project." />
-          <ToleranceRule tone="risk" badge="Roles" name="Empty admin roles" pct={pct} set={setTolerancePercent} k="projectsWithoutRoleAdmin"
-            tail="of projects whose administrator role has no group or user in it — only a site admin can manage them." />
+          {/* Empty admin roles moved to Scoring targets as "Admin role coverage" — the
+              share of projects with a manageable admin role is the good state to hold. */}
           <ToleranceRule tone="cleanup" badge="Roles" name="Off-roster role actors" pct={pct} set={setTolerancePercent} k="offRosterRoleActors"
             tail="of project-role user actors that are accounts no longer on the licensed roster." />
         </div>

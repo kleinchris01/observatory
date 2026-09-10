@@ -610,6 +610,21 @@ describe("screen dimensions", () => {
       expect(dim(health, key).reason).toMatch(/no screen inventory/i);
     }
   });
+
+  test("reachability is a v2 target, scored only when the workflow inventory can answer it", () => {
+    // 8 of 100 unreached -> reachable 0.92. Band 0.95 / 0.60, "up".
+    // 100 * (0.92 - 0.60) / (0.95 - 0.60) ≈ 91.
+    const d = dim(computeSiteHealth({
+      screens: screens({ totalScreens: 100, totalOperations: 100, unreachedScreens: 8 }),
+    }), "screen-reachability");
+    expect(d.available).toBe(true);
+    expect(d.level).toBe(91);
+    expect(d.direction).toBe("up");
+
+    // No unreachedScreens count (null) -> the workflow snapshot did not run -> not scored.
+    const noWf = computeSiteHealth({ screens: screens({ totalScreens: 100, totalOperations: 100, unreachedScreens: null }) });
+    expect(noWf.dimensions.find((x) => x.key === "screen-reachability")).toBeUndefined();
+  });
 });
 
 describe("issue type dimensions", () => {
@@ -846,12 +861,16 @@ describe("project-role dimensions", () => {
     expect(dim(health, "role-actor-hygiene").score).toBe(100);
   });
 
-  test("admin coverage scores empty-admin projects over the projects-with-roles total", () => {
-    const health = computeSiteHealth({ roles: roles({ projectsWithRoles: 50, projectsMissingAdminActorCount: 5 }) });
-    // 5/50 = 0.10 = the tolerance -> 0.
-    expect(dim(health, "role-admin-coverage").score).toBe(0);
-    expect(dim(health, "role-admin-coverage").weight).toBe(1.5);
-    expect(health.pillars.find((p) => p.key === "roles").total).toBe(2);
+  test("admin coverage is a v2 target: the covered-project rate against the 0.95 / 0.60 band", () => {
+    // 45 of 50 covered -> 0.90. 100 * (0.90 - 0.60) / (0.95 - 0.60) ≈ 86.
+    const d = dim(computeSiteHealth({ roles: roles({ projectsWithRoles: 50, projectsMissingAdminActorCount: 5 }) }), "role-admin-coverage");
+    expect(d.level).toBe(86);
+    expect(d.value).toBeCloseTo(0.9, 5);
+    expect(d.direction).toBe("up");
+    expect(d.baseWeight).toBe(1.5);
+    // 25 of 50 missing -> coverage 0.50, below the 0.60 floor -> 0.
+    expect(dim(computeSiteHealth({ roles: roles({ projectsWithRoles: 50, projectsMissingAdminActorCount: 25 }) }), "role-admin-coverage").level).toBe(0);
+    expect(computeSiteHealth({ roles: roles({ projectsWithRoles: 50 }) }).pillars.find((p) => p.key === "roles").total).toBe(2);
   });
 
   test("both dimensions are unmeasured until the access inventory exists", () => {

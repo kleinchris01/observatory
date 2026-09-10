@@ -158,6 +158,13 @@ export const DEFAULT_HEALTH_TARGETS = {
   // with levels. An issue set to a level nobody is in is invisible -- near-total integrity
   // is the only acceptable state.
   securityLevelIntegrity: { target: 0.95, floor: 0.7, direction: "up", blast: "issues" },
+  // Share of projects with roles that have a populated, group-based administrator role. A
+  // project only a site admin can administer is a project nobody administers. This is the
+  // People-domain flagship: >95% is the good state, <60% is a failing estate.
+  adminRoleCoverage: { target: 0.95, floor: 0.6, direction: "up", blast: "dependents" },
+  // Share of screens a user can actually reach through a scheme. Unreachable screens carry
+  // no field load and route nothing; a high reachable ratio is the good state.
+  screenReachability: { target: 0.95, floor: 0.6, direction: "up", blast: null },
 };
 
 // Same contract as resolveHealthTolerances: strict on type, ignore unknown keys, and fall
@@ -1080,6 +1087,29 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
           ? "These are the screens where cleanup carries the least risk — nothing routes to them, or there is nothing on them."
           : null,
     });
+
+    // Reachability as its own dimension (v2 target): what share of readable screens a user
+    // can actually arrive at through a scheme or a transition. Only scored when the workflow
+    // inventory exists to answer it -- otherwise it is the same "unknown" screen-hygiene
+    // already reports.
+    if (reachKnown) {
+      const reachable = (measuredScreens - unreached) / measuredScreens;
+      dimensions.push(targetDimension({
+        key: "screen-reachability",
+        label: "Screen reachability",
+        pillar: "screens",
+        weight: 1,
+        value: reachable,
+        ...TARGET.screenReachability,
+        prior: prior("screen-reachability"),
+        detail: unreached === 0
+          ? `Every one of the ${measuredScreens} readable screens is reachable through a scheme or a transition.`
+          : `${unreached} of ${measuredScreens} readable screens are reached by neither a scheme nor a transition.`,
+        action: unreached > 0
+          ? "An unreachable screen routes nothing and carries no field load — the safest cleanup queue there is."
+          : null,
+      }));
+    }
   } else {
     dimensions.push(unavailable("screen-hygiene", "Screen hygiene", "screens",
       screens?.available ? "No screen contents could be read." : "No screen inventory yet."));
@@ -1434,19 +1464,26 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
 
   // ── Project roles & actors ───────────────────────────────────────────────
   if (roles?.available && roles.projectsWithRoles > 0) {
+    const withRoles = Number(roles.projectsWithRoles) || 0;
     const missing = Number(roles.projectsMissingAdminActorCount) || 0;
-    dimensions.push({
+    const coverage = withRoles > 0 ? (withRoles - missing) / withRoles : 1;
+    dimensions.push(targetDimension({
       key: "role-admin-coverage",
       label: "Admin coverage",
       pillar: "roles",
-      available: true,
       weight: 1.5,
-      score: scoreFromRate(missing / roles.projectsWithRoles, TOLERANCE.projectsWithoutRoleAdmin),
+      value: coverage,
+      ...TARGET.adminRoleCoverage,
+      // Dependents: the projects left without a manageable admin role, against every project
+      // that has roles at all.
+      affected: missing,
+      estate: withRoles,
+      prior: prior("role-admin-coverage"),
       detail: missing === 0
         ? `Every project with roles has a group or user in its administrator role.`
-        : `${missing} of ${roles.projectsWithRoles} projects have an empty administrator role — only a site admin can administer them.`,
+        : `${missing} of ${withRoles} projects have an empty administrator role — only a site admin can administer them.`,
       action: missing > 0 ? "Add a group to the project's administrator role; a project only a site admin can manage is a project nobody manages." : null,
-    });
+    }));
     const off = Number(roles.offRosterActorCount) || 0;
     const denom = Math.max(1, Number(roles.directUserActorCount) || 0);
     dimensions.push({
