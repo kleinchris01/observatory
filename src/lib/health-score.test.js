@@ -265,6 +265,14 @@ const notifications = (over = {}) => ({ available: true, totalSchemes: 5, fragil
 const estate = (over = {}) => ({ available: true, totalResolutions: 6, totalPriorities: 5, reducibleResolutionCount: 0, reduciblePriorityCount: 0, ...over });
 const roles = (over = {}) => ({ available: true, projectsWithRoles: 40, projectsMissingAdminActorCount: 0, offRosterActorCount: 0, directUserActorCount: 20, ...over });
 const boards = (over = {}) => ({ available: true, total: 30, brokenBackingCount: 0, inactiveFilterOwner: 0, staleColumnBoards: 0, unmappedColumnBoards: 0, ...over });
+// The screen x field cross. Its two dimensions are the only ones in the model that come from
+// a STORED summary rather than a live overview, so the fixture mirrors what the scan wrote.
+const screenCross = (over = {}) => ({
+  available: true, projectsTotal: 40, projectsResolved: 40,
+  populatedFieldCount: 120, createPlacements: 900,
+  counts: { invisibleFields: 0, invisibleIssues: 0, clutterFields: 0, clutterPlacements: 0, unreachableFields: 0 },
+  ...over,
+});
 
 describe("computeSiteHealth — scoring", () => {
   test("a clean site scores at the top", () => {
@@ -273,6 +281,7 @@ describe("computeSiteHealth — scoring", () => {
       automation: automation(), screens: screens(), adoption: adoption(), filters: filters(),
       dashboards: dashboards(), issueTypes: issueTypes(), users: users(), assets: assets(),
       permissions: permissions(), security: security(), notifications: notifications(), roles: roles(), estate: estate(), boards: boards(),
+      screenCross: screenCross(),
     });
 
     expect(health.score).toBeGreaterThanOrEqual(90);
@@ -1298,5 +1307,68 @@ describe("pillar weighting", () => {
 
     // A site with no dashboard inventory is not a site with bad dashboards.
     expect(withoutDashboards.score).toBeGreaterThanOrEqual(90);
+  });
+});
+
+// Two findings no single pillar can produce: the screen inventory crossed with where field
+// values actually exist. They are scored separately rather than averaged because they are
+// opposite in kind -- one makes a field HARDER to remove, the other is a cost paid by
+// everyone who files an issue.
+describe("the screen cross-signal dimensions", () => {
+  const dim = (health, key) => health.dimensions.find((d) => d.key === key);
+  const run = (over) => computeSiteHealth({ screens: screens(), screenCross: screenCross(over) });
+
+  test("a clean cross scores both at the top", () => {
+    const health = run();
+    expect(dim(health, "invisible-data").score).toBe(100);
+    expect(dim(health, "form-clutter").score).toBe(100);
+  });
+
+  test("invisible data is scored against populated fields, not the whole catalogue", () => {
+    // A site with 700 fields and 120 populated ones has 120 chances to be wrong here.
+    // Dividing by the catalogue would report every estate as spotless.
+    const health = run({ populatedFieldCount: 120, counts: { invisibleFields: 6, invisibleIssues: 4000, clutterFields: 0, clutterPlacements: 0, unreachableFields: 0 } });
+    const d = dim(health, "invisible-data");
+
+    expect(d.score).toBeLessThan(100);
+    expect(d.detail).toMatch(/4000 issues/);
+    // The wording has to fight the reader's instinct that "not on a screen" means unused.
+    expect(d.action).toMatch(/harder to remove safely than an unused field/i);
+  });
+
+  test("form clutter is scored per placement, not per field", () => {
+    // The same field on ten create screens is ten filing experiences carrying it. A
+    // field-count rate would make a widely-placed offender look like a single-form one.
+    const wide = run({ createPlacements: 900, counts: { clutterPlacements: 300, clutterFields: 3, invisibleFields: 0, invisibleIssues: 0, unreachableFields: 0 } });
+    const narrow = run({ createPlacements: 900, counts: { clutterPlacements: 3, clutterFields: 3, invisibleFields: 0, invisibleIssues: 0, unreachableFields: 0 } });
+
+    expect(dim(wide, "form-clutter").score).toBeLessThan(dim(narrow, "form-clutter").score);
+  });
+
+  test("invisible data is graded far more harshly than form clutter", () => {
+    // Same rate, different consequence: one is an integration nobody can see, the other is
+    // an optional field somebody skips.
+    const invisible = run({ populatedFieldCount: 100, counts: { invisibleFields: 10, invisibleIssues: 10, clutterFields: 0, clutterPlacements: 0, unreachableFields: 0 } });
+    const clutter = run({ createPlacements: 100, counts: { clutterPlacements: 10, clutterFields: 1, invisibleFields: 0, invisibleIssues: 0, unreachableFields: 0 } });
+
+    expect(dim(invisible, "invisible-data").score).toBeLessThan(dim(clutter, "form-clutter").score);
+  });
+
+  test("both are unavailable, not zero, when the cross has not been computed", () => {
+    // Unavailable is excluded from the mean. Zero would mark a site down for a join nobody
+    // has run yet, which is the exact failure the whole model is built to avoid.
+    const health = computeSiteHealth({ screens: screens() });
+    for (const key of ["invisible-data", "form-clutter"]) {
+      expect(dim(health, key).available).toBe(false);
+      expect(dim(health, key).score).toBeNull();
+    }
+  });
+
+  test("carries the reason forward when the cross was suppressed", () => {
+    const health = computeSiteHealth({
+      screens: screens(),
+      screenCross: { available: false, reason: "No project's screen chain resolved completely in the last build." },
+    });
+    expect(dim(health, "invisible-data").reason).toMatch(/no project's screen chain resolved/i);
   });
 });

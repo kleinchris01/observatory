@@ -181,6 +181,127 @@ const SCHEME_FILTERS = [
   { key: "dangling", label: "Points at a missing screen", match: (_scheme, operations) => operations.some((op) => op.dangling) },
 ];
 
+// The cross-signal view. Two findings neither pillar can produce alone.
+//
+// Loaded on demand rather than with the tab: it is the widest join in the app, and most
+// visits to the Screens tab are about a screen, not about this.
+function CrossSignalView() {
+  const [state, setState] = React.useState({ loading: true, data: null, error: null });
+
+  React.useEffect(() => {
+    let cancelled = false;
+    invoke("getScreenFieldCrossSignal", {})
+      .then((data) => { if (!cancelled) setState({ loading: false, data, error: null }); })
+      .catch((err) => { if (!cancelled) setState({ loading: false, data: null, error: err?.message || "Could not run the cross." }); });
+    return () => { cancelled = true; };
+  }, []);
+
+  if (state.loading) return <EmptyState inline>Crossing the screen inventory against field usage…</EmptyState>;
+  if (state.error) return <EmptyState inline>{state.error}</EmptyState>;
+
+  const d = state.data;
+  if (!d?.available) return <EmptyState inline>{d?.reason || "The cross could not be run."}</EmptyState>;
+
+  const c = d.counts;
+  const pct = (n) => `${Math.round(n * 100)}%`;
+
+  return (
+    <>
+      <StatRow>
+        <StatTile
+          label="Invisible data"
+          value={formatNumber(c.invisibleFields)}
+          hint={`${formatNumber(c.invisibleIssues)} issues hold values nobody can see`}
+          icon="alertTriangle"
+          tone={c.invisibleFields > 0 ? "critical" : "success"}
+        />
+        <StatTile
+          label="Form clutter"
+          value={formatNumber(c.clutterPlacements)}
+          hint={`across ${formatNumber(c.clutterFields)} field${c.clutterFields === 1 ? "" : "s"} on create screens`}
+          icon="copy"
+          tone={c.clutterPlacements > 0 ? "warning" : "success"}
+        />
+        <StatTile
+          label="On no screen at all"
+          value={formatNumber(c.unreachableFields)}
+          hint="No project's forms reach these"
+          icon="x"
+          tone="neutral"
+        />
+        <StatTile
+          label="Estate covered"
+          value={pct(d.coverageRate)}
+          hint={`${formatNumber(d.projectsResolved)} of ${formatNumber(d.projectsTotal)} projects fully read`}
+          icon="checkCircle"
+          tone={d.coverageRate < 0.9 ? "warning" : "neutral"}
+        />
+      </StatRow>
+
+      {/* Both halves refresh independently, so a verdict here is only as current as the
+          older one. Said plainly rather than left for the reader to work out. */}
+      <p className="screen-cross__freshness">
+        Screens read {d.screenRefreshedAt ? formatRelativeTime(d.screenRefreshedAt) : "at an unknown time"};
+        field usage {d.fieldRefreshedAt ? formatRelativeTime(d.fieldRefreshedAt) : "at an unknown time"}.
+        {d.projectsResolved < d.projectsTotal && " Projects whose screens could not be fully read are excluded from both findings — neither claim can be made from a chain that was only partly read."}
+        {d.usageTruncated && " The usage read was capped, so both findings can only understate."}
+      </p>
+
+      <Panel
+        title="Invisible data"
+        icon="alertTriangle"
+        description="Fields holding values in projects whose screens do not show them. Something outside the UI writes these — an importer, an integration or a rule — so they are HARDER to remove safely than an unused field, not easier."
+      >
+        {!d.invisibleData.length ? (
+          <EmptyState inline>No field holds values in a project that cannot display it.</EmptyState>
+        ) : (
+          <div className="screen-list">
+            {d.invisibleData.slice(0, 25).map((f) => (
+              <div className="screen-row" key={f.fieldId}>
+                <div className="screen-row__identity">
+                  <span className="screen-row__name">{f.fieldName}</span>
+                  <span className="screen-row__desc">
+                    {f.projects.slice(0, 4).map((p) => `${p.projectKey} (${formatNumber(p.issueCount)})`).join(", ")}
+                    {f.projects.length > 4 ? ` +${f.projects.length - 4} more` : ""}
+                  </span>
+                </div>
+                <div className="screen-row__meta">
+                  <Chip tone="critical">{formatNumber(f.totalIssues)} issues</Chip>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Panel>
+
+      <Panel
+        title="Form clutter"
+        icon="copy"
+        description="Fields on a project's create screen that nobody there fills in. Create is the one form nobody can skip, so this cost is paid on every issue filed — and the remedy is removing the field from those screens, not deleting it."
+      >
+        {!d.formClutter.length ? (
+          <EmptyState inline>Every field on a create screen is filled in by somebody in that project.</EmptyState>
+        ) : (
+          <div className="screen-list">
+            {d.formClutter.slice(0, 25).map((f) => (
+              <div className="screen-row" key={f.fieldId}>
+                <div className="screen-row__identity">
+                  <span className="screen-row__name">{f.fieldName}</span>
+                </div>
+                <div className="screen-row__meta">
+                  <Chip tone={f.projectCount >= 5 ? "warning" : "neutral"}>
+                    on {formatNumber(f.projectCount)} create {f.projectCount === 1 ? "screen" : "screens"}, never filled
+                  </Chip>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Panel>
+    </>
+  );
+}
+
 export function ScreensTab({ intent = null, onBuildFieldReport }) {
   const [view, setView] = React.useState("screens");
   // Screens ticked for a field report. Keyed by id and kept across pages -- the picker spans
@@ -412,6 +533,9 @@ export function ScreensTab({ intent = null, onBuildFieldReport }) {
     { key: "schemes", label: "Screen schemes", icon: "layers", badge: formatNumber(data?.screenSchemes?.length ?? 0) },
     { key: "transitions", label: "Transitions", icon: "activity", badge: formatNumber(data?.transitionScreens?.length ?? 0) },
     { key: "assignments", label: "Assignments", icon: "folder", badge: formatNumber(data?.issueTypeScreenSchemes?.length ?? 0) },
+    // Last, because it is the only view that is not about the inventory itself -- it is what
+    // the inventory is FOR.
+    { key: "cross", label: "Field cross-signal", icon: "alertTriangle" },
   ];
 
   const g = data?.governance || null;
@@ -768,6 +892,7 @@ export function ScreensTab({ intent = null, onBuildFieldReport }) {
             )}
           </Panel>
         )}
+        {view === "cross" && <CrossSignalView />}
       </SubNavLayout>
     </div>
   );

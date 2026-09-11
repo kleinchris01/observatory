@@ -84,6 +84,19 @@ export const DEFAULT_HEALTH_TOLERANCES = {
   editableDashboards: 0.25,
   unusedDashboards: 0.35,
   emptyDashboards: 0.15,
+  // The screen cross-signal. Two findings no single pillar can produce.
+  //
+  // invisibleData is the tightest tolerance on this list, and deliberately: a field holding
+  // values in a project whose screens do not show it means something outside the UI writes
+  // it, so deleting that field breaks an integration silently. It is a RISK rate, not a
+  // tidiness one, and it is the finding most likely to cause an outage if acted on wrongly.
+  //
+  // formClutter is far more forgiving. Some create-screen fields are legitimately optional
+  // and rarely used, and a site that flagged a third of its create fields would be told to
+  // ignore the flag -- which costs the invisible-data finding its credibility too, since
+  // they arrive together.
+  invisibleData: 0.05,
+  formClutter: 0.30,
   // Issue types. A type on no scheme cannot be created anywhere -- a broken state rather than
   // an untidy one, so it is tighter; a scheme assigned to no project is clutter, so it is the
   // most forgiving of the four. Near-duplicate type names sit where duplicate statuses do.
@@ -409,7 +422,7 @@ export function resolveHealthTolerances(overrides = {}) {
   return out;
 }
 
-export function computeSiteHealth({ fieldUsage, workflow, projects, automation, screens, adoption, filters, dashboards, issueTypes, users, assets, permissions, security, notifications, roles, estate, boards, tolerances, targets, priorValues } = {}) {
+export function computeSiteHealth({ fieldUsage, workflow, projects, automation, screens, screenCross, adoption, filters, dashboards, issueTypes, users, assets, permissions, security, notifications, roles, estate, boards, tolerances, targets, priorValues } = {}) {
   const TOLERANCE = resolveHealthTolerances(tolerances);
   const TARGET = resolveHealthTargets(targets);
   const dimensions = [];
@@ -1113,6 +1126,63 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
   } else {
     dimensions.push(unavailable("screen-hygiene", "Screen hygiene", "screens",
       screens?.available ? "No screen contents could be read." : "No screen inventory yet."));
+  }
+
+  // ── The screen cross-signal ───────────────────────────────────────────────
+  //
+  // Neither half of this is a new measurement: it is the screen inventory crossed with the
+  // field usage the app already holds. It earns two dimensions because the two states it
+  // finds are opposite in kind -- one is a risk that makes a field HARDER to remove, the
+  // other is a cost everyone filing an issue pays -- and averaging them into one rate would
+  // let a tidy create screen cancel out an integration nobody can see.
+  //
+  // Scored against the fields that actually have usage, not the whole catalogue. A site with
+  // 700 fields and 40 populated ones has 40 chances to be wrong here, and dividing by 700
+  // would report every estate as healthy.
+  if (screenCross?.available) {
+    const populatedFields = Math.max(1, Number(screenCross.populatedFieldCount) || 0);
+    const invisible = Number(screenCross.counts?.invisibleFields) || 0;
+
+    dimensions.push({
+      key: "invisible-data",
+      label: "Invisible data",
+      pillar: "screens",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(invisible / populatedFields, TOLERANCE.invisibleData),
+      detail: invisible === 0
+        ? `Every populated field is reachable on a screen in the projects that hold its values.`
+        : `${invisible} field(s) hold values in projects whose screens do not show them, across ${screenCross.counts.invisibleIssues} issues.`,
+      action: invisible > 0
+        ? "Something outside the UI is writing these — an importer, an integration or a rule. They are harder to remove safely than an unused field, not easier."
+        : null,
+    });
+
+    // Denominator is placements, not fields: the same field on ten create screens is ten
+    // filing experiences carrying it. A field-count rate would make a widely-placed
+    // offender look identical to one on a single form.
+    const placements = Math.max(1, Number(screenCross.createPlacements) || 0);
+    const clutter = Number(screenCross.counts?.clutterPlacements) || 0;
+
+    dimensions.push({
+      key: "form-clutter",
+      label: "Form clutter",
+      pillar: "screens",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(clutter / placements, TOLERANCE.formClutter),
+      detail: clutter === 0
+        ? "Every field on a create screen is filled in by somebody in that project."
+        : `${clutter} of ${placements} create-screen placements are never filled in.`,
+      action: clutter > 0
+        ? "Create is the one form nobody can skip. Removing a field from the screens where it is never answered costs no data."
+        : null,
+    });
+  } else {
+    for (const [key, label] of [["invisible-data", "Invisible data"], ["form-clutter", "Form clutter"]]) {
+      dimensions.push(unavailable(key, label, "screens",
+        screenCross?.reason || "The screen inventory and the field snapshot have not both been built, so neither can be crossed against the other."));
+    }
   }
 
   // ── Issue type reach ──────────────────────────────────────────────────────

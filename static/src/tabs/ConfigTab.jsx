@@ -992,6 +992,10 @@ function RulesArea({ t, setThreshold, pct, setTolerancePercent, targetPct, setTa
             tail="of scheme operations pointing at a screen that no longer exists." />
           <ToleranceRule tone="cleanup" badge="Screen" name="Unreachable screens" pct={pct} set={setTolerancePercent} k="unusedScreens"
             tail="of screens no scheme and no transition can reach." />
+          <ToleranceRule tone="risk" badge="Risk" name="Invisible data" pct={pct} set={setTolerancePercent} k="invisibleData"
+            tail={"of populated fields holding values in projects whose screens do not show them. Something outside the UI writes these, so they are harder to remove safely, not easier."} />
+          <ToleranceRule tone="cleanup" badge="Screen" name="Form clutter" pct={pct} set={setTolerancePercent} k="formClutter"
+            tail="of create-screen placements that nobody in that project ever fills in. Create is the one form nobody can skip." />
         </div>
       </ConfigSection>
 

@@ -780,6 +780,7 @@ export async function captureSiteHealth(installationKey, deps) {
     readAutomationAnalysis,
     recordHealthSnapshot,
     loadPriorHealthDimensions,
+    computeScreenCross,
   } = deps || {};
 
   // Called with no deps once, from the scan orchestrator, and it crashed every scan's health
@@ -847,12 +848,23 @@ export async function captureSiteHealth(installationKey, deps) {
         )
       : {};
 
+    // The screen x field cross. Computed here, once per scan, because it is the widest join
+    // in the app and the Overview read cannot afford it -- that reads the summary this
+    // persists. Best-effort: a missing half leaves two dimensions unavailable, which is
+    // excluded from the mean, rather than costing the whole score.
+    const screenCross = typeof computeScreenCross === "function"
+      ? await computeScreenCross(installationKey).catch(
+          fallbackOn("health.screen_cross_failed", () => null, { installationKey })
+        )
+      : null;
+
     const health = computeSiteHealth({
       fieldUsage,
       workflow,
       projects,
       automation: automationAnalysis?.estate?.health ?? { available: false },
       screens,
+      screenCross,
       adoption,
       filters,
       dashboards,

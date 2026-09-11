@@ -126,6 +126,11 @@ import {
   loadItssProjects,
   loadScreensWithFieldsByIds,
   loadScreenGovernanceSummary,
+  loadFieldReachabilityByProject,
+  loadProjectScreenCoverage,
+  loadPopulatedProjectUsage,
+  writeScreenCrossSummary,
+  readScreenCrossSummary,
   loadScreenCountsForFields,
   loadScreenDistributions,
   loadScreensForProject,
@@ -226,6 +231,7 @@ import {
   computeSchemeCategoryBalance,
   summarizeWorkflowInsights,
 } from "./lib/workflow-insights.js";
+import { summarizeScreenFieldCross } from "./lib/screen-insights.js";
 import { analyzeCascadeGraph, MAX_CHAIN_DEPTH } from "./lib/cascade-graph.js";
 import { buildOwnershipIndex, summarizeOrphanedOwnership } from "./lib/user-ownership.js";
 import {
@@ -4755,6 +4761,113 @@ async function screensToProjects(installationKey, version, screenIds) {
 // "Build a field report from these screens." Returns the field union across the chosen
 // screens and the projects those screens reach, so the Reports tab can pre-fill the field
 // selection and scope the matrix to just the projects the report has something to say about.
+// The cross-signal: screen reachability crossed with where field values actually exist.
+//
+// Costs no new Jira call. Both halves are already on disk -- the screen inventory the
+// Screens tab reads, and the field x project usage the Field Browser reads -- and neither
+// alone can answer the question this produces. See screen-insights.js for the four states
+// and why two of them are invisible to every other pillar.
+//
+// Two snapshots with independent versions, so both are read and reported: a cross between a
+// fresh screen build and a three-week-old field snapshot is a real answer about two
+// different days, and the caller is told which days.
+export async function getScreenFieldCrossSignal({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  const [screenMeta, fieldMeta] = await Promise.all([
+    readScreenSnapshotMeta(installationKey),
+    readSnapshotMeta(installationKey),
+  ]);
+
+  // Either half missing makes the cross meaningless rather than empty. Saying which half is
+  // missing is the difference between a next step and a shrug.
+  if (!screenMeta?.version || !fieldMeta?.version) {
+    return {
+      available: false,
+      reason: !screenMeta?.version
+        ? "No screen inventory has been built yet. Build one from the Screens tab or run a full scan."
+        : "No field snapshot has been built yet, so there is no usage to cross the screens against.",
+      screenRefreshedAt: screenMeta?.refreshedAt || null,
+      fieldRefreshedAt: fieldMeta?.refreshedAt || null,
+      invisibleData: [],
+      formClutter: [],
+      unreachableFields: [],
+    };
+  }
+
+  const clutterMaxIssues = Math.max(0, Number(payload?.clutterMaxIssues) || 0);
+  const summary = await runScreenFieldCross(installationKey, screenMeta, fieldMeta, { clutterMaxIssues });
+
+  return {
+    ...summary,
+    // Per-pillar freshness, because the two halves refresh independently and a verdict that
+    // blends them is only as current as the older one.
+    screenRefreshedAt: screenMeta.refreshedAt || null,
+    fieldRefreshedAt: fieldMeta.refreshedAt || null,
+  };
+}
+
+// The join itself, shared by the on-demand read above and the scan stage below so the tab
+// and the health score can never be computing it two different ways.
+//
+// This is the widest join in the app: every project's screen chain down to each screen's
+// fields, against every populated field x project pair. Fine once on a queue consumer;
+// deliberately never on the Overview read, which takes the stored summary instead.
+async function runScreenFieldCross(installationKey, screenMeta, fieldMeta, { clutterMaxIssues = 0 } = {}) {
+  const [reachabilityRows, coverage, usageRead, catalog] = await Promise.all([
+    loadFieldReachabilityByProject(installationKey, screenMeta.version),
+    loadProjectScreenCoverage(installationKey, screenMeta.version),
+    loadPopulatedProjectUsage(installationKey, fieldMeta.version),
+    loadSnapshotFields(installationKey, fieldMeta.version).catch(() => []),
+  ]);
+
+  const fields = new Map((catalog || []).map((f) => [String(f.id), { name: f.name }]));
+
+  return summarizeScreenFieldCross({
+    reachabilityRows,
+    coverage,
+    usage: usageRead.rows,
+    usageTruncated: usageRead.truncated,
+    fieldIds: [...fields.keys()],
+    fields,
+    clutterMaxIssues,
+  });
+}
+
+// Run on the health stage of every scan, where an expensive join belongs, and persist only
+// the counts. Returns the same shape the score consumes so the caller does not have to read
+// back what it just wrote.
+//
+// Best-effort by construction: a site with no screen inventory, or a failure in either half,
+// leaves the two dimensions unavailable rather than failing the health stage. An absent
+// dimension is excluded from the mean; a thrown one would cost the whole score.
+export async function computeAndStoreScreenCross(installationKey) {
+  try {
+    const [screenMeta, fieldMeta] = await Promise.all([
+      readScreenSnapshotMeta(installationKey),
+      readSnapshotMeta(installationKey),
+    ]);
+    if (!screenMeta?.version || !fieldMeta?.version) return null;
+
+    const summary = await runScreenFieldCross(installationKey, screenMeta, fieldMeta);
+    if (!summary.available) return summary;
+
+    await writeScreenCrossSummary(installationKey, {
+      ...summary,
+      screenVersion: screenMeta.version,
+      fieldVersion: fieldMeta.version,
+      computedAt: new Date().toISOString(),
+    }).catch(ignoreWith("screen_cross.summary_write_failed", { installationKey }));
+
+    return summary;
+  } catch (error) {
+    logger.warn("screen_cross.compute_failed", { installationKey, error: String(error?.message || error) });
+    return null;
+  }
+}
+
 async function getScreenFieldReportInputs({ payload, context }) {
   incrMetric(METRIC_NAMES.resolver);
   await ensureProjectStoreReady();
@@ -5324,6 +5437,7 @@ export async function captureSiteHealthForScan(installationKey) {
     readAutomationAnalysis,
     recordHealthSnapshot,
     loadPriorHealthDimensions,
+    computeScreenCross: computeAndStoreScreenCross,
   });
 }
 
@@ -7277,12 +7391,22 @@ export async function getAdminOverview({ context }) {
   const priorHealthValues = await loadPriorHealthDimensions(installationKey)
     .catch(fallbackOn("overview.prior_health_load_failed", () => ({}), { installationKey }));
 
+  // The stored cross summary, not a fresh cross. Recomputing the widest join in the app on
+  // every Overview read would make the heaviest read in the product heavier still; the scan
+  // computes it and this reports what it found -- or reports it stale, if either snapshot
+  // has been rebuilt since.
+  const screenCross = await readScreenCrossSummary(installationKey, {
+    screenVersion: screens?.version ?? null,
+    fieldVersion: dashboard?.fieldUsage?.version ?? null,
+  }).catch(fallbackOn("overview.screen_cross_read_failed", () => null, { installationKey }));
+
   const health = computeSiteHealth({
     fieldUsage: dashboard?.fieldUsage,
     workflow,
     projects: dashboard?.projects,
     automation,
     screens,
+    screenCross,
     filters: filterOverview?.health ?? null,
     dashboards: dashboardOverview?.health ?? null,
     issueTypes: issueTypeOverview?.health ?? null,
@@ -7513,12 +7637,16 @@ async function getPillarHealth({ payload, context }) {
     }
   }
 
+  const screenCross = await readScreenCrossSummary(installationKey)
+    .catch(fallbackOn("macro.screen_cross_read_failed", () => null, { installationKey }));
+
   const health = computeSiteHealth({
     fieldUsage,
     workflow,
     projects,
     automation: automationAnalysis?.estate?.health ?? { available: false },
     screens,
+    screenCross,
     adoption,
     filters: filterOverview?.health ?? null,
     dashboards: dashboardOverview?.health ?? null,
@@ -8565,6 +8693,7 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   getHealthHistory,        // Admin read: the site health series and per-dimension deltas
   getPillarHealth,         // Admin read: one pillar of the score, for the tab it is about
   getProjectOverview,      // Admin read: every pillar that touches one project
+  getScreenFieldCrossSignal,    // Admin read: screen reachability crossed with field usage
   getScreenFieldReportInputs,   // Admin read: field union + project scope for a set of screens
   getProjectScreenReportInputs, // Admin read: a project's screens grouped by screen scheme
   getAuditLog,             // Admin read: returns recent privileged-action records

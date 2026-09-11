@@ -495,3 +495,86 @@ describe("ScreensTab — arriving from a finding", () => {
     });
   });
 });
+
+// The cross-signal view. Two findings neither pillar can produce alone, and the one place
+// in the product where "not on a screen" means the field is HARDER to remove, not easier --
+// so most of what is pinned here is that the wording says so.
+describe("ScreensTab — field cross-signal", () => {
+  const cross = (over = {}) => ({
+    available: true,
+    projectsTotal: 40, projectsResolved: 40, coverageRate: 1,
+    usageTruncated: false,
+    screenRefreshedAt: new Date(Date.now() - 3600_000).toISOString(),
+    fieldRefreshedAt: new Date(Date.now() - 7200_000).toISOString(),
+    counts: { invisibleFields: 1, invisibleIssues: 480, clutterFields: 1, clutterPlacements: 6, unreachableFields: 2 },
+    invisibleData: [{
+      fieldId: "cf_9", fieldName: "Vendor Ref", totalIssues: 480,
+      projects: [{ projectId: "10", projectKey: "OPS", issueCount: 480 }],
+    }],
+    formClutter: [{ fieldId: "cf_4", fieldName: "Legacy Code", projectCount: 6, projects: [] }],
+    unreachableFields: [],
+    ...over,
+  });
+
+  const openCross = async (payload) => {
+    invoke.mockImplementation((name) => {
+      if (name === "getScreenInventory") return Promise.resolve(inventory({}));
+      if (name === "getScreenFieldCrossSignal") return Promise.resolve(payload);
+      return Promise.resolve({});
+    });
+    render(<ScreensTab />);
+    // The view is loaded on demand, so nothing is fetched until this is clicked -- which is
+    // the point: most visits to this tab are about a screen, not about the cross.
+    const nav = await screen.findByRole("button", { name: /Field cross-signal/i });
+    await userEvent.click(nav);
+  };
+
+  test("names the two findings and what each costs", async () => {
+    await openCross(cross());
+
+    // Twice on purpose: the stat tile carries the count, the panel carries the detail.
+    expect((await screen.findAllByText("Invisible data")).length).toBeGreaterThan(0);
+    expect(screen.getByText("Vendor Ref")).toBeInTheDocument();
+    expect(screen.getByText(/OPS \(480\)/)).toBeInTheDocument();
+    // The sentence that fights the reader's instinct.
+    expect(screen.getByText(/HARDER to remove safely than an unused field/i)).toBeInTheDocument();
+
+    expect(screen.getByText("Legacy Code")).toBeInTheDocument();
+    expect(screen.getByText(/on 6 create screens, never filled/i)).toBeInTheDocument();
+  });
+
+  test("dates both halves separately, because they refresh independently", async () => {
+    await openCross(cross());
+    const line = await screen.findByText(/Screens read/);
+    expect(line.textContent).toMatch(/field usage/i);
+  });
+
+  test("says which projects were left out and why", async () => {
+    await openCross(cross({ projectsTotal: 40, projectsResolved: 31, coverageRate: 31 / 40 }));
+
+    expect(await screen.findByText(/31 of 40 projects fully read/i)).toBeInTheDocument();
+    // Not just the number -- why excluding them is the correct behaviour.
+    expect(screen.getByText(/only partly read/i)).toBeInTheDocument();
+  });
+
+  test("warns when the usage read was capped, since both findings can only understate", async () => {
+    await openCross(cross({ usageTruncated: true }));
+    expect(await screen.findByText(/can only understate/i)).toBeInTheDocument();
+  });
+
+  test("reports a suppressed cross rather than an empty one", async () => {
+    await openCross({ available: false, reason: "No screen inventory has been built yet." });
+    expect(await screen.findByText(/no screen inventory has been built yet/i)).toBeInTheDocument();
+    expect(screen.queryAllByText("Invisible data")).toHaveLength(0);
+  });
+
+  test("a clean cross says so in both panels rather than rendering nothing", async () => {
+    await openCross(cross({
+      counts: { invisibleFields: 0, invisibleIssues: 0, clutterFields: 0, clutterPlacements: 0, unreachableFields: 0 },
+      invisibleData: [], formClutter: [],
+    }));
+
+    expect(await screen.findByText(/no field holds values in a project that cannot display it/i)).toBeInTheDocument();
+    expect(screen.getByText(/every field on a create screen is filled in by somebody/i)).toBeInTheDocument();
+  });
+});

@@ -157,6 +157,11 @@ const mocks = vi.hoisted(() => ({
   loadItssProjects: vi.fn(async () => []),
   loadScreensWithFieldsByIds: vi.fn(async () => []),
   loadScreenGovernanceSummary: vi.fn(),
+  loadFieldReachabilityByProject: vi.fn(async () => []),
+  loadProjectScreenCoverage: vi.fn(async () => []),
+  loadPopulatedProjectUsage: vi.fn(async () => ({ rows: [], truncated: false, limit: 20000 })),
+  writeScreenCrossSummary: vi.fn(async () => ({})),
+  readScreenCrossSummary: vi.fn(async () => null),
   loadScreenCountsForFields: vi.fn(),
   loadScreenDistributions: vi.fn(),
   loadScreensForProject: vi.fn(),
@@ -402,6 +407,11 @@ vi.mock("./lib/project-store.js", () => ({
   loadItssProjects: mocks.loadItssProjects,
   loadScreensWithFieldsByIds: mocks.loadScreensWithFieldsByIds,
   loadScreenGovernanceSummary: mocks.loadScreenGovernanceSummary,
+  loadFieldReachabilityByProject: mocks.loadFieldReachabilityByProject,
+  loadProjectScreenCoverage: mocks.loadProjectScreenCoverage,
+  loadPopulatedProjectUsage: mocks.loadPopulatedProjectUsage,
+  writeScreenCrossSummary: mocks.writeScreenCrossSummary,
+  readScreenCrossSummary: mocks.readScreenCrossSummary,
   loadScreenCountsForFields: mocks.loadScreenCountsForFields,
   loadScreenDistributions: mocks.loadScreenDistributions,
   loadScreensForProject: mocks.loadScreensForProject,
@@ -620,6 +630,9 @@ import {
   __resetAdminCheckCache,
   AdminPermissionError,
   isScanStuck,
+  // Not a resolver -- it runs inside the health stage of a scan, so it is imported
+  // directly rather than pulled out of a resolver registry.
+  computeAndStoreScreenCross,
 } from "./resolvers.js";
 
 const {
@@ -704,6 +717,7 @@ const {
   deleteReportDefinition,
   getProjectUsageReport,
   getScreenFieldReportInputs,
+  getScreenFieldCrossSignal,
   getProjectScreenReportInputs,
   getMacroFilters,
   getMacroDashboards,
@@ -8653,5 +8667,119 @@ describe("rovo agents: more edge branches", () => {
       kind === "resolution" ? [{ id: "1", name: "Done" }] : [{ id: "1", name: "Done" }]);
     expect((await rovoEstateSearch({ query: "done", kind: "resolution" }, ctx())).priorities).toEqual([]);
     expect((await rovoEstateSearch({ query: "done", kind: "priority" }, ctx())).resolutions).toEqual([]);
+  });
+});
+
+// The screen x field cross. Costs no new Jira call -- both halves are already on disk --
+// and produces the two findings no single pillar can. What matters here is that it never
+// claims more than the two snapshots can support, and that it cannot take the health stage
+// down with it.
+describe("the screen cross-signal", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x", accountId: "acc-1" } };
+
+  const ready = () => {
+    mocks.readScreenSnapshotMeta.mockResolvedValue({ version: "s1", refreshedAt: "2026-09-11T09:00:00.000Z" });
+    mocks.readSnapshotMeta.mockResolvedValue({ version: "f1", refreshedAt: "2026-09-10T09:00:00.000Z" });
+    mocks.loadProjectScreenCoverage.mockResolvedValue([{ projectId: "10", screenCount: 3, unresolvedScreens: 0 }]);
+    mocks.loadFieldReachabilityByProject.mockResolvedValue([
+      { projectId: "10", fieldId: "cf_1", onCreate: true, onEdit: true, onView: true },
+    ]);
+    mocks.loadPopulatedProjectUsage.mockResolvedValue({
+      truncated: false, limit: 20000,
+      rows: [{ fieldId: "cf_2", projectId: "10", projectKey: "OPS", projectName: "Ops", issueCount: 480 }],
+    });
+    mocks.loadSnapshotFields.mockResolvedValue([
+      { id: "cf_1", name: "Story Points" }, { id: "cf_2", name: "Vendor Ref" },
+    ]);
+  };
+
+  describe("getScreenFieldCrossSignal", () => {
+    test("crosses the two snapshots and dates each half separately", async () => {
+      ready();
+      const result = await getScreenFieldCrossSignal({ payload: {}, ...ctx });
+
+      expect(result.available).toBe(true);
+      expect(result.counts.invisibleFields).toBe(1);
+      expect(result.invisibleData[0]).toMatchObject({ fieldId: "cf_2", fieldName: "Vendor Ref", totalIssues: 480 });
+      // Both halves refresh independently; a verdict blending them is only as current as
+      // the older one, so the reader gets both dates rather than one.
+      expect(result.screenRefreshedAt).toBe("2026-09-11T09:00:00.000Z");
+      expect(result.fieldRefreshedAt).toBe("2026-09-10T09:00:00.000Z");
+    });
+
+    test("names which half is missing rather than returning an empty cross", async () => {
+      mocks.readScreenSnapshotMeta.mockResolvedValue(null);
+      mocks.readSnapshotMeta.mockResolvedValue({ version: "f1" });
+      const noScreens = await getScreenFieldCrossSignal({ payload: {}, ...ctx });
+      expect(noScreens.available).toBe(false);
+      expect(noScreens.reason).toMatch(/no screen inventory/i);
+
+      mocks.readScreenSnapshotMeta.mockResolvedValue({ version: "s1" });
+      mocks.readSnapshotMeta.mockResolvedValue(null);
+      const noFields = await getScreenFieldCrossSignal({ payload: {}, ...ctx });
+      expect(noFields.available).toBe(false);
+      expect(noFields.reason).toMatch(/no field snapshot/i);
+    });
+
+    test("honours a near-zero clutter threshold from the caller", async () => {
+      ready();
+      mocks.loadPopulatedProjectUsage.mockResolvedValue({
+        truncated: false, limit: 20000,
+        rows: [{ fieldId: "cf_1", projectId: "10", projectKey: "OPS", issueCount: 3 }],
+      });
+
+      const strict = await getScreenFieldCrossSignal({ payload: {}, ...ctx });
+      const lenient = await getScreenFieldCrossSignal({ payload: { clutterMaxIssues: 10 }, ...ctx });
+
+      expect(strict.counts.clutterPlacements).toBe(0);
+      expect(lenient.counts.clutterPlacements).toBe(1);
+    });
+  });
+
+  describe("computeAndStoreScreenCross", () => {
+    test("persists the counts with both source versions", async () => {
+      ready();
+      const result = await computeAndStoreScreenCross("inst");
+
+      expect(result.available).toBe(true);
+      expect(mocks.writeScreenCrossSummary).toHaveBeenCalledWith("inst", expect.objectContaining({
+        // Both versions, because the summary is only current while both still hold.
+        screenVersion: "s1",
+        fieldVersion: "f1",
+      }));
+    });
+
+    test("stores nothing when the cross could not be computed", async () => {
+      ready();
+      // Nothing resolved -> the summary is suppressed, and storing a suppressed result would
+      // make the Overview show zeros that mean "we did not look".
+      mocks.loadProjectScreenCoverage.mockResolvedValue([{ projectId: "10", screenCount: 3, unresolvedScreens: 3 }]);
+
+      const result = await computeAndStoreScreenCross("inst");
+
+      expect(result.available).toBe(false);
+      expect(mocks.writeScreenCrossSummary).not.toHaveBeenCalled();
+    });
+
+    test("returns null rather than throwing when a half is missing", async () => {
+      mocks.readScreenSnapshotMeta.mockResolvedValue(null);
+      mocks.readSnapshotMeta.mockResolvedValue(null);
+      expect(await computeAndStoreScreenCross("inst")).toBeNull();
+    });
+
+    // This runs inside the health stage of every scan. A throw here would fail the stage and
+    // cost the whole score, to save two dimensions that are excluded from the mean anyway.
+    test("swallows a query failure instead of taking the health stage down", async () => {
+      ready();
+      mocks.loadFieldReachabilityByProject.mockRejectedValueOnce(new Error("SQL exploded"));
+      expect(await computeAndStoreScreenCross("inst")).toBeNull();
+    });
+
+    test("a failed summary write still returns the computed cross", async () => {
+      ready();
+      mocks.writeScreenCrossSummary.mockRejectedValueOnce(new Error("write failed"));
+      const result = await computeAndStoreScreenCross("inst");
+      expect(result.available).toBe(true);
+    });
   });
 });

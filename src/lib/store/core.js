@@ -1588,6 +1588,37 @@ export const CREATE_BOARD_SNAPSHOT_META_TABLE = `
 // (scope, finding, item) so re-running never creates a duplicate -- "this finding already
 // has an epic", "this filter already has a task". NOT versioned and NOT wiped with the
 // snapshots: a remediation ticket outlives the scan that flagged it.
+// The screen cross-signal's summary, computed once per scan and read cheaply thereafter.
+//
+// The cross itself is the widest join in the app -- every project's screen chain, down to
+// each screen's fields, against every populated field x project pair. That is fine once on a
+// queue consumer with a 900s budget and far too expensive on the Overview read, which is
+// what the rest of this table exists to avoid.
+//
+// Both source versions are stored, not just the counts. The screen inventory and the field
+// snapshot refresh independently, so a summary is only current while BOTH are still the
+// versions it was computed from; readers compare and report it stale rather than presenting
+// a two-builds-ago number as this morning's.
+export const CREATE_SCREEN_CROSS_SUMMARY_TABLE = `
+  CREATE TABLE IF NOT EXISTS screen_cross_summary (
+    scope_key VARCHAR(191) NOT NULL,
+    screen_version VARCHAR(64) NOT NULL,
+    field_version VARCHAR(64) NOT NULL,
+    computed_at VARCHAR(64) NULL,
+    projects_total INTEGER NOT NULL DEFAULT 0,
+    projects_resolved INTEGER NOT NULL DEFAULT 0,
+    populated_field_count INTEGER NOT NULL DEFAULT 0,
+    create_placements INTEGER NOT NULL DEFAULT 0,
+    invisible_fields INTEGER NOT NULL DEFAULT 0,
+    invisible_issues BIGINT NOT NULL DEFAULT 0,
+    clutter_fields INTEGER NOT NULL DEFAULT 0,
+    clutter_placements INTEGER NOT NULL DEFAULT 0,
+    unreachable_fields INTEGER NOT NULL DEFAULT 0,
+    usage_truncated INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (scope_key)
+  )
+`;
+
 export const CREATE_REMEDIATION_TICKETS_TABLE = `
   CREATE TABLE IF NOT EXISTS remediation_tickets (
     scope_key VARCHAR(191) NOT NULL,
@@ -1882,8 +1913,12 @@ const projectStoreMigrations = migrationRunner
   .enqueue("v149_create_automation_rule_blast_table", CREATE_AUTOMATION_RULE_BLAST_TABLE)
   .enqueue("v150_create_automation_rule_blast_score_index", CREATE_AUTOMATION_RULE_BLAST_SCORE_INDEX)
 
+
   // ── v151: remediation ticketing -- the epics and tasks Observatory creates in Jira ──
-  .enqueue("v151_create_remediation_tickets_table", CREATE_REMEDIATION_TICKETS_TABLE);
+  .enqueue("v151_create_remediation_tickets_table", CREATE_REMEDIATION_TICKETS_TABLE)
+
+  // ── v152: the screen cross-signal summary, computed on the scan and read cheap ──
+  .enqueue("v152_create_screen_cross_summary_table", CREATE_SCREEN_CROSS_SUMMARY_TABLE);
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history

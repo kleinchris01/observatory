@@ -7012,3 +7012,12 @@ a.dash-row__name:hover { text-decoration: underline; }
   .change-row { flex-direction: column; align-items: flex-start; gap: 4px; }
   .change-row__meta { flex-wrap: wrap; }
 }
+
+/* The screen cross-signal's freshness line. Two snapshots with independent versions, so the
+   verdict is only as current as the older one -- said in the view rather than inferred. */
+.screen-cross__freshness {
+  margin: 0 0 16px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
