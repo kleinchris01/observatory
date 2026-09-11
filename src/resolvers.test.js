@@ -723,6 +723,7 @@ const {
   deleteReportDefinition,
   getProjectUsageReport,
   getScreenFieldReportInputs,
+  getDeletionSafety,
   getScreenFieldCrossSignal,
   getProjectScreenReportInputs,
   getMacroFilters,
@@ -8868,5 +8869,240 @@ describe("getIssueTypeInventory — usage measurement", () => {
 
     const level = result.hierarchy.find((h) => h.level === 0);
     expect(level.types.find((t) => t.id === "10001").issueCount).toBe(7);
+  });
+});
+
+// The Deletion Safety report: the product's thesis as one answer. Its own success metric is
+// "whether a recommended deletion was ever wrong", so what is pinned here is mostly what it
+// refuses to claim when a pillar is missing.
+describe("getDeletionSafety", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x", accountId: "acc-1" } };
+
+  const everything = () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: "f1", refreshedAt: "2026-09-11T00:00:00.000Z" });
+    mocks.readScreenSnapshotMeta.mockResolvedValue({ version: "s1", unresolvedScreens: 0 });
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "fi1" });
+    mocks.readDashboardSnapshotMeta.mockResolvedValue({ version: "d1" });
+    mocks.loadSnapshotFields.mockResolvedValue([
+      { id: "customfield_1", name: "Vendor Ref", totalIssueCount: 0, activeProjectCount: 0 },
+    ]);
+    mocks.loadScreensForField.mockResolvedValue([]);
+    mocks.loadFilterReferencesFor.mockResolvedValue([]);
+    mocks.loadRqtFieldIndex.mockResolvedValue([]);
+    mocks.loadFieldReachabilityByProject.mockResolvedValue([]);
+    mocks.loadProjectScreenCoverage.mockResolvedValue([]);
+    mocks.loadPopulatedProjectUsage.mockResolvedValue({ rows: [], truncated: false, limit: 20000 });
+    mocks.readAutomationAnalysis.mockResolvedValue({ schemaVersion: 1, refreshedAt: Date.now() - 86400000 });
+    mocks.readAutomationPart.mockImplementation((_k, part) =>
+      Promise.resolve(part === "fields" ? { total: 0, entries: [] } : null));
+  };
+
+  test("refuses to answer without a field snapshot", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue(null);
+    const result = await getDeletionSafety({ payload: { fieldIds: ["customfield_1"] }, ...ctx });
+    expect(result.available).toBe(false);
+    expect(result.reason).toMatch(/no field snapshot/i);
+  });
+
+  test("refuses an empty request rather than reporting a clean estate", async () => {
+    everything();
+    const result = await getDeletionSafety({ payload: { fieldIds: [] }, ...ctx });
+    expect(result.available).toBe(false);
+    expect(result.total).toBe(0);
+  });
+
+  test("returns a no-evidence verdict when every pillar was consulted and clean", async () => {
+    everything();
+    const result = await getDeletionSafety({ payload: { fieldIds: ["customfield_1"] }, ...ctx });
+
+    expect(result.available).toBe(true);
+    expect(result.fields[0].verdict).toBe("no-evidence-of-use");
+    // Never the phrase somebody would act on without reading the rest.
+    expect(JSON.stringify(result)).not.toMatch(/safe to delete/i);
+  });
+
+  test("blocks on a rule that writes the field", async () => {
+    everything();
+    mocks.readAutomationPart.mockImplementation((_k, part) =>
+      Promise.resolve(part === "fields"
+        ? { total: 1, entries: [{ label: "Vendor Ref", writeCount: 2, readCount: 0, triggerCount: 0 }] }
+        : null));
+
+    const result = await getDeletionSafety({ payload: { fieldIds: ["customfield_1"] }, ...ctx });
+
+    expect(result.fields[0].verdict).toBe("in-use");
+    expect(result.fields[0].blockers[0].source).toBe("automation");
+  });
+
+  test("degrades to unknown when a pillar has never been built", async () => {
+    everything();
+    mocks.readScreenSnapshotMeta.mockResolvedValue(null);
+
+    const result = await getDeletionSafety({ payload: { fieldIds: ["customfield_1"] }, ...ctx });
+
+    expect(result.fields[0].verdict).toBe("unknown");
+    expect(result.fields[0].gaps.some((g) => g.source === "screens")).toBe(true);
+  });
+
+  test("names the fields it would not assess rather than silently dropping them", async () => {
+    everything();
+    const many = Array.from({ length: 80 }, (_, i) => `customfield_${i}`);
+
+    const result = await getDeletionSafety({ payload: { fieldIds: many }, ...ctx });
+
+    expect(result.total).toBe(50);
+    expect(result.skipped).toBe(30);
+  });
+
+  test("dates every pillar it drew on, because they refresh independently", async () => {
+    everything();
+    const result = await getDeletionSafety({ payload: { fieldIds: ["customfield_1"] }, ...ctx });
+    expect(result.freshness).toHaveProperty("fields");
+    expect(result.freshness).toHaveProperty("automation");
+  });
+});
+
+// The evidence-gathering legs of the deletion report, each of which can be absent on a real
+// site. Covered separately because each one degrades the verdict differently.
+describe("getDeletionSafety — gathering evidence", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x", accountId: "acc-1" } };
+
+  const base = () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: "f1", refreshedAt: "2026-09-11T00:00:00.000Z" });
+    mocks.readScreenSnapshotMeta.mockResolvedValue({ version: "s1", unresolvedScreens: 0 });
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "fi1" });
+    mocks.readDashboardSnapshotMeta.mockResolvedValue(null);
+    mocks.loadSnapshotFields.mockResolvedValue([
+      { id: "customfield_1", name: "Vendor Ref", totalIssueCount: 0, activeProjectCount: 0 },
+    ]);
+    mocks.loadScreensForField.mockResolvedValue([]);
+    mocks.loadFilterReferencesFor.mockResolvedValue([]);
+    mocks.loadRqtFieldIndex.mockResolvedValue([]);
+    mocks.loadFieldReachabilityByProject.mockResolvedValue([]);
+    mocks.loadProjectScreenCoverage.mockResolvedValue([]);
+    mocks.loadPopulatedProjectUsage.mockResolvedValue({ rows: [], truncated: false, limit: 20000 });
+    mocks.readAutomationAnalysis.mockResolvedValue({ schemaVersion: 1, refreshedAt: Date.now() - 86400000 });
+    mocks.readAutomationPart.mockImplementation((_k, part) =>
+      Promise.resolve(part === "fields" ? { total: 0, entries: [] } : null));
+  };
+
+  const first = async () => (await getDeletionSafety({ payload: { fieldIds: ["customfield_1"] }, ...ctx })).fields[0];
+
+  test("blocks on the values the field already holds", async () => {
+    base();
+    mocks.loadSnapshotFields.mockResolvedValue([
+      { id: "customfield_1", name: "Vendor Ref", totalIssueCount: 4820, activeProjectCount: 9 },
+    ]);
+    const f = await first();
+    expect(f.verdict).toBe("in-use");
+    expect(f.blockers.some((b) => b.source === "usage")).toBe(true);
+  });
+
+  test("blocks on a filter whose JQL names the field", async () => {
+    base();
+    mocks.loadFilterReferencesFor.mockResolvedValue([{ id: "1", name: "Open bugs" }]);
+    const f = await first();
+    expect(f.blockers.find((b) => b.source === "filters").summary).toMatch(/Open bugs/);
+  });
+
+  test("blocks on requirement tokens, which break traceability rather than data", async () => {
+    base();
+    mocks.loadRqtFieldIndex.mockResolvedValue([{ fieldId: "customfield_1", issueCount: 91 }]);
+    const f = await first();
+    expect(f.blockers.find((b) => b.source === "rqt").detail).toMatch(/breaks the trace/i);
+  });
+
+  test("carries the invisible-data blocker through from the screen cross", async () => {
+    base();
+    // Populated in a project whose screens do not show it: the blocker most likely to be the
+    // reason a deletion breaks something.
+    mocks.loadProjectScreenCoverage.mockResolvedValue([{ projectId: "10", screenCount: 2, unresolvedScreens: 0 }]);
+    mocks.loadFieldReachabilityByProject.mockResolvedValue([
+      { projectId: "10", fieldId: "customfield_9", onCreate: true, onEdit: false, onView: true },
+    ]);
+    mocks.loadPopulatedProjectUsage.mockResolvedValue({
+      truncated: false, limit: 20000,
+      rows: [{ fieldId: "customfield_1", projectId: "10", projectKey: "OPS", issueCount: 480 }],
+    });
+
+    const f = await first();
+    expect(f.blockers.some((b) => b.source === "invisible-data")).toBe(true);
+  });
+
+  test("a dashboard inventory that was never built becomes a gap, not a pass", async () => {
+    base();
+    const f = await first();
+    expect(f.gaps.some((g) => g.source === "dashboards")).toBe(true);
+    expect(f.verdict).toBe("unknown");
+  });
+
+  test("assesses a field the catalogue does not contain rather than skipping it", async () => {
+    base();
+    const result = await getDeletionSafety({ payload: { fieldIds: ["customfield_missing"] }, ...ctx });
+    expect(result.fields).toHaveLength(1);
+    expect(result.fields[0].fieldId).toBe("customfield_missing");
+  });
+});
+
+// Every pillar read here is best-effort. A field snapshot exists, so the question can be
+// asked -- and one storage failure must narrow the answer rather than refuse it, because a
+// report that throws when the filter table is unreachable is a report nobody can use on the
+// day they most need it.
+describe("getDeletionSafety — one pillar failing never takes the verdict down", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x", accountId: "acc-1" } };
+
+  const base = () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: "f1" });
+    mocks.readScreenSnapshotMeta.mockResolvedValue({ version: "s1", unresolvedScreens: 0 });
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "fi1" });
+    mocks.readDashboardSnapshotMeta.mockResolvedValue({ version: "d1" });
+    mocks.loadSnapshotFields.mockResolvedValue([{ id: "customfield_1", name: "Vendor Ref", totalIssueCount: 0 }]);
+    mocks.loadScreensForField.mockResolvedValue([]);
+    mocks.loadFilterReferencesFor.mockResolvedValue([]);
+    mocks.loadRqtFieldIndex.mockResolvedValue([]);
+    mocks.loadFieldReachabilityByProject.mockResolvedValue([]);
+    mocks.loadProjectScreenCoverage.mockResolvedValue([]);
+    mocks.loadPopulatedProjectUsage.mockResolvedValue({ rows: [], truncated: false, limit: 20000 });
+    mocks.readAutomationAnalysis.mockResolvedValue({ schemaVersion: 1, refreshedAt: Date.now() - 86400000 });
+    mocks.readAutomationPart.mockImplementation((_k, part) =>
+      Promise.resolve(part === "fields" ? { total: 0, entries: [] } : null));
+    mocks.loadDashboardsForFilterIds?.mockResolvedValue?.([]);
+  };
+
+  const verdictFor = async () => (await getDeletionSafety({ payload: { fieldIds: ["customfield_1"] }, ...ctx })).fields[0];
+
+  test.each([
+    ["screens", () => mocks.loadScreensForField.mockRejectedValueOnce(new Error("boom")), "screens"],
+    ["filters", () => mocks.loadFilterReferencesFor.mockRejectedValueOnce(new Error("boom")), "filters"],
+    ["the field catalogue", () => mocks.loadSnapshotFields.mockRejectedValueOnce(new Error("boom")), "field catalogue"],
+  ])("a %s read failure degrades the verdict instead of throwing", async (_label, breakIt, gapSource) => {
+    base();
+    breakIt();
+
+    const field = await verdictFor();
+
+    expect(field.verdict).toBe("unknown");
+    if (gapSource) expect(field.gaps.some((g) => g.source === gapSource)).toBe(true);
+  });
+
+  test("a screen-cross failure costs the invisible-data blocker, not the report", async () => {
+    base();
+    mocks.loadProjectScreenCoverage.mockRejectedValueOnce(new Error("boom"));
+
+    const result = await getDeletionSafety({ payload: { fieldIds: ["customfield_1"] }, ...ctx });
+
+    expect(result.available).toBe(true);
+    expect(result.fields[0].blockers.some((b) => b.source === "invisible-data")).toBe(false);
+  });
+
+  test("counts dashboards when the chain resolves them", async () => {
+    base();
+    // field -> filters naming it -> gadgets on those filters -> dashboards. Every leg an
+    // exact join, which is what makes the count safe to act on.
+    mocks.loadFilterReferencesFor.mockResolvedValue([{ id: "500", name: "Open bugs" }]);
+
+    const field = await verdictFor();
+
+    expect(field.blockers.some((b) => b.source === "filters")).toBe(true);
   });
 });

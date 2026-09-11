@@ -233,6 +233,7 @@ import {
   summarizeWorkflowInsights,
 } from "./lib/workflow-insights.js";
 import { summarizeScreenFieldCross } from "./lib/screen-insights.js";
+import { assessFieldDeletion, summarizeDeletionSafety } from "./lib/deletion-safety.js";
 import { analyzeCascadeGraph, MAX_CHAIN_DEPTH } from "./lib/cascade-graph.js";
 import { buildOwnershipIndex, summarizeOrphanedOwnership } from "./lib/user-ownership.js";
 import {
@@ -4817,6 +4818,153 @@ async function screensToProjects(installationKey, version, screenIds) {
 // Two snapshots with independent versions, so both are read and reported: a cross between a
 // fresh screen build and a three-week-old field snapshot is a real answer about two
 // different days, and the caller is told which days.
+// The Deletion Safety report: every pillar's evidence about one field, in one answer.
+//
+// This is the product's thesis rendered as an artifact. Each pillar already held a piece of
+// it and none could settle the question alone -- and the pieces were never joined, so the
+// only way to answer "is this safe to delete" was to open five tabs and hold the result in
+// your head.
+//
+// Bounded rather than resumable. The report-job contract exists and would let this run over
+// the whole catalogue, but the answer is read one field at a time by somebody about to make
+// a decision, and a synchronous call that refuses the 51st field is more honest than a job
+// that quietly takes an hour. The remainder is reported, never silently dropped.
+const MAX_DELETION_SAFETY_FIELDS = 50;
+
+export async function getDeletionSafety({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  const requested = Array.isArray(payload?.fieldIds) ? payload.fieldIds.map(String).filter(Boolean) : [];
+  if (!requested.length) return { available: false, reason: "No field was named.", fields: [], total: 0 };
+
+  const fieldIds = requested.slice(0, MAX_DELETION_SAFETY_FIELDS);
+  const skipped = requested.length - fieldIds.length;
+
+  const [fieldMeta, screenMeta, filterMeta, dashMeta] = await Promise.all([
+    readSnapshotMeta(installationKey),
+    readScreenSnapshotMeta(installationKey).catch(() => null),
+    readFilterSnapshotMeta(installationKey).catch(() => null),
+    readDashboardSnapshotMeta(installationKey).catch(() => null),
+  ]);
+
+  // The one hard prerequisite. Without the field snapshot there is no catalogue to name the
+  // fields, and a verdict about a field the app cannot describe is not worth printing.
+  if (!fieldMeta?.version) {
+    return {
+      available: false,
+      reason: "No field snapshot has been built yet, so there is nothing to assess. Run a full scan from the Scans tab.",
+      fields: [], total: 0,
+    };
+  }
+
+  const [catalog, automationParts, rqtRows, crossSummary] = await Promise.all([
+    loadSnapshotFields(installationKey, fieldMeta.version).catch(() => null),
+    loadAutomationForAgent(installationKey).catch(() => null),
+    loadRqtFieldIndex(installationKey).catch(() => null),
+    // Only to answer the invisible-data blocker. Read, not recomputed: the widest join in
+    // the app has no business running behind a per-field question.
+    getScreenFieldCrossSignal({ payload: {}, context }).catch(() => null),
+  ]);
+
+  // Null means the catalogue read FAILED; an empty array means it was read and is empty.
+  // The difference matters more here than it looks: the automation, filter and dashboard
+  // joins all key on the field's NAME, so without the catalogue they match nothing and
+  // return clean -- three pillars silently not consulted, reported as three pillars
+  // consulted and clear. That is the exact failure this whole report exists to prevent.
+  const catalogAvailable = Array.isArray(catalog);
+  const byId = new Map((catalog || []).map((f) => [String(f.id), f]));
+  const rqtById = new Map((rqtRows || []).map((r) => [String(r.fieldId ?? r.field_id), r]));
+  const invisibleById = new Map(
+    (crossSummary?.available ? crossSummary.invisibleData : []).map((f) => [String(f.fieldId), f])
+  );
+
+  const automationIndex = automationParts?.fields ?? null;
+  const automationEvidence = automationParts?.analysis
+    ? assessAutomationEvidence({
+        index: automationIndex,
+        refreshedAt: automationParts.analysis.refreshedAt ?? null,
+        staleAfterDays: automationParts.staleAfterDays,
+      })
+    : null;
+
+  const assessments = [];
+  for (const fieldId of fieldIds) {
+    const field = byId.get(fieldId) || { id: fieldId, name: null };
+    // No name, no name-keyed join. Passing these as unavailable makes them gaps, which is
+    // what they are, instead of empty results that read as evidence of absence.
+    const nameKnown = Boolean(field.name);
+
+    // Automation matches by NAME, which is how the index is keyed. An entry found is real
+    // evidence; an entry missing is only evidence when the index is complete and current,
+    // which is what automationEvidence decides.
+    const entry = (automationIndex?.entries ?? [])
+      .find((e) => String(e.label ?? "").toLowerCase() === String(field.name ?? "").toLowerCase());
+
+    const [screens, filters, dashboards] = await Promise.all([
+      screenMeta?.version
+        ? loadScreensForField(installationKey, screenMeta.version, fieldId)
+            .then((rows) => ({ available: true, screens: rows, unresolvedScreens: Number(screenMeta.unresolvedScreens) || 0 }))
+            .catch(() => null)
+        : Promise.resolve(null),
+      filterMeta?.version && nameKnown
+        ? loadFilterReferencesFor(installationKey, filterMeta.version, "field", field.name)
+            .then((rows) => ({ available: true, count: rows.length, names: rows.map((r) => r.name).filter(Boolean) }))
+            .catch(() => null)
+        : Promise.resolve(null),
+      dashMeta?.version && nameKnown
+        ? getDashboardUsage({ payload: { label: field.name }, context })
+            .then((d) => (d?.available
+              ? { available: true, count: Number(d.total) || 0, names: (d.dashboards || []).map((x) => x.name).filter(Boolean) }
+              : null))
+            .catch(() => null)
+        : Promise.resolve(null),
+    ]);
+
+    assessments.push(assessFieldDeletion({
+      field,
+      usage: catalogAvailable && byId.has(fieldId)
+        ? { totalIssueCount: field.totalIssueCount, activeProjectCount: field.activeProjectCount }
+        : null,
+      screens,
+      automation: nameKnown && (entry || automationEvidence)
+        ? {
+            available: Boolean(automationParts?.analysis),
+            writeCount: entry?.writeCount ?? 0,
+            readCount: entry?.readCount ?? 0,
+            triggerCount: entry?.triggerCount ?? 0,
+            evidence: automationEvidence,
+          }
+        : null,
+      filters,
+      dashboards,
+      rqt: rqtById.size > 0 || rqtRows
+        ? { available: true, issueCount: Number(rqtById.get(fieldId)?.issueCount) || 0 }
+        : null,
+      invisibleData: invisibleById.get(fieldId) || null,
+    }));
+  }
+
+  return {
+    available: true,
+    ...summarizeDeletionSafety(assessments),
+    // Named rather than dropped. A report that silently answered 50 of 80 questions would be
+    // worse than one that refused.
+    skipped,
+    maxFields: MAX_DELETION_SAFETY_FIELDS,
+    // Per-pillar freshness: the halves refresh independently and the verdict is only as
+    // current as the oldest one it drew on.
+    freshness: {
+      fields: fieldMeta.refreshedAt || null,
+      screens: screenMeta?.refreshedAt || null,
+      filters: filterMeta?.refreshedAt || null,
+      dashboards: dashMeta?.refreshedAt || null,
+      automation: automationParts?.analysis?.refreshedAt ?? null,
+    },
+  };
+}
+
 export async function getScreenFieldCrossSignal({ payload, context }) {
   incrMetric(METRIC_NAMES.resolver);
   await ensureProjectStoreReady();
@@ -8739,6 +8887,7 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   getHealthHistory,        // Admin read: the site health series and per-dimension deltas
   getPillarHealth,         // Admin read: one pillar of the score, for the tab it is about
   getProjectOverview,      // Admin read: every pillar that touches one project
+  getDeletionSafety,            // Admin read: every pillar's evidence about deleting a field
   getScreenFieldCrossSignal,    // Admin read: screen reachability crossed with field usage
   getScreenFieldReportInputs,   // Admin read: field union + project scope for a set of screens
   getProjectScreenReportInputs, // Admin read: a project's screens grouped by screen scheme
