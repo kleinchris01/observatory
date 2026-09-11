@@ -72,6 +72,25 @@ export const FULL_SCAN_STAGES = [
   // the value lists but lighter than the screen walk, and independent -- inline like the
   // other structural stages.
   { key: "boards", label: "Board inventory", needs: [], mode: "inline" },
+  // The licensed-user roster: the access groups behind each application role, then one
+  // paginated member walk per group at concurrency 3. Bounded by group count, not user
+  // count, so it sits with the structural stages rather than near the crawl.
+  //
+  // It was outside the pipeline entirely until now -- buildable only from a queued job the
+  // People tab fires -- which meant a scored pillar could report a roster months older than
+  // everything beside it with nothing on screen saying so. buildUserSnapshot throws rather
+  // than publishing an empty roster when the app cannot read application roles, and that is
+  // the right outcome here too: the stage fails loudly and the pillar reports it did not
+  // build, instead of the roster silently staying stale.
+  { key: "people", label: "Licensed user roster", needs: [], mode: "inline" },
+  // JSM Assets structure. Same story -- a scored pillar that never refreshed with the scan.
+  //
+  // Off Premium this is not an error: buildAssetSnapshot resolves the workspace first and
+  // writes a terminal "unavailable" state rather than throwing, so on a site without Assets
+  // this stage completes normally and the pillar reports not-applicable. That is why it can
+  // sit unconditionally in the list instead of being gated on an edition check nothing else
+  // in the pipeline performs.
+  { key: "assets", label: "Assets (CMDB) structure", needs: [], mode: "inline" },
   {
     key: "issues",
     label: "Issue crawl",
@@ -135,6 +154,11 @@ export const QUICK_SCAN_STAGES = [
   // Boards carry no changed-since signal either, so quick scan refetches them in full like
   // the other structural stages.
   { key: "boards", label: "Board inventory (full)", needs: [], mode: "inline" },
+  // Neither the roster nor the Assets structure has a changed-since signal either -- group
+  // membership and object-type definitions carry no last-modified this app can query -- so
+  // quick scan refetches both in full, like every other structural stage here.
+  { key: "people", label: "Licensed user roster (full)", needs: [], mode: "inline" },
+  { key: "assets", label: "Assets (CMDB) structure (full)", needs: [], mode: "inline" },
   { key: "drift", label: "Configuration drift", needs: [], mode: "inline" },
   { key: "health", label: "Record site health", needs: [], mode: "inline" },
 ];

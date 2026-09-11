@@ -1640,6 +1640,35 @@ describe("saveAdminConfigResolver", () => {
     const result = await saveAdminConfigResolver({ payload: { apiConcurrency: 1 } });
     expect(result.config.apiConcurrency).toBe(1);
   });
+
+  // The automation staleness gate is only a gate while its threshold is inside a sane band.
+  // Zero would mark every analysis stale and silence the pillar; a very large value would
+  // silence the warning instead, which is the same as deleting it.
+  test("rejects an automation staleness threshold outside 1-90 days", async () => {
+    for (const bad of [0, -1, 365]) {
+      await expect(saveAdminConfigResolver({ payload: { automationStaleAfterDays: bad } }))
+        .rejects.toThrow(/automationStaleAfterDays/);
+    }
+  });
+
+  test("accepts and stores a tuned automation staleness threshold", async () => {
+    mocks.kvsGet.mockResolvedValue(null);
+    const result = await saveAdminConfigResolver({ payload: { automationStaleAfterDays: 14 } });
+    expect(result.config.automationStaleAfterDays).toBe(14);
+  });
+
+  test("clamps a stored staleness threshold that reached storage some other way", async () => {
+    // An older build, or a hand-edited record. Validation only guards the write path.
+    mocks.kvsGet.mockResolvedValue({ automationStaleAfterDays: 9999 });
+    const result = await saveAdminConfigResolver({ payload: {} });
+    expect(result.config.automationStaleAfterDays).toBe(90);
+  });
+
+  test("defaults the staleness threshold rather than disabling the gate on a junk value", async () => {
+    mocks.kvsGet.mockResolvedValue({ automationStaleAfterDays: "soon" });
+    const result = await saveAdminConfigResolver({ payload: {} });
+    expect(result.config.automationStaleAfterDays).toBe(7);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -4316,11 +4345,16 @@ describe("Rovo automation agent actions", () => {
     findings: [{ id: 12, n: "Send to approval", s: "high", r: [{ c: "embedded-credential", s: "high" }] }],
   };
 
-  function stubAll({ analysis = { schemaVersion: 1, refreshedAt: 1754400000000 } } = {}) {
+  // Relative to now, not a fixed epoch. These actions now gate their answers on how old the
+  // analysis is, so a hardcoded 2025 timestamp would make every one of them report "unknown"
+  // and the tests below would be exercising the degraded path while claiming to test the
+  // normal one. Stale and truncated are asserted deliberately, further down.
+  const FRESH = () => Date.now() - 2 * 86400000;
+
+  function stubAll({ analysis = { schemaVersion: 1, refreshedAt: FRESH() }, parts = {} } = {}) {
     mocks.readAutomationAnalysis.mockResolvedValue(analysis);
-    mocks.readAutomationPart.mockImplementation((_k, part) =>
-      Promise.resolve({ fields, statuses, directory, findings }[part] ?? null)
-    );
+    const table = { fields, statuses, directory, findings, ...parts };
+    mocks.readAutomationPart.mockImplementation((_k, part) => Promise.resolve(table[part] ?? null));
   }
 
   describe("rovoSearchAutomationRules", () => {
@@ -4362,9 +4396,12 @@ describe("Rovo automation agent actions", () => {
     });
 
     test("carries the analysis age so the agent can caveat a stale answer", async () => {
-      stubAll();
+      const refreshedAt = Date.now() - 5 * 86400000;
+      stubAll({ analysis: { schemaVersion: 1, refreshedAt } });
       const result = await rovoSearchAutomationRules({ query: "approval" }, {});
-      expect(result.analysisRefreshedAt).toBe(1754400000000);
+      expect(result.analysisRefreshedAt).toBe(refreshedAt);
+      // Not just the stamp: the age, worked out and ready to state.
+      expect(result.evidence.ageDays).toBe(5);
     });
   });
 
@@ -4445,6 +4482,73 @@ describe("Rovo automation agent actions", () => {
       expect(result.status).toBe("not-referenced");
       // A status is never "safe to delete" on automation evidence alone.
       expect(result.safeToDelete).toBe(false);
+    });
+
+    // The defect this action shipped with: absence from the index was reported as proof of
+    // non-reference, whatever the state of the index it was absent from.
+    describe("will not assert safe-to-delete it cannot support", () => {
+      test("degrades to unknown when the index was truncated", async () => {
+        // total far above entries.length: rows were dropped, and the dropped rows are the
+        // LEAST-referenced ones -- which is the population this question is asked about.
+        stubAll({ parts: { fields: { ...fields, total: 1400 } } });
+
+        const result = await rovoAutomationUsage({ name: "Never Indexed" }, {});
+
+        expect(result.status).toBe("unknown");
+        // Not false -- false would claim rules DO reference it. Null is the third state.
+        expect(result.safeToDelete).toBeNull();
+        expect(result.evidence.blockers.map((b) => b.code)).toContain("index-truncated");
+        expect(result.guidance).toMatch(/truncated/i);
+      });
+
+      test("degrades to unknown when the analysis is older than the threshold", async () => {
+        mocks.readAdminConfig?.mockResolvedValue?.({ automationStaleAfterDays: 7 });
+        stubAll({ analysis: { schemaVersion: 1, refreshedAt: Date.now() - 30 * 86400000 } });
+
+        const result = await rovoAutomationUsage({ name: "Never Used" }, {});
+
+        expect(result.status).toBe("unknown");
+        expect(result.safeToDelete).toBeNull();
+        expect(result.evidence.blockers.map((b) => b.code)).toContain("analysis-stale");
+        expect(result.guidance).toMatch(/re-import/i);
+      });
+
+      test("still says no when a rule DOES reference it, however old the analysis", async () => {
+        // Positive evidence survives staleness. A rule that wrote this field a month ago
+        // almost certainly still does, and "no" is the cautious answer either way.
+        stubAll({ analysis: { schemaVersion: 1, refreshedAt: Date.now() - 90 * 86400000 } });
+
+        const result = await rovoAutomationUsage({ name: "Story Points" }, {});
+
+        expect(result.status).toBe("ok");
+        expect(result.safeToDelete).toBe(false);
+      });
+
+      test("carries the age on every answer so the agent can state it", async () => {
+        const refreshedAt = Date.now() - 3 * 86400000;
+        stubAll({ analysis: { schemaVersion: 1, refreshedAt } });
+
+        const [usage, inspect, search] = await Promise.all([
+          rovoAutomationUsage({ name: "Story Points" }, {}),
+          rovoInspectAutomationRule({ ruleIdentifier: "10" }, {}),
+          rovoSearchAutomationRules({ query: "approval" }, {}),
+        ]);
+
+        for (const result of [usage, inspect, search]) {
+          expect(result.evidence).toMatchObject({ ageDays: 3, stale: false });
+        }
+      });
+
+      test("a rule search is not accused of truncation it cannot have", async () => {
+        // A directory search consults no capped index, so only the age applies to it.
+        stubAll({ parts: { fields: { ...fields, total: 1400 } } });
+
+        const result = await rovoSearchAutomationRules({ query: "approval" }, {});
+
+        expect(result.status).toBe("ok");
+        expect(result.evidence.blockers).toEqual([]);
+        expect(result.evidence.indexComplete).toBeNull();
+      });
     });
   });
 });

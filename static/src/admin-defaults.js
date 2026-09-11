@@ -29,9 +29,15 @@ export const DEFAULT_REMEDIATION = {
   defaultAssigneeAccountId: "",
 };
 
+// Mirrors DEFAULT_ANALYSIS_STALE_AFTER_DAYS in src/lib/automation-analysis.js. Kept as a
+// literal rather than imported so this module stays free of backend imports, the way the
+// rest of the defaults here are; the ConfigTab test asserts the two agree.
+export const DEFAULT_AUTOMATION_STALE_AFTER_DAYS = 7;
+
 export const DEFAULT_CONFIG = {
   readOnlyMode: false,
   apiConcurrency: 4,
+  automationStaleAfterDays: DEFAULT_AUTOMATION_STALE_AFTER_DAYS,
   autoSnapshotEnabled: false,
   autoSnapshotFrequency: "weekly",
   governanceThresholds: DEFAULT_THRESHOLDS,

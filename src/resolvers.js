@@ -228,7 +228,11 @@ import {
 } from "./lib/workflow-insights.js";
 import { analyzeCascadeGraph, MAX_CHAIN_DEPTH } from "./lib/cascade-graph.js";
 import { buildOwnershipIndex, summarizeOrphanedOwnership } from "./lib/user-ownership.js";
-import { hydrateRuleDirectory } from "./lib/automation-analysis.js";
+import {
+  hydrateRuleDirectory,
+  assessAutomationEvidence,
+  DEFAULT_ANALYSIS_STALE_AFTER_DAYS,
+} from "./lib/automation-analysis.js";
 import {
   readAutomationAnalysis,
   writeAutomationAnalysis,
@@ -360,6 +364,10 @@ const DEFAULT_REMEDIATION_CONFIG = {
 const DEFAULT_ADMIN_CONFIG = {
   readOnlyMode: false,
   apiConcurrency: BASE_JIRA_CONCURRENCY,
+  // How old an imported automation analysis may be before its answers stop being treated as
+  // current. 7 days matches the macro's existing snapshot warning and the Quick Scan panel's
+  // full-scan age, so an admin meets one staleness rule across the product rather than three.
+  automationStaleAfterDays: DEFAULT_ANALYSIS_STALE_AFTER_DAYS,
   autoSnapshotEnabled: false,
   autoSnapshotFrequency: "weekly",
   governanceThresholds: DEFAULT_GOVERNANCE_THRESHOLDS,
@@ -406,6 +414,12 @@ export async function saveAdminConfigResolver({ payload }) {
   const cfg = payload || {};
   if (cfg.apiConcurrency !== undefined && cfg.apiConcurrency !== null) {
     requireBoundedInt(cfg.apiConcurrency, "apiConcurrency", 1, 20);
+  }
+  // Bounded at both ends on purpose. Zero or negative would make every analysis stale and
+  // the pillar would answer "unknown" forever; an unbounded upper end would let someone set
+  // it high enough to silence the warning permanently, which is the same as removing it.
+  if (cfg.automationStaleAfterDays !== undefined && cfg.automationStaleAfterDays !== null) {
+    requireBoundedInt(cfg.automationStaleAfterDays, "automationStaleAfterDays", 1, 90);
   }
   if (cfg.autoSnapshotFrequency !== undefined && cfg.autoSnapshotFrequency !== null) {
     optionalEnum(cfg.autoSnapshotFrequency, "autoSnapshotFrequency", ["daily", "weekly", "monthly"], null);
@@ -520,6 +534,10 @@ export async function saveAdminConfigResolver({ payload }) {
     },
   };
   updated.apiConcurrency = Math.max(1, Math.min(10, Number(updated.apiConcurrency) || BASE_JIRA_CONCURRENCY));
+  // Clamped as well as validated, so a value that reached storage some other way (an older
+  // build, a hand-edited record) still lands inside the band rather than disabling the gate.
+  updated.automationStaleAfterDays = Math.max(1, Math.min(90,
+    Number(updated.automationStaleAfterDays) || DEFAULT_ANALYSIS_STALE_AFTER_DAYS));
   await kvs.set(ADMIN_CONFIG_KEY, updated);
   return { ok: true, config: updated };
 }
@@ -2311,9 +2329,20 @@ async function getAutomationInsights({ context }) {
       };
     }
 
+    // Decided here rather than in the browser so the tab, the Rovo agent and the field panel
+    // all take the same view of whether this import is still current. indexRequired is false
+    // because this is the estate summary, not a per-entity lookup -- only the age applies.
+    const cfg = await readAdminConfig().catch(() => null);
+    const evidence = assessAutomationEvidence({
+      indexRequired: false,
+      refreshedAt: analysis.refreshedAt ?? null,
+      staleAfterDays: Number(cfg?.automationStaleAfterDays) || DEFAULT_ANALYSIS_STALE_AFTER_DAYS,
+    });
+
     return {
       available: true,
       refreshedAt: analysis.refreshedAt ?? null,
+      evidence,
       source: analysis.source ?? "unknown",
       estate: analysis.estate ?? null,
       // A preview for the overview. The Findings section fetches the full list separately;
@@ -6890,14 +6919,17 @@ export async function rovoProjectInspect(payload, context) {
 // because the user acts on the first and asks again after the second.
 
 async function loadAutomationForAgent(installationKey) {
-  const [analysis, fields, statuses, directory, findings] = await Promise.all([
+  const [analysis, fields, statuses, directory, findings, config] = await Promise.all([
     readAutomationAnalysis(installationKey),
     readAutomationPart(installationKey, "fields"),
     readAutomationPart(installationKey, "statuses"),
     readAutomationPart(installationKey, "directory"),
     readAutomationPart(installationKey, "findings"),
+    // The staleness threshold travels with the data, so no caller can forget to apply it.
+    readAdminConfig().catch(() => null),
   ]);
-  return { analysis, fields, statuses, directory, findings };
+  const staleAfterDays = Number(config?.automationStaleAfterDays) || DEFAULT_ANALYSIS_STALE_AFTER_DAYS;
+  return { analysis, fields, statuses, directory, findings, staleAfterDays };
 }
 
 function ruleDirectoryMap(directory) {
@@ -6923,7 +6955,7 @@ export async function rovoSearchAutomationRules(payload, context) {
   const maxResults = Math.max(1, Math.min(20, Number(payload?.maxResults) || 10));
   const stateFilter = String(payload?.state || "any").toLowerCase();
 
-  const { analysis, directory, findings } = await loadAutomationForAgent(installationKey);
+  const { analysis, directory, findings, staleAfterDays } = await loadAutomationForAgent(installationKey);
   if (!analysis || !directory) {
     return {
       status: "analysis-unavailable",
@@ -6960,7 +6992,14 @@ export async function rovoSearchAutomationRules(payload, context) {
 
   return {
     status: "ok",
+    // Age travels with a search result too. A rule created after the last import simply is
+    // not here, and "no rule matched" would otherwise read as "no such rule exists".
     analysisRefreshedAt: analysis.refreshedAt ?? null,
+    evidence: assessAutomationEvidence({
+      indexRequired: false, // a directory search consults no index; only the age applies
+      refreshedAt: analysis.refreshedAt ?? null,
+      staleAfterDays,
+    }),
     totalRules: directory.total ?? 0,
     matchCount: matches.length,
     matches: matches.slice(0, maxResults),
@@ -6973,10 +7012,15 @@ export async function rovoInspectAutomationRule(payload, context) {
   const identifier = String(payload?.ruleIdentifier || "").trim();
   if (!identifier) return { status: "error", message: "A rule id or name is required." };
 
-  const { analysis, directory, findings, fields, statuses } = await loadAutomationForAgent(installationKey);
+  const { analysis, directory, findings, fields, statuses, staleAfterDays } = await loadAutomationForAgent(installationKey);
   if (!analysis || !directory) {
     return { status: "analysis-unavailable", message: "No automation analysis has been built for this site yet." };
   }
+  const evidence = assessAutomationEvidence({
+    index: fields,
+    refreshedAt: analysis.refreshedAt ?? null,
+    staleAfterDays,
+  });
 
   const byId = ruleDirectoryMap(directory);
   const wanted = identifier.toLowerCase();
@@ -7002,7 +7046,8 @@ export async function rovoInspectAutomationRule(payload, context) {
 
   return {
     status: "ok",
-    analysisRefreshedAt: analysis.refreshedAt ?? null,
+    analysisRefreshedAt: evidence.refreshedAt,
+    evidence,
     rule: {
       ruleId: rule.id,
       name: rule.name,
@@ -7020,8 +7065,12 @@ export async function rovoInspectAutomationRule(payload, context) {
       disabledForDays: r.d,
     })),
     // Stated rather than implied. The indexes cap stored rule ids at 50 per direction, so a
-    // rule touching a very heavily referenced field can be missing from this list.
-    caveat: "Field and status lists are derived from a capped index and may omit references on fields used by more than 50 rules in one direction.",
+    // rule touching a very heavily referenced field can be missing from this list -- and on
+    // top of that the analysis itself may be old, which the blockers spell out.
+    caveat: [
+      "Field and status lists are derived from a capped index and may omit references on fields used by more than 50 rules in one direction.",
+      ...evidence.blockers.map((b) => b.message),
+    ].join(" "),
   };
 }
 
@@ -7032,18 +7081,42 @@ export async function rovoAutomationUsage(payload, context) {
   const kind = String(payload?.kind || "field").toLowerCase() === "status" ? "status" : "field";
   if (!name) return { status: "error", message: "A field or status name is required." };
 
-  const { analysis, fields, statuses, directory } = await loadAutomationForAgent(installationKey);
+  const { analysis, fields, statuses, directory, staleAfterDays } = await loadAutomationForAgent(installationKey);
   if (!analysis) {
     return { status: "analysis-unavailable", message: "No automation analysis has been built for this site yet." };
   }
 
   const index = kind === "status" ? statuses : fields;
+  // Settled once, before anything is claimed. `evidence` decides whether this answer is
+  // allowed to be a verdict at all; without it an absence from a capped or three-week-old
+  // index read exactly like a clean bill of health.
+  const evidence = assessAutomationEvidence({
+    index,
+    refreshedAt: analysis.refreshedAt ?? null,
+    staleAfterDays,
+  });
   const entry = (index?.entries ?? []).find((e) => String(e.label ?? "").toLowerCase() === name.toLowerCase());
 
   if (!entry) {
+    // The branch this whole assessment exists for. "We looked and found nothing" and "we
+    // have not really looked" are different claims and only one of them justifies a
+    // deletion, so when the index cannot carry the weight this degrades to unknown with
+    // the reason attached rather than returning safeToDelete: true.
+    if (!evidence.absenceIsEvidence) {
+      return {
+        status: "unknown",
+        analysisRefreshedAt: evidence.refreshedAt,
+        evidence,
+        message: `Whether any automation rule touches the ${kind} "${name}" cannot be established from this analysis.`,
+        // Not false -- false would claim rules DO reference it. Null is the third state.
+        safeToDelete: null,
+        guidance: evidence.blockers.map((b) => b.message).join(" "),
+      };
+    }
     return {
       status: "not-referenced",
-      analysisRefreshedAt: analysis.refreshedAt ?? null,
+      analysisRefreshedAt: evidence.refreshedAt,
+      evidence,
       message: `No automation rule reads, writes or triggers on the ${kind} "${name}".`,
       safeToDelete: kind === "field",
     };
@@ -7055,9 +7128,12 @@ export async function rovoAutomationUsage(payload, context) {
     return { ruleId: id, name: r?.name ?? `Rule ${id}`, state: r ? (r.enabled ? "ENABLED" : "DISABLED") : "UNKNOWN" };
   });
 
+  const referenced = entry.writeCount > 0 || entry.readCount > 0 || entry.triggerCount > 0;
+
   return {
     status: "ok",
-    analysisRefreshedAt: analysis.refreshedAt ?? null,
+    analysisRefreshedAt: evidence.refreshedAt,
+    evidence,
     kind,
     name: entry.label,
     ruleCount: entry.ruleCount ?? 0,
@@ -7066,11 +7142,18 @@ export async function rovoAutomationUsage(payload, context) {
     writtenBy: { count: entry.writeCount, rules: expand(entry.write) },
     readBy: { count: entry.readCount, rules: expand(entry.read) },
     triggers: { count: entry.triggerCount, rules: expand(entry.trigger) },
-    // The single most important thing this action exists to say.
-    safeToDelete: entry.writeCount === 0 && entry.readCount === 0 && entry.triggerCount === 0,
+    // The single most important thing this action exists to say, and now a tri-state.
+    //
+    // A reference that WAS found is positive evidence and survives a stale analysis -- a
+    // rule that wrote this field a fortnight ago almost certainly still does, and "no" is
+    // the cautious answer anyway. An entry found with no references in any direction is an
+    // absence claim like the not-found branch above, so it answers to the same test.
+    safeToDelete: referenced ? false : (evidence.absenceIsEvidence ? true : null),
     guidance: entry.writeCount > 0
       ? `Deleting this ${kind} would break ${entry.writeCount} rule(s) that write to it.`
-      : "No rule writes this, but rules that read it will misbehave if it is removed.",
+      : referenced
+        ? "No rule writes this, but rules that read it will misbehave if it is removed."
+        : evidence.blockers.map((b) => b.message).join(" ") || "No rule references this.",
   };
 }
 

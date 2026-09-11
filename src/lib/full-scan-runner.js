@@ -51,6 +51,8 @@ import {
   readAccessSnapshotMeta,
   readEstateSnapshotMeta,
   readBoardSnapshotMeta,
+  readUserSnapshotMeta,
+  readAssetSnapshotMeta,
   readDriftSnapshotMeta,
   readSnapshotMeta,
   recordFullScanRun,
@@ -63,6 +65,8 @@ import { buildIssueTypeSnapshot } from "./issuetype-engine.js";
 import { buildAccessSnapshot } from "./access-engine.js";
 import { buildEstateSnapshot } from "./estate-engine.js";
 import { buildBoardSnapshot } from "./board-engine.js";
+import { buildUserSnapshot } from "./user-engine.js";
+import { buildAssetSnapshot } from "./asset-engine.js";
 import { buildDriftSnapshot } from "./drift-engine.js";
 import { queueSnapshotBuild, isSnapshotBuildStale, requeueStaleSnapshotBuild } from "./snapshot-engine.js";
 import { runIssueScanCoordinator, reviveStalledIssueScanWorkers } from "./scan-engine.js";
@@ -80,6 +84,11 @@ const issueTypes = { run: (key) => buildIssueTypeSnapshot(key) };
 const access = { run: (key) => buildAccessSnapshot(key) };
 const estate = { run: (key) => buildEstateSnapshot(key) };
 const boards = { run: (key) => buildBoardSnapshot(key) };
+const people = { run: (key) => buildUserSnapshot(key) };
+// Returns { unavailable: true, reason } off JSM Premium rather than throwing, so this stage
+// completes on a site without Assets and the pillar reports not-applicable. Nothing to
+// special-case here -- the engine already made "not enabled" a terminal success.
+const assets = { run: (key) => buildAssetSnapshot(key) };
 const drift = { run: (key) => buildDriftSnapshot(key) };
 const statusHistory = { run: (key) => buildStatusHistorySnapshot(key) };
 
@@ -190,6 +199,8 @@ export const STAGE_RUNNERS = {
     },
   },
   boards,
+  people,
+  assets,
   drift,
   health,
 };
@@ -228,6 +239,8 @@ export const QUICK_SCAN_RUNNERS = {
   access,
   estate,
   boards,
+  people,
+  assets,
   drift,
   health,
 };
@@ -563,6 +576,11 @@ export async function readStageProducedCounts(installationKey, scanType) {
     put("access", readAccessSnapshotMeta, (m) => m.totalPermissionSchemes + m.totalSecuritySchemes + m.totalNotificationSchemes + (m.totalProjectRoles || 0)),
     put("estate", readEstateSnapshotMeta, (m) => m.totalResolutions + m.totalPriorities),
     put("boards", readBoardSnapshotMeta, (m) => m.totalBoards),
+    put("people", readUserSnapshotMeta, (m) => m.totalUsers),
+    // Object types rather than schemas: a site with three schemas and 400 types has done far
+    // more work than the schema count suggests, and zero here on an Assets-less site is a
+    // true count, not a failure -- the stage's own state carries that distinction.
+    put("assets", readAssetSnapshotMeta, (m) => m.totalObjectTypes),
     put("drift", readDriftSnapshotMeta, (m) => m.lastRunChanges),
     put("filters", readFilterSnapshotMeta, (m) => m.totalFilters),
     put("dashboards", readDashboardSnapshotMeta, (m) => m.totalDashboards),

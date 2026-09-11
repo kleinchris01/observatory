@@ -14,11 +14,28 @@ on:
         description: Forge deployment environment
         type: choice
         options: [development, staging, production]
-        default: production
+        # Development, deliberately. A re-run of this workflow is most often someone
+        # retrying a dev deploy, and the pre-selected option is the one that gets taken
+        # by reflex. Shipping to customers should cost a decision, not an unchanged
+        # dropdown -- the more so since the app now holds write:jira-work.
+        default: development
 
 env:
   NODE_VERSION: "24"
   FORGE_ENV: ${{ inputs.environment || 'development' }}
+  # Pinned, not @latest. CI installing the newest CLI while a developer runs an older one
+  # means the same documented command behaves differently in the two places -- which is how
+  # --approve MAJOR_VERSION_RULE ended up in the runbook as a step that failed locally.
+  # Raise this deliberately, in a PR, so the change is reviewable.
+  FORGE_CLI_VERSION: "13.1.0"
+
+# Forge refuses a deploy while another is in flight against the same environment, so two
+# merges in quick succession used to race and all but one failed with "environment is
+# blocked by other deployment". Queue them per environment instead: never cancel a deploy
+# in progress (cancel-in-progress would abandon a half-applied Forge deployment), just wait.
+concurrency:
+  group: forge-deploy-${{ inputs.environment || 'development' }}
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -64,7 +81,7 @@ jobs:
           path: static/
 
       - name: Install Forge CLI
-        run: npm install -g @forge/cli@latest
+        run: npm install -g @forge/cli@${{ env.FORGE_CLI_VERSION }}
 
       # A scope change makes Forge request MAJOR_VERSION_RULE approval before it will
       # deploy, because installs will need an administrator to accept a new consent screen.

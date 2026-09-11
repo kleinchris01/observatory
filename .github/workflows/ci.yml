@@ -17,6 +17,10 @@ permissions:
 
 env:
   NODE_VERSION: "24"
+  # Kept in lockstep with deploy.yml's FORGE_CLI_VERSION. `forge lint` exit codes and the
+  # wording of its approval notice are version-dependent, and the step below parses both --
+  # so an unpinned CLI could change what this gate does without anyone editing it.
+  FORGE_CLI_VERSION: "13.1.0"
 
 jobs:
   lint:
@@ -39,7 +43,7 @@ jobs:
           npm run build:macro
           npm run build:admin
       - name: Install Forge CLI
-        run: npm install -g @forge/cli@latest
+        run: npm install -g @forge/cli@${{ env.FORGE_CLI_VERSION }}
       # Two separate problems are handled here, and both fixes are needed. Dropping either
       # one re-breaks the case the other was written for.
       #

@@ -889,3 +889,108 @@ describe("buildCascadeDocument", () => {
     expect(buildCascadeDocument()).toEqual({ schemaVersion: 1, total: 0, edges: [] });
   });
 });
+
+// The rules that decide whether an automation answer may be stated as a verdict at all.
+//
+// Both failures these cover shipped as "safeToDelete: true" for months, and both are
+// silent: nothing in the shape of a truncated index or a three-week-old import looks
+// different from a complete, current one.
+describe("automation evidence assessment", () => {
+  const DAY = 86400000;
+  const NOW = Date.parse("2026-09-11T12:00:00.000Z");
+  const complete = { total: 2, entries: [{ label: "a" }, { label: "b" }] };
+  const truncated = { total: 1400, entries: [{ label: "a" }, { label: "b" }] };
+  const fresh = new Date(NOW - DAY).toISOString();
+
+  const assess = async (over = {}) => {
+    const { assessAutomationEvidence } = await import("./automation-analysis.js");
+    return assessAutomationEvidence({ index: complete, refreshedAt: fresh, now: NOW, ...over });
+  };
+
+  it("counts whole days since the analysis was built", async () => {
+    const { analysisAgeDays } = await import("./automation-analysis.js");
+    expect(analysisAgeDays(new Date(NOW - 3 * DAY).toISOString(), NOW)).toBe(3);
+    // Clamped at zero: a clock skew that puts the build slightly in the future is not -1 days old.
+    expect(analysisAgeDays(new Date(NOW + DAY).toISOString(), NOW)).toBe(0);
+  });
+
+  it("dates an epoch stamp as readily as an ISO string", async () => {
+    const { analysisAgeDays } = await import("./automation-analysis.js");
+    // The analysis document is stamped with Date.now(); the snapshot meta rows use
+    // toISOString(). Reading only one of them would make every real analysis undateable.
+    expect(analysisAgeDays(NOW - 3 * DAY, NOW)).toBe(3);
+    expect(analysisAgeDays(new Date(NOW - 3 * DAY).toISOString(), NOW)).toBe(3);
+  });
+
+  it("cannot date an analysis with no timestamp", async () => {
+    const { analysisAgeDays } = await import("./automation-analysis.js");
+    expect(analysisAgeDays(null, NOW)).toBeNull();
+    expect(analysisAgeDays(undefined, NOW)).toBeNull();
+    expect(analysisAgeDays("not a date", NOW)).toBeNull();
+    expect(analysisAgeDays(NaN, NOW)).toBeNull();
+  });
+
+  it("calls an index complete only when its total matches what it kept", async () => {
+    const { isIndexComplete } = await import("./automation-analysis.js");
+    expect(isIndexComplete(complete)).toBe(true);
+    expect(isIndexComplete(truncated)).toBe(false);
+    // No recorded total is not a pass. An index that cannot say how many rows it was built
+    // from cannot be confirmed complete, and this is the branch a missing document takes.
+    expect(isIndexComplete({ entries: [] })).toBe(false);
+    expect(isIndexComplete(null)).toBe(false);
+  });
+
+  it("treats absence as evidence when the index is complete and current", async () => {
+    const result = await assess();
+    expect(result).toMatchObject({ stale: false, indexComplete: true, absenceIsEvidence: true });
+    expect(result.blockers).toEqual([]);
+  });
+
+  it("refuses absence as evidence once the analysis passes the threshold", async () => {
+    const result = await assess({ refreshedAt: new Date(NOW - 9 * DAY).toISOString(), staleAfterDays: 7 });
+    expect(result.absenceIsEvidence).toBe(false);
+    expect(result.blockers.map((b) => b.code)).toEqual(["analysis-stale"]);
+    expect(result.blockers[0].message).toContain("9 days old");
+  });
+
+  it("is fresh right up to the threshold and stale on it", async () => {
+    expect((await assess({ refreshedAt: new Date(NOW - 6 * DAY).toISOString(), staleAfterDays: 7 })).stale).toBe(false);
+    expect((await assess({ refreshedAt: new Date(NOW - 7 * DAY).toISOString(), staleAfterDays: 7 })).stale).toBe(true);
+  });
+
+  it("fails closed on an analysis whose age cannot be established", async () => {
+    // Not knowing how old something is is not a reason to treat it as current.
+    const result = await assess({ refreshedAt: null });
+    expect(result).toMatchObject({ stale: true, ageDays: null, absenceIsEvidence: false });
+    expect(result.blockers[0].message).toContain("no build date");
+  });
+
+  it("refuses absence as evidence on a truncated index, and says which rows went", async () => {
+    const result = await assess({ index: truncated });
+    expect(result.absenceIsEvidence).toBe(false);
+    expect(result.blockers.map((b) => b.code)).toEqual(["index-truncated"]);
+    expect(result.blockers[0].message).toContain("2 of 1400");
+    // The reason this matters, stated in the message rather than left to be worked out.
+    expect(result.blockers[0].message).toContain("least-referenced");
+  });
+
+  it("reports both blockers when an index is truncated AND old", async () => {
+    const result = await assess({ index: truncated, refreshedAt: new Date(NOW - 30 * DAY).toISOString() });
+    expect(result.blockers.map((b) => b.code)).toEqual(["analysis-stale", "index-truncated"]);
+  });
+
+  it("does not invent a truncation blocker for a question that consults no index", async () => {
+    // A rule-directory search is not index-capped. Without indexRequired the missing index
+    // would read as an incomplete one and every search would carry a false caveat.
+    const result = await assess({ index: null, indexRequired: false });
+    expect(result).toMatchObject({ indexComplete: null, absenceIsEvidence: true });
+    expect(result.blockers).toEqual([]);
+  });
+
+  it("falls back to the default threshold rather than disabling the gate", async () => {
+    const { DEFAULT_ANALYSIS_STALE_AFTER_DAYS } = await import("./automation-analysis.js");
+    for (const bad of [0, -5, NaN, null, "soon"]) {
+      expect((await assess({ staleAfterDays: bad })).staleAfterDays).toBe(DEFAULT_ANALYSIS_STALE_AFTER_DAYS);
+    }
+  });
+});

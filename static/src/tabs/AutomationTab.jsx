@@ -1,6 +1,6 @@
 import React from "react";
 import { invoke } from "@forge/bridge";
-import { formatRelativeTime, formatNumber } from "../utils";
+import { formatRelativeTime, formatNumber, formatTimestamp } from "../utils";
 import { BarList, Chip, EmptyState, FindingRow, Panel, RuleLink, SortFilterBar, StatRow, StatTile } from "../components/ui";
 import { SubNavLayout } from "../components/admin/primitives";
 import { useNavIntent } from "../hooks";
@@ -1185,10 +1185,24 @@ export function AutomationTab({ siteOrigin, intent = null }) {
       <div className="automation-tab__meta">
         <span>
           Analyzed {data.refreshedAt ? formatRelativeTime(data.refreshedAt) : "at an unknown time"}
+          {data.refreshedAt ? ` (${formatTimestamp(data.refreshedAt)})` : ""}
           {data.source ? ` from ${data.source}` : ""}.
         </span>
         {importControl}
       </div>
+
+      {/* This pillar is the only one fed by hand, so it is the only one that can quietly go
+          out of date while every other tab refreshes on a schedule. Nothing in the shape of
+          the data says so, which is why it has to be said here. */}
+      {data.evidence?.stale && (
+        <FindingRow
+          tone="warning"
+          title={data.evidence.ageDays === null
+            ? "This analysis carries no build date"
+            : `This analysis is ${formatNumber(data.evidence.ageDays)} day${data.evidence.ageDays === 1 ? "" : "s"} old`}
+          detail={`Rules added or changed since the last import are not in it, so this pillar answers "unknown" rather than "no rule touches this" until it is re-imported. The threshold is ${formatNumber(data.evidence.staleAfterDays)} days, on the Governance rules page.`}
+        />
+      )}
 
       <SubNavLayout items={items} activeKey={section} onSelect={setSection}>
         {section === "overview" ? (
