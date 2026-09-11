@@ -143,6 +143,7 @@ import {
   loadIssueTypeSchemeProjects,
   loadIssueTypeSchemeForProject,
   loadIssueTypeGovernanceSummary,
+  loadIssueTypeTotals,
   readUserSnapshotMeta,
   loadUsers,
   loadUserGovernanceSummary,
@@ -1560,7 +1561,7 @@ async function getIssueTypeInventory({ context }) {
     if (!byLevel.has(level)) byLevel.set(level, []);
     byLevel.get(level).push(type);
   }
-  const hierarchy = [...byLevel.keys()]
+  const hierarchyRaw = [...byLevel.keys()]
     .sort((a, b) => b - a)
     .map((level) => ({
       level,
@@ -1630,6 +1631,50 @@ async function getIssueTypeInventory({ context }) {
     console.error("getIssueTypeInventory: screen-scheme layer unavailable:", error?.message || error);
   }
 
+  // Per-type issue counts from the crawl, and the tri-state that makes them safe to read.
+  //
+  // Zero is what makes a type look safe to delete, so it is only ever asserted when a crawl
+  // actually completed. Three outcomes, never collapsed into two:
+  //   measured     a full scan finished and this type has a count (possibly a real zero)
+  //   not-measured no crawl has completed, so no type has a count
+  //   partial      a crawl ran but did not finish, so a missing row means "not reached",
+  //                not "nobody uses it"
+  const usage = await (async () => {
+    try {
+      const scanMeta = await readIssueScanMeta(installationKey);
+      const state = scanMeta?.state || null;
+      if (state !== "ready" && state !== "building" && state !== "failed") {
+        return { measurement: "not-measured", byType: new Map(), measuredAt: null };
+      }
+      const rows = await loadIssueTypeTotals(installationKey);
+      if (!rows.length && state !== "ready") {
+        return { measurement: "not-measured", byType: new Map(), measuredAt: null };
+      }
+      return {
+        // A crawl that is still running, or that failed part-way, has counted SOME projects.
+        // Calling that "measured" would report a half-walked estate's silence as evidence.
+        measurement: state === "ready" ? "measured" : "partial",
+        byType: new Map(rows.map((r) => [String(r.issueTypeId), r])),
+        measuredAt: scanMeta?.completedAt || null,
+      };
+    } catch (error) {
+      // A counting failure is not a count of zero -- the distinction CONNECT-4091 exists for.
+      console.error("getIssueTypeInventory: usage unavailable:", error?.message || error);
+      return { measurement: "measurement-failed", byType: new Map(), measuredAt: null };
+    }
+  })();
+
+  const withUsage = (type) => {
+    const row = usage.byType.get(String(type.id));
+    return {
+      ...type,
+      // null, not 0, wherever the count is not evidence. The tab renders the three states
+      // differently and must never show a dash as a zero.
+      issueCount: usage.measurement === "measured" ? (row?.issueCount ?? 0) : (row?.issueCount ?? null),
+      usedInProjects: row?.projectCount ?? null,
+    };
+  };
+
   return {
     state: meta.state,
     staleBuild,
@@ -1637,11 +1682,12 @@ async function getIssueTypeInventory({ context }) {
     version: meta.version,
     refreshedAt: meta.refreshedAt,
     completedAt: meta.completedAt,
+    usage: { measurement: usage.measurement, measuredAt: usage.measuredAt },
     totalTypes: meta.totalTypes,
     totalSchemes: meta.totalSchemes,
     lastError: meta.lastError || null,
-    issueTypes,
-    hierarchy,
+    issueTypes: issueTypes.map(withUsage),
+    hierarchy: hierarchyRaw.map((h) => ({ ...h, types: h.types.map(withUsage) })),
     schemes: schemesResolved,
     governance,
     // The finding-shaped detail behind the governance counts: near-duplicate name groups,

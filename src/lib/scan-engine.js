@@ -33,6 +33,9 @@ import {
   updateIssueScanWorker,
   replaceFieldOptionsCache,
   flushIssueScanCounts,
+  flushIssueScanTypeTotals,
+  flushIssueScanEstateTotals,
+  flushIssueScanUserActivity,
   flushIssueScanTypeCounts,
   flushIssueScanFieldUserCounts,
   flushIssueScanActivity,
@@ -725,6 +728,16 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
   const projectMonths = new Map();
   // `${statusId}|${projectId}` -> { statusId, statusName, statusCategory, projectId, projectKey, count }
   const statusCounts = new Map();
+  // Three more counters over the same issue, for the same reason as the status one above:
+  // issuetype, priority, resolution, assignee, reporter and updated are all already on every
+  // issue this loop walks, so each of these costs an accumulator and no Jira traffic.
+  //
+  // `${issueTypeId}|${projectId}` -> { issueTypeId, issueTypeName, projectId, projectKey, count }
+  const typeTotals = new Map();
+  // `${kind}|${valueId}` -> { kind, valueId, valueName, count }
+  const estateTotals = new Map();
+  // accountId -> { accountId, displayName, lastActivityAt, count }
+  const userActivity = new Map();
   const rqtFieldHits = new Map();
   const rqtIssueBuffer = [];
   const rqtValueBuffer = []; // { rqtValue, issueKey }
@@ -805,6 +818,9 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
       const totals = new Map(projectTotals);
       const months = new Map(projectMonths);
       const statuses = new Map(statusCounts);
+      const types = new Map(typeTotals);
+      const estate = new Map(estateTotals);
+      const activity = new Map(userActivity);
       const rqtHits = new Map(rqtFieldHits);
       const rqtIssues = rqtIssueBuffer.splice(0);
       const rqtValues = rqtValueBuffer.splice(0);
@@ -815,6 +831,9 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
       projectTotals.clear();
       projectMonths.clear();
       statusCounts.clear();
+      typeTotals.clear();
+      estateTotals.clear();
+      userActivity.clear();
       rqtFieldHits.clear();
 
       if (counts.size > 0 || totals.size > 0) {
@@ -829,6 +848,15 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
       }
       if (statuses.size > 0) {
         await flushIssueScanStatusCounts(installationKey, statuses).catch(ignoreWith("scan.status_flush_failed", { workerId }));
+      }
+      if (types.size > 0) {
+        await flushIssueScanTypeTotals(installationKey, types).catch(ignoreWith("scan.type_totals_flush_failed", { workerId }));
+      }
+      if (estate.size > 0) {
+        await flushIssueScanEstateTotals(installationKey, estate).catch(ignoreWith("scan.estate_totals_flush_failed", { workerId }));
+      }
+      if (activity.size > 0) {
+        await flushIssueScanUserActivity(installationKey, activity).catch(ignoreWith("scan.user_activity_flush_failed", { workerId }));
       }
       if (rqtHits.size > 0) await upsertRqtFieldHits(installationKey, rqtHits).catch(ignoreWith("scan.rqt_field_flush_failed", { workerId }));
       if (rqtIssues.length > 0) await upsertRqtIssueKeys(installationKey, rqtIssues).catch(ignoreWith("scan.rqt_issue_flush_failed", { workerId }));
@@ -1006,6 +1034,52 @@ export async function runIssueScanWorkerV2(installationKey, workerId) {
         const issueType = issue.fields?.issuetype;
         const issueTypeId = issueType?.id ? String(issueType.id) : "";
         const issueTypeName = issueType?.name || issueTypeId;
+
+        // Issues OF this type, per project. Distinct from the field x type buffer below:
+        // that counts a field carrying a value on this type, so summing it across fields
+        // would count one issue once per populated field on it.
+        if (issueTypeId) {
+          const typeKey = `${issueTypeId}|${projectId}`;
+          const typeEntry = typeTotals.get(typeKey)
+            || { issueTypeId, issueTypeName, projectId, projectKey: projectKey_, count: 0 };
+          typeEntry.count++;
+          typeTotals.set(typeKey, typeEntry);
+        }
+
+        // Priority and resolution. An UNSET value is counted under the empty id rather than
+        // skipped -- "1,400 issues carry no resolution" is the shape of an unresolved
+        // backlog, and dropping those rows would rebase every percentage in the pillar.
+        for (const [kind, raw] of [["priority", issue.fields?.priority], ["resolution", issue.fields?.resolution]]) {
+          const valueId = raw?.id ? String(raw.id) : "";
+          const estateKey = `${kind}|${valueId}`;
+          const estateEntry = estateTotals.get(estateKey)
+            || { kind, valueId, valueName: raw?.name || (valueId ? null : "(unset)"), count: 0 };
+          estateEntry.count++;
+          estateTotals.set(estateKey, estateEntry);
+        }
+
+        // Last activity per person, from max(issue.updated) where they are the assignee or
+        // the reporter. The People pillar's missing denominator: "this licence has had no
+        // activity in a year" is the one finding in the product with a currency figure
+        // attached, and it was blocked on this alone.
+        //
+        // Assignee and reporter only. Watchers and comment authors are not on the issue
+        // payload this crawl requests, so including them would need a second pass -- and a
+        // narrower "no activity" is the safe direction: it under-reports idle accounts
+        // rather than marking an active one as idle.
+        const updated = typeof issue.fields?.updated === "string" ? issue.fields.updated : null;
+        if (updated) {
+          for (const person of [issue.fields?.assignee, issue.fields?.reporter]) {
+            const accountId = person?.accountId ? String(person.accountId) : "";
+            if (!accountId) continue;
+            const actEntry = userActivity.get(accountId)
+              || { accountId, displayName: person.displayName || null, lastActivityAt: null, count: 0 };
+            actEntry.count++;
+            if (!actEntry.lastActivityAt || updated > actEntry.lastActivityAt) actEntry.lastActivityAt = updated;
+            if (!actEntry.displayName && person.displayName) actEntry.displayName = person.displayName;
+            userActivity.set(accountId, actEntry);
+          }
+        }
 
         for (const [fieldId, value] of Object.entries(issue.fields || {})) {
           if (STRUCTURAL_SYSTEM_FIELDS.has(fieldId)) continue;

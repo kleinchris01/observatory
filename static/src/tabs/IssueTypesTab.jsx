@@ -28,9 +28,56 @@ function daysSince(iso) {
 
 // A type's chips: what makes it notable at a glance. Order matters -- the finding-shaped
 // ones (project-scoped, sub-task) come before the identifier.
-function TypeChips({ type }) {
+// The count, and the three states it can be in.
+//
+// Zero is what makes a type look safe to delete, so it is only ever SHOWN as a zero when a
+// crawl actually finished. "Not measured" and "measured, and it is nought" are opposite
+// claims, and rendering a dash for the first is the whole point of this component -- the
+// data has carried this tri-state since the crawl shipped, and the tab had no column to
+// show it in.
+export function TypeUsageChip({ type, measurement }) {
+  if (measurement === "not-measured") {
+    return (
+      <Chip tone="neutral" title="No issue crawl has completed, so nothing is known about how much this type is used. Run a full scan from the Scans tab.">
+        Not measured
+      </Chip>
+    );
+  }
+  if (measurement === "measurement-failed") {
+    return (
+      <Chip tone="warning" title="The usage counts could not be read. This is not a count of zero.">
+        Count unavailable
+      </Chip>
+    );
+  }
+  if (type.issueCount === null || type.issueCount === undefined) {
+    return (
+      <Chip tone="warning" title="The last crawl did not finish, so this type was not reached. Not evidence that nobody uses it.">
+        Not reached
+      </Chip>
+    );
+  }
+  if (type.issueCount === 0) {
+    return (
+      <Chip tone="warning" title="A completed crawl found no issue of this type anywhere on the site.">
+        No issues
+      </Chip>
+    );
+  }
+  return (
+    <Chip
+      tone="neutral"
+      title={type.usedInProjects ? `In ${formatNumber(type.usedInProjects)} project${type.usedInProjects === 1 ? "" : "s"}` : undefined}
+    >
+      {formatNumber(type.issueCount)} {type.issueCount === 1 ? "issue" : "issues"}
+    </Chip>
+  );
+}
+
+function TypeChips({ type, measurement }) {
   return (
     <>
+      <TypeUsageChip type={type} measurement={measurement} />
       {type.subtask && (
         <Chip tone="neutral" title="A sub-task type: it lives under another issue, never on its own">
           Sub-task
@@ -46,7 +93,7 @@ function TypeChips({ type }) {
   );
 }
 
-export function HierarchyLevelPanel({ level, search }) {
+export function HierarchyLevelPanel({ level, search, measurement = "not-measured" }) {
   const term = search.trim().toLowerCase();
   const types = term
     ? level.types.filter((t) => t.name.toLowerCase().includes(term) || String(t.id) === term)
@@ -68,7 +115,7 @@ export function HierarchyLevelPanel({ level, search }) {
               {type.description && <span className="issue-type-row__desc">{type.description}</span>}
             </div>
             <div className="issue-type-row__meta">
-              <TypeChips type={type} />
+              <TypeChips type={type} measurement={measurement} />
             </div>
           </div>
         ))}
@@ -464,7 +511,7 @@ export function IssueTypesTab({ intent }) {
               <EmptyState inline>No issue types in this snapshot.</EmptyState>
             ) : (
               (data.hierarchy).map((level) => (
-                <HierarchyLevelPanel key={level.level} level={level} search={search} />
+                <HierarchyLevelPanel key={level.level} level={level} search={search} measurement={data?.usage?.measurement || "not-measured"} />
               ))
             )}
           </div>

@@ -111,6 +111,12 @@ export const DEFAULT_HEALTH_TOLERANCES = {
   // whose owner is gone; it still works until Jira garbage-collects it, so a touch looser.
   deactivatedLicenceHolders: 0.05,
   orphanedOwnership: 0.10,
+  // Seats held by somebody who has not touched an issue in a year. Looser than the
+  // deactivated-holder rule on purpose: a deactivated account still in an access group is
+  // unambiguously wrong, where a quiet year can be a stakeholder who reads and approves
+  // without ever being assignee or reporter. Real money either way, but the second needs a
+  // conversation before it needs a revocation.
+  dormantLicences: 0.15,
   // Assets (CMDB). A schema with nothing in it is clutter, forgiving like an unused issue
   // type scheme. A concrete object type nobody added an attribute to is unfinished, looser
   // still. A reference attribute pointing at a type that is gone is a broken pointer, tight
@@ -1333,6 +1339,36 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
       users?.available
         ? "No filter, dashboard or automation ownership data to join against yet."
         : "No licensed-user roster yet. Build one from the People tab or run a full scan."));
+  }
+
+  // ── Dormant licences ─────────────────────────────────────────────────────
+  //
+  // The one dimension in the model with a currency figure behind it. Scored against the
+  // accounts actually MEASURED, not the whole roster: an account the crawl never reached has
+  // no activity date, and treating that silence as idleness would recommend revoking a seat
+  // on the strength of a scan that did not look.
+  if (users?.available && users.activityMeasured && Number(users.measuredAccounts) > 0) {
+    const measured = Number(users.measuredAccounts);
+    const dormant = Number(users.dormantAccounts) || 0;
+    dimensions.push({
+      key: "dormant-licences",
+      label: "Dormant licences",
+      pillar: "users",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(dormant / measured, TOLERANCE.dormantLicences),
+      detail: dormant === 0
+        ? `Every one of the ${measured} measured accounts has touched an issue in the last year.`
+        : `${dormant} of ${measured} measured accounts hold a licence and have not touched an issue in a year.`,
+      action: dormant > 0
+        ? "The only finding here with a renewal cost attached. Confirm before revoking — an approver who never files still reads."
+        : null,
+    });
+  } else {
+    dimensions.push(unavailable("dormant-licences", "Dormant licences", "users",
+      users?.available
+        ? "No completed issue crawl has measured per-account activity yet, so no seat can be called idle."
+        : "No user roster yet."));
   }
 
   // ── Assets (CMDB) ─────────────────────────────────────────────────────────

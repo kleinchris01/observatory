@@ -5,6 +5,9 @@ import { describe, test, expect, vi } from "vitest";
 // buildProjectInsights, which is pure -- but the imports have to resolve.
 const userStore = {
   readUserSnapshotMeta: vi.fn(async () => null),
+  loadUserActivity: vi.fn(async () => []),
+  loadEstateValueTotals: vi.fn(async () => []),
+  loadIssueTypeTotals: vi.fn(async () => []),
   loadUsers: vi.fn(async () => []),
   loadUserGovernanceSummary: vi.fn(async () => ({})),
 };

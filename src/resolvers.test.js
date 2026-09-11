@@ -179,6 +179,9 @@ const mocks = vi.hoisted(() => ({
 
   // user store + user-engine.js
   readUserSnapshotMeta: vi.fn(),
+  loadUserActivity: vi.fn(async () => []),
+  loadEstateValueTotals: vi.fn(async () => []),
+  loadIssueTypeTotals: vi.fn(async () => []),
   loadUsers: vi.fn(async () => []),
   loadUserGovernanceSummary: vi.fn(async () => null),
   queueUserSnapshotBuild: vi.fn(),
@@ -424,6 +427,9 @@ vi.mock("./lib/project-store.js", () => ({
   loadIssueTypeGovernanceSummary: mocks.loadIssueTypeGovernanceSummary,
   readUserSnapshotMeta: mocks.readUserSnapshotMeta,
   loadUsers: mocks.loadUsers,
+  loadUserActivity: mocks.loadUserActivity,
+  loadEstateValueTotals: mocks.loadEstateValueTotals,
+  loadIssueTypeTotals: mocks.loadIssueTypeTotals,
   loadUserGovernanceSummary: mocks.loadUserGovernanceSummary,
   readAssetSnapshotMeta: mocks.readAssetSnapshotMeta,
   readAccessSnapshotMeta: mocks.readAccessSnapshotMeta,
@@ -8781,5 +8787,86 @@ describe("the screen cross-signal", () => {
       const result = await computeAndStoreScreenCross("inst");
       expect(result.available).toBe(true);
     });
+  });
+});
+
+// Per-type issue counts, and the tri-state that makes them safe to read. Zero is what makes
+// a type look safe to delete, so it is only ever asserted when a crawl actually completed.
+describe("getIssueTypeInventory — usage measurement", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x", accountId: "acc-1" } };
+
+  const ready = () => {
+    mocks.readIssueTypeSnapshotMeta.mockResolvedValue({
+      state: "ready", version: "t1", totalTypes: 2, totalSchemes: 1, refreshedAt: "2026-09-11T00:00:00.000Z",
+    });
+    mocks.loadIssueTypes.mockResolvedValue([
+      { id: "10001", name: "Bug", hierarchyLevel: 0 },
+      { id: "10002", name: "Legacy", hierarchyLevel: 0 },
+    ]);
+    mocks.loadIssueTypeSchemes.mockResolvedValue([]);
+    mocks.loadIssueTypeSchemeItems.mockResolvedValue([]);
+    mocks.loadIssueTypeSchemeProjects.mockResolvedValue([]);
+    mocks.loadIssueTypeGovernanceSummary.mockResolvedValue({});
+    mocks.readScreenSnapshotMeta.mockResolvedValue(null);
+  };
+
+  test("attaches real counts once a crawl has completed", async () => {
+    ready();
+    mocks.readIssueScanMeta.mockResolvedValue({ state: "ready", completedAt: "2026-09-10T00:00:00.000Z" });
+    mocks.loadIssueTypeTotals.mockResolvedValue([{ issueTypeId: "10001", issueTypeName: "Bug", issueCount: 4820, projectCount: 12 }]);
+
+    const result = await getIssueTypeInventory({ payload: {}, ...ctx });
+
+    expect(result.usage.measurement).toBe("measured");
+    expect(result.issueTypes.find((t) => t.id === "10001")).toMatchObject({ issueCount: 4820, usedInProjects: 12 });
+    // The other half of the claim: a completed crawl that found none is a REAL zero.
+    expect(result.issueTypes.find((t) => t.id === "10002").issueCount).toBe(0);
+  });
+
+  test("reports not-measured rather than zero when no crawl has run", async () => {
+    ready();
+    mocks.readIssueScanMeta.mockResolvedValue(null);
+    mocks.loadIssueTypeTotals.mockResolvedValue([]);
+
+    const result = await getIssueTypeInventory({ payload: {}, ...ctx });
+
+    expect(result.usage.measurement).toBe("not-measured");
+    // Null, not 0. A zero here is the premise of a deletion nobody has evidence for.
+    for (const t of result.issueTypes) expect(t.issueCount).toBeNull();
+  });
+
+  test("calls a half-finished crawl partial, so a missing type reads as not-reached", async () => {
+    ready();
+    mocks.readIssueScanMeta.mockResolvedValue({ state: "building" });
+    mocks.loadIssueTypeTotals.mockResolvedValue([{ issueTypeId: "10001", issueTypeName: "Bug", issueCount: 40, projectCount: 1 }]);
+
+    const result = await getIssueTypeInventory({ payload: {}, ...ctx });
+
+    expect(result.usage.measurement).toBe("partial");
+    expect(result.issueTypes.find((t) => t.id === "10001").issueCount).toBe(40);
+    // Not counted yet is not counted as none.
+    expect(result.issueTypes.find((t) => t.id === "10002").issueCount).toBeNull();
+  });
+
+  test("a failed count is reported as failed, not as zero", async () => {
+    ready();
+    mocks.readIssueScanMeta.mockResolvedValue({ state: "ready" });
+    mocks.loadIssueTypeTotals.mockRejectedValueOnce(new Error("SQL exploded"));
+
+    const result = await getIssueTypeInventory({ payload: {}, ...ctx });
+
+    expect(result.usage.measurement).toBe("measurement-failed");
+    for (const t of result.issueTypes) expect(t.issueCount).toBeNull();
+  });
+
+  test("carries the counts onto the hierarchy view as well as the flat catalogue", async () => {
+    ready();
+    mocks.readIssueScanMeta.mockResolvedValue({ state: "ready" });
+    mocks.loadIssueTypeTotals.mockResolvedValue([{ issueTypeId: "10001", issueTypeName: "Bug", issueCount: 7, projectCount: 1 }]);
+
+    const result = await getIssueTypeInventory({ payload: {}, ...ctx });
+
+    const level = result.hierarchy.find((h) => h.level === 0);
+    expect(level.types.find((t) => t.id === "10001").issueCount).toBe(7);
   });
 });

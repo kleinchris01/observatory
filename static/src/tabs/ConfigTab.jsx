@@ -1027,6 +1027,8 @@ function RulesArea({ t, setThreshold, pct, setTolerancePercent, targetPct, setTa
             tail="of licensed accounts that Jira has deactivated — a paid seat and a login that should not exist." />
           <ToleranceRule tone="risk" badge="People" name="Orphaned ownership" pct={pct} set={setTolerancePercent} k="orphanedOwnership"
             tail="of owned filters, dashboards and rules whose owner is not in the licensed roster." />
+          <ToleranceRule tone="cleanup" badge="People" name="Dormant licences" pct={pct} set={setTolerancePercent} k="dormantLicences"
+            tail={"of measured accounts holding a seat with no issue activity in a year. Scored against accounts the crawl actually reached, never the whole roster — an account nobody counted is not an idle one."} />
         </div>
       </ConfigSection>
 

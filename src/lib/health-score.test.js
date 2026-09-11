@@ -240,6 +240,11 @@ const users = (over = {}) => ({
   deactivatedUsers: 0,
   ownedArtifactTotal: 600,
   orphanedArtifacts: 0,
+  // Dormant licences score only when a crawl actually measured somebody. The default here
+  // is "measured and clean"; the unmeasured case is asserted on its own below.
+  activityMeasured: true,
+  measuredAccounts: 500,
+  dormantAccounts: 0,
   ...over,
 });
 
@@ -724,11 +729,39 @@ describe("people dimensions", () => {
     }
   });
 
-  test("the people pillar is weighted 1 and rolls its two dimensions up", () => {
+  test("the people pillar is weighted 1 and rolls its three dimensions up", () => {
     const health = computeSiteHealth({ users: users({ deactivatedUsers: 40 }) });
     const pillar = health.pillars.find((p) => p.key === "users");
-    expect(pillar.total).toBe(2);
+    expect(pillar.total).toBe(3);
     expect(pillar.available).toBe(true);
+  });
+
+  // The one dimension in the model with a renewal cost behind it, and the one most able to
+  // recommend something irreversible on thin evidence.
+  describe("dormant licences", () => {
+    test("scores against the accounts actually measured, not the roster", () => {
+      // 500 on the roster, 100 the crawl reached, 10 of those idle. The rate is 10/100 --
+      // dividing by 500 would report a fifth of the real problem.
+      const health = computeSiteHealth({ users: users({ measuredAccounts: 100, dormantAccounts: 10 }) });
+      const d = dim(health, "dormant-licences");
+      expect(d.available).toBe(true);
+      expect(d.detail).toMatch(/10 of 100 measured accounts/);
+    });
+
+    test("is unavailable, never zero, when no crawl has measured activity", () => {
+      // Scoring this as perfect because nobody has counted is exactly how a seat gets
+      // revoked on the strength of a scan that did not look.
+      const health = computeSiteHealth({ users: users({ activityMeasured: false, measuredAccounts: 0 }) });
+      const d = dim(health, "dormant-licences");
+      expect(d.available).toBe(false);
+      expect(d.score).toBeNull();
+      expect(d.reason).toMatch(/no completed issue crawl/i);
+    });
+
+    test("says out loud that a quiet account is not necessarily an unused one", () => {
+      const health = computeSiteHealth({ users: users({ measuredAccounts: 100, dormantAccounts: 30 }) });
+      expect(dim(health, "dormant-licences").action).toMatch(/confirm before revoking/i);
+    });
   });
 });
 

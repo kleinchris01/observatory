@@ -155,6 +155,19 @@ export async function clearIssueScanBuffer(scopeKey) {
       .bindParams(scopeKey)
       .execute()
   );
+
+  // The three additive counters. Same reason again: every one of them accumulates with
+  // ON DUPLICATE KEY UPDATE ... + VALUES(), so a second scan over unswept rows would report
+  // two lifetimes of issues as one.
+  //
+  // User activity is the exception that still belongs here. Its timestamp is a MAX and would
+  // survive a re-scan correctly, but its issue_count is additive -- and an account that has
+  // since been removed from every issue should stop appearing, which only a clear achieves.
+  for (const table of ["issue_scan_type_totals", "issue_scan_estate_totals", "issue_scan_user_activity"]) {
+    await withSqlRetry(() =>
+      sql.prepare(`DELETE FROM ${table} WHERE scope_key = ?`).bindParams(scopeKey).execute()
+    );
+  }
 }
 
 export async function resetIssueScanWorkers(scopeKey) {
@@ -1094,4 +1107,152 @@ export async function clearIssueScanBufferForProjects(scopeKey, projectKeys = []
     );
   }
   return { cleared: keys.length };
+}
+
+// ── The three crawl counters ─────────────────────────────────────────────────
+//
+// All additive, all flushed from the same drain as the field counts. Workers run over
+// disjoint project sets but a single issue type, priority or person is reached from many
+// projects, and each worker flushes several times per run -- so rows accumulate across both
+// dimensions rather than being replaced.
+
+export async function flushIssueScanTypeTotals(scopeKey, typeTotals) {
+  // typeTotals: Map<`issueTypeId|projectId`, { issueTypeId, issueTypeName, projectId, projectKey, count }>
+  await ensureProjectStoreReady();
+  const rows = [...typeTotals.values()].filter((r) => r?.issueTypeId && r?.projectId);
+  if (!rows.length) return;
+
+  for (const batch of chunkArray(rows, 100)) {
+    const valuesSql = batch.map(() => "(?, ?, ?, ?, ?, ?)").join(", ");
+    const params = batch.flatMap((r) => [
+      scopeKey, r.issueTypeId, r.projectId, r.issueTypeName || null, r.projectKey || null, r.count,
+    ]);
+    await withSqlRetry(() =>
+      sql.prepare(`
+        INSERT INTO issue_scan_type_totals
+          (scope_key, issue_type_id, project_id, issue_type_name, project_key, issue_count)
+        VALUES ${valuesSql}
+        ON DUPLICATE KEY UPDATE issue_count = issue_count + VALUES(issue_count)
+      `).bindParams(...params).execute()
+    );
+  }
+}
+
+export async function flushIssueScanEstateTotals(scopeKey, estateTotals) {
+  // estateTotals: Map<`kind|valueId`, { kind, valueId, valueName, count }>
+  // valueId is "" for an unset priority or resolution, which is a real answer.
+  await ensureProjectStoreReady();
+  const rows = [...estateTotals.values()].filter((r) => r?.kind);
+  if (!rows.length) return;
+
+  for (const batch of chunkArray(rows, 100)) {
+    const valuesSql = batch.map(() => "(?, ?, ?, ?, ?)").join(", ");
+    const params = batch.flatMap((r) => [scopeKey, r.kind, r.valueId ?? "", r.valueName || null, r.count]);
+    await withSqlRetry(() =>
+      sql.prepare(`
+        INSERT INTO issue_scan_estate_totals (scope_key, kind, value_id, value_name, issue_count)
+        VALUES ${valuesSql}
+        ON DUPLICATE KEY UPDATE issue_count = issue_count + VALUES(issue_count)
+      `).bindParams(...params).execute()
+    );
+  }
+}
+
+export async function flushIssueScanUserActivity(scopeKey, userActivity) {
+  // userActivity: Map<accountId, { accountId, displayName, lastActivityAt, count }>
+  await ensureProjectStoreReady();
+  const rows = [...userActivity.values()].filter((r) => r?.accountId);
+  if (!rows.length) return;
+
+  for (const batch of chunkArray(rows, 100)) {
+    const valuesSql = batch.map(() => "(?, ?, ?, ?, ?)").join(", ");
+    const params = batch.flatMap((r) => [
+      scopeKey, r.accountId, r.displayName || null, r.lastActivityAt || null, r.count,
+    ]);
+    await withSqlRetry(() =>
+      sql.prepare(`
+        INSERT INTO issue_scan_user_activity
+          (scope_key, account_id, display_name, last_activity_at, issue_count)
+        VALUES ${valuesSql}
+        ON DUPLICATE KEY UPDATE
+          -- GREATEST, not assignment: workers land out of order, so the newest timestamp has
+          -- to win regardless of which flush arrives last. A row that only ever moves forward
+          -- cannot be walked backwards by a late-arriving older page.
+          last_activity_at = GREATEST(COALESCE(last_activity_at, ''), COALESCE(VALUES(last_activity_at), '')),
+          display_name = COALESCE(VALUES(display_name), display_name),
+          issue_count = issue_count + VALUES(issue_count)
+      `).bindParams(...params).execute()
+    );
+  }
+}
+
+// Per-issue-type totals, folded across projects. The Issue Types tab's missing column.
+export async function loadIssueTypeTotals(scopeKey) {
+  await ensureProjectStoreReady();
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT issue_type_id, MAX(issue_type_name) AS issue_type_name,
+             SUM(issue_count) AS issue_count, COUNT(DISTINCT project_id) AS project_count
+      FROM issue_scan_type_totals
+      WHERE scope_key = ?
+      GROUP BY issue_type_id
+    `).bindParams(scopeKey).execute()
+  );
+  return (result.rows || []).map((row) => ({
+    issueTypeId: String(row.issue_type_id),
+    issueTypeName: row.issue_type_name || null,
+    issueCount: toNumber(row.issue_count),
+    projectCount: toNumber(row.project_count),
+  }));
+}
+
+export async function loadEstateValueTotals(scopeKey) {
+  await ensureProjectStoreReady();
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT kind, value_id, value_name, issue_count
+      FROM issue_scan_estate_totals
+      WHERE scope_key = ?
+    `).bindParams(scopeKey).execute()
+  );
+  return (result.rows || []).map((row) => ({
+    kind: row.kind,
+    valueId: String(row.value_id ?? ""),
+    valueName: row.value_name || null,
+    issueCount: toNumber(row.issue_count),
+  }));
+}
+
+export async function loadUserActivity(scopeKey, accountIds = null) {
+  await ensureProjectStoreReady();
+
+  if (Array.isArray(accountIds) && accountIds.length === 0) return [];
+
+  const out = [];
+  const batches = Array.isArray(accountIds) ? chunkArray(accountIds, 200) : [null];
+
+  for (const batch of batches) {
+    const where = batch
+      ? `scope_key = ? AND account_id IN (${batch.map(() => "?").join(", ")})`
+      : "scope_key = ?";
+    const params = batch ? [scopeKey, ...batch] : [scopeKey];
+    const result = await withSqlRetry(() =>
+      sql.prepare(`
+        SELECT account_id, display_name, last_activity_at, issue_count
+        FROM issue_scan_user_activity
+        WHERE ${where}
+      `).bindParams(...params).execute()
+    );
+    for (const row of result.rows || []) {
+      out.push({
+        accountId: String(row.account_id),
+        displayName: row.display_name || null,
+        // Empty string is what GREATEST leaves when nothing ever carried a timestamp. Null
+        // is the honest shape for "no activity date known" -- not the epoch, and not today.
+        lastActivityAt: row.last_activity_at || null,
+        issueCount: toNumber(row.issue_count),
+      });
+    }
+  }
+  return out;
 }
