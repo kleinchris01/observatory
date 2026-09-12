@@ -134,6 +134,7 @@ import {
   loadScreenCountsForFields,
   loadScreenDistributions,
   loadScreensForProject,
+  loadScreensForProjects,
   DEFAULT_SCREEN_SORT,
   SCREEN_SORT_KEYS,
   readIssueTypeSnapshotMeta,
@@ -550,12 +551,29 @@ export async function saveAdminConfigResolver({ payload }) {
   return { ok: true, config: updated };
 }
 
+// How many projects this viewer can Browse, for the macro's scope statement.
+//
+// Best-effort and separate from the access decision: a viewer who is allowed in but whose
+// project count cannot be established sees the generic "scoped to the projects you can
+// browse" rather than being refused. Null means unknown, 0 means genuinely none -- and the
+// macro says something different for each, because "you have no access to anything" is a
+// thing somebody needs to be told plainly rather than left to infer from empty tabs.
+async function viewerProjectCount(context) {
+  try {
+    const installationKey = getInstallationKey(context);
+    const scope = await viewerProjects(installationKey, context);
+    return scope.available ? scope.projects.length : null;
+  } catch {
+    return null;
+  }
+}
+
 async function checkMacroAccess({ context }) {
   try {
     const config = await readAdminConfig();
     const { restrictAccess, allowedGroups } = config.macroAccess || {};
 
-    if (!restrictAccess) return { allowed: true };
+    if (!restrictAccess) return { allowed: true, projectCount: await viewerProjectCount(context) };
 
     const groups = (allowedGroups || []).filter(Boolean);
     if (!groups.length) {
@@ -577,7 +595,9 @@ async function checkMacroAccess({ context }) {
 
     if (!resp.ok) {
       console.error("checkMacroAccess: group lookup failed", resp.status);
-      return { allowed: true }; // fail open â€” don't block on API error
+      // Fail open -- do not block on an API error. The count is left unknown rather than
+      // guessed at, which the macro renders as its generic scope line.
+      return { allowed: true, projectCount: null };
     }
 
     const userGroups = await resp.json();
@@ -585,14 +605,14 @@ async function checkMacroAccess({ context }) {
     const hasAccess = groups.some((g) => userGroupNames.includes(g));
 
     return hasAccess
-      ? { allowed: true }
+      ? { allowed: true, projectCount: await viewerProjectCount(context) }
       : {
           allowed: false,
           reason: "You don't have permission to view this Observatory. Contact your Jira administrator to request access.",
         };
   } catch (err) {
     console.error("checkMacroAccess error:", err);
-    return { allowed: true }; // fail open
+    return { allowed: true, projectCount: null }; // fail open
   }
 }
 
@@ -1250,6 +1270,178 @@ async function getMacroDashboards({ payload, context }) {
     total: mine.length,
     matchedTotal: matched.length,
     snapshotRefreshedAt: dashMeta.refreshedAt || dashMeta.completedAt || null,
+  };
+}
+
+// -- Three more macro pillars, all scoped the same way -----------------------
+//
+// The macro browses and reports; the admin page governs. That split is deliberate and these
+// keep it -- they carry inventory and no governance findings, because a finding is a
+// judgement an admin acts on and a viewer cannot.
+//
+// What they do NOT carry is just as deliberate. Access schemes, the people roster, Assets
+// and the automation findings stay admin-only: the first two are a disclosure risk in a
+// panel anyone in Confluence can open, and automation findings include plaintext-credential
+// hits, which is the last thing to put on a wiki page.
+//
+// Every one filters through viewerProjects, so a viewer sees their own estate and is told
+// so, rather than seeing the site's and wondering which half is theirs.
+
+async function getMacroScreens({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  const meta = await readScreenSnapshotMeta(installationKey).catch(
+    fallbackOn("macro_screens.meta_read_failed", null, { installationKey })
+  );
+  const scope = await viewerProjects(installationKey, context);
+  if (!meta?.version || !scope.available) {
+    return { available: false, reason: "no-inventory", projects: [], projectCount: scope.projects.length };
+  }
+
+  const rows = await loadScreensForProjects(installationKey, meta.version, [...scope.projectIds])
+    .catch(fallbackOn("macro_screens.load_failed", [], { installationKey }));
+
+  const byProject = new Map(scope.projects.map((p) => [p.projectId, { ...p, screens: [] }]));
+  for (const row of rows) {
+    const entry = byProject.get(row.projectId);
+    if (!entry) continue;
+    entry.screens.push({
+      screenId: row.screenId,
+      name: row.name,
+      fieldCount: row.fieldCount,
+      tabCount: row.tabCount,
+      // "Could not be read" is not "has no fields". The viewer is the person about to ask
+      // why their form looks different, so the distinction has to survive to the panel.
+      unreadable: row.tabsResolved !== "resolved",
+      operations: [row.onCreate && "create", row.onEdit && "edit", row.onView && "view"].filter(Boolean),
+    });
+  }
+
+  const projects = [...byProject.values()]
+    .map((p) => ({
+      ...p,
+      screens: p.screens.sort((a, b) => b.fieldCount - a.fieldCount || a.name.localeCompare(b.name)),
+      // The number anyone actually came to argue about: how long the form is that every
+      // person filing an issue here has to get through.
+      createFieldCount: p.screens.filter((s) => s.operations.includes("create"))
+        .reduce((n, s) => Math.max(n, s.fieldCount), 0),
+    }))
+    .sort((a, b) => b.createFieldCount - a.createFieldCount || a.projectKey.localeCompare(b.projectKey));
+
+  return {
+    available: true,
+    refreshedAt: meta.refreshedAt || null,
+    projectCount: projects.length,
+    projects,
+  };
+}
+
+async function getMacroIssueTypes({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  const meta = await readIssueTypeSnapshotMeta(installationKey).catch(
+    fallbackOn("macro_issue_types.meta_read_failed", null, { installationKey })
+  );
+  const scope = await viewerProjects(installationKey, context);
+  if (!meta?.version || !scope.available) {
+    return { available: false, reason: "no-inventory", schemes: [], projectCount: scope.projects.length };
+  }
+
+  const [types, items, schemeProjects, schemes] = await Promise.all([
+    loadIssueTypes(installationKey, meta.version).catch(() => []),
+    loadIssueTypeSchemeItems(installationKey, meta.version).catch(() => []),
+    loadIssueTypeSchemeProjects(installationKey, meta.version).catch(() => []),
+    loadIssueTypeSchemes(installationKey, meta.version).catch(() => []),
+  ]);
+  // The project rows carry no scheme name, so it comes from the scheme table. Falling back
+  // to the id would show a viewer a number where a name belongs.
+  const schemeNameById = new Map(schemes.map((sc) => [String(sc.schemeId), sc.name]));
+
+  const typeById = new Map(types.map((t) => [String(t.id), t]));
+  const membersByScheme = new Map();
+  for (const item of items) {
+    if (!membersByScheme.has(item.schemeId)) membersByScheme.set(item.schemeId, []);
+    const type = typeById.get(String(item.issueTypeId));
+    membersByScheme.get(item.schemeId).push({
+      id: item.issueTypeId,
+      name: type?.name || null,
+      subtask: type?.subtask ?? null,
+      // A scheme naming a type the catalogue no longer holds is worth showing, not hiding.
+      missing: !type,
+    });
+  }
+
+  // Grouped by scheme rather than listed per project: projects sharing a scheme are meant to
+  // run the same set, so the grouping IS the information -- and a project sitting alone in a
+  // group is the question worth asking.
+  const bySchemeId = new Map();
+  for (const row of schemeProjects) {
+    if (!scope.projectIds.has(String(row.projectId))) continue;
+    const key = String(row.schemeId);
+    if (!bySchemeId.has(key)) {
+      bySchemeId.set(key, {
+        schemeId: key,
+        name: schemeNameById.get(key) || key,
+        projects: [],
+        issueTypes: membersByScheme.get(row.schemeId) || [],
+      });
+    }
+    bySchemeId.get(key).projects.push(row.projectKey);
+  }
+
+  const grouped = [...bySchemeId.values()]
+    .map((s) => ({ ...s, projects: s.projects.sort() }))
+    .sort((a, b) => b.projects.length - a.projects.length || a.name.localeCompare(b.name));
+
+  return {
+    available: true,
+    refreshedAt: meta.refreshedAt || null,
+    projectCount: scope.projects.length,
+    schemes: grouped,
+  };
+}
+
+async function getMacroBoards({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  const meta = await readBoardSnapshotMeta(installationKey).catch(
+    fallbackOn("macro_boards.meta_read_failed", null, { installationKey })
+  );
+  const scope = await viewerProjects(installationKey, context);
+  if (!meta?.version || !scope.available) {
+    return { available: false, reason: "no-inventory", boards: [], projectCount: scope.projects.length };
+  }
+
+  const all = await loadBoards(installationKey, meta.version)
+    .catch(fallbackOn("macro_boards.load_failed", [], { installationKey }));
+
+  const keyById = new Map(scope.projects.map((p) => [p.projectId, p.projectKey]));
+  const boards = all
+    .filter((b) => b.locationType === "project" && scope.projectIds.has(String(b.locationId)))
+    .map((b) => ({
+      boardId: b.boardId,
+      name: b.name,
+      type: b.type,
+      projectKey: keyById.get(String(b.locationId)) || b.locationKey || null,
+      columnCount: b.columnCount,
+      // The one fact a viewer can act on without being an admin: a board whose configuration
+      // could not be read -- team-managed boards routinely 404 -- shows them something this
+      // page cannot describe, and saying so is the only honest option.
+      configReadable: b.configReadable,
+    }))
+    .sort((a, b) => String(a.projectKey || "").localeCompare(String(b.projectKey || "")) || a.name.localeCompare(b.name));
+
+  return {
+    available: true,
+    refreshedAt: meta.refreshedAt || null,
+    projectCount: scope.projects.length,
+    boards,
   };
 }
 
@@ -8633,6 +8825,9 @@ export const SHARED_RESOLVER_FUNCTIONS = {
   getMacroFilters,         // Read-only: saved filters attached to the viewer's browsable projects
   getMacroDashboards,      // Read-only: dashboards attached to the viewer's browsable projects
   getMacroWorkflows,       // Read-only: workflow schemes + statuses for the viewer's browsable projects
+  getMacroScreens,         // Read-only: the forms the viewer's projects route to
+  getMacroIssueTypes,      // Read-only: issue type schemes governing the viewer's projects
+  getMacroBoards,          // Read-only: agile boards living in the viewer's projects
 };
 
 // â”€â”€ Admin authorization â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

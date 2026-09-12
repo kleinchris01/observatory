@@ -4,9 +4,17 @@ import { invoke, rovo, view } from "@forge/bridge";
 import "./styles.css";
 import { formatNumber, formatRelativeTime, normalizeSiteOrigin, buildJiraSearchUrl, downloadCsv, slugifyFilenamePart, normalizeReportData, groupReportFieldsByType, mergeFieldMetrics, openFieldExpertRovo, buildInventoryRovoPrompt, buildFieldRovoPrompt, buildProjectRovoPrompt, buildReportRovoPrompt } from "./utils";
 import { Icon } from "./components/Icons";
+import { SubNavLayout } from "./components/admin/primitives";
 import { ReportErrorBoundary, ProjectUsageReportView } from "./components/ReportView";
 import { SkeletonFieldCard, FieldCard } from "./components/FieldCard";
-import { MacroFiltersView, MacroDashboardsView, MacroWorkflowsView } from "./components/MacroViewerPillars";
+import {
+  MacroFiltersView,
+  MacroDashboardsView,
+  MacroWorkflowsView,
+  MacroScreensView,
+  MacroIssueTypesView,
+  MacroBoardsView,
+} from "./components/MacroViewerPillars";
 
 // Lazy: ProjectsTab pulls in recharts, which nearly doubles this macro's JS
 // payload (measured: +122KB gzip). The macro defaults to the "inventory" tab,
@@ -598,6 +606,29 @@ export function App() {
     }
   }
 
+  // What this reader may actually see, and what to tell them when the answer is "nothing".
+  //
+  // A section is DISABLED rather than hidden when the viewer can browse no project: hiding it
+  // reads as a missing feature and gets raised as a bug, where a dimmed section with a reason
+  // reads as what it is -- a permission they do not hold. Fields and Report stay open either
+  // way; the field catalogue is site configuration, not project data.
+  // Rides in on the access check, which already runs before anything renders. Null means
+  // "could not be established", which is different from zero and is said differently.
+  const viewerProjectCount = accessCheck?.projectCount ?? null;
+  const noProjects = viewerProjectCount === 0;
+  const scopedReason = "You cannot browse any Jira project, so this section would be empty. Ask a project admin for Browse Projects permission.";
+  const macroTabs = [
+    { key: "inventory", label: "Fields", icon: "layers" },
+    { key: "projects", label: "Projects", icon: "folder", disabled: noProjects, reason: scopedReason },
+    { key: "screens", label: "Screens", icon: "copy", disabled: noProjects, reason: scopedReason },
+    { key: "issueTypes", label: "Issue types", icon: "layers", disabled: noProjects, reason: scopedReason },
+    { key: "workflows", label: "Workflows", icon: "activity", disabled: noProjects, reason: scopedReason },
+    { key: "boards", label: "Boards", icon: "activity", disabled: noProjects, reason: scopedReason },
+    { key: "filters", label: "Filters", icon: "search", disabled: noProjects, reason: scopedReason },
+    { key: "dashboards", label: "Dashboards", icon: "barChart", disabled: noProjects, reason: scopedReason },
+    { key: "report", label: "Report", icon: "barChart", badge: selectedFieldIds.length || null },
+  ];
+
   const showOnboarding = !loadingInventory && !refreshedAt;
   const snapshotChipState = refreshedAt ? "ready" : "idle";
   const snapshotChipLabel = refreshedAt ? `Synced ${formatRelativeTime(refreshedAt)}` : "No scan yet";
@@ -687,57 +718,23 @@ export function App() {
         </div>
       </section>
 
-      <div className="tab-bar">
-        <button
-          className={`tab-bar__tab ${activeTab === "inventory" ? "tab-bar__tab--active" : ""}`}
-          type="button"
-          onClick={() => setActiveTab("inventory")}
-        >
-          <Icon name="layers" size={15} />
-          Inventory
-        </button>
-        <button
-          className={`tab-bar__tab ${activeTab === "projects" ? "tab-bar__tab--active" : ""}`}
-          type="button"
-          onClick={() => setActiveTab("projects")}
-        >
-          <Icon name="folder" size={15} />
-          Projects
-        </button>
-        <button
-          className={`tab-bar__tab ${activeTab === "filters" ? "tab-bar__tab--active" : ""}`}
-          type="button"
-          onClick={() => setActiveTab("filters")}
-        >
-          <Icon name="search" size={15} />
-          Filters
-        </button>
-        <button
-          className={`tab-bar__tab ${activeTab === "dashboards" ? "tab-bar__tab--active" : ""}`}
-          type="button"
-          onClick={() => setActiveTab("dashboards")}
-        >
-          <Icon name="barChart" size={15} />
-          Dashboards
-        </button>
-        <button
-          className={`tab-bar__tab ${activeTab === "workflows" ? "tab-bar__tab--active" : ""}`}
-          type="button"
-          onClick={() => setActiveTab("workflows")}
-        >
-          <Icon name="activity" size={15} />
-          Workflows
-        </button>
-        <button
-          className={`tab-bar__tab ${activeTab === "report" ? "tab-bar__tab--active" : ""}`}
-          type="button"
-          onClick={() => setActiveTab("report")}
-        >
-          <Icon name="barChart" size={15} />
-          Report
-          {selectedFieldIds.length ? <span className="tab-bar__dot" /> : null}
-        </button>
+      {/* The scope statement, said once and always, rather than per section.
+          This panel can be opened by anyone in Confluence, and everything in it is filtered
+          to the projects the READER can Browse in Jira. Two people opening the same
+          Confluence page see different numbers, legitimately -- and unless the page says so,
+          the one who sees fewer assumes the data is wrong. */}
+      <div className="macro-scope" role="status">
+        <Icon name="lock" size={13} />
+        <span>
+          {viewerProjectCount === null
+            ? "Everything below is scoped to the Jira projects you can browse."
+            : viewerProjectCount === 0
+              ? "You cannot browse any Jira project on this site, so there is nothing to show. This is a Jira permission, not an Observatory one — ask a project admin for Browse Projects."
+              : `Everything below is scoped to the ${formatNumber(viewerProjectCount)} ${viewerProjectCount === 1 ? "project" : "projects"} you can browse in Jira. Somebody with different permissions will see different numbers.`}
+        </span>
       </div>
+
+      <SubNavLayout items={macroTabs} activeKey={activeTab} onSelect={setActiveTab}>
 
       {isSnapshotStale && (
         <div className="status-banner status-banner--warning staleness-banner" role="alert">
@@ -755,6 +752,12 @@ export function App() {
         <MacroDashboardsView siteOrigin={siteOrigin} />
       ) : activeTab === "workflows" ? (
         <MacroWorkflowsView />
+      ) : activeTab === "screens" ? (
+        <MacroScreensView />
+      ) : activeTab === "issueTypes" ? (
+        <MacroIssueTypesView />
+      ) : activeTab === "boards" ? (
+        <MacroBoardsView />
       ) : activeTab === "projects" ? (
         <React.Suspense fallback={<div className="empty-state">Loading…</div>}>
           <ProjectsTabView
@@ -1021,6 +1024,7 @@ export function App() {
           )}
         </>
       )}
+      </SubNavLayout>
     </main>
   );
 }

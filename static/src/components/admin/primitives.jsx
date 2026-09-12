@@ -119,16 +119,26 @@ export function JobStatusBadge({ status }) {
   return <span className={`admin-job-badge admin-job-badge--${variant}`}>{status || "unbuilt"}</span>;
 }
 
+// `disabled` + `reason` exist for the Confluence macro, where what a viewer may see is
+// decided by their own Jira permissions rather than by what has been built.
+//
+// Disabled rather than hidden, deliberately. A section that silently disappears reads as a
+// missing feature and gets raised as a bug; one that is present, dimmed, and says why is the
+// difference between "this app is broken" and "you cannot browse any project that has one".
+// The reason lands on `title` and on aria-description, so it reaches a screen reader too.
 export function SubNavLayout({ items, activeKey, onSelect, children }) {
   return (
     <div className="sub-nav-layout">
       <nav className="sub-nav" aria-label="Section navigation">
-        {items.map(({ key, label, icon, badge }) => (
+        {items.map(({ key, label, icon, badge, disabled = false, reason = null }) => (
           <button
             key={key}
             type="button"
-            className={`sub-nav__item ${activeKey === key ? "sub-nav__item--active" : ""}`}
-            onClick={() => onSelect(key)}
+            className={`sub-nav__item ${activeKey === key ? "sub-nav__item--active" : ""}${disabled ? " sub-nav__item--disabled" : ""}`}
+            onClick={() => { if (!disabled) onSelect(key); }}
+            disabled={disabled}
+            title={disabled ? reason || undefined : undefined}
+            aria-description={disabled ? reason || undefined : undefined}
           >
             {icon && <Icon name={icon} size={14} />}
             <span>{label}</span>

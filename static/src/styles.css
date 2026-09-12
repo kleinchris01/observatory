@@ -1755,6 +1755,16 @@ a.macro-pillar__name:hover { color: var(--cool); text-decoration: underline; }
   color: var(--text);
 }
 
+/* Disabled: present, dimmed, and explained on hover. A section that vanishes reads as a
+   missing feature; one that is visibly unavailable reads as a permission. */
+.sub-nav__item--disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.sub-nav__item--disabled:hover {
+  background: none;
+}
+
 .sub-nav__item--active {
   background: rgba(121,184,255,0.1);
   color: var(--cool);
@@ -7061,3 +7071,49 @@ a.dash-row__name:hover { text-decoration: underline; }
   color: var(--text-muted);
   font-style: italic;
 }
+
+/* The macro's scope statement. Always present, never dismissible.
+   This panel can be opened by anyone in Confluence and everything in it is filtered to the
+   projects the READER can browse in Jira -- so two people on the same page legitimately see
+   different numbers. Unless the page says so, the one seeing fewer assumes it is broken. */
+.macro-scope {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border-left: 2px solid var(--accent, var(--stroke));
+  border-radius: 0 4px 4px 0;
+  background: rgba(127, 127, 127, .07);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.macro-scope svg { flex: none; margin-top: 2px; }
+
+/* Screens: one block per project, longest create form first. */
+.macro-screens { display: flex; flex-direction: column; gap: 14px; }
+.macro-screens__project {
+  border: 1px solid var(--stroke);
+  border-radius: 5px;
+  padding: 12px 14px;
+}
+.macro-screens__head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  margin-bottom: 9px;
+}
+.macro-screens__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.macro-screens__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  padding: 5px 0;
+  border-top: 1px solid var(--stroke);
+}
+.macro-screens__row:first-child { border-top: 0; }
+.macro-screens__ops { display: flex; gap: 4px; margin-left: auto; }

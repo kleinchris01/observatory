@@ -219,3 +219,199 @@ export function MacroWorkflowsView() {
     </Panel>
   );
 }
+
+// A pillar that loads once and renders whatever it got. The three below share it because
+// none of them paginates -- a viewer browses a handful of projects, not the site.
+function useMacroPillar(resolver) {
+  const [state, setState] = React.useState({ loading: true });
+  React.useEffect(() => {
+    let cancelled = false;
+    invoke(resolver, {})
+      .then((data) => { if (!cancelled) setState({ loading: false, data }); })
+      .catch((err) => { if (!cancelled) setState({ loading: false, error: err?.message || "Could not load this section." }); });
+    return () => { cancelled = true; };
+  }, [resolver]);
+  return state;
+}
+
+// One body for every "loaded, might be empty, might not be built" pillar, so the four states
+// read identically wherever they appear. The distinction that matters is the middle pair:
+// "nobody has built this yet" and "it is built and none of it is yours" are different facts,
+// and a viewer who sees the wrong one goes and asks the wrong person about it.
+function PillarBody({ state, notBuilt, noneYours, isEmpty, children }) {
+  if (state.error) return <EmptyState inline>{state.error}</EmptyState>;
+  if (state.loading) return <EmptyState inline>Loading…</EmptyState>;
+  if (!state.data?.available) return <EmptyState inline>{notBuilt}</EmptyState>;
+  if (isEmpty(state.data)) return <EmptyState inline>{noneYours}</EmptyState>;
+  return children;
+}
+
+function Freshness({ refreshedAt }) {
+  if (!refreshedAt) return null;
+  return (
+    <p className="macro-pillar__count" style={{ marginTop: 16 }}>
+      Data from {formatRelativeTime(refreshedAt)}.
+    </p>
+  );
+}
+
+// The forms your projects actually put in front of people.
+//
+// Ordered by the longest CREATE screen first, because that is the number anyone opens this
+// to argue about: the form every person filing an issue here has to get through, and the one
+// nobody can skip.
+export function MacroScreensView() {
+  const state = useMacroPillar("getMacroScreens");
+
+  return (
+    <Panel
+      title="Screens"
+      icon="copy"
+      description="The forms your projects route to, and how many fields each one carries."
+    >
+      <ViewerScopeNote projectCount={state.data?.projectCount ?? 0} />
+      <PillarBody
+        state={state}
+        notBuilt="No screen inventory has been built. Ask a Jira admin to run a scan."
+        noneYours="None of the projects you can browse resolve to a screen in this snapshot."
+        isEmpty={(d) => !d.projects?.length}
+      >
+        <div className="macro-screens">
+          {(state.data?.projects || []).map((project) => (
+            <div key={project.projectId} className="macro-screens__project">
+              <div className="macro-screens__head">
+                <span className="macro-pillar__name">{project.projectKey}</span>
+                <span className="macro-pillar__owner">{project.projectName}</span>
+                {project.createFieldCount > 0 && (
+                  // Tone on the number, not a separate warning: a long create form is a cost,
+                  // not a defect, and the reader decides whether theirs is too long.
+                  <Chip tone={project.createFieldCount >= 20 ? "warning" : "neutral"}>
+                    {formatNumber(project.createFieldCount)} fields to create an issue
+                  </Chip>
+                )}
+              </div>
+              {!project.screens.length ? (
+                <p className="macro-pillar__count">No screen in this snapshot serves this project.</p>
+              ) : (
+                <ul className="macro-screens__list">
+                  {project.screens.map((screen) => (
+                    <li key={screen.screenId} className="macro-screens__row">
+                      <span className="macro-pillar__name">{screen.name}</span>
+                      <span className="macro-screens__ops">
+                        {screen.operations.map((op) => <Chip key={op} tone="neutral">{op}</Chip>)}
+                      </span>
+                      {screen.unreadable ? (
+                        // Never "0 fields" for a screen nobody could read. The viewer is the
+                        // person about to ask why their form looks different from this page.
+                        <Chip tone="warning" title="This screen could not be read in the last scan, so its field count is unknown.">
+                          not readable
+                        </Chip>
+                      ) : (
+                        <span className="macro-pillar__count">{formatNumber(screen.fieldCount)} fields</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ))}
+        </div>
+        <Freshness refreshedAt={state.data?.refreshedAt} />
+      </PillarBody>
+    </Panel>
+  );
+}
+
+// Which issue types your projects may use, grouped by the scheme that decides it.
+//
+// Grouped rather than listed per project on purpose: projects sharing a scheme are MEANT to
+// run the same set, so the grouping is the information. A project sitting alone in a group is
+// the question worth asking, and it is visible at a glance rather than by comparison.
+export function MacroIssueTypesView() {
+  const state = useMacroPillar("getMacroIssueTypes");
+
+  return (
+    <Panel
+      title="Issue types"
+      icon="layers"
+      description="The types your projects can create, and the schemes that decide it."
+    >
+      <ViewerScopeNote projectCount={state.data?.projectCount ?? 0} />
+      <PillarBody
+        state={state}
+        notBuilt="No issue type inventory has been built. Ask a Jira admin to run a scan."
+        noneYours="None of the projects you can browse are attached to an issue type scheme in this snapshot."
+        isEmpty={(d) => !d.schemes?.length}
+      >
+        <div className="macro-workflows__schemes">
+          {(state.data?.schemes || []).map((scheme) => (
+            <div key={scheme.schemeId} className="macro-workflows__scheme">
+              <div className="macro-workflows__scheme-head">
+                <span className="macro-pillar__name">{scheme.name}</span>
+                {scheme.projects.map((key) => <Chip key={key} tone="neutral">{key}</Chip>)}
+              </div>
+              <div className="macro-workflows__statuses">
+                {scheme.issueTypes.map((type) => (
+                  <span
+                    key={type.id}
+                    className="macro-status macro-status--to-do"
+                    title={type.missing ? "This scheme names a type that no longer exists in the catalogue." : undefined}
+                  >
+                    {type.name || `#${type.id}`}{type.subtask ? " (sub-task)" : ""}{type.missing ? " — missing" : ""}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        <Freshness refreshedAt={state.data?.refreshedAt} />
+      </PillarBody>
+    </Panel>
+  );
+}
+
+// The agile boards living in your projects.
+export function MacroBoardsView() {
+  const state = useMacroPillar("getMacroBoards");
+
+  return (
+    <Panel
+      title="Boards"
+      icon="activity"
+      description="The boards your projects own, and what each one is built on."
+    >
+      <ViewerScopeNote projectCount={state.data?.projectCount ?? 0} />
+      <PillarBody
+        state={state}
+        notBuilt="No board inventory has been built. Ask a Jira admin to run a scan."
+        noneYours="None of the projects you can browse own a board in this snapshot."
+        isEmpty={(d) => !d.boards?.length}
+      >
+        <ul className="macro-pillar__list">
+          {(state.data?.boards || []).map((board) => (
+            <li key={board.boardId} className="macro-pillar__row">
+              <div className="macro-pillar__row-head">
+                <span className="macro-pillar__name">{board.name}</span>
+                {board.projectKey && <Chip tone="neutral">{board.projectKey}</Chip>}
+                {board.type && <Chip tone="neutral">{board.type}</Chip>}
+              </div>
+              {board.configReadable ? (
+                <p className="macro-pillar__count">
+                  {formatNumber(board.columnCount)} {board.columnCount === 1 ? "column" : "columns"}
+                </p>
+              ) : (
+                // Team-managed boards routinely refuse their configuration endpoint. Listing
+                // the board and saying its detail is unknown beats dropping it, which would
+                // read as "you have no board here" to the person looking at one.
+                <p className="macro-pillar__count">
+                  Its configuration could not be read, so its columns are unknown.
+                </p>
+              )}
+            </li>
+          ))}
+        </ul>
+        <Freshness refreshedAt={state.data?.refreshedAt} />
+      </PillarBody>
+    </Panel>
+  );
+}

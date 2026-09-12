@@ -1034,3 +1034,59 @@ export async function readScreenCrossSummary(scopeKey, { screenVersion = null, f
     },
   };
 }
+
+// Screens reachable by a SET of projects, in one query.
+//
+// loadScreensForProject answers this for one project, which is right for the admin drill-down
+// and wrong for the macro: a viewer browsing forty projects would be forty round trips to
+// render one list. Same chain, batched, with the operation carried so the reader can tell the
+// form they fill in on create from the one they merely look at.
+export async function loadScreensForProjects(scopeKey, version, projectIds = []) {
+  await ensureProjectStoreReady();
+  const ids = [...new Set((projectIds || []).map(String).filter(Boolean))];
+  if (!ids.length) return [];
+
+  const out = [];
+  for (const batch of chunkArray(ids, 100)) {
+    const placeholders = batch.map(() => "?").join(", ");
+    const result = await withSqlRetry(() =>
+      sql.prepare(`
+        SELECT
+          p.project_id,
+          s.screen_id,
+          s.name,
+          s.field_count,
+          s.tab_count,
+          s.tabs_resolved,
+          MAX(CASE WHEN o.operation = 'create' THEN 1 ELSE 0 END) AS on_create,
+          MAX(CASE WHEN o.operation = 'edit'   THEN 1 ELSE 0 END) AS on_edit,
+          MAX(CASE WHEN o.operation = 'view'   THEN 1 ELSE 0 END) AS on_view
+        FROM snapshot_itss_projects p
+        JOIN snapshot_itss_mappings m
+          ON m.scope_key = p.scope_key AND m.version = p.version AND m.itss_id = p.itss_id
+        JOIN snapshot_screen_scheme_operations o
+          ON o.scope_key = m.scope_key AND o.version = m.version AND o.scheme_id = m.screen_scheme_id
+        JOIN snapshot_screens s
+          ON s.scope_key = o.scope_key AND s.version = o.version AND s.screen_id = o.screen_id
+        WHERE p.scope_key = ? AND p.version = ? AND p.project_id IN (${placeholders})
+        GROUP BY p.project_id, s.screen_id, s.name, s.field_count, s.tab_count, s.tabs_resolved
+      `).bindParams(scopeKey, version, ...batch).execute()
+    );
+
+    for (const row of result.rows || []) {
+      out.push({
+        projectId: String(row.project_id),
+        screenId: String(row.screen_id),
+        name: row.name || String(row.screen_id),
+        fieldCount: toNumber(row.field_count),
+        tabCount: toNumber(row.tab_count),
+        // Carried so a caller never renders "0 fields" for a screen the build could not read.
+        tabsResolved: row.tabs_resolved || "resolved",
+        onCreate: Boolean(toNumber(row.on_create)),
+        onEdit: Boolean(toNumber(row.on_edit)),
+        onView: Boolean(toNumber(row.on_view)),
+      });
+    }
+  }
+  return out;
+}
