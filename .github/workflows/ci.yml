@@ -20,7 +20,10 @@ env:
   # Kept in lockstep with deploy.yml's FORGE_CLI_VERSION. `forge lint` exit codes and the
   # wording of its approval notice are version-dependent, and the step below parses both --
   # so an unpinned CLI could change what this gate does without anyone editing it.
-  FORGE_CLI_VERSION: "13.1.0"
+  #
+  # 13.5.0 is a floor, not a preference: it is the first version carrying `--approve` on both
+  # deploy and lint. Anything older fails the deploy outright with "unknown option".
+  FORGE_CLI_VERSION: "13.5.0"
 
 jobs:
   lint:

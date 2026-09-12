@@ -131,17 +131,27 @@ npm run build && forge deploy
 ```
 
 **Forge CLI version.** CI pins `@forge/cli` to the version in `FORGE_CLI_VERSION` (both
-`.github/workflows/ci.yml` and `deploy.yml`); run the same one locally so the commands in
+`.github/workflows/ci.yml` and `deploy.yml`). Run the same one locally, so the commands in
 this runbook behave identically in both places:
 
 ```sh
-npm install -g @forge/cli@13.1.0
+npm install -g @forge/cli@13.5.0
 forge --version
 ```
 
-This was previously `@latest` in CI against 13.1.0 locally, which is how a documented
-command could pass in CI and fail on a developer's machine. When raising it, change both
-workflows and this line in the same PR.
+**13.5.0 is a floor, not a preference.** It is the first version carrying `--approve` on
+both `forge deploy` and `forge lint`, and the deploy workflow passes
+`--approve MAJOR_VERSION_RULE` on every development deploy so a scope change can reach dev
+without a human at the keyboard. On 13.1.0 that command fails outright with
+`Error: unknown option '--approve'`.
+
+This cuts both ways and the direction matters. CI ran `@latest` for a long time and worked;
+a developer on 13.1.0 following this runbook did not. Pinning CI *down* to the version that
+developer happened to have "resolved" the skew by breaking the half that worked — which is
+exactly what happened, and it took a failed deploy on master to notice. Pin forward to the
+oldest version that supports every flag in use, never backward to whatever is installed.
+
+When raising it, change both workflows and this line in the same PR.
 
 ### Environments
 

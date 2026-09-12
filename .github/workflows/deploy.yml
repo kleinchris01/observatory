@@ -23,11 +23,15 @@ on:
 env:
   NODE_VERSION: "24"
   FORGE_ENV: ${{ inputs.environment || 'development' }}
-  # Pinned, not @latest. CI installing the newest CLI while a developer runs an older one
-  # means the same documented command behaves differently in the two places -- which is how
-  # --approve MAJOR_VERSION_RULE ended up in the runbook as a step that failed locally.
-  # Raise this deliberately, in a PR, so the change is reviewable.
-  FORGE_CLI_VERSION: "13.1.0"
+  # Pinned, not @latest -- but pinned FORWARD, to a version that has the flags this workflow
+  # uses. The skew this fixes ran the other way: CI on @latest worked, a developer on 13.1.0
+  # did not, because `forge deploy --approve` does not exist before 13.5.0.
+  #
+  # Pinning to the version the developer happened to have would have "resolved" the skew by
+  # breaking the half that worked, which is exactly what happened on the first attempt. The
+  # floor is the oldest version that supports every flag used here; raise it deliberately, in
+  # a PR, and update RUNBOOK in the same change.
+  FORGE_CLI_VERSION: "13.5.0"
 
 # Forge refuses a deploy while another is in flight against the same environment, so two
 # merges in quick succession used to race and all but one failed with "environment is
