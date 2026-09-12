@@ -16,6 +16,7 @@ import {
   IssueTypeUsageSection,
   PeopleUsageSection,
   FilterUsageSection,
+  DeletionSafetySection,
 } from "./FieldCard";
 
 // ---------------------------------------------------------------------------
@@ -983,5 +984,96 @@ describe("FilterUsageSection", () => {
     invoke.mockClear();
     render(<FilterUsageSection field={field} enabled={false} />);
     expect(invoke).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// DeletionSafetySection
+// ---------------------------------------------------------------------------
+// The product's whole thesis, in one panel. The strongest claim it is allowed to make is
+// "no evidence of use" -- so what is asserted here is mostly the wording, and that a gap is
+// never rendered as a clean result.
+describe("DeletionSafetySection", () => {
+  const field = { id: "customfield_1", name: "Vendor Ref" };
+
+  const answer = (over = {}) => ({
+    available: true,
+    fields: [{
+      fieldId: "customfield_1", fieldName: "Vendor Ref",
+      verdict: "no-evidence-of-use",
+      headline: "No evidence of use in anything this app can see.",
+      blockers: [], gaps: [], checked: ["field usage", "screens"],
+      caveat: "Observatory cannot read Marketplace app configuration (ScriptRunner listeners, JMWE post-functions).",
+      ...over,
+    }],
+  });
+
+  // Collapsed by default, and the check is behind a further click inside it: this reads five
+  // pillars, and most card opens are not a deletion decision.
+  const open = async () => {
+    render(<DeletionSafetySection field={field} />);
+    await userEvent.click(screen.getByRole("button", { name: /deletion safety/i }));
+  };
+
+  const run = async (payload) => {
+    invoke.mockResolvedValue(payload);
+    await open();
+    await userEvent.click(screen.getByRole("button", { name: /check what depends on this field/i }));
+  };
+
+  it("does not run until asked — most card opens are not a deletion decision", async () => {
+    await open();
+    expect(invoke).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /check what depends on this field/i })).toBeInTheDocument();
+  });
+
+  it("never offers the phrase 'safe to delete', even on the cleanest verdict", async () => {
+    await run(answer());
+
+    // Twice: the verdict chip, and the headline sentence under it.
+    expect((await screen.findAllByText(/no evidence of use/i)).length).toBeGreaterThan(0);
+    expect(document.body.textContent).not.toMatch(/safe to delete/i);
+  });
+
+  it("shows the Marketplace caveat on a clean verdict, where it matters most", async () => {
+    // The clean verdict is the one somebody acts on, so it is the one that has to carry the
+    // warning that ScriptRunner is invisible to this app.
+    await run(answer());
+    expect(await screen.findByText(/ScriptRunner/i)).toBeInTheDocument();
+  });
+
+  it("lists each blocker with what it costs", async () => {
+    await run(answer({
+      verdict: "in-use",
+      headline: "In use — 1 reason not to delete this yet.",
+      blockers: [{ source: "automation", severity: "high", summary: "2 automation rules write to this field.", detail: "Those rules break on deletion." }],
+    }));
+
+    expect(await screen.findByText(/2 automation rules write to this field/)).toBeInTheDocument();
+    expect(screen.getByText(/Those rules break on deletion/)).toBeInTheDocument();
+  });
+
+  it("keeps what could not be checked separate from what was checked and found clean", async () => {
+    await run(answer({
+      verdict: "unknown",
+      headline: "No evidence of use, but 1 source could not be checked.",
+      gaps: [{ source: "automation rules", reason: "No automation analysis has been imported." }],
+    }));
+
+    expect(await screen.findByText("Could not be checked")).toBeInTheDocument();
+    expect(screen.getByText(/no automation analysis has been imported/i)).toBeInTheDocument();
+    expect(screen.getByText(/1 source could not be checked/i)).toBeInTheDocument();
+  });
+
+  it("reports why no verdict is possible rather than showing an empty one", async () => {
+    await run({ available: false, reason: "No field snapshot has been built yet.", fields: [] });
+    expect(await screen.findByText(/no field snapshot has been built yet/i)).toBeInTheDocument();
+  });
+
+  it("surfaces a resolver failure without breaking the card", async () => {
+    invoke.mockRejectedValueOnce(new Error("resolver exploded"));
+    await open();
+    await userEvent.click(screen.getByRole("button", { name: /check what depends on this field/i }));
+    expect(await screen.findByText(/resolver exploded/i)).toBeInTheDocument();
   });
 });

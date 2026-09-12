@@ -407,6 +407,47 @@ export async function loadAllSnapshotProjectUsage(scopeKey, version, fieldId) {
   }));
 }
 
+// Every populated field x project pair on the site, for the screen cross-signal.
+//
+// Only pairs that actually hold values: a row with issue_count 0 says the field was looked
+// for in that project and not found, which the cross reads from the ABSENCE of a row here
+// against the presence of one in the reachability map. Carrying the zeros would double the
+// result set to say the same thing.
+//
+// Capped, and the cap is reported rather than silently applied. A finding derived from a
+// truncated left side would understate the estate, and understating is the direction that
+// gets acted on.
+export async function loadPopulatedProjectUsage(scopeKey, version, { limit = 20000 } = {}) {
+  await ensureProjectStoreReady();
+  const safeLimit = Math.max(1, Math.min(50000, Math.trunc(Number(limit)) || 20000));
+
+  const result = await withSqlRetry(() => sql
+    .prepare(`
+      SELECT field_id, project_id, project_key, project_name, issue_count
+      FROM snapshot_project_usage
+      WHERE scope_key = ? AND version = ? AND issue_count > 0
+      ORDER BY issue_count DESC, field_id ASC
+      LIMIT ${safeLimit + 1}
+    `)
+    .bindParams(scopeKey, version)
+    .execute());
+
+  const rows = result.rows || [];
+  const truncated = rows.length > safeLimit;
+
+  return {
+    truncated,
+    limit: safeLimit,
+    rows: rows.slice(0, safeLimit).map((row) => ({
+      fieldId: String(row.field_id),
+      projectId: String(row.project_id),
+      projectKey: row.project_key,
+      projectName: row.project_name,
+      issueCount: toNumber(row.issue_count),
+    })),
+  };
+}
+
 export async function loadAnySnapshotProjectUsage(scopeKey, fieldId) {
   await ensureProjectStoreReady();
 

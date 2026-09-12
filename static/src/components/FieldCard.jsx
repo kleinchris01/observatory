@@ -467,6 +467,81 @@ export function ScreenUsageSection({ result, loading }) {
   );
 }
 
+// "Is this field safe to delete" -- every pillar's evidence, in one answer.
+//
+// The sections above each hold a piece of this and none settles it. Before this existed the
+// only way to reach a verdict was to read five of them and hold the result in your head,
+// which is exactly the manual cross-referencing the product exists to replace.
+//
+// Deliberately behind a button rather than loaded on expand: it reads five pillars, and most
+// card opens are not a deletion decision.
+export function DeletionSafetySection({ field }) {
+  const [state, setState] = React.useState({ idle: true });
+
+  const run = async () => {
+    setState({ loading: true });
+    try {
+      const result = await invoke("getDeletionSafety", { fieldIds: [field.id] });
+      setState({ result: result?.fields?.[0] || null, available: result?.available, reason: result?.reason });
+    } catch (err) {
+      setState({ error: err?.message || "The check could not be run." });
+    }
+  };
+
+  const verdictTone = { "in-use": "danger", "no-evidence-of-use": "success", unknown: "warm" };
+
+  return (
+    <CollapsibleSection title="Deletion safety" defaultOpen={false}>
+      {state.idle && (
+        <div className="empty-state empty-state--inline">
+          <button type="button" className="secondary-button" onClick={run}>Check what depends on this field</button>
+        </div>
+      )}
+      {state.loading && <div className="empty-state empty-state--inline">Reading every pillar…</div>}
+      {state.error && <div className="empty-state empty-state--inline">{state.error}</div>}
+      {state.available === false && <div className="empty-state empty-state--inline">{state.reason}</div>}
+
+      {state.result && (
+        <>
+          <div className="deletion-safety__verdict">
+            <MetricChip
+              label="Verdict"
+              value={state.result.verdict === "in-use" ? "In use" : state.result.verdict === "unknown" ? "Unknown" : "No evidence of use"}
+              tone={verdictTone[state.result.verdict] || "neutral"}
+            />
+            <span className="deletion-safety__headline">{state.result.headline}</span>
+          </div>
+
+          {state.result.blockers.length > 0 && (
+            <ul className="deletion-safety__list">
+              {state.result.blockers.map((b, i) => (
+                <li key={`${b.source}-${i}`} className={`deletion-safety__item deletion-safety__item--${b.severity}`}>
+                  <strong>{b.summary}</strong> {b.detail}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {/* Gaps, never folded into the blockers. "We looked and found nothing" and "we
+              could not look" are the two claims this whole report exists to keep apart. */}
+          {state.result.gaps.length > 0 && (
+            <>
+              <p className="deletion-safety__subhead">Could not be checked</p>
+              <ul className="deletion-safety__list">
+                {state.result.gaps.map((g, i) => (
+                  <li key={`${g.source}-${i}`} className="deletion-safety__item deletion-safety__item--gap">{g.reason}</li>
+                ))}
+              </ul>
+            </>
+          )}
+
+          <p className="deletion-safety__caveat">{state.result.caveat}</p>
+        </>
+      )}
+    </CollapsibleSection>
+  );
+}
+
 // Which issue types actually carry a value for this field, from the last full issue crawl.
 // The third axis next to Screen Usage (where it *can* be filled) and Project Usage (where it
 // *is* filled): a field on a screen for types no issue of that type populates is configured
@@ -1056,6 +1131,8 @@ export function FieldCard({
               ) : null}
 
               <ScreenUsageSection result={screens} loading={screensLoading} />
+
+              <DeletionSafetySection field={field} />
 
               <IssueTypeUsageSection usage={details.issueTypeUsage} />
 

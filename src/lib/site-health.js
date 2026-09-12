@@ -53,6 +53,8 @@ import {
   loadIssueTypeSchemeItems,
   readUserSnapshotMeta,
   loadUsers,
+  loadUserActivity,
+  loadEstateValueTotals,
   loadUserGovernanceSummary,
 } from "./project-store.js";
 // Imported from the automation store directly: project-store.js re-exports the other eight
@@ -538,6 +540,11 @@ export async function buildIssueTypeOverview(installationKey) {
 
 // The People pillar's health inputs: how many licensed accounts are deactivated, and how
 // much owned config (filters / dashboards / rules) belongs to an account not in the roster.
+// A year, matching the default the People pillar's dormant-seat story specified. Not
+// admin-tunable through this constant -- the tolerance on the Governance rules page is what
+// an admin moves; this is only the line between "active" and "idle" for counting purposes.
+const DORMANT_ACCOUNT_DAYS = 365;
+
 export async function buildUserOverview(installationKey) {
   try {
     const meta = await readUserSnapshotMeta(installationKey);
@@ -551,6 +558,34 @@ export async function buildUserOverview(installationKey) {
     ]);
 
     const rosterIds = new Set(users.map((u) => u.accountId));
+
+    // Last activity per licensed account, from the crawl. The finding with money attached:
+    // an account holding a seat with no activity for a year is a renewal line nobody is
+    // using, and it was blocked on this measurement alone.
+    //
+    // Tri-state, and the distinction matters more here than almost anywhere else in the app.
+    // "No activity recorded" covers both a genuinely idle account AND an account the crawl
+    // never reached, and only the first justifies taking somebody's licence away -- so a
+    // missing row is never counted as dormant. A crawl that has not completed suppresses the
+    // measurement entirely rather than reporting the whole roster as idle.
+    const activity = await loadUserActivity(installationKey, [...rosterIds]).catch(() => []);
+    const activityByAccount = new Map(activity.map((a) => [a.accountId, a]));
+    const activityMeasured = activity.length > 0;
+    const dormantCutoff = new Date(Date.now() - DORMANT_ACCOUNT_DAYS * 86400000).toISOString();
+
+    let dormantAccounts = 0;
+    let measuredAccounts = 0;
+    if (activityMeasured) {
+      for (const user of users) {
+        // Deactivated accounts are excluded, not counted: they are a different finding, and
+        // double-reporting them would make the licence number look worse than it is.
+        if (user.active === false) continue;
+        const row = activityByAccount.get(user.accountId);
+        if (!row?.lastActivityAt) continue; // unmeasured, not idle
+        measuredAccounts += 1;
+        if (row.lastActivityAt < dormantCutoff) dormantAccounts += 1;
+      }
+    }
     const orphaned = summarizeOrphanedOwnership(ownership, rosterIds);
     const totalUsers = Number(summary?.totalUsers) || users.length;
     const deactivatedUsers = Math.max(0, totalUsers - (Number(summary?.activeUsers) || totalUsers));
@@ -573,6 +608,10 @@ export async function buildUserOverview(installationKey) {
       deactivatedUsers,
       automationRefUsers,
       orphanedAutomationRefUsers,
+      activityMeasured,
+      measuredAccounts,
+      dormantAccounts,
+      dormantAfterDays: DORMANT_ACCOUNT_DAYS,
       ...orphaned,
       health: {
         available: totalUsers > 0,
@@ -580,6 +619,12 @@ export async function buildUserOverview(installationKey) {
         deactivatedUsers,
         orphanedArtifacts: orphaned.orphanedArtifacts,
         ownedArtifactTotal: orphaned.ownedArtifactTotal,
+        // Only passed when a crawl actually measured somebody. Without it the dimension
+        // reports unavailable, which is excluded from the mean -- rather than scoring a site
+        // as perfect because nobody has counted.
+        activityMeasured,
+        measuredAccounts,
+        dormantAccounts,
       },
     };
   } catch (error) {
@@ -705,9 +750,31 @@ export async function buildEstateOverview(installationKey) {
       loadEstateValues(installationKey, meta.version, "priority"),
     ]);
 
+    // Usage from the crawl. Until this landed the pillar could name a near-duplicate pair
+    // and had nothing to say about which of the two to keep, which is the only question a
+    // merge decision actually turns on.
+    const totals = await loadEstateValueTotals(installationKey).catch(() => []);
+    const usageByKind = { resolution: new Map(), priority: new Map() };
+    for (const row of totals) {
+      if (usageByKind[row.kind]) usageByKind[row.kind].set(row.valueId, row.issueCount);
+    }
+    // A completed crawl is what turns a missing row into a real zero. Without one, every
+    // value reports its count as unknown rather than as nought.
+    const usageMeasured = totals.length > 0;
+    const attach = (rows, kind) => rows.map((v) => ({
+      ...v,
+      issueCount: usageMeasured ? (usageByKind[kind].get(String(v.id)) ?? 0) : null,
+    }));
+
     const summary = summarizeEstateInsights({ resolutions, priorities });
     return {
       ...summary,
+      resolutions: attach(summary.resolutions ?? resolutions, "resolution"),
+      priorities: attach(summary.priorities ?? priorities, "priority"),
+      usageMeasured,
+      // Issues carrying no resolution at all. The shape of an unresolved backlog, and a real
+      // answer rather than a gap -- which is why the crawl counts it under the empty id.
+      unresolvedIssueCount: usageMeasured ? (usageByKind.resolution.get("") ?? 0) : null,
       state: meta.state || "idle",
       refreshedAt: meta.refreshedAt || null,
       lastError: meta.lastError || null,
@@ -780,6 +847,7 @@ export async function captureSiteHealth(installationKey, deps) {
     readAutomationAnalysis,
     recordHealthSnapshot,
     loadPriorHealthDimensions,
+    computeScreenCross,
   } = deps || {};
 
   // Called with no deps once, from the scan orchestrator, and it crashed every scan's health
@@ -847,12 +915,23 @@ export async function captureSiteHealth(installationKey, deps) {
         )
       : {};
 
+    // The screen x field cross. Computed here, once per scan, because it is the widest join
+    // in the app and the Overview read cannot afford it -- that reads the summary this
+    // persists. Best-effort: a missing half leaves two dimensions unavailable, which is
+    // excluded from the mean, rather than costing the whole score.
+    const screenCross = typeof computeScreenCross === "function"
+      ? await computeScreenCross(installationKey).catch(
+          fallbackOn("health.screen_cross_failed", () => null, { installationKey })
+        )
+      : null;
+
     const health = computeSiteHealth({
       fieldUsage,
       workflow,
       projects,
       automation: automationAnalysis?.estate?.health ?? { available: false },
       screens,
+      screenCross,
       adoption,
       filters,
       dashboards,

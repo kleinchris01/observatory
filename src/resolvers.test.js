@@ -157,6 +157,11 @@ const mocks = vi.hoisted(() => ({
   loadItssProjects: vi.fn(async () => []),
   loadScreensWithFieldsByIds: vi.fn(async () => []),
   loadScreenGovernanceSummary: vi.fn(),
+  loadFieldReachabilityByProject: vi.fn(async () => []),
+  loadProjectScreenCoverage: vi.fn(async () => []),
+  loadPopulatedProjectUsage: vi.fn(async () => ({ rows: [], truncated: false, limit: 20000 })),
+  writeScreenCrossSummary: vi.fn(async () => ({})),
+  readScreenCrossSummary: vi.fn(async () => null),
   loadScreenCountsForFields: vi.fn(),
   loadScreenDistributions: vi.fn(),
   loadScreensForProject: vi.fn(),
@@ -174,6 +179,9 @@ const mocks = vi.hoisted(() => ({
 
   // user store + user-engine.js
   readUserSnapshotMeta: vi.fn(),
+  loadUserActivity: vi.fn(async () => []),
+  loadEstateValueTotals: vi.fn(async () => []),
+  loadIssueTypeTotals: vi.fn(async () => []),
   loadUsers: vi.fn(async () => []),
   loadUserGovernanceSummary: vi.fn(async () => null),
   queueUserSnapshotBuild: vi.fn(),
@@ -402,6 +410,11 @@ vi.mock("./lib/project-store.js", () => ({
   loadItssProjects: mocks.loadItssProjects,
   loadScreensWithFieldsByIds: mocks.loadScreensWithFieldsByIds,
   loadScreenGovernanceSummary: mocks.loadScreenGovernanceSummary,
+  loadFieldReachabilityByProject: mocks.loadFieldReachabilityByProject,
+  loadProjectScreenCoverage: mocks.loadProjectScreenCoverage,
+  loadPopulatedProjectUsage: mocks.loadPopulatedProjectUsage,
+  writeScreenCrossSummary: mocks.writeScreenCrossSummary,
+  readScreenCrossSummary: mocks.readScreenCrossSummary,
   loadScreenCountsForFields: mocks.loadScreenCountsForFields,
   loadScreenDistributions: mocks.loadScreenDistributions,
   loadScreensForProject: mocks.loadScreensForProject,
@@ -414,6 +427,9 @@ vi.mock("./lib/project-store.js", () => ({
   loadIssueTypeGovernanceSummary: mocks.loadIssueTypeGovernanceSummary,
   readUserSnapshotMeta: mocks.readUserSnapshotMeta,
   loadUsers: mocks.loadUsers,
+  loadUserActivity: mocks.loadUserActivity,
+  loadEstateValueTotals: mocks.loadEstateValueTotals,
+  loadIssueTypeTotals: mocks.loadIssueTypeTotals,
   loadUserGovernanceSummary: mocks.loadUserGovernanceSummary,
   readAssetSnapshotMeta: mocks.readAssetSnapshotMeta,
   readAccessSnapshotMeta: mocks.readAccessSnapshotMeta,
@@ -620,6 +636,9 @@ import {
   __resetAdminCheckCache,
   AdminPermissionError,
   isScanStuck,
+  // Not a resolver -- it runs inside the health stage of a scan, so it is imported
+  // directly rather than pulled out of a resolver registry.
+  computeAndStoreScreenCross,
 } from "./resolvers.js";
 
 const {
@@ -704,6 +723,8 @@ const {
   deleteReportDefinition,
   getProjectUsageReport,
   getScreenFieldReportInputs,
+  getDeletionSafety,
+  getScreenFieldCrossSignal,
   getProjectScreenReportInputs,
   getMacroFilters,
   getMacroDashboards,
@@ -1639,6 +1660,35 @@ describe("saveAdminConfigResolver", () => {
     mocks.kvsGet.mockResolvedValue(null);
     const result = await saveAdminConfigResolver({ payload: { apiConcurrency: 1 } });
     expect(result.config.apiConcurrency).toBe(1);
+  });
+
+  // The automation staleness gate is only a gate while its threshold is inside a sane band.
+  // Zero would mark every analysis stale and silence the pillar; a very large value would
+  // silence the warning instead, which is the same as deleting it.
+  test("rejects an automation staleness threshold outside 1-90 days", async () => {
+    for (const bad of [0, -1, 365]) {
+      await expect(saveAdminConfigResolver({ payload: { automationStaleAfterDays: bad } }))
+        .rejects.toThrow(/automationStaleAfterDays/);
+    }
+  });
+
+  test("accepts and stores a tuned automation staleness threshold", async () => {
+    mocks.kvsGet.mockResolvedValue(null);
+    const result = await saveAdminConfigResolver({ payload: { automationStaleAfterDays: 14 } });
+    expect(result.config.automationStaleAfterDays).toBe(14);
+  });
+
+  test("clamps a stored staleness threshold that reached storage some other way", async () => {
+    // An older build, or a hand-edited record. Validation only guards the write path.
+    mocks.kvsGet.mockResolvedValue({ automationStaleAfterDays: 9999 });
+    const result = await saveAdminConfigResolver({ payload: {} });
+    expect(result.config.automationStaleAfterDays).toBe(90);
+  });
+
+  test("defaults the staleness threshold rather than disabling the gate on a junk value", async () => {
+    mocks.kvsGet.mockResolvedValue({ automationStaleAfterDays: "soon" });
+    const result = await saveAdminConfigResolver({ payload: {} });
+    expect(result.config.automationStaleAfterDays).toBe(7);
   });
 });
 
@@ -4316,11 +4366,16 @@ describe("Rovo automation agent actions", () => {
     findings: [{ id: 12, n: "Send to approval", s: "high", r: [{ c: "embedded-credential", s: "high" }] }],
   };
 
-  function stubAll({ analysis = { schemaVersion: 1, refreshedAt: 1754400000000 } } = {}) {
+  // Relative to now, not a fixed epoch. These actions now gate their answers on how old the
+  // analysis is, so a hardcoded 2025 timestamp would make every one of them report "unknown"
+  // and the tests below would be exercising the degraded path while claiming to test the
+  // normal one. Stale and truncated are asserted deliberately, further down.
+  const FRESH = () => Date.now() - 2 * 86400000;
+
+  function stubAll({ analysis = { schemaVersion: 1, refreshedAt: FRESH() }, parts = {} } = {}) {
     mocks.readAutomationAnalysis.mockResolvedValue(analysis);
-    mocks.readAutomationPart.mockImplementation((_k, part) =>
-      Promise.resolve({ fields, statuses, directory, findings }[part] ?? null)
-    );
+    const table = { fields, statuses, directory, findings, ...parts };
+    mocks.readAutomationPart.mockImplementation((_k, part) => Promise.resolve(table[part] ?? null));
   }
 
   describe("rovoSearchAutomationRules", () => {
@@ -4362,9 +4417,12 @@ describe("Rovo automation agent actions", () => {
     });
 
     test("carries the analysis age so the agent can caveat a stale answer", async () => {
-      stubAll();
+      const refreshedAt = Date.now() - 5 * 86400000;
+      stubAll({ analysis: { schemaVersion: 1, refreshedAt } });
       const result = await rovoSearchAutomationRules({ query: "approval" }, {});
-      expect(result.analysisRefreshedAt).toBe(1754400000000);
+      expect(result.analysisRefreshedAt).toBe(refreshedAt);
+      // Not just the stamp: the age, worked out and ready to state.
+      expect(result.evidence.ageDays).toBe(5);
     });
   });
 
@@ -4445,6 +4503,73 @@ describe("Rovo automation agent actions", () => {
       expect(result.status).toBe("not-referenced");
       // A status is never "safe to delete" on automation evidence alone.
       expect(result.safeToDelete).toBe(false);
+    });
+
+    // The defect this action shipped with: absence from the index was reported as proof of
+    // non-reference, whatever the state of the index it was absent from.
+    describe("will not assert safe-to-delete it cannot support", () => {
+      test("degrades to unknown when the index was truncated", async () => {
+        // total far above entries.length: rows were dropped, and the dropped rows are the
+        // LEAST-referenced ones -- which is the population this question is asked about.
+        stubAll({ parts: { fields: { ...fields, total: 1400 } } });
+
+        const result = await rovoAutomationUsage({ name: "Never Indexed" }, {});
+
+        expect(result.status).toBe("unknown");
+        // Not false -- false would claim rules DO reference it. Null is the third state.
+        expect(result.safeToDelete).toBeNull();
+        expect(result.evidence.blockers.map((b) => b.code)).toContain("index-truncated");
+        expect(result.guidance).toMatch(/truncated/i);
+      });
+
+      test("degrades to unknown when the analysis is older than the threshold", async () => {
+        mocks.readAdminConfig?.mockResolvedValue?.({ automationStaleAfterDays: 7 });
+        stubAll({ analysis: { schemaVersion: 1, refreshedAt: Date.now() - 30 * 86400000 } });
+
+        const result = await rovoAutomationUsage({ name: "Never Used" }, {});
+
+        expect(result.status).toBe("unknown");
+        expect(result.safeToDelete).toBeNull();
+        expect(result.evidence.blockers.map((b) => b.code)).toContain("analysis-stale");
+        expect(result.guidance).toMatch(/re-import/i);
+      });
+
+      test("still says no when a rule DOES reference it, however old the analysis", async () => {
+        // Positive evidence survives staleness. A rule that wrote this field a month ago
+        // almost certainly still does, and "no" is the cautious answer either way.
+        stubAll({ analysis: { schemaVersion: 1, refreshedAt: Date.now() - 90 * 86400000 } });
+
+        const result = await rovoAutomationUsage({ name: "Story Points" }, {});
+
+        expect(result.status).toBe("ok");
+        expect(result.safeToDelete).toBe(false);
+      });
+
+      test("carries the age on every answer so the agent can state it", async () => {
+        const refreshedAt = Date.now() - 3 * 86400000;
+        stubAll({ analysis: { schemaVersion: 1, refreshedAt } });
+
+        const [usage, inspect, search] = await Promise.all([
+          rovoAutomationUsage({ name: "Story Points" }, {}),
+          rovoInspectAutomationRule({ ruleIdentifier: "10" }, {}),
+          rovoSearchAutomationRules({ query: "approval" }, {}),
+        ]);
+
+        for (const result of [usage, inspect, search]) {
+          expect(result.evidence).toMatchObject({ ageDays: 3, stale: false });
+        }
+      });
+
+      test("a rule search is not accused of truncation it cannot have", async () => {
+        // A directory search consults no capped index, so only the age applies to it.
+        stubAll({ parts: { fields: { ...fields, total: 1400 } } });
+
+        const result = await rovoSearchAutomationRules({ query: "approval" }, {});
+
+        expect(result.status).toBe("ok");
+        expect(result.evidence.blockers).toEqual([]);
+        expect(result.evidence.indexComplete).toBeNull();
+      });
     });
   });
 });
@@ -8549,5 +8674,435 @@ describe("rovo agents: more edge branches", () => {
       kind === "resolution" ? [{ id: "1", name: "Done" }] : [{ id: "1", name: "Done" }]);
     expect((await rovoEstateSearch({ query: "done", kind: "resolution" }, ctx())).priorities).toEqual([]);
     expect((await rovoEstateSearch({ query: "done", kind: "priority" }, ctx())).resolutions).toEqual([]);
+  });
+});
+
+// The screen x field cross. Costs no new Jira call -- both halves are already on disk --
+// and produces the two findings no single pillar can. What matters here is that it never
+// claims more than the two snapshots can support, and that it cannot take the health stage
+// down with it.
+describe("the screen cross-signal", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x", accountId: "acc-1" } };
+
+  const ready = () => {
+    mocks.readScreenSnapshotMeta.mockResolvedValue({ version: "s1", refreshedAt: "2026-09-11T09:00:00.000Z" });
+    mocks.readSnapshotMeta.mockResolvedValue({ version: "f1", refreshedAt: "2026-09-10T09:00:00.000Z" });
+    mocks.loadProjectScreenCoverage.mockResolvedValue([{ projectId: "10", screenCount: 3, unresolvedScreens: 0 }]);
+    mocks.loadFieldReachabilityByProject.mockResolvedValue([
+      { projectId: "10", fieldId: "cf_1", onCreate: true, onEdit: true, onView: true },
+    ]);
+    mocks.loadPopulatedProjectUsage.mockResolvedValue({
+      truncated: false, limit: 20000,
+      rows: [{ fieldId: "cf_2", projectId: "10", projectKey: "OPS", projectName: "Ops", issueCount: 480 }],
+    });
+    mocks.loadSnapshotFields.mockResolvedValue([
+      { id: "cf_1", name: "Story Points" }, { id: "cf_2", name: "Vendor Ref" },
+    ]);
+  };
+
+  describe("getScreenFieldCrossSignal", () => {
+    test("crosses the two snapshots and dates each half separately", async () => {
+      ready();
+      const result = await getScreenFieldCrossSignal({ payload: {}, ...ctx });
+
+      expect(result.available).toBe(true);
+      expect(result.counts.invisibleFields).toBe(1);
+      expect(result.invisibleData[0]).toMatchObject({ fieldId: "cf_2", fieldName: "Vendor Ref", totalIssues: 480 });
+      // Both halves refresh independently; a verdict blending them is only as current as
+      // the older one, so the reader gets both dates rather than one.
+      expect(result.screenRefreshedAt).toBe("2026-09-11T09:00:00.000Z");
+      expect(result.fieldRefreshedAt).toBe("2026-09-10T09:00:00.000Z");
+    });
+
+    test("names which half is missing rather than returning an empty cross", async () => {
+      mocks.readScreenSnapshotMeta.mockResolvedValue(null);
+      mocks.readSnapshotMeta.mockResolvedValue({ version: "f1" });
+      const noScreens = await getScreenFieldCrossSignal({ payload: {}, ...ctx });
+      expect(noScreens.available).toBe(false);
+      expect(noScreens.reason).toMatch(/no screen inventory/i);
+
+      mocks.readScreenSnapshotMeta.mockResolvedValue({ version: "s1" });
+      mocks.readSnapshotMeta.mockResolvedValue(null);
+      const noFields = await getScreenFieldCrossSignal({ payload: {}, ...ctx });
+      expect(noFields.available).toBe(false);
+      expect(noFields.reason).toMatch(/no field snapshot/i);
+    });
+
+    test("honours a near-zero clutter threshold from the caller", async () => {
+      ready();
+      mocks.loadPopulatedProjectUsage.mockResolvedValue({
+        truncated: false, limit: 20000,
+        rows: [{ fieldId: "cf_1", projectId: "10", projectKey: "OPS", issueCount: 3 }],
+      });
+
+      const strict = await getScreenFieldCrossSignal({ payload: {}, ...ctx });
+      const lenient = await getScreenFieldCrossSignal({ payload: { clutterMaxIssues: 10 }, ...ctx });
+
+      expect(strict.counts.clutterPlacements).toBe(0);
+      expect(lenient.counts.clutterPlacements).toBe(1);
+    });
+  });
+
+  describe("computeAndStoreScreenCross", () => {
+    test("persists the counts with both source versions", async () => {
+      ready();
+      const result = await computeAndStoreScreenCross("inst");
+
+      expect(result.available).toBe(true);
+      expect(mocks.writeScreenCrossSummary).toHaveBeenCalledWith("inst", expect.objectContaining({
+        // Both versions, because the summary is only current while both still hold.
+        screenVersion: "s1",
+        fieldVersion: "f1",
+      }));
+    });
+
+    test("stores nothing when the cross could not be computed", async () => {
+      ready();
+      // Nothing resolved -> the summary is suppressed, and storing a suppressed result would
+      // make the Overview show zeros that mean "we did not look".
+      mocks.loadProjectScreenCoverage.mockResolvedValue([{ projectId: "10", screenCount: 3, unresolvedScreens: 3 }]);
+
+      const result = await computeAndStoreScreenCross("inst");
+
+      expect(result.available).toBe(false);
+      expect(mocks.writeScreenCrossSummary).not.toHaveBeenCalled();
+    });
+
+    test("returns null rather than throwing when a half is missing", async () => {
+      mocks.readScreenSnapshotMeta.mockResolvedValue(null);
+      mocks.readSnapshotMeta.mockResolvedValue(null);
+      expect(await computeAndStoreScreenCross("inst")).toBeNull();
+    });
+
+    // This runs inside the health stage of every scan. A throw here would fail the stage and
+    // cost the whole score, to save two dimensions that are excluded from the mean anyway.
+    test("swallows a query failure instead of taking the health stage down", async () => {
+      ready();
+      mocks.loadFieldReachabilityByProject.mockRejectedValueOnce(new Error("SQL exploded"));
+      expect(await computeAndStoreScreenCross("inst")).toBeNull();
+    });
+
+    test("a failed summary write still returns the computed cross", async () => {
+      ready();
+      mocks.writeScreenCrossSummary.mockRejectedValueOnce(new Error("write failed"));
+      const result = await computeAndStoreScreenCross("inst");
+      expect(result.available).toBe(true);
+    });
+  });
+});
+
+// Per-type issue counts, and the tri-state that makes them safe to read. Zero is what makes
+// a type look safe to delete, so it is only ever asserted when a crawl actually completed.
+describe("getIssueTypeInventory — usage measurement", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x", accountId: "acc-1" } };
+
+  const ready = () => {
+    mocks.readIssueTypeSnapshotMeta.mockResolvedValue({
+      state: "ready", version: "t1", totalTypes: 2, totalSchemes: 1, refreshedAt: "2026-09-11T00:00:00.000Z",
+    });
+    mocks.loadIssueTypes.mockResolvedValue([
+      { id: "10001", name: "Bug", hierarchyLevel: 0 },
+      { id: "10002", name: "Legacy", hierarchyLevel: 0 },
+    ]);
+    mocks.loadIssueTypeSchemes.mockResolvedValue([]);
+    mocks.loadIssueTypeSchemeItems.mockResolvedValue([]);
+    mocks.loadIssueTypeSchemeProjects.mockResolvedValue([]);
+    mocks.loadIssueTypeGovernanceSummary.mockResolvedValue({});
+    mocks.readScreenSnapshotMeta.mockResolvedValue(null);
+  };
+
+  test("attaches real counts once a crawl has completed", async () => {
+    ready();
+    mocks.readIssueScanMeta.mockResolvedValue({ state: "ready", completedAt: "2026-09-10T00:00:00.000Z" });
+    mocks.loadIssueTypeTotals.mockResolvedValue([{ issueTypeId: "10001", issueTypeName: "Bug", issueCount: 4820, projectCount: 12 }]);
+
+    const result = await getIssueTypeInventory({ payload: {}, ...ctx });
+
+    expect(result.usage.measurement).toBe("measured");
+    expect(result.issueTypes.find((t) => t.id === "10001")).toMatchObject({ issueCount: 4820, usedInProjects: 12 });
+    // The other half of the claim: a completed crawl that found none is a REAL zero.
+    expect(result.issueTypes.find((t) => t.id === "10002").issueCount).toBe(0);
+  });
+
+  test("reports not-measured rather than zero when no crawl has run", async () => {
+    ready();
+    mocks.readIssueScanMeta.mockResolvedValue(null);
+    mocks.loadIssueTypeTotals.mockResolvedValue([]);
+
+    const result = await getIssueTypeInventory({ payload: {}, ...ctx });
+
+    expect(result.usage.measurement).toBe("not-measured");
+    // Null, not 0. A zero here is the premise of a deletion nobody has evidence for.
+    for (const t of result.issueTypes) expect(t.issueCount).toBeNull();
+  });
+
+  test("calls a half-finished crawl partial, so a missing type reads as not-reached", async () => {
+    ready();
+    mocks.readIssueScanMeta.mockResolvedValue({ state: "building" });
+    mocks.loadIssueTypeTotals.mockResolvedValue([{ issueTypeId: "10001", issueTypeName: "Bug", issueCount: 40, projectCount: 1 }]);
+
+    const result = await getIssueTypeInventory({ payload: {}, ...ctx });
+
+    expect(result.usage.measurement).toBe("partial");
+    expect(result.issueTypes.find((t) => t.id === "10001").issueCount).toBe(40);
+    // Not counted yet is not counted as none.
+    expect(result.issueTypes.find((t) => t.id === "10002").issueCount).toBeNull();
+  });
+
+  test("a failed count is reported as failed, not as zero", async () => {
+    ready();
+    mocks.readIssueScanMeta.mockResolvedValue({ state: "ready" });
+    mocks.loadIssueTypeTotals.mockRejectedValueOnce(new Error("SQL exploded"));
+
+    const result = await getIssueTypeInventory({ payload: {}, ...ctx });
+
+    expect(result.usage.measurement).toBe("measurement-failed");
+    for (const t of result.issueTypes) expect(t.issueCount).toBeNull();
+  });
+
+  test("carries the counts onto the hierarchy view as well as the flat catalogue", async () => {
+    ready();
+    mocks.readIssueScanMeta.mockResolvedValue({ state: "ready" });
+    mocks.loadIssueTypeTotals.mockResolvedValue([{ issueTypeId: "10001", issueTypeName: "Bug", issueCount: 7, projectCount: 1 }]);
+
+    const result = await getIssueTypeInventory({ payload: {}, ...ctx });
+
+    const level = result.hierarchy.find((h) => h.level === 0);
+    expect(level.types.find((t) => t.id === "10001").issueCount).toBe(7);
+  });
+});
+
+// The Deletion Safety report: the product's thesis as one answer. Its own success metric is
+// "whether a recommended deletion was ever wrong", so what is pinned here is mostly what it
+// refuses to claim when a pillar is missing.
+describe("getDeletionSafety", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x", accountId: "acc-1" } };
+
+  const everything = () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: "f1", refreshedAt: "2026-09-11T00:00:00.000Z" });
+    mocks.readScreenSnapshotMeta.mockResolvedValue({ version: "s1", unresolvedScreens: 0 });
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "fi1" });
+    mocks.readDashboardSnapshotMeta.mockResolvedValue({ version: "d1" });
+    mocks.loadSnapshotFields.mockResolvedValue([
+      { id: "customfield_1", name: "Vendor Ref", totalIssueCount: 0, activeProjectCount: 0 },
+    ]);
+    mocks.loadScreensForField.mockResolvedValue([]);
+    mocks.loadFilterReferencesFor.mockResolvedValue([]);
+    mocks.loadRqtFieldIndex.mockResolvedValue([]);
+    mocks.loadFieldReachabilityByProject.mockResolvedValue([]);
+    mocks.loadProjectScreenCoverage.mockResolvedValue([]);
+    mocks.loadPopulatedProjectUsage.mockResolvedValue({ rows: [], truncated: false, limit: 20000 });
+    mocks.readAutomationAnalysis.mockResolvedValue({ schemaVersion: 1, refreshedAt: Date.now() - 86400000 });
+    mocks.readAutomationPart.mockImplementation((_k, part) =>
+      Promise.resolve(part === "fields" ? { total: 0, entries: [] } : null));
+  };
+
+  test("refuses to answer without a field snapshot", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue(null);
+    const result = await getDeletionSafety({ payload: { fieldIds: ["customfield_1"] }, ...ctx });
+    expect(result.available).toBe(false);
+    expect(result.reason).toMatch(/no field snapshot/i);
+  });
+
+  test("refuses an empty request rather than reporting a clean estate", async () => {
+    everything();
+    const result = await getDeletionSafety({ payload: { fieldIds: [] }, ...ctx });
+    expect(result.available).toBe(false);
+    expect(result.total).toBe(0);
+  });
+
+  test("returns a no-evidence verdict when every pillar was consulted and clean", async () => {
+    everything();
+    const result = await getDeletionSafety({ payload: { fieldIds: ["customfield_1"] }, ...ctx });
+
+    expect(result.available).toBe(true);
+    expect(result.fields[0].verdict).toBe("no-evidence-of-use");
+    // Never the phrase somebody would act on without reading the rest.
+    expect(JSON.stringify(result)).not.toMatch(/safe to delete/i);
+  });
+
+  test("blocks on a rule that writes the field", async () => {
+    everything();
+    mocks.readAutomationPart.mockImplementation((_k, part) =>
+      Promise.resolve(part === "fields"
+        ? { total: 1, entries: [{ label: "Vendor Ref", writeCount: 2, readCount: 0, triggerCount: 0 }] }
+        : null));
+
+    const result = await getDeletionSafety({ payload: { fieldIds: ["customfield_1"] }, ...ctx });
+
+    expect(result.fields[0].verdict).toBe("in-use");
+    expect(result.fields[0].blockers[0].source).toBe("automation");
+  });
+
+  test("degrades to unknown when a pillar has never been built", async () => {
+    everything();
+    mocks.readScreenSnapshotMeta.mockResolvedValue(null);
+
+    const result = await getDeletionSafety({ payload: { fieldIds: ["customfield_1"] }, ...ctx });
+
+    expect(result.fields[0].verdict).toBe("unknown");
+    expect(result.fields[0].gaps.some((g) => g.source === "screens")).toBe(true);
+  });
+
+  test("names the fields it would not assess rather than silently dropping them", async () => {
+    everything();
+    const many = Array.from({ length: 80 }, (_, i) => `customfield_${i}`);
+
+    const result = await getDeletionSafety({ payload: { fieldIds: many }, ...ctx });
+
+    expect(result.total).toBe(50);
+    expect(result.skipped).toBe(30);
+  });
+
+  test("dates every pillar it drew on, because they refresh independently", async () => {
+    everything();
+    const result = await getDeletionSafety({ payload: { fieldIds: ["customfield_1"] }, ...ctx });
+    expect(result.freshness).toHaveProperty("fields");
+    expect(result.freshness).toHaveProperty("automation");
+  });
+});
+
+// The evidence-gathering legs of the deletion report, each of which can be absent on a real
+// site. Covered separately because each one degrades the verdict differently.
+describe("getDeletionSafety — gathering evidence", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x", accountId: "acc-1" } };
+
+  const base = () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: "f1", refreshedAt: "2026-09-11T00:00:00.000Z" });
+    mocks.readScreenSnapshotMeta.mockResolvedValue({ version: "s1", unresolvedScreens: 0 });
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "fi1" });
+    mocks.readDashboardSnapshotMeta.mockResolvedValue(null);
+    mocks.loadSnapshotFields.mockResolvedValue([
+      { id: "customfield_1", name: "Vendor Ref", totalIssueCount: 0, activeProjectCount: 0 },
+    ]);
+    mocks.loadScreensForField.mockResolvedValue([]);
+    mocks.loadFilterReferencesFor.mockResolvedValue([]);
+    mocks.loadRqtFieldIndex.mockResolvedValue([]);
+    mocks.loadFieldReachabilityByProject.mockResolvedValue([]);
+    mocks.loadProjectScreenCoverage.mockResolvedValue([]);
+    mocks.loadPopulatedProjectUsage.mockResolvedValue({ rows: [], truncated: false, limit: 20000 });
+    mocks.readAutomationAnalysis.mockResolvedValue({ schemaVersion: 1, refreshedAt: Date.now() - 86400000 });
+    mocks.readAutomationPart.mockImplementation((_k, part) =>
+      Promise.resolve(part === "fields" ? { total: 0, entries: [] } : null));
+  };
+
+  const first = async () => (await getDeletionSafety({ payload: { fieldIds: ["customfield_1"] }, ...ctx })).fields[0];
+
+  test("blocks on the values the field already holds", async () => {
+    base();
+    mocks.loadSnapshotFields.mockResolvedValue([
+      { id: "customfield_1", name: "Vendor Ref", totalIssueCount: 4820, activeProjectCount: 9 },
+    ]);
+    const f = await first();
+    expect(f.verdict).toBe("in-use");
+    expect(f.blockers.some((b) => b.source === "usage")).toBe(true);
+  });
+
+  test("blocks on a filter whose JQL names the field", async () => {
+    base();
+    mocks.loadFilterReferencesFor.mockResolvedValue([{ id: "1", name: "Open bugs" }]);
+    const f = await first();
+    expect(f.blockers.find((b) => b.source === "filters").summary).toMatch(/Open bugs/);
+  });
+
+  test("blocks on requirement tokens, which break traceability rather than data", async () => {
+    base();
+    mocks.loadRqtFieldIndex.mockResolvedValue([{ fieldId: "customfield_1", issueCount: 91 }]);
+    const f = await first();
+    expect(f.blockers.find((b) => b.source === "rqt").detail).toMatch(/breaks the trace/i);
+  });
+
+  test("carries the invisible-data blocker through from the screen cross", async () => {
+    base();
+    // Populated in a project whose screens do not show it: the blocker most likely to be the
+    // reason a deletion breaks something.
+    mocks.loadProjectScreenCoverage.mockResolvedValue([{ projectId: "10", screenCount: 2, unresolvedScreens: 0 }]);
+    mocks.loadFieldReachabilityByProject.mockResolvedValue([
+      { projectId: "10", fieldId: "customfield_9", onCreate: true, onEdit: false, onView: true },
+    ]);
+    mocks.loadPopulatedProjectUsage.mockResolvedValue({
+      truncated: false, limit: 20000,
+      rows: [{ fieldId: "customfield_1", projectId: "10", projectKey: "OPS", issueCount: 480 }],
+    });
+
+    const f = await first();
+    expect(f.blockers.some((b) => b.source === "invisible-data")).toBe(true);
+  });
+
+  test("a dashboard inventory that was never built becomes a gap, not a pass", async () => {
+    base();
+    const f = await first();
+    expect(f.gaps.some((g) => g.source === "dashboards")).toBe(true);
+    expect(f.verdict).toBe("unknown");
+  });
+
+  test("assesses a field the catalogue does not contain rather than skipping it", async () => {
+    base();
+    const result = await getDeletionSafety({ payload: { fieldIds: ["customfield_missing"] }, ...ctx });
+    expect(result.fields).toHaveLength(1);
+    expect(result.fields[0].fieldId).toBe("customfield_missing");
+  });
+});
+
+// Every pillar read here is best-effort. A field snapshot exists, so the question can be
+// asked -- and one storage failure must narrow the answer rather than refuse it, because a
+// report that throws when the filter table is unreachable is a report nobody can use on the
+// day they most need it.
+describe("getDeletionSafety — one pillar failing never takes the verdict down", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x", accountId: "acc-1" } };
+
+  const base = () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: "f1" });
+    mocks.readScreenSnapshotMeta.mockResolvedValue({ version: "s1", unresolvedScreens: 0 });
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "fi1" });
+    mocks.readDashboardSnapshotMeta.mockResolvedValue({ version: "d1" });
+    mocks.loadSnapshotFields.mockResolvedValue([{ id: "customfield_1", name: "Vendor Ref", totalIssueCount: 0 }]);
+    mocks.loadScreensForField.mockResolvedValue([]);
+    mocks.loadFilterReferencesFor.mockResolvedValue([]);
+    mocks.loadRqtFieldIndex.mockResolvedValue([]);
+    mocks.loadFieldReachabilityByProject.mockResolvedValue([]);
+    mocks.loadProjectScreenCoverage.mockResolvedValue([]);
+    mocks.loadPopulatedProjectUsage.mockResolvedValue({ rows: [], truncated: false, limit: 20000 });
+    mocks.readAutomationAnalysis.mockResolvedValue({ schemaVersion: 1, refreshedAt: Date.now() - 86400000 });
+    mocks.readAutomationPart.mockImplementation((_k, part) =>
+      Promise.resolve(part === "fields" ? { total: 0, entries: [] } : null));
+    mocks.loadDashboardsForFilterIds?.mockResolvedValue?.([]);
+  };
+
+  const verdictFor = async () => (await getDeletionSafety({ payload: { fieldIds: ["customfield_1"] }, ...ctx })).fields[0];
+
+  test.each([
+    ["screens", () => mocks.loadScreensForField.mockRejectedValueOnce(new Error("boom")), "screens"],
+    ["filters", () => mocks.loadFilterReferencesFor.mockRejectedValueOnce(new Error("boom")), "filters"],
+    ["the field catalogue", () => mocks.loadSnapshotFields.mockRejectedValueOnce(new Error("boom")), "field catalogue"],
+  ])("a %s read failure degrades the verdict instead of throwing", async (_label, breakIt, gapSource) => {
+    base();
+    breakIt();
+
+    const field = await verdictFor();
+
+    expect(field.verdict).toBe("unknown");
+    if (gapSource) expect(field.gaps.some((g) => g.source === gapSource)).toBe(true);
+  });
+
+  test("a screen-cross failure costs the invisible-data blocker, not the report", async () => {
+    base();
+    mocks.loadProjectScreenCoverage.mockRejectedValueOnce(new Error("boom"));
+
+    const result = await getDeletionSafety({ payload: { fieldIds: ["customfield_1"] }, ...ctx });
+
+    expect(result.available).toBe(true);
+    expect(result.fields[0].blockers.some((b) => b.source === "invisible-data")).toBe(false);
+  });
+
+  test("counts dashboards when the chain resolves them", async () => {
+    base();
+    // field -> filters naming it -> gadgets on those filters -> dashboards. Every leg an
+    // exact join, which is what makes the count safe to act on.
+    mocks.loadFilterReferencesFor.mockResolvedValue([{ id: "500", name: "Open bugs" }]);
+
+    const field = await verdictFor();
+
+    expect(field.blockers.some((b) => b.source === "filters")).toBe(true);
   });
 });

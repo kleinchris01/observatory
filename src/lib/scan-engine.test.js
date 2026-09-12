@@ -65,6 +65,9 @@ vi.mock("./project-store.js", () => ({
   flushIssueScanActivity: vi.fn().mockResolvedValue(undefined),
   promoteIssueScanActivity: vi.fn().mockResolvedValue({ projectsPromoted: 0, rowsInserted: 0 }),
   flushIssueScanStatusCounts: vi.fn().mockResolvedValue(undefined),
+  flushIssueScanTypeTotals: vi.fn().mockResolvedValue(undefined),
+  flushIssueScanEstateTotals: vi.fn().mockResolvedValue(undefined),
+  flushIssueScanUserActivity: vi.fn().mockResolvedValue(undefined),
   clearStatusIssueCounts: vi.fn().mockResolvedValue(undefined),
   finalizeIssueScan: vi.fn().mockResolvedValue(undefined),
   clearRqtFieldIndex: vi.fn().mockResolvedValue(undefined),
@@ -772,6 +775,105 @@ describe("runIssueScanWorkerV2", () => {
       await runIssueScanWorkerV2(INSTALLATION_KEY, 0);
       return { store, statusCounts: capturedStatusCounts };
     }
+
+    // Three counters over issues the crawl already walks. Every one of these rides data
+    // already on the payload -- a universe scan requests "*all" -- so what is pinned here is
+    // that they are counted at all, and that the two tri-state edges hold: an unset value is
+    // a real answer, and an activity date only ever moves forward.
+    describe("the three free counters", () => {
+      async function countersFor(issues) {
+        const store = await getProjectStoreMock();
+        const jiraApi = await getJiraApiMock();
+        const captured = { types: new Map(), estate: new Map(), activity: new Map() };
+        store.readIssueScanMeta.mockResolvedValue({ state: "building" });
+        store.readIssueScanWorker.mockResolvedValue({ status: "queued", jqlFilter: "project = ALPHA", fieldIds: null });
+        store.atomicAccumulateIssueScanProgress.mockResolvedValue({ processedPages: 1, totalPages: 1 });
+        store.flushIssueScanTypeTotals.mockImplementation(async (_k, m) => { captured.types = new Map(m); });
+        store.flushIssueScanEstateTotals.mockImplementation(async (_k, m) => { captured.estate = new Map(m); });
+        store.flushIssueScanUserActivity.mockImplementation(async (_k, m) => { captured.activity = new Map(m); });
+        jiraApi.jiraRequest.mockResolvedValue(issuePage(issues));
+
+        await runIssueScanWorkerV2(INSTALLATION_KEY, 0);
+        return captured;
+      }
+
+      it("counts issues OF each type per project, not field x type pairs", async () => {
+        // The distinction that makes this table necessary: issue_scan_type_buffer counts a
+        // FIELD carrying a value on a type, so summing it across fields counts one issue
+        // once per populated field on it.
+        const { types } = await countersFor([
+          issue("A-1", "10", "ALPHA", "3", "Open", { issuetype: { id: "10001", name: "Bug" } }),
+          issue("A-2", "10", "ALPHA", "3", "Open", { issuetype: { id: "10001", name: "Bug" } }),
+          issue("A-3", "10", "ALPHA", "3", "Open", { issuetype: { id: "10002", name: "Task" } }),
+        ]);
+
+        expect(types.get("10001|10")).toMatchObject({ issueTypeId: "10001", issueTypeName: "Bug", count: 2 });
+        expect(types.get("10002|10")).toMatchObject({ count: 1 });
+      });
+
+      it("counts priorities and resolutions, including the unset ones", async () => {
+        const { estate } = await countersFor([
+          issue("A-1", "10", "ALPHA", "3", "Open", { priority: { id: "1", name: "Highest" }, resolution: null }),
+          issue("A-2", "10", "ALPHA", "3", "Open", { priority: { id: "1", name: "Highest" }, resolution: { id: "10", name: "Done" } }),
+        ]);
+
+        expect(estate.get("priority|1")).toMatchObject({ kind: "priority", valueName: "Highest", count: 2 });
+        expect(estate.get("resolution|10")).toMatchObject({ count: 1 });
+        // "One issue carries no resolution" is the shape of an unresolved backlog. Dropping
+        // that row would rebase every percentage in the pillar.
+        expect(estate.get("resolution|")).toMatchObject({ valueId: "", valueName: "(unset)", count: 1 });
+      });
+
+      it("keeps the NEWEST activity date per person, whichever page it arrived on", async () => {
+        const { activity } = await countersFor([
+          issue("A-1", "10", "ALPHA", "3", "Open", {
+            updated: "2026-01-05T00:00:00.000Z",
+            assignee: { accountId: "acc-1", displayName: "Ada" },
+          }),
+          issue("A-2", "10", "ALPHA", "3", "Open", {
+            updated: "2026-07-20T00:00:00.000Z",
+            assignee: { accountId: "acc-1", displayName: "Ada" },
+          }),
+          issue("A-3", "10", "ALPHA", "3", "Open", {
+            updated: "2026-03-01T00:00:00.000Z",
+            assignee: { accountId: "acc-1", displayName: "Ada" },
+          }),
+        ]);
+
+        // Not the last one seen -- the latest one. An older page arriving after a newer one
+        // must not walk the date backwards, or a busy account reads as idle.
+        expect(activity.get("acc-1")).toMatchObject({ lastActivityAt: "2026-07-20T00:00:00.000Z", count: 3 });
+      });
+
+      it("counts the reporter as activity too, not just the assignee", async () => {
+        const { activity } = await countersFor([
+          issue("A-1", "10", "ALPHA", "3", "Open", {
+            updated: "2026-02-02T00:00:00.000Z",
+            assignee: { accountId: "acc-1", displayName: "Ada" },
+            reporter: { accountId: "acc-2", displayName: "Grace" },
+          }),
+        ]);
+
+        expect(activity.get("acc-1").lastActivityAt).toBe("2026-02-02T00:00:00.000Z");
+        expect(activity.get("acc-2")).toMatchObject({ displayName: "Grace" });
+      });
+
+      it("records nothing for an issue with no updated timestamp", async () => {
+        // No date is not today. An account credited with activity it cannot evidence would
+        // look active forever, which is the wrong direction for a licence finding.
+        const { activity } = await countersFor([
+          issue("A-1", "10", "ALPHA", "3", "Open", { assignee: { accountId: "acc-1", displayName: "Ada" } }),
+        ]);
+        expect(activity.size).toBe(0);
+      });
+
+      it("skips an unassigned issue rather than inventing an account", async () => {
+        const { activity } = await countersFor([
+          issue("A-1", "10", "ALPHA", "3", "Open", { updated: "2026-02-02T00:00:00.000Z", assignee: null, reporter: null }),
+        ]);
+        expect(activity.size).toBe(0);
+      });
+    });
 
     it("counts issues per status and per project, and flushes them", async () => {
       const { store, statusCounts } = await runWorkerOverPage([

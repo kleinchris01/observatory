@@ -7012,3 +7012,52 @@ a.dash-row__name:hover { text-decoration: underline; }
   .change-row { flex-direction: column; align-items: flex-start; gap: 4px; }
   .change-row__meta { flex-wrap: wrap; }
 }
+
+/* The screen cross-signal's freshness line. Two snapshots with independent versions, so the
+   verdict is only as current as the older one -- said in the view rather than inferred. */
+.screen-cross__freshness {
+  margin: 0 0 16px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+/* Deletion safety: the one place the app puts every pillar's evidence in one answer.
+   Blockers are graded by severity; gaps are visually separate from them, because "we looked
+   and found nothing" and "we could not look" are the two claims the report exists to keep
+   apart and a shared list would blur them. */
+.deletion-safety__verdict {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.deletion-safety__headline { font-size: 13px; color: var(--text-muted); }
+.deletion-safety__subhead {
+  margin: 14px 0 6px;
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.deletion-safety__list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 7px; }
+.deletion-safety__item {
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 8px 11px;
+  border-left: 2px solid var(--stroke);
+  border-radius: 0 3px 3px 0;
+  background: rgba(127, 127, 127, .06);
+}
+.deletion-safety__item--high { border-left-color: #c9605a; }
+.deletion-safety__item--medium { border-left-color: #c9860a; }
+.deletion-safety__item--low { border-left-color: #4d8fd6; }
+.deletion-safety__item--gap { border-left-style: dashed; color: var(--text-muted); }
+.deletion-safety__caveat {
+  margin: 12px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  font-style: italic;
+}

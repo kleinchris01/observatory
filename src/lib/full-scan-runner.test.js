@@ -27,6 +27,8 @@ vi.mock("./project-store.js", () => ({
   readAccessSnapshotMeta: vi.fn(async () => null),
   readEstateSnapshotMeta: vi.fn(async () => null),
   readBoardSnapshotMeta: vi.fn(async () => null),
+  readUserSnapshotMeta: vi.fn(async () => null),
+  readAssetSnapshotMeta: vi.fn(async () => null),
   readDriftSnapshotMeta: vi.fn(async () => null),
   readSnapshotMeta: vi.fn(async () => null),
   recordFullScanRun: vi.fn(async () => ({ recorded: true })),
@@ -35,6 +37,8 @@ vi.mock("./project-store.js", () => ({
 vi.mock("./access-engine.js", () => ({ buildAccessSnapshot: vi.fn() }));
 vi.mock("./estate-engine.js", () => ({ buildEstateSnapshot: vi.fn() }));
 vi.mock("./board-engine.js", () => ({ buildBoardSnapshot: vi.fn() }));
+vi.mock("./user-engine.js", () => ({ buildUserSnapshot: vi.fn() }));
+vi.mock("./asset-engine.js", () => ({ buildAssetSnapshot: vi.fn() }));
 vi.mock("./drift-engine.js", () => ({ buildDriftSnapshot: vi.fn() }));
 
 vi.mock("./filter-engine.js", () => ({ isFilterBuildStale: vi.fn(() => false), queueFilterSnapshotBuild: vi.fn() }));
@@ -69,6 +73,8 @@ import {
   recoverStalledScan,
   resumeScanRun,
   cancelScan,
+  STAGE_RUNNERS,
+  QUICK_SCAN_RUNNERS,
 } from "./full-scan-runner.js";
 import {
   initialStages,
@@ -88,6 +94,8 @@ import { readFullScanMeta, writeFullScanMeta, readFilterSnapshotMeta, readIssueS
 import { runIssueScanCoordinator } from "./scan-engine.js";
 import { buildWorkflowSnapshot } from "./workflow-engine.js";
 import { buildIssueTypeSnapshot } from "./issuetype-engine.js";
+import { buildUserSnapshot } from "./user-engine.js";
+import { buildAssetSnapshot } from "./asset-engine.js";
 import { queueFilterSnapshotBuild } from "./filter-engine.js";
 import { queueSnapshotBuild, isSnapshotBuildStale, requeueStaleSnapshotBuild } from "./snapshot-engine.js";
 import { readSnapshotMeta } from "./project-store.js";
@@ -178,6 +186,52 @@ describe("running a stage", () => {
     expect(lastWrite().stages.find((s) => s.key === "issue-types").state).toBe("done");
   });
 
+  // Two pillars that were scored but never scanned. The stage list alone does not prove the
+  // wiring: a key in FULL_SCAN_STAGES with no entry in STAGE_RUNNERS is a stage that cannot
+  // run, which is a worse failure than not having the stage at all.
+  const upToBoards = ["workflows", "screens", "filters", "dashboards", "fields",
+    "status-history", "issue-types", "access", "estate", "boards"];
+
+  test("runs the people stage inline through the user engine", async () => {
+    readFullScanMeta.mockResolvedValue(running({ stages: withDone(upToBoards) }));
+
+    await runFullScanStep("inst", { jobToken: "job-token" });
+
+    expect(buildUserSnapshot).toHaveBeenCalledWith("inst");
+    expect(lastWrite().stages.find((s) => s.key === "people").state).toBe("done");
+  });
+
+  test("runs the assets stage inline through the asset engine", async () => {
+    readFullScanMeta.mockResolvedValue(running({ stages: withDone([...upToBoards, "people"]) }));
+
+    await runFullScanStep("inst", { jobToken: "job-token" });
+
+    expect(buildAssetSnapshot).toHaveBeenCalledWith("inst");
+    expect(lastWrite().stages.find((s) => s.key === "assets").state).toBe("done");
+  });
+
+  test("an Assets-less site completes the stage rather than failing it", async () => {
+    // buildAssetSnapshot resolves with { unavailable: true } off JSM Premium instead of
+    // throwing, so the pillar reports not-applicable and the scan carries on. If this ever
+    // starts throwing, every scan on every non-Premium site grows a failed stage.
+    readFullScanMeta.mockResolvedValue(running({ stages: withDone([...upToBoards, "people"]) }));
+    buildAssetSnapshot.mockResolvedValueOnce({ unavailable: true, reason: "not enabled here" });
+
+    await runFullScanStep("inst", { jobToken: "job-token" });
+
+    expect(lastWrite().stages.find((s) => s.key === "assets").state).toBe("done");
+  });
+
+  test("every declared stage has a runner, in both scan types", () => {
+    // The check that makes "a stage exists but nothing runs it" impossible to ship.
+    for (const { key } of fullScanStageCatalog()) {
+      expect(STAGE_RUNNERS[key], `full scan declares "${key}" with no runner`).toBeDefined();
+    }
+    for (const { key } of quickScanStageCatalog()) {
+      expect(QUICK_SCAN_RUNNERS[key], `quick scan declares "${key}" with no runner`).toBeDefined();
+    }
+  });
+
   test("hands off a resumable stage instead of running it inline", async () => {
     readFullScanMeta.mockResolvedValue(running({ stages: withDone(["workflows", "screens"]) }));
 
@@ -201,7 +255,7 @@ describe("running a stage", () => {
   // one poll interval later -- a whole-site crawl "finishing" in ~31 seconds.
   test("the issue-crawl handoff flips the crawl meta to queued before starting the coordinator", async () => {
     readFullScanMeta.mockResolvedValue(running({
-      stages: withDone(["workflows", "screens", "filters", "dashboards", "fields", "status-history", "issue-types", "access", "estate", "boards"]),
+      stages: withDone(["workflows", "screens", "filters", "dashboards", "fields", "status-history", "issue-types", "access", "estate", "boards", "people", "assets"]),
     }));
 
     const result = await runFullScanStep("inst", { jobToken: "job-token" });

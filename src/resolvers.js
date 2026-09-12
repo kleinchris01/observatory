@@ -126,6 +126,11 @@ import {
   loadItssProjects,
   loadScreensWithFieldsByIds,
   loadScreenGovernanceSummary,
+  loadFieldReachabilityByProject,
+  loadProjectScreenCoverage,
+  loadPopulatedProjectUsage,
+  writeScreenCrossSummary,
+  readScreenCrossSummary,
   loadScreenCountsForFields,
   loadScreenDistributions,
   loadScreensForProject,
@@ -138,6 +143,7 @@ import {
   loadIssueTypeSchemeProjects,
   loadIssueTypeSchemeForProject,
   loadIssueTypeGovernanceSummary,
+  loadIssueTypeTotals,
   readUserSnapshotMeta,
   loadUsers,
   loadUserGovernanceSummary,
@@ -226,9 +232,15 @@ import {
   computeSchemeCategoryBalance,
   summarizeWorkflowInsights,
 } from "./lib/workflow-insights.js";
+import { summarizeScreenFieldCross } from "./lib/screen-insights.js";
+import { assessFieldDeletion, summarizeDeletionSafety } from "./lib/deletion-safety.js";
 import { analyzeCascadeGraph, MAX_CHAIN_DEPTH } from "./lib/cascade-graph.js";
 import { buildOwnershipIndex, summarizeOrphanedOwnership } from "./lib/user-ownership.js";
-import { hydrateRuleDirectory } from "./lib/automation-analysis.js";
+import {
+  hydrateRuleDirectory,
+  assessAutomationEvidence,
+  DEFAULT_ANALYSIS_STALE_AFTER_DAYS,
+} from "./lib/automation-analysis.js";
 import {
   readAutomationAnalysis,
   writeAutomationAnalysis,
@@ -360,6 +372,10 @@ const DEFAULT_REMEDIATION_CONFIG = {
 const DEFAULT_ADMIN_CONFIG = {
   readOnlyMode: false,
   apiConcurrency: BASE_JIRA_CONCURRENCY,
+  // How old an imported automation analysis may be before its answers stop being treated as
+  // current. 7 days matches the macro's existing snapshot warning and the Quick Scan panel's
+  // full-scan age, so an admin meets one staleness rule across the product rather than three.
+  automationStaleAfterDays: DEFAULT_ANALYSIS_STALE_AFTER_DAYS,
   autoSnapshotEnabled: false,
   autoSnapshotFrequency: "weekly",
   governanceThresholds: DEFAULT_GOVERNANCE_THRESHOLDS,
@@ -406,6 +422,12 @@ export async function saveAdminConfigResolver({ payload }) {
   const cfg = payload || {};
   if (cfg.apiConcurrency !== undefined && cfg.apiConcurrency !== null) {
     requireBoundedInt(cfg.apiConcurrency, "apiConcurrency", 1, 20);
+  }
+  // Bounded at both ends on purpose. Zero or negative would make every analysis stale and
+  // the pillar would answer "unknown" forever; an unbounded upper end would let someone set
+  // it high enough to silence the warning permanently, which is the same as removing it.
+  if (cfg.automationStaleAfterDays !== undefined && cfg.automationStaleAfterDays !== null) {
+    requireBoundedInt(cfg.automationStaleAfterDays, "automationStaleAfterDays", 1, 90);
   }
   if (cfg.autoSnapshotFrequency !== undefined && cfg.autoSnapshotFrequency !== null) {
     optionalEnum(cfg.autoSnapshotFrequency, "autoSnapshotFrequency", ["daily", "weekly", "monthly"], null);
@@ -520,6 +542,10 @@ export async function saveAdminConfigResolver({ payload }) {
     },
   };
   updated.apiConcurrency = Math.max(1, Math.min(10, Number(updated.apiConcurrency) || BASE_JIRA_CONCURRENCY));
+  // Clamped as well as validated, so a value that reached storage some other way (an older
+  // build, a hand-edited record) still lands inside the band rather than disabling the gate.
+  updated.automationStaleAfterDays = Math.max(1, Math.min(90,
+    Number(updated.automationStaleAfterDays) || DEFAULT_ANALYSIS_STALE_AFTER_DAYS));
   await kvs.set(ADMIN_CONFIG_KEY, updated);
   return { ok: true, config: updated };
 }
@@ -1536,7 +1562,7 @@ async function getIssueTypeInventory({ context }) {
     if (!byLevel.has(level)) byLevel.set(level, []);
     byLevel.get(level).push(type);
   }
-  const hierarchy = [...byLevel.keys()]
+  const hierarchyRaw = [...byLevel.keys()]
     .sort((a, b) => b - a)
     .map((level) => ({
       level,
@@ -1606,6 +1632,50 @@ async function getIssueTypeInventory({ context }) {
     console.error("getIssueTypeInventory: screen-scheme layer unavailable:", error?.message || error);
   }
 
+  // Per-type issue counts from the crawl, and the tri-state that makes them safe to read.
+  //
+  // Zero is what makes a type look safe to delete, so it is only ever asserted when a crawl
+  // actually completed. Three outcomes, never collapsed into two:
+  //   measured     a full scan finished and this type has a count (possibly a real zero)
+  //   not-measured no crawl has completed, so no type has a count
+  //   partial      a crawl ran but did not finish, so a missing row means "not reached",
+  //                not "nobody uses it"
+  const usage = await (async () => {
+    try {
+      const scanMeta = await readIssueScanMeta(installationKey);
+      const state = scanMeta?.state || null;
+      if (state !== "ready" && state !== "building" && state !== "failed") {
+        return { measurement: "not-measured", byType: new Map(), measuredAt: null };
+      }
+      const rows = await loadIssueTypeTotals(installationKey);
+      if (!rows.length && state !== "ready") {
+        return { measurement: "not-measured", byType: new Map(), measuredAt: null };
+      }
+      return {
+        // A crawl that is still running, or that failed part-way, has counted SOME projects.
+        // Calling that "measured" would report a half-walked estate's silence as evidence.
+        measurement: state === "ready" ? "measured" : "partial",
+        byType: new Map(rows.map((r) => [String(r.issueTypeId), r])),
+        measuredAt: scanMeta?.completedAt || null,
+      };
+    } catch (error) {
+      // A counting failure is not a count of zero -- the distinction CONNECT-4091 exists for.
+      console.error("getIssueTypeInventory: usage unavailable:", error?.message || error);
+      return { measurement: "measurement-failed", byType: new Map(), measuredAt: null };
+    }
+  })();
+
+  const withUsage = (type) => {
+    const row = usage.byType.get(String(type.id));
+    return {
+      ...type,
+      // null, not 0, wherever the count is not evidence. The tab renders the three states
+      // differently and must never show a dash as a zero.
+      issueCount: usage.measurement === "measured" ? (row?.issueCount ?? 0) : (row?.issueCount ?? null),
+      usedInProjects: row?.projectCount ?? null,
+    };
+  };
+
   return {
     state: meta.state,
     staleBuild,
@@ -1613,11 +1683,12 @@ async function getIssueTypeInventory({ context }) {
     version: meta.version,
     refreshedAt: meta.refreshedAt,
     completedAt: meta.completedAt,
+    usage: { measurement: usage.measurement, measuredAt: usage.measuredAt },
     totalTypes: meta.totalTypes,
     totalSchemes: meta.totalSchemes,
     lastError: meta.lastError || null,
-    issueTypes,
-    hierarchy,
+    issueTypes: issueTypes.map(withUsage),
+    hierarchy: hierarchyRaw.map((h) => ({ ...h, types: h.types.map(withUsage) })),
     schemes: schemesResolved,
     governance,
     // The finding-shaped detail behind the governance counts: near-duplicate name groups,
@@ -2311,9 +2382,20 @@ async function getAutomationInsights({ context }) {
       };
     }
 
+    // Decided here rather than in the browser so the tab, the Rovo agent and the field panel
+    // all take the same view of whether this import is still current. indexRequired is false
+    // because this is the estate summary, not a per-entity lookup -- only the age applies.
+    const cfg = await readAdminConfig().catch(() => null);
+    const evidence = assessAutomationEvidence({
+      indexRequired: false,
+      refreshedAt: analysis.refreshedAt ?? null,
+      staleAfterDays: Number(cfg?.automationStaleAfterDays) || DEFAULT_ANALYSIS_STALE_AFTER_DAYS,
+    });
+
     return {
       available: true,
       refreshedAt: analysis.refreshedAt ?? null,
+      evidence,
       source: analysis.source ?? "unknown",
       estate: analysis.estate ?? null,
       // A preview for the overview. The Findings section fetches the full list separately;
@@ -4726,6 +4808,260 @@ async function screensToProjects(installationKey, version, screenIds) {
 // "Build a field report from these screens." Returns the field union across the chosen
 // screens and the projects those screens reach, so the Reports tab can pre-fill the field
 // selection and scope the matrix to just the projects the report has something to say about.
+// The cross-signal: screen reachability crossed with where field values actually exist.
+//
+// Costs no new Jira call. Both halves are already on disk -- the screen inventory the
+// Screens tab reads, and the field x project usage the Field Browser reads -- and neither
+// alone can answer the question this produces. See screen-insights.js for the four states
+// and why two of them are invisible to every other pillar.
+//
+// Two snapshots with independent versions, so both are read and reported: a cross between a
+// fresh screen build and a three-week-old field snapshot is a real answer about two
+// different days, and the caller is told which days.
+// The Deletion Safety report: every pillar's evidence about one field, in one answer.
+//
+// This is the product's thesis rendered as an artifact. Each pillar already held a piece of
+// it and none could settle the question alone -- and the pieces were never joined, so the
+// only way to answer "is this safe to delete" was to open five tabs and hold the result in
+// your head.
+//
+// Bounded rather than resumable. The report-job contract exists and would let this run over
+// the whole catalogue, but the answer is read one field at a time by somebody about to make
+// a decision, and a synchronous call that refuses the 51st field is more honest than a job
+// that quietly takes an hour. The remainder is reported, never silently dropped.
+const MAX_DELETION_SAFETY_FIELDS = 50;
+
+export async function getDeletionSafety({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  const requested = Array.isArray(payload?.fieldIds) ? payload.fieldIds.map(String).filter(Boolean) : [];
+  if (!requested.length) return { available: false, reason: "No field was named.", fields: [], total: 0 };
+
+  const fieldIds = requested.slice(0, MAX_DELETION_SAFETY_FIELDS);
+  const skipped = requested.length - fieldIds.length;
+
+  const [fieldMeta, screenMeta, filterMeta, dashMeta] = await Promise.all([
+    readSnapshotMeta(installationKey),
+    readScreenSnapshotMeta(installationKey).catch(() => null),
+    readFilterSnapshotMeta(installationKey).catch(() => null),
+    readDashboardSnapshotMeta(installationKey).catch(() => null),
+  ]);
+
+  // The one hard prerequisite. Without the field snapshot there is no catalogue to name the
+  // fields, and a verdict about a field the app cannot describe is not worth printing.
+  if (!fieldMeta?.version) {
+    return {
+      available: false,
+      reason: "No field snapshot has been built yet, so there is nothing to assess. Run a full scan from the Scans tab.",
+      fields: [], total: 0,
+    };
+  }
+
+  const [catalog, automationParts, rqtRows, crossSummary] = await Promise.all([
+    loadSnapshotFields(installationKey, fieldMeta.version).catch(() => null),
+    loadAutomationForAgent(installationKey).catch(() => null),
+    loadRqtFieldIndex(installationKey).catch(() => null),
+    // Only to answer the invisible-data blocker. Read, not recomputed: the widest join in
+    // the app has no business running behind a per-field question.
+    getScreenFieldCrossSignal({ payload: {}, context }).catch(() => null),
+  ]);
+
+  // Null means the catalogue read FAILED; an empty array means it was read and is empty.
+  // The difference matters more here than it looks: the automation, filter and dashboard
+  // joins all key on the field's NAME, so without the catalogue they match nothing and
+  // return clean -- three pillars silently not consulted, reported as three pillars
+  // consulted and clear. That is the exact failure this whole report exists to prevent.
+  const catalogAvailable = Array.isArray(catalog);
+  const byId = new Map((catalog || []).map((f) => [String(f.id), f]));
+  const rqtById = new Map((rqtRows || []).map((r) => [String(r.fieldId ?? r.field_id), r]));
+  const invisibleById = new Map(
+    (crossSummary?.available ? crossSummary.invisibleData : []).map((f) => [String(f.fieldId), f])
+  );
+
+  const automationIndex = automationParts?.fields ?? null;
+  const automationEvidence = automationParts?.analysis
+    ? assessAutomationEvidence({
+        index: automationIndex,
+        refreshedAt: automationParts.analysis.refreshedAt ?? null,
+        staleAfterDays: automationParts.staleAfterDays,
+      })
+    : null;
+
+  const assessments = [];
+  for (const fieldId of fieldIds) {
+    const field = byId.get(fieldId) || { id: fieldId, name: null };
+    // No name, no name-keyed join. Passing these as unavailable makes them gaps, which is
+    // what they are, instead of empty results that read as evidence of absence.
+    const nameKnown = Boolean(field.name);
+
+    // Automation matches by NAME, which is how the index is keyed. An entry found is real
+    // evidence; an entry missing is only evidence when the index is complete and current,
+    // which is what automationEvidence decides.
+    const entry = (automationIndex?.entries ?? [])
+      .find((e) => String(e.label ?? "").toLowerCase() === String(field.name ?? "").toLowerCase());
+
+    const [screens, filters, dashboards] = await Promise.all([
+      screenMeta?.version
+        ? loadScreensForField(installationKey, screenMeta.version, fieldId)
+            .then((rows) => ({ available: true, screens: rows, unresolvedScreens: Number(screenMeta.unresolvedScreens) || 0 }))
+            .catch(() => null)
+        : Promise.resolve(null),
+      filterMeta?.version && nameKnown
+        ? loadFilterReferencesFor(installationKey, filterMeta.version, "field", field.name)
+            .then((rows) => ({ available: true, count: rows.length, names: rows.map((r) => r.name).filter(Boolean) }))
+            .catch(() => null)
+        : Promise.resolve(null),
+      dashMeta?.version && nameKnown
+        ? getDashboardUsage({ payload: { label: field.name }, context })
+            .then((d) => (d?.available
+              ? { available: true, count: Number(d.total) || 0, names: (d.dashboards || []).map((x) => x.name).filter(Boolean) }
+              : null))
+            .catch(() => null)
+        : Promise.resolve(null),
+    ]);
+
+    assessments.push(assessFieldDeletion({
+      field,
+      usage: catalogAvailable && byId.has(fieldId)
+        ? { totalIssueCount: field.totalIssueCount, activeProjectCount: field.activeProjectCount }
+        : null,
+      screens,
+      automation: nameKnown && (entry || automationEvidence)
+        ? {
+            available: Boolean(automationParts?.analysis),
+            writeCount: entry?.writeCount ?? 0,
+            readCount: entry?.readCount ?? 0,
+            triggerCount: entry?.triggerCount ?? 0,
+            evidence: automationEvidence,
+          }
+        : null,
+      filters,
+      dashboards,
+      rqt: rqtById.size > 0 || rqtRows
+        ? { available: true, issueCount: Number(rqtById.get(fieldId)?.issueCount) || 0 }
+        : null,
+      invisibleData: invisibleById.get(fieldId) || null,
+    }));
+  }
+
+  return {
+    available: true,
+    ...summarizeDeletionSafety(assessments),
+    // Named rather than dropped. A report that silently answered 50 of 80 questions would be
+    // worse than one that refused.
+    skipped,
+    maxFields: MAX_DELETION_SAFETY_FIELDS,
+    // Per-pillar freshness: the halves refresh independently and the verdict is only as
+    // current as the oldest one it drew on.
+    freshness: {
+      fields: fieldMeta.refreshedAt || null,
+      screens: screenMeta?.refreshedAt || null,
+      filters: filterMeta?.refreshedAt || null,
+      dashboards: dashMeta?.refreshedAt || null,
+      automation: automationParts?.analysis?.refreshedAt ?? null,
+    },
+  };
+}
+
+export async function getScreenFieldCrossSignal({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  const [screenMeta, fieldMeta] = await Promise.all([
+    readScreenSnapshotMeta(installationKey),
+    readSnapshotMeta(installationKey),
+  ]);
+
+  // Either half missing makes the cross meaningless rather than empty. Saying which half is
+  // missing is the difference between a next step and a shrug.
+  if (!screenMeta?.version || !fieldMeta?.version) {
+    return {
+      available: false,
+      reason: !screenMeta?.version
+        ? "No screen inventory has been built yet. Build one from the Screens tab or run a full scan."
+        : "No field snapshot has been built yet, so there is no usage to cross the screens against.",
+      screenRefreshedAt: screenMeta?.refreshedAt || null,
+      fieldRefreshedAt: fieldMeta?.refreshedAt || null,
+      invisibleData: [],
+      formClutter: [],
+      unreachableFields: [],
+    };
+  }
+
+  const clutterMaxIssues = Math.max(0, Number(payload?.clutterMaxIssues) || 0);
+  const summary = await runScreenFieldCross(installationKey, screenMeta, fieldMeta, { clutterMaxIssues });
+
+  return {
+    ...summary,
+    // Per-pillar freshness, because the two halves refresh independently and a verdict that
+    // blends them is only as current as the older one.
+    screenRefreshedAt: screenMeta.refreshedAt || null,
+    fieldRefreshedAt: fieldMeta.refreshedAt || null,
+  };
+}
+
+// The join itself, shared by the on-demand read above and the scan stage below so the tab
+// and the health score can never be computing it two different ways.
+//
+// This is the widest join in the app: every project's screen chain down to each screen's
+// fields, against every populated field x project pair. Fine once on a queue consumer;
+// deliberately never on the Overview read, which takes the stored summary instead.
+async function runScreenFieldCross(installationKey, screenMeta, fieldMeta, { clutterMaxIssues = 0 } = {}) {
+  const [reachabilityRows, coverage, usageRead, catalog] = await Promise.all([
+    loadFieldReachabilityByProject(installationKey, screenMeta.version),
+    loadProjectScreenCoverage(installationKey, screenMeta.version),
+    loadPopulatedProjectUsage(installationKey, fieldMeta.version),
+    loadSnapshotFields(installationKey, fieldMeta.version).catch(() => []),
+  ]);
+
+  const fields = new Map((catalog || []).map((f) => [String(f.id), { name: f.name }]));
+
+  return summarizeScreenFieldCross({
+    reachabilityRows,
+    coverage,
+    usage: usageRead.rows,
+    usageTruncated: usageRead.truncated,
+    fieldIds: [...fields.keys()],
+    fields,
+    clutterMaxIssues,
+  });
+}
+
+// Run on the health stage of every scan, where an expensive join belongs, and persist only
+// the counts. Returns the same shape the score consumes so the caller does not have to read
+// back what it just wrote.
+//
+// Best-effort by construction: a site with no screen inventory, or a failure in either half,
+// leaves the two dimensions unavailable rather than failing the health stage. An absent
+// dimension is excluded from the mean; a thrown one would cost the whole score.
+export async function computeAndStoreScreenCross(installationKey) {
+  try {
+    const [screenMeta, fieldMeta] = await Promise.all([
+      readScreenSnapshotMeta(installationKey),
+      readSnapshotMeta(installationKey),
+    ]);
+    if (!screenMeta?.version || !fieldMeta?.version) return null;
+
+    const summary = await runScreenFieldCross(installationKey, screenMeta, fieldMeta);
+    if (!summary.available) return summary;
+
+    await writeScreenCrossSummary(installationKey, {
+      ...summary,
+      screenVersion: screenMeta.version,
+      fieldVersion: fieldMeta.version,
+      computedAt: new Date().toISOString(),
+    }).catch(ignoreWith("screen_cross.summary_write_failed", { installationKey }));
+
+    return summary;
+  } catch (error) {
+    logger.warn("screen_cross.compute_failed", { installationKey, error: String(error?.message || error) });
+    return null;
+  }
+}
+
 async function getScreenFieldReportInputs({ payload, context }) {
   incrMetric(METRIC_NAMES.resolver);
   await ensureProjectStoreReady();
@@ -5295,6 +5631,7 @@ export async function captureSiteHealthForScan(installationKey) {
     readAutomationAnalysis,
     recordHealthSnapshot,
     loadPriorHealthDimensions,
+    computeScreenCross: computeAndStoreScreenCross,
   });
 }
 
@@ -6890,14 +7227,17 @@ export async function rovoProjectInspect(payload, context) {
 // because the user acts on the first and asks again after the second.
 
 async function loadAutomationForAgent(installationKey) {
-  const [analysis, fields, statuses, directory, findings] = await Promise.all([
+  const [analysis, fields, statuses, directory, findings, config] = await Promise.all([
     readAutomationAnalysis(installationKey),
     readAutomationPart(installationKey, "fields"),
     readAutomationPart(installationKey, "statuses"),
     readAutomationPart(installationKey, "directory"),
     readAutomationPart(installationKey, "findings"),
+    // The staleness threshold travels with the data, so no caller can forget to apply it.
+    readAdminConfig().catch(() => null),
   ]);
-  return { analysis, fields, statuses, directory, findings };
+  const staleAfterDays = Number(config?.automationStaleAfterDays) || DEFAULT_ANALYSIS_STALE_AFTER_DAYS;
+  return { analysis, fields, statuses, directory, findings, staleAfterDays };
 }
 
 function ruleDirectoryMap(directory) {
@@ -6923,7 +7263,7 @@ export async function rovoSearchAutomationRules(payload, context) {
   const maxResults = Math.max(1, Math.min(20, Number(payload?.maxResults) || 10));
   const stateFilter = String(payload?.state || "any").toLowerCase();
 
-  const { analysis, directory, findings } = await loadAutomationForAgent(installationKey);
+  const { analysis, directory, findings, staleAfterDays } = await loadAutomationForAgent(installationKey);
   if (!analysis || !directory) {
     return {
       status: "analysis-unavailable",
@@ -6960,7 +7300,14 @@ export async function rovoSearchAutomationRules(payload, context) {
 
   return {
     status: "ok",
+    // Age travels with a search result too. A rule created after the last import simply is
+    // not here, and "no rule matched" would otherwise read as "no such rule exists".
     analysisRefreshedAt: analysis.refreshedAt ?? null,
+    evidence: assessAutomationEvidence({
+      indexRequired: false, // a directory search consults no index; only the age applies
+      refreshedAt: analysis.refreshedAt ?? null,
+      staleAfterDays,
+    }),
     totalRules: directory.total ?? 0,
     matchCount: matches.length,
     matches: matches.slice(0, maxResults),
@@ -6973,10 +7320,15 @@ export async function rovoInspectAutomationRule(payload, context) {
   const identifier = String(payload?.ruleIdentifier || "").trim();
   if (!identifier) return { status: "error", message: "A rule id or name is required." };
 
-  const { analysis, directory, findings, fields, statuses } = await loadAutomationForAgent(installationKey);
+  const { analysis, directory, findings, fields, statuses, staleAfterDays } = await loadAutomationForAgent(installationKey);
   if (!analysis || !directory) {
     return { status: "analysis-unavailable", message: "No automation analysis has been built for this site yet." };
   }
+  const evidence = assessAutomationEvidence({
+    index: fields,
+    refreshedAt: analysis.refreshedAt ?? null,
+    staleAfterDays,
+  });
 
   const byId = ruleDirectoryMap(directory);
   const wanted = identifier.toLowerCase();
@@ -7002,7 +7354,8 @@ export async function rovoInspectAutomationRule(payload, context) {
 
   return {
     status: "ok",
-    analysisRefreshedAt: analysis.refreshedAt ?? null,
+    analysisRefreshedAt: evidence.refreshedAt,
+    evidence,
     rule: {
       ruleId: rule.id,
       name: rule.name,
@@ -7020,8 +7373,12 @@ export async function rovoInspectAutomationRule(payload, context) {
       disabledForDays: r.d,
     })),
     // Stated rather than implied. The indexes cap stored rule ids at 50 per direction, so a
-    // rule touching a very heavily referenced field can be missing from this list.
-    caveat: "Field and status lists are derived from a capped index and may omit references on fields used by more than 50 rules in one direction.",
+    // rule touching a very heavily referenced field can be missing from this list -- and on
+    // top of that the analysis itself may be old, which the blockers spell out.
+    caveat: [
+      "Field and status lists are derived from a capped index and may omit references on fields used by more than 50 rules in one direction.",
+      ...evidence.blockers.map((b) => b.message),
+    ].join(" "),
   };
 }
 
@@ -7032,18 +7389,42 @@ export async function rovoAutomationUsage(payload, context) {
   const kind = String(payload?.kind || "field").toLowerCase() === "status" ? "status" : "field";
   if (!name) return { status: "error", message: "A field or status name is required." };
 
-  const { analysis, fields, statuses, directory } = await loadAutomationForAgent(installationKey);
+  const { analysis, fields, statuses, directory, staleAfterDays } = await loadAutomationForAgent(installationKey);
   if (!analysis) {
     return { status: "analysis-unavailable", message: "No automation analysis has been built for this site yet." };
   }
 
   const index = kind === "status" ? statuses : fields;
+  // Settled once, before anything is claimed. `evidence` decides whether this answer is
+  // allowed to be a verdict at all; without it an absence from a capped or three-week-old
+  // index read exactly like a clean bill of health.
+  const evidence = assessAutomationEvidence({
+    index,
+    refreshedAt: analysis.refreshedAt ?? null,
+    staleAfterDays,
+  });
   const entry = (index?.entries ?? []).find((e) => String(e.label ?? "").toLowerCase() === name.toLowerCase());
 
   if (!entry) {
+    // The branch this whole assessment exists for. "We looked and found nothing" and "we
+    // have not really looked" are different claims and only one of them justifies a
+    // deletion, so when the index cannot carry the weight this degrades to unknown with
+    // the reason attached rather than returning safeToDelete: true.
+    if (!evidence.absenceIsEvidence) {
+      return {
+        status: "unknown",
+        analysisRefreshedAt: evidence.refreshedAt,
+        evidence,
+        message: `Whether any automation rule touches the ${kind} "${name}" cannot be established from this analysis.`,
+        // Not false -- false would claim rules DO reference it. Null is the third state.
+        safeToDelete: null,
+        guidance: evidence.blockers.map((b) => b.message).join(" "),
+      };
+    }
     return {
       status: "not-referenced",
-      analysisRefreshedAt: analysis.refreshedAt ?? null,
+      analysisRefreshedAt: evidence.refreshedAt,
+      evidence,
       message: `No automation rule reads, writes or triggers on the ${kind} "${name}".`,
       safeToDelete: kind === "field",
     };
@@ -7055,9 +7436,12 @@ export async function rovoAutomationUsage(payload, context) {
     return { ruleId: id, name: r?.name ?? `Rule ${id}`, state: r ? (r.enabled ? "ENABLED" : "DISABLED") : "UNKNOWN" };
   });
 
+  const referenced = entry.writeCount > 0 || entry.readCount > 0 || entry.triggerCount > 0;
+
   return {
     status: "ok",
-    analysisRefreshedAt: analysis.refreshedAt ?? null,
+    analysisRefreshedAt: evidence.refreshedAt,
+    evidence,
     kind,
     name: entry.label,
     ruleCount: entry.ruleCount ?? 0,
@@ -7066,11 +7450,18 @@ export async function rovoAutomationUsage(payload, context) {
     writtenBy: { count: entry.writeCount, rules: expand(entry.write) },
     readBy: { count: entry.readCount, rules: expand(entry.read) },
     triggers: { count: entry.triggerCount, rules: expand(entry.trigger) },
-    // The single most important thing this action exists to say.
-    safeToDelete: entry.writeCount === 0 && entry.readCount === 0 && entry.triggerCount === 0,
+    // The single most important thing this action exists to say, and now a tri-state.
+    //
+    // A reference that WAS found is positive evidence and survives a stale analysis -- a
+    // rule that wrote this field a fortnight ago almost certainly still does, and "no" is
+    // the cautious answer anyway. An entry found with no references in any direction is an
+    // absence claim like the not-found branch above, so it answers to the same test.
+    safeToDelete: referenced ? false : (evidence.absenceIsEvidence ? true : null),
     guidance: entry.writeCount > 0
       ? `Deleting this ${kind} would break ${entry.writeCount} rule(s) that write to it.`
-      : "No rule writes this, but rules that read it will misbehave if it is removed.",
+      : referenced
+        ? "No rule writes this, but rules that read it will misbehave if it is removed."
+        : evidence.blockers.map((b) => b.message).join(" ") || "No rule references this.",
   };
 }
 
@@ -7194,12 +7585,22 @@ export async function getAdminOverview({ context }) {
   const priorHealthValues = await loadPriorHealthDimensions(installationKey)
     .catch(fallbackOn("overview.prior_health_load_failed", () => ({}), { installationKey }));
 
+  // The stored cross summary, not a fresh cross. Recomputing the widest join in the app on
+  // every Overview read would make the heaviest read in the product heavier still; the scan
+  // computes it and this reports what it found -- or reports it stale, if either snapshot
+  // has been rebuilt since.
+  const screenCross = await readScreenCrossSummary(installationKey, {
+    screenVersion: screens?.version ?? null,
+    fieldVersion: dashboard?.fieldUsage?.version ?? null,
+  }).catch(fallbackOn("overview.screen_cross_read_failed", () => null, { installationKey }));
+
   const health = computeSiteHealth({
     fieldUsage: dashboard?.fieldUsage,
     workflow,
     projects: dashboard?.projects,
     automation,
     screens,
+    screenCross,
     filters: filterOverview?.health ?? null,
     dashboards: dashboardOverview?.health ?? null,
     issueTypes: issueTypeOverview?.health ?? null,
@@ -7430,12 +7831,16 @@ async function getPillarHealth({ payload, context }) {
     }
   }
 
+  const screenCross = await readScreenCrossSummary(installationKey)
+    .catch(fallbackOn("macro.screen_cross_read_failed", () => null, { installationKey }));
+
   const health = computeSiteHealth({
     fieldUsage,
     workflow,
     projects,
     automation: automationAnalysis?.estate?.health ?? { available: false },
     screens,
+    screenCross,
     adoption,
     filters: filterOverview?.health ?? null,
     dashboards: dashboardOverview?.health ?? null,
@@ -8482,6 +8887,8 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   getHealthHistory,        // Admin read: the site health series and per-dimension deltas
   getPillarHealth,         // Admin read: one pillar of the score, for the tab it is about
   getProjectOverview,      // Admin read: every pillar that touches one project
+  getDeletionSafety,            // Admin read: every pillar's evidence about deleting a field
+  getScreenFieldCrossSignal,    // Admin read: screen reachability crossed with field usage
   getScreenFieldReportInputs,   // Admin read: field union + project scope for a set of screens
   getProjectScreenReportInputs, // Admin read: a project's screens grouped by screen scheme
   getAuditLog,             // Admin read: returns recent privileged-action records

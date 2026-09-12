@@ -296,6 +296,57 @@ describe("AutomationTab", () => {
     expect(screen.getByText(/kvs exploded/)).toBeInTheDocument();
   });
 
+  // The only pillar fed by hand, so the only one that can quietly go out of date while
+  // every other tab refreshes on a schedule. Nothing in the shape of the data says so.
+  describe("staleness", () => {
+    it("warns when the analysis has passed the threshold, and says what it costs", async () => {
+      routeInvoke({
+        getAutomationInsights: analysis({
+          evidence: { stale: true, ageDays: 23, staleAfterDays: 7, blockers: [{ code: "analysis-stale" }] },
+        }),
+      });
+      render(<AutomationTab />);
+
+      expect(await screen.findByText(/this analysis is 23 days old/i)).toBeInTheDocument();
+      // Not just "old" -- what being old does to the answers.
+      expect(screen.getByText(/answers "unknown" rather than "no rule touches this"/i)).toBeInTheDocument();
+      // And where to change the line it was judged against.
+      expect(screen.getByText(/threshold is 7 days/i)).toBeInTheDocument();
+    });
+
+    it("says so when the analysis cannot be dated at all", async () => {
+      routeInvoke({
+        getAutomationInsights: analysis({
+          evidence: { stale: true, ageDays: null, staleAfterDays: 7, blockers: [] },
+        }),
+      });
+      render(<AutomationTab />);
+      expect(await screen.findByText(/carries no build date/i)).toBeInTheDocument();
+    });
+
+    it("stays quiet on a current analysis", async () => {
+      routeInvoke({
+        getAutomationInsights: analysis({
+          evidence: { stale: false, ageDays: 1, staleAfterDays: 7, blockers: [] },
+        }),
+      });
+      render(<AutomationTab />);
+
+      await screen.findByText("1,477");
+      expect(screen.queryByText(/days old/i)).not.toBeInTheDocument();
+    });
+
+    it("shows the build time absolutely as well as relatively", async () => {
+      // "3 days ago" is the readable one; the timestamp is the one you can compare against
+      // a change somebody made on a date they remember.
+      routeInvoke({ getAutomationInsights: analysis() });
+      render(<AutomationTab />);
+
+      const meta = await screen.findByText(/^Analyzed /);
+      expect(meta.textContent).toMatch(/\(.+\)/);
+    });
+  });
+
   it("opens on the overview with the estate headline numbers", async () => {
     routeInvoke({ getAutomationInsights: analysis() });
     render(<AutomationTab />);

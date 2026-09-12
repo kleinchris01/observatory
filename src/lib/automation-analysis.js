@@ -978,3 +978,110 @@ export function summarizeEstate(rules = [], options = {}) {
     health: summarizeAutomationHealth(summaries, cascades, options.blastSummary ?? null),
   };
 }
+
+// ── Is the answer trustworthy? ───────────────────────────────────────────────
+//
+// Everything above answers "what do the rules reference". This answers the question that
+// has to be settled before any of it is quoted back to somebody: is this analysis good
+// enough to make a claim from.
+//
+// Two things can make it not good enough, and they fail in opposite directions:
+//
+//   TRUNCATION. buildReferenceIndex keeps the top MAX_INDEXED_ENTRIES rows sorted by
+//   reference count descending. The comment on that cap argues -- correctly, for the
+//   drill-down it was written for -- that what survives is the part anyone would have
+//   looked at. For the "is this safe to delete" question it is exactly backwards: the rows
+//   dropped are the LEAST-referenced ones, and a field nobody references much is precisely
+//   the field somebody asks about deleting. So on a truncated index, absence is not
+//   evidence of anything; it is the most likely place for the index to be wrong.
+//
+//   STALENESS. The analysis is fed by a hand-uploaded rule export, so it does not refresh
+//   itself the way every scanned pillar does. A rule written last Tuesday is invisible to
+//   an import from the Tuesday before, and nothing about the shape of the data says so.
+//
+// Unknown age counts as stale, deliberately. "We cannot tell how old this is" is not a
+// reason to treat it as current -- the same fail-closed rule callerHasJiraAdmin follows.
+
+export const DEFAULT_ANALYSIS_STALE_AFTER_DAYS = 7;
+
+// Whole days since the analysis was built, or null when that cannot be determined.
+//
+// Takes an epoch number OR an ISO string, because both are in the wild: the analysis
+// document is stamped with Date.now() (a number) while every snapshot meta row in the app
+// uses toISOString(). Accepting only one of them would have made this gate permanently
+// wrong in exactly one direction -- every real analysis undateable, so every answer
+// "unknown" -- which is the failure a staleness check is least likely to be noticed for.
+export function analysisAgeDays(refreshedAt, now = Date.now()) {
+  if (refreshedAt === null || refreshedAt === undefined) return null;
+  const at = typeof refreshedAt === "number" ? refreshedAt : Date.parse(refreshedAt);
+  if (!Number.isFinite(at)) return null;
+  return Math.max(0, Math.floor((now - at) / 86400000));
+}
+
+// True only when the stored index holds every row that was built. `total` is the row count
+// before the cap was applied, so total > entries.length means rows were dropped.
+export function isIndexComplete(index) {
+  const total = Number(index?.total);
+  if (!Number.isFinite(total)) return false; // no total recorded -> cannot claim complete
+  return total <= (index?.entries ?? []).length;
+}
+
+// One assessment, shared by every surface that reports an automation verdict, so the agent,
+// the tab and the field panel cannot disagree about whether an answer can be trusted.
+//
+// `indexRequired` distinguishes the two reasons an index can be absent. A per-entity
+// lookup that could not load its index is un-answerable and must say so (the default). A
+// rule-directory search consults no index at all, so only the age applies to it -- passing
+// indexRequired: false says "no index was needed here", not "the index came back empty",
+// which are opposite facts and would otherwise both arrive as null.
+export function assessAutomationEvidence({
+  index = null,
+  indexRequired = true,
+  refreshedAt = null,
+  staleAfterDays = DEFAULT_ANALYSIS_STALE_AFTER_DAYS,
+  now = Date.now(),
+} = {}) {
+  // A bad threshold falls back to the default rather than being clamped to 1. Clamping a
+  // negative to one day would mark every analysis stale forever, which silences the pillar
+  // instead of tuning it -- the same "a bad config value costs one tuned dimension, not the
+  // whole score" rule resolveHealthTolerances follows.
+  const parsed = Number(staleAfterDays);
+  const days = Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_ANALYSIS_STALE_AFTER_DAYS;
+  const ageDays = analysisAgeDays(refreshedAt, now);
+  const stale = ageDays === null || ageDays >= days;
+  const indexComplete = indexRequired ? isIndexComplete(index) : null;
+  const entries = (index?.entries ?? []).length;
+  const total = Number.isFinite(Number(index?.total)) ? Number(index.total) : null;
+
+  const blockers = [];
+  if (stale) {
+    blockers.push({
+      code: "analysis-stale",
+      message: ageDays === null
+        ? "The automation analysis carries no build date, so its age cannot be established. Re-import the rule export from the Automation tab."
+        : `The automation analysis is ${ageDays} day${ageDays === 1 ? "" : "s"} old (the threshold is ${days}). Rules added or changed since then are not in it. Re-import the rule export from the Automation tab.`,
+    });
+  }
+  if (indexRequired && !indexComplete) {
+    blockers.push({
+      code: "index-truncated",
+      message: total === null
+        ? "The reference index does not record how many entries it was built from, so it cannot be confirmed complete."
+        : `The reference index was truncated to ${entries} of ${total} entries, and the entries dropped are the least-referenced ones — which is the population this question is asked about.`,
+    });
+  }
+
+  return {
+    refreshedAt: refreshedAt ?? null,
+    ageDays,
+    staleAfterDays: days,
+    stale,
+    indexComplete,
+    indexedEntries: entries,
+    indexTotal: total,
+    // The whole point of this module. Absence from the index means "no rule references
+    // this" only when the index is both complete and current; otherwise it means nothing.
+    absenceIsEvidence: (indexRequired ? indexComplete === true : true) && !stale,
+    blockers,
+  };
+}

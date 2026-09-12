@@ -87,6 +87,45 @@ describe("quick scan stages", () => {
     expect(QUICK_SCAN_STAGE_KEYS).not.toContain("automation");
   });
 
+  // People and Assets were scored pillars that no scan ever refreshed -- buildable only
+  // from a queued job fired by hand off their own tab. So the Overview could show a roster
+  // months older than everything beside it, with nothing on screen saying which number was
+  // which age. Every scored pillar the app can refresh, the scan now refreshes.
+  describe("people and assets refresh with everything else", () => {
+    test.each(["people", "assets"])("%s is a stage in both scan types", (key) => {
+      expect(FULL_SCAN_STAGE_KEYS).toContain(key);
+      expect(QUICK_SCAN_STAGE_KEYS).toContain(key);
+    });
+
+    test.each(["people", "assets"])("%s runs before health, which scores it", (key) => {
+      // A pillar scored from a snapshot the same run has not refreshed yet is a run-old
+      // number wearing this run's timestamp.
+      expect(FULL_SCAN_STAGE_KEYS.indexOf(key)).toBeLessThan(FULL_SCAN_STAGE_KEYS.indexOf("health"));
+      expect(QUICK_SCAN_STAGE_KEYS.indexOf(key)).toBeLessThan(QUICK_SCAN_STAGE_KEYS.indexOf("health"));
+    });
+
+    test("both are structural: independent, and ahead of the issue crawl", () => {
+      for (const key of ["people", "assets"]) {
+        const stage = FULL_SCAN_STAGES.find((s) => s.key === key);
+        expect(stage.needs).toEqual([]);
+        expect(stage.mode).toBe("inline");
+        expect(FULL_SCAN_STAGE_KEYS.indexOf(key)).toBeLessThan(FULL_SCAN_STAGE_KEYS.indexOf("issues"));
+      }
+    });
+
+    test("every scored pillar the app can build has a stage, automation excepted", () => {
+      // The guard that makes this class of omission impossible to repeat quietly: a new
+      // pillar that never joins the pipeline now fails here rather than going unnoticed for
+      // two months. Automation is the one deliberate exception -- Jira publishes no API to
+      // enumerate rules, so a stage for it would claim coverage the app does not have.
+      const buildable = ["workflows", "screens", "filters", "dashboards", "fields",
+        "issue-types", "access", "estate", "boards", "people", "assets"];
+      for (const key of buildable) {
+        expect(FULL_SCAN_STAGE_KEYS, `${key} is scored but never refreshed by a scan`).toContain(key);
+      }
+    });
+  });
+
   test("every quick-scan dependency resolves within the quick-scan stage list", () => {
     for (const stage of QUICK_SCAN_STAGES) {
       for (const need of stage.needs) {

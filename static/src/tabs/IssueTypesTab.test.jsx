@@ -3,7 +3,7 @@ import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { invoke } from "@forge/bridge";
-import { IssueTypesTab, HierarchyLevelPanel, SchemeCard, IssueTypeFindings } from "./IssueTypesTab";
+import { IssueTypesTab, HierarchyLevelPanel, SchemeCard, IssueTypeFindings, TypeUsageChip } from "./IssueTypesTab";
 
 vi.mock("@forge/bridge", () => ({
   invoke: vi.fn(),
@@ -198,5 +198,42 @@ describe("IssueTypesTab", () => {
     render(<IssueTypesTab />);
 
     expect(await screen.findByText("This inventory is stale")).toBeInTheDocument();
+  });
+});
+
+// The tri-state the crawl has carried since it shipped and the tab had nowhere to show.
+//
+// Zero is what makes a type look safe to delete, so "a completed crawl found none" and
+// "nobody has counted" must never render the same way. These four cases are the whole
+// reason the column exists.
+describe("TypeUsageChip", () => {
+  const type = (over = {}) => ({ id: "10001", name: "Bug", issueCount: 0, usedInProjects: 0, ...over });
+
+  test("shows a real count when a crawl completed", () => {
+    render(<TypeUsageChip type={type({ issueCount: 4820, usedInProjects: 12 })} measurement="measured" />);
+    expect(screen.getByText(/4,820 issues/)).toBeInTheDocument();
+  });
+
+  test("says 'no issues' only when a completed crawl found none", () => {
+    render(<TypeUsageChip type={type({ issueCount: 0 })} measurement="measured" />);
+    expect(screen.getByText("No issues")).toBeInTheDocument();
+  });
+
+  test("says 'not measured' when no crawl has ever finished", () => {
+    // The distinction that stops somebody deleting a type on the strength of a scan nobody
+    // has run.
+    render(<TypeUsageChip type={type({ issueCount: null })} measurement="not-measured" />);
+    expect(screen.getByText("Not measured")).toBeInTheDocument();
+    expect(screen.queryByText("No issues")).not.toBeInTheDocument();
+  });
+
+  test("says 'not reached' for a type a partial crawl never got to", () => {
+    render(<TypeUsageChip type={type({ issueCount: null })} measurement="partial" />);
+    expect(screen.getByText("Not reached")).toBeInTheDocument();
+  });
+
+  test("says the count is unavailable rather than zero when the read failed", () => {
+    render(<TypeUsageChip type={type({ issueCount: null })} measurement="measurement-failed" />);
+    expect(screen.getByText("Count unavailable")).toBeInTheDocument();
   });
 });

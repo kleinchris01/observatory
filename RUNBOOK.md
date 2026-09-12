@@ -130,6 +130,19 @@ Always build before deploying. The Vite frontend bundles are not rebuilt by `for
 npm run build && forge deploy
 ```
 
+**Forge CLI version.** CI pins `@forge/cli` to the version in `FORGE_CLI_VERSION` (both
+`.github/workflows/ci.yml` and `deploy.yml`); run the same one locally so the commands in
+this runbook behave identically in both places:
+
+```sh
+npm install -g @forge/cli@13.1.0
+forge --version
+```
+
+This was previously `@latest` in CI against 13.1.0 locally, which is how a documented
+command could pass in CI and fail on a developer's machine. When raising it, change both
+workflows and this line in the same PR.
+
 ### Environments
 
 | Environment | Purpose | How to promote |

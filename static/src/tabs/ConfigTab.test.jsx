@@ -1,10 +1,10 @@
 import React from "react";
 import { describe, test, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { invoke } from "@forge/bridge";
 import { AutomationProbePanel, AssetsProbePanel, GlobalPermissionsProbePanel, ConfigTab, ScreenCostProbePanel } from "./ConfigTab";
-import { DEFAULT_THRESHOLDS, DEFAULT_MACRO_ACCESS } from "../admin-defaults";
+import { DEFAULT_THRESHOLDS, DEFAULT_MACRO_ACCESS, DEFAULT_AUTOMATION_STALE_AFTER_DAYS } from "../admin-defaults";
 
 // ConfigTab had no test file, which is how a panel calling an unimported `invoke` reached
 // staging: nothing ever rendered it. The first test here is the one that would have caught
@@ -273,6 +273,40 @@ describe("ConfigTab — copy describes the rule it controls", () => {
     expect(rule.textContent).toMatch(/or more projects/i);
     // And still edits the threshold it names.
     expect(rule.querySelector("input")).toHaveValue(DEFAULT_THRESHOLDS.broadScopeMinProjects);
+  });
+
+  // Not a tolerance and not a target band: this one is measured in days and it gates whether
+  // an answer is given at all, rather than how a rate is scored.
+  describe("the automation staleness threshold", () => {
+    test("is tunable, and says what passing it costs", async () => {
+      await openRules();
+      const rule = screen.getByText(/Analysis staleness/i).closest(".admin-threshold-rule");
+
+      expect(rule.querySelector("input")).toHaveValue(DEFAULT_AUTOMATION_STALE_AFTER_DAYS);
+      expect(rule.textContent).toMatch(/degrades to/i);
+      expect(rule.textContent).toMatch(/unknown/i);
+    });
+
+    test("saves the edited value", async () => {
+      const onSave = vi.fn();
+      render(<ConfigTab config={cfg()} onSave={onSave} saving={false} />);
+      await userEvent.click(screen.getByRole("button", { name: /Governance rules/ }));
+
+      const input = screen.getByText(/Analysis staleness/i).closest(".admin-threshold-rule").querySelector("input");
+      // Set rather than cleared-and-typed: clearing a number input fires a change with an
+      // empty value, which InlineThresholdInput floors to `min`, and the typed digits then
+      // append to that instead of replacing it.
+      fireEvent.change(input, { target: { value: "21" } });
+      await userEvent.click(screen.getByRole("button", { name: /^Save/ }));
+
+      expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ automationStaleAfterDays: 21 }));
+    });
+
+    test("the frontend default matches the backend's", async () => {
+      // Two literals in two bundles. They only stay equal because this asserts it.
+      const { DEFAULT_ANALYSIS_STALE_AFTER_DAYS } = await import("../../../src/lib/automation-analysis.js");
+      expect(DEFAULT_AUTOMATION_STALE_AFTER_DAYS).toBe(DEFAULT_ANALYSIS_STALE_AFTER_DAYS);
+    });
   });
 });
 

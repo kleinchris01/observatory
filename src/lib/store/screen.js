@@ -862,3 +862,175 @@ export async function writeScreenSnapshotMeta(scopeKey, patch = {}) {
     ).execute()
   );
 }
+
+// ── Field reachability, per project ──────────────────────────────────────────
+//
+// Walks the whole chain in one query -- project -> issue type screen scheme -> screen
+// scheme -> screen -> field -- and folds it to one row per (project, field) carrying which
+// operations reach it. This is the input the cross-signal findings need: on its own the
+// screen inventory says what a form contains, and the field snapshot says where values
+// exist, but neither can say whether the two agree.
+//
+// Aggregated in SQL rather than returned raw. The unfolded join is every screen-field
+// multiplied by every project that reaches that screen, which on a site where one screen
+// serves forty projects is an order of magnitude more rows than the answer needs.
+//
+// `unresolved` counts the screens in a project's chain whose tab walk failed. A project
+// with any is excluded from both findings by the caller -- "this field is not on a screen
+// here" is the premise of a delete recommendation, and it cannot be made from a chain that
+// was only partly read.
+export async function loadFieldReachabilityByProject(scopeKey, version) {
+  await ensureProjectStoreReady();
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT
+        p.project_id,
+        sf.field_id,
+        MAX(CASE WHEN o.operation = 'create' THEN 1 ELSE 0 END) AS on_create,
+        MAX(CASE WHEN o.operation = 'edit'   THEN 1 ELSE 0 END) AS on_edit,
+        MAX(CASE WHEN o.operation = 'view'   THEN 1 ELSE 0 END) AS on_view
+      FROM snapshot_itss_projects p
+      JOIN snapshot_itss_mappings m
+        ON m.scope_key = p.scope_key AND m.version = p.version AND m.itss_id = p.itss_id
+      JOIN snapshot_screen_scheme_operations o
+        ON o.scope_key = m.scope_key AND o.version = m.version AND o.scheme_id = m.screen_scheme_id
+      JOIN snapshot_screen_fields sf
+        ON sf.scope_key = o.scope_key AND sf.version = o.version AND sf.screen_id = o.screen_id
+      WHERE p.scope_key = ? AND p.version = ?
+      GROUP BY p.project_id, sf.field_id
+    `).bindParams(scopeKey, version).execute()
+  );
+
+  return (result.rows || []).map((row) => ({
+    projectId: String(row.project_id),
+    fieldId: String(row.field_id),
+    onCreate: Boolean(toNumber(row.on_create)),
+    onEdit: Boolean(toNumber(row.on_edit)),
+    onView: Boolean(toNumber(row.on_view)),
+  }));
+}
+
+// How much of each project's screen chain the last build could actually read.
+//
+// Separate from the reachability query on purpose: a screen whose tabs failed contributes
+// no field rows at all, so its absence is invisible in the join above. Without this the two
+// failure modes -- "the field really is on no screen here" and "we could not read three of
+// this project's screens" -- would be the same shape, and the second would be reported as
+// the first.
+export async function loadProjectScreenCoverage(scopeKey, version) {
+  await ensureProjectStoreReady();
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT
+        p.project_id,
+        COUNT(DISTINCT s.screen_id) AS screen_count,
+        SUM(CASE WHEN s.tabs_resolved <> 'resolved' THEN 1 ELSE 0 END) AS unresolved_count
+      FROM snapshot_itss_projects p
+      JOIN snapshot_itss_mappings m
+        ON m.scope_key = p.scope_key AND m.version = p.version AND m.itss_id = p.itss_id
+      JOIN snapshot_screen_scheme_operations o
+        ON o.scope_key = m.scope_key AND o.version = m.version AND o.scheme_id = m.screen_scheme_id
+      JOIN snapshot_screens s
+        ON s.scope_key = o.scope_key AND s.version = o.version AND s.screen_id = o.screen_id
+      WHERE p.scope_key = ? AND p.version = ?
+      GROUP BY p.project_id
+    `).bindParams(scopeKey, version).execute()
+  );
+
+  return (result.rows || []).map((row) => ({
+    projectId: String(row.project_id),
+    screenCount: toNumber(row.screen_count),
+    unresolvedScreens: toNumber(row.unresolved_count),
+  }));
+}
+
+// ── Cross-signal summary ─────────────────────────────────────────────────────
+
+export async function writeScreenCrossSummary(scopeKey, summary = {}) {
+  await ensureProjectStoreReady();
+  await withSqlRetry(() =>
+    sql.prepare(`
+      INSERT INTO screen_cross_summary
+        (scope_key, screen_version, field_version, computed_at, projects_total, projects_resolved,
+         populated_field_count, create_placements, invisible_fields, invisible_issues,
+         clutter_fields, clutter_placements, unreachable_fields, usage_truncated)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE
+        screen_version = VALUES(screen_version),
+        field_version = VALUES(field_version),
+        computed_at = VALUES(computed_at),
+        projects_total = VALUES(projects_total),
+        projects_resolved = VALUES(projects_resolved),
+        populated_field_count = VALUES(populated_field_count),
+        create_placements = VALUES(create_placements),
+        invisible_fields = VALUES(invisible_fields),
+        invisible_issues = VALUES(invisible_issues),
+        clutter_fields = VALUES(clutter_fields),
+        clutter_placements = VALUES(clutter_placements),
+        unreachable_fields = VALUES(unreachable_fields),
+        usage_truncated = VALUES(usage_truncated)
+    `).bindParams(
+      scopeKey,
+      String(summary.screenVersion ?? ""),
+      String(summary.fieldVersion ?? ""),
+      summary.computedAt || new Date().toISOString(),
+      toNumber(summary.projectsTotal),
+      toNumber(summary.projectsResolved),
+      toNumber(summary.populatedFieldCount),
+      toNumber(summary.createPlacements),
+      toNumber(summary.counts?.invisibleFields),
+      toNumber(summary.counts?.invisibleIssues),
+      toNumber(summary.counts?.clutterFields),
+      toNumber(summary.counts?.clutterPlacements),
+      toNumber(summary.counts?.unreachableFields),
+      summary.usageTruncated ? 1 : 0,
+    ).execute()
+  );
+}
+
+// Reads the stored summary and decides whether it still describes the current estate.
+//
+// `available` is false when either source snapshot has been rebuilt since -- the numbers
+// would still render, and they would be a two-builds-ago answer wearing this morning's
+// timestamp, which is the failure this whole app exists to prevent elsewhere.
+export async function readScreenCrossSummary(scopeKey, { screenVersion = null, fieldVersion = null } = {}) {
+  await ensureProjectStoreReady();
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT screen_version, field_version, computed_at, projects_total, projects_resolved,
+             populated_field_count, create_placements, invisible_fields, invisible_issues,
+             clutter_fields, clutter_placements, unreachable_fields, usage_truncated
+      FROM screen_cross_summary
+      WHERE scope_key = ?
+    `).bindParams(scopeKey).execute()
+  );
+
+  const row = (result.rows || [])[0];
+  if (!row) return null;
+
+  const matchesScreens = !screenVersion || String(row.screen_version) === String(screenVersion);
+  const matchesFields = !fieldVersion || String(row.field_version) === String(fieldVersion);
+
+  return {
+    available: matchesScreens && matchesFields,
+    staleAgainst: matchesScreens ? (matchesFields ? null : "fields") : "screens",
+    reason: matchesScreens && matchesFields
+      ? null
+      : `The cross was computed against an older ${matchesScreens ? "field snapshot" : "screen inventory"}. It refreshes on the next scan.`,
+    screenVersion: row.screen_version,
+    fieldVersion: row.field_version,
+    computedAt: row.computed_at || null,
+    projectsTotal: toNumber(row.projects_total),
+    projectsResolved: toNumber(row.projects_resolved),
+    populatedFieldCount: toNumber(row.populated_field_count),
+    createPlacements: toNumber(row.create_placements),
+    usageTruncated: Boolean(toNumber(row.usage_truncated)),
+    counts: {
+      invisibleFields: toNumber(row.invisible_fields),
+      invisibleIssues: toNumber(row.invisible_issues),
+      clutterFields: toNumber(row.clutter_fields),
+      clutterPlacements: toNumber(row.clutter_placements),
+      unreachableFields: toNumber(row.unreachable_fields),
+    },
+  };
+}

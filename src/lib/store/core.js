@@ -1588,6 +1588,94 @@ export const CREATE_BOARD_SNAPSHOT_META_TABLE = `
 // (scope, finding, item) so re-running never creates a duplicate -- "this finding already
 // has an epic", "this filter already has a task". NOT versioned and NOT wiped with the
 // snapshots: a remediation ticket outlives the scan that flagged it.
+// The screen cross-signal's summary, computed once per scan and read cheaply thereafter.
+//
+// The cross itself is the widest join in the app -- every project's screen chain, down to
+// each screen's fields, against every populated field x project pair. That is fine once on a
+// queue consumer with a 900s budget and far too expensive on the Overview read, which is
+// what the rest of this table exists to avoid.
+//
+// Both source versions are stored, not just the counts. The screen inventory and the field
+// snapshot refresh independently, so a summary is only current while BOTH are still the
+// versions it was computed from; readers compare and report it stale rather than presenting
+// a two-builds-ago number as this morning's.
+export const CREATE_SCREEN_CROSS_SUMMARY_TABLE = `
+  CREATE TABLE IF NOT EXISTS screen_cross_summary (
+    scope_key VARCHAR(191) NOT NULL,
+    screen_version VARCHAR(64) NOT NULL,
+    field_version VARCHAR(64) NOT NULL,
+    computed_at VARCHAR(64) NULL,
+    projects_total INTEGER NOT NULL DEFAULT 0,
+    projects_resolved INTEGER NOT NULL DEFAULT 0,
+    populated_field_count INTEGER NOT NULL DEFAULT 0,
+    create_placements INTEGER NOT NULL DEFAULT 0,
+    invisible_fields INTEGER NOT NULL DEFAULT 0,
+    invisible_issues BIGINT NOT NULL DEFAULT 0,
+    clutter_fields INTEGER NOT NULL DEFAULT 0,
+    clutter_placements INTEGER NOT NULL DEFAULT 0,
+    unreachable_fields INTEGER NOT NULL DEFAULT 0,
+    usage_truncated INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (scope_key)
+  )
+`;
+
+// Three counters over data the crawl already has in hand.
+//
+// Every one of these rides an issue the universe scan is walking anyway, requesting "*all",
+// so each costs an accumulator and no Jira traffic. They exist because the pillars they feed
+// could all describe their objects and none of them could say whether anyone uses one --
+// which is the difference between a naming observation and a merge decision.
+
+// Issues currently OF each type, per project. The sibling of issue_scan_status_totals, and
+// distinct from issue_scan_type_buffer, which counts field x type pairs: summing that across
+// fields would count an issue once per populated field on it.
+export const CREATE_ISSUE_SCAN_TYPE_TOTALS_TABLE = `
+  CREATE TABLE IF NOT EXISTS issue_scan_type_totals (
+    scope_key VARCHAR(191) NOT NULL,
+    issue_type_id VARCHAR(191) NOT NULL,
+    project_id VARCHAR(191) NOT NULL,
+    issue_type_name TEXT NULL,
+    project_key VARCHAR(191) NULL,
+    issue_count BIGINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (scope_key, issue_type_id, project_id)
+  )
+`;
+
+// Issues carrying each priority and each resolution, kind-discriminated the same way
+// snapshot_estate_values is so the two join without translation.
+//
+// value_id is the empty string for an UNSET value, which is a real answer rather than a
+// missing one: "1,400 issues have no resolution" is the shape of an unresolved backlog, and
+// dropping those rows would silently rebase every percentage in the pillar.
+export const CREATE_ISSUE_SCAN_ESTATE_TOTALS_TABLE = `
+  CREATE TABLE IF NOT EXISTS issue_scan_estate_totals (
+    scope_key VARCHAR(191) NOT NULL,
+    kind VARCHAR(32) NOT NULL,
+    value_id VARCHAR(191) NOT NULL,
+    value_name TEXT NULL,
+    issue_count BIGINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (scope_key, kind, value_id)
+  )
+`;
+
+// The most recent issue activity per account, from max(issue.updated) where that account is
+// the assignee or the reporter.
+//
+// The People pillar's missing denominator. "This licence has had no activity in a year" is
+// the only finding in the product with a currency figure attached to it, and it was blocked
+// on this one column. MAX rather than an increment, so a worker re-running a slice cannot
+// move the answer.
+export const CREATE_ISSUE_SCAN_USER_ACTIVITY_TABLE = `
+  CREATE TABLE IF NOT EXISTS issue_scan_user_activity (
+    scope_key VARCHAR(191) NOT NULL,
+    account_id VARCHAR(191) NOT NULL,
+    display_name TEXT NULL,
+    last_activity_at VARCHAR(64) NULL,
+    issue_count BIGINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (scope_key, account_id)
+  )
+`;
+
 export const CREATE_REMEDIATION_TICKETS_TABLE = `
   CREATE TABLE IF NOT EXISTS remediation_tickets (
     scope_key VARCHAR(191) NOT NULL,
@@ -1882,8 +1970,17 @@ const projectStoreMigrations = migrationRunner
   .enqueue("v149_create_automation_rule_blast_table", CREATE_AUTOMATION_RULE_BLAST_TABLE)
   .enqueue("v150_create_automation_rule_blast_score_index", CREATE_AUTOMATION_RULE_BLAST_SCORE_INDEX)
 
+
   // ── v151: remediation ticketing -- the epics and tasks Observatory creates in Jira ──
-  .enqueue("v151_create_remediation_tickets_table", CREATE_REMEDIATION_TICKETS_TABLE);
+  .enqueue("v151_create_remediation_tickets_table", CREATE_REMEDIATION_TICKETS_TABLE)
+
+  // ── v152: the screen cross-signal summary, computed on the scan and read cheap ──
+  .enqueue("v152_create_screen_cross_summary_table", CREATE_SCREEN_CROSS_SUMMARY_TABLE)
+
+  // ── v153-v155: three counters over issues the crawl already walks ──
+  .enqueue("v153_create_issue_scan_type_totals_table", CREATE_ISSUE_SCAN_TYPE_TOTALS_TABLE)
+  .enqueue("v154_create_issue_scan_estate_totals_table", CREATE_ISSUE_SCAN_ESTATE_TOTALS_TABLE)
+  .enqueue("v155_create_issue_scan_user_activity_table", CREATE_ISSUE_SCAN_USER_ACTIVITY_TABLE);
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history

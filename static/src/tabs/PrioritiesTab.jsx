@@ -34,6 +34,20 @@ function ValueRow({ item, duplicate }) {
         {item.description && <span className="issue-type-row__desc">{item.description}</span>}
       </div>
       <div className="issue-type-row__meta">
+        {/* Usage, which is what turns a near-duplicate pair from an observation into a merge
+            decision -- you keep the one people use. Null is "no completed crawl has counted",
+            never a zero: zero is what makes a value look safe to retire. */}
+        {item.issueCount === null || item.issueCount === undefined ? (
+          <Chip tone="neutral" title="No completed issue crawl has counted this yet. Run a full scan from the Scans tab.">
+            Not measured
+          </Chip>
+        ) : item.issueCount === 0 ? (
+          <Chip tone="warning" title="A completed crawl found no issue carrying this value.">
+            No issues
+          </Chip>
+        ) : (
+          <Chip tone="neutral">{formatNumber(item.issueCount)} {item.issueCount === 1 ? "issue" : "issues"}</Chip>
+        )}
         {item.isDefault && <Chip tone="neutral" title="The default for this list">default</Chip>}
         {duplicate && <Chip tone="warning" title={`Near-duplicate of: ${duplicate}`}>duplicate name</Chip>}
       </div>

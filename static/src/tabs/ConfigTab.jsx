@@ -2,7 +2,7 @@ import React from "react";
 import { AuditLogPanel } from "../components/admin/AuditLogPanel";
 import { invoke, view } from "@forge/bridge";
 import { Icon } from "../components/Icons";
-import { DEFAULT_THRESHOLDS, DEFAULT_MACRO_ACCESS, DEFAULT_REMEDIATION, DEFAULT_CONFIG } from "../admin-defaults";
+import { DEFAULT_THRESHOLDS, DEFAULT_MACRO_ACCESS, DEFAULT_REMEDIATION, DEFAULT_CONFIG, DEFAULT_AUTOMATION_STALE_AFTER_DAYS } from "../admin-defaults";
 import { Toggle, ConfigSection, ConfigRow, InlineThresholdInput, SubNavLayout } from "../components/admin/primitives";
 import { PageHeader, StickyActions } from "../components/ui";
 
@@ -455,7 +455,9 @@ function ConfigAreas({ area, local, t, set, setThreshold, setMacroAccess, setRem
           description="Every finding in the app comes from one of the rules below. Edit the numbers
                  inline — changes apply on the next inventory load, with no snapshot rebuild."
         />
-        <RulesArea t={t} setThreshold={setThreshold} pct={pct} setTolerancePercent={setTolerancePercent} targetPct={targetPct} setTarget={setTarget} />
+        <RulesArea t={t} setThreshold={setThreshold} pct={pct} setTolerancePercent={setTolerancePercent} targetPct={targetPct} setTarget={setTarget}
+          staleDays={local.automationStaleAfterDays ?? DEFAULT_AUTOMATION_STALE_AFTER_DAYS}
+          setStaleDays={(v) => set("automationStaleAfterDays", v)} />
       </>
     );
   }
@@ -758,7 +760,7 @@ function ScanningArea({ local, set }) {
 
 // Grouped by what the finding means, not listed flat. Nine rules in one undifferentiated
 // column reads as a wall; the same nine under three headings read as three decisions.
-function RulesArea({ t, setThreshold, pct, setTolerancePercent, targetPct, setTarget }) {
+function RulesArea({ t, setThreshold, pct, setTolerancePercent, targetPct, setTarget, staleDays, setStaleDays }) {
   return (
     <>
       <ConfigSection title="Scoring targets" icon="sliders">
@@ -990,6 +992,10 @@ function RulesArea({ t, setThreshold, pct, setTolerancePercent, targetPct, setTa
             tail="of scheme operations pointing at a screen that no longer exists." />
           <ToleranceRule tone="cleanup" badge="Screen" name="Unreachable screens" pct={pct} set={setTolerancePercent} k="unusedScreens"
             tail="of screens no scheme and no transition can reach." />
+          <ToleranceRule tone="risk" badge="Risk" name="Invisible data" pct={pct} set={setTolerancePercent} k="invisibleData"
+            tail={"of populated fields holding values in projects whose screens do not show them. Something outside the UI writes these, so they are harder to remove safely, not easier."} />
+          <ToleranceRule tone="cleanup" badge="Screen" name="Form clutter" pct={pct} set={setTolerancePercent} k="formClutter"
+            tail="of create-screen placements that nobody in that project ever fills in. Create is the one form nobody can skip." />
         </div>
       </ConfigSection>
 
@@ -1021,6 +1027,8 @@ function RulesArea({ t, setThreshold, pct, setTolerancePercent, targetPct, setTa
             tail="of licensed accounts that Jira has deactivated — a paid seat and a login that should not exist." />
           <ToleranceRule tone="risk" badge="People" name="Orphaned ownership" pct={pct} set={setTolerancePercent} k="orphanedOwnership"
             tail="of owned filters, dashboards and rules whose owner is not in the licensed roster." />
+          <ToleranceRule tone="cleanup" badge="People" name="Dormant licences" pct={pct} set={setTolerancePercent} k="dormantLicences"
+            tail={"of measured accounts holding a seat with no issue activity in a year. Scored against accounts the crawl actually reached, never the whole roster — an account nobody counted is not an idle one."} />
         </div>
       </ConfigSection>
 
@@ -1095,6 +1103,24 @@ function RulesArea({ t, setThreshold, pct, setTolerancePercent, targetPct, setTa
           rules, so these score whatever was last imported on the Automation tab.
         </p>
         <div className="admin-threshold-rules">
+          {/* Not a tolerance: this one is days, and it gates whether an answer is given at
+              all rather than how a rate is scored. Deliberately not passed as k= so the
+              tolerance/target parity test keeps comparing only the rules that feed the score. */}
+          <div className="admin-threshold-rule">
+            <span className="admin-threshold-rule__badge admin-threshold-rule__badge--risk">Evidence</span>
+            <span className="admin-threshold-rule__sentence">
+              <strong>Analysis staleness:</strong> stop treating the imported analysis as current after{" "}
+              <InlineThresholdInput
+                value={staleDays}
+                onChange={setStaleDays}
+                min={1}
+                max={90}
+              />{" "}
+              days. Past that, &ldquo;no rule touches this&rdquo; degrades to <em>unknown</em> rather than
+              being reported as safe to delete &mdash; because a rule written since the last import is
+              not in it.
+            </span>
+          </div>
           <ToleranceRule tone="risk" badge="Risk" name="Credentials in rules" pct={pct} set={setTolerancePercent} k="credentialRules"
             tail="of rules carrying a secret in plaintext. The highest-consequence thing this app finds anywhere." />
           <ToleranceRule tone="cleanup" badge="Automation" name="Self-triggering rules" pct={pct} set={setTolerancePercent} k="selfTriggeringRules"
