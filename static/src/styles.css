@@ -7237,3 +7237,131 @@ a.dash-row__name:hover { text-decoration: underline; }
 }
 .macro-screens__row:first-child { border-top: 0; }
 .macro-screens__ops { display: flex; gap: 4px; margin-left: auto; }
+
+/* ---------------------------------------------------------------------------
+   First run
+
+   Two lists in one panel. The arrivals list reads as a feed -- a dot rail down the
+   left, newest at the top -- because that is what it is: the wait for a multi-hour
+   first scan turned into fifteen small moments. The checklist below it is quieter and
+   deliberately unstyled as "cards", since four steps in boxes reads as four features
+   rather than four things to do.
+   --------------------------------------------------------------------------- */
+.first-run__arrivals {
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-md);
+  background: var(--panel-strong);
+  padding: 0.85rem 1rem 0.65rem;
+}
+
+.first-run__arrivals-head {
+  margin: 0 0 0.6rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.first-run__arrival-list { list-style: none; margin: 0; padding: 0; }
+
+.first-run__arrival {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.3rem 0;
+  font-size: 0.86rem;
+  color: var(--text);
+}
+
+/* The label takes the slack so the timestamp stays pinned right and the whole
+   column of times lines up, which is most of what makes this read as a feed. */
+.first-run__arrival-label { flex: 1 1 auto; min-width: 0; }
+.first-run__arrival-label strong { font-weight: 600; }
+
+.first-run__arrival-when {
+  flex: 0 0 auto;
+  font-size: 0.76rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.first-run__arrival-dot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--success);
+  transform: translateY(-1px);
+}
+
+.first-run__arrival--pending { color: var(--muted); }
+.first-run__arrival-dot--pending {
+  background: transparent;
+  border: 1px solid var(--stroke);
+}
+
+.first-run__steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.first-run__step {
+  display: flex;
+  gap: 0.7rem;
+  padding: 0.6rem 0;
+  border-top: 1px solid var(--stroke);
+}
+.first-run__step:first-child { border-top: 0; }
+
+/* A done step stays on the page rather than disappearing -- the panel is a record of
+   what setting this up involved, not a queue that empties. It just stops competing. */
+.first-run__step--done .first-run__step-title { color: var(--muted); }
+.first-run__step--done .first-run__step-detail { display: none; }
+
+.first-run__tick {
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  margin-top: 0.15rem;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--success);
+}
+
+/* An empty ring for something the estate has not done yet, a dashed one for something
+   only a person can answer. Different shapes because they are different kinds of
+   incomplete, and the panel says as much in words next to them. */
+.first-run__tick--derived { border: 1.5px solid var(--stroke); }
+.first-run__tick--acknowledged { border: 1.5px dashed var(--warm); opacity: 0.8; }
+
+.first-run__step-body { flex: 1 1 auto; min-width: 0; }
+
+.first-run__step-title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.first-run__step-detail {
+  margin: 0.2rem 0 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--muted);
+  max-width: 62ch;
+}
+
+.first-run__step-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.4rem;
+}
+.first-run__step-actions:empty { margin-top: 0; }
