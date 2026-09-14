@@ -149,6 +149,7 @@ const mocks = vi.hoisted(() => ({
   // screen store + screen-engine.js
   readScreenSnapshotMeta: vi.fn(),
   loadScreensPage: vi.fn(),
+  loadScreensForProjects: vi.fn(async () => []),
   loadScreensForField: vi.fn(),
   loadScreenSchemes: vi.fn(),
   loadScreenSchemeOperations: vi.fn(),
@@ -403,6 +404,7 @@ vi.mock("./lib/project-store.js", () => ({
   readScreenSnapshotMeta: mocks.readScreenSnapshotMeta,
   loadScreensPage: mocks.loadScreensPage,
   loadScreensForField: mocks.loadScreensForField,
+  loadScreensForProjects: mocks.loadScreensForProjects,
   loadScreenSchemes: mocks.loadScreenSchemes,
   loadScreenSchemeOperations: mocks.loadScreenSchemeOperations,
   loadIssueTypeScreenSchemes: mocks.loadIssueTypeScreenSchemes,
@@ -727,6 +729,9 @@ const {
   getScreenFieldCrossSignal,
   getProjectScreenReportInputs,
   getMacroFilters,
+  getMacroScreens,
+  getMacroIssueTypes,
+  getMacroBoards,
   getMacroDashboards,
   getMacroWorkflows,
   getProjectUsageReportJob,
@@ -879,7 +884,7 @@ describe("checkMacroAccess", () => {
   test("allows access when restriction is off", async () => {
     mocks.kvsGet.mockResolvedValue({ macroAccess: { restrictAccess: false, allowedGroups: [] } });
     const result = await checkMacroAccess({ context: { accountId: "user-1" } });
-    expect(result).toEqual({ allowed: true });
+    expect(result).toMatchObject({ allowed: true });
     expect(mocks.apiAsAppRequestJira).not.toHaveBeenCalled();
   });
 
@@ -904,7 +909,7 @@ describe("checkMacroAccess", () => {
       json: async () => [{ name: "jira-admins" }, { name: "other-group" }],
     });
     const result = await checkMacroAccess({ context: { accountId: "user-1" } });
-    expect(result).toEqual({ allowed: true });
+    expect(result).toMatchObject({ allowed: true });
   });
 
   test("denies a user who is not in any allowed group", async () => {
@@ -922,13 +927,13 @@ describe("checkMacroAccess", () => {
     mocks.kvsGet.mockResolvedValue({ macroAccess: { restrictAccess: true, allowedGroups: ["jira-admins"] } });
     mocks.apiAsAppRequestJira.mockResolvedValue({ ok: false, status: 500 });
     const result = await checkMacroAccess({ context: { accountId: "user-1" } });
-    expect(result).toEqual({ allowed: true });
+    expect(result).toMatchObject({ allowed: true });
   });
 
   test("fails open (allows) when reading admin config throws", async () => {
     mocks.kvsGet.mockRejectedValue(new Error("kvs unavailable"));
     const result = await checkMacroAccess({ context: { accountId: "user-1" } });
-    expect(result).toEqual({ allowed: true });
+    expect(result).toMatchObject({ allowed: true });
   });
 });
 
@@ -9104,5 +9109,153 @@ describe("getDeletionSafety — one pillar failing never takes the verdict down"
     const field = await verdictFor();
 
     expect(field.blockers.some((b) => b.source === "filters")).toBe(true);
+  });
+});
+
+// The three pillars the Confluence macro gained, and the rule every one of them answers to:
+// a viewer sees their own estate, never the site's. This panel can be opened by anyone in
+// Confluence, so the scoping is the security boundary, not a nicety.
+describe("the macro's viewer-scoped pillars", () => {
+  const ctx = (accountId = "viewer-1") => ({ context: { installContext: "ari:cloud:jira::site/x", accountId } });
+
+  // Two projects exist. The viewer can browse exactly one of them.
+  const twoProjectsOneBrowsable = () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: "f1" });
+    mocks.listSnapshotProjects.mockResolvedValue([
+      { projectId: "10", projectKey: "MINE", projectName: "Mine" },
+      { projectId: "20", projectKey: "THEIRS", projectName: "Theirs" },
+    ]);
+    mocks.getBrowsableProjectIds.mockResolvedValue(new Set(["10"]));
+  };
+
+  describe("getMacroScreens", () => {
+    beforeEach(() => {
+      twoProjectsOneBrowsable();
+      mocks.readScreenSnapshotMeta.mockResolvedValue({ version: "s1", refreshedAt: "2026-09-12T00:00:00.000Z" });
+      mocks.loadScreensForProjects.mockResolvedValue([
+        { projectId: "10", screenId: "100", name: "Create", fieldCount: 34, tabCount: 2, tabsResolved: "resolved", onCreate: true, onEdit: false, onView: true },
+        { projectId: "10", screenId: "200", name: "Edit", fieldCount: 12, tabCount: 1, tabsResolved: "resolved", onCreate: false, onEdit: true, onView: false },
+        // A row for a project the viewer cannot browse. The query is asked only for browsable
+        // ids, but the fold must not trust that -- one day somebody widens the query.
+        { projectId: "20", screenId: "300", name: "Secret", fieldCount: 9, tabCount: 1, tabsResolved: "resolved", onCreate: true, onEdit: false, onView: false },
+      ]);
+    });
+
+    test("shows only the projects the viewer can browse", async () => {
+      const result = await getMacroScreens(ctx());
+
+      expect(result.available).toBe(true);
+      expect(result.projects.map((p) => p.projectKey)).toEqual(["MINE"]);
+      expect(JSON.stringify(result)).not.toMatch(/THEIRS|Secret/);
+    });
+
+    test("leads with the number people actually argue about -- the create form's length", async () => {
+      const result = await getMacroScreens(ctx());
+      // Not the total across every screen: the longest CREATE screen, which is the form
+      // nobody filing an issue can skip.
+      expect(result.projects[0].createFieldCount).toBe(34);
+    });
+
+    test("never reports a screen it could not read as having no fields", async () => {
+      mocks.loadScreensForProjects.mockResolvedValue([
+        { projectId: "10", screenId: "100", name: "Create", fieldCount: 0, tabCount: 0, tabsResolved: "failed", onCreate: true, onEdit: false, onView: false },
+      ]);
+
+      const result = await getMacroScreens(ctx());
+
+      // The viewer is the person about to ask why their form looks different from this page.
+      expect(result.projects[0].screens[0].unreadable).toBe(true);
+    });
+
+    test("says the inventory is missing rather than returning an empty estate", async () => {
+      mocks.readScreenSnapshotMeta.mockResolvedValue(null);
+      const result = await getMacroScreens(ctx());
+      expect(result).toMatchObject({ available: false, reason: "no-inventory" });
+    });
+  });
+
+  describe("getMacroIssueTypes", () => {
+    beforeEach(() => {
+      twoProjectsOneBrowsable();
+      mocks.readIssueTypeSnapshotMeta.mockResolvedValue({ version: "t1", refreshedAt: "2026-09-12T00:00:00.000Z" });
+      mocks.loadIssueTypes.mockResolvedValue([
+        { id: "1", name: "Bug", subtask: false },
+        { id: "2", name: "Sub-task", subtask: true },
+      ]);
+      mocks.loadIssueTypeSchemeItems.mockResolvedValue([
+        { schemeId: "S1", issueTypeId: "1" },
+        { schemeId: "S1", issueTypeId: "2" },
+        // A member the catalogue no longer holds -- a finding, not noise.
+        { schemeId: "S1", issueTypeId: "999" },
+      ]);
+      mocks.loadIssueTypeSchemes.mockResolvedValue([{ schemeId: "S1", name: "Default scheme" }]);
+      mocks.loadIssueTypeSchemeProjects.mockResolvedValue([
+        { schemeId: "S1", projectId: "10", projectKey: "MINE" },
+        { schemeId: "S1", projectId: "20", projectKey: "THEIRS" },
+      ]);
+    });
+
+    test("groups by scheme and names it, rather than showing an id", async () => {
+      const result = await getMacroIssueTypes(ctx());
+      expect(result.schemes[0]).toMatchObject({ name: "Default scheme" });
+    });
+
+    test("lists only the browsable projects inside a shared scheme", async () => {
+      // The scheme is shared with a project this viewer cannot see. The scheme still shows --
+      // it governs one of theirs -- but the other project's key must not leak with it.
+      const result = await getMacroIssueTypes(ctx());
+      expect(result.schemes[0].projects).toEqual(["MINE"]);
+    });
+
+    test("keeps a member type the catalogue has lost, marked missing", async () => {
+      const result = await getMacroIssueTypes(ctx());
+      const missing = result.schemes[0].issueTypes.find((t) => t.id === "999");
+      expect(missing).toMatchObject({ missing: true, name: null });
+    });
+  });
+
+  describe("getMacroBoards", () => {
+    beforeEach(() => {
+      twoProjectsOneBrowsable();
+      mocks.readBoardSnapshotMeta.mockResolvedValue({ version: "b1", refreshedAt: "2026-09-12T00:00:00.000Z" });
+      mocks.loadBoards.mockResolvedValue([
+        { boardId: "1", name: "My board", type: "scrum", locationType: "project", locationId: "10", locationKey: "MINE", columnCount: 4, configReadable: true },
+        { boardId: "2", name: "Their board", type: "kanban", locationType: "project", locationId: "20", locationKey: "THEIRS", columnCount: 3, configReadable: true },
+        { boardId: "3", name: "Team-managed", type: "kanban", locationType: "project", locationId: "10", locationKey: "MINE", columnCount: 0, configReadable: false },
+      ]);
+    });
+
+    test("shows only boards living in a project the viewer can browse", async () => {
+      const result = await getMacroBoards(ctx());
+      expect(result.boards.map((b) => b.name).sort()).toEqual(["My board", "Team-managed"]);
+    });
+
+    test("lists a board whose configuration could not be read rather than dropping it", async () => {
+      // Team-managed boards routinely refuse that endpoint. Dropping them would read as
+      // "you have no board here" to somebody looking straight at one.
+      const result = await getMacroBoards(ctx());
+      expect(result.boards.find((b) => b.name === "Team-managed").configReadable).toBe(false);
+    });
+  });
+
+  test("every macro pillar is reachable WITHOUT Jira admin", async () => {
+    // The whole point of the macro: a business user gets answers without being made an admin.
+    // If one of these ever moves into the admin registry, this fails rather than the feature
+    // silently disappearing for every non-admin who opens the page.
+    for (const name of ["getMacroScreens", "getMacroIssueTypes", "getMacroBoards",
+                        "getMacroFilters", "getMacroDashboards", "getMacroWorkflows"]) {
+      expect(SHARED_RESOLVER_FUNCTIONS, name).toHaveProperty(name);
+      expect(__RAW_ADMIN_ONLY_FUNCTIONS).not.toHaveProperty(name);
+    }
+  });
+
+  test("the pillars that would leak stay out of the macro", async () => {
+    // Access schemes and the people roster are a disclosure risk on a page anyone in
+    // Confluence can open; automation findings include plaintext-credential hits. None of
+    // them belongs on a wiki page, and this is the assertion that keeps it that way.
+    for (const name of ["getAccessInventory", "getPeopleInventory", "getAutomationInsights",
+                        "getDeletionSafety", "getScreenFieldCrossSignal"]) {
+      expect(SHARED_RESOLVER_FUNCTIONS).not.toHaveProperty(name);
+    }
   });
 });

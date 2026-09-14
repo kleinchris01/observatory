@@ -141,7 +141,7 @@ describe("App tab navigation", () => {
 
     await waitFor(() => expect(screen.getByText("Test Field")).toBeInTheDocument());
 
-    const tabBar = document.querySelector(".tab-bar");
+    const tabBar = document.querySelector(".sub-nav");
 
     await user.click(within(tabBar).getByText("Projects"));
     await waitFor(() => expect(invoke).toHaveBeenCalledWith("getProjectsView", expect.any(Object)));
@@ -151,7 +151,7 @@ describe("App tab navigation", () => {
       expect(screen.getByText("Select fields, then generate a report.")).toBeInTheDocument();
     });
 
-    await user.click(within(tabBar).getByText("Inventory"));
+    await user.click(within(tabBar).getByText("Fields"));
     await waitFor(() => expect(screen.getByText("Test Field")).toBeInTheDocument());
   });
 
@@ -159,11 +159,11 @@ describe("App tab navigation", () => {
     await renderApp();
     await waitFor(() => expect(screen.getByText("Test Field")).toBeInTheDocument());
 
-    const tabBar = document.querySelector(".tab-bar");
+    const tabBar = document.querySelector(".sub-nav");
     const user = userEvent.setup();
 
     // Check across all three tabs
-    for (const tabLabel of ["Inventory", "Projects", "Report"]) {
+    for (const tabLabel of ["Fields", "Projects", "Report"]) {
       await user.click(within(tabBar).getByText(tabLabel));
       await waitFor(() => {}, { timeout: 50 }).catch(() => {});
       expect(screen.queryByText("Build Snapshot")).not.toBeInTheDocument();
@@ -277,5 +277,104 @@ describe("App report generation job-polling lifecycle", () => {
     expect(screen.queryByText("queued")).not.toBeInTheDocument();
     expect(screen.queryByText("building")).not.toBeInTheDocument();
     expect(screen.queryByText("Generating...")).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Permission-aware shell
+// ---------------------------------------------------------------------------
+// This panel can be opened by anyone in Confluence, and everything in it is filtered to the
+// projects the READER can Browse in Jira. Two people on the same page legitimately see
+// different numbers -- and unless the page says so, the one seeing fewer assumes it is
+// broken and raises a bug. Most of what is asserted here is that the page says so.
+describe("macro scope and permission-aware navigation", () => {
+  const withAccess = (accessCheck) => {
+    invoke.mockImplementation((name, payload) => (
+      name === "checkMacroAccess" ? Promise.resolve(accessCheck) : defaultInvokeImpl(name, payload)
+    ));
+  };
+
+  it("states the scope with a real count, and warns that others will see differently", async () => {
+    withAccess({ allowed: true, projectCount: 7 });
+    render(<App />);
+
+    const note = await screen.findByText(/scoped to the 7 projects you can browse/i);
+    expect(note).toBeInTheDocument();
+    // The half that stops a support ticket: this is not a bug, it is your permissions.
+    expect(note.textContent).toMatch(/different permissions will see different numbers/i);
+  });
+
+  it("tells a viewer with no browsable projects whose problem it is", async () => {
+    withAccess({ allowed: true, projectCount: 0 });
+    render(<App />);
+
+    const note = await screen.findByText(/cannot browse any Jira project/i);
+    // Naming the permission, and who grants it, is the difference between a dead end and a
+    // next step.
+    expect(note.textContent).toMatch(/Browse Projects/);
+    expect(note.textContent).toMatch(/Jira permission, not an Observatory one/i);
+  });
+
+  it("disables the project-scoped sections for that viewer rather than hiding them", async () => {
+    withAccess({ allowed: true, projectCount: 0 });
+    render(<App />);
+    await screen.findByText(/cannot browse any Jira project/i);
+
+    const nav = document.querySelector(".sub-nav");
+    for (const label of ["Projects", "Screens", "Issue types", "Workflows", "Boards", "Filters", "Dashboards"]) {
+      const tab = within(nav).getByText(label).closest("button");
+      // Present and dimmed, not gone: a section that vanishes reads as a missing feature and
+      // gets raised as a bug, where a disabled one with a reason reads as a permission.
+      expect(tab).toBeInTheDocument();
+      expect(tab).toBeDisabled();
+      expect(tab.getAttribute("title")).toMatch(/Browse Projects/);
+    }
+  });
+
+  it("leaves the field catalogue and report open regardless of project access", async () => {
+    // The field catalogue is site configuration, not project data -- there is nothing in it
+    // to scope, so gating it would deny access to the macro's whole reason for existing.
+    withAccess({ allowed: true, projectCount: 0 });
+    render(<App />);
+    await screen.findByText(/cannot browse any Jira project/i);
+
+    const nav = document.querySelector(".sub-nav");
+    expect(within(nav).getByText("Fields").closest("button")).toBeEnabled();
+    expect(within(nav).getByText("Report").closest("button")).toBeEnabled();
+  });
+
+  it("falls back to the generic scope line when the count is unknown", async () => {
+    // checkMacroAccess fails open on an API error and reports the count as null. Showing "0"
+    // there would tell a viewer with full access that they have none.
+    withAccess({ allowed: true, projectCount: null });
+    render(<App />);
+
+    const note = await screen.findByText(/scoped to the Jira projects you can browse/i);
+    expect(note.textContent).not.toMatch(/\b0 projects\b/);
+  });
+
+  it("offers every pillar the backend serves to a macro viewer", async () => {
+    withAccess({ allowed: true, projectCount: 4 });
+    render(<App />);
+    await screen.findByText(/scoped to the 4 projects/i);
+
+    const nav = document.querySelector(".sub-nav");
+    for (const label of ["Fields", "Projects", "Screens", "Issue types", "Workflows", "Boards", "Filters", "Dashboards", "Report"]) {
+      expect(within(nav).getByText(label)).toBeInTheDocument();
+    }
+  });
+
+  it("offers nothing that belongs to the admin surface", async () => {
+    // Access schemes, the roster and automation findings are a disclosure risk on a page
+    // anyone in Confluence can open. This is the UI half of the guard the resolver registry
+    // enforces on the backend.
+    withAccess({ allowed: true, projectCount: 4 });
+    render(<App />);
+    await screen.findByText(/scoped to the 4 projects/i);
+
+    const nav = document.querySelector(".sub-nav");
+    for (const label of ["Access", "People", "Automation", "Assets", "Scans", "Configuration"]) {
+      expect(within(nav).queryByText(label)).not.toBeInTheDocument();
+    }
   });
 });
