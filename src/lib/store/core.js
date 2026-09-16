@@ -1332,6 +1332,42 @@ export const CREATE_ASSET_SNAPSHOT_META_TABLE = `
   )
 `;
 
+// Per-object-type live counts from the Assets AQL endpoint -- the "later opt-in stage" the
+// structure snapshot's own comment names. Unversioned, like issue_scan_estate_totals: this
+// is a second, slower crawl over the CURRENT structure snapshot, full-replaced on every run
+// rather than tied to a structure version, so a re-run always reports against what is on
+// screen now. measured_at is per-row because a crawl that fails partway through still wrote
+// real counts for the types it got to before the failure.
+export const CREATE_SNAPSHOT_ASSET_TYPE_COUNTS_TABLE = `
+  CREATE TABLE IF NOT EXISTS snapshot_asset_type_counts (
+    scope_key VARCHAR(191) NOT NULL,
+    object_type_id VARCHAR(64) NOT NULL,
+    schema_id VARCHAR(64) NOT NULL,
+    object_count INTEGER NOT NULL DEFAULT 0,
+    measured_at VARCHAR(64) NULL,
+    PRIMARY KEY (scope_key, object_type_id)
+  )
+`;
+
+// Build state for the object-count crawl, separate from asset_snapshot_meta because it is a
+// separate job on a separate cadence -- an admin can rebuild the structure without waiting
+// on hundreds of AQL calls, and vice versa. measured_types / unmeasured_types name the split
+// so a partial crawl (one type's AQL call failed) is visible rather than silently rolled into
+// a count that looks complete.
+export const CREATE_ASSET_TYPE_COUNT_META_TABLE = `
+  CREATE TABLE IF NOT EXISTS asset_type_count_meta (
+    scope_key VARCHAR(191) NOT NULL,
+    state VARCHAR(32) NOT NULL DEFAULT 'idle',
+    started_at VARCHAR(64) NULL,
+    completed_at VARCHAR(64) NULL,
+    refreshed_at VARCHAR(64) NULL,
+    measured_types INTEGER NOT NULL DEFAULT 0,
+    unmeasured_types INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT NULL,
+    PRIMARY KEY (scope_key)
+  )
+`;
+
 // ── Access & routing schemes: permission, issue-security, notification ────────
 //
 // Three scheme types, one shape: a header, a set of holders (users / groups / project roles
@@ -1980,7 +2016,9 @@ const projectStoreMigrations = migrationRunner
   // ── v153-v155: three counters over issues the crawl already walks ──
   .enqueue("v153_create_issue_scan_type_totals_table", CREATE_ISSUE_SCAN_TYPE_TOTALS_TABLE)
   .enqueue("v154_create_issue_scan_estate_totals_table", CREATE_ISSUE_SCAN_ESTATE_TOTALS_TABLE)
-  .enqueue("v155_create_issue_scan_user_activity_table", CREATE_ISSUE_SCAN_USER_ACTIVITY_TABLE);
+  .enqueue("v155_create_issue_scan_user_activity_table", CREATE_ISSUE_SCAN_USER_ACTIVITY_TABLE)
+  .enqueue("v156_create_snapshot_asset_type_counts_table", CREATE_SNAPSHOT_ASSET_TYPE_COUNTS_TABLE)
+  .enqueue("v157_create_asset_type_count_meta_table", CREATE_ASSET_TYPE_COUNT_META_TABLE);
   // v037 creates rqt_value_issue_index(scope_key, rqt_value, issue_key)
   // v038 creates rqt_field_issue_index(scope_key, field_id, issue_key)
   // v039 adds scan_history LONGTEXT for multi-run audit history

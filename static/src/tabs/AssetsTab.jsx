@@ -61,7 +61,8 @@ function SchemaRow({ schema }) {
   );
 }
 
-function ObjectTypeRow({ type, schemaName, orphan, bare }) {
+function ObjectTypeRow({ type, schemaName, orphan, bare, objectCount }) {
+  const measured = objectCount != null;
   return (
     <div className="issue-type-row">
       <div className="issue-type-row__identity">
@@ -69,12 +70,16 @@ function ObjectTypeRow({ type, schemaName, orphan, bare }) {
         <span className="issue-type-row__desc">
           {schemaName}
           {type.parentId ? ` · child of ${type.parentName || `#${type.parentId}`}` : ""}
+          {measured && !type.abstract ? ` · ${formatNumber(objectCount)} object${objectCount === 1 ? "" : "s"}` : ""}
         </span>
       </div>
       <div className="issue-type-row__meta">
         {type.abstract && <Chip tone="neutral" title="An abstract type — nothing is an instance of it directly">abstract</Chip>}
         {orphan && <Chip tone="critical" title="Its parent object type is not in the catalogue">broken parent</Chip>}
         {bare && !type.abstract && <Chip tone="warning" title="No attribute beyond the built-in Name">no attributes</Chip>}
+        {measured && !type.abstract && objectCount === 0 && (
+          <Chip tone="info" title="The object-count crawl found no objects of this type">empty</Chip>
+        )}
       </div>
     </div>
   );
@@ -129,6 +134,13 @@ function AssetFindings({ governance }) {
       detail: "Only the built-in Name — the type records nothing about the thing it represents.",
     });
   }
+  if (g.countsMeasured && g.emptyObjectTypeCount > 0) {
+    rows.push({
+      key: "empty-types", tone: "info", count: g.emptyObjectTypeCount,
+      title: "Object types with attributes but never an object",
+      detail: `Measured against the ${formatNumber(g.measuredConcreteTypes)} types the object-count crawl has reached — populate them or retire them.`,
+    });
+  }
 
   return (
     <Panel title="What needs attention" icon="alertTriangle" description="What the Assets pillar of the site health score is built from.">
@@ -181,7 +193,8 @@ export function AssetsTab({ intent }) {
   }, [data?.refreshedAt]);
 
   const isBuilding = ["building", "queued"].includes(data?.state) && !data?.staleBuild;
-  useVisiblePolling(isBuilding, load, BUILD_POLL_MS);
+  const isCountCrawling = data?.typeCountCrawl?.state === "building" && !data?.typeCountCrawl?.staleBuild;
+  useVisiblePolling(isBuilding || isCountCrawling, load, BUILD_POLL_MS);
 
   async function startBuild() {
     setBuilding(true);
@@ -204,6 +217,29 @@ export function AssetsTab({ intent }) {
     }
   }
 
+  const [countCrawling, setCountCrawling] = React.useState(false);
+
+  async function startCountCrawl() {
+    setCountCrawling(true);
+    setError("");
+    setNotice("");
+    try {
+      const result = await invoke("buildAssetTypeCountCrawl", {});
+      await load();
+      if (result?.error) {
+        setError(result.error);
+      } else if (result?.queued === false && result?.reason === "already-building") {
+        setNotice("An object-count crawl is already running. This page refreshes itself while it does.");
+      } else {
+        setNotice("Object-count crawl queued — one AQL call per concrete object type. This page refreshes itself while it runs.");
+      }
+    } catch (err) {
+      setError(err?.message || "Could not start the object-count crawl.");
+    } finally {
+      setCountCrawling(false);
+    }
+  }
+
   const buildAction = (
     <>
       <AskRovo
@@ -222,6 +258,18 @@ export function AssetsTab({ intent }) {
       <Icon name="refreshCw" size={13} />
       {isBuilding ? "Building…" : data?.neverBuilt || data?.assetsEnabled === false ? "Check again" : "Rebuild"}
       </button>
+      {!data?.neverBuilt && data?.assetsEnabled !== false && (
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={startCountCrawl}
+          disabled={countCrawling || isCountCrawling}
+          title="One AQL call per concrete object type. A separate, opt-in crawl — the structure build above never counts live objects."
+        >
+          <Icon name="barChart" size={13} />
+          {isCountCrawling ? "Measuring…" : data?.governance?.countsMeasured ? "Remeasure object counts" : "Measure object counts"}
+        </button>
+      )}
     </>
   );
 
@@ -245,6 +293,12 @@ export function AssetsTab({ intent }) {
       {isBuilding && <p className="admin-config-row__hint">Reading the CMDB structure… this page refreshes itself.</p>}
       {data?.staleBuild && (
         <p className="admin-config-row__hint">A build was started but is no longer running. Rebuild to recover it.</p>
+      )}
+      {isCountCrawling && <p className="admin-config-row__hint">Measuring live object counts, one AQL call per concrete type… this page refreshes itself.</p>}
+      {data?.typeCountCrawl?.unmeasuredTypes > 0 && !isCountCrawling && (
+        <p className="admin-config-row__hint">
+          The last object-count crawl could not measure {formatNumber(data.typeCountCrawl.unmeasuredTypes)} of the concrete types — they stay unmeasured rather than counted as empty.
+        </p>
       )}
     </>
   );
@@ -302,6 +356,7 @@ export function AssetsTab({ intent }) {
   const orphanTypeIds = new Set((g?.brokenHierarchy || []).map((t) => String(t.id)));
   const brokenAttrIds = new Set((g?.brokenReferences || []).map((a) => String(a.id)));
   const bareTypeIds = new Set((g?.bareTypes || []).map((t) => String(t.id)));
+  const objectCountByType = new Map((data?.typeCounts || []).map((c) => [String(c.objectTypeId), c.objectCount]));
 
   const buildAgeDays = daysSince(data?.refreshedAt);
   const isStale = buildAgeDays != null && buildAgeDays > STALE_AFTER_DAYS;
@@ -367,6 +422,13 @@ export function AssetsTab({ intent }) {
           hint={(g?.brokenReferenceCount ?? 0) > 0 ? "Point at a type that is gone" : "Every reference resolves"}
           tone={(g?.brokenReferenceCount ?? 0) > 0 ? "critical" : "success"}
           icon="alertTriangle"
+        />
+        <StatTile
+          label="Empty object types"
+          value={g?.countsMeasured ? formatNumber(g.emptyObjectTypeCount) : "—"}
+          hint={g?.countsMeasured ? `of ${formatNumber(g.measuredConcreteTypes)} measured` : "Never measured — run the object-count crawl"}
+          tone={g?.countsMeasured && g.emptyObjectTypeCount > 0 ? "warning" : "neutral"}
+          icon="database"
         />
       </StatRow>
 
@@ -436,6 +498,7 @@ export function AssetsTab({ intent }) {
                     schemaName={schemaNameById.get(String(t.schemaId)) || `#${t.schemaId}`}
                     orphan={orphanTypeIds.has(String(t.id))}
                     bare={bareTypeIds.has(String(t.id))}
+                    objectCount={objectCountByType.has(String(t.id)) ? objectCountByType.get(String(t.id)) : null}
                   />
                 ))}
               </div>

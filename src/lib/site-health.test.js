@@ -16,6 +16,8 @@ const assetStore = {
   loadAssetSchemas: vi.fn(async () => []),
   loadAssetObjectTypes: vi.fn(async () => []),
   loadAssetAttributes: vi.fn(async () => []),
+  loadAssetTypeCounts: vi.fn(async () => []),
+  readAssetTypeCountMeta: vi.fn(async () => null),
 };
 const accessStore = {
   readAccessSnapshotMeta: vi.fn(async () => null),
@@ -183,6 +185,30 @@ describe("buildAssetOverview", () => {
     const overview = await buildAssetOverview("inst");
     expect(overview).toMatchObject({ available: true, assetsEnabled: true, totalSchemas: 2, deadSchemaCount: 1, brokenReferenceCount: 1 });
     expect(overview.health).toMatchObject({ available: true, totalSchemas: 2, deadSchemaCount: 1, brokenReferenceCount: 1 });
+    // The count crawl has never run: unmeasured, not zero.
+    expect(overview.health).toMatchObject({ countsMeasured: false, measuredConcreteTypes: 0, emptyObjectTypeCount: 0 });
+  });
+
+  test("folds the AQL crawl's counts and its own meta into the overview", async () => {
+    assetStore.readAssetSnapshotMeta.mockResolvedValueOnce({ state: "ready", version: "v1", assetsEnabled: true, refreshedAt: "2026-09-02T00:00:00Z" });
+    assetStore.loadAssetSchemas.mockResolvedValueOnce([{ id: "1", name: "Infra", objectTypeCount: 2, objectCount: 40 }]);
+    assetStore.loadAssetObjectTypes.mockResolvedValueOnce([
+      { id: "9", schemaId: "1", name: "Server", parentId: null, abstract: false },
+      { id: "10", schemaId: "1", name: "VM", parentId: "9", abstract: false },
+    ]);
+    assetStore.loadAssetTypeCounts.mockResolvedValueOnce([
+      { objectTypeId: "9", schemaId: "1", objectCount: 0 },
+      { objectTypeId: "10", schemaId: "1", objectCount: 5 },
+    ]);
+    assetStore.readAssetTypeCountMeta.mockResolvedValueOnce({
+      state: "ready", refreshedAt: "2026-09-16T00:00:00Z", measuredTypes: 2, unmeasuredTypes: 0,
+    });
+
+    const overview = await buildAssetOverview("inst");
+    expect(overview.health).toMatchObject({ countsMeasured: true, measuredConcreteTypes: 2, emptyObjectTypeCount: 1 });
+    expect(overview.typeCountCrawl).toEqual({
+      state: "ready", refreshedAt: "2026-09-16T00:00:00Z", measuredTypes: 2, unmeasuredTypes: 0, lastError: null,
+    });
   });
 });
 

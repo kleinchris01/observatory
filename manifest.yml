@@ -828,6 +828,12 @@ permissions:
     # read:jira-work -- it is a servicedeskapi endpoint, so it takes read:servicedesk-request;
     # read:servicemanagement-insight-objects is the legacy Insight object-read scope, added
     # alongside because the gateway object endpoints may want it too. The probe confirms.
+    #
+    # The object-count crawl (POST .../object/aql, the opt-in per-object-type count stage)
+    # reads objects rather than structure, so it is expected to need read:cmdb-object:jira
+    # too, per the same reasoning as the object-read endpoints above -- but unlike the
+    # structure scopes, this has not been confirmed against a live site. A scope gap here
+    # surfaces as every object type coming back "unmeasured" rather than a crash.
     - read:cmdb-object:jira
     - read:cmdb-schema:jira
     - read:cmdb-attribute:jira

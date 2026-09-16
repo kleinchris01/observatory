@@ -42,6 +42,8 @@ import {
   loadAssetSchemas,
   loadAssetObjectTypes,
   loadAssetAttributes,
+  loadAssetTypeCounts,
+  readAssetTypeCountMeta,
   readAccessSnapshotMeta,
   loadSchemes,
   loadSchemeHolders,
@@ -657,12 +659,19 @@ export async function buildAssetOverview(installationKey) {
       };
     }
 
-    const [schemas, objectTypes, attributes] = await Promise.all([
+    const [schemas, objectTypes, attributes, typeCounts] = await Promise.all([
       loadAssetSchemas(installationKey, meta.version),
       loadAssetObjectTypes(installationKey, meta.version),
       loadAssetAttributes(installationKey, meta.version),
+      // Best-effort: the count crawl is a separate opt-in stage and may never have run. An
+      // empty list here reads as "unmeasured", not as "every type is empty" -- summarizeAssetInsights
+      // already keeps those apart.
+      loadAssetTypeCounts(installationKey).catch(
+        fallbackOn("overview.asset_type_counts_load_failed", () => [], { installationKey })
+      ),
     ]);
-    const summary = summarizeAssetInsights({ schemas, objectTypes, attributes, assetsEnabled: true });
+    const summary = summarizeAssetInsights({ schemas, objectTypes, attributes, typeCounts, assetsEnabled: true });
+    const countMeta = await readAssetTypeCountMeta(installationKey).catch(() => null);
 
     return {
       available: summary.available,
@@ -673,6 +682,13 @@ export async function buildAssetOverview(installationKey) {
       lastError: meta.lastError || null,
       ...summary,
       health: summarizeAssetHealth(summary),
+      typeCountCrawl: {
+        state: countMeta?.state || "idle",
+        refreshedAt: countMeta?.refreshedAt || null,
+        measuredTypes: countMeta?.measuredTypes || 0,
+        unmeasuredTypes: countMeta?.unmeasuredTypes || 0,
+        lastError: countMeta?.lastError || null,
+      },
     };
   } catch (error) {
     console.warn("buildAssetOverview failed:", error?.message || error);

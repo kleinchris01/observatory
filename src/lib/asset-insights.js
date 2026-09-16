@@ -63,22 +63,42 @@ export function findBareTypes(objectTypes = [], attributes = []) {
     .sort((l, r) => String(l.name).localeCompare(String(r.name)));
 }
 
+// Concrete object types the AQL crawl measured at zero live objects -- a type that is
+// defined, has attributes, and has never been populated. Distinct from findBareTypes: a bare
+// type has no fields, an empty type has fields but no data ever entered against them. Only
+// types the crawl actually measured are considered; one it could not reach stays unmeasured
+// rather than being counted as empty, the same rule every other tri-state signal here follows.
+export function findEmptyObjectTypes(objectTypes = [], typeCounts = []) {
+  const countByType = new Map(typeCounts.map((c) => [String(c.objectTypeId), Number(c.objectCount) || 0]));
+  return objectTypes
+    .filter((t) => !t.abstract && countByType.get(String(t.id)) === 0)
+    .map((t) => ({ id: String(t.id), name: t.name, schemaId: String(t.schemaId) }))
+    .sort((l, r) => String(l.name).localeCompare(String(r.name)));
+}
+
 // Everything the pillar reports, as counts a rate can be built from.
 //
 // `schemas` carry { id, name, objectTypeCount, objectCount }. `objectTypes` carry
 // { id, schemaId, name, parentId, abstract }. `attributes` carry
-// { id, objectTypeId, name, referenceObjectTypeId, system }.
+// { id, objectTypeId, name, referenceObjectTypeId, system }. `typeCounts`, from the separate
+// opt-in AQL crawl, carry { objectTypeId, objectCount } -- one entry per type it managed to
+// measure, absent entirely until that crawl has ever run.
 export function summarizeAssetInsights({
   schemas = [],
   objectTypes = [],
   attributes = [],
+  typeCounts = [],
   assetsEnabled = true,
 } = {}) {
   const deadSchemas = findDeadSchemas(schemas);
   const brokenHierarchy = findBrokenHierarchy(objectTypes);
   const brokenReferences = findBrokenReferences(attributes, objectTypes);
   const bareTypes = findBareTypes(objectTypes, attributes);
+  const emptyObjectTypes = findEmptyObjectTypes(objectTypes, typeCounts);
   const referenceAttributes = attributes.filter((a) => a.referenceObjectTypeId != null).length;
+  const concreteObjectTypes = objectTypes.filter((t) => !t.abstract);
+  const measuredTypeIds = new Set(typeCounts.map((c) => String(c.objectTypeId)));
+  const measuredConcreteTypes = concreteObjectTypes.filter((t) => measuredTypeIds.has(String(t.id))).length;
 
   return {
     // Tri-state like every other pillar. `assetsEnabled: false` is a fourth, distinct
@@ -87,18 +107,25 @@ export function summarizeAssetInsights({
     assetsEnabled,
     totalSchemas: schemas.length,
     totalObjectTypes: objectTypes.length,
-    concreteObjectTypes: objectTypes.filter((t) => !t.abstract).length,
+    concreteObjectTypes: concreteObjectTypes.length,
     totalAttributes: attributes.length,
     referenceAttributeCount: referenceAttributes,
     deadSchemaCount: deadSchemas.length,
     brokenHierarchyCount: brokenHierarchy.length,
     brokenReferenceCount: brokenReferences.length,
     bareTypeCount: bareTypes.length,
+    // Object counts are a separate opt-in crawl; countsMeasured tells the tab and the score
+    // whether it has ever run, rather than reading a zero measuredConcreteTypes as "every
+    // type is empty".
+    countsMeasured: typeCounts.length > 0,
+    measuredConcreteTypes,
+    emptyObjectTypeCount: emptyObjectTypes.length,
     // The worst few of each, for the tab. Full lists stay where they are built.
     deadSchemas: deadSchemas.slice(0, 25),
     brokenHierarchy: brokenHierarchy.slice(0, 25),
     brokenReferences: brokenReferences.slice(0, 25),
     bareTypes: bareTypes.slice(0, 50),
+    emptyObjectTypes: emptyObjectTypes.slice(0, 50),
   };
 }
 
@@ -117,5 +144,8 @@ export function summarizeAssetHealth(summary) {
     brokenHierarchyCount: summary.brokenHierarchyCount,
     referenceAttributeCount: summary.referenceAttributeCount,
     brokenReferenceCount: summary.brokenReferenceCount,
+    countsMeasured: summary.countsMeasured,
+    measuredConcreteTypes: summary.measuredConcreteTypes,
+    emptyObjectTypeCount: summary.emptyObjectTypeCount,
   };
 }

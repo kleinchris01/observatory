@@ -39,6 +39,7 @@ vi.mock("./lib/user-engine.js", () => ({
 
 vi.mock("./lib/asset-engine.js", () => ({
   buildAssetSnapshot: vi.fn().mockResolvedValue({ schemas: 12, objectTypes: 140, attributes: 900 }),
+  buildAssetTypeCounts: vi.fn().mockResolvedValue({ measured: 130, unmeasured: 2, total: 132 }),
 }));
 vi.mock("./lib/access-engine.js", () => ({
   buildAccessSnapshot: vi.fn().mockResolvedValue({ version: "v1", permission: 8, security: 2, notification: 5 }),
@@ -206,7 +207,7 @@ import { buildWorkflowSnapshot, buildStatusHistorySnapshot } from "./lib/workflo
 import { buildScreenSnapshot } from "./lib/screen-engine.js";
 import { buildIssueTypeSnapshot } from "./lib/issuetype-engine.js";
 import { buildUserSnapshot } from "./lib/user-engine.js";
-import { buildAssetSnapshot } from "./lib/asset-engine.js";
+import { buildAssetSnapshot, buildAssetTypeCounts } from "./lib/asset-engine.js";
 import { buildAccessSnapshot } from "./lib/access-engine.js";
 import { buildDriftSnapshot } from "./lib/drift-engine.js";
 import { buildEstateSnapshot } from "./lib/estate-engine.js";
@@ -652,6 +653,16 @@ describe("consumeSnapshot job routing", () => {
   test("logs a build-asset-snapshot that returned nothing without throwing", async () => {
     buildAssetSnapshot.mockResolvedValueOnce(undefined);
     await expect(consumeSnapshot(event({ jobType: "build-asset-snapshot" }))).resolves.toBeUndefined();
+  });
+
+  test("routes build-asset-type-counts to the asset engine", async () => {
+    await consumeSnapshot(event({ jobType: "build-asset-type-counts" }));
+    expect(buildAssetTypeCounts).toHaveBeenCalledWith("scope-1");
+  });
+
+  test("logs a build-asset-type-counts skipped for no structure snapshot without throwing", async () => {
+    buildAssetTypeCounts.mockResolvedValueOnce({ queued: false, reason: "no-structure-snapshot" });
+    await expect(consumeSnapshot(event({ jobType: "build-asset-type-counts" }))).resolves.toBeUndefined();
   });
 
   test("routes build-access-snapshot to the access engine", async () => {

@@ -215,6 +215,104 @@ export async function loadAssetGovernanceSummary(scopeKey, version) {
   };
 }
 
+// ── Object counts: the AQL crawl's own state ──────────────────────────────────
+//
+// Unversioned, unlike the structure tables: this is a second crawl over whatever structure
+// snapshot is current, full-replaced on every run rather than tied to a version, so a
+// re-run always reports against what the tab shows now.
+
+export async function replaceAssetTypeCounts(scopeKey, rows = []) {
+  await ensureProjectStoreReady();
+
+  await withSqlRetry(() =>
+    sql.prepare(`DELETE FROM snapshot_asset_type_counts WHERE scope_key = ?`)
+      .bindParams(scopeKey).execute()
+  );
+
+  for (const batch of chunkArray(rows, DEFAULT_BATCH_SIZE)) {
+    const valuesSql = batch.map(() => "(?, ?, ?, ?, ?)").join(", ");
+    const params = batch.flatMap((r) => [
+      scopeKey, String(r.objectTypeId), String(r.schemaId),
+      Number(r.objectCount) || 0, r.measuredAt || null,
+    ]);
+    await withSqlRetry(() =>
+      sql.prepare(`
+        INSERT INTO snapshot_asset_type_counts (scope_key, object_type_id, schema_id, object_count, measured_at)
+        VALUES ${valuesSql}
+      `).bindParams(...params).execute()
+    );
+  }
+}
+
+export async function loadAssetTypeCounts(scopeKey) {
+  await ensureProjectStoreReady();
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT object_type_id, schema_id, object_count, measured_at
+      FROM snapshot_asset_type_counts
+      WHERE scope_key = ?
+    `).bindParams(scopeKey).execute()
+  );
+  return (result.rows || []).map((row) => ({
+    objectTypeId: row.object_type_id,
+    schemaId: row.schema_id,
+    objectCount: toNumber(row.object_count),
+    measuredAt: row.measured_at || null,
+  }));
+}
+
+export async function readAssetTypeCountMeta(scopeKey) {
+  await ensureProjectStoreReady();
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT state, started_at, completed_at, refreshed_at, measured_types, unmeasured_types, last_error
+      FROM asset_type_count_meta WHERE scope_key = ?
+    `).bindParams(scopeKey).execute()
+  );
+  const row = result.rows?.[0];
+  if (!row) return null;
+  return {
+    state: row.state || "idle",
+    startedAt: row.started_at || null,
+    completedAt: row.completed_at || null,
+    refreshedAt: row.refreshed_at || null,
+    measuredTypes: toNumber(row.measured_types),
+    unmeasuredTypes: toNumber(row.unmeasured_types),
+    lastError: row.last_error || null,
+  };
+}
+
+export async function writeAssetTypeCountMeta(scopeKey, patch = {}) {
+  await ensureProjectStoreReady();
+  const current = (await readAssetTypeCountMeta(scopeKey)) || {};
+  const next = { ...current, ...patch };
+
+  await withSqlRetry(() =>
+    sql.prepare(`
+      INSERT INTO asset_type_count_meta
+        (scope_key, state, started_at, completed_at, refreshed_at, measured_types, unmeasured_types, last_error)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE
+        state = VALUES(state),
+        started_at = VALUES(started_at),
+        completed_at = VALUES(completed_at),
+        refreshed_at = VALUES(refreshed_at),
+        measured_types = VALUES(measured_types),
+        unmeasured_types = VALUES(unmeasured_types),
+        last_error = VALUES(last_error)
+    `).bindParams(
+      scopeKey,
+      next.state || "idle",
+      next.startedAt || null,
+      next.completedAt || null,
+      next.refreshedAt || null,
+      next.measuredTypes ?? 0,
+      next.unmeasuredTypes ?? 0,
+      next.lastError || null
+    ).execute()
+  );
+}
+
 // ── Meta ─────────────────────────────────────────────────────────────────────
 
 export async function readAssetSnapshotMeta(scopeKey) {

@@ -10,6 +10,9 @@ vi.mock("./jira-api.js", () => ({
     assetSnapshotStarted: "asset-snapshot-started",
     assetSnapshotCompleted: "asset-snapshot-completed",
     assetSnapshotFailed: "asset-snapshot-failed",
+    assetTypeCountStarted: "asset-type-count-started",
+    assetTypeCountCompleted: "asset-type-count-completed",
+    assetTypeCountFailed: "asset-type-count-failed",
   },
   getAssetsWorkspaceId: vi.fn(),
   requestAtlassianJson: vi.fn(),
@@ -27,6 +30,9 @@ vi.mock("./project-store.js", () => ({
   writeAssetSnapshotMeta: vi.fn(),
   readAssetSnapshotMeta: vi.fn(),
   replaceAssetSnapshot: vi.fn(),
+  loadAssetObjectTypes: vi.fn(),
+  replaceAssetTypeCounts: vi.fn(),
+  writeAssetTypeCountMeta: vi.fn(),
 }));
 
 vi.mock("./logger.js", () => ({
@@ -40,10 +46,18 @@ import {
   isAssetBuildStale,
   buildAssetSnapshot,
   queueAssetSnapshotBuild,
+  buildObjectTypeCountQuery,
+  parseAqlTotalCount,
+  buildAssetTypeCounts,
+  queueAssetTypeCountBuild,
 } from "./asset-engine.js";
 import { getAssetsWorkspaceId, requestAtlassianJson } from "./jira-api.js";
 import { inventorySnapshotQueue } from "./queues.js";
-import { replaceAssetSnapshot, writeAssetSnapshotMeta } from "./project-store.js";
+import {
+  replaceAssetSnapshot, writeAssetSnapshotMeta,
+  readAssetSnapshotMeta, loadAssetObjectTypes,
+  replaceAssetTypeCounts, writeAssetTypeCountMeta,
+} from "./project-store.js";
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -145,5 +159,81 @@ describe("buildAssetSnapshot", () => {
 
     await expect(buildAssetSnapshot("inst")).rejects.toThrow("gateway 500");
     expect(writeAssetSnapshotMeta).toHaveBeenLastCalledWith("inst", expect.objectContaining({ state: "failed" }));
+  });
+});
+
+describe("buildObjectTypeCountQuery", () => {
+  test("disambiguates by schema and escapes a quote in the type name", () => {
+    expect(buildObjectTypeCountQuery("3", 'Server "prod"'))
+      .toBe('objectSchemaId = 3 AND objectType = "Server \\"prod\\""');
+  });
+});
+
+describe("parseAqlTotalCount", () => {
+  test("reads the first count-shaped key it recognises", () => {
+    expect(parseAqlTotalCount({ totalFilterCount: 42 })).toBe(42);
+    expect(parseAqlTotalCount({ total: 0 })).toBe(0);
+    expect(parseAqlTotalCount({ totalCount: 7 })).toBe(7);
+  });
+
+  test("returns null rather than 0 for a shape it does not recognise", () => {
+    expect(parseAqlTotalCount({ objectEntries: [] })).toBeNull();
+    expect(parseAqlTotalCount(null)).toBeNull();
+  });
+});
+
+describe("queueAssetTypeCountBuild", () => {
+  test("marks building then pushes the job", async () => {
+    await queueAssetTypeCountBuild("inst");
+    expect(writeAssetTypeCountMeta).toHaveBeenCalledWith("inst", expect.objectContaining({ state: "building" }));
+    expect(inventorySnapshotQueue.push).toHaveBeenCalledWith({
+      body: { jobType: "build-asset-type-counts", installationKey: "inst" },
+    });
+  });
+});
+
+describe("buildAssetTypeCounts", () => {
+  test("skips without a structure snapshot rather than crawling nothing", async () => {
+    readAssetSnapshotMeta.mockResolvedValue(null);
+
+    const result = await buildAssetTypeCounts("inst");
+
+    expect(result).toMatchObject({ queued: false, reason: "no-structure-snapshot" });
+    expect(loadAssetObjectTypes).not.toHaveBeenCalled();
+    expect(writeAssetTypeCountMeta).toHaveBeenLastCalledWith("inst", expect.objectContaining({ state: "idle" }));
+  });
+
+  test("counts every concrete type, skips abstract ones, and tallies unmeasured on a per-type failure", async () => {
+    readAssetSnapshotMeta.mockResolvedValue({ version: "v1", workspaceId: "ws-1" });
+    loadAssetObjectTypes.mockResolvedValue([
+      { id: "9", schemaId: "1", name: "Server", abstract: false },
+      { id: "10", schemaId: "1", name: "Base", abstract: true },
+      { id: "11", schemaId: "1", name: "Laptop", abstract: false },
+    ]);
+    requestAtlassianJson.mockImplementation(async (path, { body }) => {
+      if (body.qlQuery.includes("Server")) return { totalFilterCount: 42 };
+      throw new Error("gateway 500");
+    });
+
+    const result = await buildAssetTypeCounts("inst");
+
+    expect(result).toEqual({ measured: 1, unmeasured: 1, total: 2 });
+    expect(replaceAssetTypeCounts).toHaveBeenCalledWith("inst", [
+      expect.objectContaining({ objectTypeId: "9", objectCount: 42 }),
+    ]);
+    expect(writeAssetTypeCountMeta).toHaveBeenLastCalledWith("inst", expect.objectContaining({
+      state: "ready", measuredTypes: 1, unmeasuredTypes: 1,
+    }));
+  });
+
+  test("records a type as unmeasured, not zero, when the response has no count-shaped key", async () => {
+    readAssetSnapshotMeta.mockResolvedValue({ version: "v1", workspaceId: "ws-1" });
+    loadAssetObjectTypes.mockResolvedValue([{ id: "9", schemaId: "1", name: "Server", abstract: false }]);
+    requestAtlassianJson.mockResolvedValue({ objectEntries: [] });
+
+    const result = await buildAssetTypeCounts("inst");
+
+    expect(result).toEqual({ measured: 0, unmeasured: 1, total: 1 });
+    expect(replaceAssetTypeCounts).toHaveBeenCalledWith("inst", []);
   });
 });

@@ -241,6 +241,7 @@ const DEFAULT_TOLERANCES = {
   deadAssetSchemas: 0.20,
   bareAssetTypes: 0.30,
   brokenAssetReferences: 0.10,
+  emptyAssetTypes: 0.30,
   unusedAccessSchemes: 0.35,
   fragileNotificationSchemes: 0.30,
   offRosterRoleActors: 0.05,
@@ -1044,6 +1045,8 @@ function RulesArea({ t, setThreshold, pct, setTolerancePercent, targetPct, setTa
             tail="of concrete object types carrying no attribute beyond the built-in Name." />
           <ToleranceRule tone="risk" badge="Assets" name="Broken references" pct={pct} set={setTolerancePercent} k="brokenAssetReferences"
             tail="of object-reference attributes pointing at an object type that is gone." />
+          <ToleranceRule tone="standardize" badge="Assets" name="Empty object types" pct={pct} set={setTolerancePercent} k="emptyAssetTypes"
+            tail={"of measured object types that have never had an object created against them. Scored against the types the object-count crawl actually reached, never every concrete type — an unmeasured type is not an empty one."} />
         </div>
       </ConfigSection>
 
