@@ -2014,13 +2014,84 @@ export function isSqlRateLimitError(error) {
   return error?.code === "RATE_LIMIT_EXCEEDED" || error?.responseDetails?.status === 429;
 }
 
+// Everything a ForgeSQLAPIError knows, flattened into one line.
+//
+// Forge SQL answers a statement MySQL rejected with code UNKNOWN_ERROR and the message
+// "Unknown SQL execution error" -- the same sentence whether the real cause was a column
+// overflow, a duplicate key, or a placeholder somewhere MySQL will not take one. What the
+// cause actually was arrives alongside it: ForgeSQLAPIError carries `code`, `suggestion`,
+// `context` (which absorbs every extra field the service sent, including the raw response
+// body) and `responseDetails.traceId`.
+//
+// Every one of those was being dropped. Three separate defects in this codebase reached
+// production wearing that one sentence -- an INSERT with one placeholder fewer than it had
+// columns, a bound placeholder in LIMIT, and a second bound LIMIT after it -- and each cost
+// a diagnosis that the service had already answered and nobody read. The trace id is the
+// most valuable of them: it is what Atlassian support needs to look the failure up.
+const SQL_DETAIL_ATTACHED = Symbol.for("observatory.sqlDetailAttached");
+
+export function describeSqlError(error) {
+  if (!error || typeof error !== "object") return null;
+
+  const parts = [];
+  if (error.code) parts.push(`code=${error.code}`);
+  const trace = error.responseDetails?.traceId;
+  if (trace) parts.push(`trace=${trace}`);
+  const status = error.responseDetails?.status;
+  if (status) parts.push(`status=${status}`);
+  if (error.suggestion) parts.push(`suggestion=${error.suggestion}`);
+
+  // `context` is where the service puts anything it could not name, the raw response body
+  // included. Serialised whole and truncated rather than cherry-picked: the next unfamiliar
+  // failure will put its cause in a field nobody here has thought of yet, and a key this
+  // function does not know about is exactly the one worth seeing.
+  const context = error.context;
+  if (context && typeof context === "object" && Object.keys(context).length) {
+    let serialised;
+    try {
+      serialised = JSON.stringify(context);
+    } catch {
+      serialised = String(context);
+    }
+    if (serialised && serialised !== "{}") {
+      parts.push(`context=${serialised.length > 600 ? `${serialised.slice(0, 600)}…` : serialised}`);
+    }
+  }
+
+  return parts.length ? parts.join(" ") : null;
+}
+
+// Attach the detail to the error's own message, once.
+//
+// The message is what propagates: every engine's catch does String(error.message), writes it
+// to a pillar's meta, and the Scans tab renders it. Enriching anywhere else would mean
+// editing eighty catch blocks and still missing the eighty-first. Idempotent, because an
+// error crossing two retry wrappers would otherwise carry its trace id twice.
+export function attachSqlErrorDetail(error) {
+  if (!error || typeof error !== "object" || error[SQL_DETAIL_ATTACHED]) return error;
+
+  const detail = describeSqlError(error);
+  if (!detail) return error;
+
+  try {
+    error.message = `${error.message || "SQL error"} (${detail})`;
+    error[SQL_DETAIL_ATTACHED] = true;
+  } catch {
+    // A frozen error still throws -- it just throws without the detail, which is where we
+    // were before. Never let diagnostics be the thing that fails.
+  }
+  return error;
+}
+
 export async function withSqlRetry(operation) {
   for (let attempt = 0; attempt < 6; attempt++) {
     try {
       return await operation();
     } catch (error) {
       if (!isSqlRateLimitError(error) || attempt === 5) {
-        throw error;
+        // The one choke point every SQL call in the app passes through, which is why the
+        // detail is attached here rather than at 333 call sites.
+        throw attachSqlErrorDetail(error);
       }
 
       const delayMs = Math.min(8000, 250 * (2 ** attempt)) + Math.floor(Math.random() * 150);
