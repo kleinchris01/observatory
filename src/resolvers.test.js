@@ -193,8 +193,12 @@ const mocks = vi.hoisted(() => ({
   loadAssetSchemas: vi.fn(async () => []),
   loadAssetObjectTypes: vi.fn(async () => []),
   loadAssetAttributes: vi.fn(async () => []),
+  loadAssetTypeCounts: vi.fn(async () => []),
+  readAssetTypeCountMeta: vi.fn(async () => null),
   queueAssetSnapshotBuild: vi.fn(),
   isAssetBuildStale: vi.fn(() => false),
+  queueAssetTypeCountBuild: vi.fn(),
+  isAssetTypeCountBuildStale: vi.fn(() => false),
 
   // access store + access-engine.js
   readAccessSnapshotMeta: vi.fn(),
@@ -453,6 +457,8 @@ vi.mock("./lib/project-store.js", () => ({
   loadAssetSchemas: mocks.loadAssetSchemas,
   loadAssetObjectTypes: mocks.loadAssetObjectTypes,
   loadAssetAttributes: mocks.loadAssetAttributes,
+  loadAssetTypeCounts: mocks.loadAssetTypeCounts,
+  readAssetTypeCountMeta: mocks.readAssetTypeCountMeta,
   recordHealthSnapshot: mocks.recordHealthSnapshot,
   loadPriorHealthDimensions: mocks.loadPriorHealthDimensions,
   loadHealthHistory: mocks.loadHealthHistory,
@@ -492,6 +498,8 @@ vi.mock("./lib/user-engine.js", () => ({
 vi.mock("./lib/asset-engine.js", () => ({
   queueAssetSnapshotBuild: mocks.queueAssetSnapshotBuild,
   isAssetBuildStale: mocks.isAssetBuildStale,
+  queueAssetTypeCountBuild: mocks.queueAssetTypeCountBuild,
+  isAssetTypeCountBuildStale: mocks.isAssetTypeCountBuildStale,
 }));
 
 vi.mock("./lib/access-engine.js", () => ({
@@ -686,6 +694,7 @@ const {
   buildUserInventory,
   getAssetInventory,
   buildAssetInventory,
+  buildAssetTypeCountCrawl,
   getAccessInventory,
   buildAccessInventory,
   getChangeHistory,
@@ -5914,6 +5923,53 @@ describe("getAssetInventory", () => {
     expect(result).toMatchObject({ state: "ready", assetsEnabled: true, version: "v1", workspaceId: "ws-1" });
     expect(result.schemas).toHaveLength(2);
     expect(result.governance).toMatchObject({ deadSchemaCount: 1, brokenReferenceCount: 1 });
+  });
+
+  test("folds the object-count crawl's rows and meta in alongside the structure", async () => {
+    mocks.readAssetSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1", assetsEnabled: true, workspaceId: "ws-1" });
+    mocks.loadAssetSchemas.mockResolvedValue([{ id: "1", name: "Infra", objectTypeCount: 1, objectCount: 10 }]);
+    mocks.loadAssetObjectTypes.mockResolvedValue([{ id: "9", schemaId: "1", name: "Server", parentId: null, abstract: false }]);
+    mocks.loadAssetTypeCounts.mockResolvedValue([{ objectTypeId: "9", schemaId: "1", objectCount: 0 }]);
+    mocks.readAssetTypeCountMeta.mockResolvedValue({ state: "ready", refreshedAt: "2026-09-16T00:00:00Z", measuredTypes: 1, unmeasuredTypes: 0 });
+
+    const result = await getAssetInventory(ctx);
+
+    expect(result.typeCounts).toEqual([{ objectTypeId: "9", schemaId: "1", objectCount: 0 }]);
+    expect(result.governance).toMatchObject({ countsMeasured: true, emptyObjectTypeCount: 1 });
+    expect(result.typeCountCrawl).toMatchObject({ state: "ready", measuredTypes: 1, unmeasuredTypes: 0 });
+  });
+});
+
+describe("buildAssetTypeCountCrawl", () => {
+  const ctx = { context: { installContext: "ari:cloud:jira::site/x" } };
+
+  test("refuses without a structure snapshot to crawl against", async () => {
+    mocks.readAssetSnapshotMeta.mockResolvedValue(null);
+    const result = await buildAssetTypeCountCrawl(ctx);
+    expect(result).toMatchObject({ queued: false });
+    expect(mocks.queueAssetTypeCountBuild).not.toHaveBeenCalled();
+  });
+
+  test("queues the crawl when a structure snapshot exists and nothing is running", async () => {
+    mocks.readAssetSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
+    mocks.readAssetTypeCountMeta.mockResolvedValue({ state: "idle" });
+    mocks.readAdminConfig?.mockResolvedValue?.({ readOnlyMode: false });
+
+    const result = await buildAssetTypeCountCrawl(ctx);
+
+    expect(result.queued).toBe(true);
+    expect(mocks.queueAssetTypeCountBuild).toHaveBeenCalledWith("test-install");
+  });
+
+  test("refuses while its own crawl is already running", async () => {
+    mocks.readAssetSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
+    mocks.readAssetTypeCountMeta.mockResolvedValue({ state: "building" });
+    mocks.isAssetTypeCountBuildStale.mockReturnValue(false);
+
+    const result = await buildAssetTypeCountCrawl(ctx);
+
+    expect(result).toMatchObject({ queued: false, reason: "already-building" });
+    expect(mocks.queueAssetTypeCountBuild).not.toHaveBeenCalled();
   });
 });
 

@@ -4,6 +4,7 @@ import {
   findBrokenHierarchy,
   findBrokenReferences,
   findBareTypes,
+  findEmptyObjectTypes,
   summarizeAssetInsights,
   summarizeAssetHealth,
 } from "./asset-insights.js";
@@ -59,6 +60,29 @@ describe("findBareTypes", () => {
   });
 });
 
+describe("findEmptyObjectTypes", () => {
+  const types = [
+    { id: "9", schemaId: "1", name: "Server", abstract: false },
+    { id: "10", schemaId: "1", name: "Abstract base", abstract: true },
+    { id: "11", schemaId: "1", name: "Laptop", abstract: false },
+    { id: "12", schemaId: "1", name: "Router", abstract: false },
+  ];
+
+  test("flags a concrete, measured type with zero objects -- never an abstract one", () => {
+    const counts = [
+      { objectTypeId: "9", objectCount: 0 },
+      { objectTypeId: "10", objectCount: 0 },
+      { objectTypeId: "11", objectCount: 5 },
+    ];
+    expect(findEmptyObjectTypes(types, counts).map((t) => t.name)).toEqual(["Server"]);
+  });
+
+  test("leaves a type the crawl never reached out of both piles -- not empty, not counted", () => {
+    // Router (id 12) has no entry in counts at all.
+    expect(findEmptyObjectTypes(types, [{ objectTypeId: "9", objectCount: 3 }]).map((t) => t.name)).toEqual([]);
+  });
+});
+
 describe("summarizeAssetInsights", () => {
   const schemas = [
     { id: "1", name: "Infra", objectTypeCount: 3, objectCount: 100 },
@@ -90,6 +114,22 @@ describe("summarizeAssetInsights", () => {
       // Server has an attr; VM has two; Ghost child has none -> one bare type.
       bareTypeCount: 1,
     });
+  });
+
+  test("countsMeasured is false and the empty-type dimension is untouched until the AQL crawl has ever run", () => {
+    const s = summarizeAssetInsights({ schemas, objectTypes, attributes, assetsEnabled: true });
+    expect(s).toMatchObject({ countsMeasured: false, measuredConcreteTypes: 0, emptyObjectTypeCount: 0 });
+  });
+
+  test("rolls the AQL crawl's counts into countsMeasured / measuredConcreteTypes / emptyObjectTypeCount", () => {
+    const typeCounts = [
+      { objectTypeId: "9", objectCount: 0 },
+      { objectTypeId: "10", objectCount: 4 },
+      // 11 (Ghost child) never measured.
+    ];
+    const s = summarizeAssetInsights({ schemas, objectTypes, attributes, typeCounts, assetsEnabled: true });
+    expect(s).toMatchObject({ countsMeasured: true, measuredConcreteTypes: 2, emptyObjectTypeCount: 1 });
+    expect(s.emptyObjectTypes.map((t) => t.name)).toEqual(["Server"]);
   });
 
   test("is unavailable-but-enabled when the site has Assets but no schemas built", () => {

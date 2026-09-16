@@ -124,6 +124,10 @@ export const DEFAULT_HEALTH_TOLERANCES = {
   deadAssetSchemas: 0.20,
   bareAssetTypes: 0.30,
   brokenAssetReferences: 0.10,
+  // A type with attributes but zero objects ever created against it. As forgiving as a bare
+  // type -- a newly modelled type legitimately sits empty until someone starts using it --
+  // and only ever scored against the types the AQL crawl actually measured.
+  emptyAssetTypes: 0.30,
   // Access schemes. An unused scheme of any kind is clutter -- forgiving. A security level
   // nobody is in is a data black hole, tight. A notification scheme routing to a named
   // individual is fragile but not dangerous.
@@ -1459,6 +1463,36 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
         : assets?.available
           ? "No object-reference attributes to check."
           : "No Assets inventory yet. Build one from the Assets tab or run a full scan."));
+  }
+
+  // Real usage, not structure -- from the separate opt-in AQL crawl. Distinct from object
+  // type completeness: that dimension asks whether a type has attributes, this one asks
+  // whether it has ever been populated. Available only once the crawl has measured at least
+  // one concrete type; an unmeasured type is excluded from the rate, never assumed empty.
+  const assetMeasuredTypes = Number(assets?.measuredConcreteTypes) || 0;
+  if (assets?.available && assets.countsMeasured && assetMeasuredTypes > 0) {
+    const empty = Number(assets.emptyObjectTypeCount) || 0;
+    dimensions.push({
+      key: "asset-type-usage",
+      label: "Object type usage",
+      pillar: "assets",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(empty / assetMeasuredTypes, TOLERANCE.emptyAssetTypes),
+      detail: empty === 0
+        ? `Every one of the ${assetMeasuredTypes} measured object types holds at least one object.`
+        : `${empty} of ${assetMeasuredTypes} measured object types have never had an object created against them.`,
+      action: empty > 0
+        ? "Populate them or retire them — a type nobody has ever put data into is either unfinished or abandoned."
+        : null,
+    });
+  } else {
+    dimensions.push(unavailable("asset-type-usage", "Object type usage", "assets",
+      assetsNotApplicable
+        ? "Assets (JSM Premium/Enterprise) is not enabled on this site."
+        : !assets?.available
+          ? "No Assets inventory yet. Build one from the Assets tab or run a full scan."
+          : "Object counts have never been crawled. Run the object-count build from the Assets tab."));
   }
 
   // ── Access schemes: permission / issue-security / notification ─────────────

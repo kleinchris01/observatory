@@ -25,7 +25,7 @@ import { buildWorkflowSnapshot, buildStatusHistorySnapshot } from "./lib/workflo
 import { buildScreenSnapshot } from "./lib/screen-engine.js";
 import { buildIssueTypeSnapshot } from "./lib/issuetype-engine.js";
 import { buildUserSnapshot } from "./lib/user-engine.js";
-import { buildAssetSnapshot } from "./lib/asset-engine.js";
+import { buildAssetSnapshot, buildAssetTypeCounts } from "./lib/asset-engine.js";
 import { buildAccessSnapshot } from "./lib/access-engine.js";
 import { buildEstateSnapshot } from "./lib/estate-engine.js";
 import { buildBoardSnapshot } from "./lib/board-engine.js";
@@ -468,6 +468,16 @@ export async function consumeSnapshot(event) {
         result?.unavailable
           ? `build-asset-snapshot: Assets not enabled — ${result.reason}`
           : `build-asset-snapshot: ${result?.schemas ?? 0} schemas, ${result?.objectTypes ?? 0} object types, ${result?.attributes ?? 0} attributes`
+      );
+      return;
+    }
+
+    if (jobType === "build-asset-type-counts") {
+      const result = await buildAssetTypeCounts(installationKey);
+      console.log(
+        result?.queued === false
+          ? `build-asset-type-counts: skipped — ${result.reason}`
+          : `build-asset-type-counts: ${result?.measured ?? 0} measured, ${result?.unmeasured ?? 0} unmeasured, of ${result?.total ?? 0} concrete object types`
       );
       return;
     }

@@ -137,4 +137,45 @@ describe("AssetsTab", () => {
     await waitFor(() => expect(invoke).toHaveBeenCalledWith("buildAssetInventory", {}));
     expect(await screen.findByText(/Build queued/i)).toBeInTheDocument();
   });
+
+  test("queues the object-count crawl and reports it", async () => {
+    invoke.mockImplementation((fn) => {
+      if (fn === "getAssetInventory") return Promise.resolve(inventory());
+      if (fn === "buildAssetTypeCountCrawl") return Promise.resolve({ queued: true });
+      return Promise.resolve({});
+    });
+    render(<AssetsTab />);
+
+    await screen.findByText("Assets");
+    await userEvent.click(screen.getByRole("button", { name: /Measure object counts/ }));
+
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("buildAssetTypeCountCrawl", {}));
+    expect(await screen.findByText(/Object-count crawl queued/i)).toBeInTheDocument();
+  });
+
+  test("shows measured object counts on the type rows and the empty-type finding once the crawl has run", async () => {
+    invoke.mockImplementation((fn) => fn === "getAssetInventory"
+      ? Promise.resolve(inventory({
+          typeCounts: [
+            { objectTypeId: "9", schemaId: "1", objectCount: 0 },
+            { objectTypeId: "10", schemaId: "1", objectCount: 12 },
+          ],
+          typeCountCrawl: { state: "ready", refreshedAt: new Date().toISOString(), measuredTypes: 2, unmeasuredTypes: 0 },
+          governance: {
+            ...inventory().governance,
+            countsMeasured: true, measuredConcreteTypes: 2, emptyObjectTypeCount: 1,
+            emptyObjectTypes: [{ id: "9", name: "Server" }],
+          },
+        }))
+      : Promise.resolve({}));
+    render(<AssetsTab />);
+
+    await screen.findByText("Assets");
+    expect(screen.getByRole("button", { name: /Remeasure object counts/ })).toBeInTheDocument();
+    expect(screen.getByText("Object types with attributes but never an object")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /^Object types/ }));
+    expect(await screen.findByText(/12 objects/)).toBeInTheDocument();
+    expect(screen.getByText("empty")).toBeInTheDocument();
+  });
 });

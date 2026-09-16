@@ -260,6 +260,9 @@ const assets = (over = {}) => ({
   brokenHierarchyCount: 0,
   referenceAttributeCount: 90,
   brokenReferenceCount: 0,
+  countsMeasured: true,
+  measuredConcreteTypes: 140,
+  emptyObjectTypeCount: 0,
   ...over,
 });
 
@@ -769,7 +772,7 @@ describe("people dimensions", () => {
 
 describe("asset dimensions", () => {
   const dim = (health, key) => health.dimensions.find((d) => d.key === key);
-  const KEYS = ["asset-schema-hygiene", "asset-type-completeness", "asset-reference-integrity"];
+  const KEYS = ["asset-schema-hygiene", "asset-type-completeness", "asset-reference-integrity", "asset-type-usage"];
 
   test("a clean CMDB scores every asset dimension at the top", () => {
     const health = computeSiteHealth({ assets: assets() });
@@ -823,10 +826,25 @@ describe("asset dimensions", () => {
     expect(dim(health, "asset-schema-hygiene").available).toBe(true);
   });
 
+  test("scores empty object types against the MEASURED total, not every concrete type", () => {
+    const health = computeSiteHealth({ assets: assets({ measuredConcreteTypes: 40, emptyObjectTypeCount: 8 }) });
+    // 8/40 = 0.20 against the 0.30 tolerance -> not bottomed out.
+    expect(dim(health, "asset-type-usage").score).toBeGreaterThan(0);
+    expect(dim(health, "asset-type-usage").detail).toMatch(/8 of 40/);
+  });
+
+  test("object type usage is unmeasured, not perfect, until the AQL crawl has ever run", () => {
+    const health = computeSiteHealth({ assets: assets({ countsMeasured: false, measuredConcreteTypes: 0 }) });
+    expect(dim(health, "asset-type-usage").available).toBe(false);
+    expect(dim(health, "asset-type-usage").reason).toMatch(/counts have never been crawled/i);
+    // The structural dimensions do not depend on it.
+    expect(dim(health, "asset-schema-hygiene").available).toBe(true);
+  });
+
   test("the assets pillar is weighted 1 and rolls its dimensions up", () => {
     const health = computeSiteHealth({ assets: assets({ deadSchemaCount: 3 }) });
     const pillar = health.pillars.find((p) => p.key === "assets");
-    expect(pillar.total).toBe(3);
+    expect(pillar.total).toBe(4);
     expect(pillar.available).toBe(true);
   });
 });

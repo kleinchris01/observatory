@@ -28,6 +28,9 @@ import {
   writeAssetSnapshotMeta,
   readAssetSnapshotMeta,
   replaceAssetSnapshot,
+  loadAssetObjectTypes,
+  replaceAssetTypeCounts,
+  writeAssetTypeCountMeta,
 } from "./project-store.js";
 
 // Matches ISSUE_TYPE_BUILD_STALE_MS: the consumer ceiling is 900s, plus a minute so a build
@@ -209,6 +212,142 @@ export async function buildAssetSnapshot(installationKey) {
     const message = String(error?.message || error);
     logger.error("asset-snapshot.failed", { error: message });
     await writeAssetSnapshotMeta(installationKey, {
+      state: "failed",
+      completedAt: new Date().toISOString(),
+      lastError: message,
+    });
+    throw error;
+  }
+}
+
+// ── Object counts: the AQL crawl ──────────────────────────────────────────────
+//
+// The structure build's own comment names this as a later opt-in stage, and for the same
+// reason it stayed out of that build: a real CMDB has anywhere from a handful to a few
+// hundred concrete object types, and counting each one is a per-type API call rather than
+// the two-per-schema shape the structure build keeps fast. Run as its own queued job so an
+// admin can refresh the structure without waiting on it, and vice versa.
+//
+// One AQL query per concrete object type, resultPerPage 1 -- the count is read off the
+// result envelope's total, never off how many rows came back. Abstract types are skipped:
+// they exist to be inherited from and are never assigned to an object directly, so "how many
+// objects" is not a question Assets can answer for one.
+//
+// This request shape (POST .../object/aql, `qlQuery`, a `totalFilterCount` on the response)
+// matches Atlassian's public Assets API reference, but -- unlike the structure endpoints,
+// which asset-probe.js confirmed against a live site before this engine was written -- it
+// has not been probed against one. If the real response carries the count under a different
+// key, parseAqlTotalCount returns null and that type is recorded as unmeasured rather than
+// wrong; nothing here treats a shape mismatch as a zero.
+export const ASSET_TYPE_COUNT_BUILD_STALE_MS = 16 * 60 * 1000;
+
+export function isAssetTypeCountBuildStale(meta, now = Date.now()) {
+  if (meta?.state !== "building") return false;
+  const startedAt = Date.parse(meta?.startedAt || "");
+  if (!Number.isFinite(startedAt)) return true;
+  return now - startedAt > ASSET_TYPE_COUNT_BUILD_STALE_MS;
+}
+
+// objectSchemaId disambiguates two schemas that happen to name a type the same thing; the
+// quote escape is the only character AQL's string literal cannot take unescaped.
+export function buildObjectTypeCountQuery(schemaId, typeName) {
+  const escaped = String(typeName ?? "").replace(/"/g, '\\"');
+  return `objectSchemaId = ${schemaId} AND objectType = "${escaped}"`;
+}
+
+// The envelope's own name for its total has moved before (Insight's on-prem API called it
+// something else); check every name Atlassian's Assets docs have used for it instead of
+// picking one and hoping. Returns null -- not 0 -- when none of them parse, so a shape this
+// has never seen is reported as unmeasured rather than as an empty type.
+export function parseAqlTotalCount(payload) {
+  for (const key of ["totalFilterCount", "total", "totalCount"]) {
+    const value = Number(payload?.[key]);
+    if (Number.isFinite(value)) return value;
+  }
+  return null;
+}
+
+export async function queueAssetTypeCountBuild(installationKey) {
+  await ensureProjectStoreReady();
+  await writeAssetTypeCountMeta(installationKey, {
+    state: "building",
+    startedAt: new Date().toISOString(),
+    lastError: null,
+  });
+  await inventorySnapshotQueue.push({
+    body: { jobType: "build-asset-type-counts", installationKey },
+  });
+}
+
+export async function buildAssetTypeCounts(installationKey) {
+  incrMetric(METRIC_NAMES.assetTypeCountStarted);
+  await ensureProjectStoreReady();
+  await writeAssetTypeCountMeta(installationKey, {
+    state: "building",
+    startedAt: new Date().toISOString(),
+    lastError: null,
+  });
+
+  try {
+    const structureMeta = await readAssetSnapshotMeta(installationKey);
+    if (!structureMeta?.version || !structureMeta.workspaceId) {
+      await writeAssetTypeCountMeta(installationKey, {
+        state: "idle",
+        completedAt: new Date().toISOString(),
+        lastError: "No Assets structure snapshot yet -- build the inventory first.",
+      });
+      return { queued: false, reason: "no-structure-snapshot" };
+    }
+
+    const base = assetsBase(structureMeta.workspaceId);
+    const objectTypes = (await loadAssetObjectTypes(installationKey, structureMeta.version))
+      .filter((t) => !t.abstract);
+
+    let measured = 0;
+    let unmeasured = 0;
+    const rows = await mapWithConcurrency(objectTypes, 3, async (type) => {
+      const measuredAt = new Date().toISOString();
+      try {
+        const payload = await requestAtlassianJson(`${base}/object/aql`, {
+          method: "POST",
+          body: { qlQuery: buildObjectTypeCountQuery(type.schemaId, type.name), page: 1, resultPerPage: 1, includeAttributes: false },
+        });
+        const count = parseAqlTotalCount(payload);
+        if (count === null) {
+          unmeasured++;
+          return null;
+        }
+        measured++;
+        return { objectTypeId: type.id, schemaId: type.schemaId, objectCount: count, measuredAt };
+      } catch (error) {
+        unmeasured++;
+        logger.warn("asset-type-count.type_failed", {
+          installationKey, objectTypeId: type.id, error: String(error?.message || error),
+        });
+        return null;
+      }
+    });
+
+    await replaceAssetTypeCounts(installationKey, rows.filter(Boolean));
+
+    const completedAt = new Date().toISOString();
+    await writeAssetTypeCountMeta(installationKey, {
+      state: "ready",
+      completedAt,
+      refreshedAt: completedAt,
+      measuredTypes: measured,
+      unmeasuredTypes: unmeasured,
+      lastError: null,
+    });
+
+    incrMetric(METRIC_NAMES.assetTypeCountCompleted);
+    logger.info("asset-type-count.completed", { installationKey, measured, unmeasured, total: objectTypes.length });
+    return { measured, unmeasured, total: objectTypes.length };
+  } catch (error) {
+    incrMetric(METRIC_NAMES.assetTypeCountFailed);
+    const message = String(error?.message || error);
+    logger.error("asset-type-count.failed", { error: message });
+    await writeAssetTypeCountMeta(installationKey, {
       state: "failed",
       completedAt: new Date().toISOString(),
       lastError: message,
