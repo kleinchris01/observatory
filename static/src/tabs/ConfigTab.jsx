@@ -247,6 +247,7 @@ const DEFAULT_TOLERANCES = {
   duplicateResolutions: 0.15,
   duplicatePriorities: 0.20,
   boardsColumnHygiene: 0.25,
+  configChurn: 0.20,
 };
 
 // Scoring model v2: dimensions with a definable good state, tuned as a { target, floor }
@@ -1080,6 +1081,18 @@ function RulesArea({ t, setThreshold, pct, setTolerancePercent, targetPct, setTa
             tail="of the resolution list duplicating another entry &mdash; a Done / Fixed / Complete split makes every resolution report wrong." />
           <ToleranceRule tone="standardize" badge="Priorities" name="Duplicate priority names" pct={pct} set={setTolerancePercent} k="duplicatePriorities"
             tail="of the priority list duplicating another entry." />
+        </div>
+      </ConfigSection>
+
+      <ConfigSection title="Configuration drift" icon="clock">
+        <p className="admin-config-section__desc">
+          Not a defect rate &mdash; structural change is neither good nor bad on its own. This
+          scores a rate of motion: what share of the tracked estate changed in the trailing 30
+          days. It exists to flag the outlier pass, not the ordinary maintenance one.
+        </p>
+        <div className="admin-threshold-rules">
+          <ToleranceRule tone="cleanup" badge="Drift" name="Configuration churn" pct={pct} set={setTolerancePercent} k="configChurn"
+            tail="of tracked configuration entities changed in the trailing 30 days." />
         </div>
       </ConfigSection>
 

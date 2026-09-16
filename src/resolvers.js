@@ -215,6 +215,7 @@ import {
   buildAccessOverview,
   buildEstateOverview,
   buildBoardOverview,
+  buildDriftHealthOverview,
   attachUniqueIssueCounts,
   captureSiteHealth,
 } from "./lib/site-health.js";
@@ -7672,7 +7673,7 @@ const EMPTY_DASHBOARD = {
 export async function getAdminOverview({ context }) {
   await ensureProjectStoreReady();
   const installationKey = getInstallationKey(context);
-  const [meta, summaryCounts, config, legacySummaryCount, workflow, screens, issueTypeOverview, userOverview, assetOverview, accessOverview, estateOverview, boardOverview, filterOverview, dashboardOverview, automationAnalysis] = await Promise.all([
+  const [meta, summaryCounts, config, legacySummaryCount, workflow, screens, issueTypeOverview, userOverview, assetOverview, accessOverview, estateOverview, boardOverview, driftHealth, filterOverview, dashboardOverview, automationAnalysis] = await Promise.all([
     readSnapshotMeta(installationKey),
     // Counted in SQL rather than loaded. This used to pull up to 5,000 summary rows --
     // including two LONGTEXT columns -- across the wire, and use them for a count grouped by
@@ -7689,6 +7690,7 @@ export async function getAdminOverview({ context }) {
     buildAccessOverview(installationKey),
     buildEstateOverview(installationKey),
     buildBoardOverview(installationKey),
+    buildDriftHealthOverview(installationKey),
     // Without the project catalog the broken-reference check is skipped and says so. Passing
     // it would mean loading the project list before this Promise.all rather than inside the
     // dashboard build below, which is a bigger cost than the one finding is worth here -- the
@@ -7804,6 +7806,7 @@ export async function getAdminOverview({ context }) {
     roles: accessOverview?.roles?.health ?? null,
     estate: estateOverview?.health ?? null,
     boards: boardOverview?.health ?? null,
+    drift: driftHealth,
     // Workflow, project and automation dimensions were scored against hardcoded constants
     // while every field rule was tunable. Same config surface now feeds both.
     tolerances: config?.healthTolerances,
@@ -7955,6 +7958,7 @@ const PILLAR_INPUTS = {
   boards: ["boards"],
   automation: ["automation"],
   projects: ["projects", "adoption"],
+  drift: ["drift"],
 };
 
 async function getPillarHealth({ payload, context }) {
@@ -7970,7 +7974,7 @@ async function getPillarHealth({ payload, context }) {
   // already reports as unavailable -- and unavailable dimensions from other pillars are
   // discarded below anyway, so the returned pillar is byte-identical to what the full
   // computation produced for it.
-  const [workflow, screens, filterOverview, dashboardOverview, issueTypeOverview, userOverview, assetOverview, accessOverview, estateOverview, boardOverview, automationAnalysis] = await Promise.all([
+  const [workflow, screens, filterOverview, dashboardOverview, issueTypeOverview, userOverview, assetOverview, accessOverview, estateOverview, boardOverview, driftHealth, automationAnalysis] = await Promise.all([
     needs.has("workflow") ? buildWorkflowOverview(installationKey) : Promise.resolve(null),
     needs.has("screens") ? buildScreenOverview(installationKey) : Promise.resolve(null),
     needs.has("filters") ? buildFilterOverview(installationKey) : Promise.resolve(null),
@@ -7981,6 +7985,7 @@ async function getPillarHealth({ payload, context }) {
     needs.has("access") ? buildAccessOverview(installationKey) : Promise.resolve(null),
     needs.has("estate") ? buildEstateOverview(installationKey) : Promise.resolve(null),
     needs.has("boards") ? buildBoardOverview(installationKey) : Promise.resolve(null),
+    needs.has("drift") ? buildDriftHealthOverview(installationKey) : Promise.resolve(null),
     needs.has("automation")
       ? readAutomationAnalysis(installationKey).catch(fallbackOn("pillar-health.automation_load_failed", () => null, { installationKey }))
       : Promise.resolve(null),
@@ -8045,6 +8050,7 @@ async function getPillarHealth({ payload, context }) {
     roles: accessOverview?.roles?.health ?? null,
     estate: estateOverview?.health ?? null,
     boards: boardOverview?.health ?? null,
+    drift: driftHealth,
     tolerances: config?.healthTolerances,
     targets: config?.healthTargets,
   });

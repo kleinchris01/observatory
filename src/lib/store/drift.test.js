@@ -25,6 +25,7 @@ import {
   appendConfigChanges,
   loadConfigChanges,
   loadConfigChangeSummary,
+  countTrackedEntities,
   pruneOldConfigChanges,
   readDriftSnapshotMeta,
   writeDriftSnapshotMeta,
@@ -137,6 +138,17 @@ describe("loadConfigChangeSummary", () => {
     expect(s.total).toBe(6);
     expect(s.byPillar).toEqual({ access: 4, workflow: 2 });
     expect(s.byKind).toEqual({ added: 3, removed: 1, modified: 2 });
+  });
+});
+
+describe("countTrackedEntities", () => {
+  test("scopes the count by scope_key only, across every pillar", async () => {
+    mockRows([{ n: 41 }]);
+    const n = await countTrackedEntities("inst");
+    expect(n).toBe(41);
+    const stmt = find("COUNT(*)");
+    expect(stmt.statement).toContain("FROM snapshot_entity_digest WHERE scope_key = ?");
+    expect(stmt.params).toEqual(["inst"]);
   });
 });
 

@@ -270,6 +270,7 @@ const notifications = (over = {}) => ({ available: true, totalSchemes: 5, fragil
 const estate = (over = {}) => ({ available: true, totalResolutions: 6, totalPriorities: 5, reducibleResolutionCount: 0, reduciblePriorityCount: 0, ...over });
 const roles = (over = {}) => ({ available: true, projectsWithRoles: 40, projectsMissingAdminActorCount: 0, offRosterActorCount: 0, directUserActorCount: 20, ...over });
 const boards = (over = {}) => ({ available: true, total: 30, brokenBackingCount: 0, inactiveFilterOwner: 0, staleColumnBoards: 0, unmappedColumnBoards: 0, ...over });
+const drift = (over = {}) => ({ available: true, windowDays: 30, trackedEntities: 500, changesInWindow: 0, ...over });
 // The screen x field cross. Its two dimensions are the only ones in the model that come from
 // a STORED summary rather than a live overview, so the fixture mirrors what the scan wrote.
 const screenCross = (over = {}) => ({
@@ -286,6 +287,7 @@ describe("computeSiteHealth — scoring", () => {
       automation: automation(), screens: screens(), adoption: adoption(), filters: filters(),
       dashboards: dashboards(), issueTypes: issueTypes(), users: users(), assets: assets(),
       permissions: permissions(), security: security(), notifications: notifications(), roles: roles(), estate: estate(), boards: boards(),
+      drift: drift(),
       screenCross: screenCross(),
     });
 
@@ -945,6 +947,28 @@ describe("estate dimensions", () => {
       expect(dim(health, key).available).toBe(false);
       expect(dim(health, key).reason).toMatch(/no priorities\/resolutions inventory/i);
     }
+  });
+});
+
+describe("drift dimensions", () => {
+  const dim = (health, key) => health.dimensions.find((d) => d.key === key);
+
+  test("no changes in the window scores at the top", () => {
+    const health = computeSiteHealth({ drift: drift() });
+    expect(dim(health, "config-churn").score).toBe(100);
+    expect(health.pillars.find((p) => p.key === "drift").total).toBe(1);
+  });
+
+  test("scores the churn rate over the tracked entity count, not a raw count", () => {
+    // 100/500 = 0.20 = the tolerance -> 0.
+    const health = computeSiteHealth({ drift: drift({ trackedEntities: 500, changesInWindow: 100 }) });
+    expect(dim(health, "config-churn").score).toBe(0);
+  });
+
+  test("unmeasured until a drift pass has run and the tracked estate is non-empty", () => {
+    const health = computeSiteHealth({ fieldUsage: fieldUsage() });
+    expect(dim(health, "config-churn").available).toBe(false);
+    expect(dim(health, "config-churn").reason).toMatch(/no drift snapshot/i);
   });
 });
 
