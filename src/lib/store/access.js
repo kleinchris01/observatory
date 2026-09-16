@@ -1,9 +1,17 @@
 // The access pillar: permission schemes, issue-security schemes and notification schemes,
 // their holders, and their project assignments -- one shape, one set of tables.
 //
-// Imports only from core.js so there is one arrow and no cycle. Full replace per scope: a
-// site has dozens of schemes and low hundreds of holders, so the build completes in one
-// invocation and never appends to a partial version.
+// Imports only from core.js so there is one arrow and no cycle. Full replace per scope, and
+// every version is fresh, so nothing here collides with a row already on disk.
+//
+// All four writes carry ON DUPLICATE KEY UPDATE anyway. Most of the store deliberately does
+// not -- a duplicate there means the engine emitted the same entity twice, which is a bug
+// worth failing on. This pillar is the exception because its four tables are filled from
+// SEVEN Jira endpoints (three paginated scheme lists, security levels and their members,
+// the site role catalog, and per-project role actors) and merged into one shape. A repeated
+// row is a quirk of somebody else's pagination, not a defect here, and losing the whole
+// access pillar to one is the worse trade. Holders and scheme-projects always had it; the
+// other two did not, for no reason anyone recorded.
 
 import { sql } from "@forge/sql";
 import {
@@ -45,6 +53,7 @@ export async function replaceAccessSnapshot(scopeKey, version, {
         INSERT INTO snapshot_schemes
           (scope_key, version, scheme_type, scheme_id, name, description, is_default, default_level_id)
         VALUES ${valuesSql}
+        ON DUPLICATE KEY UPDATE name = VALUES(name), description = VALUES(description)
       `).bindParams(...params).execute()
     );
   }
@@ -76,6 +85,7 @@ export async function replaceAccessSnapshot(scopeKey, version, {
         INSERT INTO snapshot_scheme_levels
           (scope_key, version, scheme_id, level_id, name, description, is_default)
         VALUES ${valuesSql}
+        ON DUPLICATE KEY UPDATE name = VALUES(name), description = VALUES(description)
       `).bindParams(...params).execute()
     );
   }

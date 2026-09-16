@@ -21,6 +21,8 @@ import {
   toNumber,
   isSqlRateLimitError,
   withSqlRetry,
+  describeSqlError,
+  attachSqlErrorDetail,
   loadFieldLastChangeMap,
   clearAllSnapshotData,
 } from "./project-store.js";
@@ -138,6 +140,105 @@ describe("isSqlRateLimitError", () => {
   });
 });
 
+// ── SQL error detail ──────────────────────────────────────────────────────────
+//
+// Forge SQL answers every statement MySQL rejected with the same sentence, "Unknown SQL
+// execution error", and puts what actually went wrong in the fields beside it. Three
+// separate defects in this codebase reached production wearing that sentence. These pin the
+// fields being read back out.
+
+// Shaped the way @forge/sql's ForgeSQLAPIError constructs itself: message and code hoisted,
+// everything the service sent that it could not name folded into `context`.
+function forgeSqlError({ message = "Unknown SQL execution error", code = "UNKNOWN_ERROR", suggestion, context, status, traceId } = {}) {
+  const error = new Error(message);
+  error.name = "ForgeSQLError";
+  error.code = code;
+  if (suggestion) error.suggestion = suggestion;
+  error.context = context;
+  error.responseDetails = { status, statusText: "Bad Request", traceId };
+  return error;
+}
+
+describe("describeSqlError", () => {
+  test("pulls out the code, the trace id and the status", () => {
+    const detail = describeSqlError(forgeSqlError({ status: 400, traceId: "abc123" }));
+
+    expect(detail).toContain("code=UNKNOWN_ERROR");
+    // The trace id is the single most valuable field: it is what Atlassian support needs to
+    // look the failure up on their side, and it was being dropped with everything else.
+    expect(detail).toContain("trace=abc123");
+    expect(detail).toContain("status=400");
+  });
+
+  test("serialises the whole context rather than picking known keys out of it", () => {
+    // The next unfamiliar failure will put its cause in a field nobody has thought of yet.
+    const detail = describeSqlError(forgeSqlError({
+      context: { responseText: "Data too long for column 'context' at row 14", somethingNew: "keep me" },
+    }));
+
+    expect(detail).toContain("Data too long for column");
+    expect(detail).toContain("somethingNew");
+  });
+
+  test("truncates a context too large to belong in a message", () => {
+    const detail = describeSqlError(forgeSqlError({ context: { responseText: "x".repeat(5000) } }));
+
+    expect(detail.length).toBeLessThan(1000);
+    expect(detail).toContain("…");
+  });
+
+  test("says nothing when there is nothing to say", () => {
+    // A plain Error carries none of these fields, which is every non-SQL failure in the app.
+    expect(describeSqlError(new Error("plain"))).toBeNull();
+    // And a SQL error stripped of everything worth reporting adds nothing to its own message.
+    expect(describeSqlError({ message: "bare", context: {}, responseDetails: {} })).toBeNull();
+    expect(describeSqlError(null)).toBeNull();
+    expect(describeSqlError("not an error")).toBeNull();
+  });
+});
+
+describe("attachSqlErrorDetail", () => {
+  test("puts the detail on the message, which is the part that propagates", () => {
+    // Every engine's catch does String(error.message), writes it to a pillar's meta, and the
+    // Scans tab renders it. The message is the only field that survives that journey.
+    const error = attachSqlErrorDetail(forgeSqlError({ traceId: "t-1", context: { responseText: "Duplicate entry" } }));
+
+    expect(error.message).toContain("Unknown SQL execution error");
+    expect(error.message).toContain("trace=t-1");
+    expect(error.message).toContain("Duplicate entry");
+  });
+
+  test("attaches once, however many wrappers the error crosses", () => {
+    const error = forgeSqlError({ traceId: "t-2" });
+    attachSqlErrorDetail(error);
+    attachSqlErrorDetail(error);
+    attachSqlErrorDetail(error);
+
+    expect(error.message.match(/trace=t-2/g)).toHaveLength(1);
+  });
+
+  test("returns the error untouched when there is no detail to add", () => {
+    const error = new Error("plain");
+    expect(attachSqlErrorDetail(error)).toBe(error);
+    expect(error.message).toBe("plain");
+  });
+
+  test("a frozen error still throws, just without the detail", () => {
+    // Diagnostics must never be the thing that fails. Before this the error propagated
+    // bare; the worst this can do is leave it exactly that way.
+    const error = Object.freeze(forgeSqlError({ traceId: "t-3" }));
+    expect(() => attachSqlErrorDetail(error)).not.toThrow();
+  });
+
+  test("survives a context that cannot be serialised", () => {
+    const circular = {};
+    circular.self = circular;
+    const detail = describeSqlError(forgeSqlError({ context: circular }));
+
+    expect(detail).toContain("code=UNKNOWN_ERROR");
+  });
+});
+
 // ── withSqlRetry ──────────────────────────────────────────────────────────────
 
 describe("withSqlRetry", () => {
@@ -162,6 +263,26 @@ describe("withSqlRetry", () => {
     const op = vi.fn().mockRejectedValue(fatal);
     await expect(withSqlRetry(op)).rejects.toThrow("fatal");
     expect(op).toHaveBeenCalledTimes(1);
+  });
+
+  test("enriches the error on its way out, at the one point every SQL call passes through", async () => {
+    // 333 call sites reach SQL through this wrapper. Attaching the detail anywhere else
+    // would mean editing every engine's catch block and still missing the next one written.
+    const op = vi.fn().mockRejectedValue(forgeSqlError({
+      traceId: "trace-9",
+      context: { responseText: "Data too long for column 'context' at row 14" },
+    }));
+
+    await expect(withSqlRetry(op)).rejects.toThrow(/Data too long for column/);
+    await expect(withSqlRetry(op)).rejects.toThrow(/trace=trace-9/);
+  });
+
+  test("a rate-limited error that exhausts its retries is enriched too", async () => {
+    vi.spyOn(globalThis, "setTimeout").mockImplementation((fn) => { fn(); return 0; });
+    const op = vi.fn().mockRejectedValue(forgeSqlError({ code: "RATE_LIMIT_EXCEEDED", traceId: "trace-10" }));
+
+    await expect(withSqlRetry(op)).rejects.toThrow(/trace=trace-10/);
+    expect(op).toHaveBeenCalledTimes(6);
   });
 
   test("throws after exhausting all retries on persistent rate limiting", async () => {

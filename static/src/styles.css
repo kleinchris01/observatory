@@ -2448,6 +2448,26 @@ a.macro-pillar__name:hover { color: var(--cool); text-decoration: underline; }
   color: #e07070;
 }
 
+/* Every place a failure message is shown.
+   
+   These were all sized for one short sentence, which is what they used to get. A Forge SQL
+   failure now arrives with the service's own diagnosis attached -- a code, a trace id, and
+   a serialised context that is one long unbroken string. Without `overflow-wrap` that
+   string pushes its container sideways and takes the panel's layout with it, so the message
+   that finally says what went wrong would arrive by breaking the page that reports it.
+   Capped and scrollable rather than truncated: the useful part is often at the end. */
+.stage-detail__err,
+.danger-zone__error,
+.build-card__error,
+.universe-scan-panel__error,
+.scan-now__err {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  max-height: 12rem;
+  overflow-y: auto;
+  line-height: 1.5;
+}
+
 .run-delta {
   font-size: 0.72rem;
   font-variant-numeric: tabular-nums;
