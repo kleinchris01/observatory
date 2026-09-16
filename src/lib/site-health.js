@@ -56,6 +56,9 @@ import {
   loadUserActivity,
   loadEstateValueTotals,
   loadUserGovernanceSummary,
+  readDriftSnapshotMeta,
+  loadConfigChangeSummary,
+  countTrackedEntities,
 } from "./project-store.js";
 // Imported from the automation store directly: project-store.js re-exports the other eight
 // store modules but not this one, because the automation pillar is written by an import
@@ -786,6 +789,42 @@ export async function buildEstateOverview(installationKey) {
   }
 }
 
+// The drift pillar's input to the score: not a rate of anything broken, but a rate of
+// motion. Structural change is neither good nor bad on its own -- the finding is that an
+// admin reviewing the estate right now would be reviewing a moving target, and the size of
+// that target is worth naming. Trailing 30 days, same window the Changes tab headlines.
+//
+// available only once a drift pass has completed AND the estate it is diffing against is
+// non-empty -- a fresh install with a completed pass but zero tracked entities has nothing
+// to compute a rate over, not a rate of zero.
+const DRIFT_CHURN_WINDOW_DAYS = 30;
+
+export async function buildDriftHealthOverview(installationKey) {
+  try {
+    const meta = await readDriftSnapshotMeta(installationKey);
+    if (!meta?.version) return { available: false, state: meta?.state || "idle", lastError: meta?.lastError || null };
+
+    const trackedEntities = await countTrackedEntities(installationKey);
+    if (trackedEntities === 0) return { available: false, state: meta.state || "idle", lastError: meta.lastError || null };
+
+    const windowStart = new Date(Date.now() - DRIFT_CHURN_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    const summary = await loadConfigChangeSummary(installationKey, windowStart);
+
+    return {
+      available: true,
+      windowDays: DRIFT_CHURN_WINDOW_DAYS,
+      trackedEntities,
+      changesInWindow: summary.total,
+      state: meta.state || "idle",
+      refreshedAt: meta.refreshedAt || null,
+      lastError: meta.lastError || null,
+    };
+  } catch (error) {
+    console.warn("buildDriftHealthOverview failed:", error?.message || error);
+    return { available: false, state: "error" };
+  }
+}
+
 // The boards pillar's input: the agile board inventory joined against the filter and status
 // snapshots for the broken-backing and stale-column reads. Same tri-state posture as the
 // rest -- a missing join snapshot means that check did not run, not that it passed.
@@ -858,7 +897,7 @@ export async function captureSiteHealth(installationKey, deps) {
   }
 
   try {
-    const [meta, config, workflow, screens, issueTypeOverview, userOverview, assetOverview, accessOverview, estateOverview, boardOverview, automationAnalysis] = await Promise.all([
+    const [meta, config, workflow, screens, issueTypeOverview, userOverview, assetOverview, accessOverview, estateOverview, boardOverview, driftHealth, automationAnalysis] = await Promise.all([
       readSnapshotMeta(installationKey),
       readAdminConfig(),
       buildWorkflowOverview(installationKey),
@@ -869,6 +908,7 @@ export async function captureSiteHealth(installationKey, deps) {
       buildAccessOverview(installationKey),
       buildEstateOverview(installationKey),
       buildBoardOverview(installationKey),
+      buildDriftHealthOverview(installationKey),
       readAutomationAnalysis(installationKey).catch(() => null),
     ]);
     let filters = null;
@@ -944,6 +984,7 @@ export async function captureSiteHealth(installationKey, deps) {
       roles: accessOverview?.roles?.health ?? null,
       estate: estateOverview?.health ?? null,
       boards: boardOverview?.health ?? null,
+      drift: driftHealth,
       tolerances: config?.healthTolerances,
       targets: config?.healthTargets,
       priorValues,

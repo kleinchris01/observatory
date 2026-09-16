@@ -65,6 +65,18 @@ export async function replaceEntityDigests(scopeKey, pillar, entities = []) {
   }
 }
 
+// Total tracked entities across every pillar, for the churn-rate denominator in the health
+// score. A COUNT rather than loading the rows: the score needs the size of the estate, not
+// its content.
+export async function countTrackedEntities(scopeKey) {
+  await ensureProjectStoreReady();
+  const result = await withSqlRetry(() =>
+    sql.prepare(`SELECT COUNT(*) AS n FROM snapshot_entity_digest WHERE scope_key = ?`)
+      .bindParams(scopeKey).execute()
+  );
+  return toNumber(result.rows?.[0]?.n);
+}
+
 // ── Change log: the append-only timeline ─────────────────────────────────────
 
 export async function appendConfigChanges(scopeKey, rows = []) {

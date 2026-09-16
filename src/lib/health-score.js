@@ -150,6 +150,11 @@ export const DEFAULT_HEALTH_TOLERANCES = {
   // (Broken backing filters moved to DEFAULT_HEALTH_TARGETS -- a board on a live filter is
   // the good state to hold at, weighted by the boards and dashboards that depend on it.)
   boardsColumnHygiene: 0.25,
+  // Drift's churn rate. Loose, deliberately: this scores motion, not a defect, and a real
+  // site reconfigures a meaningful slice of itself in any given month without anything
+  // being wrong. It exists to flag the outlier pass where a fifth of the tracked estate
+  // moved and nobody meant it to.
+  configChurn: 0.20,
 };
 
 // Scoring model v2: dimensions with a definable good state.
@@ -385,6 +390,10 @@ export const PILLAR_WEIGHTS = {
   // Agile boards. Structural, like screens and issue types: a broken board changes what a
   // person sees on the wall every day, not what an issue is.
   boards: 1,
+  // Rate of motion, not a defect count -- and the newest, least-understood signal in the
+  // score. Same low weight as estate for the same reason: small surface, and a single
+  // dimension pillar should not move the headline as much as one with a dozen.
+  drift: 0.5,
 };
 
 export const HEALTH_PILLARS = [
@@ -404,6 +413,7 @@ export const HEALTH_PILLARS = [
   { key: "boards", label: "Boards" },
   { key: "automation", label: "Automation" },
   { key: "projects", label: "Projects" },
+  { key: "drift", label: "Configuration drift" },
 ];
 
 // Tolerances are admin-tunable, like every field threshold already is.
@@ -428,7 +438,7 @@ export function resolveHealthTolerances(overrides = {}) {
   return out;
 }
 
-export function computeSiteHealth({ fieldUsage, workflow, projects, automation, screens, screenCross, adoption, filters, dashboards, issueTypes, users, assets, permissions, security, notifications, roles, estate, boards, tolerances, targets, priorValues } = {}) {
+export function computeSiteHealth({ fieldUsage, workflow, projects, automation, screens, screenCross, adoption, filters, dashboards, issueTypes, users, assets, permissions, security, notifications, roles, estate, boards, drift, tolerances, targets, priorValues } = {}) {
   const TOLERANCE = resolveHealthTolerances(tolerances);
   const TARGET = resolveHealthTargets(targets);
   const dimensions = [];
@@ -1700,6 +1710,33 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
   } else {
     dimensions.push(unavailable("board-backing", "Board backing filters", "boards", noBoards));
     dimensions.push(unavailable("board-columns", "Board columns", "boards", noBoards));
+  }
+
+  // ── Configuration drift ────────────────────────────────────────────────────
+  // The exception among these dimensions: it does not score a defect. Structural change is
+  // neither good nor bad on its own, so this scores a rate of MOTION -- what fraction of the
+  // tracked estate moved in the trailing window. A high rate does not say something broke; it
+  // says an admin looking at the estate right now is looking at a moving target, which is
+  // itself worth surfacing before it is investigated further on the Changes tab.
+  const noDrift = "No drift snapshot yet. Run a drift pass to start tracking configuration change.";
+  if (drift?.available && drift.trackedEntities > 0) {
+    const rate = drift.changesInWindow / drift.trackedEntities;
+    dimensions.push({
+      key: "config-churn",
+      label: "Configuration churn",
+      pillar: "drift",
+      available: true,
+      weight: 1,
+      score: scoreFromRate(rate, TOLERANCE.configChurn),
+      detail: drift.changesInWindow === 0
+        ? `No tracked configuration changed in the last ${drift.windowDays} days.`
+        : `${drift.changesInWindow} of ${drift.trackedEntities} tracked configuration entities changed in the last ${drift.windowDays} days.`,
+      action: rate > TOLERANCE.configChurn
+        ? "Review the Changes tab for what moved recently and confirm it was deliberate."
+        : null,
+    });
+  } else {
+    dimensions.push(unavailable("config-churn", "Configuration churn", "drift", noDrift));
   }
 
   // ── Roll-up ───────────────────────────────────────────────────────────────
