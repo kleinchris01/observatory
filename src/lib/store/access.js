@@ -16,6 +16,7 @@
 import { sql } from "@forge/sql";
 import {
   chunkArray,
+  deleteScopeInChunks,
   ensureProjectStoreReady,
   toNumber,
   withSqlRetry,
@@ -31,15 +32,23 @@ export async function replaceAccessSnapshot(scopeKey, version, {
 } = {}) {
   await ensureProjectStoreReady();
 
+  // Was a single unbounded `DELETE FROM table WHERE scope_key = ?` -- with no version pruning
+  // anywhere else in this pillar, that statement was wiping EVERY historical version's rows in
+  // one shot, and grew large enough in production to exceed TiDB's per-query memory quota
+  // (error 8175). Scoping to "AND version <> ?" keeps only the version being written (matching
+  // the pruning convention already used by dashboard.js/filter.js/snapshot.js), and
+  // deleteScopeInChunks bounds each individual DELETE regardless of how large the existing
+  // backlog is.
   for (const table of [
     "snapshot_schemes",
     "snapshot_scheme_holders",
     "snapshot_scheme_levels",
     "snapshot_scheme_projects",
   ]) {
-    await withSqlRetry(() =>
-      sql.prepare(`DELETE FROM ${table} WHERE scope_key = ?`).bindParams(scopeKey).execute()
-    );
+    await deleteScopeInChunks(table, scopeKey, {
+      extraWhereSql: " AND version <> ?",
+      extraParams: [version],
+    });
   }
 
   for (const b of chunkArray(schemes, BATCH)) {

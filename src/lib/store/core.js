@@ -2034,6 +2034,31 @@ export function chunkArray(items, size) {
   return chunks;
 }
 
+// A single unbounded `DELETE FROM table WHERE scope_key = ?` can exceed TiDB's per-query
+// memory quota (error 8175) once a table's row count for a scope_key grows large enough --
+// hit in production against snapshot_scheme_holders, whose rows were never version-pruned
+// (see replaceAccessSnapshot in access.js). Repeating a LIMIT-bounded DELETE keeps every
+// individual statement's footprint small regardless of how many rows are queued up behind it.
+// `extraWhereSql`/`extraParams` let a caller narrow the match (e.g. "AND version <> ?") while
+// still going through the same bounded-chunk loop.
+export async function deleteScopeInChunks(table, scopeKey, { limit = 2000, extraWhereSql = "", extraParams = [] } = {}) {
+  // Forge SQL rejects a placeholder in LIMIT, so the bound is interpolated -- from a clamped
+  // integer, never from caller-supplied text.
+  const chunk = Math.max(1, Math.min(10000, Math.floor(toNumber(limit, 2000))));
+  let totalDeleted = 0;
+  for (;;) {
+    const result = await withSqlRetry(() =>
+      sql.prepare(`DELETE FROM ${table} WHERE scope_key = ?${extraWhereSql} LIMIT ${chunk}`)
+        .bindParams(scopeKey, ...extraParams)
+        .execute()
+    );
+    const deleted = toNumber(result?.rowsAffected, 0);
+    totalDeleted += deleted;
+    if (deleted < chunk) break;
+  }
+  return totalDeleted;
+}
+
 export function safeParseJson(value, fallback) {
   if (!value) return fallback;
   try {
