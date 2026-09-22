@@ -500,17 +500,9 @@ export async function runIssueScanCoordinator(installationKey) {
       }
     }
 
-    // Greedy bin-pack: assign projects to ISSUE_SCAN_WORKERS bins so each bin has
-    // approximately equal total issue count. Sort largest-first (LPT heuristic).
-    const sortedKeys = [...allProjectKeys].sort(
-      (a, b) => (issueCountByKey.get(b) ?? 1) - (issueCountByKey.get(a) ?? 1)
-    );
-    const bins = Array.from({ length: ISSUE_SCAN_WORKERS }, () => ({ keys: [], count: 0 }));
-    for (const key of sortedKeys) {
-      const smallest = bins.reduce((min, b) => b.count < min.count ? b : min);
-      smallest.keys.push(key);
-      smallest.count += issueCountByKey.get(key) ?? 1;
-    }
+    // Bin-pack projects across workers, constrained so no worker is starved below the
+    // project count it needs to fill its own intra-worker slices -- see binPackProjects.
+    const bins = binPackProjects(allProjectKeys, issueCountByKey, ISSUE_SCAN_WORKERS, ISSUE_SCAN_SLICES_PER_WORKER);
 
     // Build one JQL filter per worker covering all its assigned projects. Kept because it is
     // still what a single-slice worker crawls, and what the logs and older rows refer to.
@@ -667,6 +659,40 @@ export function normalizeWorkerSlices(worker) {
     restarts: 0,
     abandoned: false,
   }];
+}
+
+// Divide every project on the site among the workers -- the level above sliceProjectKeys,
+// which then splits one worker's own share into its parallel slices.
+//
+// Greedy largest-first by issue count (LPT), same heuristic as sliceProjectKeys, but with one
+// constraint sliceProjectKeys does not need: a bin also needs enough DISTINCT PROJECTS to fill
+// `minProjectsPerBin` slices, not just a fair share of total issues. Balancing purely on issue
+// count let a handful of huge projects (or a bad estimate -- see the fallback-to-1 weight)
+// fill one bin on their own while every other bin absorbed the many small projects left over.
+// That bin then balanced by COUNT but was capped at 1 usable slice for the entire run --
+// confirmed live: a worker stuck at 25 pages/chunk (1 slice's worth) from an hour into a scan
+// to the end, while its siblings ran full at 75 (3 slices), each showing the same 100
+// issues/page rate -- proof it was never slower, just starved of parallelism from the start.
+//
+// The fix: while any bin sits below its fair share of PROJECT COUNT, only bins still below
+// that share are eligible for the next project, so a handful of large projects cannot starve
+// a bin below the count it needs to fill its slices. Once every bin reaches fair share, the
+// rest is un-constrained LPT exactly as before. `minProjectsPerBin` names the floor this
+// enforces -- pass ISSUE_SCAN_SLICES_PER_WORKER so no bin is starved below what it can use;
+// callers with too few total projects to reach it for every bin get as close as the site's
+// project count allows, same honesty sliceProjectKeys already has about a single giant project.
+export function binPackProjects(keys, issueCountByKey, workerCount, minProjectsPerBin = 1) {
+  const bins = Array.from({ length: Math.max(1, workerCount) }, () => ({ keys: [], count: 0 }));
+  const fairShare = Math.min(minProjectsPerBin, Math.floor(keys.length / bins.length));
+  const sorted = [...keys].sort((a, b) => (issueCountByKey.get(b) ?? 1) - (issueCountByKey.get(a) ?? 1));
+  for (const key of sorted) {
+    const underShare = fairShare > 0 ? bins.filter((b) => b.keys.length < fairShare) : [];
+    const pool = underShare.length > 0 ? underShare : bins;
+    const smallest = pool.reduce((min, b) => (b.count < min.count ? b : min));
+    smallest.keys.push(key);
+    smallest.count += issueCountByKey.get(key) ?? 1;
+  }
+  return bins;
 }
 
 // Split one worker's projects into slices of roughly equal issue volume.

@@ -9,6 +9,7 @@ import {
   completeIssueScanFinalization,
   runIssueScanWorkerV2,
   reviveStalledIssueScanWorkers,
+  binPackProjects,
   sliceProjectKeys,
   normalizeWorkerSlices,
 } from "./scan-engine.js";
@@ -1222,6 +1223,60 @@ describe("scan rate-limit reporting", () => {
     // Labelled per chunk. There is no counter shared across workers, and presenting one
     // chunk's number as a scan-wide total would be worse than showing nothing.
     expect(logged).toMatch(/this chunk/);
+  });
+});
+
+describe("binPackProjects", () => {
+  // The bug this pins, reproduced exactly: a site with a handful of huge projects and many
+  // small ones. Balancing purely on total issue count (the old algorithm) put the two huge
+  // projects alone in two bins and spread the 12 small ones across the other three -- every
+  // bin came out with a similar total, but two workers had only 1 project each and could
+  // fill only 1 of their 3 slices for the entire run, capped at a third of everyone else's
+  // throughput despite processing pages at the same rate.
+  it("does not strand a bin with too few projects to fill its slices, even when totals would balance", () => {
+    // 5 workers x 3 slices = 15 needed; 22 projects on site is enough for every bin to clear
+    // the floor with room to spare.
+    const counts = new Map([
+      ["HUGE-1", 60000], ["HUGE-2", 58000],
+      ...Array.from({ length: 20 }, (_, i) => [`small-${i}`, 500]),
+    ]);
+    const keys = [...counts.keys()];
+    const bins = binPackProjects(keys, counts, 5, 3);
+    for (const bin of bins) {
+      expect(bin.keys.length).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it("every project is assigned exactly once, across all bins", () => {
+    const counts = new Map([["A", 1000], ["B", 900], ["C", 100], ["D", 50], ["E", 10]]);
+    const keys = [...counts.keys()];
+    const bins = binPackProjects(keys, counts, 2, 3);
+    const mentioned = bins.flatMap((b) => b.keys);
+    expect([...mentioned].sort()).toEqual(keys.sort());
+  });
+
+  it("falls back to plain LPT balancing once every bin has reached the project-count floor", () => {
+    // 10 equal-weight projects, 2 workers, floor of 3 each: after both bins reach 3 projects
+    // the remaining 4 still divide 2-and-2 by count, not pile onto whichever bin is first.
+    const counts = new Map(Array.from({ length: 10 }, (_, i) => [`p${i}`, 100]));
+    const bins = binPackProjects([...counts.keys()], counts, 2, 3);
+    expect(bins.map((b) => b.keys.length)).toEqual([5, 5]);
+  });
+
+  it("gets as close to the floor as the site's project count allows, same honesty sliceProjectKeys has about one giant project", () => {
+    // Only 2 projects for 5 workers: three bins are unavoidably empty, not a crash or an
+    // infinite loop.
+    const counts = new Map([["A", 100], ["B", 100]]);
+    const bins = binPackProjects(["A", "B"], counts, 5, 3);
+    expect(bins.filter((b) => b.keys.length > 0)).toHaveLength(2);
+    expect(bins.reduce((n, b) => n + b.keys.length, 0)).toBe(2);
+  });
+
+  it("packs a single bin with everything when workerCount is 1", () => {
+    const counts = new Map([["A", 100], ["B", 50]]);
+    const bins = binPackProjects(["A", "B"], counts, 1, 3);
+    expect(bins).toHaveLength(1);
+    expect(bins[0].keys.sort()).toEqual(["A", "B"]);
   });
 });
 
