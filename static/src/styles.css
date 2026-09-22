@@ -1789,6 +1789,28 @@ a.macro-pillar__name:hover { color: var(--cool); text-decoration: underline; }
   min-width: 0;
 }
 
+/* A second, unrelated use of the same item styling: a horizontal picker (which crawl's
+   Audit Log/Reports to show) rather than the vertical section rail .sub-nav is everywhere
+   else. Overrides just the axis and sizing that assumes a rail -- .sub-nav__item's colors,
+   states and active treatment are exactly what a pill selector wants too. */
+.sub-nav--pills {
+  flex-direction: row;
+  border-right: none;
+  border-bottom: 1px solid var(--stroke);
+  padding: 0 0 10px;
+  margin-bottom: 14px;
+  gap: 6px;
+}
+.sub-nav--pills .sub-nav__item {
+  width: auto;
+  border: 1px solid var(--stroke);
+  border-radius: 999px;
+  padding: 6px 14px;
+}
+.sub-nav--pills .sub-nav__item--active {
+  border-color: rgba(121, 184, 255, 0.4);
+}
+
 .activity-section {
   border: 1px solid var(--stroke);
   border-radius: var(--radius-lg);
@@ -3192,7 +3214,12 @@ a.macro-pillar__name:hover { color: var(--cool); text-decoration: underline; }
      how wide the shell gets. */
   max-width: min(100%, 2400px);
   margin: 0 auto;
+  transition: grid-template-columns 0.15s ease;
 }
+
+/* Icon-only rail. 52px fits the icon plus its padding with nothing left over -- a reader
+   who wants labels back is one click away, so this does not try to abbreviate them instead. */
+.admin-layout--collapsed { grid-template-columns: 52px 1fr; }
 
 .admin-sidebar {
   display: flex;
@@ -3271,6 +3298,18 @@ a.macro-pillar__name:hover { color: var(--cool); text-decoration: underline; }
   min-width: 0;
   overflow: auto;
 }
+
+/* Collapsed rail: center every icon, drop the label span (already unmounted, this only
+   covers the two buttons that keep rendering a bare icon regardless of state) and stop the
+   brand row wrapping onto two lines now that "Observatory" is gone. */
+.admin-layout--collapsed .admin-sidebar__brand { align-items: center; padding: 0 0 16px; }
+.admin-layout--collapsed .admin-sidebar__logo { font-size: 15px; }
+.admin-layout--collapsed .admin-nav__item,
+.admin-layout--collapsed .admin-sidebar__footer .admin-nav__item {
+  justify-content: center;
+  padding: 9px;
+}
+.admin-sidebar__collapse { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
 
 .admin-badge {
   display: inline-flex;

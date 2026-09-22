@@ -8,9 +8,19 @@ describe("ICON_COMPONENTS", () => {
     for (const name of [
       "layers", "activity", "zap", "folder", "barChart", "alertTriangle", "alertCircle",
       "info", "scissors", "checkCircle", "check", "x", "settings", "refreshCw", "lock", "clock", "sliders",
+      "caretLeft", "caretRight",
     ]) {
       expect(ICON_COMPONENTS).toHaveProperty(name);
     }
+  });
+
+  // Pins the regression: Panel's own collapse toggle (ui.jsx) and ProjectsTab's disclosure
+  // both named these, and rendered no icon at all -- silently, nothing throws -- since the
+  // Phosphor migration dropped them as "verified dead". The grep that verified it missed a
+  // dynamic `open ? "chevronUp" : "chevronDown"` ternary in both call sites.
+  it("has chevronUp/chevronDown -- Panel's collapse toggle depends on them", () => {
+    expect(ICON_COMPONENTS).toHaveProperty("chevronUp");
+    expect(ICON_COMPONENTS).toHaveProperty("chevronDown");
   });
 
   it("each value is a renderable component, not a raw path string", () => {

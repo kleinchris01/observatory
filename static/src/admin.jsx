@@ -123,6 +123,7 @@ export function AdminApp() {
   }, []);
   const [reportsInitialSection, setReportsInitialSection] = React.useState("");
   const [theme, setTheme] = React.useState(() => localStorage.getItem("atlasiq-field-theme") || "dark");
+  const [sidebarCollapsed, setSidebarCollapsed] = React.useState(() => localStorage.getItem("atlasiq-sidebar-collapsed") === "1");
   const [overview, setOverview] = React.useState(null);
   const [loadingOverview, setLoadingOverview] = React.useState(true);
   const [config, setConfig] = React.useState(null);
@@ -152,6 +153,10 @@ export function AdminApp() {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem("atlasiq-field-theme", theme);
   }, [theme]);
+
+  React.useEffect(() => {
+    localStorage.setItem("atlasiq-sidebar-collapsed", sidebarCollapsed ? "1" : "0");
+  }, [sidebarCollapsed]);
 
   React.useEffect(() => {
     try { view.setAutoResizing(true); } catch {}
@@ -249,11 +254,11 @@ export function AdminApp() {
   return (
     <div className="admin-shell">
       <Starfield active={theme === "dark"} bearing={activeTab} />
-      <div className="admin-layout">
+      <div className={`admin-layout${sidebarCollapsed ? " admin-layout--collapsed" : ""}`}>
         <aside className="admin-sidebar">
           <div className="admin-sidebar__brand">
-            <span className="admin-sidebar__logo">Observatory</span>
-            <span className="admin-badge">Admin</span>
+            <span className="admin-sidebar__logo">{sidebarCollapsed ? "O" : "Observatory"}</span>
+            {!sidebarCollapsed && <span className="admin-badge">Admin</span>}
           </div>
 
           <nav className="admin-nav" aria-label="Admin navigation">
@@ -263,9 +268,10 @@ export function AdminApp() {
                 className={`admin-nav__item${activeTab === key ? " admin-nav__item--active" : ""}`}
                 type="button"
                 onClick={() => navigate(key)}
+                title={sidebarCollapsed ? label : undefined}
               >
                 <Icon name={icon} size={15} />
-                <span>{label}</span>
+                {!sidebarCollapsed && <span>{label}</span>}
               </button>
             ))}
           </nav>
@@ -275,11 +281,22 @@ export function AdminApp() {
               className="admin-nav__item admin-nav__item--footer"
               onClick={() => setTheme((v) => v === "dark" ? "light" : "dark")}
               type="button"
-              title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              title={sidebarCollapsed ? (theme === "dark" ? "Switch to light mode" : "Switch to dark mode") : undefined}
               aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
             >
               <span>{theme === "dark" ? "☀" : "☽"}</span>
-              <span>{theme === "dark" ? "Light mode" : "Dark mode"}</span>
+              {!sidebarCollapsed && <span>{theme === "dark" ? "Light mode" : "Dark mode"}</span>}
+            </button>
+            <button
+              className="admin-nav__item admin-nav__item--footer admin-sidebar__collapse"
+              onClick={() => setSidebarCollapsed((v) => !v)}
+              type="button"
+              title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              aria-pressed={sidebarCollapsed}
+            >
+              <Icon name={sidebarCollapsed ? "caretRight" : "caretLeft"} size={15} />
+              {!sidebarCollapsed && <span>Collapse</span>}
             </button>
           </div>
         </aside>

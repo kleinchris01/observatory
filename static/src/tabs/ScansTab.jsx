@@ -315,16 +315,17 @@ export function ScanThroughputChart({ data }) {
   );
 }
 
-// The issue crawl's own live view: stats, charts and the audit log, shared by whichever
-// scan is currently driving it. Full Scan and Quick Scan both hand this exact crawl off to
-// runIssueScanCoordinator against the same issue_scan_meta row (Quick Scan's issues-delta
-// stage is the one exception -- it writes a "::delta"-scoped row instead, read by
-// getDeltaIssueScanStatus, but the shape is identical so this same view renders either one).
+// Every derived figure the crawl views need, computed once from the same issue_scan_meta
+// shape Full Scan and Quick Scan both hand off to runIssueScanCoordinator (Quick Scan's
+// issues-delta stage is the one exception -- it writes a "::delta"-scoped row instead, read
+// by getDeltaIssueScanStatus, but the shape is identical so every consumer below renders
+// either one unchanged).
 //
-// There is deliberately no button here to start a fresh crawl: a full re-crawl only happens
-// as a stage of Full Scan now, so the only actions this view offers are recovering one that
-// is already running or has stalled.
-export function IssueCrawlLiveView({ issueScan, onResume, onCancel, resuming, cancelling, title = "Issue crawl", readOnly = false }) {
+// Split out so the summary card, the charts and the audit log -- three different sub-tabs
+// now -- can each call this on the same `issueScan` prop rather than one component computing
+// all of it and the other two reaching into its internals. Recomputing is cheap: this is pure
+// derivation over an array already in memory, not a fetch.
+function useIssueCrawlData(issueScan) {
   const [logSearch, setLogSearch] = React.useState("");
 
   const scanActive = issueScan?.state === "building" || issueScan?.state === "queued";
@@ -486,19 +487,41 @@ export function IssueCrawlLiveView({ issueScan, onResume, onCancel, resuming, ca
 
   const stateClass = scanActive ? "scan-status--active" : scanDone ? "scan-status--done" : scanFailed ? "scan-status--failed" : "scan-status--idle";
   const stateLabel = scanActive ? "Running" : scanDone ? "Complete" : scanFailed ? "Failed" : scanCancelled ? "Cancelled" : "Not started";
-  const displayIssues = scanDone ? (issueScan.processedIssues || issueScan.totalIssues || 0) : processedIssues;
+  const displayIssues = scanDone ? (issueScan?.processedIssues || issueScan?.totalIssues || 0) : processedIssues;
   const hasStats = scanDone || scanActive || processedIssues > 0;
 
   // Nothing has ever crawled this row -- the parent scan's own stage table already says
   // "Waiting", so a second, emptier statement of the same fact here would just be noise.
-  if (!issueScan?.startedAt && !(issueScan?.scanHistory?.length)) return null;
+  const everCrawled = Boolean(issueScan?.startedAt || issueScan?.scanHistory?.length);
+
+  return {
+    logSearch, setLogSearch,
+    scanActive, scanDone, scanFailed, scanCancelled, everCrawled,
+    stateClass, stateLabel,
+    canResume, canForceResume,
+    processedIssues, displayIssues, processedProjects, totalProjects, scanPercent,
+    elapsed, durationLabel, scanRate, etaLabel,
+    totalLogCount, scanHistoryRuns, allRunEntries, filteredEntries,
+    progressSeries, historySeries, deltaSeries, throughputSeries, showCharts,
+    hasStats,
+  };
+}
+
+// The header, live stats, progress bar, resume/cancel controls and timestamps -- what an
+// operator needs while a scan is running or just finished, without the charts or the full
+// log competing with it for the same screen. Lives inline in the Full/Quick Scan panels;
+// the charts and the log each moved to their own sub-tab (IssueCrawlCharts,
+// IssueCrawlAuditLog below) once both grew past what a "meanwhile" panel should carry.
+export function IssueCrawlSummary({ issueScan, onResume, onCancel, resuming, cancelling, title = "Issue crawl", readOnly = false }) {
+  const d = useIssueCrawlData(issueScan);
+  if (!d.everCrawled) return null;
 
   return (
     <div className="universe-scan-panel">
       <div className="universe-scan-panel__head">
         <div className="universe-scan-panel__title-row">
           <h3 className="universe-scan-panel__title">{title}</h3>
-          <span className={`scan-status-pill ${stateClass}`}>{stateLabel}</span>
+          <span className={`scan-status-pill ${d.stateClass}`}>{d.stateLabel}</span>
         </div>
         <p className="universe-scan-panel__desc">
           Crawls every issue across all Jira projects in parallel workers to compute per-project field usage counts, detect RQT-pattern values, and build the complete field inventory.
@@ -509,165 +532,208 @@ export function IssueCrawlLiveView({ issueScan, onResume, onCancel, resuming, ca
       {/* The fifth and last stat dialect, retired. Worker progress and scan rate keep their
           denominators as hints rather than shrunken inline spans -- "5" reads as the metric
           and "of 5 workers" as the context, which is the split the tile already encodes. */}
-      {hasStats && (
+      {d.hasStats && (
         <StatRow>
-          <StatTile label="Issues scanned" value={Number(displayIssues).toLocaleString()} icon="layers" />
-          {totalProjects > 0 && (
+          <StatTile label="Issues scanned" value={Number(d.displayIssues).toLocaleString()} icon="layers" />
+          {d.totalProjects > 0 && (
             <StatTile
               label="Workers complete"
-              value={processedProjects.toLocaleString()}
-              hint={`of ${totalProjects.toLocaleString()}`}
-              tone={processedProjects >= totalProjects ? "success" : "active"}
+              value={d.processedProjects.toLocaleString()}
+              hint={`of ${d.totalProjects.toLocaleString()}`}
+              tone={d.processedProjects >= d.totalProjects ? "success" : "active"}
               icon="activity"
             />
           )}
-          {durationLabel && <StatTile label="Duration" value={durationLabel} icon="clock" />}
-          {scanRate && (
-            <StatTile label="Avg scan rate" value={scanRate.toLocaleString()} hint="issues per second" icon="zap" />
+          {d.durationLabel && <StatTile label="Duration" value={d.durationLabel} icon="clock" />}
+          {d.scanRate && (
+            <StatTile label="Avg scan rate" value={d.scanRate.toLocaleString()} hint="issues per second" icon="zap" />
           )}
-          {totalLogCount > 0 && <StatTile label="Log entries" value={totalLogCount} icon="barChart" />}
-          {scanHistoryRuns.length > 0 && (
-            <StatTile label="Past runs" value={scanHistoryRuns.length} icon="checkCircle" />
+          {d.totalLogCount > 0 && <StatTile label="Log entries" value={d.totalLogCount} icon="barChart" />}
+          {d.scanHistoryRuns.length > 0 && (
+            <StatTile label="Past runs" value={d.scanHistoryRuns.length} icon="checkCircle" />
           )}
         </StatRow>
       )}
 
-      {showCharts && (
-        <div className="universe-scan-panel__charts">
-          {progressSeries.length >= 2 && (
-            <div className="scan-chart-card">
-              <div className="scan-chart-card__title">Issues scanned — current run</div>
-              <ScanProgressChart data={progressSeries} />
+      <div className="universe-scan-panel__controls">
+        {d.scanActive && (
+          <div className="universe-scan-panel__progress">
+            <div className="universe-scan-panel__progress-bar">
+              <div className="universe-scan-panel__progress-fill" style={{ width: `${d.scanPercent}%` }} />
             </div>
-          )}
-          {historySeries.length >= 1 && (
-            <div className="scan-chart-card">
-              <div className="scan-chart-card__title">Issues scanned — run history</div>
-              <ScanHistoryChart data={historySeries} />
+            <div className="universe-scan-panel__progress-text">
+              <span>{d.totalProjects > 0 ? `${d.scanPercent}% — ${d.processedProjects}/${d.totalProjects} workers` : "Starting…"}</span>
+              {d.elapsed && <span className="universe-scan-panel__elapsed">{d.elapsed}</span>}
             </div>
-          )}
-          {deltaSeries.length >= 1 && (
-            <div className="scan-chart-card">
-              <div className="scan-chart-card__title">Net new issues — run over run</div>
-              <ScanDeltaChart data={deltaSeries} />
-              <div className="scan-chart-card__caption">Growth between consecutive scans. The totals above barely move; this is where the change is.</div>
-            </div>
-          )}
-          {throughputSeries.length >= 1 && (
-            <div className="scan-chart-card">
-              <div className="scan-chart-card__title">Duration &amp; throughput</div>
-              <ScanThroughputChart data={throughputSeries} />
-              <div className="scan-chart-card__caption">Bars are minutes per run, the line is issues per second. Duration up with the rate flat means the estate grew; both worsening means the scan is degrading.</div>
-            </div>
-          )}
+            {d.processedIssues > 0 && (
+              <div className="universe-scan-panel__issues-live">{d.processedIssues.toLocaleString()} issues scanned</div>
+            )}
+            {d.etaLabel && <div className="universe-scan-panel__eta">{d.etaLabel}</div>}
+          </div>
+        )}
+
+        {!readOnly && (d.canResume || d.scanActive) && (
+          <div className="universe-scan-panel__action-row">
+            {d.canResume && (
+              <button className="secondary-button secondary-button--small" type="button" onClick={onResume} disabled={resuming}>
+                {resuming ? "Resuming…" : d.canForceResume ? "Force resume" : "Resume crawl"}
+              </button>
+            )}
+            {d.scanActive && (
+              <button className="secondary-button secondary-button--small" type="button" onClick={onCancel} disabled={cancelling}>
+                {cancelling ? "Cancelling…" : "Cancel crawl"}
+              </button>
+            )}
+          </div>
+        )}
+
+        {(d.scanFailed || d.scanCancelled) && issueScan?.lastError && (
+          <div className="universe-scan-panel__error">{issueScan.lastError}</div>
+        )}
+
+        {issueScan?.startedAt && (
+          <div className="universe-scan-panel__timestamps">
+            <div><span className="scan-ts-label">Started</span>{formatTimestamp(issueScan.startedAt)}</div>
+            {issueScan.completedAt && <div><span className="scan-ts-label">Completed</span>{formatTimestamp(issueScan.completedAt)}</div>}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// The four trend charts, alone: how a run progresses, how the corpus grows run over run, and
+// whether the scan itself is getting slower. Pulled out of the "meanwhile" summary above
+// into its own Reports sub-tab -- a chart that answers "is this normal" is a different
+// question from "is this scan currently healthy", and stacking both under one heading made
+// the second one scroll past before anyone reached it.
+export function IssueCrawlCharts({ issueScan, title = "Issue crawl" }) {
+  const d = useIssueCrawlData(issueScan);
+  if (!d.everCrawled) {
+    return <EmptyState inline>No scan has run yet. Charts appear once the first crawl completes.</EmptyState>;
+  }
+  if (!d.showCharts) {
+    return <EmptyState inline>Not enough data yet for a trend. Charts need at least one completed run.</EmptyState>;
+  }
+
+  return (
+    <div className="universe-scan-panel__charts">
+      {d.progressSeries.length >= 2 && (
+        <div className="scan-chart-card">
+          <div className="scan-chart-card__title">{title} — current run</div>
+          <ScanProgressChart data={d.progressSeries} />
         </div>
       )}
-
-      <div className="universe-scan-panel__body">
-        <div className="universe-scan-panel__controls">
-          {scanActive && (
-            <div className="universe-scan-panel__progress">
-              <div className="universe-scan-panel__progress-bar">
-                <div className="universe-scan-panel__progress-fill" style={{ width: `${scanPercent}%` }} />
-              </div>
-              <div className="universe-scan-panel__progress-text">
-                <span>{totalProjects > 0 ? `${scanPercent}% — ${processedProjects}/${totalProjects} workers` : "Starting…"}</span>
-                {elapsed && <span className="universe-scan-panel__elapsed">{elapsed}</span>}
-              </div>
-              {processedIssues > 0 && (
-                <div className="universe-scan-panel__issues-live">{processedIssues.toLocaleString()} issues scanned</div>
-              )}
-              {etaLabel && <div className="universe-scan-panel__eta">{etaLabel}</div>}
-            </div>
-          )}
-
-          {!readOnly && (canResume || scanActive) && (
-            <div className="universe-scan-panel__action-row">
-              {canResume && (
-                <button className="secondary-button secondary-button--small" type="button" onClick={onResume} disabled={resuming}>
-                  {resuming ? "Resuming…" : canForceResume ? "Force resume" : "Resume crawl"}
-                </button>
-              )}
-              {scanActive && (
-                <button className="secondary-button secondary-button--small" type="button" onClick={onCancel} disabled={cancelling}>
-                  {cancelling ? "Cancelling…" : "Cancel crawl"}
-                </button>
-              )}
-            </div>
-          )}
-
-          {(scanFailed || scanCancelled) && issueScan?.lastError && (
-            <div className="universe-scan-panel__error">{issueScan.lastError}</div>
-          )}
-
-          {issueScan?.startedAt && (
-            <div className="universe-scan-panel__timestamps">
-              <div><span className="scan-ts-label">Started</span>{formatTimestamp(issueScan.startedAt)}</div>
-              {issueScan.completedAt && <div><span className="scan-ts-label">Completed</span>{formatTimestamp(issueScan.completedAt)}</div>}
-            </div>
-          )}
+      {d.historySeries.length >= 1 && (
+        <div className="scan-chart-card">
+          <div className="scan-chart-card__title">{title} — run history</div>
+          <ScanHistoryChart data={d.historySeries} />
         </div>
-
-        <div className="universe-scan-panel__log-col">
-          <div className="universe-scan-panel__log-head">
-            <span className="universe-scan-panel__log-title">Audit Log</span>
-            <span className="universe-scan-panel__log-count">{totalLogCount} entr{totalLogCount !== 1 ? "ies" : "y"}</span>
-            {scanHistoryRuns.length > 0 && (
-              <span className="universe-scan-panel__log-runs">{scanHistoryRuns.length + 1} runs</span>
-            )}
-            <label className="ui-controls__search universe-scan-panel__log-search">
-              <span className="ui-controls__srlabel">Search the audit log</span>
-              <Icon name="search" size={13} />
-              <input
-                type="search"
-                placeholder="Search all runs…"
-                value={logSearch}
-                onChange={e => setLogSearch(e.target.value)}
-              />
-            </label>
-          </div>
-          <div className="universe-scan-panel__log scan-log">
-            {filteredEntries ? (
-              filteredEntries.length > 0 ? filteredEntries.map((entry, i) => {
-                const isComplete = /complete|done|finished/i.test(entry.msg);
-                const isError = /error|fail/i.test(entry.msg);
-                const isWarn = /warn|stale|slow|timeout/i.test(entry.msg);
-                return (
-                  <div key={i} className={`scan-log__entry${isComplete ? " scan-log__entry--complete" : ""}${isError ? " scan-log__entry--error" : ""}${isWarn ? " scan-log__entry--warn" : ""}`}>
-                    <span className="scan-log__time">{formatShortTime(entry.t)}</span>
-                    <span className="scan-log__msg">{entry.msg}</span>
-                  </div>
-                );
-              }) : (
-                <div className="empty-state empty-state--inline" style={{ padding: "24px 16px" }}>{`No entries match "${logSearch}".`}</div>
-              )
-            ) : allRunEntries.length > 0 ? allRunEntries.map((item, i) => {
-              if (item.type === "run-header") {
-                return (
-                  <div key={item.key} className="scan-log__run-header">
-                    <span className="scan-log__run-label">{item.isCurrent ? (scanDone ? "Latest run" : scanActive ? "Current run" : "Last run") : "Previous run"}</span>
-                    {item.startedAt && <span className="scan-log__run-date">{formatTimestamp(item.startedAt)}</span>}
-                    {item.processedIssues > 0 && <span className="scan-log__run-issues">{item.processedIssues.toLocaleString()} issues</span>}
-                  </div>
-                );
-              }
-              const isComplete = /complete|done|finished/i.test(item.msg);
-              const isError = /error|fail/i.test(item.msg);
-              const isWarn = /warn|stale|slow|timeout/i.test(item.msg);
-              return (
-                <div key={i} className={`scan-log__entry${isComplete ? " scan-log__entry--complete" : ""}${isError ? " scan-log__entry--error" : ""}${isWarn ? " scan-log__entry--warn" : ""}`}>
-                  <span className="scan-log__time">{formatShortTime(item.t)}</span>
-                  <span className="scan-log__msg">{item.msg}</span>
-                </div>
-              );
-            }) : (
-              <div className="empty-state empty-state--inline" style={{ padding: "24px 16px" }}>
-                {scanActive ? "Waiting for log entries…" : "No log entries yet. Start a scan to populate the audit log."}
-              </div>
-            )}
-          </div>
+      )}
+      {d.deltaSeries.length >= 1 && (
+        <div className="scan-chart-card">
+          <div className="scan-chart-card__title">Net new issues — run over run</div>
+          <ScanDeltaChart data={d.deltaSeries} />
+          <div className="scan-chart-card__caption">Growth between consecutive scans. The totals above barely move; this is where the change is.</div>
         </div>
+      )}
+      {d.throughputSeries.length >= 1 && (
+        <div className="scan-chart-card">
+          <div className="scan-chart-card__title">Duration &amp; throughput</div>
+          <ScanThroughputChart data={d.throughputSeries} />
+          <div className="scan-chart-card__caption">Bars are minutes per run, the line is issues per second. Duration up with the rate flat means the estate grew; both worsening means the scan is degrading.</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// The searchable, multi-run audit log, alone. Pulled out for the same reason as the charts:
+// an operator checking "did the scan actually run last Tuesday" does not also want four SVGs
+// and a progress bar between them and the search box.
+export function IssueCrawlAuditLog({ issueScan }) {
+  const d = useIssueCrawlData(issueScan);
+  if (!d.everCrawled) {
+    return <EmptyState inline>No log entries yet. Start a scan to populate the audit log.</EmptyState>;
+  }
+
+  return (
+    <div className="universe-scan-panel__log-col">
+      <div className="universe-scan-panel__log-head">
+        <span className="universe-scan-panel__log-count">{d.totalLogCount} entr{d.totalLogCount !== 1 ? "ies" : "y"}</span>
+        {d.scanHistoryRuns.length > 0 && (
+          <span className="universe-scan-panel__log-runs">{d.scanHistoryRuns.length + 1} runs</span>
+        )}
+        <label className="ui-controls__search universe-scan-panel__log-search">
+          <span className="ui-controls__srlabel">Search the audit log</span>
+          <Icon name="search" size={13} />
+          <input
+            type="search"
+            placeholder="Search all runs…"
+            value={d.logSearch}
+            onChange={e => d.setLogSearch(e.target.value)}
+          />
+        </label>
       </div>
+      <div className="universe-scan-panel__log scan-log">
+        {d.filteredEntries ? (
+          d.filteredEntries.length > 0 ? d.filteredEntries.map((entry, i) => {
+            const isComplete = /complete|done|finished/i.test(entry.msg);
+            const isError = /error|fail/i.test(entry.msg);
+            const isWarn = /warn|stale|slow|timeout/i.test(entry.msg);
+            return (
+              <div key={i} className={`scan-log__entry${isComplete ? " scan-log__entry--complete" : ""}${isError ? " scan-log__entry--error" : ""}${isWarn ? " scan-log__entry--warn" : ""}`}>
+                <span className="scan-log__time">{formatShortTime(entry.t)}</span>
+                <span className="scan-log__msg">{entry.msg}</span>
+              </div>
+            );
+          }) : (
+            <div className="empty-state empty-state--inline" style={{ padding: "24px 16px" }}>{`No entries match "${d.logSearch}".`}</div>
+          )
+        ) : d.allRunEntries.length > 0 ? d.allRunEntries.map((item, i) => {
+          if (item.type === "run-header") {
+            return (
+              <div key={item.key} className="scan-log__run-header">
+                <span className="scan-log__run-label">{item.isCurrent ? (d.scanDone ? "Latest run" : d.scanActive ? "Current run" : "Last run") : "Previous run"}</span>
+                {item.startedAt && <span className="scan-log__run-date">{formatTimestamp(item.startedAt)}</span>}
+                {item.processedIssues > 0 && <span className="scan-log__run-issues">{item.processedIssues.toLocaleString()} issues</span>}
+              </div>
+            );
+          }
+          const isComplete = /complete|done|finished/i.test(item.msg);
+          const isError = /error|fail/i.test(item.msg);
+          const isWarn = /warn|stale|slow|timeout/i.test(item.msg);
+          return (
+            <div key={i} className={`scan-log__entry${isComplete ? " scan-log__entry--complete" : ""}${isError ? " scan-log__entry--error" : ""}${isWarn ? " scan-log__entry--warn" : ""}`}>
+              <span className="scan-log__time">{formatShortTime(item.t)}</span>
+              <span className="scan-log__msg">{item.msg}</span>
+            </div>
+          );
+        }) : (
+          <div className="empty-state empty-state--inline" style={{ padding: "24px 16px" }}>
+            {d.scanActive ? "Waiting for log entries…" : "No log entries yet. Start a scan to populate the audit log."}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// The pre-split view, kept intact: stats, charts and the audit log stacked in one panel, the
+// way this rendered before the Scans tab grew a Reports and an Audit Log sub-tab. Nothing in
+// the app renders this anymore -- IssueCrawlSummary/IssueCrawlCharts/IssueCrawlAuditLog above
+// are what the Full/Quick Scan panels and the new sub-tabs actually use -- but it stays
+// exported as a single drop-in for anywhere that genuinely wants everything on one screen.
+export function IssueCrawlLiveView(props) {
+  const { issueScan, title = "Issue crawl" } = props;
+  const everCrawled = Boolean(issueScan?.startedAt || issueScan?.scanHistory?.length);
+  if (!everCrawled) return null;
+
+  return (
+    <div className="universe-scan-panel universe-scan-panel--combined">
+      <IssueCrawlSummary {...props} />
+      <IssueCrawlCharts issueScan={issueScan} title={title} />
+      <IssueCrawlAuditLog issueScan={issueScan} />
     </div>
   );
 }
@@ -1085,10 +1151,9 @@ export function FullScanPanel({
   onResumeStalledScan, onAbandonScan, recoveringScan, abandoningScan,
   issueScan, onResumeIssueScan, onCancelIssueScan, resumingIssueScan, cancellingIssueScan,
   snapshot, onForceResumeSnapshot, forceResumingSnapshot, onSnapshotCleared,
+  onViewAuditLog,
 }) {
   const running = status?.state === "running";
-  const crawlRef = React.useRef(null);
-  const scrollToCrawl = () => crawlRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   return (
     <>
@@ -1103,7 +1168,10 @@ export function FullScanPanel({
         }
       />
 
-      <Panel title="What this scan does" icon="info">
+      {/* Collapsed by default: this is reference material an operator reads once, not on
+          every visit, and it was the single biggest thing standing between opening this tab
+          and seeing whether the last scan actually worked. */}
+      <Panel title="What this scan does" icon="info" collapsible defaultCollapsed>
         <ul className="delta-scan-panel__facts">
           <li>Rebuilds the workflow &amp; status, screen, saved filter, and dashboard inventories in full.</li>
           <li>Rebuilds the field catalog, then crawls every issue across all Jira projects to compute per-project field usage counts and detect <code>RQT-XXXXXX-XXXXXX</code> pattern values.</li>
@@ -1119,7 +1187,7 @@ export function FullScanPanel({
         status={status}
         onAbandonScan={onAbandonScan}
         abandoningScan={abandoningScan}
-        onOpenCrawl={scrollToCrawl}
+        onOpenCrawl={onViewAuditLog}
       />
 
       <ScanStallRecoveryNotice
@@ -1138,17 +1206,15 @@ export function FullScanPanel({
 
       <SnapshotRecoveryNotice snapshot={snapshot} onForceResume={onForceResumeSnapshot} forceResuming={forceResumingSnapshot} />
 
-      <div ref={crawlRef}>
-        <IssueCrawlLiveView
-          issueScan={issueScan}
-          onResume={onResumeIssueScan}
-          onCancel={onCancelIssueScan}
-          resuming={resumingIssueScan}
-          cancelling={cancellingIssueScan}
-        />
-      </div>
+      <IssueCrawlSummary
+        issueScan={issueScan}
+        onResume={onResumeIssueScan}
+        onCancel={onCancelIssueScan}
+        resuming={resumingIssueScan}
+        cancelling={cancellingIssueScan}
+      />
 
-      <Panel title="What this does not cover" icon="alertTriangle">
+      <Panel title="What this does not cover" icon="alertTriangle" collapsible defaultCollapsed>
         <p>
           <strong>Automation rules are not scanned.</strong> Jira publishes no API to enumerate
           them — that pillar is fed by importing a rule export by hand, from the Automation tab.
@@ -1237,10 +1303,9 @@ export function QuickScanPanel({
   onResumeStalledScan, onAbandonScan, recoveringScan, abandoningScan,
   deltaIssueScan,
   schedule, onChangeSchedule, onToggleScheduleEnabled, onSaveSchedule, savingSchedule, scheduleSaved, scheduleDirty,
+  onViewAuditLog,
 }) {
   const running = status?.state === "running";
-  const crawlRef = React.useRef(null);
-  const scrollToCrawl = () => crawlRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   return (
     <>
@@ -1255,7 +1320,7 @@ export function QuickScanPanel({
         }
       />
 
-      <Panel title="What this scan does" icon="info">
+      <Panel title="What this scan does" icon="info" collapsible defaultCollapsed>
         <ul className="delta-scan-panel__facts">
           <li>Refetches workflow &amp; status, screen, saved filter, and dashboard inventories in full — Jira gives no changed-since signal for any of them.</li>
           <li>Re-reads only the issues created or updated within the configured window, refreshing field × project usage counts for what changed and detecting <code>RQT-XXXXXX-XXXXXX</code> pattern values in them.</li>
@@ -1275,7 +1340,7 @@ export function QuickScanPanel({
         status={status}
         onAbandonScan={onAbandonScan}
         abandoningScan={abandoningScan}
-        onOpenCrawl={scrollToCrawl}
+        onOpenCrawl={onViewAuditLog}
       />
 
       <ScanStallRecoveryNotice
@@ -1292,15 +1357,13 @@ export function QuickScanPanel({
 
       <ScanIncompleteNotice status={status} onResume={onResumeStalledScan} resuming={recoveringScan} />
 
-      <div ref={crawlRef}>
-        <IssueCrawlLiveView
-          issueScan={deltaIssueScan}
-          title="Issue crawl (changed since window)"
-          readOnly
-        />
-      </div>
+      <IssueCrawlSummary
+        issueScan={deltaIssueScan}
+        title="Issue crawl (changed since window)"
+        readOnly
+      />
 
-      <Panel title="What this does not cover" icon="alertTriangle">
+      <Panel title="What this does not cover" icon="alertTriangle" collapsible defaultCollapsed>
         <ul className="delta-scan-panel__facts">
           <li><strong>New custom fields</strong> are not picked up — the field catalog itself only refreshes on a full scan. Usage counts for existing fields are current; a field created since the last full scan will not appear until the next one.</li>
           <li><strong>Automation rules</strong> are never scanned. Jira publishes no API to enumerate them.</li>
@@ -1324,6 +1387,11 @@ const DEFAULT_QUICK_SCAN_SCHEDULE = { enabled: false, frequency: "weekly", dayOf
 
 export function ScansTab({ siteOrigin, initialSection }) {
   const [activeSection, setActiveSection] = React.useState(initialSection || "full");
+  // Which crawl the Audit Log / Reports sub-tabs are showing. Both sub-tabs read whichever
+  // scan's issue crawl was last opened from -- "See the full issue-crawl log" on a stage card
+  // sets this before switching section, so the reader lands on the run they actually clicked
+  // from rather than always defaulting to Full Scan's.
+  const [auditCrawl, setAuditCrawl] = React.useState("full");
 
   // Snapshot state -- kept purely to detect and recover a stalled field-catalog build (see
   // SnapshotRecoveryNotice). Full Scan's own "fields" stage is the only thing that triggers
@@ -1550,10 +1618,25 @@ export function ScansTab({ siteOrigin, initialSection }) {
     }
   }
 
+  // Whichever crawl has ever produced anything -- used both to pick a sane default tab and
+  // to tell "nothing has run yet" apart from "this crawl specifically has nothing."
+  const fullCrawlHasData = Boolean(issueScanStatus?.startedAt || issueScanStatus?.scanHistory?.length);
+  const quickCrawlHasData = Boolean(deltaIssueScanStatus?.startedAt || deltaIssueScanStatus?.scanHistory?.length);
+
+  const viewAuditLogFor = React.useCallback((crawl) => {
+    setAuditCrawl(crawl);
+    setActiveSection("audit");
+  }, []);
+
   const subNavItems = [
     { key: "full", label: "Full Scan", icon: "zap" },
     { key: "quick", label: "Quick Scan", icon: "activity" },
+    { key: "audit", label: "Audit Log", icon: "clock" },
+    { key: "reports", label: "Reports", icon: "barChart" },
   ];
+
+  const selectedCrawl = auditCrawl === "quick" ? deltaIssueScanStatus : issueScanStatus;
+  const selectedCrawlTitle = auditCrawl === "quick" ? "Issues scanned (changed since window)" : "Issues scanned";
 
   return (
     <div className="admin-scans-tab">
@@ -1577,6 +1660,7 @@ export function ScansTab({ siteOrigin, initialSection }) {
             onForceResumeSnapshot={forceResumeSnapshot}
             forceResumingSnapshot={forceResumingSnapshot}
             onSnapshotCleared={fetchSnapshotStatus}
+            onViewAuditLog={() => viewAuditLogFor("full")}
           />
         )}
         {activeSection === "quick" && (
@@ -1596,7 +1680,48 @@ export function ScansTab({ siteOrigin, initialSection }) {
             savingSchedule={savingSchedule}
             scheduleSaved={scheduleSaved}
             scheduleDirty={JSON.stringify(schedule) !== JSON.stringify(savedSchedule)}
+            onViewAuditLog={() => viewAuditLogFor("quick")}
           />
+        )}
+        {(activeSection === "audit" || activeSection === "reports") && (
+          <>
+            <PageHeader
+              title={activeSection === "audit" ? "Audit log" : "Reports"}
+              description={
+                activeSection === "audit"
+                  ? "Every entry the issue crawl has logged, across every run, searchable in one place."
+                  : "How the crawl trends over time: progress within a run, growth and duration run over run."
+              }
+            />
+            <div className="sub-nav sub-nav--pills" role="tablist" aria-label="Which crawl">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={auditCrawl === "full"}
+                className={`sub-nav__item${auditCrawl === "full" ? " sub-nav__item--active" : ""}`}
+                onClick={() => setAuditCrawl("full")}
+              >
+                Full scan crawl
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={auditCrawl === "quick"}
+                className={`sub-nav__item${auditCrawl === "quick" ? " sub-nav__item--active" : ""}`}
+                onClick={() => setAuditCrawl("quick")}
+              >
+                Quick scan crawl
+              </button>
+            </div>
+
+            {!fullCrawlHasData && !quickCrawlHasData ? (
+              <EmptyState inline>No scan has run yet. Run a Full Scan or Quick Scan to populate this.</EmptyState>
+            ) : activeSection === "audit" ? (
+              <IssueCrawlAuditLog issueScan={selectedCrawl} />
+            ) : (
+              <IssueCrawlCharts issueScan={selectedCrawl} title={selectedCrawlTitle} />
+            )}
+          </>
         )}
       </SubNavLayout>
     </div>

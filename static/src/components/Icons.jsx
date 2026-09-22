@@ -24,6 +24,10 @@ import {
   ShieldCheck,
   Bell,
   Flag,
+  CaretLeft,
+  CaretRight,
+  CaretUp,
+  CaretDown,
 } from "@phosphor-icons/react";
 
 export function useLiveDuration(startedAt) {
@@ -80,6 +84,14 @@ export const ICON_COMPONENTS = {
   shield: ShieldCheck,
   bell: Bell,
   flag: Flag,
+  caretLeft: CaretLeft,
+  caretRight: CaretRight,
+  // Live call sites, not dead weight: Panel's own collapse toggle (ui.jsx) and
+  // ProjectsTab's disclosure both name these and have rendered no icon at all since the
+  // Phosphor migration dropped them as "verified dead" -- the grep that verified it evidently
+  // missed a dynamic `open ? "chevronUp" : "chevronDown"` ternary.
+  chevronUp: CaretUp,
+  chevronDown: CaretDown,
 };
 
 // Validated categorical palette (dataviz skill's reference instance, references/palette.md) --
