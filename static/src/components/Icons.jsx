@@ -28,6 +28,11 @@ import {
   CaretRight,
   CaretUp,
   CaretDown,
+  Tag,
+  Browser,
+  SquaresFour,
+  Kanban,
+  ClipboardText,
 } from "@phosphor-icons/react";
 
 export function useLiveDuration(startedAt) {
@@ -92,6 +97,15 @@ export const ICON_COMPONENTS = {
   // missed a dynamic `open ? "chevronUp" : "chevronDown"` ternary.
   chevronUp: CaretUp,
   chevronDown: CaretDown,
+  // Added so the top-level admin nav can give every tab a genuinely distinct icon -- three
+  // tabs shared "barChart", two shared "layers", two shared "activity", which cost nothing
+  // while the collapsed sidebar always showed the label alongside it but made several tabs
+  // indistinguishable from each other the moment the rail collapsed to icons only.
+  tag: Tag,
+  browser: Browser,
+  grid: SquaresFour,
+  kanban: Kanban,
+  clipboardText: ClipboardText,
 };
 
 // Validated categorical palette (dataviz skill's reference instance, references/palette.md) --

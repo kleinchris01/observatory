@@ -108,6 +108,33 @@ const bootStatusNode = document.getElementById("boot-status");
 
 // ── Root app ───────────────────────────────────────────────────────────────
 
+// Module-level, not computed inside AdminApp: static data, and exporting it lets a test
+// assert every tab has its own icon without rendering the whole app and walking the DOM for
+// it. Every tab gets its own icon -- no two share one. Three used to be "barChart"
+// (Overview/Dashboards/Reports), two "layers" (Field Browser/Issue Types), two "activity"
+// (Workflows/Boards): invisible while the label always sat next to it, but exactly the tabs a
+// reader couldn't tell apart the moment the sidebar collapsed to icons alone.
+export const ADMIN_NAV_TABS = [
+  { key: "overview", label: "Overview", icon: "barChart" },
+  { key: "fields", label: "Field Browser", icon: "layers" },
+  { key: "projects", label: "Project Usage", icon: "folder" },
+  { key: "workflows", label: "Workflows", icon: "activity" },
+  { key: "issueTypes", label: "Issue Types", icon: "tag" },
+  { key: "priorities", label: "Priorities", icon: "flag" },
+  { key: "people", label: "People", icon: "user" },
+  { key: "assets", label: "Assets", icon: "database" },
+  { key: "access", label: "Access", icon: "shield" },
+  { key: "screens", label: "Screens", icon: "browser" },
+  { key: "filters", label: "Saved Filters", icon: "search" },
+  { key: "dashboards", label: "Dashboards", icon: "grid" },
+  { key: "boards", label: "Boards", icon: "kanban" },
+  { key: "automation", label: "Automation", icon: "refreshCw" },
+  { key: "reports", label: "Reports", icon: "clipboardText" },
+  { key: "changes", label: "Changes", icon: "clock" },
+  { key: "scans", label: "Scans", icon: "zap" },
+  { key: "config", label: "Configuration", icon: "settings" },
+];
+
 export function AdminApp() {
   const [activeTab, setActiveTab] = React.useState("overview");
   // The filter a finding wants applied when it opens a tab.
@@ -230,26 +257,6 @@ export function AdminApp() {
     }
   }
 
-  const tabs = [
-    { key: "overview", label: "Overview", icon: "barChart" },
-    { key: "fields", label: "Field Browser", icon: "layers" },
-    { key: "projects", label: "Project Usage", icon: "folder" },
-    { key: "workflows", label: "Workflows", icon: "activity" },
-    { key: "issueTypes", label: "Issue Types", icon: "layers" },
-    { key: "priorities", label: "Priorities", icon: "flag" },
-    { key: "people", label: "People", icon: "user" },
-    { key: "assets", label: "Assets", icon: "database" },
-    { key: "access", label: "Access", icon: "shield" },
-    { key: "screens", label: "Screens", icon: "copy" },
-    { key: "filters", label: "Saved Filters", icon: "search" },
-    { key: "dashboards", label: "Dashboards", icon: "barChart" },
-    { key: "boards", label: "Boards", icon: "activity" },
-    { key: "automation", label: "Automation", icon: "refreshCw" },
-    { key: "reports", label: "Reports", icon: "barChart" },
-    { key: "changes", label: "Changes", icon: "clock" },
-    { key: "scans", label: "Scans", icon: "zap" },
-    { key: "config", label: "Configuration", icon: "settings" },
-  ];
 
   return (
     <div className="admin-shell">
@@ -262,7 +269,7 @@ export function AdminApp() {
           </div>
 
           <nav className="admin-nav" aria-label="Admin navigation">
-            {tabs.map(({ key, label, icon }) => (
+            {ADMIN_NAV_TABS.map(({ key, label, icon }) => (
               <button
                 key={key}
                 className={`admin-nav__item${activeTab === key ? " admin-nav__item--active" : ""}`}
