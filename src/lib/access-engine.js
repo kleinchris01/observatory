@@ -20,6 +20,7 @@ import {
   getIssueSecurityLevelMembers,
   getIssueSecuritySchemeProjects,
   getAllNotificationSchemes,
+  getNotificationSchemeProjects,
   getAllProjectRoles,
   getProjectRolesForProject,
 } from "./jira-api.js";
@@ -256,11 +257,21 @@ export async function buildAccessSnapshot(installationKey) {
     for (const scheme of rawNotifSchemes) {
       if (scheme?.id == null) continue;
       holders.push(...notificationEventsToHolders(scheme));
-      for (const pid of scheme.projects || []) {
+    }
+    // Bulk reverse lookup, not scheme.projects: that field does not exist on the API
+    // response (see getNotificationSchemeProjects), and reading it silently reported 0
+    // projects for every notification scheme on the site.
+    const notifProjectRows = await getNotificationSchemeProjects(projects.map((p) => p.id)).catch(() => []);
+    for (const row of notifProjectRows || []) {
+      const schemeId = String(row?.notificationSchemeId ?? row?.notificationScheme?.id ?? row?.id ?? "");
+      if (!schemeId) continue;
+      const ids = Array.isArray(row.projectIds) ? row.projectIds
+        : (row.projectId != null ? [row.projectId] : []);
+      for (const pid of ids) {
         const project = projectsById.get(String(pid));
         schemeProjects.push({
           schemeType: "notification",
-          schemeId: String(scheme.id),
+          schemeId,
           projectId: String(pid),
           projectKey: project?.key || "",
           projectName: project?.name || "",

@@ -29,6 +29,8 @@ const RISK_LABELS = {
   "no-actions": "Trigger with no actions",
   "external-http": "Sends data outside Atlassian",
   disabled: "Disabled",
+  "unconditional-destructive": "Unguarded delete/clear",
+  "silent-failure": "Silent on failure",
 };
 
 const TRIGGER_LABELS = {
@@ -123,6 +125,12 @@ export function riskDetail(risk) {
       return risk.ageDays === null || risk.ageDays === undefined
         ? "Rule is disabled."
         : `Rule is disabled and was last edited ${risk.ageDays} days ago.`;
+    case "unconditional-destructive":
+      return risk.actionTypes?.length
+        ? `Can delete or clear data (${risk.actionTypes.join(", ")}) with no condition telling apart why -- including a run caused by another rule's own action.`
+        : "Can delete or clear data with no condition telling apart why it should.";
+    case "silent-failure":
+      return "Calls out over HTTP but notifyOnError is NEVER, so a failed call leaves no trace anyone would see.";
     default:
       return risk.code;
   }
@@ -1229,6 +1237,57 @@ export function AutomationTab({ siteOrigin, intent = null }) {
               <StatTile label="Issue types referenced" value={formatNumber(estate.issueTypesReferenced ?? 0)} icon="layers" />
               <StatTile label="Users referenced" value={formatNumber(estate.usersReferenced ?? 0)} icon="user" hint="Assigned, set or conditioned on by name" />
             </StatRow>
+
+            <Panel
+              title="Cross-rule risk"
+              icon="shield"
+              description="Two rules can fight over the same issue without either one writing a field the other watches -- the same event, the same trigger, or the same field set to different values. Found from the SOLVE: Solution Matrix incident, where one rule's 'Attach forms' action silently woke a second rule that deleted the form it had just attached."
+            >
+              <StatRow>
+                <StatTile
+                  label="Event cascades"
+                  value={formatNumber(data.eventCascadesTotal ?? 0)}
+                  hint="One rule's action wakes another via a Jira event, not a field write"
+                  icon="refreshCw"
+                  tone={(data.eventCascadesTotal ?? 0) > 0 ? "warning" : "neutral"}
+                />
+                <StatTile
+                  label="Unguarded delete/clear"
+                  value={formatNumber(estate.health?.unconditionalDestructiveCount ?? 0)}
+                  hint="Can destroy data with no condition telling apart why"
+                  icon="x"
+                  tone={(estate.health?.unconditionalDestructiveCount ?? 0) > 0 ? "warning" : "neutral"}
+                />
+                <StatTile
+                  label="Silent on failure"
+                  value={formatNumber(estate.health?.silentFailureCount ?? 0)}
+                  hint="Calls out over HTTP with notifyOnError off"
+                  icon="bell"
+                  tone={(estate.health?.silentFailureCount ?? 0) > 0 ? "warning" : "neutral"}
+                />
+                <StatTile
+                  label="Competing rules"
+                  value={formatNumber(data.competingPairsTotal ?? 0)}
+                  hint="Same trigger, overlapping scope -- order decides which one wins"
+                  icon="user"
+                />
+                <StatTile
+                  label="Field contradictions"
+                  value={formatNumber(data.fieldContradictionsTotal ?? 0)}
+                  hint="Two rules set the same field to different literal values"
+                  icon="layers"
+                />
+                {estate.authorConcentration && (
+                  <StatTile
+                    label="Top author's share"
+                    value={`${estate.authorConcentration.topAuthorSharePct}%`}
+                    hint={`${formatNumber(estate.authorConcentration.topAuthorRuleCount)} of ${formatNumber(estate.authorConcentration.knownAuthorRuleCount)} attributed enabled rules`}
+                    icon="user"
+                    tone={estate.authorConcentration.topAuthorSharePct >= 50 ? "warning" : "neutral"}
+                  />
+                )}
+              </StatRow>
+            </Panel>
 
             <Panel
               title="What automation depends on"

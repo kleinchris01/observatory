@@ -16,6 +16,7 @@ vi.mock("./jira-api.js", () => ({
   getIssueSecurityLevelMembers: vi.fn(async () => []),
   getIssueSecuritySchemeProjects: vi.fn(async () => []),
   getAllNotificationSchemes: vi.fn(async () => []),
+  getNotificationSchemeProjects: vi.fn(async () => []),
   getAllProjectRoles: vi.fn(async () => []),
   getProjectRolesForProject: vi.fn(async () => []),
 }));
@@ -110,10 +111,13 @@ describe("buildAccessSnapshot", () => {
     jiraApi.getIssueSecurityLevelMembers.mockResolvedValue([{ issueSecurityLevelId: "L1", holder: { type: "group", value: "g-staff" } }]);
     jiraApi.getIssueSecuritySchemeProjects.mockResolvedValue([{ issueSecuritySchemeId: "s1", projectIds: ["10"] }]);
     jiraApi.getAllNotificationSchemes.mockResolvedValue([
-      { id: "n1", name: "Notif", projects: ["10"], notificationSchemeEvents: [
+      // No `projects` field: the real notificationscheme resource never carries one, and a
+      // fixture that added it here would let the bug this pins back in unnoticed.
+      { id: "n1", name: "Notif", notificationSchemeEvents: [
         { event: { id: 1, name: "Created" }, notifications: [{ notificationType: "User", parameter: "acc-1" }] },
       ] },
     ]);
+    jiraApi.getNotificationSchemeProjects.mockResolvedValue([{ notificationSchemeId: "n1", projectIds: ["10"] }]);
 
     const result = await buildAccessSnapshot("inst");
 
@@ -124,6 +128,11 @@ describe("buildAccessSnapshot", () => {
     expect(payload.levels).toHaveLength(1);
     expect(payload.holders.some((h) => h.schemeType === "notification" && h.holderValue === "acc-1")).toBe(true);
     expect(payload.schemeProjects.some((p) => p.schemeType === "security" && p.projectId === "10")).toBe(true);
+    // The bug this pins: a build that read `scheme.projects` off the notificationscheme
+    // response reported zero projects for every scheme, because that field does not exist
+    // there. This asserts the notification scheme's project row actually arrives via the
+    // bulk reverse lookup instead.
+    expect(payload.schemeProjects.some((p) => p.schemeType === "notification" && p.schemeId === "n1" && p.projectId === "10")).toBe(true);
     expect(writeAccessSnapshotMeta).toHaveBeenLastCalledWith("inst", expect.objectContaining({ state: "ready" }));
   });
 

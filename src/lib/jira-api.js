@@ -1276,12 +1276,40 @@ export async function getIssueSecuritySchemeProjects(projectIds = []) {
   return rows;
 }
 
-// Notification schemes with events, recipients and project assignments inline (expand=all),
-// so no per-project call is needed. Each scheme: { id, name, description,
-// notificationSchemeEvents: [{ event: { id, name }, notifications: [{ notificationType, parameter, ... }] }],
-// projects: [projectId, ...] }.
+// Notification schemes with events and recipients inline (expand=all). Each scheme: { id,
+// name, description, notificationSchemeEvents: [{ event: { id, name }, notifications:
+// [{ notificationType, parameter, ... }] }] }.
+//
+// No `projects` field, despite expand=all: unlike the events/recipients detail, Jira Cloud's
+// notificationscheme resource never embeds which projects use a scheme. A build that read
+// `scheme.projects` here reported 0 projects for every notification scheme on the site,
+// silently, for as long as that code existed -- see getNotificationSchemeProjects for the
+// bulk reverse lookup this needs instead.
 export async function getAllNotificationSchemes() {
   return paginate((startAt) => route`/rest/api/3/notificationscheme?expand=all&startAt=${startAt}&maxResults=50`);
+}
+
+// Notification scheme -> projects. Bulk, projectId repeatable, batched like
+// getIssueSecuritySchemeProjects -- the same shape Jira exposes for issue-security and issue-
+// type schemes, since none of the three embed the reverse mapping on the scheme resource
+// itself. Returns one row per project; a row's scheme id may arrive as
+// `notificationSchemeId` or, on some responses, nested under `notificationScheme.id`, so both
+// are read defensively rather than assumed.
+export async function getNotificationSchemeProjects(projectIds = []) {
+  const ids = [...new Set((projectIds || []).map((id) => String(id).trim()).filter(Boolean))];
+  if (!ids.length) return [];
+  const rows = [];
+  for (let i = 0; i < ids.length; i += ITSS_PROJECT_QUERY_BATCH) {
+    const query = ids
+      .slice(i, i + ITSS_PROJECT_QUERY_BATCH)
+      .map((id) => `projectId=${encodeURIComponent(id)}`)
+      .join("&");
+    const page = await paginate((startAt) =>
+      route([`/rest/api/3/notificationscheme/project?maxResults=100&startAt=${Number(startAt) || 0}&${query}`])
+    );
+    rows.push(...page);
+  }
+  return rows;
 }
 
 // Project roles. `GET /rest/api/3/role` is the site-wide catalog of role DEFINITIONS
