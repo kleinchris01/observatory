@@ -85,6 +85,7 @@ import {
   getIssueSecurityLevelMembers,
   getIssueSecuritySchemeProjects,
   getAllNotificationSchemes,
+  getNotificationSchemeProjects,
   getScreenTabs,
   getScreenTabFields,
   getWorkflowSchemesForProjects,
@@ -1343,11 +1344,32 @@ describe("access & routing schemes", () => {
 
   test("getAllNotificationSchemes paginates with expand=all", async () => {
     mockRequestJira.mockResolvedValueOnce(jiraResponse({
-      body: { values: [{ id: "n1", name: "Prod", notificationSchemeEvents: [], projects: [] }], isLast: true },
+      body: { values: [{ id: "n1", name: "Prod", notificationSchemeEvents: [] }], isLast: true },
     }));
     const rows = await getAllNotificationSchemes();
     expect(rows[0].id).toBe("n1");
     expect(String(mockRequestJira.mock.calls[0][0])).toContain("/rest/api/3/notificationscheme?expand=all");
+  });
+
+  test("getNotificationSchemeProjects sends the repeatable projectId parameters and makes no call for none", async () => {
+    await expect(getNotificationSchemeProjects([])).resolves.toEqual([]);
+    expect(mockRequestJira).not.toHaveBeenCalled();
+
+    mockRequestJira.mockResolvedValueOnce(jiraResponse({
+      body: { values: [{ notificationSchemeId: "n1", projectIds: ["10000"] }], isLast: true },
+    }));
+    const rows = await getNotificationSchemeProjects(["10000", "10001"]);
+    expect(rows[0].notificationSchemeId).toBe("n1");
+    const path = String(mockRequestJira.mock.calls[0][0]);
+    expect(path).toContain("/rest/api/3/notificationscheme/project");
+    expect(path).toContain("projectId=10000");
+    expect(path).toContain("projectId=10001");
+  });
+
+  test("getNotificationSchemeProjects batches large project lists at 50 per request", async () => {
+    mockRequestJira.mockResolvedValue(jiraResponse({ body: { values: [], isLast: true } }));
+    await getNotificationSchemeProjects(Array.from({ length: 120 }, (_, i) => 10000 + i));
+    expect(mockRequestJira).toHaveBeenCalledTimes(3);
   });
 });
 

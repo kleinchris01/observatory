@@ -484,7 +484,347 @@ export function analyzeRuleRisks(rule, { now = Date.now() } = {}) {
     });
   }
 
+  // Found from the "SOLVE: Issue - Delete Manually Attached Solution Matrix Form" incident:
+  // the rule triggers on "Form attached" and unconditionally deletes the last-attached form,
+  // with no condition telling apart a genuine duplicate from the form its own sibling rule
+  // just attached. guardCount <= 1 means at most the coarse issue-type filter every rule in
+  // this estate carries -- nothing that actually distinguishes this run from a normal one.
+  const destructive = findUnconditionalDestructiveActions(rule).filter((a) => a.guardCount <= 1);
+  if (destructive.length > 0) {
+    risks.push({
+      code: "unconditional-destructive",
+      severity: "medium",
+      detail: `${destructive.length === 1 ? "An action" : `${destructive.length} actions`} `
+        + `(${[...new Set(destructive.map((a) => a.actionType))].join(", ")}) can delete or clear `
+        + "data with no condition distinguishing why -- including a run caused by another rule's "
+        + "own action.",
+      actionTypes: [...new Set(destructive.map((a) => a.actionType))],
+    });
+  }
+
+  // A rule that turns off its own error notification and also calls out over HTTP has no
+  // way to surface a failed call to anyone. This is the shape of the "Merged to" rule before
+  // it was reviewed: notifyOnError: NEVER plus an outbound webhook whose failure is then
+  // invisible until someone notices the field never updated.
+  if ((rule?.notifyOnError ?? "NEVER") === "NEVER" && extractActionKinds(rule).includes("outbound-http")) {
+    risks.push({
+      code: "silent-failure",
+      severity: "low",
+      detail: "Rule calls out over HTTP but notifyOnError is NEVER, so a failed call leaves no "
+        + "trace anyone would see -- the rule's audit log entry is the only record.",
+    });
+  }
+
   return risks;
+}
+
+// ── Cross-rule risks beyond field-write cascades ─────────────────────────────
+//
+// findTriggerCascades only sees a cascade if it travels through a field value-change trigger.
+// The SOLVE: Solution Matrix incident travels through a generic Jira event instead -- one
+// rule's "Attach forms" action fires a "Form attached" event, and a second rule listens for
+// exactly that event. Nothing about that cascade shows up as a field write, so it was
+// invisible to the existing cascade graph even though canOtherRuleTrigger was true on both
+// rules involved.
+//
+// Matched on type substrings, same policy as ACTION_KIND_PATTERNS and for the same reason:
+// Automation's event/action type strings drift and are not published as a schema. Every pair
+// below was taken from a real trigger/action type seen in this site's own rule exports, not
+// guessed -- see automation-analysis.test.js for the source rules.
+//
+// Issue creation/cloning is deliberately left out. jira.issue.create fires its "created"
+// event on the NEW issue, which can be a different project and issue type than the rule that
+// created it -- pairing it against the creating rule's own scope would be scoping the wrong
+// issue. Getting that right needs the create action's target project, which this module does
+// not yet extract as a first-class reference.
+const EVENT_TRIGGER_PATTERNS = [
+  [/proforma\.form\.attached\.trigger/, "form-attached"],
+  [/proforma\.form\.submitted\.trigger/, "form-submitted"],
+  [/issue\.event\.trigger:commented|comment\.event\.trigger/, "comment-added"],
+  [/issue\.event\.trigger:link_deleted/, "link-deleted"],
+  [/issue\.event\.trigger:link(?!_deleted)/, "link-created"],
+];
+
+const EVENT_ACTION_PATTERNS = [
+  [/proforma\.form\.add\.action/, "form-attached"],
+  // Coarse: this action can move a form to several statuses, only one of which is
+  // "Submitted". Treated as a signal that the event MAY fire, consistent with the rest of
+  // this module's "found is proof, not-found is not disproof" contract.
+  [/proforma\.form\.change\.status\.action/, "form-submitted"],
+  [/issue\.delete\.link/, "link-deleted"],
+  [/issue\.link$/, "link-created"],
+  [/issue\.comment/, "comment-added"],
+];
+
+function matchEventKind(type, patterns) {
+  const lowered = String(type || "").toLowerCase();
+  for (const [pattern, kind] of patterns) {
+    if (pattern.test(lowered)) return kind;
+  }
+  return null;
+}
+
+// Events a rule reacts to (its trigger) or can itself produce (an action). Same REF_KIND
+// vocabulary as extractFieldReferences: TRIGGER is "this rule wakes on E", WRITE is "this
+// rule's own action can cause E" -- the pairing findEventCascades looks for.
+export function extractEventReferences(rule) {
+  const refs = [];
+  const triggerKind = matchEventKind(rule?.trigger?.type, EVENT_TRIGGER_PATTERNS);
+  if (triggerKind) refs.push({ event: triggerKind, kind: REF_KIND.TRIGGER, via: rule.trigger.type });
+
+  walkComponents(rule, (component) => {
+    if (component?.component !== ACTION_COMPONENT) return;
+    const kind = matchEventKind(component?.type, EVENT_ACTION_PATTERNS);
+    if (kind) refs.push({ event: kind, kind: REF_KIND.WRITE, via: component.type });
+  });
+
+  const byKey = new Map();
+  for (const ref of refs) {
+    const key = `${ref.event}|${ref.kind}`;
+    if (!byKey.has(key)) byKey.set(key, ref);
+  }
+  return [...byKey.values()];
+}
+
+// Same shape and same edge semantics as findTriggerCascades -- sourceId/targetId/selfTriggering
+// -- but keyed on a generic event instead of a field name, so both can render through the
+// same CascadeRow. `field` on the returned edge carries the event kind for that reason.
+export function findEventCascades(rules = [], options = {}) {
+  const summaries = options.summaries ?? rules.map((r) => summarizeRule(r, options));
+  const byId = new Map(rules.map((r) => [r.id, r]));
+  const eventRefsById = new Map(summaries.map((s) => [s.id, extractEventReferences(byId.get(s.id) ?? {})]));
+
+  const triggersOnEvent = new Map();
+  for (const summary of summaries) {
+    for (const ref of eventRefsById.get(summary.id) ?? []) {
+      if (ref.kind !== REF_KIND.TRIGGER) continue;
+      if (!triggersOnEvent.has(ref.event)) triggersOnEvent.set(ref.event, []);
+      triggersOnEvent.get(ref.event).push(summary);
+    }
+  }
+
+  const cascades = [];
+  const seen = new Set();
+  for (const source of summaries) {
+    if (!source.canOtherRuleTrigger) continue;
+    for (const ref of eventRefsById.get(source.id) ?? []) {
+      if (ref.kind !== REF_KIND.WRITE) continue;
+      for (const target of triggersOnEvent.get(ref.event) ?? []) {
+        if (!scopesOverlap(source.projectIds, target.projectIds)) continue;
+        const edge = `${source.id}->${target.id}|${ref.event}`;
+        if (seen.has(edge)) continue;
+        seen.add(edge);
+        cascades.push({
+          field: ref.event,
+          sourceId: source.id,
+          sourceName: source.name,
+          targetId: target.id,
+          targetName: target.name,
+          selfTriggering: target.id === source.id,
+        });
+      }
+    }
+  }
+  return cascades;
+}
+
+// Action types that destroy or blank data outright, matched the same coarse way as
+// ACTION_KIND_PATTERNS. A DELETE-method webhook is caught separately below since the verb,
+// not the type string, is what makes it destructive -- jira.issue.outgoing.webhook is also
+// how every harmless GET in this file's own examples is spelled.
+const DESTRUCTIVE_ACTION_TYPE_RE = /issue\.delete$|delete\.link|delete\.attachment/;
+
+function isDestructiveWebhook(component) {
+  return String(component?.value?.method || "").toUpperCase() === "DELETE";
+}
+
+// An edit operation that blanks a field rather than setting a real value: SET to null/""/[]
+// (Automation's "clear this field" shape), or an explicit REMOVE.
+function isClearingOperation(operation) {
+  if (operation?.type === "REMOVE") return true;
+  if (operation?.type !== "SET") return false;
+  const value = operation?.value;
+  if (value === null || value === "") return true;
+  if (Array.isArray(value) && value.length === 0) return true;
+  return false;
+}
+
+function isDestructiveAction(component) {
+  if (component?.component !== ACTION_COMPONENT) return false;
+  if (DESTRUCTIVE_ACTION_TYPE_RE.test(String(component?.type || "").toLowerCase())) return true;
+  if (isDestructiveWebhook(component)) return true;
+  const operations = component?.value?.operations;
+  if (Array.isArray(operations) && operations.some(isClearingOperation)) return true;
+  return false;
+}
+
+// How many conditions actually stand between the trigger firing and this destructive action
+// running -- not how many condition COMPONENTS the rule has, but how many narrow the specific
+// branch this action sits in. Automation's legacy top-level shape (a bare CONDITION followed
+// by sibling actions, all of which are skipped if it fails) and its if/else-if shape
+// (CONDITION_BLOCK wrapping its own children) both gate differently, so both are walked:
+//
+//   - A condition with its OWN children narrows only those children (an if/else-if arm).
+//   - A bare condition with no children of its own narrows every sibling AFTER it in the
+//     same list instead -- that is what "stops the rest of the rule" means in this format.
+//   - A BRANCH re-scopes to a different, related set of issues; whatever gated this issue
+//     does not carry over to gating that one, so it resets to zero.
+//
+// This is the distinction the "unconditional-destructive" risk turns on: rule 3's own
+// "Condition: Issue Type = Solve Ticket" is real, but it gates every rule in the estate
+// equally and says nothing about why THIS run should delete a form. guardCount counts it as
+// 1, not 0, and the risk threshold (guardCount <= 1) treats that as still effectively
+// unguarded.
+export function findUnconditionalDestructiveActions(rule) {
+  const findings = [];
+
+  function walkList(list, guardCount) {
+    if (!Array.isArray(list)) return;
+    let count = guardCount;
+    for (const component of list) {
+      if (!isPlainObject(component)) continue;
+
+      if (component.component === "CONDITION" || component.component === "CONDITION_BLOCK") {
+        walkList(component.conditions, count);
+        const hasOwnChildren = Array.isArray(component.children) && component.children.length > 0;
+        if (hasOwnChildren) {
+          walkList(component.children, count + 1);
+        } else {
+          count += 1;
+        }
+        continue;
+      }
+
+      if (component.component === "BRANCH") {
+        walkList(component.conditions, 0);
+        walkList(component.children, 0);
+        continue;
+      }
+
+      if (isDestructiveAction(component)) {
+        findings.push({ id: component.id ?? null, actionType: component.type, guardCount: count });
+      }
+      walkList(component.children, count);
+    }
+  }
+
+  walkList(rule?.components, 0);
+  return findings;
+}
+
+// A literal value an action SETs a field to -- as opposed to COPY or a smart value, which
+// derive the value at run time and cannot contradict another rule's literal the way two
+// fixed values can. Reuses toFieldRef's id/name convention so a contradiction can be matched
+// against extractFieldReferences without a second field-identity scheme.
+function extractLiteralFieldSets(rule) {
+  const sets = [];
+  walkComponents(rule, (component) => {
+    const operations = component?.value?.operations;
+    if (!Array.isArray(operations)) return;
+    for (const operation of operations) {
+      if (operation?.type !== "SET") continue;
+      const value = operation?.value;
+      const literal = isPlainObject(value) ? value.value : value;
+      if (typeof literal !== "string" || literal.length === 0) continue;
+      // {{...}} is a smart value resolved at run time, not a fixed literal.
+      if (literal.includes("{{")) continue;
+      const ref = toFieldRef(operation?.field, REF_KIND.WRITE, component.type);
+      if (ref) sets.push({ ...ref, value: literal });
+    }
+  });
+  return sets;
+}
+
+// Pairs of ENABLED rules, in overlapping scope, that SET the same field to different literal
+// values. Not a cascade -- there is no write/trigger link between them -- but the same "two
+// rules can fight over the same issue" family: which one wins depends on execution order,
+// same as the destructive/form-attach case, just without an event connecting them.
+//
+// Deliberately noisy-tolerant rather than noise-free: a field legitimately set to different
+// values under different issue-type conditions in each rule would still surface here, because
+// this module does not evaluate conditions, only read what a rule can set. Reported as
+// low-severity evidence to check, not a verdict -- consistent with this file's contract that
+// a finding here is something found, not something proven.
+export function findFieldContradictions(rules = [], options = {}) {
+  const summaries = options.summaries ?? rules.map((r) => summarizeRule(r, options));
+  const byId = new Map(rules.map((r) => [r.id, r]));
+  const setsById = new Map(summaries.map((s) => [s.id, extractLiteralFieldSets(byId.get(s.id) ?? {})]));
+
+  const byField = new Map();
+  for (const summary of summaries) {
+    if (!summary.enabled) continue;
+    for (const set of setsById.get(summary.id) ?? []) {
+      const key = `${set.id ?? ""}|${(set.name ?? "").toLowerCase()}`;
+      if (!key || key === "|") continue;
+      if (!byField.has(key)) byField.set(key, []);
+      byField.get(key).push({ summary, value: set.value, fieldLabel: set.id ?? set.name });
+    }
+  }
+
+  const contradictions = [];
+  const seen = new Set();
+  for (const entries of byField.values()) {
+    for (let i = 0; i < entries.length; i++) {
+      for (let j = i + 1; j < entries.length; j++) {
+        const a = entries[i];
+        const b = entries[j];
+        if (a.summary.id === b.summary.id) continue;
+        if (a.value.toLowerCase() === b.value.toLowerCase()) continue;
+        if (!scopesOverlap(a.summary.projectIds, b.summary.projectIds)) continue;
+        const pairKey = [a.summary.id, b.summary.id].sort().join("-") + `|${a.fieldLabel}`;
+        if (seen.has(pairKey)) continue;
+        seen.add(pairKey);
+        contradictions.push({
+          field: a.fieldLabel,
+          aId: a.summary.id, aName: a.summary.name, aValue: a.value,
+          bId: b.summary.id, bName: b.summary.name, bValue: b.value,
+        });
+      }
+    }
+  }
+  return contradictions;
+}
+
+// Pairs of ENABLED rules that share a trigger type and an overlapping scope closely enough
+// that either could run for the same event -- the "who wins" question this file cannot
+// answer without Jira's own execution order, but can at least point at. Pairwise, like
+// findFieldContradictions, rather than clustered: overlap is not transitive (A overlaps B and
+// B overlaps C does not mean A overlaps C), so a partition would either merge unrelated rules
+// or need a second pass to undo that -- an edge list has neither problem.
+export function findCompetingRulePairs(rules = [], options = {}) {
+  const summaries = (options.summaries ?? rules.map((r) => summarizeRule(r, options))).filter((s) => s.enabled);
+
+  const byTrigger = new Map();
+  for (const summary of summaries) {
+    if (!summary.triggerType) continue;
+    if (!byTrigger.has(summary.triggerType)) byTrigger.set(summary.triggerType, []);
+    byTrigger.get(summary.triggerType).push(summary);
+  }
+
+  const pairs = [];
+  for (const [triggerType, group] of byTrigger) {
+    for (let i = 0; i < group.length; i++) {
+      for (let j = i + 1; j < group.length; j++) {
+        const a = group[i];
+        const b = group[j];
+        if (!scopesOverlap(a.projectIds, b.projectIds)) continue;
+        // Both must be able to see the same issue type, or neither restricts issue type at
+        // all -- a Bug-only rule and a Story-only rule share a trigger type but can never
+        // both fire on the same issue. Any kind of reference counts, not just a trigger-scope
+        // filter: most rules restrict issue type with a top-level "Condition: Issue Type = X"
+        // instead (a READ reference), which is the shape the SOLVE: Cherry Pick rule and most
+        // rules in this estate actually use. A READ reference found deep in one branch of a
+        // multi-branch rule can overstate how narrow the rule really is -- consistent with
+        // findFieldContradictions, this is noisy-tolerant evidence to check, not a verdict.
+        const aTypes = a.issueTypeRefs.map((r) => (r.name ?? r.id ?? "").toLowerCase()).filter(Boolean);
+        const bTypes = b.issueTypeRefs.map((r) => (r.name ?? r.id ?? "").toLowerCase()).filter(Boolean);
+        const typesCompatible = aTypes.length === 0 || bTypes.length === 0 || aTypes.some((t) => bTypes.includes(t));
+        if (!typesCompatible) continue;
+        pairs.push({ triggerType, aId: a.id, aName: a.name, bId: b.id, bName: b.name });
+      }
+    }
+  }
+  return pairs;
 }
 
 // A compact per-rule row for the tab. The full rule JSON is 6 KB on average; sending 1,477
@@ -655,13 +995,25 @@ export const MAX_PREVIEW_FINDINGS = 20;
 //
 // This module imports nothing, which is what makes that possible -- pulling in @forge/kvs
 // would make the whole analysis unimportable from the frontend bundle.
-export function buildAnalysisDocument({ estate, summaries = [], cascades = [], blastSummary = null, refreshedAt = Date.now(), source = "unknown" }) {
+// Cap for the three cross-rule lists added alongside field-write cascades: event cascades,
+// competing-trigger pairs, field contradictions. Smaller than MAX_STORED_CASCADES on purpose
+// -- these are new and unproven at scale, and a site where any of them runs past a hundred
+// has a bigger problem than this document's size, worth its own investigation rather than a
+// bigger cap.
+export const MAX_STORED_CROSS_RULE = 100;
+
+export function buildAnalysisDocument({
+  estate, summaries = [], cascades = [], eventCascades = [], competingPairs = [], fieldContradictions = [],
+  blastSummary = null, refreshedAt = Date.now(), source = "unknown",
+}) {
   // Rules with no findings are the majority and carry no information here; the estate
   // counts already say how many there are.
   const withFindings = sortByseverity(summaries.filter((summary) => summary.risks.length > 0));
 
   const selfTriggering = cascades.filter((c) => c.selfTriggering);
   const others = cascades.filter((c) => !c.selfTriggering);
+  const eventSelfTriggering = eventCascades.filter((c) => c.selfTriggering);
+  const eventOthers = eventCascades.filter((c) => !c.selfTriggering);
 
   return {
     schemaVersion: 1,
@@ -678,6 +1030,15 @@ export function buildAnalysisDocument({ estate, summaries = [], cascades = [], b
     // Self-triggering loops are both the most likely to be real and the cheapest to fix,
     // so they survive truncation ahead of cross-rule edges.
     cascades: [...selfTriggering, ...others].slice(0, MAX_STORED_CASCADES),
+    // Same shape as `cascades`, but keyed on a generic Jira event (form attached, comment
+    // added, link created/deleted...) instead of a field write. This is what the SOLVE:
+    // Solution Matrix incident travels through -- see findEventCascades.
+    eventCascadesTotal: eventCascades.length,
+    eventCascades: [...eventSelfTriggering, ...eventOthers].slice(0, MAX_STORED_CROSS_RULE),
+    competingPairsTotal: competingPairs.length,
+    competingPairs: competingPairs.slice(0, MAX_STORED_CROSS_RULE),
+    fieldContradictionsTotal: fieldContradictions.length,
+    fieldContradictions: fieldContradictions.slice(0, MAX_STORED_CROSS_RULE),
     // The blast-radius tier histogram and its two health inputs. Small (a handful of
     // numbers plus 20 rule ids), so it rides in the first-paint document; the per-rule
     // scores live in SQL under their own part.
@@ -896,6 +1257,9 @@ export function analyzeRules(rules = [], {
 
   const { fields, statuses, issueTypes, users } = buildReferenceIndex(rules, options);
   const cascades = findTriggerCascades(rules, options);
+  const eventCascades = findEventCascades(rules, options);
+  const competingPairs = findCompetingRulePairs(rules, options);
+  const fieldContradictions = findFieldContradictions(rules, options);
   const enabledById = new Map(summaries.map((s) => [s.id, s.enabled]));
 
   const blastEntries = computeBlastEntries(summaries, cascades, { projectCountTotal, projectIssueCounts, siteIssueTotal });
@@ -903,9 +1267,12 @@ export function analyzeRules(rules = [], {
 
   return {
     analysis: buildAnalysisDocument({
-      estate: summarizeEstate(rules, { ...options, cascades, blastSummary }),
+      estate: summarizeEstate(rules, { ...options, cascades, eventCascades, competingPairs, fieldContradictions, blastSummary }),
       summaries,
       cascades,
+      eventCascades,
+      competingPairs,
+      fieldContradictions,
       blastSummary,
       refreshedAt: now,
       source,
@@ -924,7 +1291,9 @@ export function analyzeRules(rules = [], {
 // The inputs the site health score needs from automation, as rates over the estate rather
 // than raw counts. A site with 5,000 rules and 80 carrying credentials is in better shape
 // than one with 200 rules and 80, and scoring counts would rank them the other way.
-export function summarizeAutomationHealth(summaries = [], cascades = [], blastSummary = null) {
+export function summarizeAutomationHealth(summaries = [], cascades = [], blastSummary = null, {
+  eventCascades = [], competingPairs = [], fieldContradictions = [],
+} = {}) {
   const ruleCount = summaries.length;
   const hasRisk = (summary, code) => summary.risks.some((r) => r.code === code);
 
@@ -941,6 +1310,39 @@ export function summarizeAutomationHealth(summaries = [], cascades = [], blastSu
     estateWideCount: blastSummary?.estateWideCount ?? 0,
     estateWideShare: blastSummary?.estateWideShare ?? 0,
     estateWideCredentialCount: blastSummary?.estateWideCredentialCount ?? 0,
+    // The cross-rule findings that do not travel through a field write: same event, same
+    // trigger, or a contested field, found because the SOLVE: Solution Matrix incident could
+    // not have been told apart from a healthy estate by the field-cascade rate alone.
+    eventCascadeCount: eventCascades.length,
+    unconditionalDestructiveCount: summaries.filter((s) => hasRisk(s, "unconditional-destructive")).length,
+    silentFailureCount: summaries.filter((s) => hasRisk(s, "silent-failure")).length,
+    competingPairCount: competingPairs.length,
+    fieldContradictionCount: fieldContradictions.length,
+  };
+}
+
+// Whether one person's rules dominate the enabled estate -- the "if they leave, who else
+// understands this" question. Rule-count share rather than a named "bus factor" score: a
+// single number invites false precision about a thing that is really "ask this person before
+// changing it", which the account id and count already say without pretending at rigor.
+function computeAuthorConcentration(summaries) {
+  const attributed = summaries.filter((s) => s.enabled && s.authorAccountId);
+  if (attributed.length === 0) return null;
+
+  const counts = new Map();
+  for (const s of attributed) counts.set(s.authorAccountId, (counts.get(s.authorAccountId) || 0) + 1);
+  let topAuthorAccountId = null;
+  let topAuthorRuleCount = 0;
+  for (const [id, count] of counts) {
+    if (count > topAuthorRuleCount) { topAuthorAccountId = id; topAuthorRuleCount = count; }
+  }
+
+  return {
+    topAuthorAccountId,
+    topAuthorRuleCount,
+    topAuthorSharePct: Math.round((topAuthorRuleCount / attributed.length) * 100),
+    knownAuthorRuleCount: attributed.length,
+    distinctAuthorCount: counts.size,
   };
 }
 
@@ -949,6 +1351,9 @@ export function summarizeEstate(rules = [], options = {}) {
   // Reused for both the cascade count and the health rates; deriving them twice walks every
   // rule again.
   const cascades = options.cascades ?? findTriggerCascades(rules, { ...options, summaries });
+  const eventCascades = options.eventCascades ?? findEventCascades(rules, { ...options, summaries });
+  const competingPairs = options.competingPairs ?? findCompetingRulePairs(rules, { ...options, summaries });
+  const fieldContradictions = options.fieldContradictions ?? findFieldContradictions(rules, { ...options, summaries });
   const byTrigger = new Map();
   const risksByCode = new Map();
 
@@ -972,10 +1377,19 @@ export function summarizeEstate(rules = [], options = {}) {
     triggerBreakdown: [...byTrigger.entries()].map(([type, count]) => ({ type, count })).sort((a, b) => b.count - a.count),
     risks: [...risksByCode.values()].sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]),
     cascadeCount: cascades.length,
+    eventCascadeCount: eventCascades.length,
+    competingPairCount: competingPairs.length,
+    fieldContradictionCount: fieldContradictions.length,
     blast: options.blastSummary ?? null,
+    // How concentrated the enabled estate is in one author's rules. Null, not zero, when no
+    // rule in the estate carries an attributable author -- "we don't know" and "no one person
+    // dominates" are different facts and a zero-share would report the first as the second.
+    authorConcentration: computeAuthorConcentration(summaries),
     // Rates for the site health score. Computed here rather than in the score itself so the
     // score never needs the rules, only this summary.
-    health: summarizeAutomationHealth(summaries, cascades, options.blastSummary ?? null),
+    health: summarizeAutomationHealth(summaries, cascades, options.blastSummary ?? null, {
+      eventCascades, competingPairs, fieldContradictions,
+    }),
   };
 }
 

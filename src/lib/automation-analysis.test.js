@@ -15,13 +15,18 @@ import {
   countComponents,
   computeBlastEntries,
   extractActionKinds,
+  extractEventReferences,
   extractFieldReferences,
   extractOutboundHosts,
   extractProjectReferences,
   extractStatusReferences,
   extractIssueTypeReferences,
   extractUserReferences,
+  findCompetingRulePairs,
+  findEventCascades,
+  findFieldContradictions,
   findTriggerCascades,
+  findUnconditionalDestructiveActions,
   scopesOverlap,
   summarizeEstate,
   summarizeRule,
@@ -543,6 +548,201 @@ describe("findTriggerCascades", () => {
 
   it("returns nothing when no rule triggers on a field", () => {
     expect(findTriggerCascades([writer(1, "F"), writer(2, "G")])).toEqual([]);
+  });
+});
+
+describe("extractEventReferences", () => {
+  it("reads the event a trigger listens for", () => {
+    const r = rule({ trigger: { component: "TRIGGER", type: "jira.proforma.form.attached.trigger", value: {}, children: [], conditions: [] } });
+    expect(extractEventReferences(r)).toContainEqual({ event: "form-attached", kind: REF_KIND.TRIGGER, via: "jira.proforma.form.attached.trigger" });
+  });
+
+  it("reads the event an action can produce", () => {
+    const r = rule({ components: [action("jira.proforma.form.add.action", {})] });
+    expect(extractEventReferences(r)).toContainEqual(expect.objectContaining({ event: "form-attached", kind: REF_KIND.WRITE }));
+  });
+
+  it("finds nothing on a rule that neither listens for nor produces a recognised event", () => {
+    expect(extractEventReferences(rule({ components: [editAction("X")] }))).toEqual([]);
+  });
+});
+
+// The confirmed cascade behind the SOLVE: Solution Matrix incident: "Attach Solution Matrix
+// on CT Creation" attaches a form (canOtherRuleTrigger: true, real rule id 33260335), and
+// "Delete Manually Attached Solution Matrix Form" triggers on exactly that event (real rule
+// id 33271508, also canOtherRuleTrigger: true) and deletes whatever it finds. Neither of
+// those rules writes a field, so findTriggerCascades never saw this edge.
+describe("findEventCascades", () => {
+  const attacher = (id, projectId) => rule({
+    id, name: `attacher ${id}`, canOtherRuleTrigger: true,
+    trigger: { component: "TRIGGER", type: "jira.issue.event.trigger:created", value: {}, children: [], conditions: [] },
+    components: [action("jira.proforma.form.add.action", {})],
+    projects: projectId ? [{ projectId }] : [],
+  });
+  const deleter = (id, projectId) => rule({
+    id, name: `deleter ${id}`,
+    trigger: { component: "TRIGGER", type: "jira.proforma.form.attached.trigger", value: {}, children: [], conditions: [] },
+    components: [action("jira.issue.outgoing.webhook", { method: "DELETE" })],
+    projects: projectId ? [{ projectId }] : [],
+  });
+
+  it("links a rule whose action attaches a form to a rule that triggers on the form being attached", () => {
+    const cascades = findEventCascades([attacher(1, "10104"), deleter(2, "10104")]);
+    expect(cascades).toContainEqual(expect.objectContaining({ field: "form-attached", sourceId: 1, targetId: 2, selfTriggering: false }));
+  });
+
+  it("ignores rules in projects that cannot see each other's issues", () => {
+    expect(findEventCascades([attacher(1, "10104"), deleter(2, "99999")])).toEqual([]);
+  });
+
+  it("ignores a producer that cannot wake other rules", () => {
+    const quiet = { ...attacher(1, "10104"), canOtherRuleTrigger: false };
+    expect(findEventCascades([quiet, deleter(2, "10104")])).toEqual([]);
+  });
+
+  it("does not pair issue creation with a form-attached trigger", () => {
+    // jira.issue.create fires its "created" event on the NEW issue, which this module does
+    // not (yet) resolve to a project -- see the comment above EVENT_TRIGGER_PATTERNS.
+    const creator = rule({ id: 1, canOtherRuleTrigger: true, components: [action("jira.issue.create", {})], projects: [{ projectId: "10104" }] });
+    expect(findEventCascades([creator, deleter(2, "10104")])).toEqual([]);
+  });
+});
+
+describe("findUnconditionalDestructiveActions", () => {
+  const deleteWebhook = () => action("jira.issue.outgoing.webhook", { method: "DELETE", url: "https://acme.atlassian.net/rest/api/3/issue/1/form/2" });
+
+  it("flags a destructive action with nothing gating it", () => {
+    const r = rule({ components: [deleteWebhook()] });
+    expect(findUnconditionalDestructiveActions(r)).toContainEqual(expect.objectContaining({ guardCount: 0 }));
+  });
+
+  it("counts a bare top-level condition as narrowing everything after it in the same list", () => {
+    // This is rule 33271508's real shape: a bare "Condition: Issue Type = Solve Ticket"
+    // component, with no children of its own, followed by sibling actions.
+    const r = rule({ components: [condition("jira.issue.condition", {}), deleteWebhook()] });
+    expect(findUnconditionalDestructiveActions(r)).toContainEqual(expect.objectContaining({ guardCount: 1 }));
+  });
+
+  it("counts a condition with its own children as gating only those children", () => {
+    const r = rule({ components: [condition("jira.condition.if.block", {}, { children: [deleteWebhook()] })] });
+    expect(findUnconditionalDestructiveActions(r)).toContainEqual(expect.objectContaining({ guardCount: 1 }));
+  });
+
+  it("resets the guard count inside a BRANCH, which re-scopes to a different issue", () => {
+    const r = rule({
+      components: [
+        condition("jira.issue.condition", {}),
+        action("jira.issue.related", {}, { component: "BRANCH", children: [deleteWebhook()] }),
+      ],
+    });
+    expect(findUnconditionalDestructiveActions(r)).toContainEqual(expect.objectContaining({ guardCount: 0 }));
+  });
+
+  it("treats clearing a field's value as destructive, not just delete actions", () => {
+    const clearOp = action("jira.issue.edit", { operations: [{ field: { type: "NAME", value: "Owner" }, type: "SET", value: null }] });
+    expect(findUnconditionalDestructiveActions(rule({ components: [clearOp] }))).toHaveLength(1);
+  });
+
+  it("does not flag an ordinary edit that sets a real value", () => {
+    expect(findUnconditionalDestructiveActions(rule({ components: [editAction("X")] }))).toEqual([]);
+  });
+});
+
+describe("analyzeRuleRisks: unconditional-destructive and silent-failure", () => {
+  it("flags an unguarded destructive action", () => {
+    const r = rule({ components: [action("jira.issue.outgoing.webhook", { method: "DELETE" })] });
+    expect(analyzeRuleRisks(r)).toContainEqual(expect.objectContaining({ code: "unconditional-destructive", severity: "medium" }));
+  });
+
+  it("does not flag a destructive action gated by two or more conditions", () => {
+    const r = rule({
+      components: [
+        condition("jira.issue.condition", {}),
+        condition("jira.issue.condition", {}),
+        action("jira.issue.outgoing.webhook", { method: "DELETE" }),
+      ],
+    });
+    expect(analyzeRuleRisks(r).map((x) => x.code)).not.toContain("unconditional-destructive");
+  });
+
+  it("flags a rule that cannot notify on a failed outbound call", () => {
+    const r = rule({ notifyOnError: "NEVER", components: [action("jira.issue.outgoing.webhook", { url: "https://acme.atlassian.net/x" })] });
+    expect(analyzeRuleRisks(r)).toContainEqual(expect.objectContaining({ code: "silent-failure", severity: "low" }));
+  });
+
+  it("does not flag silent-failure when notifications are on", () => {
+    const r = rule({ notifyOnError: "FIRSTERROR", components: [action("jira.issue.outgoing.webhook", { url: "https://acme.atlassian.net/x" })] });
+    expect(analyzeRuleRisks(r).map((x) => x.code)).not.toContain("silent-failure");
+  });
+
+  it("does not flag silent-failure on a rule with no outbound call", () => {
+    const r = rule({ notifyOnError: "NEVER", components: [editAction("X")] });
+    expect(analyzeRuleRisks(r).map((x) => x.code)).not.toContain("silent-failure");
+  });
+});
+
+describe("findFieldContradictions", () => {
+  const setter = (id, field, value, projectId) => rule({
+    id, name: `setter ${id}`,
+    components: [action("jira.issue.edit", { operations: [{ field: { type: "NAME", value: field }, type: "SET", value }] })],
+    projects: projectId ? [{ projectId }] : [],
+  });
+
+  it("flags two enabled rules in overlapping scope that set the same field to different literals", () => {
+    const contradictions = findFieldContradictions([setter(1, "Priority", "High", "10104"), setter(2, "Priority", "Low", "10104")]);
+    expect(contradictions).toContainEqual(expect.objectContaining({ field: "Priority", aId: 1, bId: 2, aValue: "High", bValue: "Low" }));
+  });
+
+  it("does not flag the same literal value set by two rules", () => {
+    expect(findFieldContradictions([setter(1, "Priority", "High", "10104"), setter(2, "Priority", "High", "10104")])).toEqual([]);
+  });
+
+  it("ignores rules in projects that cannot see each other's issues", () => {
+    expect(findFieldContradictions([setter(1, "Priority", "High", "10104"), setter(2, "Priority", "Low", "99999")])).toEqual([]);
+  });
+
+  it("ignores a disabled rule's literal", () => {
+    const disabled = { ...setter(2, "Priority", "Low", "10104"), state: "DISABLED" };
+    expect(findFieldContradictions([setter(1, "Priority", "High", "10104"), disabled])).toEqual([]);
+  });
+
+  it("does not treat a COPY or smart-value operation as a literal to contradict", () => {
+    const copy = editAction("Priority", { sourceField: "Original Priority" });
+    const r = rule({ id: 3, components: [copy], projects: [{ projectId: "10104" }] });
+    expect(findFieldContradictions([setter(1, "Priority", "High", "10104"), r])).toEqual([]);
+  });
+});
+
+describe("findCompetingRulePairs", () => {
+  const triggered = (id, { projectId = "10104", issueType = null, triggerType = "jira.issue.event.trigger:created" } = {}) => rule({
+    id, name: `rule ${id}`,
+    trigger: { component: "TRIGGER", type: triggerType, value: {}, children: [], conditions: [] },
+    components: issueType
+      ? [condition("jira.issue.condition", { selectedField: { type: "ID", value: "issuetype" }, comparison: "EQUALS", compareValue: { value: issueType } })]
+      : [],
+    projects: [{ projectId }],
+  });
+
+  it("pairs two enabled rules that share a trigger type and scope", () => {
+    const pairs = findCompetingRulePairs([triggered(1), triggered(2)]);
+    expect(pairs).toContainEqual(expect.objectContaining({ triggerType: "jira.issue.event.trigger:created", aId: 1, bId: 2 }));
+  });
+
+  it("does not pair rules with different trigger types", () => {
+    expect(findCompetingRulePairs([triggered(1), triggered(2, { triggerType: "jira.issue.event.trigger:transitioned" })])).toEqual([]);
+  });
+
+  it("does not pair rules whose projects cannot see the same issue", () => {
+    expect(findCompetingRulePairs([triggered(1, { projectId: "10104" }), triggered(2, { projectId: "99999" })])).toEqual([]);
+  });
+
+  it("does not pair rules scoped to different, non-overlapping issue types", () => {
+    expect(findCompetingRulePairs([triggered(1, { issueType: "Bug" }), triggered(2, { issueType: "Story" })])).toEqual([]);
+  });
+
+  it("pairs rules scoped to the same issue type", () => {
+    const pairs = findCompetingRulePairs([triggered(1, { issueType: "Bug" }), triggered(2, { issueType: "Bug" })]);
+    expect(pairs).toHaveLength(1);
   });
 });
 
