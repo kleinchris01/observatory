@@ -6529,7 +6529,11 @@ a.dash-row__name:hover { text-decoration: underline; }
   font-size: 0.8rem;
 }
 .blast-factor__label { color: var(--muted); }
-.blast-factor__bar { height: 0.5rem; border-radius: 999px; background: var(--stroke); overflow: hidden; }
+/* display: block is load-bearing, not tidiness: a bare <span> defaults to display: inline,
+   which has no content width of its own -- it shrinks to fit the child instead of filling
+   the 6rem grid column. That leaves .blast-factor__fill's percentage width with nothing real
+   to be a percentage OF, so every bar rendered the same regardless of the factor's value. */
+.blast-factor__bar { display: block; width: 100%; height: 0.5rem; border-radius: 999px; background: var(--stroke); overflow: hidden; }
 .blast-factor__fill { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
 .blast-factor__weight { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 0.74rem; }
 .blast-factor__detail { color: var(--muted); }
