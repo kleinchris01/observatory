@@ -3,9 +3,26 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { invoke, view, router, rovo } from "@forge/bridge";
-import { AdminApp } from "./admin";
+import { AdminApp, ADMIN_NAV_TABS } from "./admin";
 import { ClearSnapshotControl } from "./tabs/ScansTab";
 import { AuditLogPanel } from "./components/admin/AuditLogPanel";
+import { ICON_COMPONENTS } from "./components/Icons";
+
+// The bug this pins: three nav tabs shared "barChart", two shared "layers", two shared
+// "activity" -- invisible while the label always sat next to the icon, but exactly the tabs a
+// reader could not tell apart the moment the sidebar collapsed to icons alone.
+describe("ADMIN_NAV_TABS", () => {
+  it("gives every tab its own icon", () => {
+    const icons = ADMIN_NAV_TABS.map((t) => t.icon);
+    expect(new Set(icons).size).toBe(icons.length);
+  });
+
+  it("every tab's icon actually resolves to a component", () => {
+    for (const tab of ADMIN_NAV_TABS) {
+      expect(ICON_COMPONENTS, `no icon registered for "${tab.icon}" (${tab.label})`).toHaveProperty(tab.icon);
+    }
+  });
+});
 
 // ---------------------------------------------------------------------------
 // Helpers
