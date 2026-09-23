@@ -34,26 +34,35 @@ export function pickWeather(rand = Math.random) {
   return WEATHER_WEIGHTS[WEATHER_WEIGHTS.length - 1][0];
 }
 
-// One cloud: a cluster of overlapping soft circles so it reads as a cloud shape rather than a
-// single blob, drifting left to right at its own depth-scaled speed.
+// One cloud: a cluster of overlapping puffs, each drawn as a soft radial gradient rather than
+// a flat-filled circle -- a solid circle has a hard edge no real cloud has, and a field of
+// them reads as a cartoon speech-bubble cluster instead of a cloud. A wider, flatter puff
+// arrangement (dx spread wider than dy) plus a few small puffs riding higher than the rest
+// gives the cumulus silhouette real clouds have -- a flat-ish base with billowing top -- rather
+// than a uniform round blob.
 function makeCloud(w, h, depth) {
-  const puffCount = 4 + Math.floor(Math.random() * 4);
-  const baseR = (18 + depth * 46) * (0.8 + Math.random() * 0.5);
+  const puffCount = 5 + Math.floor(Math.random() * 5);
+  const baseR = (16 + depth * 44) * (0.8 + Math.random() * 0.5);
   const puffs = [];
   for (let i = 0; i < puffCount; i++) {
+    const t = puffCount > 1 ? i / (puffCount - 1) : 0.5; // 0..1 across the cloud's width
+    // A gentle arch: puffs bow upward toward the middle, flatten toward the ends, so the
+    // silhouette has a base to sit on instead of drifting in every direction equally.
+    const arch = Math.sin(t * Math.PI);
     puffs.push({
-      dx: (i - puffCount / 2) * baseR * 0.62 + (Math.random() - 0.5) * baseR * 0.3,
-      dy: (Math.random() - 0.5) * baseR * 0.5,
-      r: baseR * (0.55 + Math.random() * 0.55),
+      dx: (t - 0.5) * baseR * 2.4,
+      dy: -arch * baseR * 0.7 + (Math.random() - 0.5) * baseR * 0.25,
+      r: baseR * (0.5 + arch * 0.35 + Math.random() * 0.35),
     });
   }
   return {
     x: Math.random() * w,
-    y: h * (0.06 + Math.random() * 0.32) + depth * h * 0.05,
+    y: h * (0.05 + Math.random() * 0.3) + depth * h * 0.05,
     depth,
     speed: (3 + depth * 10) / 1000, // px/ms, far clouds drift slower
     puffs,
-    alpha: 0.35 + depth * 0.4,
+    spanR: baseR * 1.6,
+    alpha: 0.3 + depth * 0.45,
   };
 }
 
@@ -124,75 +133,137 @@ export function DaySky({ active = true }) {
       draw(performance.now());
     }
 
+    // Four stops, not two: real sky colour is not a straight interpolation. It stays a
+    // saturated blue through most of the zenith, then pales fast in the last quarter toward
+    // the horizon (atmospheric scattering thickens the more air you are looking through) --
+    // a plain top-to-bottom lerp skips that pale band entirely and reads flat.
     function drawSky(now) {
       const flashK = now < flashUntil ? 1 - (flashUntil - now) / 260 : 0;
       const grad = ctx.createLinearGradient(0, 0, 0, height);
       if (weather === "sunny") {
-        grad.addColorStop(0, "#4fa8f0");
-        grad.addColorStop(1, "#bfe3ff");
+        grad.addColorStop(0, "#1f6fc4");
+        grad.addColorStop(0.45, "#4a9be0");
+        grad.addColorStop(0.8, "#a8d8f5");
+        grad.addColorStop(1, "#e4f3ff");
       } else if (weather === "partly") {
-        grad.addColorStop(0, "#6fa3c9");
-        grad.addColorStop(1, "#cdd9df");
+        grad.addColorStop(0, "#3f76a8");
+        grad.addColorStop(0.5, "#6b9cc2");
+        grad.addColorStop(0.82, "#aebfc9");
+        grad.addColorStop(1, "#d3dde1");
       } else if (weather === "cloudy") {
-        grad.addColorStop(0, "#8a97a3");
-        grad.addColorStop(1, "#c3cad0");
+        grad.addColorStop(0, "#6b7683");
+        grad.addColorStop(0.55, "#8a95a0");
+        grad.addColorStop(1, "#b7bfc7");
       } else {
-        grad.addColorStop(0, `rgb(${68 + flashK * 90}, ${74 + flashK * 90}, ${82 + flashK * 90})`);
-        grad.addColorStop(1, `rgb(${101 + flashK * 70}, ${107 + flashK * 70}, ${112 + flashK * 70})`);
+        const L = flashK * 55;
+        grad.addColorStop(0, `rgb(${45 + L}, ${49 + L}, ${56 + L})`);
+        grad.addColorStop(0.6, `rgb(${64 + L}, ${69 + L}, ${77 + L})`);
+        grad.addColorStop(1, `rgb(${88 + L}, ${93 + L}, ${99 + L})`);
       }
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, width, height);
     }
 
+    // Three layered passes rather than one flat circle: a wide, faint outer corona (the haze
+    // real sun glare has), a tighter warm-to-white inner glow, then the disc itself slightly
+    // desaturated at its own edge so it does not read as a flat sticker.
     function drawSun() {
       if (weather !== "sunny" && weather !== "partly") return;
       const sx = width * 0.78;
       const sy = height * 0.16;
-      const r = Math.min(width, height) * (weather === "sunny" ? 0.09 : 0.06);
-      const glow = ctx.createRadialGradient(sx, sy, 0, sx, sy, r * 4);
-      const bloom = weather === "sunny" ? 0.55 : 0.3;
-      glow.addColorStop(0, `rgba(255, 244, 214, ${bloom})`);
-      glow.addColorStop(1, "rgba(255, 244, 214, 0)");
-      ctx.fillStyle = glow;
+      const r = Math.min(width, height) * (weather === "sunny" ? 0.075 : 0.05);
+      const k = weather === "sunny" ? 1 : 0.55;
+
+      const corona = ctx.createRadialGradient(sx, sy, 0, sx, sy, r * 7);
+      corona.addColorStop(0, `rgba(255, 250, 224, ${0.16 * k})`);
+      corona.addColorStop(0.4, `rgba(255, 244, 214, ${0.08 * k})`);
+      corona.addColorStop(1, "rgba(255, 244, 214, 0)");
+      ctx.fillStyle = corona;
       ctx.beginPath();
-      ctx.arc(sx, sy, r * 4, 0, Math.PI * 2);
+      ctx.arc(sx, sy, r * 7, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.fillStyle = "rgba(255, 250, 235, 0.95)";
+      const glow = ctx.createRadialGradient(sx, sy, 0, sx, sy, r * 2.4);
+      glow.addColorStop(0, `rgba(255, 252, 235, ${0.85 * k})`);
+      glow.addColorStop(0.55, `rgba(255, 240, 200, ${0.35 * k})`);
+      glow.addColorStop(1, "rgba(255, 240, 200, 0)");
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(sx, sy, r * 2.4, 0, Math.PI * 2);
+      ctx.fill();
+
+      const disc = ctx.createRadialGradient(sx, sy, 0, sx, sy, r);
+      disc.addColorStop(0, "rgba(255, 255, 250, 0.98)");
+      disc.addColorStop(0.7, "rgba(255, 249, 224, 0.96)");
+      disc.addColorStop(1, "rgba(255, 233, 173, 0.9)");
+      ctx.fillStyle = disc;
       ctx.beginPath();
       ctx.arc(sx, sy, r, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    function drawClouds(now, dt) {
+    // Two passes per puff: a soft, downward-offset shadow wash first (so the cluster reads as
+    // lit from above, giving it volume instead of looking like a flat grey smear), then the
+    // lit body on top, each as a radial gradient -- never a flat-filled circle, which is what
+    // read as a cartoon. A light blur on the whole layer (where the canvas supports filters;
+    // harmless no-op where it does not) melts the puff outlines into each other the way real
+    // cloud edges never resolve to a hard line.
+    function drawClouds(dt) {
       if (!cloudy) return;
+      const dark = weather === "rainy" || weather === "cloudy";
+      const lit = dark ? "158, 165, 176" : "255, 255, 255";
+      const shade = dark ? "94, 101, 113" : "196, 209, 224";
+      const shadow = dark ? "60, 66, 76" : "140, 156, 178";
+
+      ctx.save();
+      if (typeof ctx.filter === "string") ctx.filter = "blur(7px)";
       for (const c of clouds) {
         c.x += c.speed * dt;
-        if (c.x - 120 > width) c.x = -120;
-        ctx.fillStyle = weather === "rainy" || weather === "cloudy"
-          ? `rgba(120, 128, 138, ${c.alpha})`
-          : `rgba(255, 255, 255, ${c.alpha})`;
+        if (c.x - c.spanR > width) c.x = -c.spanR;
+
         for (const p of c.puffs) {
+          const sy = c.y + p.dy + p.r * 0.4;
+          const g = ctx.createRadialGradient(c.x + p.dx, sy, 0, c.x + p.dx, sy, p.r * 1.05);
+          g.addColorStop(0, `rgba(${shadow}, ${c.alpha * 0.4})`);
+          g.addColorStop(1, `rgba(${shadow}, 0)`);
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.arc(c.x + p.dx, sy, p.r * 1.05, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        for (const p of c.puffs) {
+          const g = ctx.createRadialGradient(
+            c.x + p.dx, c.y + p.dy - p.r * 0.2, p.r * 0.05,
+            c.x + p.dx, c.y + p.dy, p.r
+          );
+          g.addColorStop(0, `rgba(${lit}, ${c.alpha})`);
+          g.addColorStop(0.75, `rgba(${lit}, ${c.alpha * 0.9})`);
+          g.addColorStop(1, `rgba(${shade}, ${c.alpha * 0.55})`);
+          ctx.fillStyle = g;
           ctx.beginPath();
           ctx.arc(c.x + p.dx, c.y + p.dy, p.r, 0, Math.PI * 2);
           ctx.fill();
         }
       }
+      ctx.restore();
     }
 
     function drawRain(dt) {
       if (!raining) return;
-      ctx.strokeStyle = "rgba(210, 226, 240, 0.55)";
+      ctx.strokeStyle = "rgba(214, 228, 240, 0.4)";
       ctx.lineWidth = 1;
+      ctx.lineCap = "round";
       for (const d of raindrops) {
         d.y += d.speed * dt;
-        d.x -= d.speed * dt * 0.25; // a slight slant
+        d.x -= d.speed * dt * 0.22; // a slight slant
         if (d.y > height) { d.y = -d.len; d.x = Math.random() * width; }
+        ctx.globalAlpha = 0.25 + d.depth * 0.45;
         ctx.beginPath();
         ctx.moveTo(d.x, d.y);
-        ctx.lineTo(d.x - d.len * 0.25, d.y + d.len);
+        ctx.lineTo(d.x - d.len * 0.22, d.y + d.len);
         ctx.stroke();
       }
+      ctx.globalAlpha = 1;
     }
 
     function maybeFlash(now) {
@@ -208,7 +279,7 @@ export function DaySky({ active = true }) {
       maybeFlash(now);
       drawSky(now);
       drawSun();
-      drawClouds(now, reduced ? 0 : dt);
+      drawClouds(reduced ? 0 : dt);
       drawRain(reduced ? 0 : dt);
       lastDraw = now;
     }

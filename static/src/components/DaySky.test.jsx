@@ -16,9 +16,14 @@ function fakeCtx() {
     stroke: vi.fn(),
     createRadialGradient: vi.fn(() => ({ addColorStop: vi.fn() })),
     createLinearGradient: vi.fn(() => ({ addColorStop: vi.fn() })),
+    save: vi.fn(),
+    restore: vi.fn(),
     fillStyle: "",
     strokeStyle: "",
     lineWidth: 1,
+    lineCap: "butt",
+    globalAlpha: 1,
+    filter: "none",
   };
 }
 
