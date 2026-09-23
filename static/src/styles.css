@@ -2528,6 +2528,23 @@ a.macro-pillar__name:hover { color: var(--cool); text-decoration: underline; }
   border-radius: 1px;
   background: rgba(121, 184, 255, 0.55);
 }
+
+.admin-remediation-tab { display: flex; flex-direction: column; gap: 16px; }
+.remediation-tasks { display: flex; flex-direction: column; gap: 2px; margin: 10px 0; }
+.remediation-task {
+  display: grid;
+  grid-template-columns: minmax(70px, auto) 1fr auto minmax(90px, auto) minmax(110px, auto);
+  align-items: center;
+  gap: 12px;
+  padding: 7px 4px;
+  border-bottom: 1px solid var(--stroke);
+  font-size: 0.8rem;
+}
+.remediation-task:last-child { border-bottom: none; }
+.remediation-task__summary { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.remediation-task__assignee,
+.remediation-task__synced { color: var(--muted); font-size: 0.76rem; }
+.remediation-candidates__summary { margin: 10px 0 8px; color: var(--muted); font-size: 0.85rem; }
 .recent-runs__bar--failed { background: rgba(220, 100, 100, 0.7); }
 .recent-runs__bar--skipped { background: rgba(203, 149, 66, 0.7); }
 

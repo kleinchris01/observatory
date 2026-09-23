@@ -17,6 +17,7 @@ vi.mock("./core.js", () => ({
 const {
   recordRemediationTicket,
   loadRemediationTickets,
+  loadOpenRemediationTickets,
   getRemediationEpic,
   loadTicketedItemIds,
   updateRemediationSync,
@@ -118,6 +119,16 @@ describe("loadRemediationTickets", () => {
     await loadRemediationTickets("scope");
     expect(calls[0].params).toEqual(["scope"]);
     expect(calls[0].text).not.toMatch(/finding_key = \?/);
+  });
+});
+
+describe("loadOpenRemediationTickets", () => {
+  it("queries every ticket not already known to be done", async () => {
+    const calls = stubSql([[{ finding_key: "f", item_id: "1", issue_key: "OPS-2", is_epic: 0 }]]);
+    const rows = await loadOpenRemediationTickets("scope");
+    expect(calls[0].params).toEqual(["scope"]);
+    expect(calls[0].text).toMatch(/last_status_category IS NULL OR last_status_category != 'done'/);
+    expect(rows).toHaveLength(1);
   });
 });
 

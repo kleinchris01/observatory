@@ -33,6 +33,7 @@ import {
   SquaresFour,
   Kanban,
   ClipboardText,
+  Wrench,
 } from "@phosphor-icons/react";
 
 export function useLiveDuration(startedAt) {
@@ -106,6 +107,7 @@ export const ICON_COMPONENTS = {
   grid: SquaresFour,
   kanban: Kanban,
   clipboardText: ClipboardText,
+  wrench: Wrench,
 };
 
 // Validated categorical palette (dataviz skill's reference instance, references/palette.md) --

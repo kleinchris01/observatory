@@ -677,6 +677,7 @@ const {
   getAutomationBlast,
   createRemediationEpic,
   getRemediationTickets,
+  getRemediationCandidates,
   getStatusAutomationUsage,
   getAutomationFieldUsage,
   getAutomationFieldCounts,
@@ -6505,6 +6506,53 @@ describe("getRemediationTickets", () => {
     const r = await getRemediationTickets({ payload: { findingKey: "board-backing" }, context: ctxWithAccount() });
     expect(mocks.loadRemediationTickets).toHaveBeenCalledWith(expect.any(String), "board-backing");
     expect(r.available).toBe(false);
+  });
+});
+
+describe("getRemediationCandidates", () => {
+  test("filter-ownership: returns only filters with an orphaned owner, mapped to what the playbook needs", async () => {
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "flt1" });
+    mocks.loadFilters.mockResolvedValue([
+      { id: "4001", name: "Open Bugs", owner: { accountId: "a1", displayName: "Gone Person", active: false }, subscriptionCount: 3, shares: [] },
+      { id: "4002", name: "Fine Filter", owner: { accountId: "a2", displayName: "Still Here", active: true }, subscriptionCount: 0, shares: [] },
+      { id: "4003", name: "No Owner", owner: null, subscriptionCount: 0, shares: [] },
+    ]);
+
+    const r = await getRemediationCandidates({ payload: { findingKey: "filter-ownership" }, context: ctxWithAccount() });
+
+    expect(r.available).toBe(true);
+    expect(r.items.map((i) => i.id).sort()).toEqual(["4001", "4003"]);
+    const item = r.items.find((i) => i.id === "4001");
+    expect(item).toMatchObject({ name: "Open Bugs", ownerName: "Gone Person", ownerActive: false, subscriptionCount: 3 });
+  });
+
+  test("filter-ownership: reports unavailable when there is no filter snapshot yet", async () => {
+    mocks.readFilterSnapshotMeta.mockResolvedValue(null);
+    const r = await getRemediationCandidates({ payload: { findingKey: "filter-ownership" }, context: ctxWithAccount() });
+    expect(r).toMatchObject({ available: false, reason: "no-snapshot", items: [] });
+  });
+
+  test("dashboard-ownership: returns only dashboards with an orphaned owner", async () => {
+    mocks.readDashboardSnapshotMeta.mockResolvedValue({ version: "d1" });
+    mocks.loadDashboards.mockResolvedValue([
+      { id: "D1", name: "Wall screen", owner: { accountId: "a1", displayName: "Gone Person", active: false }, popularity: 12, shares: [], editShares: [], gadgetCount: 2 },
+      { id: "D2", name: "Fine dash", owner: { accountId: "a2", displayName: "Still Here", active: true }, popularity: 1, shares: [], editShares: [], gadgetCount: 1 },
+    ]);
+
+    const r = await getRemediationCandidates({ payload: { findingKey: "dashboard-ownership" }, context: ctxWithAccount() });
+
+    expect(r.available).toBe(true);
+    expect(r.items).toEqual([{ id: "D1", name: "Wall screen", ownerName: "Gone Person", popularity: 12 }]);
+  });
+
+  test("a finding with no wired item source says so rather than fabricating a list", async () => {
+    const r = await getRemediationCandidates({ payload: { findingKey: "status-reachability" }, context: ctxWithAccount() });
+    expect(r).toEqual({ available: false, reason: "not-connected", items: [] });
+  });
+
+  test("is admin-only", () => {
+    expect(Object.keys(ADMIN_ONLY_FUNCTIONS)).toContain("getRemediationCandidates");
+    expect(Object.keys(SHARED_RESOLVER_FUNCTIONS)).not.toContain("getRemediationCandidates");
   });
 });
 

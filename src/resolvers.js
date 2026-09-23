@@ -3633,6 +3633,53 @@ async function createRemediationEpic({ payload, context }) {
   };
 }
 
+// The current items behind one remediation finding -- what "Create remediation" actually
+// tickets. Only wired for the two findings whose pillar already computes a per-item list with
+// name/owner attached (filter-ownership, dashboard-ownership); the other playbooks
+// (status-reachability, board-backing, user-ownership, user-licence-hygiene) score a RATE for
+// the health dimension but do not yet expose the underlying items anywhere, and fabricating a
+// list here would be worse than saying so.
+async function getRemediationCandidates({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  const installationKey = getInstallationKey(context);
+  const findingKey = String(payload?.findingKey || "");
+
+  if (findingKey === "filter-ownership") {
+    const meta = await readFilterSnapshotMeta(installationKey).catch(() => null);
+    if (!meta?.version) return { available: false, reason: "no-snapshot", items: [] };
+    const filters = await loadFilters(installationKey, meta.version);
+    const summary = summarizeFilters(filters);
+    const items = summary.filters
+      .filter((f) => f.findings.some((finding) => finding.code === "orphaned-owner"))
+      .map((f) => ({
+        id: String(f.id),
+        name: f.name || null,
+        ownerName: f.owner?.displayName || null,
+        ownerActive: f.owner ? f.owner.active !== false : false,
+        subscriptionCount: Number(f.subscriptionCount) || 0,
+      }));
+    return { available: true, items };
+  }
+
+  if (findingKey === "dashboard-ownership") {
+    const meta = await readDashboardSnapshotMeta(installationKey).catch(() => null);
+    if (!meta?.version) return { available: false, reason: "no-snapshot", items: [] };
+    const dashboards = await loadDashboards(installationKey, meta.version);
+    const summary = summarizeDashboards(dashboards);
+    const items = summary.dashboards
+      .filter((d) => d.findings.some((finding) => finding.code === "orphaned-owner"))
+      .map((d) => ({
+        id: String(d.id),
+        name: d.name || null,
+        ownerName: d.owner?.displayName || null,
+        popularity: Number(d.popularity) || 0,
+      }));
+    return { available: true, items };
+  }
+
+  return { available: false, reason: "not-connected", items: [] };
+}
+
 // Which rules reference one status, by direction.
 //
 // The Workflows tab has been able to say "17 rules" against an unreachable status since the
@@ -9118,6 +9165,7 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   getAutomationBlast,      // Admin read: one page of rules ordered by blast radius
   getRemediationTickets,   // Admin read: remediation epics and tasks, grouped by finding
   createRemediationEpic,   // Mutating: creates a Jira epic + tasks for a governance finding
+  getRemediationCandidates,// Admin read: current items behind one finding, ready to ticket
   getStatusAutomationUsage,// Admin read: which rules reference one status, by direction
   getDashboardInventory,   // Admin read: dashboards, their gadgets and their findings
   buildDashboardInventory, // Mutating: queues a rebuild of the dashboard snapshot
