@@ -1,17 +1,16 @@
 # Observatory — Jira configuration governance
 
-[![Coverage](https://img.shields.io/badge/coverage-83.9%25-brightgreen)](#testing)
-[![Tests](https://img.shields.io/badge/tests-3827%20passing-brightgreen)](#testing)
+[![Coverage](https://img.shields.io/badge/coverage-lines%20%E2%89%A5%2078%25-yellow)](#testing)
+[![Tests](https://img.shields.io/badge/tests-3959%20passing-brightgreen)](#testing)
 
 <!--
-  These badges are static and updated by hand — run `npm run test:coverage` and
-  edit them. CI does upload to Codecov (see .github/workflows/ci.yml), so a
-  dynamic badge is possible; these are deliberately static so the numbers can't
-  drift out from under the README's prose without someone noticing.
-
-  The enforced floor lives in vitest.config.js under coverage.thresholds and is
-  set just below the actuals, so CI fails if coverage drops. Treat that as the
-  source of truth; these badges are a summary of it.
+  These badges are deliberately coarse rather than a hand-copied point figure. The test
+  count above (3959) is exact and was verified by a full run on 23 September 2026 -- the
+  previous badge said 3827, which had already drifted. A percentage drifts on every merge;
+  a coverage FLOOR does not, because CI enforces it -- so the coverage badge states the
+  enforced floor (vitest.config.js, coverage.thresholds) rather than a snapshot that will be
+  stale again within a week. CI also uploads to Codecov (.github/workflows/ci.yml) for the
+  live number if you want it.
 -->
 
 Observatory reads an entire Jira site's configuration — fields, screens, workflows, issue
@@ -21,7 +20,7 @@ it, and tells you what is safe to change.
 
 It ships as two Forge surfaces against one backend:
 
-- a **Jira admin page** (18 sections) for scanning, governance findings, health scoring and
+- a **Jira admin page** (19 sections) for scanning, governance findings, health scoring and
   configuration
 - a **Confluence macro** (9 sections) that gives everyone else a read-only view of the same
   estate, filtered to the projects each reader can already browse in Jira
@@ -94,7 +93,7 @@ it filled. Workflows and screens are readable long before the issue crawl finish
 
 ---
 
-## The sixteen pillars
+## The seventeen pillars
 
 Each pillar is an inventory, a set of governance findings, a Rovo agent, and one or more
 dimensions in the site health score. A pillar that has not been scanned reports itself
@@ -118,10 +117,15 @@ unmeasured rather than scoring zero.
 | Assets (CMDB) | Schemas, object types and attributes — JSM Premium only | 1 |
 | Priorities & resolutions | The two global value lists every issue draws on | 0.5 |
 | Notification schemes | Notification events and recipients | 0.5 |
+| Configuration drift | Pass-over-pass change history across every tracked entity | 1 |
 
 Weights are the pillar's contribution to the site health score. Automation is heaviest
 because a plaintext credential in an automation rule is the highest-consequence thing this
-app finds anywhere.
+app finds anywhere. Configuration drift is the one exception to "pillar weight, defect
+score": it does not score a problem, it scores a *rate of motion* — how much of the tracked
+estate changed in the trailing window. High is not bad on its own; it means an admin is
+looking at a moving target, which is worth surfacing before anything else on this page is
+trusted at face value.
 
 ### Cross-signals
 
@@ -150,22 +154,26 @@ manufacture "invisible data" findings out of a permissions gap.
 
 ## The two surfaces
 
-### Jira admin page — 18 sections
+### Jira admin page — 19 sections
 
 `Overview` · `Field Browser` · `Project Usage` · `Workflows` · `Issue Types` ·
 `Priorities` · `People` · `Assets` · `Access` · `Screens` · `Saved Filters` ·
-`Dashboards` · `Boards` · `Automation` · `Reports` · `Changes` · `Scans` · `Configuration`
+`Dashboards` · `Boards` · `Automation` · `Remediation` · `Reports` · `Changes` · `Scans` ·
+`Configuration`
 
 **Overview** carries the getting-started panel, the site health score with its per-pillar
 breakdown, and the governance ledger. **Scans** is the pipeline control room: per-stage
 progress, produced counts, job tokens, per-item logs, and start/cancel/resume for the full
 scan, quick scan, RQT index and field usage jobs. **Changes** is the configuration
 timeline. **Configuration** holds every governance threshold and health tolerance, macro
-access groups, read-only mode, remediation ticketing and retention settings.
+access groups, read-only mode, and retention settings.
 
-**Remediation ticketing** turns a governance finding into a real Jira issue in a project
-you nominate, under an optional epic, and remembers which findings already have a ticket so
-the same cleanup is not raised twice.
+**Remediation** turns a governance finding into a real Jira issue in a project you
+nominate, one epic per finding and one task per item, synced hourly from Jira so status
+here is never stale, and remembers which items already have a task so the same cleanup is
+never raised twice. Every governance finding that has an item-level source behind it is
+connected to a playbook — fields, workflows, boards and people included, not only the two
+ownership findings the first version shipped with.
 
 ### Confluence macro — 9 sections
 
@@ -229,7 +237,7 @@ Forge backend (Node.js 22)
   └── sql-migrate           index.runProjectStorageMigrations
 
 Storage
-  └── @forge/sql (MySQL) — 86 tables, 155 migration steps
+  └── @forge/sql (MySQL) — 88 tables, 157 migration steps
 ```
 
 Two resolvers, one codebase. `SHARED_RESOLVER_FUNCTIONS` are registered on both handlers;
@@ -491,14 +499,21 @@ against each group explaining which endpoint needs it and why.
 | Estate | `read:priority:jira`, `read:resolution:jira` |
 | Assets | `read:cmdb-*`, `read:servicedesk-request`, `read:servicemanagement-insight-objects` |
 | Platform | `manage:jira-configuration`, `read:confluence-content.summary`, `read:chat:rovo`, `storage:app` |
+| **Write** | **`write:jira-work`** |
 
-`manage:jira-configuration` is the broadest scope requested and is worth explaining on any
-install-consent review: **Observatory writes nothing back to Jira.** It is the scope Forge
-requires to surface an admin page, and it is also the Jira-admin gate several read
-endpoints check — not a capability the app exercises. The one exception is remediation
-ticketing, which creates an issue in a project you nominate, only when you press the button.
-Every other data path is read-only against Jira; all other writes go to the app's own SQL
-store.
+Two scopes are worth explaining on any install-consent review, for opposite reasons.
+
+`manage:jira-configuration` is the broadest scope requested and the one that looks most
+alarming — but it is the scope Forge requires to surface an admin page at all, and the
+Jira-admin gate several read endpoints check, not a capability the app exercises.
+Observatory changes no Jira configuration through it.
+
+`write:jira-work` is smaller-looking and is the one that's actually true: it backs
+**remediation ticketing**, which creates a Jira issue — an epic and its tasks — in a
+project you nominate, behind an explicit button, gated on Jira `ADMINISTER`, blocked when
+read-only mode is on, and audited. It is the only write Observatory makes anywhere. Every
+other data path in the app is read-only against Jira; every other write goes to the app's
+own SQL store.
 
 ---
 
