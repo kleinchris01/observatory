@@ -1,10 +1,10 @@
 import React from "react";
 import { invoke } from "@forge/bridge";
-import { formatNumber, formatRelativeTime } from "../utils";
+import { formatNumber, formatRelativeTime, buildAssetSchemaUrl } from "../utils";
 import { Icon } from "../components/Icons";
 import {
   StatTile, StatRow, Panel, EmptyState, Chip, PageHeader,
-  PanelGrid, GridSpan, PillarHealthPanel, BarList, FindingRow, SortFilterBar, AskRovo,
+  PanelGrid, GridSpan, PillarHealthPanel, BarList, FindingRow, SortFilterBar, AskRovo, JiraLink,
 } from "../components/ui";
 import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
@@ -38,12 +38,12 @@ const ATTR_SORTS = [
   { value: "broken-first", label: "Broken references first" },
 ];
 
-function SchemaRow({ schema }) {
+function SchemaRow({ schema, siteOrigin }) {
   const dead = schema.objectTypeCount === 0 || schema.objectCount === 0;
   return (
     <div className="issue-type-row">
       <div className="issue-type-row__identity">
-        <span className="issue-type-row__name">{schema.name}</span>
+        <JiraLink className="issue-type-row__name" href={buildAssetSchemaUrl(siteOrigin, schema.id)} title={`Open ${schema.name} in Assets`}>{schema.name}</JiraLink>
         <span className="issue-type-row__desc">
           {schema.schemaKey ? `${schema.schemaKey} · ` : ""}
           {formatNumber(schema.objectTypeCount)} object type{schema.objectTypeCount === 1 ? "" : "s"} ·{" "}
@@ -151,7 +151,7 @@ function AssetFindings({ governance }) {
   );
 }
 
-export function AssetsTab({ intent }) {
+export function AssetsTab({ intent, siteOrigin }) {
   const [view, setView] = React.useState("overview");
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
@@ -467,7 +467,7 @@ export function AssetsTab({ intent }) {
           <Panel title="Object schemas" icon="folder" description="Every namespace in the CMDB, with its type and object totals.">
             {schemas.length ? (
               <div className="issue-type-list">
-                {schemas.map((s) => <SchemaRow key={s.id} schema={s} />)}
+                {schemas.map((s) => <SchemaRow key={s.id} schema={s} siteOrigin={siteOrigin} />)}
               </div>
             ) : (
               <EmptyState inline>No object schemas in this snapshot.</EmptyState>

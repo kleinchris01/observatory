@@ -225,6 +225,32 @@ export function RuleLink({ id, name, siteOrigin, className = "" }) {
 }
 
 
+// The generic form of RuleLink, for every other Jira object a pillar lists: a project, a
+// board, a screen, a scheme, an Assets schema. The caller has already decided WHICH url to
+// build (they know what kind of thing they are holding); this owns how it looks and behaves,
+// so a link out of the Screens tab and a link out of the Boards tab cannot drift apart.
+//
+// Same two rules RuleLink follows, for the same reasons: falls back to plain text when there
+// is no href (an anchor that does nothing on click is worse than a label), and stops
+// propagation so a link inside a clickable row does not also trigger the row.
+export function JiraLink({ href, children, title, className = "" }) {
+  if (!href) return <span className={className}>{children}</span>;
+
+  return (
+    <a
+      className={`jira-link ${className}`.trim()}
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      title={title || "Open in Jira"}
+      onClick={(event) => { event.stopPropagation(); handleJiraLinkClick(event, href); }}
+    >
+      {children}
+    </a>
+  );
+}
+
+
 // ── Governance rows ─────────────────────────────────────────────────────────
 //
 // One governance metric, in the form both the Overview and the per-pillar tabs render it.

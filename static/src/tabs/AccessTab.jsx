@@ -1,10 +1,10 @@
 import React from "react";
 import { invoke } from "@forge/bridge";
-import { formatNumber, formatRelativeTime } from "../utils";
+import { formatNumber, formatRelativeTime, buildPermissionSchemeUrl, buildNotificationSchemeAdminUrl, buildIssueSecuritySchemeAdminUrl } from "../utils";
 import { Icon } from "../components/Icons";
 import {
   StatTile, StatRow, Panel, EmptyState, Chip, PageHeader,
-  PanelGrid, GridSpan, PillarHealthPanel, BarList, FindingRow, SortFilterBar, AskRovo,
+  PanelGrid, GridSpan, PillarHealthPanel, BarList, FindingRow, SortFilterBar, AskRovo, JiraLink,
 } from "../components/ui";
 import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
@@ -36,7 +36,9 @@ const SCHEME_SORTS = [
 
 // One scheme, its project reach and whatever flags it carries, expandable to the grants /
 // members / recipients behind it. `flags` are already-computed booleans from the parent.
-function SchemeRow({ scheme, holders, flags, contextNoun, holderNoun }) {
+// `jiraHref`/`jiraLabel`: the Jira back-link lives in the expanded body, not the header --
+// the header is the expand <button>, and an anchor cannot legally nest inside one.
+function SchemeRow({ scheme, holders, flags, contextNoun, holderNoun, jiraHref = null, jiraLabel = "Open in Jira" }) {
   const [open, setOpen] = React.useState(false);
   const rows = holders.filter((h) => String(h.schemeId) === String(scheme.id));
 
@@ -64,6 +66,11 @@ function SchemeRow({ scheme, holders, flags, contextNoun, holderNoun }) {
 
       {open && (
         <div className="access-row__detail">
+          {jiraHref && (
+            <p className="admin-config-row__hint">
+              <JiraLink href={jiraHref} title={jiraLabel}>{jiraLabel}</JiraLink>
+            </p>
+          )}
           {rows.length === 0 ? (
             <p className="admin-config-row__hint">No {holderNoun} recorded on this scheme.</p>
           ) : (
@@ -170,7 +177,7 @@ function permissionFlags(scheme, governance) {
   return flags;
 }
 
-function AccessTabInner({ data, view, setView, search, setSearch, schemeSort, setSchemeSort, pillars }) {
+function AccessTabInner({ data, view, setView, search, setSearch, schemeSort, setSchemeSort, pillars, siteOrigin }) {
   const term = search.trim().toLowerCase();
 
   const filterSchemes = (schemes, governance, flagFn) => {
@@ -243,6 +250,8 @@ function AccessTabInner({ data, view, setView, search, setSearch, schemeSort, se
                   key={s.id} scheme={s} holders={perm.holders || []}
                   flags={permissionFlags(s, perm.governance)}
                   contextNoun="permission" holderNoun="grants"
+                  jiraHref={buildPermissionSchemeUrl(siteOrigin, s.id)}
+                  jiraLabel="Open this scheme's grants in Jira"
                 />
               ))}
             </div>
@@ -275,6 +284,8 @@ function AccessTabInner({ data, view, setView, search, setSearch, schemeSort, se
                   <SchemeRow
                     key={s.id} scheme={s} holders={sec.holders || []}
                     flags={flags} contextNoun="level" holderNoun="members"
+                    jiraHref={buildIssueSecuritySchemeAdminUrl(siteOrigin)}
+                    jiraLabel="Open issue security schemes in Jira"
                   />
                 );
               })}
@@ -306,6 +317,8 @@ function AccessTabInner({ data, view, setView, search, setSearch, schemeSort, se
                   <SchemeRow
                     key={s.id} scheme={s} holders={notif.holders || []}
                     flags={flags} contextNoun="event" holderNoun="recipients"
+                    jiraHref={buildNotificationSchemeAdminUrl(siteOrigin)}
+                    jiraLabel="Open notification schemes in Jira"
                   />
                 );
               })}
@@ -349,7 +362,7 @@ function AccessTabInner({ data, view, setView, search, setSearch, schemeSort, se
   );
 }
 
-export function AccessTab({ intent }) {
+export function AccessTab({ intent, siteOrigin }) {
   const [view, setView] = React.useState("overview");
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
@@ -564,6 +577,7 @@ export function AccessTab({ intent }) {
         schemeSort={schemeSort}
         setSchemeSort={setSchemeSort}
         pillars={pillars}
+        siteOrigin={siteOrigin}
       />
     </div>
   );

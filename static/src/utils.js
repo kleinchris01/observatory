@@ -88,6 +88,90 @@ export function buildIssueUrl(siteOrigin, issueKey) {
   return `${siteOrigin}/browse/${encodeURIComponent(issueKey)}`;
 }
 
+// ── Jira deep links, by object type ─────────────────────────────────────────
+//
+// Every pillar shows things that exist in Jira, and a reader who spots a problem here wants
+// to go fix it there. These build that hop.
+//
+// Each builder notes WHERE its URL shape comes from, because they are not equally certain:
+//
+//   proven    already in use in this app, or the same shape as something that is
+//   legacy    a /secure/admin/*.jspa path. These are the oldest and most stable admin URLs
+//             Jira has, and Cloud still honours them -- it redirects to whatever the modern
+//             equivalent currently is. Preferred over guessing at a /jira/settings/... leaf
+//             path, because a redirect that Atlassian maintains cannot rot into a 404 the way
+//             a hand-guessed modern path can.
+//
+// All of them return null rather than a broken href when the site origin or the id is
+// missing, and every caller falls back to plain text on null -- an anchor that goes nowhere
+// is worse than a label.
+
+// proven -- same /browse/ space as an issue key; Jira resolves a project key here too.
+export function buildProjectUrl(siteOrigin, projectKey) {
+  if (!siteOrigin || !projectKey) return null;
+  return `${siteOrigin}/browse/${encodeURIComponent(projectKey)}`;
+}
+
+// proven -- the /jira/software/projects/{KEY}/... space this app already names elsewhere
+// (see the note on buildAutomationRuleUrl). A board needs its project key as well as its own
+// id, because the board lives under the project in that path.
+export function buildBoardUrl(siteOrigin, projectKey, boardId) {
+  if (!siteOrigin || !projectKey || boardId === null || boardId === undefined || boardId === "") return null;
+  return `${siteOrigin}/jira/software/projects/${encodeURIComponent(projectKey)}/boards/${encodeURIComponent(boardId)}`;
+}
+
+// legacy -- confirmed still functional on Cloud for a screen by id.
+export function buildScreenUrl(siteOrigin, screenId) {
+  if (!siteOrigin || screenId === null || screenId === undefined || screenId === "") return null;
+  return `${siteOrigin}/secure/admin/ConfigureFieldScreen.jspa?id=${encodeURIComponent(screenId)}`;
+}
+
+// legacy -- one permission scheme's grants.
+export function buildPermissionSchemeUrl(siteOrigin, schemeId) {
+  if (!siteOrigin || schemeId === null || schemeId === undefined || schemeId === "") return null;
+  return `${siteOrigin}/secure/admin/EditPermissions!default.jspa?schemeId=${encodeURIComponent(schemeId)}`;
+}
+
+// legacy -- the admin lists. No per-object page exists for a priority or a resolution, and
+// the issue-type list is where a type is edited, so these are list links by nature rather
+// than by compromise.
+export function buildPriorityAdminUrl(siteOrigin) {
+  if (!siteOrigin) return null;
+  return `${siteOrigin}/secure/admin/ViewPriorities.jspa`;
+}
+
+export function buildResolutionAdminUrl(siteOrigin) {
+  if (!siteOrigin) return null;
+  return `${siteOrigin}/secure/admin/ViewResolutions.jspa`;
+}
+
+export function buildIssueTypeAdminUrl(siteOrigin) {
+  if (!siteOrigin) return null;
+  return `${siteOrigin}/secure/admin/ViewIssueTypes.jspa`;
+}
+
+// legacy -- the notification and issue-security scheme lists, for the Access pillar's other
+// two scheme types. Neither has a stable per-scheme legacy path that takes an id the way
+// EditPermissions does, so these land on the list.
+export function buildNotificationSchemeAdminUrl(siteOrigin) {
+  if (!siteOrigin) return null;
+  return `${siteOrigin}/secure/admin/ViewNotificationSchemes.jspa`;
+}
+
+export function buildIssueSecuritySchemeAdminUrl(siteOrigin) {
+  if (!siteOrigin) return null;
+  return `${siteOrigin}/secure/admin/ViewIssueSecuritySchemes.jspa`;
+}
+
+// legacy -- one Assets object schema. This is the shape Atlassian's own "how to find object
+// schema, object type and object IDs" KB prints, which is the closest thing to an
+// authoritative source for it; the newer in-product Assets route is not documented as a
+// stable deep link. Least certain of the set -- worth a spot-check on a real site.
+export function buildAssetSchemaUrl(siteOrigin, schemaId) {
+  if (!siteOrigin || schemaId === null || schemaId === undefined || schemaId === "") return null;
+  return `${siteOrigin}/secure/ObjectSchema.jspa?id=${encodeURIComponent(schemaId)}`;
+}
+
 export function handleJiraLinkClick(e, href) {
   if (!href || href === "#") return;
   e.preventDefault();
