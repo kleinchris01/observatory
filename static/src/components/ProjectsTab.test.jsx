@@ -223,7 +223,8 @@ describe("ProjectsTabView", () => {
     />);
     // The selected project's card is expanded in place, field-browser style.
     expect(container.querySelector(".field-card--open")).toBeInTheDocument();
-    expect(screen.getByText("DEMO · Demo Project")).toBeInTheDocument();
+    // The key is its own Jira link now, so the heading is no longer one text node.
+    expect(container.querySelector(".snapshot-log-entries__heading")).toHaveTextContent("DEMO · Demo Project");
     // The collapsed grid carries the field count as a metric chip; the expanded overview
     // repeats it as a stat tile.
     expect(screen.getAllByText(/Fields in use/i).length).toBeGreaterThan(0);

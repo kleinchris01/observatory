@@ -374,19 +374,19 @@ export function AdminApp() {
           ) : activeTab === "workflows" ? (
             <WorkflowTab intent={navIntent} siteOrigin={siteOrigin} />
           ) : activeTab === "issueTypes" ? (
-            <IssueTypesTab intent={navIntent} />
+            <IssueTypesTab intent={navIntent} siteOrigin={siteOrigin} />
           ) : activeTab === "priorities" ? (
-            <PrioritiesTab intent={navIntent} />
+            <PrioritiesTab intent={navIntent} siteOrigin={siteOrigin} />
           ) : activeTab === "boards" ? (
-            <BoardsTab intent={navIntent} />
+            <BoardsTab intent={navIntent} siteOrigin={siteOrigin} />
           ) : activeTab === "people" ? (
             <PeopleTab intent={navIntent} />
           ) : activeTab === "assets" ? (
-            <AssetsTab intent={navIntent} />
+            <AssetsTab intent={navIntent} siteOrigin={siteOrigin} />
           ) : activeTab === "access" ? (
-            <AccessTab intent={navIntent} />
+            <AccessTab intent={navIntent} siteOrigin={siteOrigin} />
           ) : activeTab === "screens" ? (
-            <ScreensTab intent={navIntent} onBuildFieldReport={buildFieldReport} />
+            <ScreensTab intent={navIntent} siteOrigin={siteOrigin} onBuildFieldReport={buildFieldReport} />
           ) : activeTab === "filters" ? (
             <FiltersTab siteOrigin={siteOrigin} intent={navIntent} />
           ) : activeTab === "dashboards" ? (

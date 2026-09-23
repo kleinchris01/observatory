@@ -1,10 +1,10 @@
 import React from "react";
 import { invoke } from "@forge/bridge";
-import { formatNumber, formatRelativeTime } from "../utils";
+import { formatNumber, formatRelativeTime, buildPriorityAdminUrl, buildResolutionAdminUrl } from "../utils";
 import { Icon } from "../components/Icons";
 import {
   StatTile, StatRow, Panel, EmptyState, Chip, PageHeader,
-  PanelGrid, GridSpan, PillarHealthPanel, FindingRow, SortFilterBar, AskRovo,
+  PanelGrid, GridSpan, PillarHealthPanel, FindingRow, SortFilterBar, AskRovo, JiraLink,
 } from "../components/ui";
 import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
@@ -99,7 +99,7 @@ function duplicateMap(groups = []) {
   return m;
 }
 
-export function PrioritiesTab({ intent }) {
+export function PrioritiesTab({ intent, siteOrigin }) {
   const [view, setView] = React.useState("overview");
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
@@ -277,7 +277,7 @@ export function PrioritiesTab({ intent }) {
         )}
 
         {view === "resolutions" && (
-          <Panel title="Resolutions" icon="checkCircle" description="The global resolution list. Jira offers no scheme layer to scope it — every project sees all of these.">
+          <Panel title="Resolutions" icon="checkCircle" description="The global resolution list. Jira offers no scheme layer to scope it — every project sees all of these." action={<JiraLink className="ui-linkbutton" href={buildResolutionAdminUrl(siteOrigin)} title="Manage resolutions in Jira">Manage in Jira</JiraLink>}>
             <SortFilterBar
               search={search} onSearchChange={setSearch}
               searchLabel="Search resolutions" searchPlaceholder="Search by name…"
@@ -297,7 +297,7 @@ export function PrioritiesTab({ intent }) {
         )}
 
         {view === "priorities" && (
-          <Panel title="Priorities" icon="flag" description="The global priority list, in the order it appears on the priority picker.">
+          <Panel title="Priorities" icon="flag" description="The global priority list, in the order it appears on the priority picker." action={<JiraLink className="ui-linkbutton" href={buildPriorityAdminUrl(siteOrigin)} title="Manage priorities in Jira">Manage in Jira</JiraLink>}>
             <SortFilterBar
               search={search} onSearchChange={setSearch}
               searchLabel="Search priorities" searchPlaceholder="Search by name…"

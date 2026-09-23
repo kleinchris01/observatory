@@ -1,5 +1,15 @@
 import { describe, it, test, expect, vi, beforeEach, afterEach } from "vitest";
 import {
+  buildProjectUrl,
+  buildBoardUrl,
+  buildScreenUrl,
+  buildPermissionSchemeUrl,
+  buildPriorityAdminUrl,
+  buildResolutionAdminUrl,
+  buildIssueTypeAdminUrl,
+  buildNotificationSchemeAdminUrl,
+  buildIssueSecuritySchemeAdminUrl,
+  buildAssetSchemaUrl,
   applyTableControls,
   compareValues,
   parseSortToken,
@@ -859,5 +869,62 @@ describe("buildRovoPrompt", () => {
 
   test("survives being handed nothing", () => {
     expect(buildRovoPrompt({})).toBe("");
+  });
+});
+
+// ── Jira deep-link builders ────────────────────────────────────────────────
+//
+// Every one of these returns null rather than a broken href when the origin or the id is
+// missing, because each caller renders plain text on null. That null path is the contract
+// worth pinning: a half-formed URL would render as a live link that goes nowhere.
+describe("Jira deep-link builders", () => {
+  const origin = "https://example.atlassian.net";
+
+  test("buildProjectUrl points at the project's browse page", () => {
+    expect(buildProjectUrl(origin, "DEMO")).toBe(`${origin}/browse/DEMO`);
+  });
+
+  test("buildBoardUrl nests the board under its project", () => {
+    expect(buildBoardUrl(origin, "DEMO", 42)).toBe(`${origin}/jira/software/projects/DEMO/boards/42`);
+  });
+
+  test("buildBoardUrl returns null for a board with no project -- personal boards have none", () => {
+    expect(buildBoardUrl(origin, null, 42)).toBeNull();
+    expect(buildBoardUrl(origin, "DEMO", null)).toBeNull();
+  });
+
+  test("id-taking builders encode their id", () => {
+    expect(buildScreenUrl(origin, 10)).toBe(`${origin}/secure/admin/ConfigureFieldScreen.jspa?id=10`);
+    expect(buildPermissionSchemeUrl(origin, 20)).toBe(`${origin}/secure/admin/EditPermissions!default.jspa?schemeId=20`);
+    expect(buildAssetSchemaUrl(origin, 3)).toBe(`${origin}/secure/ObjectSchema.jspa?id=3`);
+  });
+
+  test("an id of 0 is still an id, not a missing one", () => {
+    expect(buildScreenUrl(origin, 0)).toBe(`${origin}/secure/admin/ConfigureFieldScreen.jspa?id=0`);
+  });
+
+  test("the list builders need only an origin", () => {
+    expect(buildPriorityAdminUrl(origin)).toBe(`${origin}/secure/admin/ViewPriorities.jspa`);
+    expect(buildResolutionAdminUrl(origin)).toBe(`${origin}/secure/admin/ViewResolutions.jspa`);
+    expect(buildIssueTypeAdminUrl(origin)).toBe(`${origin}/secure/admin/ViewIssueTypes.jspa`);
+    expect(buildNotificationSchemeAdminUrl(origin)).toBe(`${origin}/secure/admin/ViewNotificationSchemes.jspa`);
+    expect(buildIssueSecuritySchemeAdminUrl(origin)).toBe(`${origin}/secure/admin/ViewIssueSecuritySchemes.jspa`);
+  });
+
+  test("every builder returns null without a site origin", () => {
+    for (const build of [
+      (o) => buildProjectUrl(o, "DEMO"),
+      (o) => buildBoardUrl(o, "DEMO", 1),
+      (o) => buildScreenUrl(o, 1),
+      (o) => buildPermissionSchemeUrl(o, 1),
+      (o) => buildAssetSchemaUrl(o, 1),
+      buildPriorityAdminUrl,
+      buildResolutionAdminUrl,
+      buildIssueTypeAdminUrl,
+      buildNotificationSchemeAdminUrl,
+      buildIssueSecuritySchemeAdminUrl,
+    ]) {
+      expect(build("")).toBeNull();
+    }
   });
 });

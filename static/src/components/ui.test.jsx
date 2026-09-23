@@ -3,7 +3,7 @@ import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { router, rovo } from "@forge/bridge";
-import { StatTile, StatRow, Panel, CollapsiblePanels, Chip, EmptyState, BarList, FindingRow, LinkButton, PageHeader, RuleLink, SortFilterBar, StageRail, formatDurationMs, AskRovo } from "./ui";
+import { StatTile, StatRow, Panel, CollapsiblePanels, Chip, EmptyState, BarList, FindingRow, LinkButton, PageHeader, RuleLink, JiraLink, SortFilterBar, StageRail, formatDurationMs, AskRovo } from "./ui";
 
 // These are the shared vocabulary that replaced four separate stat-card idioms. They are
 // small, but they now render on every tab, so a regression here is a regression
@@ -317,6 +317,40 @@ describe("SortFilterBar", () => {
 // RuleLink moved here from AutomationTab.jsx when the Workflows tab started rendering one
 // too: importing it across tabs would have pulled the whole AutomationTab chunk into the
 // Workflows bundle for a single anchor. Its tests came with it.
+describe("JiraLink", () => {
+  const href = "https://example.atlassian.net/browse/DEMO";
+
+  it("renders an anchor when it has somewhere to go", () => {
+    render(<JiraLink href={href}>DEMO</JiraLink>);
+    expect(screen.getByRole("link", { name: "DEMO" })).toHaveAttribute("href", href);
+  });
+
+  // Every URL builder returns null when the origin or the id is missing. A link that goes
+  // nowhere is worse than a label, so a null href degrades to the plain text it wrapped.
+  it("falls back to plain text on a null href", () => {
+    render(<JiraLink href={null}>DEMO</JiraLink>);
+    expect(screen.getByText("DEMO")).toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
+  it("opens through the Forge router rather than navigating the iframe", async () => {
+    const user = userEvent.setup();
+    render(<JiraLink href={href}>DEMO</JiraLink>);
+    await user.click(screen.getByRole("link", { name: "DEMO" }));
+    expect(router.open).toHaveBeenCalledWith(href);
+  });
+
+  // These sit inside rows that are themselves clickable. Without stopPropagation, opening
+  // the link would also fire whatever the row does.
+  it("does not let the click reach an enclosing clickable row", async () => {
+    const user = userEvent.setup();
+    const onRowClick = vi.fn();
+    render(<div onClick={onRowClick}><JiraLink href={href}>DEMO</JiraLink></div>);
+    await user.click(screen.getByRole("link", { name: "DEMO" }));
+    expect(onRowClick).not.toHaveBeenCalled();
+  });
+});
+
 describe("RuleLink", () => {
   const siteOrigin = "https://example.atlassian.net";
 

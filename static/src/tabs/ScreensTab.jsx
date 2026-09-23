@@ -1,8 +1,8 @@
 import React from "react";
 import { invoke } from "@forge/bridge";
-import { formatNumber, formatRelativeTime } from "../utils";
+import { formatNumber, formatRelativeTime, buildScreenUrl } from "../utils";
 import { Icon } from "../components/Icons";
-import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, SortFilterBar, PanelGrid, GridSpan, PillarHealthPanel, BarList, StickyActions, AskRovo } from "../components/ui";
+import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, SortFilterBar, PanelGrid, GridSpan, PillarHealthPanel, BarList, StickyActions, AskRovo, JiraLink } from "../components/ui";
 import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
 import { useNavIntent, useVisiblePolling } from "../hooks";
@@ -49,7 +49,7 @@ const SCREEN_SORT_OPTIONS = [
   { value: "unresolved-first", label: "Unreadable first" },
 ];
 
-export function ScreenRow({ screen, transitions = [], selectable = false, selected = false, onToggleSelect }) {
+export function ScreenRow({ screen, transitions = [], selectable = false, selected = false, onToggleSelect, siteOrigin }) {
   const unresolved = screen.tabsResolved !== "resolved";
 
   return (
@@ -65,7 +65,7 @@ export function ScreenRow({ screen, transitions = [], selectable = false, select
         </label>
       )}
       <div className="screen-row__identity">
-        <span className="screen-row__name">{screen.name}</span>
+        <JiraLink className="screen-row__name" href={buildScreenUrl(siteOrigin, screen.screenId)} title={`Configure ${screen.name} in Jira`}>{screen.name}</JiraLink>
         {screen.description && <span className="screen-row__desc">{screen.description}</span>}
         {/* Named individually rather than counted. "Used by 3 transitions" does not tell
             you whether deleting the screen breaks a workflow you care about; the workflow
@@ -302,7 +302,7 @@ function CrossSignalView() {
   );
 }
 
-export function ScreensTab({ intent = null, onBuildFieldReport }) {
+export function ScreensTab({ intent = null, siteOrigin, onBuildFieldReport }) {
   const [view, setView] = React.useState("screens");
   // Screens ticked for a field report. Keyed by id and kept across pages -- the picker spans
   // the whole catalogue, not just the 25 rows on screen.
@@ -734,6 +734,7 @@ export function ScreensTab({ intent = null, onBuildFieldReport }) {
                     key={screen.screenId}
                     screen={screen}
                     transitions={transitionsByScreen.get(screen.screenId) || []}
+                    siteOrigin={siteOrigin}
                     selectable={Boolean(onBuildFieldReport)}
                     selected={selectedScreenIds.has(screen.screenId)}
                     onToggleSelect={toggleScreenSelect}

@@ -1,9 +1,9 @@
 import React from "react";
 import { invoke } from "@forge/bridge";
-import { formatNumber, formatRelativeTime } from "../utils";
+import { formatNumber, formatRelativeTime, buildBoardUrl, buildProjectUrl } from "../utils";
 import { Icon } from "../components/Icons";
 import {
-  StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, SortFilterBar, FindingRow,
+  StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, SortFilterBar, FindingRow, JiraLink,
 } from "../components/ui";
 import { SubNavLayout } from "../components/admin/primitives";
 import { useNavIntent, useVisiblePolling } from "../hooks";
@@ -17,18 +17,33 @@ const BUILD_POLL_MS = 3000;
 
 const TYPE_TONE = { scrum: "active", kanban: "success", simple: "neutral" };
 
-function BoardRow({ board }) {
+function BoardRow({ board, siteOrigin }) {
   const loc = board.locationType === "user"
     ? `personal · ${board.locationName || board.locationId || "unknown owner"}`
     : board.locationKey
       ? `${board.locationKey}${board.locationName ? ` · ${board.locationName}` : ""}`
       : "no project";
 
+  // A board only has a deep link when it sits under a project: the board URL is a path
+  // beneath the project key. Personal boards have no project, so they stay plain text --
+  // JiraLink renders a span when the href is null.
+  const boardHref = buildBoardUrl(siteOrigin, board.locationKey, board.boardId);
+  const projectHref = board.locationType === "user" ? null : buildProjectUrl(siteOrigin, board.locationKey);
+
   return (
     <div className="issue-type-row">
       <div className="issue-type-row__identity">
-        <span className="issue-type-row__name">{board.name}</span>
-        <span className="issue-type-row__desc">{loc}</span>
+        <JiraLink className="issue-type-row__name" href={boardHref} title={`Open ${board.name} in Jira`}>
+          {board.name}
+        </JiraLink>
+        {projectHref ? (
+          <span className="issue-type-row__desc">
+            <JiraLink href={projectHref} title={`Open ${board.locationKey} in Jira`}>{board.locationKey}</JiraLink>
+            {board.locationName ? ` · ${board.locationName}` : ""}
+          </span>
+        ) : (
+          <span className="issue-type-row__desc">{loc}</span>
+        )}
       </div>
       <div className="issue-type-row__meta">
         {board.type && <Chip tone={TYPE_TONE[board.type] || "neutral"}>{board.type}</Chip>}
@@ -50,7 +65,7 @@ function BoardRow({ board }) {
   );
 }
 
-export function BoardsTab({ intent }) {
+export function BoardsTab({ intent, siteOrigin }) {
   const [view, setView] = React.useState("overview");
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
@@ -253,7 +268,7 @@ export function BoardsTab({ intent }) {
               <EmptyState inline>{term || typeFilter !== "all" ? "No board matches these filters." : "No boards in this snapshot."}</EmptyState>
             ) : (
               <div className="issue-type-list">
-                {filtered.map((board) => <BoardRow key={board.boardId} board={board} />)}
+                {filtered.map((board) => <BoardRow key={board.boardId} board={board} siteOrigin={siteOrigin} />)}
               </div>
             )}
           </Panel>

@@ -1,8 +1,8 @@
 import React from "react";
 import { invoke } from "@forge/bridge";
-import { formatNumber, formatRelativeTime } from "../utils";
+import { formatNumber, formatRelativeTime, buildIssueTypeAdminUrl } from "../utils";
 import { Icon } from "../components/Icons";
-import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, PanelGrid, GridSpan, BarList, PillarHealthPanel, FindingRow, SortFilterBar, AskRovo } from "../components/ui";
+import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, PanelGrid, GridSpan, BarList, PillarHealthPanel, FindingRow, SortFilterBar, AskRovo, JiraLink } from "../components/ui";
 import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
 import { useNavIntent, useVisiblePolling } from "../hooks";
@@ -236,7 +236,7 @@ export function IssueTypeFindings({ findings }) {
   );
 }
 
-export function IssueTypesTab({ intent }) {
+export function IssueTypesTab({ intent, siteOrigin }) {
   const [view, setView] = React.useState("overview");
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
@@ -402,7 +402,10 @@ export function IssueTypesTab({ intent }) {
         title="Issue Types"
         description="Issue types by hierarchy level, and the schemes that gate which types each project may use. Read-only — changes stay in Jira's admin UI."
         meta={data?.refreshedAt ? `Built ${formatRelativeTime(data.refreshedAt)}` : "Never built"}
-        actions={buildAction}
+        actions={<>
+          <JiraLink className="ui-linkbutton" href={buildIssueTypeAdminUrl(siteOrigin)} title="Manage issue types in Jira">Manage in Jira</JiraLink>
+          {buildAction}
+        </>}
       />
 
       {error && <div className="danger-zone__error" role="alert">{error}</div>}

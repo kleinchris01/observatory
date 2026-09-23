@@ -4,6 +4,7 @@ import {
 } from "recharts";
 import {
   buildJiraSearchUrl,
+  buildProjectUrl,
   handleJiraLinkClick,
   openFieldExpertRovo,
   buildProjectRovoPrompt,
@@ -17,7 +18,7 @@ import { invoke } from "@forge/bridge";
 import { Icon, useChartPalette } from "./Icons";
 import { SkeletonFieldCard, FindingsStrip, MetricChip } from "./FieldCard";
 import { SubNavLayout } from "./admin/primitives";
-import { Panel, StatRow, StatTile, BarList, PanelGrid, GridSpan, EmptyState, Chip, PageHeader, AskRovo, SortFilterBar, CollapsiblePanels } from "./ui";
+import { Panel, StatRow, StatTile, BarList, PanelGrid, GridSpan, EmptyState, Chip, PageHeader, AskRovo, SortFilterBar, CollapsiblePanels, JiraLink } from "./ui";
 import { buildRovoPrompt } from "../utils";
 
 function ChartTooltip({ active, payload }) {
@@ -1195,7 +1196,17 @@ export function ProjectCard({
         <div className="field-card__body">
           <div className="section-heading">
             <div>
-              <div className="snapshot-log-entries__heading">{project.projectKey} · {project.projectName}</div>
+              {/* In the expanded body rather than the card header: the header is a <button>
+                  (the expand toggle) and an anchor cannot legally nest inside one. */}
+              <div className="snapshot-log-entries__heading">
+                <JiraLink
+                  href={buildProjectUrl(siteOrigin, project.projectKey)}
+                  title={`Open ${project.projectKey} in Jira`}
+                >
+                  {project.projectKey}
+                </JiraLink>
+                {" · "}{project.projectName}
+              </div>
             </div>
             <div className="section-heading__actions">
               <AskRovo

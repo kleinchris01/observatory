@@ -6757,17 +6757,20 @@ a.dash-row__name:hover { text-decoration: underline; }
    noise, and the pointer plus colour already read as a link. */
 
 .rule-link,
+.jira-link,
 .automation-usage__name--link {
   color: var(--cool);
   text-decoration: none;
   cursor: pointer;
 }
 .rule-link:hover,
+.jira-link:hover,
 .automation-usage__name--link:hover {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 .rule-link:focus-visible,
+.jira-link:focus-visible,
 .automation-usage__name--link:focus-visible {
   outline: 2px solid var(--cool);
   outline-offset: 2px;
