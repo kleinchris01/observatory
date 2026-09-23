@@ -82,6 +82,12 @@ export function buildJiraSearchUrl(siteOrigin, jql) {
   return `${siteOrigin}/issues/?jql=${encodeURIComponent(jql)}`;
 }
 
+// Deep link to one issue by key, e.g. a remediation epic or task.
+export function buildIssueUrl(siteOrigin, issueKey) {
+  if (!siteOrigin || !issueKey) return null;
+  return `${siteOrigin}/browse/${encodeURIComponent(issueKey)}`;
+}
+
 export function handleJiraLinkClick(e, href) {
   if (!href || href === "#") return;
   e.preventDefault();

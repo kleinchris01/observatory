@@ -28,6 +28,7 @@ import { buildUserSnapshot } from "./lib/user-engine.js";
 import { buildAssetSnapshot, buildAssetTypeCounts } from "./lib/asset-engine.js";
 import { buildAccessSnapshot } from "./lib/access-engine.js";
 import { buildEstateSnapshot } from "./lib/estate-engine.js";
+import { syncRemediationTickets } from "./lib/remediation-sync.js";
 import { buildBoardSnapshot } from "./lib/board-engine.js";
 import { buildDriftSnapshot } from "./lib/drift-engine.js";
 import { runFullScanStep, runQuickScanStep, startQuickScan, recoverStalledScan } from "./lib/full-scan-runner.js";
@@ -233,6 +234,19 @@ export async function quickScanScheduleCheck(_event, context) {
   }
 
   return { ...result, recovery };
+}
+
+// Hourly: re-reads live status and assignee for every open remediation ticket from Jira and
+// writes it back. Its own trigger rather than folded into quickScanScheduleCheck above --
+// unrelated concerns (scan scheduling vs. remediation tracking) that happen to share a cadence
+// is not a reason to share a function, and a failure in one should never be able to stop the
+// other from running.
+export async function remediationSyncCheck(_event, context) {
+  const installationKey = getInstallationKey(context);
+  return syncRemediationTickets(installationKey).catch((error) => {
+    logger.error("remediation.sync_watchdog_failed", { installationKey, error: error?.message || String(error) });
+    return { checked: 0, updated: 0, error: error?.message || String(error) };
+  });
 }
 
 export async function runProjectStorageMigrations() {

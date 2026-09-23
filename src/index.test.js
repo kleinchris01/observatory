@@ -86,6 +86,10 @@ vi.mock("./lib/scan-engine.js", () => ({
   },
 }));
 
+vi.mock("./lib/remediation-sync.js", () => ({
+  syncRemediationTickets: vi.fn().mockResolvedValue({ checked: 0, updated: 0 }),
+}));
+
 vi.mock("./lib/snapshot-engine.js", () => ({
   runSnapshot: vi.fn().mockResolvedValue(undefined),
   queueSnapshotBuild: vi.fn().mockResolvedValue(undefined),
@@ -169,11 +173,13 @@ import {
   runRetentionCleanup,
   autoSnapshotCheck,
   quickScanScheduleCheck,
+  remediationSyncCheck,
   runProjectStorageMigrations,
   consumeSnapshot,
   handler,
   adminHandler,
 } from "./index.js";
+import { syncRemediationTickets } from "./lib/remediation-sync.js";
 import {
   readSnapshotMeta,
   writeSnapshotMeta,
@@ -494,6 +500,37 @@ describe("quickScanScheduleCheck", () => {
 
     expect(reviveStalledIssueScanWorkers).toHaveBeenCalledWith("scope-1");
     expect(result).toMatchObject({ skipped: true, reason: "disabled" });
+  });
+});
+
+describe("remediationSyncCheck", () => {
+  test("syncs the calling installation's open remediation tickets", async () => {
+    syncRemediationTickets.mockResolvedValueOnce({ checked: 3, updated: 2 });
+
+    const result = await remediationSyncCheck({}, CONTEXT);
+
+    expect(syncRemediationTickets).toHaveBeenCalledWith("scope-1");
+    expect(result).toEqual({ checked: 3, updated: 2 });
+  });
+
+  // A watchdog that can itself throw and take down the trigger defeats the purpose of a
+  // watchdog -- the next hour's firing should still get a clean attempt.
+  test("swallows a failure and reports it rather than throwing", async () => {
+    syncRemediationTickets.mockRejectedValueOnce(new Error("sql down"));
+
+    const result = await remediationSyncCheck({}, CONTEXT);
+
+    expect(result).toMatchObject({ checked: 0, updated: 0, error: "sql down" });
+  });
+
+  // Not every rejection is an Error with a .message -- a plain string throw exercises the
+  // String(error) fallback the .message branch above does not.
+  test("stringifies a rejection that carries no .message", async () => {
+    syncRemediationTickets.mockRejectedValueOnce("boom");
+
+    const result = await remediationSyncCheck({}, CONTEXT);
+
+    expect(result).toMatchObject({ checked: 0, updated: 0, error: "boom" });
   });
 });
 
@@ -1083,6 +1120,11 @@ describe("manifest wiring", () => {
   test("runRetentionCleanup is bound to a function and a scheduled trigger", () => {
     expect(manifest).toContain("handler: index.runRetentionCleanup");
     expect(manifest).toMatch(/key: retention-cleanup-trigger[\s\S]*?function: retention-cleanup/);
+  });
+
+  test("remediationSyncCheck is bound to a function and a scheduled trigger", () => {
+    expect(manifest).toContain("handler: index.remediationSyncCheck");
+    expect(manifest).toMatch(/key: remediation-sync-trigger[\s\S]*?function: remediation-sync/);
   });
 
   test("retention runs on a different schedule than auto-snapshot", () => {

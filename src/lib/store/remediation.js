@@ -108,6 +108,21 @@ export async function getRemediationEpic(scopeKey, findingKey) {
   return row ? mapRow(row) : null;
 }
 
+// Every ticket not already known to be done -- what the hourly sync re-reads from Jira.
+// "Not done" rather than "in progress": a row that has never synced (last_status_category
+// NULL) is exactly as open as one Jira has confirmed is not done, and skipping it would mean
+// a freshly created ticket never gets its first status read until something else touches it.
+export async function loadOpenRemediationTickets(scopeKey) {
+  await ensureProjectStoreReady();
+  const result = await withSqlRetry(() =>
+    sql.prepare(`
+      SELECT * FROM remediation_tickets
+      WHERE scope_key = ? AND (last_status_category IS NULL OR last_status_category != 'done')
+    `).bindParams(scopeKey).execute()
+  );
+  return (result.rows || []).map(mapRow);
+}
+
 // The item ids that already have a task under this finding -- the idempotency set the
 // task-creation job diffs against so it never doubles up.
 export async function loadTicketedItemIds(scopeKey, findingKey) {

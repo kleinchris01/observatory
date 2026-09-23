@@ -34,6 +34,7 @@ const OverviewTab = React.lazy(() => import("./tabs/OverviewTab").then((m) => ({
 const ProjectUsageTab = React.lazy(() => import("./tabs/ProjectUsageTab").then((m) => ({ default: m.ProjectUsageTab })));
 const ReportsTab = React.lazy(() => import("./tabs/ReportsTab").then((m) => ({ default: m.ReportsTab })));
 const ScansTab = React.lazy(() => import("./tabs/ScansTab").then((m) => ({ default: m.ScansTab })));
+const RemediationTab = React.lazy(() => import("./tabs/RemediationTab").then((m) => ({ default: m.RemediationTab })));
 const DashboardsTab = React.lazy(() => import("./tabs/DashboardsTab").then((m) => ({ default: m.DashboardsTab })));
 const FiltersTab = React.lazy(() => import("./tabs/FiltersTab").then((m) => ({ default: m.FiltersTab })));
 const AutomationTab = React.lazy(() =>
@@ -129,6 +130,7 @@ export const ADMIN_NAV_TABS = [
   { key: "dashboards", label: "Dashboards", icon: "grid" },
   { key: "boards", label: "Boards", icon: "kanban" },
   { key: "automation", label: "Automation", icon: "refreshCw" },
+  { key: "remediation", label: "Remediation", icon: "wrench" },
   { key: "reports", label: "Reports", icon: "clipboardText" },
   { key: "changes", label: "Changes", icon: "clock" },
   { key: "scans", label: "Scans", icon: "zap" },
@@ -379,6 +381,8 @@ export function AdminApp() {
             <DashboardsTab siteOrigin={siteOrigin} intent={navIntent} />
           ) : activeTab === "automation" ? (
             <AutomationTab siteOrigin={siteOrigin} intent={navIntent} />
+          ) : activeTab === "remediation" ? (
+            <RemediationTab siteOrigin={siteOrigin} />
           ) : activeTab === "reports" ? (
             <ReportsTab siteOrigin={siteOrigin} selectedFieldIds={selectedFieldIds} onSetSelectedFieldIds={setSelectedFieldIds} autoGenerate={pendingReportGenerate} onAutoGenerateConsumed={() => setPendingReportGenerate(false)} initialSection={reportsInitialSection} projectScope={reportProjectScope} onSetProjectScope={setReportProjectScope} />
           ) : activeTab === "changes" ? (
