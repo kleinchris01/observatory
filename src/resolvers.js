@@ -354,6 +354,16 @@ const DEFAULT_MACRO_ACCESS = {
 // still catch everything that changed, not lose the gap in between. Narrower than the
 // interval would be the opposite mistake -- a quiet hole between two quick scans that nothing
 // ever re-checks.
+// What the admin has explicitly acknowledged during first run, and whether they have put
+// the panel away. Only ACKNOWLEDGEMENTS live here -- a human confirming they have read
+// something is a real fact with nowhere else to live. Every step that describes the state of
+// the estate is derived from that estate on read, never stored: a stored flag drifts, lies
+// after a data wipe, and survives a reinstall it should not.
+const DEFAULT_FIRST_RUN = {
+  acknowledged: [],
+  dismissed: false,
+};
+
 const DEFAULT_QUICK_SCAN_SCHEDULE = {
   enabled: false,
   frequency: "weekly",
@@ -386,6 +396,7 @@ const DEFAULT_ADMIN_CONFIG = {
   macroAccess: DEFAULT_MACRO_ACCESS,
   quickScanSchedule: DEFAULT_QUICK_SCAN_SCHEDULE,
   remediation: DEFAULT_REMEDIATION_CONFIG,
+  firstRun: DEFAULT_FIRST_RUN,
 };
 
 export async function readAdminConfig() {
@@ -410,6 +421,10 @@ export async function readAdminConfig() {
       remediation: {
         ...DEFAULT_REMEDIATION_CONFIG,
         ...(stored.remediation || {}),
+      },
+      firstRun: {
+        ...DEFAULT_FIRST_RUN,
+        ...(stored.firstRun || {}),
       },
     };
   } catch {
@@ -543,6 +558,10 @@ export async function saveAdminConfigResolver({ payload }) {
     remediation: {
       ...current.remediation,
       ...(payload?.remediation || {}),
+    },
+    firstRun: {
+      ...current.firstRun,
+      ...(payload?.firstRun || {}),
     },
   };
   updated.apiConcurrency = Math.max(1, Math.min(10, Number(updated.apiConcurrency) || BASE_JIRA_CONCURRENCY));
@@ -7885,6 +7904,181 @@ const EMPTY_DASHBOARD = {
   projects: { totalProjects: 0, topByIssueVolume: [], topByFieldCount: [] },
 };
 
+// -- First run --------------------------------------------------------------
+//
+// This app is useless for the first few hours of its life. Nothing it says is worth reading
+// until a scan has walked the estate, and on a real site that is a multi-hour job -- so the
+// design problem is not explaining the product, it is making a long wait feel like arrival
+// rather than absence.
+//
+// Two things come back here. A five-step checklist, and an arrivals list: every scan stage
+// that has landed, what it produced, and when. The second is the one that earns the wait --
+// fifteen stages become fifteen small moments, each a section the admin can open NOW while
+// the issue crawl runs for another two hours.
+//
+// Steps are DERIVED wherever the estate can answer for itself. Only the two that describe a
+// human having read something are acknowledged, and those are marked as such so the panel
+// never shows a tick that means "somebody clicked" as though it meant "this is true".
+
+const FIRST_RUN_ACK_STEPS = ["evidence-rule", "share-macro"];
+
+export async function getFirstRunState({ context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+
+  // Every read degrades to "not measured", which is the honest answer for a checklist: a
+  // step whose evidence could not be read shows as outstanding rather than as done. Each one
+  // is named, because a first-run panel that silently reports a scanned site as unscanned is
+  // precisely the kind of confident wrong answer the degradation helpers exist to surface.
+  const [config, fieldMeta, scanMeta, automation, workflowMeta] = await Promise.all([
+    readAdminConfig().catch(fallbackOn("first_run.config_read_failed", null, { installationKey })),
+    readSnapshotMeta(installationKey).catch(fallbackOn("first_run.field_meta_read_failed", null, { installationKey })),
+    readFullScanMeta(installationKey).catch(fallbackOn("first_run.scan_meta_read_failed", null, { installationKey })),
+    readAutomationAnalysis(installationKey).catch(fallbackOn("first_run.automation_read_failed", null, { installationKey })),
+    readWorkflowSnapshotMeta(installationKey).catch(fallbackOn("first_run.workflow_meta_read_failed", null, { installationKey })),
+  ]);
+
+  const acknowledged = new Set(config?.firstRun?.acknowledged || []);
+  const scanRunning = scanMeta?.state === "running";
+
+  // "A scan has produced something" rather than "a scan run finished". A site whose full
+  // scan was cancelled half way still has four pillars on disk and is past this step; a site
+  // that has never run one has nothing, whatever any bookkeeping row says.
+  const anySnapshot = Boolean(fieldMeta?.version || workflowMeta?.version);
+
+  const steps = [
+    {
+      key: "first-scan",
+      title: "Run the first scan",
+      done: anySnapshot,
+      kind: "derived",
+      detail: anySnapshot
+        ? "Your estate has been read at least once."
+        : "Observatory reads every project, field, screen, workflow and board on this site. The first pass is typically 2-4 hours, most of it the issue crawl — it runs on Atlassian's servers, so you can close this tab.",
+      cta: anySnapshot ? null : { label: "Go to Scans", tab: "scans" },
+    },
+    {
+      key: "evidence-rule",
+      title: 'Understand "not measured"',
+      done: acknowledged.has("evidence-rule"),
+      kind: "acknowledged",
+      detail: "Zero is what makes something look safe to delete, so Observatory only shows a zero when a scan actually looked and found none. Anything it has not measured says so instead. Every screen depends on that distinction.",
+    },
+    {
+      key: "import-automation",
+      title: "Import your automation rules",
+      done: Boolean(automation),
+      kind: "derived",
+      detail: Boolean(automation)
+        ? "Automation references are in play, so findings about fields and statuses account for them."
+        : "Jira publishes no API that lets an app read automation rules, so this one is exported rather than scanned. Until you import it, Observatory will not claim a field or status is unreferenced — it will say unknown.",
+      cta: Boolean(automation) ? null : { label: "Go to Automation", tab: "automation" },
+    },
+    {
+      key: "scan-schedule",
+      title: "Set a scan schedule",
+      done: Boolean(config?.quickScanSchedule?.enabled),
+      kind: "derived",
+      detail: config?.quickScanSchedule?.enabled
+        ? "A quick scan runs on a schedule, so the estate stays fresh without anyone remembering."
+        : "A quick scan re-reads everything except the full issue crawl. Without one, every number here ages until somebody runs a scan by hand.",
+      cta: config?.quickScanSchedule?.enabled ? null : { label: "Go to Scans", tab: "scans" },
+    },
+    {
+      key: "share-macro",
+      title: "Share it with the people who ask you questions",
+      done: acknowledged.has("share-macro"),
+      kind: "acknowledged",
+      detail: "The Confluence macro gives a read-only view of fields, screens, boards and workflows, filtered to whatever projects each reader can already browse in Jira. It is how this stops being a tool only one person opens.",
+    },
+  ];
+
+  const remaining = steps.filter((step) => !step.done).length;
+
+  return {
+    // Gone once every step is done, without anyone dismissing it: a checklist that lingers
+    // after completion is clutter with a tick in it, sitting permanently at the top of the
+    // page an admin opens most. It comes back on its own if the estate regresses -- a wiped
+    // snapshot puts the scan step back -- which is the upside of deriving rather than storing.
+    show: !config?.firstRun?.dismissed && remaining > 0,
+    dismissed: Boolean(config?.firstRun?.dismissed),
+    remaining,
+    steps,
+    scanRunning,
+    arrivals: await firstRunArrivals(installationKey, { anySnapshot, meta: scanMeta }),
+  };
+}
+
+// What has landed, newest first, and what is still coming.
+//
+// Built from the stage rows the orchestrator already writes and the produced counts the
+// pillar metas already hold. Nothing new is measured here -- this is the same data the Scans
+// tab renders as a pipeline, turned round to read as arrivals.
+async function firstRunArrivals(installationKey, { anySnapshot, meta }) {
+  if (!anySnapshot) return { available: false, landed: [], pending: [] };
+  // A site whose snapshots predate stage bookkeeping, or whose meta row did not survive,
+  // has nothing to say here. Rendering the catalog anyway would put fifteen "not started"
+  // rows in front of an admin whose estate has in fact been read -- worse than silence.
+  if (!meta?.stages?.length) return { available: false, landed: [], pending: [] };
+
+  // The only read here that can fail. Losing it costs the counts, not the list: a stage that
+  // landed is still reported as landed, and what is unknown is how many -- said by omitting
+  // the number rather than by printing a zero.
+  const counts = await readStageProducedCounts(installationKey, "full")
+    .catch(fallbackOn("first_run.stage_counts_read_failed", {}, { installationKey }));
+
+  const landed = [];
+  const pending = [];
+  const byKey = new Map(meta.stages.map((row) => [row.key, row]));
+
+  for (const stage of fullScanStageCatalog()) {
+    const row = byKey.get(stage.key);
+    const produced = counts?.[stage.key];
+    const entry = {
+      key: stage.key,
+      label: stage.label,
+      state: row?.state || "pending",
+      completedAt: row?.completedAt || null,
+      produced: Number.isFinite(Number(produced)) ? Number(produced) : null,
+      // Not every stage produces a countable thing -- health records a score, drift appends
+      // to a timeline. Saying "produced --" for those reads as a failure rather than as a
+      // stage that simply does not count anything.
+      countable: produced != null,
+      error: row?.error || null,
+    };
+    if (entry.state === "done") landed.push(entry);
+    else if (entry.state !== "skipped") pending.push(entry);
+  }
+
+  landed.sort((a, b) => String(b.completedAt || "").localeCompare(String(a.completedAt || "")));
+  return { available: true, landed, pending };
+}
+
+// Ticking an acknowledgement, or putting the panel away. The only first-run state that is
+// written rather than derived.
+export async function setFirstRunState({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  const config = await readAdminConfig();
+  const current = config.firstRun || DEFAULT_FIRST_RUN;
+
+  const next = { ...current };
+  if (payload?.acknowledge) {
+    const key = String(payload.acknowledge);
+    // Only the two steps that are genuinely an acknowledgement. Accepting an arbitrary key
+    // would let a caller tick a DERIVED step, which is the one thing this must never do --
+    // those describe the estate, and the estate is the only thing entitled to answer.
+    if (!FIRST_RUN_ACK_STEPS.includes(key)) {
+      return { ok: false, error: `"${key}" is derived from the estate and cannot be acknowledged.` };
+    }
+    next.acknowledged = [...new Set([...(current.acknowledged || []), key])];
+  }
+  if (payload?.dismissed !== undefined) next.dismissed = Boolean(payload.dismissed);
+
+  await kvs.set(ADMIN_CONFIG_KEY, { ...config, firstRun: next });
+  return { ok: true, firstRun: next };
+}
+
 export async function getAdminOverview({ context }) {
   await ensureProjectStoreReady();
   const installationKey = getInstallationKey(context);
@@ -9210,6 +9404,8 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   resumeSiteScan,          // Mutating: re-kicks a stalled full/quick scan orchestrator
   cancelSiteScan,          // Mutating: hard-stops a running full/quick scan, freeing the meta row
   getQuickScanStatus,      // Admin read: per-stage progress of the quick scan
+  getFirstRunState,        // Admin read: the first-run checklist and the arrivals list
+  setFirstRunState,        // Admin write: acknowledge a first-run step, or dismiss the panel
   getFullScanStatus,       // Admin read: per-stage progress of the full scan
   startIssueScan,          // Mutating: queues a full issue scan job
   resumeIssueScan,         // Mutating: re-queues incomplete issue scan workers

@@ -649,6 +649,8 @@ import {
   // Not a resolver -- it runs inside the health stage of a scan, so it is imported
   // directly rather than pulled out of a resolver registry.
   computeAndStoreScreenCross,
+  getFirstRunState,
+  setFirstRunState,
 } from "./resolvers.js";
 
 const {
@@ -9478,5 +9480,239 @@ describe("the macro's viewer-scoped pillars", () => {
                         "getDeletionSafety", "getScreenFieldCrossSignal"]) {
       expect(SHARED_RESOLVER_FUNCTIONS).not.toHaveProperty(name);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// First run
+//
+// The rule under test is the one the panel is built on: every step the estate can answer
+// for itself IS answered from the estate, on every read. Only the two that describe a
+// person having read something are stored. A test that let a stored flag tick "the first
+// scan has run" would let the panel congratulate an admin on a scan that never happened,
+// which is the exact failure the derivation exists to prevent.
+// ---------------------------------------------------------------------------
+describe("first run", () => {
+  const stepFor = (state, key) => state.steps.find((step) => step.key === key);
+
+  // The field snapshot has no default in the global beforeEach -- the groups that need it
+  // set it themselves. A first run reads it on every call, so the "nothing has been scanned
+  // yet" answer is stated here rather than left to an undefined mock.
+  beforeEach(() => {
+    mocks.readSnapshotMeta.mockResolvedValue(null);
+    mocks.readFullScanMeta.mockResolvedValue(null);
+  });
+
+  test("a brand-new site has every step outstanding and no arrivals list", async () => {
+    const state = await getFirstRunState({ context: { accountId: "a" } });
+
+    expect(state.show).toBe(true);
+    expect(state.remaining).toBe(5);
+    expect(state.steps.every((step) => step.done === false)).toBe(true);
+    // Nothing has been read, so there is nothing to arrive. An arrivals panel listing
+    // fifteen pending stages on a site that has never scanned is a wall of "not started".
+    expect(state.arrivals.available).toBe(false);
+  });
+
+  test("the scan step is derived from a snapshot existing, not from a scan run finishing", async () => {
+    // Deliberately a CANCELLED run that still left a workflow snapshot behind. The estate
+    // has been read; the bookkeeping row says the run did not finish. The pillar on disk wins.
+    mocks.readFullScanMeta.mockResolvedValue({ state: "cancelled", stages: [] });
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v3", totalSchemes: 9 });
+
+    const state = await getFirstRunState({ context: { accountId: "a" } });
+
+    expect(stepFor(state, "first-scan").done).toBe(true);
+    expect(stepFor(state, "first-scan").cta).toBeNull();
+  });
+
+  test("automation and schedule steps read the estate, and lose their prompt once satisfied", async () => {
+    mocks.readAutomationAnalysis.mockResolvedValue({ refreshedAt: Date.now(), rules: [] });
+    mocks.kvsGet.mockResolvedValue({ quickScanSchedule: { enabled: true } });
+
+    const state = await getFirstRunState({ context: { accountId: "a" } });
+
+    expect(stepFor(state, "import-automation").done).toBe(true);
+    expect(stepFor(state, "import-automation").cta).toBeNull();
+    expect(stepFor(state, "scan-schedule").done).toBe(true);
+    expect(state.remaining).toBe(3);
+  });
+
+  test("acknowledged steps come back ticked, and are marked acknowledged rather than measured", async () => {
+    mocks.kvsGet.mockResolvedValue({ firstRun: { acknowledged: ["evidence-rule"] } });
+
+    const state = await getFirstRunState({ context: { accountId: "a" } });
+
+    expect(stepFor(state, "evidence-rule")).toMatchObject({ done: true, kind: "acknowledged" });
+    expect(stepFor(state, "share-macro")).toMatchObject({ done: false, kind: "acknowledged" });
+    // The distinction has to survive the round trip: it is what decides whether the panel
+    // offers a "Got it" button at all.
+    expect(stepFor(state, "first-scan").kind).toBe("derived");
+  });
+
+  test("arrivals report what landed and what is still coming, newest first", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1", totalSchemes: 9 });
+    mocks.readScreenSnapshotMeta.mockResolvedValue({ totalScreens: 40 });
+    mocks.readFullScanMeta.mockResolvedValue({
+      state: "running",
+      stages: [
+        { key: "workflows", state: "done", completedAt: "2026-01-01T10:00:00.000Z" },
+        { key: "screens", state: "done", completedAt: "2026-01-01T11:00:00.000Z" },
+        { key: "filters", state: "failed", completedAt: "2026-01-01T11:05:00.000Z", error: "Jira said 503" },
+        { key: "issues", state: "running" },
+      ],
+    });
+
+    const state = await getFirstRunState({ context: { accountId: "a" } });
+
+    expect(state.scanRunning).toBe(true);
+    expect(state.arrivals.available).toBe(true);
+    expect(state.arrivals.landed.map((stage) => stage.key)).toEqual(["screens", "workflows"]);
+    expect(state.arrivals.landed[0]).toMatchObject({ produced: 40, countable: true });
+    // A failed stage is reported in the same list rather than hidden -- the pillar did not
+    // build, which is a fact an admin needs on the way past, with the reason attached.
+    expect(state.arrivals.pending.find((stage) => stage.key === "filters"))
+      .toMatchObject({ state: "failed", error: "Jira said 503" });
+  });
+
+  test("a stage with nothing to count is not reported as having produced nothing", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1", totalSchemes: 3 });
+    mocks.readFullScanMeta.mockResolvedValue({
+      state: "running",
+      stages: [{ key: "health", state: "done", completedAt: "2026-01-01T12:00:00.000Z" }],
+    });
+
+    const state = await getFirstRunState({ context: { accountId: "a" } });
+
+    // health records a score, not a count. `countable: false` is what stops the panel
+    // rendering "Health - 0", which reads as a failure rather than as a stage that simply
+    // does not count anything.
+    expect(state.arrivals.landed.find((stage) => stage.key === "health"))
+      .toMatchObject({ countable: false, produced: null });
+  });
+
+  test("a scanned site with no stage bookkeeping shows no arrivals rather than fifteen blanks", async () => {
+    // A snapshot exists, but the meta row does not -- an install that scanned before stage
+    // bookkeeping shipped, or one whose row was lost. Rendering the catalog anyway would put
+    // fifteen "not started" rows in front of an admin whose estate HAS been read.
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1" });
+    mocks.readFullScanMeta.mockResolvedValue({ state: "idle", stages: [] });
+
+    const state = await getFirstRunState({ context: { accountId: "a" } });
+
+    expect(state.steps).toHaveLength(5);
+    expect(stepFor(state, "first-scan").done).toBe(true);
+    expect(state.arrivals.available).toBe(false);
+  });
+
+  test("a failed produced-count read costs the counts, not the arrivals list", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1", totalSchemes: 4 });
+    mocks.readScreenSnapshotMeta.mockRejectedValue(new Error("screens meta unreadable"));
+    mocks.readFullScanMeta.mockResolvedValue({
+      state: "idle",
+      stages: [
+        { key: "workflows", state: "done", completedAt: "2026-01-01T10:00:00.000Z" },
+        { key: "screens", state: "done", completedAt: "2026-01-01T11:00:00.000Z" },
+      ],
+    });
+
+    const state = await getFirstRunState({ context: { accountId: "a" } });
+
+    expect(state.arrivals.landed).toHaveLength(2);
+    // Screens landed and is still reported as landed. What is unknown is how many, and that
+    // is said by omitting the number rather than by printing a zero.
+    expect(state.arrivals.landed.find((stage) => stage.key === "screens"))
+      .toMatchObject({ countable: false, produced: null });
+    expect(state.arrivals.landed.find((stage) => stage.key === "workflows"))
+      .toMatchObject({ countable: true, produced: 4 });
+  });
+
+  test("every estate read failing shows the steps as outstanding, never as done", async () => {
+    // The honest failure for a checklist. A read that could not answer must not be taken as
+    // a yes -- a first-run panel that reports an unscanned site as scanned sends an admin
+    // off to read numbers that do not exist yet.
+    mocks.kvsGet.mockRejectedValueOnce(new Error("kvs down"));
+    mocks.readSnapshotMeta.mockRejectedValueOnce(new Error("field meta down"));
+    mocks.readFullScanMeta.mockRejectedValueOnce(new Error("scan meta down"));
+    mocks.readAutomationAnalysis.mockRejectedValueOnce(new Error("automation down"));
+    mocks.readWorkflowSnapshotMeta.mockRejectedValueOnce(new Error("workflow meta down"));
+
+    const state = await getFirstRunState({ context: { accountId: "a" } });
+
+    expect(state.remaining).toBe(5);
+    expect(state.steps.every((step) => step.done === false)).toBe(true);
+    expect(state.arrivals.available).toBe(false);
+  });
+
+  test("a dismissed panel stays dismissed even with steps outstanding", async () => {
+    mocks.kvsGet.mockResolvedValue({ firstRun: { dismissed: true } });
+
+    const state = await getFirstRunState({ context: { accountId: "a" } });
+
+    expect(state.show).toBe(false);
+    expect(state.remaining).toBeGreaterThan(0);
+  });
+
+  test("the panel retires itself once nothing is left", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "v1" });
+    mocks.readAutomationAnalysis.mockResolvedValue({ rules: [] });
+    mocks.kvsGet.mockResolvedValue({
+      quickScanSchedule: { enabled: true },
+      firstRun: { acknowledged: ["evidence-rule", "share-macro"] },
+    });
+
+    const state = await getFirstRunState({ context: { accountId: "a" } });
+
+    expect(state.remaining).toBe(0);
+    expect(state.show).toBe(false);
+  });
+
+  test("acknowledging a step writes it without disturbing the rest of the config", async () => {
+    mocks.kvsGet.mockResolvedValue({ readOnlyMode: true, firstRun: { acknowledged: ["evidence-rule"] } });
+
+    const result = await setFirstRunState({ payload: { acknowledge: "share-macro" }, context: {} });
+
+    expect(result.ok).toBe(true);
+    expect(result.firstRun.acknowledged).toEqual(["evidence-rule", "share-macro"]);
+    const [, written] = mocks.kvsSet.mock.calls.at(-1);
+    expect(written.readOnlyMode).toBe(true);
+  });
+
+  test("acknowledging twice does not duplicate", async () => {
+    mocks.kvsGet.mockResolvedValue({ firstRun: { acknowledged: ["share-macro"] } });
+
+    const result = await setFirstRunState({ payload: { acknowledge: "share-macro" }, context: {} });
+
+    expect(result.firstRun.acknowledged).toEqual(["share-macro"]);
+  });
+
+  test("a derived step cannot be acknowledged", async () => {
+    // The load-bearing assertion. "first-scan" is answered by the estate; letting a caller
+    // tick it by hand would put a tick on the page meaning "somebody clicked" while wearing
+    // the appearance of "this is true".
+    const result = await setFirstRunState({ payload: { acknowledge: "first-scan" }, context: {} });
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/derived/);
+    expect(mocks.kvsSet).not.toHaveBeenCalled();
+  });
+
+  test("dismissing is stored, and undismissing is possible", async () => {
+    await setFirstRunState({ payload: { dismissed: true }, context: {} });
+    expect(mocks.kvsSet.mock.calls.at(-1)[1].firstRun.dismissed).toBe(true);
+
+    mocks.kvsGet.mockResolvedValue({ firstRun: { dismissed: true, acknowledged: [] } });
+    const result = await setFirstRunState({ payload: { dismissed: false }, context: {} });
+
+    expect(result.firstRun.dismissed).toBe(false);
+  });
+
+  test("both first-run resolvers are admin-only", async () => {
+    // getFirstRunState reports scan state and config; setFirstRunState writes config.
+    // Neither belongs on a page anyone in Confluence can open.
+    expect(__RAW_ADMIN_ONLY_FUNCTIONS).toHaveProperty("getFirstRunState");
+    expect(__RAW_ADMIN_ONLY_FUNCTIONS).toHaveProperty("setFirstRunState");
+    expect(SHARED_RESOLVER_FUNCTIONS).not.toHaveProperty("getFirstRunState");
+    expect(SHARED_RESOLVER_FUNCTIONS).not.toHaveProperty("setFirstRunState");
   });
 });

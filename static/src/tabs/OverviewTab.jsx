@@ -3,6 +3,7 @@ import { view } from "@forge/bridge";
 import { handleJiraLinkClick } from "../utils";
 import { Icon } from "../components/Icons";
 import { Panel, EmptyState } from "../components/ui";
+import { FirstRunPanel } from "../components/admin/FirstRunPanel";
 
 // The admin landing tab. Composition only -- the dashboard itself lives in
 // components/OverviewDashboard.jsx.
@@ -18,6 +19,11 @@ export function OverviewTab({ overview, onMigrateNamespace, migratingNamespace, 
 
   return (
     <div className="admin-overview">
+      {/* First, above everything. On a site that has finished setting itself up this renders
+          nothing at all -- it decides that for itself from the estate rather than from a
+          flag, so it cannot linger after the work it describes is done. */}
+      <FirstRunPanel onNavigate={onNavigate} />
+
       {overview.legacySummaryCount > 0 && (
         <div className="admin-migration-banner">
           <div className="admin-migration-banner__body">
