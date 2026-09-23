@@ -24,6 +24,50 @@ describe("ADMIN_NAV_TABS", () => {
   });
 });
 
+describe("theme cycling", () => {
+  it("cycles dark -> light -> day -> dark, and stamps the choice on <html>", async () => {
+    const user = userEvent.setup();
+    await renderAdminApp();
+
+    // Fresh localStorage in beforeEach -> starts dark.
+    expect(document.documentElement.dataset.theme).toBe("dark");
+
+    const toggle = () => screen.getByRole("button", { name: /Switch to/i });
+
+    await user.click(toggle());
+    expect(document.documentElement.dataset.theme).toBe("light");
+
+    await user.click(toggle());
+    expect(document.documentElement.dataset.theme).toBe("day");
+
+    await user.click(toggle());
+    expect(document.documentElement.dataset.theme).toBe("dark");
+  });
+
+  it("persists the choice across a reload", async () => {
+    const user = userEvent.setup();
+    await renderAdminApp();
+
+    await user.click(screen.getByRole("button", { name: /Switch to/i }));
+    await user.click(screen.getByRole("button", { name: /Switch to/i }));
+    expect(localStorage.getItem("atlasiq-field-theme")).toBe("day");
+  });
+
+  it("renders the day sky only in day mode, and the starfield only in dark mode", async () => {
+    const user = userEvent.setup();
+    const { container } = await renderAdminApp();
+
+    expect(container.querySelector("canvas.observatory-starfield")).toBeInTheDocument();
+    expect(container.querySelector("canvas.observatory-daysky")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: /Switch to/i })); // -> light
+    await user.click(screen.getByRole("button", { name: /Switch to/i })); // -> day
+
+    expect(container.querySelector("canvas.observatory-starfield")).toBeNull();
+    expect(container.querySelector("canvas.observatory-daysky")).toBeInTheDocument();
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
