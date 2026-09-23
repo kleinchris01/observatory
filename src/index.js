@@ -236,12 +236,25 @@ export async function quickScanScheduleCheck(_event, context) {
   return { ...result, recovery };
 }
 
-// Hourly: re-reads live status and assignee for every open remediation ticket from Jira and
-// writes it back. Its own trigger rather than folded into quickScanScheduleCheck above --
-// unrelated concerns (scan scheduling vs. remediation tracking) that happen to share a cadence
-// is not a reason to share a function, and a failure in one should never be able to stop the
-// other from running.
+// 8am / 12pm / 4pm Pacific, as fixed UTC hours: Forge has no timezone-aware scheduling (the
+// trigger itself still fires hourly, the finest interval the platform offers -- same
+// constraint quickScanScheduleCheck lives with), so "Pacific business hours" has to be baked
+// in as a fixed UTC offset rather than computed. Fixed at PST (UTC-8), not adjusted for
+// daylight saving: during PDT this lands at 7am/11am/3pm Pacific instead, an hour earlier.
+// Honest about that rather than pulling in a timezone library for three numbers -- the same
+// trade quickScanScheduleCheck's own UTC-only comparison already makes.
+const REMEDIATION_SYNC_HOURS_UTC = new Set([16, 20, 0]); // 8am, 12pm, 4pm PST
+
+// Checked every time the trigger fires (hourly) but only acts on the three hours above --
+// re-reads live status and assignee for every open remediation ticket from Jira and writes it
+// back. Its own trigger rather than folded into quickScanScheduleCheck above -- unrelated
+// concerns (scan scheduling vs. remediation tracking) that happen to share a cadence is not a
+// reason to share a function, and a failure in one should never be able to stop the other
+// from running.
 export async function remediationSyncCheck(_event, context) {
+  if (!REMEDIATION_SYNC_HOURS_UTC.has(new Date().getUTCHours())) {
+    return { skipped: true, reason: "outside business hours" };
+  }
   const installationKey = getInstallationKey(context);
   return syncRemediationTickets(installationKey).catch((error) => {
     logger.error("remediation.sync_watchdog_failed", { installationKey, error: error?.message || String(error) });
