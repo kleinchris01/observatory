@@ -6,6 +6,7 @@ import "./styles.css";
 import { formatTimestamp, formatNumber, toDisplayName, buildValueJql, formatShortTime, formatRelativeTime, formatLogTime, formatContextList, normalizeSiteOrigin, buildJiraSearchUrl, handleJiraLinkClick, escapeCsvCell, downloadCsv, slugifyFilenamePart, normalizeReportData, groupReportFieldsByType, summarizeReportData, isUsageAvailable, isSelectType, mergeFieldMetrics, openFieldExpertRovo, buildInventoryRovoPrompt, buildFieldRovoPrompt, buildProjectRovoPrompt, buildReportRovoPrompt } from "./utils";
 import { Icon, useLiveDuration } from "./components/Icons";
 import { Starfield } from "./components/Starfield";
+import { DaySky } from "./components/DaySky";
 import { ReportErrorBoundary, SavedReportsPanel, ProjectUsageReportView } from "./components/ReportView";
 import { MetricChip, FindingBadge, FindingsStrip, SkeletonFieldCard, SkeletonProjectItem, InlineOptionsContext, FieldCard } from "./components/FieldCard";
 import { useRefreshOnVisible } from "./hooks";
@@ -135,6 +136,16 @@ export const ADMIN_NAV_TABS = [
   { key: "config", label: "Configuration", icon: "settings" },
 ];
 
+// Dark -> Light -> Day -> Dark. The button always shows the icon and label for where a click
+// takes you next, not the state you are in -- the same convention the two-state toggle used
+// before Day mode existed, just extended to a third stop instead of flipped.
+const THEME_CYCLE = { dark: "light", light: "day", day: "dark" };
+const THEME_META = {
+  dark: { icon: "☽", label: "Dark mode" },
+  light: { icon: "☀", label: "Light mode" },
+  day: { icon: "⛅", label: "Day mode" },
+};
+
 export function AdminApp() {
   const [activeTab, setActiveTab] = React.useState("overview");
   // The filter a finding wants applied when it opens a tab.
@@ -261,6 +272,7 @@ export function AdminApp() {
   return (
     <div className="admin-shell">
       <Starfield active={theme === "dark"} bearing={activeTab} />
+      <DaySky active={theme === "day"} />
       <div className={`admin-layout${sidebarCollapsed ? " admin-layout--collapsed" : ""}`}>
         <aside className="admin-sidebar">
           <div className="admin-sidebar__brand">
@@ -286,13 +298,13 @@ export function AdminApp() {
           <div className="admin-sidebar__footer">
             <button
               className="admin-nav__item admin-nav__item--footer"
-              onClick={() => setTheme((v) => v === "dark" ? "light" : "dark")}
+              onClick={() => setTheme((v) => THEME_CYCLE[v] || "dark")}
               type="button"
-              title={sidebarCollapsed ? (theme === "dark" ? "Switch to light mode" : "Switch to dark mode") : undefined}
-              aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              title={sidebarCollapsed ? `Switch to ${THEME_META[THEME_CYCLE[theme] || "dark"].label.toLowerCase()}` : undefined}
+              aria-label={`Switch to ${THEME_META[THEME_CYCLE[theme] || "dark"].label.toLowerCase()}`}
             >
-              <span>{theme === "dark" ? "☀" : "☽"}</span>
-              {!sidebarCollapsed && <span>{theme === "dark" ? "Light mode" : "Dark mode"}</span>}
+              <span>{THEME_META[THEME_CYCLE[theme] || "dark"].icon}</span>
+              {!sidebarCollapsed && <span>{THEME_META[THEME_CYCLE[theme] || "dark"].label}</span>}
             </button>
             <button
               className="admin-nav__item admin-nav__item--footer admin-sidebar__collapse"
