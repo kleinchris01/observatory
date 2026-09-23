@@ -37,10 +37,11 @@ modules:
       function: retention-cleanup
       events:
         - avi:scheduled:weekly
-    # Hourly, same constraint as quick-scan-scheduler-trigger above -- Forge offers nothing
-    # finer. Its own trigger and function, not folded into that one: scan scheduling and
-    # remediation tracking are unrelated concerns that happen to share a cadence, and a
-    # failure in one must never be able to stop the other from running.
+    # Fires hourly -- Forge offers nothing finer, same constraint quick-scan-scheduler-trigger
+    # lives with -- but remediationSyncCheck only acts on 3 of those firings (8am/12pm/4pm
+    # Pacific business hours); the rest are a cheap no-op. Its own trigger and function, not
+    # folded into that one: scan scheduling and remediation tracking are unrelated concerns
+    # that happen to share a cadence, and a failure in one must never stop the other running.
     - key: remediation-sync-trigger
       function: remediation-sync
       events:

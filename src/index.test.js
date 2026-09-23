@@ -504,7 +504,18 @@ describe("quickScanScheduleCheck", () => {
 });
 
 describe("remediationSyncCheck", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  // 16:00 UTC = 8am PST -- one of the three business-hour firings.
+  function atBusinessHour(hourUtc = 16) {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(Date.UTC(2026, 8, 23, hourUtc, 0, 0)));
+  }
+
   test("syncs the calling installation's open remediation tickets", async () => {
+    atBusinessHour();
     syncRemediationTickets.mockResolvedValueOnce({ checked: 3, updated: 2 });
 
     const result = await remediationSyncCheck({}, CONTEXT);
@@ -513,9 +524,29 @@ describe("remediationSyncCheck", () => {
     expect(result).toEqual({ checked: 3, updated: 2 });
   });
 
+  // The trigger itself still fires hourly -- Forge offers nothing finer -- so most firings
+  // must no-op rather than sync. 8am/12pm/4pm PST is 16:00/20:00/00:00 UTC.
+  test("runs only at 8am, 12pm and 4pm Pacific (16:00, 20:00, 00:00 UTC)", async () => {
+    for (const hourUtc of [16, 20, 0]) {
+      atBusinessHour(hourUtc);
+      syncRemediationTickets.mockResolvedValueOnce({ checked: 1, updated: 1 });
+      await expect(remediationSyncCheck({}, CONTEXT)).resolves.toEqual({ checked: 1, updated: 1 });
+    }
+  });
+
+  test("skips every other hour without touching Jira", async () => {
+    for (const hourUtc of [1, 15, 17, 19, 21, 23]) {
+      atBusinessHour(hourUtc);
+      const result = await remediationSyncCheck({}, CONTEXT);
+      expect(result).toEqual({ skipped: true, reason: "outside business hours" });
+    }
+    expect(syncRemediationTickets).not.toHaveBeenCalled();
+  });
+
   // A watchdog that can itself throw and take down the trigger defeats the purpose of a
-  // watchdog -- the next hour's firing should still get a clean attempt.
+  // watchdog -- the next firing should still get a clean attempt.
   test("swallows a failure and reports it rather than throwing", async () => {
+    atBusinessHour();
     syncRemediationTickets.mockRejectedValueOnce(new Error("sql down"));
 
     const result = await remediationSyncCheck({}, CONTEXT);
@@ -526,6 +557,7 @@ describe("remediationSyncCheck", () => {
   // Not every rejection is an Error with a .message -- a plain string throw exercises the
   // String(error) fallback the .message branch above does not.
   test("stringifies a rejection that carries no .message", async () => {
+    atBusinessHour();
     syncRemediationTickets.mockRejectedValueOnce("boom");
 
     const result = await remediationSyncCheck({}, CONTEXT);
