@@ -522,6 +522,16 @@ describe("remediationSyncCheck", () => {
 
     expect(result).toMatchObject({ checked: 0, updated: 0, error: "sql down" });
   });
+
+  // Not every rejection is an Error with a .message -- a plain string throw exercises the
+  // String(error) fallback the .message branch above does not.
+  test("stringifies a rejection that carries no .message", async () => {
+    syncRemediationTickets.mockRejectedValueOnce("boom");
+
+    const result = await remediationSyncCheck({}, CONTEXT);
+
+    expect(result).toMatchObject({ checked: 0, updated: 0, error: "boom" });
+  });
 });
 
 describe("runProjectStorageMigrations", () => {
