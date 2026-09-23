@@ -7193,6 +7193,24 @@ describe("getFilterInventory", () => {
     expect(result.brokenProjectCount).toBe(1);
   });
 
+  // The bug this pins: JQL accepts `project = "Display Name"` exactly as readily as
+  // `project = KEY`, but the known-projects set only ever carried keys -- so a filter scoped
+  // by name, to a project that genuinely exists, was reported broken. Real symptom: the same
+  // two project names recurring as "MISSING" across a dozen otherwise-unrelated filters.
+  test("does not flag a project referenced by its display name rather than its key", async () => {
+    mocks.listSnapshotProjects.mockResolvedValue([
+      { projectId: "1", projectKey: "ADVEV", projectName: "ADVEV Software Tools" },
+    ]);
+    mocks.loadFilters.mockResolvedValue([
+      filterRow({ jql: 'project = "ADVEV Software Tools"', projectRefs: ["ADVEV Software Tools"] }),
+    ]);
+
+    const result = await getFilterInventory({ payload: {}, context: ctxWithAccount() });
+
+    expect(result.projectsChecked).toBe(true);
+    expect(result.brokenProjectCount).toBe(0);
+  });
+
   // "No broken references" and "nobody looked" are different claims, and only one of them is
   // permission to act.
   test("says the project check could not run rather than reporting it clean", async () => {

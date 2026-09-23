@@ -954,10 +954,14 @@ export async function captureSiteHealth(installationKey, deps) {
         .catch(fallbackOn("overview.project_activity_load_failed", () => new Map(), { installationKey }));
       adoption = summarizeAdoption(withCounts, activity);
 
-      // The project keys the filter pillar needs for its broken-reference join, taken from
-      // the rows already loaded rather than fetched again. `typeNames` is the same idea for
-      // the JQL issue-type join, reusing what the issue-type overview already loaded.
-      const projectKeys = new Set(withCounts.map((p) => p.projectKey).filter(Boolean));
+      // The project keys AND names the filter pillar needs for its broken-reference join,
+      // taken from the rows already loaded rather than fetched again. Both, not just the key:
+      // JQL accepts `project = "Display Name"` as readily as `project = KEY`, and a filter
+      // written the first way was being reported broken against a project that genuinely
+      // exists -- this set just never carried the name to match it against. `typeNames` is
+      // the same idea for the JQL issue-type join, reusing what the issue-type overview
+      // already loaded.
+      const projectKeys = new Set(withCounts.flatMap((p) => [p.projectKey, p.projectName]).filter(Boolean));
       filters = (await buildFilterOverview(installationKey, { projectKeys, typeNames: issueTypeOverview?.typeNames ?? null })).health ?? null;
       dashboards = (await buildDashboardOverview(installationKey)).health ?? null;
     }

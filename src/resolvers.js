@@ -2878,7 +2878,15 @@ async function getFilterInventory({ payload, context }) {
     if (snapshotMeta?.version) {
       const projects = await listSnapshotProjects(installationKey, snapshotMeta.version)
         .catch(fallbackOn("filters.project_keys_load_failed", () => [], { installationKey }));
-      if (projects.length) projectKeys = new Set(projects.map((p) => p.projectKey).filter(Boolean));
+      // Both the key and the display name: JQL accepts `project = KEY` and
+      // `project = "Display Name"` equally, and a filter written the second way was being
+      // reported as broken -- a project that genuinely exists, referenced by a name this set
+      // never carried, indistinguishable from a real dangling reference to the check below.
+      if (projects.length) {
+        projectKeys = new Set(
+          projects.flatMap((p) => [p.projectKey, p.projectName]).filter(Boolean)
+        );
+      }
     }
 
     // The issue type catalog, for the "JQL names a type nothing defines" join. Same
