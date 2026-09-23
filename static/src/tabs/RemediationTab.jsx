@@ -10,15 +10,18 @@ import { PageHeader, Panel, StatRow, StatTile, EmptyState } from "../components/
 // AutomationTab's own RISK_LABELS makes for its (also static, also small) code->label map.
 //
 // `connected: true` means getRemediationCandidates actually knows how to fetch this
-// finding's current items; the rest score a rate for the health dimension but do not yet
-// expose the underlying items anywhere Observatory can read them.
+// finding's current items. Every playbook is connected as of the fields + users + workflows
+// + boards wiring; a future playbook can still land with `connected: false` while its
+// candidate resolver is built, and this catalog is what makes that a data change here
+// rather than a code change in FindingCard.
 const REMEDIATION_CATALOG = [
   { key: "filter-ownership", label: "Filter ownership", pillar: "Filters", connected: true },
   { key: "dashboard-ownership", label: "Dashboard ownership", pillar: "Dashboards", connected: true },
-  { key: "user-licence-hygiene", label: "Licence hygiene", pillar: "People", connected: false },
-  { key: "user-ownership", label: "Ownership continuity", pillar: "People", connected: false },
-  { key: "status-reachability", label: "Status reachability", pillar: "Workflows", connected: false },
-  { key: "board-backing", label: "Board backing filters", pillar: "Boards", connected: false },
+  { key: "field-cleanup", label: "Orphaned fields", pillar: "Fields", connected: true },
+  { key: "user-licence-hygiene", label: "Licence hygiene", pillar: "People", connected: true },
+  { key: "user-ownership", label: "Ownership continuity", pillar: "People", connected: true },
+  { key: "status-reachability", label: "Status reachability", pillar: "Workflows", connected: true },
+  { key: "board-backing", label: "Board backing filters", pillar: "Boards", connected: true },
 ];
 
 const STATUS_TONE = { done: "success", indeterminate: "active", new: "neutral" };
@@ -104,6 +107,10 @@ function FindingCard({ entry, group, siteOrigin, onCreate, creating, error }) {
           </IssueLink>
         ) : null
       }
+      // Every finding is independently collapsible -- the epic chip above stays visible in
+      // the collapsed header, so a tracked finding is never mistaken for an untouched one
+      // just because it is folded away.
+      collapsible
     >
       {!entry.connected ? (
         <EmptyState inline>

@@ -3642,11 +3642,10 @@ async function createRemediationEpic({ payload, context }) {
 }
 
 // The current items behind one remediation finding -- what "Create remediation" actually
-// tickets. Only wired for the two findings whose pillar already computes a per-item list with
-// name/owner attached (filter-ownership, dashboard-ownership); the other playbooks
-// (status-reachability, board-backing, user-ownership, user-licence-hygiene) score a RATE for
-// the health dimension but do not yet expose the underlying items anywhere, and fabricating a
-// list here would be worse than saying so.
+// tickets. Every branch here re-reads the same snapshot rows the finding's own tab already
+// loads (getUserInventory's roster, getBoardInventory's insights, getWorkflowInsights'
+// orphans, getFieldInventory's governance findings) rather than re-deriving the join, so a
+// finding and its remediation candidates can never disagree about what is currently flagged.
 async function getRemediationCandidates({ payload, context }) {
   incrMetric(METRIC_NAMES.resolver);
   const installationKey = getInstallationKey(context);
@@ -3681,6 +3680,126 @@ async function getRemediationCandidates({ payload, context }) {
         name: d.name || null,
         ownerName: d.owner?.displayName || null,
         popularity: Number(d.popularity) || 0,
+      }));
+    return { available: true, items };
+  }
+
+  // Licensed accounts still sitting in a Jira access group after Jira deactivated them --
+  // each one a paid seat and a login that returns with its old access intact if reactivated.
+  // Same roster the People tab reads; a user is a candidate when it is both deactivated AND
+  // still carries at least one licence-granting group (a deactivated account in no group is
+  // not costing a seat, so it is not a remediation target).
+  if (findingKey === "user-licence-hygiene") {
+    const meta = await readUserSnapshotMeta(installationKey).catch(() => null);
+    if (!meta?.version) return { available: false, reason: "no-snapshot", items: [] };
+    const users = await loadUsers(installationKey, meta.version);
+    const items = users
+      .filter((u) => u.active === false && (u.groups || []).length > 0)
+      .map((u) => ({
+        id: u.accountId,
+        accountId: u.accountId,
+        displayName: u.displayName || null,
+        groups: (u.groups || []).map((g) => g.name || g.id),
+      }));
+    return { available: true, items };
+  }
+
+  // Filters, dashboards and automation rules owned by an account that has fallen off the
+  // licensed roster -- the account is gone or unlicensed, but Jira has not yet garbage-
+  // collected what it owns. buildOwnershipIndex already carries the per-artifact id/name;
+  // this just flattens the accounts not on the roster into one ticketable list.
+  if (findingKey === "user-ownership") {
+    const meta = await readUserSnapshotMeta(installationKey).catch(() => null);
+    if (!meta?.version) return { available: false, reason: "no-snapshot", items: [] };
+    const users = await loadUsers(installationKey, meta.version);
+    const rosterIds = new Set(users.map((u) => u.accountId));
+    const ownership = await buildOwnershipIndex(installationKey);
+    const items = [];
+    for (const [accountId, owned] of ownership.byAccount) {
+      if (rosterIds.has(accountId)) continue;
+      for (const f of owned.filters) items.push({ id: `filter:${f.id}`, kind: "filter", name: f.name || null });
+      for (const d of owned.dashboards) items.push({ id: `dashboard:${d.id}`, kind: "dashboard", name: d.name || null });
+      for (const r of owned.rules) items.push({ id: `rule:${r.id}`, kind: "automation rule", name: r.name || null });
+    }
+    return { available: true, items };
+  }
+
+  // Statuses no workflow scheme reaches AND no automation rule transitions into -- the same
+  // basis the "status-reachability" health dimension scores (unreachableNoRuleCount), not
+  // the wider "every orphan" count, so the epic's item count matches the number the finding
+  // itself reports. Requires the scheme->status mapping; without it every status looks
+  // orphaned, which is why status-reachability is unavailable rather than wrong in that case.
+  if (findingKey === "status-reachability") {
+    const meta = await readWorkflowSnapshotMeta(installationKey).catch(() => null);
+    if (!meta?.version) return { available: false, reason: "no-snapshot", items: [] };
+    const [statuses, schemeStatuses] = await Promise.all([
+      loadStatusesCatalog(installationKey, meta.version),
+      loadWorkflowSchemeStatuses(installationKey, meta.version),
+    ]);
+    if (schemeStatuses.length === 0) return { available: false, reason: "no-scheme-mapping", items: [] };
+    const issueCounts = await loadStatusIssueCounts(installationKey).catch(() => new Map());
+    const hasIssueCounts = issueCounts.size > 0;
+    const provisional = findOrphanedStatuses(statuses, schemeStatuses, hasIssueCounts ? issueCounts : null);
+    // A status only a rule reaches is not safe to retire -- ask the same automation index
+    // getWorkflowInsights joins against before deciding, rather than treating "not yet
+    // checked" as "no rule uses it".
+    const automationByStatus = provisional.length
+      ? await loadStatusAutomationReferences(installationKey, provisional.map((o) => o.name).filter(Boolean)).catch(() => null)
+      : null;
+    const orphans = findOrphanedStatuses(statuses, schemeStatuses, hasIssueCounts ? issueCounts : null, automationByStatus);
+    const items = orphans
+      .filter((o) => !o.ruleOnly)
+      .map((o) => ({
+        id: o.statusId,
+        name: o.name,
+        category: o.statusCategory,
+        everCount: o.issueCount,
+      }));
+    return { available: true, items };
+  }
+
+  // Boards with no live backing filter -- none set, the filter was deleted, or the filter's
+  // owner is deactivated. Column-mapping issues are a separate health dimension
+  // ("board-columns") with no playbook, so they are deliberately excluded here even though
+  // summarizeBoardInsights flags both kinds on the same board.
+  if (findingKey === "board-backing") {
+    const meta = await readBoardSnapshotMeta(installationKey).catch(() => null);
+    if (!meta?.version) return { available: false, reason: "no-snapshot", items: [] };
+    const [boards, columns, filterMeta] = await Promise.all([
+      loadBoards(installationKey, meta.version),
+      loadBoardColumns(installationKey, meta.version),
+      readFilterSnapshotMeta(installationKey).catch(() => null),
+    ]);
+    const filters = filterMeta?.version ? await loadFilters(installationKey, filterMeta.version).catch(() => null) : null;
+    const columnsByBoard = new Map();
+    for (const col of columns) {
+      if (!columnsByBoard.has(col.boardId)) columnsByBoard.set(col.boardId, []);
+      columnsByBoard.get(col.boardId).push(col);
+    }
+    const rows = boards.map((board) => ({ ...board, columns: columnsByBoard.get(board.boardId) || [] }));
+    const insights = summarizeBoardInsights({ boards: rows, filters });
+    const BACKING_ISSUES = new Set(["no-backing-filter", "backing-filter-deleted", "backing-filter-owner-inactive"]);
+    const items = insights.flagged
+      .filter((b) => b.issues.some((code) => BACKING_ISSUES.has(code)))
+      .map((b) => ({ id: b.boardId, name: b.name || null, type: b.type || null, issues: b.issues }));
+    return { available: true, items };
+  }
+
+  // Custom fields with zero contexts, zero configuration and zero recorded issue usage --
+  // the "orphaned" governance rule from analysis.js, read straight off the stored findings
+  // JSON rather than re-run here, so the candidate list can never disagree with the badge
+  // the Field Browser shows for the same field.
+  if (findingKey === "field-cleanup") {
+    const meta = await readSnapshotMeta(installationKey).catch(() => null);
+    if (!meta?.version) return { available: false, reason: "no-snapshot", items: [] };
+    const fields = await loadSnapshotFields(installationKey, meta.version);
+    const items = fields
+      .filter((f) => (f.findings || []).some((finding) => finding.code === "orphaned"))
+      .map((f) => ({
+        id: f.id,
+        name: f.name || null,
+        type: f.type || null,
+        description: f.description || null,
       }));
     return { available: true, items };
   }

@@ -187,6 +187,49 @@ The status is deleted and the next Observatory scan no longer flags it.
 `,
   },
 
+  "field-cleanup": {
+    pillar: "fields",
+    epicSummary: (n) => `Review ${n} orphaned custom field${n === 1 ? "" : "s"} for deletion`,
+    epicDescription: ({ count = 0 } = {}) => `
+## Why this matters
+${count} custom field${count === 1 ? " has" : "s have"} no project context, no configuration, and no recorded issue
+usage anywhere on the site. Each one is still in every field picker, every screen admin
+search, and every "add field" dropdown a project admin sees -- pure clutter with nothing
+behind it.
+
+## Strategy
+For each field, confirm the finding is current (a scan can be stale), then delete it from
+Jira. Field deletion is destructive and cannot be undone, so this always creates a
+Jira task per field for a human to actually action -- Observatory never deletes a field
+itself.
+
+## Definition of done
+Every child task is closed and the next Observatory scan reports zero orphaned fields.
+`,
+    taskSummary: (it) => `Delete orphaned field "${it.name || it.id || "(unknown)"}" (${it.id})`,
+    taskDescription: (it) => `
+## The field
+Name: ${it.name || "(unnamed)"}
+Field id: ${it.id || "(unknown)"}
+Type: ${it.type || "unknown"}
+${it.description ? `Current description: ${it.description}` : "No description set."}
+
+## Why it is flagged
+No project contexts, no configured screens, and no populated issues found in the last
+Observatory scan.
+
+## Steps
+- Re-check the field in Observatory's Field Browser to confirm it is still orphaned (a
+  screen or context change since the scan can un-orphan a field).
+- Search for the field id in any saved filters, dashboards or automation rules before
+  deleting -- Observatory's own dependency graph is the fastest way to check this.
+- Delete the field in Jira -> Issues -> Custom fields.
+
+## Done when
+The field no longer exists in Jira and the next Observatory scan no longer flags it.
+`,
+  },
+
   "board-backing": {
     pillar: "boards",
     epicSummary: (n) => `Fix ${n} board${n === 1 ? "" : "s"} with a broken backing filter`,
