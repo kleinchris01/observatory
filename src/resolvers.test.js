@@ -6546,8 +6546,107 @@ describe("getRemediationCandidates", () => {
   });
 
   test("a finding with no wired item source says so rather than fabricating a list", async () => {
-    const r = await getRemediationCandidates({ payload: { findingKey: "status-reachability" }, context: ctxWithAccount() });
+    const r = await getRemediationCandidates({ payload: { findingKey: "not-a-real-finding" }, context: ctxWithAccount() });
     expect(r).toEqual({ available: false, reason: "not-connected", items: [] });
+  });
+
+  test("user-licence-hygiene: only deactivated accounts still holding a licence group", async () => {
+    mocks.readUserSnapshotMeta.mockResolvedValue({ version: "u1" });
+    mocks.loadUsers.mockResolvedValue([
+      { accountId: "a1", displayName: "Gone Person", active: false, groups: [{ id: "g1", name: "jira-software-users" }] },
+      { accountId: "a2", displayName: "Still Here", active: true, groups: [{ id: "g1", name: "jira-software-users" }] },
+      { accountId: "a3", displayName: "Deactivated, ungrouped", active: false, groups: [] },
+    ]);
+
+    const r = await getRemediationCandidates({ payload: { findingKey: "user-licence-hygiene" }, context: ctxWithAccount() });
+
+    expect(r.available).toBe(true);
+    expect(r.items).toEqual([{ id: "a1", accountId: "a1", displayName: "Gone Person", groups: ["jira-software-users"] }]);
+  });
+
+  test("user-licence-hygiene: reports unavailable when there is no roster yet", async () => {
+    mocks.readUserSnapshotMeta.mockResolvedValue(null);
+    const r = await getRemediationCandidates({ payload: { findingKey: "user-licence-hygiene" }, context: ctxWithAccount() });
+    expect(r).toMatchObject({ available: false, reason: "no-snapshot", items: [] });
+  });
+
+  test("user-ownership: flattens filters, dashboards and rules owned by an off-roster account", async () => {
+    mocks.readUserSnapshotMeta.mockResolvedValue({ version: "u1" });
+    mocks.loadUsers.mockResolvedValue([{ accountId: "a1", displayName: "Ann", active: true, groups: [] }]);
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "f1" });
+    mocks.readDashboardSnapshotMeta.mockResolvedValue({ version: "d1" });
+    mocks.loadFilters.mockResolvedValue([{ id: "10", name: "Ann filter", ownerAccountId: "a1" }, { id: "11", name: "Ghost filter", ownerAccountId: "gone" }]);
+    mocks.loadDashboards.mockResolvedValue([{ dashboardId: "20", name: "Ghost dash", ownerAccountId: "gone" }]);
+    mocks.readAutomationPart.mockResolvedValue({ /* hydrateRuleDirectory reads its own shape */ });
+
+    const r = await getRemediationCandidates({ payload: { findingKey: "user-ownership" }, context: ctxWithAccount() });
+
+    expect(r.available).toBe(true);
+    expect(r.items).toEqual(expect.arrayContaining([
+      { id: "filter:11", kind: "filter", name: "Ghost filter" },
+      { id: "dashboard:20", kind: "dashboard", name: "Ghost dash" },
+    ]));
+    // Ann's own filter is not orphaned -- she is on the roster.
+    expect(r.items.find((i) => i.id === "filter:10")).toBeUndefined();
+  });
+
+  test("status-reachability: excludes statuses a rule still transitions into", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "w1" });
+    mocks.loadStatusesCatalog.mockResolvedValue([
+      { statusId: "1", id: "1", name: "Dead End" },
+      { statusId: "2", id: "2", name: "Rule Only" },
+      { statusId: "3", id: "3", name: "In Use" },
+    ]);
+    // Only status 3 is in a scheme -- 1 and 2 are unreachable. A non-empty scheme->status
+    // mapping is what tells the resolver the mapping was actually built, as opposed to an
+    // empty result meaning the walk never ran (see the no-scheme-mapping test below).
+    mocks.loadWorkflowSchemeStatuses.mockResolvedValue([{ schemeId: "s1", statusId: "3" }]);
+    mocks.loadStatusIssueCounts.mockResolvedValue(new Map());
+    mocks.loadStatusAutomationReferences.mockResolvedValue({ "rule only": { ruleCount: 1, enabledRuleCount: 1 } });
+
+    const r = await getRemediationCandidates({ payload: { findingKey: "status-reachability" }, context: ctxWithAccount() });
+
+    expect(r.available).toBe(true);
+    // No issue-count data was measured, so everCount is unknown, not zero -- a missing
+    // count must never render as "safe to delete" on its own.
+    expect(r.items).toEqual([{ id: "1", name: "Dead End", category: null, everCount: null }]);
+  });
+
+  test("status-reachability: reports unavailable with no scheme->status mapping", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "w1" });
+    mocks.loadStatusesCatalog.mockResolvedValue([{ statusId: "1", id: "1", name: "Any" }]);
+    mocks.loadWorkflowSchemeStatuses.mockResolvedValue([]);
+    const r = await getRemediationCandidates({ payload: { findingKey: "status-reachability" }, context: ctxWithAccount() });
+    expect(r).toMatchObject({ available: false, reason: "no-scheme-mapping", items: [] });
+  });
+
+  test("board-backing: flags a board with no backing filter, not one with only a column issue", async () => {
+    mocks.readBoardSnapshotMeta.mockResolvedValue({ version: "b1" });
+    mocks.loadBoards.mockResolvedValue([
+      { boardId: "100", name: "Orphan Board", type: "scrum", configReadable: true, filterId: null },
+      { boardId: "101", name: "Column Only", type: "kanban", configReadable: true, filterId: "9", columns: [{ statusIds: [] }] },
+    ]);
+    mocks.loadBoardColumns.mockResolvedValue([{ boardId: "101", statusIds: [] }]);
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "f1" });
+    mocks.loadFilters.mockResolvedValue([{ id: "9", ownerActive: true }]);
+
+    const r = await getRemediationCandidates({ payload: { findingKey: "board-backing" }, context: ctxWithAccount() });
+
+    expect(r.available).toBe(true);
+    expect(r.items).toEqual([{ id: "100", name: "Orphan Board", type: "scrum", issues: ["no-backing-filter"] }]);
+  });
+
+  test("field-cleanup: only fields carrying the orphaned finding code", async () => {
+    mocks.readSnapshotMeta.mockResolvedValue({ version: "s1" });
+    mocks.loadSnapshotFields.mockResolvedValue([
+      { id: "customfield_1", name: "Old Field", type: "text", description: null, findings: [{ code: "orphaned" }] },
+      { id: "customfield_2", name: "Used Field", type: "text", description: "In use", findings: [{ code: "stale" }] },
+    ]);
+
+    const r = await getRemediationCandidates({ payload: { findingKey: "field-cleanup" }, context: ctxWithAccount() });
+
+    expect(r.available).toBe(true);
+    expect(r.items).toEqual([{ id: "customfield_1", name: "Old Field", type: "text", description: null }]);
   });
 
   test("is admin-only", () => {

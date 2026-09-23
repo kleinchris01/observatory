@@ -22,15 +22,39 @@ function mockInvoke(handlers) {
 }
 
 describe("RemediationTab", () => {
-  test("lists every finding in the catalog, connected and not", async () => {
+  test("lists every finding in the catalog", async () => {
     mockInvoke({ getRemediationTickets: { available: false, total: 0, groups: [] } });
     render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
 
     expect(await screen.findByText("Filter ownership")).toBeInTheDocument();
     expect(screen.getByText("Dashboard ownership")).toBeInTheDocument();
-    // Not yet wired to a real item source -- shown, but says so rather than pretending.
+    expect(screen.getByText("Orphaned fields")).toBeInTheDocument();
+    expect(screen.getByText("Licence hygiene")).toBeInTheDocument();
+    expect(screen.getByText("Ownership continuity")).toBeInTheDocument();
     expect(screen.getByText("Status reachability")).toBeInTheDocument();
-    expect(screen.getAllByText(/Not connected yet/i).length).toBeGreaterThan(0);
+    expect(screen.getByText("Board backing filters")).toBeInTheDocument();
+  });
+
+  test("each finding's section collapses and re-expands independently", async () => {
+    mockInvoke({ getRemediationTickets: { available: false, total: 0, groups: [] } });
+    const user = userEvent.setup();
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+    await screen.findByText("Filter ownership");
+
+    const toggles = screen.getAllByRole("button", { name: /Filter ownership|Dashboard ownership/i });
+    const filterToggle = toggles.find((b) => b.textContent.includes("Filter ownership"));
+    const dashboardToggle = toggles.find((b) => b.textContent.includes("Dashboard ownership"));
+
+    // Both start expanded -- each panel's own "Check current items" button is visible.
+    expect(screen.getAllByRole("button", { name: /Check current items/i }).length).toBeGreaterThanOrEqual(2);
+
+    await user.click(filterToggle);
+    expect(filterToggle).toHaveAttribute("aria-expanded", "false");
+    // Collapsing one finding does not touch the other's expanded state.
+    expect(dashboardToggle).toHaveAttribute("aria-expanded", "true");
+
+    await user.click(filterToggle);
+    expect(filterToggle).toHaveAttribute("aria-expanded", "true");
   });
 
   test("shows an existing epic's status and its tasks", async () => {
