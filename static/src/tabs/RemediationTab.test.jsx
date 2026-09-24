@@ -117,6 +117,85 @@ describe("RemediationTab", () => {
     })));
   });
 
+  // The resolver only ever creates a bounded batch per call (a synchronous Forge resolver
+  // has a hard execution ceiling) and reports itemsRemaining when there is more to do. The
+  // tab is what turns a truncated single call into a completed bulk action, by calling the
+  // idempotent resolver again with the same item list until itemsRemaining is zero.
+  test("a large finding is finished by chaining batches, not silently truncated at one", async () => {
+    let call = 0;
+    const createRemediationEpic = vi.fn().mockImplementation(() => {
+      call += 1;
+      return Promise.resolve(
+        call === 1
+          ? { ok: true, epicKey: "ADMIN-899", tasksCreated: 20, itemsRemaining: 5 }
+          : { ok: true, epicKey: "ADMIN-899", tasksCreated: 5, itemsRemaining: 0 }
+      );
+    });
+    const items = Array.from({ length: 25 }, (_, i) => ({ id: `item-${i}`, name: `Item ${i}` }));
+    mockInvoke({
+      getRemediationTickets: { available: false, total: 0, groups: [] },
+      getRemediationCandidates: { available: true, items },
+      createRemediationEpic,
+    });
+
+    const user = userEvent.setup();
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+    await user.click((await screen.findAllByRole("button", { name: /Check current items/i }))[0]);
+    await user.click(await screen.findByRole("button", { name: /Create remediation epic \(25 tasks\)/i }));
+
+    await waitFor(() => expect(createRemediationEpic).toHaveBeenCalledTimes(2));
+    // Both calls carry the full, unchanged item list -- the resolver is what skips what is
+    // already ticketed, keyed on item id, not the caller trimming the list itself.
+    expect(createRemediationEpic).toHaveBeenNthCalledWith(1, expect.objectContaining({ items }));
+    expect(createRemediationEpic).toHaveBeenNthCalledWith(2, expect.objectContaining({ items }));
+  });
+
+  test("shows live progress while a large finding is still batching", async () => {
+    let resolveSecondBatch;
+    const createRemediationEpic = vi.fn()
+      .mockResolvedValueOnce({ ok: true, epicKey: "ADMIN-899", tasksCreated: 20, itemsRemaining: 5 })
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveSecondBatch = resolve; }));
+    const items = Array.from({ length: 25 }, (_, i) => ({ id: `item-${i}`, name: `Item ${i}` }));
+    mockInvoke({
+      getRemediationTickets: { available: false, total: 0, groups: [] },
+      getRemediationCandidates: { available: true, items },
+      createRemediationEpic,
+    });
+
+    const user = userEvent.setup();
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+    await user.click((await screen.findAllByRole("button", { name: /Check current items/i }))[0]);
+    await user.click(await screen.findByRole("button", { name: /Create remediation epic \(25 tasks\)/i }));
+
+    // Mid-loop: the first batch landed, the second is still in flight -- the button and the
+    // helper text both say where the loop actually is, not just "Creating...".
+    expect(await screen.findByRole("button", { name: /Creating… 20 of 25/i })).toBeInTheDocument();
+    expect(screen.getByText(/20 of 25 so far/)).toBeInTheDocument();
+
+    resolveSecondBatch({ ok: true, epicKey: "ADMIN-899", tasksCreated: 5, itemsRemaining: 0 });
+    await waitFor(() => expect(screen.queryByRole("button", { name: /Creating/i })).not.toBeInTheDocument());
+  });
+
+  test("reports partial failures after the loop finishes rather than dropping them", async () => {
+    const createRemediationEpic = vi.fn().mockResolvedValue({
+      ok: true, epicKey: "ADMIN-1", tasksCreated: 1, itemsRemaining: 0,
+      failures: [{ itemId: "4002", error: "Field 'customfield_10099' is required." }],
+    });
+    mockInvoke({
+      getRemediationTickets: { available: false, total: 0, groups: [] },
+      getRemediationCandidates: { available: true, items: [{ id: "4001", name: "Open Bugs" }, { id: "4002", name: "Sprint Filter" }] },
+      createRemediationEpic,
+    });
+
+    const user = userEvent.setup();
+    render(<RemediationTab siteOrigin="https://acme.atlassian.net" />);
+    await user.click((await screen.findAllByRole("button", { name: /Check current items/i }))[0]);
+    await user.click(await screen.findByRole("button", { name: /Create remediation epic \(2 tasks\)/i }));
+
+    expect(await screen.findByText(/1 item failed/)).toBeInTheDocument();
+    expect(screen.getByText(/customfield_10099/)).toBeInTheDocument();
+  });
+
   test("shows the resolver's error rather than pretending the create worked", async () => {
     mockInvoke({
       getRemediationTickets: { available: false, total: 0, groups: [] },
