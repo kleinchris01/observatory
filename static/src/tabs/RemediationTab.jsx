@@ -74,7 +74,7 @@ function TaskRow({ task, siteOrigin }) {
 // One finding: the epic (if raised), its tasks, and the create/update action. The epic sits
 // visually above its tasks -- the same "epic on top, one task per item below" shape asked for,
 // because that is also just how Jira itself nests them.
-function FindingCard({ entry, group, siteOrigin, onCreate, creating, error }) {
+function FindingCard({ entry, group, siteOrigin, onCreate, creating, progress, error }) {
   const [expanded, setExpanded] = React.useState(false);
   const [candidates, setCandidates] = React.useState(null);
   const [loadingCandidates, setLoadingCandidates] = React.useState(false);
@@ -174,13 +174,20 @@ function FindingCard({ entry, group, siteOrigin, onCreate, creating, error }) {
                   onClick={() => onCreate(entry.key, candidates.items)}
                 >
                   {creating
-                    ? "Creating…"
+                    ? (progress ? `Creating… ${progress.done} of ${progress.total}` : "Creating…")
                     : untracked.length === 0
                       ? "Everything is already ticketed"
                       : epic
                         ? `Add ${untracked.length} task${untracked.length === 1 ? "" : "s"} to ${epic.issueKey}`
                         : `Create remediation epic (${untracked.length} task${untracked.length === 1 ? "" : "s"})`}
                 </button>
+                {creating && progress && progress.total > 20 && (
+                  <p className="remediation-candidates__summary">
+                    Creating tasks in Jira, {progress.done} of {progress.total} so far — a large finding can
+                    take several minutes. Stay on this tab while it runs; if you navigate away it stops, but
+                    nothing already created is lost, and pressing the button again picks up where it left off.
+                  </p>
+                )}
                 {error && <div className="danger-zone__error" role="alert">{error}</div>}
               </>
             )
@@ -191,10 +198,21 @@ function FindingCard({ entry, group, siteOrigin, onCreate, creating, error }) {
   );
 }
 
+// createRemediationEpic only ever creates up to this many tasks per call -- a synchronous
+// Forge resolver has a hard execution ceiling, and issue creation is sequential and
+// rate-limited, so one invocation cannot safely promise more than a bounded batch. The
+// resolver says so in `itemsRemaining`; this is the safety cap on how many batches the UI
+// will chain automatically before giving up and telling the admin to click again, so a bug
+// that made itemsRemaining stop shrinking cannot turn into a runaway loop invoking Jira
+// forever. 100 batches is 2,000 items at the current cap -- far past anything a single
+// governance finding should ever produce.
+const MAX_REMEDIATION_BATCHES = 100;
+
 export function RemediationTab({ siteOrigin }) {
   const [tickets, setTickets] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [creatingKey, setCreatingKey] = React.useState(null);
+  const [progress, setProgress] = React.useState({});
   const [errors, setErrors] = React.useState({});
 
   const fetchTickets = React.useCallback(async () => {
@@ -214,20 +232,54 @@ export function RemediationTab({ siteOrigin }) {
     return map;
   }, [tickets]);
 
+  // Keeps calling createRemediationEpic with the same item list until the finding's own
+  // itemsRemaining says there is nothing left, or a batch fails outright. Safe to repeat --
+  // the resolver is idempotent per item id -- so a page reload or a click mid-loop only ever
+  // continues, never re-creates. Progress updates and a ticket-list refresh happen after
+  // every batch, not just at the end, so 455 items reads as visible motion rather than one
+  // long silence followed by "done" or a truncated "20 of 455" with no way to tell why.
   async function handleCreate(findingKey, items) {
     setCreatingKey(findingKey);
     setErrors((e) => ({ ...e, [findingKey]: null }));
+    setProgress((p) => ({ ...p, [findingKey]: { done: 0, total: items.length } }));
+
+    let totalCreated = 0;
+    const allFailures = [];
     try {
-      const result = await invoke("createRemediationEpic", { findingKey, items });
-      if (result?.error) {
-        setErrors((e) => ({ ...e, [findingKey]: result.error }));
-      } else {
+      for (let batchNum = 0; batchNum < MAX_REMEDIATION_BATCHES; batchNum++) {
+        // eslint-disable-next-line no-await-in-loop -- each batch must land before the next
+        // is asked for, both because the epic only needs creating once and because chaining
+        // unawaited invokes would flood the same rate-limited Jira write path this exists to
+        // stay within.
+        const result = await invoke("createRemediationEpic", { findingKey, items });
+        if (result?.error) {
+          setErrors((e) => ({ ...e, [findingKey]: result.error }));
+          break;
+        }
+        totalCreated += result.tasksCreated || 0;
+        if (result.failures?.length) allFailures.push(...result.failures);
+        setProgress((p) => ({ ...p, [findingKey]: { done: totalCreated, total: items.length } }));
+        // eslint-disable-next-line no-await-in-loop
         await fetchTickets();
+        if (!result.itemsRemaining) break;
+        if (batchNum === MAX_REMEDIATION_BATCHES - 1) {
+          setErrors((e) => ({
+            ...e,
+            [findingKey]: `Stopped after ${MAX_REMEDIATION_BATCHES} batches with ${result.itemsRemaining} items still remaining. Click "Add tasks" again to continue.`,
+          }));
+        }
+      }
+      if (allFailures.length) {
+        setErrors((e) => ({
+          ...e,
+          [findingKey]: `${totalCreated} task${totalCreated === 1 ? "" : "s"} created, but ${allFailures.length} item${allFailures.length === 1 ? "" : "s"} failed: ${allFailures.slice(0, 3).map((f) => f.error).join("; ")}${allFailures.length > 3 ? "…" : ""}`,
+        }));
       }
     } catch (err) {
       setErrors((e) => ({ ...e, [findingKey]: err?.message || "Failed to create the remediation ticket." }));
     } finally {
       setCreatingKey(null);
+      setProgress((p) => ({ ...p, [findingKey]: null }));
     }
   }
 
@@ -259,6 +311,7 @@ export function RemediationTab({ siteOrigin }) {
               siteOrigin={siteOrigin}
               onCreate={handleCreate}
               creating={creatingKey === entry.key}
+              progress={progress[entry.key] || null}
               error={errors[entry.key]}
             />
           ))}
