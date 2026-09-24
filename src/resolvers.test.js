@@ -5858,6 +5858,48 @@ describe("getUserDetails", () => {
     expect(mocks.loadSchemesGrantingHolder).toHaveBeenCalledWith("test-install", "a1", "user", "a1");
   });
 
+  // Cross-pillar (Access): the common case, not the edge case -- most real grants run
+  // through a group, not a direct grant on the account, and grantedBySchemes (holder_type =
+  // "user" only) could not see a single one of them.
+  test("lists schemes granted via a group this account belongs to, distinct from direct grants", async () => {
+    mocks.readUserSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
+    mocks.loadUsers.mockResolvedValue([{
+      accountId: "a1", displayName: "Ann", applications: [],
+      groups: [{ id: "g1", name: "jira-administrators" }, { id: "g2", name: "marketing-contractors" }],
+    }]);
+    mocks.readAutomationPart.mockResolvedValue(null);
+    mocks.readAccessSnapshotMeta.mockResolvedValue({ version: "a1" });
+    mocks.loadSchemesGrantingHolder.mockImplementation((_install, _version, holderType, holderValue) => {
+      if (holderType === "user") return Promise.resolve([]);
+      if (holderType === "group" && holderValue === "g1") {
+        return Promise.resolve([{ schemeType: "permission", schemeId: "1", schemeName: "Prod", context: "ADMINISTER_PROJECTS", contextLabel: "Administer Projects" }]);
+      }
+      return Promise.resolve([]);
+    });
+
+    const result = await getUserDetails(ctx);
+
+    expect(result.grantedBySchemes).toEqual([]);
+    expect(result.grantedByGroups).toEqual([
+      expect.objectContaining({ schemeName: "Prod", contextLabel: "Administer Projects", viaGroup: "jira-administrators" }),
+    ]);
+    expect(mocks.loadSchemesGrantingHolder).toHaveBeenCalledWith("test-install", "a1", "group", "g1");
+    expect(mocks.loadSchemesGrantingHolder).toHaveBeenCalledWith("test-install", "a1", "group", "g2");
+  });
+
+  test("does not query group grants when the account belongs to no groups", async () => {
+    mocks.readUserSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
+    mocks.loadUsers.mockResolvedValue([{ accountId: "a1", displayName: "Ann", applications: [], groups: [] }]);
+    mocks.readAutomationPart.mockResolvedValue(null);
+    mocks.readAccessSnapshotMeta.mockResolvedValue({ version: "a1" });
+    mocks.loadSchemesGrantingHolder.mockResolvedValue([]);
+
+    const result = await getUserDetails(ctx);
+
+    expect(result.grantedByGroups).toEqual([]);
+    expect(mocks.loadSchemesGrantingHolder).toHaveBeenCalledTimes(1); // the direct-user check only
+  });
+
   test("reports access grants unavailable when the access inventory has not been built", async () => {
     mocks.readUserSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
     mocks.loadUsers.mockResolvedValue([{ accountId: "a1", displayName: "Ann", applications: [], groups: [] }]);
@@ -6612,6 +6654,25 @@ describe("getRemediationCandidates", () => {
     // No issue-count data was measured, so everCount is unknown, not zero -- a missing
     // count must never render as "safe to delete" on its own.
     expect(r.items).toEqual([{ id: "1", name: "Dead End", category: null, everCount: null }]);
+  });
+
+  test("status-reachability: excludes a status a board column still maps", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "w1" });
+    mocks.loadStatusesCatalog.mockResolvedValue([
+      { statusId: "1", id: "1", name: "Dead End" },
+      { statusId: "2", id: "2", name: "On A Board" },
+      { statusId: "3", id: "3", name: "In Use" },
+    ]);
+    mocks.loadWorkflowSchemeStatuses.mockResolvedValue([{ schemeId: "s1", statusId: "3" }]);
+    mocks.loadStatusIssueCounts.mockResolvedValue(new Map());
+    mocks.loadStatusAutomationReferences.mockResolvedValue({});
+    mocks.readBoardSnapshotMeta.mockResolvedValue({ version: "b1" });
+    mocks.loadBoardColumns.mockResolvedValue([{ boardId: "100", statusIds: ["2"] }]);
+
+    const r = await getRemediationCandidates({ payload: { findingKey: "status-reachability" }, context: ctxWithAccount() });
+
+    expect(r.available).toBe(true);
+    expect(r.items.map((i) => i.id)).toEqual(["1"]);
   });
 
   test("status-reachability: reports unavailable with no scheme->status mapping", async () => {
@@ -8027,6 +8088,13 @@ describe("rovo workflow agent", () => {
     mocks.loadStatusHistoryCounts.mockResolvedValue({ counts: new Map([["9", 12]]), measuredAt: "2026-08-01" });
     mocks.loadWorkflowSchemeProjects.mockResolvedValue([{ projectKey: "ABC", projectName: "Alpha" }]);
     mocks.loadStatusAutomationReferences.mockResolvedValue({});
+    // Board and filter checks default to "checked and clean" -- an inventory exists and
+    // references nothing -- so existing tests that only care about the scheme/automation
+    // side keep working, and a test that wants "not yet built" overrides these explicitly.
+    mocks.readBoardSnapshotMeta.mockResolvedValue({ version: "b1" });
+    mocks.loadBoardColumns.mockResolvedValue([]);
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "f1" });
+    mocks.loadFilterReferencesFor.mockResolvedValue({ total: 0, filters: [] });
   }
 
   test("search: returns workflows-unavailable when no snapshot exists", async () => {
@@ -8087,8 +8155,46 @@ describe("rovo workflow agent", () => {
     expect(r.status).toBe("ok");
     expect(r.reachedBySchemeCount).toBe(0);
     expect(r.issueCount).toBe(0);
+    expect(r.boardChecked).toBe(true);
+    expect(r.onAnyBoard).toBe(false);
+    expect(r.filtersChecked).toBe(true);
+    expect(r.referencingFilterCount).toBe(0);
     expect(r.verdict).toBe("no-evidence-of-use");
-    expect(r.verdictCaveat).toMatch(/boards, filters, dashboards or apps/);
+    expect(r.verdictCaveat).toMatch(/board columns, saved filter JQL/);
+  });
+
+  test("impact: a status no board column maps and no filter references is still in-use when a board column DOES map it", async () => {
+    seedBuilt();
+    // "On Hold" (id 9) is otherwise the no-evidence case above; a board column mapping it
+    // is the one thing left that should flip the verdict even with zero schemes, zero
+    // issues and zero rules.
+    mocks.loadBoardColumns.mockResolvedValue([{ boardId: "100", statusIds: ["9"] }]);
+    const r = await rovoWorkflowImpact({ name: "On Hold" }, ctx());
+    expect(r.onAnyBoard).toBe(true);
+    expect(r.verdict).not.toBe("no-evidence-of-use");
+  });
+
+  test("impact: a status referenced by a saved filter's JQL is not no-evidence, even with zero schemes, rules or issues", async () => {
+    seedBuilt();
+    mocks.loadFilterReferencesFor.mockResolvedValue({
+      total: 1,
+      filters: [{ id: "4001", name: "Everything On Hold" }],
+    });
+    const r = await rovoWorkflowImpact({ name: "On Hold" }, ctx());
+    expect(r.referencingFilterCount).toBe(1);
+    expect(r.referencingFilters).toEqual([{ id: "4001", name: "Everything On Hold" }]);
+    expect(r.verdict).not.toBe("no-evidence-of-use");
+  });
+
+  test("impact: no board inventory degrades the verdict to unknown rather than a false no-evidence", async () => {
+    seedBuilt();
+    mocks.readBoardSnapshotMeta.mockResolvedValue(null);
+    const r = await rovoWorkflowImpact({ name: "On Hold" }, ctx());
+    expect(r.boardChecked).toBe(false);
+    expect(r.onAnyBoard).toBeNull();
+    // Issue count is a measured zero, so this still reads "unknown" rather than "in-use" --
+    // but it must not claim no-evidence-of-use when a whole pillar was never checked.
+    expect(r.verdict).not.toBe("no-evidence-of-use");
   });
 
   test("impact: a status issues sit in is in-use with its governed project sample", async () => {
@@ -8321,6 +8427,56 @@ describe("rovo people agent", () => {
     expect(["no-cross-pillar-footprint", "has-footprint"]).toContain(r.verdict);
     expect(r.dataCaveats).toHaveProperty("automation");
     expect(r.verdictCaveat).toMatch(/ownerless/);
+  });
+
+  // Cross-pillar (Access via groups): most real access runs through a group, and a scheme
+  // granting to a group the account belongs to used to be invisible to this verdict entirely
+  // -- an account holding admin purely via group membership read as "no footprint".
+  test("impact: has-footprint from a group-granted scheme alone, with no direct grant, owned artifact or rule reference", async () => {
+    seedRoster();
+    mocks.readAccessSnapshotMeta.mockResolvedValue({ version: "a1" });
+    mocks.loadSchemesGrantingHolder.mockImplementation((_i, _v, holderType, holderValue) => {
+      if (holderType === "group" && holderValue === "g1") {
+        return Promise.resolve([{ schemeType: "permission", schemeId: "1", schemeName: "Prod", context: "ADMINISTER_PROJECTS" }]);
+      }
+      return Promise.resolve([]);
+    });
+
+    const r = await rovoPeopleImpact({ accountId: "acc-1" }, ctx()); // acc-1 is in group g1
+    expect(r.verdict).toBe("has-footprint");
+    expect(r.groupSchemeGrants).toBe(1);
+    expect(r.grantedViaGroups).toEqual(["ops-team"]);
+    expect(r.verdictCaveat).toMatch(/held through a group membership/);
+  });
+
+  test("impact: two groups granting the same scheme count once, not twice", async () => {
+    mocks.readUserSnapshotMeta.mockResolvedValue({ state: "ready", version: "u1" });
+    mocks.readSnapshotMeta.mockResolvedValue(null);
+    mocks.readAutomationPart.mockResolvedValue(null);
+    mocks.loadUsers.mockResolvedValue([
+      { accountId: "acc-1", displayName: "Dana Ops", active: true, groups: [{ id: "g1", name: "ops-team" }, { id: "g2", name: "ops-leads" }], applications: [] },
+    ]);
+    mocks.loadUserGovernanceSummary.mockResolvedValue({ totalUsers: 1, activeUsers: 1 });
+    mocks.readAccessSnapshotMeta.mockResolvedValue({ version: "a1" });
+    mocks.loadSchemesGrantingHolder.mockImplementation((_i, _v, holderType) => {
+      if (holderType === "group") {
+        return Promise.resolve([{ schemeType: "permission", schemeId: "1", schemeName: "Prod", context: "ADMINISTER_PROJECTS" }]);
+      }
+      return Promise.resolve([]);
+    });
+
+    const r = await rovoPeopleImpact({ accountId: "acc-1" }, ctx());
+    expect(r.groupSchemeGrants).toBe(1);
+    expect(r.grantedViaGroups.sort()).toEqual(["ops-leads", "ops-team"]);
+  });
+
+  test("impact: no cross-pillar footprint when no groups grant anything", async () => {
+    seedRoster();
+    mocks.readAccessSnapshotMeta.mockResolvedValue({ version: "a1" });
+    mocks.loadSchemesGrantingHolder.mockResolvedValue([]);
+    const r = await rovoPeopleImpact({ accountId: "acc-2" }, ctx()); // acc-2 has no groups
+    expect(r.groupSchemeGrants).toBe(0);
+    expect(r.grantedViaGroups).toEqual([]);
   });
 });
 

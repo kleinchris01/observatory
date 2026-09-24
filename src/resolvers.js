@@ -976,6 +976,22 @@ async function getWorkflowInventory({ payload, context }) {
   }
 }
 
+// Every status id any board column maps, across the whole board estate. Best-effort: null
+// (not an empty Set) when no board snapshot exists, so a caller can tell "no board uses
+// this" from "boards were never inventoried" -- the same distinction every other cross-
+// pillar join in this file makes, and the reason a board-side finding was invisible to the
+// status-reachability answer until this existed: an empty result and a missing one used to
+// look identical to findOrphanedStatuses.
+async function computeBoardStatusIds(installationKey) {
+  const boardMeta = await readBoardSnapshotMeta(installationKey).catch(() => null);
+  if (!boardMeta?.version) return null;
+  const columns = await loadBoardColumns(installationKey, boardMeta.version).catch(() => null);
+  if (!columns) return null;
+  const ids = new Set();
+  for (const col of columns) for (const id of col.statusIds || []) ids.add(String(id));
+  return ids;
+}
+
 // Governance findings derived from the workflow snapshot: duplicate status names,
 // statuses no scheme can reach, and schemes whose category balance looks wrong.
 //
@@ -1068,8 +1084,18 @@ async function getWorkflowInsights({ context }) {
       }
     }
 
+    // Board columns are the other thing that holds a status open with no scheme and no rule
+    // touching it -- see computeBoardStatusIds. Best-effort, same reasoning as automation
+    // above: no board inventory degrades to "not checked" rather than a false all-clear.
+    const boardStatusIds = await computeBoardStatusIds(installationKey).catch((error) => {
+      logger.warn("workflow-insights.status_board_lookup_failed", {
+        installationKey, error: String(error?.message || error),
+      });
+      return null;
+    });
+
     const orphans = schemeStatusesAvailable
-      ? findOrphanedStatuses(statuses, schemeStatuses, hasIssueCounts ? issueCounts : null, automationByStatus)
+      ? findOrphanedStatuses(statuses, schemeStatuses, hasIssueCounts ? issueCounts : null, automationByStatus, boardStatusIds)
       : [];
     const orphanPage = orphans.slice(0, 200);
 
@@ -2047,6 +2073,24 @@ async function getUserDetails({ payload, context }) {
   const user = users.find((u) => u.accountId === accountId) || null;
   const owned = ownership.byAccount.get(accountId) || { filters: [], dashboards: [], rules: [] };
 
+  // Grants via GROUP membership, not just a direct grant on the account. This is the common
+  // case, not the edge case: a permission or notification scheme naming a person directly is
+  // the anti-pattern the comment below calls out, but most real grants run through a group,
+  // and grantedBySchemes above -- holder_type = "user" only -- could not see a single one of
+  // them. A scheme granting to "jira-administrators" was invisible here even for an account
+  // that IS one, which is exactly the footprint this resolver exists to show.
+  let grantedByGroups = [];
+  if (accessMeta?.version && user?.groups?.length) {
+    const perGroup = await Promise.all(
+      user.groups.map((g) =>
+        loadSchemesGrantingHolder(installationKey, accessMeta.version, "group", g.id)
+          .then((rows) => rows.map((r) => ({ ...r, viaGroup: g.name || g.id })))
+          .catch(() => [])
+      )
+    );
+    grantedByGroups = perGroup.flat();
+  }
+
   // The rules that NAME this person -- assign to them, condition on them being the assignee,
   // set a user field to their account. Distinct from authoredRules (rules they own): a
   // deactivated account can still be the assignee half a dozen rules route work to.
@@ -2076,6 +2120,10 @@ async function getUserDetails({ payload, context }) {
     // Permission grants, security-level memberships and notification recipients that name
     // this account directly (a direct grant is an anti-pattern -- it should be a role).
     grantedBySchemes,
+    // The same, via a group this account belongs to. Each entry carries which group earned
+    // it (viaGroup), because "you have this via jira-administrators" and "you have this via
+    // marketing-contractors" are different facts even when the scheme is the same one.
+    grantedByGroups,
     automationRefsAvailable: Boolean(ruleUserIndex),
     fieldAppearancesAvailable: Boolean(fieldMeta?.version),
     accessGrantsAvailable: Boolean(accessMeta?.version),
@@ -3743,11 +3791,11 @@ async function getRemediationCandidates({ payload, context }) {
     return { available: true, items };
   }
 
-  // Statuses no workflow scheme reaches AND no automation rule transitions into -- the same
-  // basis the "status-reachability" health dimension scores (unreachableNoRuleCount), not
-  // the wider "every orphan" count, so the epic's item count matches the number the finding
-  // itself reports. Requires the scheme->status mapping; without it every status looks
-  // orphaned, which is why status-reachability is unavailable rather than wrong in that case.
+  // Statuses no workflow scheme reaches, no automation rule transitions into, AND no board
+  // column maps -- the same basis the "status-reachability" health dimension scores, so the
+  // epic's item count matches the number the finding itself reports. Requires the
+  // scheme->status mapping; without it every status looks orphaned, which is why
+  // status-reachability is unavailable rather than wrong in that case.
   if (findingKey === "status-reachability") {
     const meta = await readWorkflowSnapshotMeta(installationKey).catch(() => null);
     if (!meta?.version) return { available: false, reason: "no-snapshot", items: [] };
@@ -3759,15 +3807,18 @@ async function getRemediationCandidates({ payload, context }) {
     const issueCounts = await loadStatusIssueCounts(installationKey).catch(() => new Map());
     const hasIssueCounts = issueCounts.size > 0;
     const provisional = findOrphanedStatuses(statuses, schemeStatuses, hasIssueCounts ? issueCounts : null);
-    // A status only a rule reaches is not safe to retire -- ask the same automation index
-    // getWorkflowInsights joins against before deciding, rather than treating "not yet
-    // checked" as "no rule uses it".
-    const automationByStatus = provisional.length
-      ? await loadStatusAutomationReferences(installationKey, provisional.map((o) => o.name).filter(Boolean)).catch(() => null)
-      : null;
-    const orphans = findOrphanedStatuses(statuses, schemeStatuses, hasIssueCounts ? issueCounts : null, automationByStatus);
+    // A status only a rule reaches, or only a board column maps, is not safe to retire --
+    // ask the same automation index and board inventory getWorkflowInsights joins against
+    // before deciding, rather than treating "not yet checked" as "nothing uses it".
+    const [automationByStatus, boardStatusIds] = await Promise.all([
+      provisional.length
+        ? loadStatusAutomationReferences(installationKey, provisional.map((o) => o.name).filter(Boolean)).catch(() => null)
+        : Promise.resolve(null),
+      computeBoardStatusIds(installationKey).catch(() => null),
+    ]);
+    const orphans = findOrphanedStatuses(statuses, schemeStatuses, hasIssueCounts ? issueCounts : null, automationByStatus, boardStatusIds);
     const items = orphans
-      .filter((o) => !o.ruleOnly)
+      .filter((o) => !o.ruleOnly && !o.boardOnly)
       .map((o) => ({
         id: o.statusId,
         name: o.name,
@@ -6737,13 +6788,31 @@ export async function rovoWorkflowImpact(payload, context) {
     const automation = await loadStatusAutomationReferences(installationKey, [status.name]).catch(() => null);
     const rules = automation?.[status.name.toLowerCase()] || automation?.[status.name] || null;
 
+    // Two more pillars this used to disclaim rather than check: board columns and saved
+    // filters. Both were already computed elsewhere in the app -- board columns for the
+    // status-reachability finding above, filter references via the same snapshot_filter_refs
+    // lookup deletion-safety already uses for fields, just never with kind: "status" -- so
+    // this is a join, not new analysis.
+    const boardStatusIds = await computeBoardStatusIds(installationKey).catch(() => null);
+    const onBoard = boardStatusIds ? boardStatusIds.has(sid) : null;
+
+    const filterMeta = await readFilterSnapshotMeta(installationKey).catch(() => null);
+    const filterRefs = filterMeta?.version
+      ? await loadFilterReferencesFor(installationKey, filterMeta.version, "status", status.name).catch(() => null)
+      : null;
+    const referencingFilters = filterRefs?.filters ?? null;
+
     // The consequential judgement, phrased at its true strength. A status no scheme reaches
-    // and no rule touches has "no evidence of use" -- never "safe to delete".
+    // and no rule, board or filter touches has "no evidence of use" -- never "safe to delete".
     const noEvidence =
       reachingSchemeIds.size === 0 &&
       (wf.hasIssueCounts ? Number(wf.issueCounts.get(sid) ?? 0) === 0 : false) &&
       Boolean(automation) &&
-      !rules;
+      !rules &&
+      boardStatusIds !== null &&
+      onBoard === false &&
+      Boolean(referencingFilters) &&
+      referencingFilters.length === 0;
 
     return agentOk(wf.refreshedAt, {
       subject: statusRow(status, wf),
@@ -6753,14 +6822,22 @@ export async function rovoWorkflowImpact(payload, context) {
       projectSample: [...new Set(projectSample)].slice(0, 20),
       automationChecked: Boolean(automation),
       automationRules: rules,
+      boardChecked: boardStatusIds !== null,
+      onAnyBoard: onBoard,
+      filtersChecked: Boolean(referencingFilters),
+      referencingFilters: referencingFilters
+        ? referencingFilters.slice(0, 10).map((f) => ({ id: f.id, name: f.name }))
+        : null,
+      referencingFilterCount: referencingFilters ? referencingFilters.length : null,
       issueCount: wf.hasIssueCounts ? Number(wf.issueCounts.get(sid) ?? 0) : null,
       everCount: wf.hasHistoryCounts ? (wf.historyCounts.get(sid) ?? null) : null,
       verdict: noEvidence
         ? "no-evidence-of-use"
         : (wf.hasIssueCounts ? "in-use" : "unknown"),
       verdictCaveat:
-        "This covers workflow schemes, issue counts and (where an analysis exists) automation. " +
-        "It does not cover boards, filters, dashboards or apps.",
+        "This covers workflow schemes, issue counts, board columns, saved filter JQL and " +
+        "(where an analysis exists) automation. It does not cover dashboards built directly " +
+        "on a status without a saved filter, or apps.",
     });
   } catch (error) {
     incrMetric(METRIC_NAMES.resolverFailed);
@@ -7078,8 +7155,16 @@ export async function rovoPeopleImpact(payload, context) {
     const ownedDashboards = (details.ownedDashboards || []).length;
     const authoredRules = (details.authoredRules || []).length;
     const writeRefs = (details.referencedInRules || []).filter((r) => r.direction === "write");
-    const grants = (details.grantedBySchemes || []).length;
-    const anything = ownedFilters + ownedDashboards + authoredRules + (details.referencedInRules || []).length + grants;
+    const directGrants = (details.grantedBySchemes || []).length;
+    // Grants via a group are deduplicated by scheme+context: two groups both granting the
+    // same permission on the same scheme is one fact about the account, not two, and
+    // counting it twice would make a well-organized site (grants via role-shaped groups)
+    // look more exposed than a badly-organized one (the same grant added directly twice).
+    const groupGrantKeys = new Set(
+      (details.grantedByGroups || []).map((g) => `${g.schemeType}:${g.schemeId}:${g.context}`)
+    );
+    const groupGrants = groupGrantKeys.size;
+    const anything = ownedFilters + ownedDashboards + authoredRules + (details.referencedInRules || []).length + directGrants + groupGrants;
 
     return agentOk(null, {
       accountId,
@@ -7088,10 +7173,15 @@ export async function rovoPeopleImpact(payload, context) {
       ownedFilters, ownedDashboards, authoredRules,
       rulesRoutingWorkHere: writeRefs.map((r) => ({ id: r.id, name: r.name })),
       referencedInRuleCount: (details.referencedInRules || []).length,
-      directSchemeGrants: grants,
+      directSchemeGrants: directGrants,
+      // Most real access runs through a group, not a direct grant -- this was invisible here
+      // until now even for an account holding admin purely via group membership.
+      groupSchemeGrants: groupGrants,
+      grantedViaGroups: [...new Set((details.grantedByGroups || []).map((g) => g.viaGroup))].slice(0, 20),
       verdict: anything === 0 ? "no-cross-pillar-footprint" : "has-footprint",
       verdictCaveat:
-        "Deactivating an account leaves its filters, dashboards and rules ownerless (boards and any dashboard on a wall break), and any rule that routes work to it stops assigning. " +
+        "Deactivating an account leaves its filters, dashboards and rules ownerless (boards and any dashboard on a wall break), any rule that routes work to it stops assigning, " +
+        "and any access held through a group membership is what actually changes -- direct grants on the account are rare by design. " +
         "This does not cover board leads, project leads, or app-specific ownership.",
       dataCaveats: {
         automation: details.automationRefsAvailable ? "checked" : "no automation analysis imported",

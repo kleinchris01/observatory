@@ -176,6 +176,41 @@ describe("findOrphanedStatuses", () => {
       expect(orphans.every((o) => o.automationRuleCount === 0)).toBe(true);
     });
   });
+
+  // The same shape as the automation block above, for a board column instead of a rule. A
+  // status a board maps is load-bearing even at zero issues and zero rules -- deleting it
+  // drops that column's cards off the board with no error anywhere.
+  describe("board references", () => {
+    const counts = new Map([["2", 0], ["3", 0]]);
+
+    test("a board column mapping the status stops it being safe to remove", () => {
+      const boardStatusIds = new Set(["2"]);
+      const orphans = findOrphanedStatuses(statuses, pairs, counts, null, boardStatusIds);
+
+      const held = orphans.find((o) => o.name === "Unused");
+      const dead = orphans.find((o) => o.name === "Also Unused");
+
+      expect(held).toMatchObject({ boardCount: 1, boardOnly: true, safeToRemove: false });
+      expect(dead).toMatchObject({ boardCount: 0, boardOnly: false, safeToRemove: true });
+    });
+
+    test("board and rule references are independent -- either alone blocks safety", () => {
+      const orphans = findOrphanedStatuses(statuses, pairs, counts, { unused: { ruleCount: 1 } }, new Set(["3"]));
+      const ruleHeld = orphans.find((o) => o.name === "Unused");
+      const boardHeld = orphans.find((o) => o.name === "Also Unused");
+
+      expect(ruleHeld).toMatchObject({ ruleOnly: true, boardOnly: false, safeToRemove: false });
+      expect(boardHeld).toMatchObject({ ruleOnly: false, boardOnly: true, safeToRemove: false });
+    });
+
+    test("boardOnly and boardCount are null, not false, when no board inventory exists", () => {
+      const orphans = findOrphanedStatuses(statuses, pairs, counts, null, null);
+      expect(orphans.every((o) => o.boardOnly === null)).toBe(true);
+      expect(orphans.every((o) => o.boardCount === null)).toBe(true);
+      // Degrades to what the claim used to mean without a board inventory.
+      expect(orphans.every((o) => o.safeToRemove === true)).toBe(true);
+    });
+  });
 });
 
 describe("computeSchemeCategoryBalance", () => {
@@ -278,6 +313,10 @@ describe("summarizeWorkflowInsights", () => {
     expect(summary.ruleOnlyStatusCount).toBe(1);
     expect(summary.unreachableNoRuleCount).toBe(1);
     expect(summary.automationChecked).toBe(true);
+    // No fixture row sets boardOnly at all here -- summarizeWorkflowInsights must read that
+    // as "not checked", not as `undefined !== null` reading true.
+    expect(summary.boardOnlyStatusCount).toBe(0);
+    expect(summary.boardChecked).toBe(false);
     expect(summary.flaggedSchemeCount).toBe(1);
     expect(summary.noDoneSchemeCount).toBe(1);
     // The lone orphan with no rule (orphans[0]) carries no issueCount in this fixture, so it
@@ -308,6 +347,25 @@ describe("summarizeWorkflowInsights", () => {
     });
     expect(summary.automationChecked).toBe(false);
     expect(summary.ruleOnlyStatusCount).toBe(0);
+  });
+
+  test("reports boardChecked and boardOnlyStatusCount from real orphan rows", () => {
+    const summary = summarizeWorkflowInsights({
+      orphans: [
+        { safeToRemove: false, ruleOnly: false, boardOnly: true, automationRuleCount: null },
+        { safeToRemove: true, ruleOnly: false, boardOnly: false, automationRuleCount: null },
+      ],
+    });
+    expect(summary.boardChecked).toBe(true);
+    expect(summary.boardOnlyStatusCount).toBe(1);
+  });
+
+  test("reports boardChecked false when no orphan carries a board answer", () => {
+    const summary = summarizeWorkflowInsights({
+      orphans: [{ safeToRemove: true, ruleOnly: false, boardOnly: null, automationRuleCount: null }],
+    });
+    expect(summary.boardChecked).toBe(false);
+    expect(summary.boardOnlyStatusCount).toBe(0);
   });
 
   test("is all zeroes for a clean site", () => {
