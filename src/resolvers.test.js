@@ -6735,6 +6735,168 @@ describe("getRemediationCandidates", () => {
     expect(r.items).toEqual([{ id: "customfield_1", name: "Old Field", type: "text", description: null }]);
   });
 
+  test("filter-duplicates: groups filters sharing identical JQL", async () => {
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "f1" });
+    mocks.loadFilters.mockResolvedValue([
+      { id: "1", name: "Open Bugs", jql: "project = ABC AND status = Open", ownerName: "Ann", shares: [] },
+      { id: "2", name: "Open Bugs Copy", jql: "project = ABC AND status = Open", ownerName: "Sam", shares: [] },
+      { id: "3", name: "Something Else", jql: "project = XYZ", ownerName: "Ann", shares: [] },
+    ]);
+
+    const r = await getRemediationCandidates({ payload: { findingKey: "filter-duplicates" }, context: ctxWithAccount() });
+
+    expect(r.available).toBe(true);
+    expect(r.items).toHaveLength(1);
+    expect(r.items[0]).toMatchObject({ count: 2, jql: "project = ABC AND status = Open" });
+    expect(r.items[0].filters.map((f) => f.id).sort()).toEqual(["1", "2"]);
+  });
+
+  test("filter-duplicates: reports unavailable when there is no filter snapshot yet", async () => {
+    mocks.readFilterSnapshotMeta.mockResolvedValue(null);
+    const r = await getRemediationCandidates({ payload: { findingKey: "filter-duplicates" }, context: ctxWithAccount() });
+    expect(r).toMatchObject({ available: false, reason: "no-snapshot", items: [] });
+  });
+
+  test("filter-scope: a filter naming a project the site does not have", async () => {
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "f1" });
+    mocks.loadFilters.mockResolvedValue([
+      { id: "1", name: "Ghost Project Search", jql: "project = GONE", ownerName: "Ann", projectRefs: ["GONE"], typeRefs: [], shares: [] },
+      { id: "2", name: "Fine Filter", jql: "project = ABC", ownerName: "Ann", projectRefs: ["ABC"], typeRefs: [], shares: [] },
+    ]);
+    mocks.readSnapshotMeta.mockResolvedValue({ version: "s1" });
+    mocks.listSnapshotProjects.mockResolvedValue([{ projectId: "10", projectKey: "ABC", projectName: "Alpha" }]);
+    mocks.readIssueTypeSnapshotMeta.mockResolvedValue(null);
+
+    const r = await getRemediationCandidates({ payload: { findingKey: "filter-scope" }, context: ctxWithAccount() });
+
+    expect(r.available).toBe(true);
+    expect(r.items).toEqual([
+      expect.objectContaining({ id: "1:project", name: "Ghost Project Search", refKind: "project", missing: ["GONE"] }),
+    ]);
+  });
+
+  test("filter-scope: reports unavailable when neither catalog exists to join against", async () => {
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "f1" });
+    mocks.loadFilters.mockResolvedValue([]);
+    mocks.readSnapshotMeta.mockResolvedValue(null);
+    mocks.readIssueTypeSnapshotMeta.mockResolvedValue(null);
+    const r = await getRemediationCandidates({ payload: { findingKey: "filter-scope" }, context: ctxWithAccount() });
+    expect(r).toMatchObject({ available: false, reason: "no-catalog", items: [] });
+  });
+
+  test("screen-unreachable-fields: a populated field with no reachability entry anywhere", async () => {
+    mocks.readScreenSnapshotMeta.mockResolvedValue({ version: "s1", refreshedAt: "t" });
+    mocks.readSnapshotMeta.mockResolvedValue({ version: "f1", refreshedAt: "t" });
+    mocks.loadProjectScreenCoverage.mockResolvedValue([{ projectId: "10", screenCount: 3, unresolvedScreens: 0 }]);
+    mocks.loadFieldReachabilityByProject.mockResolvedValue([
+      { projectId: "10", fieldId: "cf_1", onCreate: true, onEdit: true, onView: true },
+    ]);
+    mocks.loadPopulatedProjectUsage.mockResolvedValue({ truncated: false, limit: 20000, rows: [] });
+    mocks.loadSnapshotFields.mockResolvedValue([{ id: "cf_1", name: "Story Points" }, { id: "cf_2", name: "Vendor Ref" }]);
+
+    const r = await getRemediationCandidates({ payload: { findingKey: "screen-unreachable-fields" }, context: ctxWithAccount() });
+
+    expect(r.available).toBe(true);
+    expect(r.items).toEqual([{ id: "cf_2", fieldId: "cf_2", fieldName: "Vendor Ref" }]);
+  });
+
+  test("screen-unreachable-fields: reports unavailable when the cross could not resolve", async () => {
+    mocks.readScreenSnapshotMeta.mockResolvedValue(null);
+    mocks.readSnapshotMeta.mockResolvedValue({ version: "f1" });
+    const r = await getRemediationCandidates({ payload: { findingKey: "screen-unreachable-fields" }, context: ctxWithAccount() });
+    expect(r).toMatchObject({ available: false });
+  });
+
+  test("issue-type-reach: reads the live governanceFindings computation, not the SQL-aggregate governance summary", async () => {
+    mocks.readIssueTypeSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
+    mocks.loadIssueTypes.mockResolvedValue([
+      { id: "1", name: "Epic", hierarchyLevel: 1, subtask: false },
+      { id: "2", name: "Orphan Type", hierarchyLevel: 0, subtask: false },
+    ]);
+    mocks.loadIssueTypeSchemes.mockResolvedValue([{ schemeId: "s1", name: "Default", projectCount: 1 }]);
+    mocks.loadIssueTypeSchemeItems.mockResolvedValue([{ schemeId: "s1", issueTypeId: "1", itemIndex: 0 }]);
+    mocks.loadIssueTypeSchemeProjects.mockResolvedValue([]);
+    mocks.loadIssueTypeGovernanceSummary.mockResolvedValue({}); // deliberately no orphanTypes here
+
+    const r = await getRemediationCandidates({ payload: { findingKey: "issue-type-reach" }, context: ctxWithAccount() });
+
+    expect(r.available).toBe(true);
+    expect(r.items).toEqual([{ id: "2", name: "Orphan Type", subtask: false }]);
+  });
+
+  test("issue-type-naming: groups issue types sharing a normalized name", async () => {
+    mocks.readIssueTypeSnapshotMeta.mockResolvedValue({ state: "ready", version: "v1" });
+    mocks.loadIssueTypes.mockResolvedValue([
+      { id: "1", name: "Bug", hierarchyLevel: 0, subtask: false },
+      { id: "2", name: "Bug ", hierarchyLevel: 0, subtask: false },
+    ]);
+    mocks.loadIssueTypeSchemes.mockResolvedValue([]);
+    mocks.loadIssueTypeSchemeItems.mockResolvedValue([]);
+    mocks.loadIssueTypeSchemeProjects.mockResolvedValue([]);
+
+    const r = await getRemediationCandidates({ payload: { findingKey: "issue-type-naming" }, context: ctxWithAccount() });
+
+    expect(r.available).toBe(true);
+    expect(r.items).toHaveLength(1);
+    expect(r.items[0].types.map((t) => t.id).sort()).toEqual(["1", "2"]);
+  });
+
+  test("issue-type-reach: reports unavailable when never built", async () => {
+    mocks.readIssueTypeSnapshotMeta.mockResolvedValue(null);
+    const r = await getRemediationCandidates({ payload: { findingKey: "issue-type-reach" }, context: ctxWithAccount() });
+    expect(r).toMatchObject({ available: false, reason: "no-snapshot", items: [] });
+  });
+
+  test("asset-schema-hygiene: a schema with no object types", async () => {
+    mocks.readAssetSnapshotMeta.mockResolvedValue({ state: "ready", version: "a1", assetsEnabled: true });
+    mocks.loadAssetSchemas.mockResolvedValue([
+      { id: "1", name: "Ghost Schema", objectTypeCount: 0, objectCount: 0 },
+      { id: "2", name: "Live Schema", objectTypeCount: 3, objectCount: 40 },
+    ]);
+    mocks.loadAssetObjectTypes.mockResolvedValue([]);
+    mocks.loadAssetAttributes.mockResolvedValue([]);
+    mocks.loadAssetTypeCounts.mockResolvedValue([]);
+
+    const r = await getRemediationCandidates({ payload: { findingKey: "asset-schema-hygiene" }, context: ctxWithAccount() });
+
+    expect(r.available).toBe(true);
+    expect(r.items).toEqual([expect.objectContaining({ id: "1", name: "Ghost Schema", reason: "no object types" })]);
+  });
+
+  test("asset-schema-hygiene: reports assets-not-enabled distinctly from no-snapshot", async () => {
+    mocks.readAssetSnapshotMeta.mockResolvedValue({ state: "unavailable", assetsEnabled: false });
+    const r = await getRemediationCandidates({ payload: { findingKey: "asset-schema-hygiene" }, context: ctxWithAccount() });
+    expect(r).toMatchObject({ available: false, reason: "assets-not-enabled", items: [] });
+  });
+
+  test("asset-type-usage: an object type with zero measured objects", async () => {
+    mocks.readAssetSnapshotMeta.mockResolvedValue({ state: "ready", version: "a1", assetsEnabled: true });
+    mocks.loadAssetSchemas.mockResolvedValue([{ id: "1", name: "Infra", objectTypeCount: 2, objectCount: 5 }]);
+    mocks.loadAssetObjectTypes.mockResolvedValue([
+      { id: "9", schemaId: "1", name: "Server", abstract: false },
+      { id: "10", schemaId: "1", name: "Rack", abstract: false },
+    ]);
+    mocks.loadAssetAttributes.mockResolvedValue([]);
+    mocks.loadAssetTypeCounts.mockResolvedValue([{ objectTypeId: "9", objectCount: 5 }, { objectTypeId: "10", objectCount: 0 }]);
+
+    const r = await getRemediationCandidates({ payload: { findingKey: "asset-type-usage" }, context: ctxWithAccount() });
+
+    expect(r.available).toBe(true);
+    expect(r.items).toEqual([{ id: "10", name: "Rack", schemaId: "1" }]);
+  });
+
+  test("asset-type-usage: unmeasured (no object-count crawl) is unavailable, never a false empty", async () => {
+    mocks.readAssetSnapshotMeta.mockResolvedValue({ state: "ready", version: "a1", assetsEnabled: true });
+    mocks.loadAssetSchemas.mockResolvedValue([{ id: "1", name: "Infra", objectTypeCount: 1, objectCount: 0 }]);
+    mocks.loadAssetObjectTypes.mockResolvedValue([{ id: "9", schemaId: "1", name: "Server", abstract: false }]);
+    mocks.loadAssetAttributes.mockResolvedValue([]);
+    mocks.loadAssetTypeCounts.mockResolvedValue([]); // the crawl has never run
+
+    const r = await getRemediationCandidates({ payload: { findingKey: "asset-type-usage" }, context: ctxWithAccount() });
+
+    expect(r).toMatchObject({ available: false, reason: "no-object-count-crawl", items: [] });
+  });
+
   test("is admin-only", () => {
     expect(Object.keys(ADMIN_ONLY_FUNCTIONS)).toContain("getRemediationCandidates");
     expect(Object.keys(SHARED_RESOLVER_FUNCTIONS)).not.toContain("getRemediationCandidates");

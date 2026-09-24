@@ -264,6 +264,270 @@ Backing filter: ${it.filterId ? `id ${it.filterId} (deleted or unreadable)` : "n
 The board runs on a live saved filter and the next Observatory scan no longer flags it.
 `,
   },
+
+  "filter-duplicates": {
+    pillar: "filters",
+    epicSummary: (n) => `Consolidate ${n} group${n === 1 ? "" : "s"} of duplicate saved filters`,
+    epicDescription: ({ count = 0 } = {}) => `
+## Why this matters
+${count} group${count === 1 ? " of filters shares" : "s of filters share"} the exact same JQL. Each duplicate is a
+separate thing to maintain, a separate entry in every picker, and a separate answer when
+someone asks "which filter has the open bugs" -- untidy rather than broken, but the most
+numerous filter finding on most sites by a wide margin.
+
+## Strategy
+For each group, pick the filter with the most subscriptions or the most recent activity as
+the survivor, point anything using the others at it (boards, dashboards, subscriptions),
+then delete the rest.
+
+## Definition of done
+Every child task is closed and the next Observatory scan reports zero duplicate groups.
+`,
+    taskSummary: (it) => `Consolidate ${it.count || 0} filters sharing one JQL (keep one, delete the rest)`,
+    taskDescription: (it) => `
+## The group
+${(it.filters || []).length} filter${(it.filters || []).length === 1 ? "" : "s"} share this JQL:
+${it.jql || "(JQL unavailable)"}
+
+Filters in this group:
+${(it.filters || []).map((f) => `- ${f.name || "(unnamed)"} (${f.id})${f.ownerName ? `, owned by ${f.ownerName}` : ""}`).join("\n") || "- (list unavailable)"}
+
+## Steps
+- Pick a survivor -- the one with the most subscriptions, or the most recently used.
+- Check every board and dashboard for the other filters in this group and repoint them at
+  the survivor.
+- Delete the remaining filters in Jira -> Filters -> the "..." menu -> Delete.
+
+## Done when
+Only the survivor remains and the next Observatory scan no longer groups it with anything.
+`,
+  },
+
+  "filter-scope": {
+    pillar: "filters",
+    epicSummary: (n) => `Fix ${n} saved filter${n === 1 ? "" : "s"} whose JQL names something that no longer exists`,
+    epicDescription: ({ count = 0 } = {}) => `
+## Why this matters
+${count} saved filter${count === 1 ? "" : "s"} name a project or issue type in their JQL that the site does not
+define. A clause like \`project = "Old Team"\` or \`issuetype = "Sub-bug"\` that can never
+match returns fewer issues than the filter's author expects, silently, with no error to
+explain why.
+
+## Strategy
+For each filter, open it and correct or remove the clause naming the missing project or
+issue type. This is the cheapest filter defect to prove and the easiest to fix -- unlike
+most filter findings, it produces a visible wrong-answer rather than a silent one, so it is
+usually obvious once you look.
+
+## Definition of done
+Every child task is closed and the next Observatory scan reports zero broken scope
+references.
+`,
+    taskSummary: (it) => `Fix the ${it.refKind || "scope"} reference in filter "${it.name || it.id || "(unknown)"}"`,
+    taskDescription: (it) => `
+## The filter
+Name: ${it.name || "(unnamed)"}
+Filter id: ${it.id || "(unknown)"}
+${it.ownerName ? `Owner: ${it.ownerName}` : ""}
+
+## The problem
+This filter's JQL names the following ${it.refKind === "type" ? "issue type(s)" : "project(s)"} the site does not
+define: ${(it.missing || []).join(", ") || "(unavailable)"}
+
+## Steps
+- Open the filter in Jira and review its JQL.
+- Confirm whether the ${it.refKind === "type" ? "issue type" : "project"} was renamed, deleted, or was always a typo.
+- Correct or remove the clause so the filter's JQL only names things that exist.
+
+## Done when
+The filter's JQL resolves cleanly and the next Observatory scan no longer flags it.
+`,
+  },
+
+  "screen-unreachable-fields": {
+    pillar: "screens",
+    epicSummary: (n) => `Review ${n} field${n === 1 ? "" : "s"} configured for a project but on no screen there`,
+    epicDescription: ({ count = 0 } = {}) => `
+## Why this matters
+${count} field${count === 1 ? " is" : "s are"} configured for a project (it appears in the field's context) but no
+screen in that project's chain shows it anywhere -- to any issue type, on any operation. No
+one working in Jira can ever fill this field in for that project, even though it is
+technically "in scope" there.
+
+## Strategy
+For each field/project pair, either add the field to a screen in that project's chain (if
+someone needs to set it), or remove the project from the field's context (if it was
+configured there by mistake and nobody needs it).
+
+## Definition of done
+Every child task is closed and the next Observatory scan reports zero unreachable
+field/project pairs.
+`,
+    taskSummary: (it) => `"${it.fieldName || it.fieldId || "(unknown)"}" is configured but unreachable on any screen`,
+    taskDescription: (it) => `
+## The field
+Name: ${it.fieldName || "(unnamed)"}
+Field id: ${it.fieldId || "(unknown)"}
+
+## Why it is flagged
+This field is configured for at least one project, but no screen in that project's issue
+type -> screen scheme -> screen -> tab chain displays it. It is in scope and unreachable at
+the same time.
+
+## Steps
+- Check the field's contexts in Jira -> Issues -> Custom fields -> this field -> Contexts,
+  to see which projects it is configured for.
+- For each project where it should be fillable, add it to the right screen.
+- For a project where it should not be configured at all, remove that project from the
+  field's context instead.
+
+## Done when
+Either a screen shows the field, or the field's context no longer includes the project, and
+the next Observatory scan no longer flags the pair.
+`,
+  },
+
+  "issue-type-reach": {
+    pillar: "issueTypes",
+    epicSummary: (n) => `Review ${n} issue type${n === 1 ? "" : "s"} on no scheme at all`,
+    epicDescription: ({ count = 0 } = {}) => `
+## Why this matters
+${count} issue type${count === 1 ? " is" : "s are"} defined on the site but assigned to no issue type scheme anywhere.
+No project can ever create an issue of this type -- it exists in the catalogue and nowhere
+else, taking up a row in every "add issue type" admin screen with nothing behind it.
+
+## Strategy
+For each type, either add it to the scheme where it belongs (if a project needs it and this
+was an oversight), or delete it (if nothing does).
+
+## Definition of done
+Every child task is closed and the next Observatory scan reports zero orphaned issue types.
+`,
+    taskSummary: (it) => `"${it.name || it.id || "(unknown)"}" is on no issue type scheme`,
+    taskDescription: (it) => `
+## The issue type
+Name: ${it.name || "(unnamed)"}
+Type id: ${it.id || "(unknown)"}
+${it.subtask ? "This is a sub-task type." : ""}
+
+## Steps
+- Confirm with the team whether this type is still needed.
+- If it is, add it to the issue type scheme for the project(s) that need it, in Jira ->
+  Issue type schemes.
+- If it is not, delete the type in Jira -> Issues -> Issue types. A type that has ever been
+  used on an issue cannot be deleted until those issues are migrated to another type.
+
+## Done when
+The type is either on a scheme or deleted, and the next Observatory scan no longer flags it.
+`,
+  },
+
+  "issue-type-naming": {
+    pillar: "issueTypes",
+    epicSummary: (n) => `Consolidate ${n} group${n === 1 ? "" : "s"} of duplicate or near-duplicate issue type names`,
+    epicDescription: ({ count = 0 } = {}) => `
+## Why this matters
+${count} group${count === 1 ? " of issue types shares" : "s of issue types share"} an identical, spacing-only, or
+single-character-different name. "Bug" and "Bug " are different types to Jira and the same
+word to everyone typing in the create dialog -- a standing source of the wrong type being
+picked.
+
+## Strategy
+For each group, pick the type that is actually in use (check its scheme membership and
+issue count), migrate any issues on the others to it, then delete the duplicates.
+
+## Definition of done
+Every child task is closed and the next Observatory scan reports zero duplicate name groups.
+`,
+    taskSummary: (it) => `Consolidate ${it.count || 0} issue types sharing the name "${it.key || "(unknown)"}"`,
+    taskDescription: (it) => `
+## The group
+${(it.types || []).length} issue type${(it.types || []).length === 1 ? "" : "s"} share this name (${it.kind || "similar"} match):
+${(it.types || []).map((t) => `- ${t.name || "(unnamed)"} (${t.id})`).join("\n") || "- (list unavailable)"}
+
+## Steps
+- Check each type's scheme membership and issue count to find the one actually in use.
+- Bulk-move any issues on the other types to the survivor (Jira -> bulk change -> edit
+  issues -> change issue type).
+- Delete the duplicate types once no issue references them.
+
+## Done when
+Only the survivor remains and the next Observatory scan no longer groups it with anything.
+`,
+  },
+
+  "asset-schema-hygiene": {
+    pillar: "assets",
+    epicSummary: (n) => `Review ${n} dead JSM Assets schema${n === 1 ? "" : "s"} for deletion`,
+    epicDescription: ({ count = 0 } = {}) => `
+## Why this matters
+${count} Assets schema${count === 1 ? " has" : "s have"} no object types defined, or types defined but zero objects
+in any of them. Each is a schema an admin opens into and finds nothing -- a candidate for
+deletion rather than a structure anyone is building on.
+
+## Strategy
+For each schema, confirm nobody has started modelling in it (check with the team that owns
+the CMDB), then delete it.
+
+## Definition of done
+Every child task is closed and the next Observatory scan reports zero dead schemas.
+`,
+    taskSummary: (it) => `Delete dead Assets schema "${it.name || it.id || "(unknown)"}" (${it.reason || "empty"})`,
+    taskDescription: (it) => `
+## The schema
+Name: ${it.name || "(unnamed)"}
+Schema id: ${it.id || "(unknown)"}
+Reason flagged: ${it.reason || "unknown"}
+Object types: ${it.objectTypeCount ?? "unknown"}
+Objects: ${it.objectCount ?? "unknown"}
+
+## Steps
+- Confirm with the team that owns JSM Assets that nothing is planned for this schema.
+- Delete it in Jira Service Management -> Assets -> this schema -> Schema settings ->
+  Delete schema.
+
+## Done when
+The schema no longer exists and the next Observatory scan no longer flags it.
+`,
+  },
+
+  "asset-type-usage": {
+    pillar: "assets",
+    epicSummary: (n) => `Review ${n} JSM Assets object type${n === 1 ? "" : "s"} with zero objects`,
+    epicDescription: ({ count = 0 } = {}) => `
+## Why this matters
+${count} Assets object type${count === 1 ? " is" : "s are"} defined, non-abstract, and carries zero objects. Each is
+a type someone can create in the picker that nothing actually uses -- clutter in the CMDB's
+own structure.
+
+## Strategy
+For each type, confirm nothing is planned to be modelled with it, then either delete it or
+mark it abstract if it exists only as a base for other types.
+
+## Definition of done
+Every child task is closed and the next Observatory scan reports zero empty object types.
+`,
+    taskSummary: (it) => `Review empty Assets object type "${it.name || it.id || "(unknown)"}"`,
+    taskDescription: (it) => `
+## The object type
+Name: ${it.name || "(unnamed)"}
+Type id: ${it.id || "(unknown)"}
+Schema id: ${it.schemaId || "(unknown)"}
+
+## Why it is flagged
+This type is not abstract (it can be instantiated directly) and carries zero objects in the
+last measured crawl.
+
+## Steps
+- Confirm with the team that owns JSM Assets whether this type is still needed.
+- If nothing is planned for it, delete it in the schema's object type tree.
+- If it exists only to be a parent for other types, mark it abstract instead of deleting it.
+
+## Done when
+The type is either deleted, marked abstract, or has objects, and the next Observatory scan
+no longer flags it.
+`,
+  },
 };
 
 for (const p of Object.values(REMEDIATION_PLAYBOOKS)) {
