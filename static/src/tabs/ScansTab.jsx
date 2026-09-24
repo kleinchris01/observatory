@@ -4,7 +4,7 @@ import { formatTimestamp, formatShortTime, formatRelativeTime, formatNumber } fr
 import { Icon, useLiveDuration, useLiveElapsedMs } from "../components/Icons";
 import { SubNavLayout, Toggle, ConfigSection, ConfigRow } from "../components/admin/primitives";
 import { StatTile, StatRow, PageHeader, Panel, EmptyState, StageRail, LinkButton, formatDurationMs } from "../components/ui";
-import { useVisiblePolling } from "../hooks";
+import { useVisiblePolling, usePersistentState } from "../hooks";
 
 // Re-exported: this started here before three surfaces needed it, and the ScansTab tests
 // still import it from this module.
@@ -1386,7 +1386,7 @@ export function QuickScanPanel({
 const DEFAULT_QUICK_SCAN_SCHEDULE = { enabled: false, frequency: "weekly", dayOfWeek: 0, hourUtc: 0, windowHours: 168 };
 
 export function ScansTab({ siteOrigin, initialSection }) {
-  const [activeSection, setActiveSection] = React.useState(initialSection || "full");
+  const [activeSection, setActiveSection] = usePersistentState("observatory.section.scans", "full", initialSection || null);
   // Which crawl the Audit Log / Reports sub-tabs are showing. Both sub-tabs read whichever
   // scan's issue crawl was last opened from -- "See the full issue-crawl log" on a stage card
   // sets this before switching section, so the reader lands on the run they actually clicked

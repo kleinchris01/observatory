@@ -127,16 +127,31 @@ export function JobStatusBadge({ status }) {
 // difference between "this app is broken" and "you cannot browse any project that has one".
 // The reason lands on `title` and on aria-description, so it reaches a screen reader too.
 export function SubNavLayout({ items, activeKey, onSelect, children }) {
+  // A remembered section can outlive the section: a stored key from before a rename, or one a
+  // since-rebuilt inventory no longer offers. Rather than render a panel with nothing
+  // selected, fall back to the first section that can be opened.
+  const known = items.some((item) => item.key === activeKey);
+  const fallbackKey = items.find((item) => !item.disabled)?.key;
+  React.useEffect(() => {
+    if (!known && fallbackKey && fallbackKey !== activeKey) onSelect(fallbackKey);
+  }, [known, fallbackKey, activeKey]);
+
   return (
     <div className="sub-nav-layout">
       <nav className="sub-nav" aria-label="Section navigation">
-        {items.map(({ key, label, icon, badge, disabled = false, reason = null }) => (
+        {items.map(({ key, label, icon, badge, disabled = false, reason = null, group = null }, index) => (
+          <React.Fragment key={key}>
+          {/* A heading wherever `group` changes. Optional: a list with no groups renders
+              exactly as it always has. */}
+          {group && group !== items[index - 1]?.group && (
+            <div className="sub-nav__group" role="presentation">{group}</div>
+          )}
           <button
-            key={key}
             type="button"
             className={`sub-nav__item ${activeKey === key ? "sub-nav__item--active" : ""}${disabled ? " sub-nav__item--disabled" : ""}`}
             onClick={() => { if (!disabled) onSelect(key); }}
             disabled={disabled}
+            aria-current={activeKey === key ? "page" : undefined}
             title={disabled ? reason || undefined : undefined}
             aria-description={disabled ? reason || undefined : undefined}
           >
@@ -144,6 +159,7 @@ export function SubNavLayout({ items, activeKey, onSelect, children }) {
             <span>{label}</span>
             {badge != null && <span className="sub-nav__badge">{badge}</span>}
           </button>
+          </React.Fragment>
         ))}
       </nav>
       <div className="sub-nav__panel">

@@ -26,3 +26,11 @@ vi.mock("react-dom", async (importOriginal) => {
     createPortal: (children, _container) => children,
   };
 });
+
+// The admin shell and its tabs remember the open tab and section in localStorage. jsdom keeps
+// that store for the whole file, so without this one test's click decides where the next
+// test's render opens.
+import { beforeEach } from "vitest";
+beforeEach(() => {
+  try { window.localStorage.clear(); } catch { /* storage unavailable: nothing to clear */ }
+});

@@ -8,7 +8,7 @@ import {
 } from "../components/ui";
 import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
-import { useNavIntent, useVisiblePolling } from "../hooks";
+import { useNavIntent, useVisiblePolling, usePersistentState } from "../hooks";
 
 // The JSM Assets (CMDB) pillar: object schemas, their hierarchical object types and those
 // types' attributes. The same "is this config dead / broken / unused" read as Fields and
@@ -152,7 +152,7 @@ function AssetFindings({ governance }) {
 }
 
 export function AssetsTab({ intent, siteOrigin }) {
-  const [view, setView] = React.useState("overview");
+  const [view, setView] = usePersistentState("observatory.section.assets", "overview");
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");

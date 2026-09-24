@@ -1,4 +1,5 @@
 import React from "react";
+import { readStored, writeStored } from "./utils";
 
 // Poll only while there is something to poll for AND the tab is being looked at.
 //
@@ -89,4 +90,16 @@ export function useNavIntent(intent, apply) {
     saved.current(intent);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [intent]);
+}
+
+// A piece of UI state that survives a reload -- which tab, which section -- kept per viewer in
+// localStorage.
+//
+// `override` wins over the stored value: a deep link ("open the RQT index", "build this
+// report") must land where it points, not where the reader last was. A stored value that no
+// longer names a real section is harmless: SubNavLayout falls back to its first item.
+export function usePersistentState(storageKey, fallback, override = null) {
+  const [value, setValue] = React.useState(() => override || readStored(storageKey, null) || fallback);
+  React.useEffect(() => { writeStored(storageKey, value); }, [storageKey, value]);
+  return [value, setValue];
 }

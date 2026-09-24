@@ -5,7 +5,7 @@ import { Icon } from "../components/Icons";
 import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, PanelGrid, GridSpan, BarList, PillarHealthPanel, FindingRow, SortFilterBar, AskRovo, JiraLink } from "../components/ui";
 import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
-import { useNavIntent, useVisiblePolling } from "../hooks";
+import { useNavIntent, useVisiblePolling, usePersistentState } from "../hooks";
 
 // Issue type inventory.
 //
@@ -237,7 +237,7 @@ export function IssueTypeFindings({ findings }) {
 }
 
 export function IssueTypesTab({ intent, siteOrigin }) {
-  const [view, setView] = React.useState("overview");
+  const [view, setView] = usePersistentState("observatory.section.issueTypes", "overview");
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");

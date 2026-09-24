@@ -1,7 +1,7 @@
 import React from "react";
 import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
-import { useVisiblePolling, useRefreshOnVisible, useNavIntent } from "./hooks";
+import { useVisiblePolling, useRefreshOnVisible, useNavIntent, usePersistentState } from "./hooks";
 
 const setVisibility = (state) => {
   Object.defineProperty(document, "visibilityState", { value: state, configurable: true });
@@ -112,5 +112,25 @@ describe("useNavIntent", () => {
     rerender();
     rerender();
     expect(calls).toBe(1);
+  });
+});
+
+describe("usePersistentState", () => {
+  test("starts at the fallback, then remembers what it was set to", () => {
+    const first = renderHook(() => usePersistentState("observatory.section.test", "overview"));
+    expect(first.result.current[0]).toBe("overview");
+    act(() => first.result.current[1]("roles"));
+    first.unmount();
+
+    const second = renderHook(() => usePersistentState("observatory.section.test", "overview"));
+    expect(second.result.current[0]).toBe("roles");
+  });
+
+  test("a deep-link override beats the remembered value, and becomes the remembered value", () => {
+    window.localStorage.setItem("observatory.section.test", "roles");
+    const { result, unmount } = renderHook(() => usePersistentState("observatory.section.test", "overview", "rqt"));
+    expect(result.current[0]).toBe("rqt");
+    unmount();
+    expect(window.localStorage.getItem("observatory.section.test")).toBe("rqt");
   });
 });

@@ -3,7 +3,7 @@ import ReactDOM from "react-dom/client";
 import { createPortal } from "react-dom";
 import { invoke, view } from "@forge/bridge";
 import "./styles.css";
-import { formatTimestamp, formatNumber, toDisplayName, buildValueJql, formatShortTime, formatRelativeTime, formatLogTime, formatContextList, normalizeSiteOrigin, buildJiraSearchUrl, handleJiraLinkClick, escapeCsvCell, downloadCsv, slugifyFilenamePart, normalizeReportData, groupReportFieldsByType, summarizeReportData, isUsageAvailable, isSelectType, mergeFieldMetrics, openFieldExpertRovo, buildInventoryRovoPrompt, buildFieldRovoPrompt, buildProjectRovoPrompt, buildReportRovoPrompt } from "./utils";
+import { formatTimestamp, formatNumber, toDisplayName, buildValueJql, formatShortTime, formatRelativeTime, formatLogTime, formatContextList, normalizeSiteOrigin, buildJiraSearchUrl, handleJiraLinkClick, escapeCsvCell, downloadCsv, slugifyFilenamePart, normalizeReportData, groupReportFieldsByType, summarizeReportData, isUsageAvailable, isSelectType, mergeFieldMetrics, openFieldExpertRovo, buildInventoryRovoPrompt, buildFieldRovoPrompt, buildProjectRovoPrompt, buildReportRovoPrompt, pillarNavStatus, readStored, writeStored } from "./utils";
 import { Icon, useLiveDuration } from "./components/Icons";
 import { Starfield } from "./components/Starfield";
 import { DaySky } from "./components/DaySky";
@@ -116,27 +116,41 @@ const bootStatusNode = document.getElementById("boot-status");
 // (Overview/Dashboards/Reports), two "layers" (Field Browser/Issue Types), two "activity"
 // (Workflows/Boards): invisible while the label always sat next to it, but exactly the tabs a
 // reader couldn't tell apart the moment the sidebar collapsed to icons alone.
+//
+// `group` splits nineteen entries into what a reader is looking for: the thing being governed
+// (Pillars), what to do about it (Act), and running the app itself (Operate). Overview stands
+// alone above them.
 export const ADMIN_NAV_TABS = [
-  { key: "overview", label: "Overview", icon: "barChart" },
-  { key: "fields", label: "Field Browser", icon: "layers" },
-  { key: "projects", label: "Project Usage", icon: "folder" },
-  { key: "workflows", label: "Workflows", icon: "activity" },
-  { key: "issueTypes", label: "Issue Types", icon: "tag" },
-  { key: "priorities", label: "Priorities", icon: "flag" },
-  { key: "people", label: "People", icon: "user" },
-  { key: "assets", label: "Assets", icon: "database" },
-  { key: "access", label: "Access", icon: "shield" },
-  { key: "screens", label: "Screens", icon: "browser" },
-  { key: "filters", label: "Saved Filters", icon: "search" },
-  { key: "dashboards", label: "Dashboards", icon: "grid" },
-  { key: "boards", label: "Boards", icon: "kanban" },
-  { key: "automation", label: "Automation", icon: "refreshCw" },
-  { key: "remediation", label: "Remediation", icon: "wrench" },
-  { key: "reports", label: "Reports", icon: "clipboardText" },
-  { key: "changes", label: "Changes", icon: "clock" },
-  { key: "scans", label: "Scans", icon: "zap" },
-  { key: "config", label: "Configuration", icon: "settings" },
+  { key: "overview", label: "Overview", icon: "barChart", group: null },
+  { key: "fields", label: "Field Browser", icon: "layers", group: "Pillars" },
+  { key: "projects", label: "Project Usage", icon: "folder", group: "Pillars" },
+  { key: "workflows", label: "Workflows", icon: "activity", group: "Pillars" },
+  { key: "issueTypes", label: "Issue Types", icon: "tag", group: "Pillars" },
+  { key: "priorities", label: "Priorities", icon: "flag", group: "Pillars" },
+  { key: "people", label: "People", icon: "user", group: "Pillars" },
+  { key: "assets", label: "Assets", icon: "database", group: "Pillars" },
+  { key: "access", label: "Access", icon: "shield", group: "Pillars" },
+  { key: "screens", label: "Screens", icon: "browser", group: "Pillars" },
+  { key: "filters", label: "Saved Filters", icon: "search", group: "Pillars" },
+  { key: "dashboards", label: "Dashboards", icon: "grid", group: "Pillars" },
+  { key: "boards", label: "Boards", icon: "kanban", group: "Pillars" },
+  { key: "automation", label: "Automation", icon: "refreshCw", group: "Pillars" },
+  { key: "remediation", label: "Remediation", icon: "wrench", group: "Act" },
+  { key: "reports", label: "Reports", icon: "clipboardText", group: "Act" },
+  { key: "changes", label: "Changes", icon: "clock", group: "Operate" },
+  { key: "scans", label: "Scans", icon: "zap", group: "Operate" },
+  { key: "config", label: "Configuration", icon: "settings", group: "Operate" },
 ];
+
+// localStorage keys. Per viewer, per browser; nothing here is shared state.
+const STORAGE_TAB = "observatory.admin.tab";
+const STORAGE_THEME = "atlasiq-field-theme";
+const STORAGE_SIDEBAR = "atlasiq-sidebar-collapsed";
+
+function initialTab() {
+  const stored = readStored(STORAGE_TAB, null);
+  return ADMIN_NAV_TABS.some((t) => t.key === stored) ? stored : "overview";
+}
 
 // Dark -> Light -> Day -> Dark. The button always shows the icon and label for where a click
 // takes you next, not the state you are in -- the same convention the two-state toggle used
@@ -149,7 +163,8 @@ const THEME_META = {
 };
 
 export function AdminApp() {
-  const [activeTab, setActiveTab] = React.useState("overview");
+  // Reopens where the reader left off. Deep links (navigate, buildFieldReport) still move it.
+  const [activeTab, setActiveTab] = React.useState(initialTab);
   // The filter a finding wants applied when it opens a tab.
   //
   // A fresh object per navigation, so clicking the same finding twice re-applies its filter
@@ -160,11 +175,16 @@ export function AdminApp() {
   const navigate = React.useCallback((tab, intent = null) => {
     setActiveTab(tab);
     setNavIntent(intent ? { ...intent } : null);
+    // An ordinary visit reopens the section the reader last used. Only the explicit deep
+    // links (RQT, build-a-field-report) set this, and they call setActiveTab directly.
+    setReportsInitialSection("");
   }, []);
   const [reportsInitialSection, setReportsInitialSection] = React.useState("");
-  const [theme, setTheme] = React.useState(() => localStorage.getItem("atlasiq-field-theme") || "dark");
-  const [sidebarCollapsed, setSidebarCollapsed] = React.useState(() => localStorage.getItem("atlasiq-sidebar-collapsed") === "1");
+  const [theme, setTheme] = React.useState(() => readStored(STORAGE_THEME, "dark"));
+  const [sidebarCollapsed, setSidebarCollapsed] = React.useState(() => readStored(STORAGE_SIDEBAR, "0") === "1");
   const [overview, setOverview] = React.useState(null);
+  // When the overview (and so the site health) was last scored -- the Reports scorecard's age.
+  const [overviewLoadedAt, setOverviewLoadedAt] = React.useState(null);
   const [loadingOverview, setLoadingOverview] = React.useState(true);
   const [config, setConfig] = React.useState(null);
   const [savingConfig, setSavingConfig] = React.useState(false);
@@ -172,7 +192,8 @@ export function AdminApp() {
   const [error, setError] = React.useState("");
   const [saveSuccess, setSaveSuccess] = React.useState(false);
   const [siteOrigin, setSiteOrigin] = React.useState("");
-  const [scansInitialSection, setScansInitialSection] = React.useState("full");
+  // A deep-link slot for Scans. Empty means "the section the reader last used".
+  const [scansInitialSection] = React.useState("");
   const [selectedFieldIds, setSelectedFieldIds] = React.useState([]);
   const [pendingReportGenerate, setPendingReportGenerate] = React.useState(false);
   // Project scope for the next report build -- set when a report is launched from a screen
@@ -191,12 +212,16 @@ export function AdminApp() {
 
   React.useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    localStorage.setItem("atlasiq-field-theme", theme);
+    writeStored(STORAGE_THEME, theme);
   }, [theme]);
 
   React.useEffect(() => {
-    localStorage.setItem("atlasiq-sidebar-collapsed", sidebarCollapsed ? "1" : "0");
+    writeStored(STORAGE_SIDEBAR, sidebarCollapsed ? "1" : "0");
   }, [sidebarCollapsed]);
+
+  React.useEffect(() => {
+    writeStored(STORAGE_TAB, activeTab);
+  }, [activeTab]);
 
   React.useEffect(() => {
     try { view.setAutoResizing(true); } catch {}
@@ -207,6 +232,7 @@ export function AdminApp() {
     try {
       const data = await invoke("getAdminOverview");
       setOverview(data);
+      setOverviewLoadedAt(new Date().toISOString());
       setConfig(data.config);
     } catch (err) {
       if (!quiet) setError(err.message || "Failed to load overview.");
@@ -283,18 +309,33 @@ export function AdminApp() {
           </div>
 
           <nav className="admin-nav" aria-label="Admin navigation">
-            {ADMIN_NAV_TABS.map(({ key, label, icon }) => (
-              <button
-                key={key}
-                className={`admin-nav__item${activeTab === key ? " admin-nav__item--active" : ""}`}
-                type="button"
-                onClick={() => navigate(key)}
-                title={sidebarCollapsed ? label : undefined}
-              >
-                <Icon name={icon} size={15} />
-                {!sidebarCollapsed && <span>{label}</span>}
-              </button>
-            ))}
+            {ADMIN_NAV_TABS.map(({ key, label, icon, group }, index) => {
+              // A dot only when there is something to say: unmeasured, or scoring in the
+              // warning band. A healthy pillar stays quiet, or the dots stop meaning anything.
+              const status = pillarNavStatus(key, overview?.health);
+              const dot = status && status.state !== "ok" ? status : null;
+              const dotText = dot ? (dot.state === "unmeasured" ? `Not measured yet: ${dot.label}` : `Needs attention: ${dot.label}`) : null;
+              const startsGroup = group && group !== ADMIN_NAV_TABS[index - 1]?.group;
+              return (
+                <React.Fragment key={key}>
+                  {startsGroup && (sidebarCollapsed
+                    ? <div className="admin-nav__divider" role="presentation" />
+                    : <div className="admin-nav__group" role="presentation">{group}</div>)}
+                  <button
+                    className={`admin-nav__item${activeTab === key ? " admin-nav__item--active" : ""}`}
+                    type="button"
+                    onClick={() => navigate(key)}
+                    aria-current={activeTab === key ? "page" : undefined}
+                    aria-description={dotText || undefined}
+                    title={sidebarCollapsed ? (dotText ? `${label} — ${dotText}` : label) : dotText || undefined}
+                  >
+                    <Icon name={icon} size={15} />
+                    {!sidebarCollapsed && <span>{label}</span>}
+                    {dot && <span className={`admin-nav__dot admin-nav__dot--${dot.state}`} aria-hidden="true" />}
+                  </button>
+                </React.Fragment>
+              );
+            })}
           </nav>
 
           <div className="admin-sidebar__footer">
@@ -396,7 +437,7 @@ export function AdminApp() {
           ) : activeTab === "remediation" ? (
             <RemediationTab siteOrigin={siteOrigin} />
           ) : activeTab === "reports" ? (
-            <ReportsTab siteOrigin={siteOrigin} selectedFieldIds={selectedFieldIds} onSetSelectedFieldIds={setSelectedFieldIds} autoGenerate={pendingReportGenerate} onAutoGenerateConsumed={() => setPendingReportGenerate(false)} initialSection={reportsInitialSection} projectScope={reportProjectScope} onSetProjectScope={setReportProjectScope} />
+            <ReportsTab siteOrigin={siteOrigin} selectedFieldIds={selectedFieldIds} onSetSelectedFieldIds={setSelectedFieldIds} autoGenerate={pendingReportGenerate} onAutoGenerateConsumed={() => setPendingReportGenerate(false)} initialSection={reportsInitialSection} projectScope={reportProjectScope} onSetProjectScope={setReportProjectScope} health={overview?.health ?? null} healthScoredAt={overviewLoadedAt} onRescore={() => loadOverview({ quiet: true })} />
           ) : activeTab === "changes" ? (
             <ChangesTab intent={navIntent} />
           ) : activeTab === "scans" ? (

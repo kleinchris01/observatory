@@ -150,6 +150,49 @@ describe("SubNavLayout", () => {
     expect(onSelect).toHaveBeenCalledWith("universe");
   });
 
+  test("renders a heading once per run of a group, and none for ungrouped items", () => {
+    const { container } = render(
+      <SubNavLayout
+        items={[
+          { key: "a", label: "A", group: "Site" },
+          { key: "b", label: "B", group: "Pillars" },
+          { key: "c", label: "C", group: "Pillars" },
+          { key: "d", label: "D" },
+        ]}
+        activeKey="a"
+        onSelect={() => {}}
+      >
+        <p>x</p>
+      </SubNavLayout>
+    );
+    const headings = [...container.querySelectorAll(".sub-nav__group")].map((n) => n.textContent);
+    expect(headings).toEqual(["Site", "Pillars"]);
+    // Headings are not buttons: every item is still exactly one selectable button.
+    expect(container.querySelectorAll(".sub-nav__item")).toHaveLength(4);
+  });
+
+  test("marks the active item with aria-current", () => {
+    render(<SubNavLayout items={items} activeKey="universe" onSelect={() => {}}><p>x</p></SubNavLayout>);
+    expect(screen.getByRole("button", { name: "Universe Scan" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("button", { name: "Snapshot" })).not.toHaveAttribute("aria-current");
+  });
+
+  test("an active key that names no section falls back to the first enabled one", () => {
+    const onSelect = vi.fn();
+    render(
+      <SubNavLayout items={[{ key: "a", label: "A", disabled: true }, { key: "b", label: "B" }]} activeKey="renamed-away" onSelect={onSelect}>
+        <p>x</p>
+      </SubNavLayout>
+    );
+    expect(onSelect).toHaveBeenCalledWith("b");
+  });
+
+  test("a known active key is left alone, even a disabled one", () => {
+    const onSelect = vi.fn();
+    render(<SubNavLayout items={[{ key: "a", label: "A", disabled: true }, { key: "b", label: "B" }]} activeKey="a" onSelect={onSelect}><p>x</p></SubNavLayout>);
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
   test("renders with no items rather than crashing", () => {
     render(<SubNavLayout items={[]} activeKey={null} onSelect={() => {}}><p>only body</p></SubNavLayout>);
     expect(screen.getByText("only body")).toBeInTheDocument();

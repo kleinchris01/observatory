@@ -8,7 +8,7 @@ import {
 } from "../components/ui";
 import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
-import { useNavIntent, useVisiblePolling } from "../hooks";
+import { useNavIntent, useVisiblePolling, usePersistentState } from "../hooks";
 
 // The access pillar: permission schemes, issue-security schemes and notification schemes.
 //
@@ -363,7 +363,7 @@ function AccessTabInner({ data, view, setView, search, setSearch, schemeSort, se
 }
 
 export function AccessTab({ intent, siteOrigin }) {
-  const [view, setView] = React.useState("overview");
+  const [view, setView] = usePersistentState("observatory.section.access", "overview");
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");

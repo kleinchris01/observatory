@@ -5,7 +5,7 @@ import { Icon } from "../components/Icons";
 import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, SortFilterBar, PanelGrid, GridSpan, PillarHealthPanel, BarList, StickyActions, AskRovo, JiraLink } from "../components/ui";
 import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
-import { useNavIntent, useVisiblePolling } from "../hooks";
+import { useNavIntent, useVisiblePolling, usePersistentState } from "../hooks";
 
 // Screen and scheme inventory.
 //
@@ -303,7 +303,7 @@ function CrossSignalView() {
 }
 
 export function ScreensTab({ intent = null, siteOrigin, onBuildFieldReport }) {
-  const [view, setView] = React.useState("screens");
+  const [view, setView] = usePersistentState("observatory.section.screens", "screens");
   // Screens ticked for a field report. Keyed by id and kept across pages -- the picker spans
   // the whole catalogue, not just the 25 rows on screen.
   const [selectedScreenIds, setSelectedScreenIds] = React.useState(() => new Set());
