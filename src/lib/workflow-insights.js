@@ -145,7 +145,14 @@ export function findDuplicateStatusGroups(statuses = []) {
 // null (rather than an empty object) means no automation analysis has been built, so
 // nothing is known about rule references. Callers must present that as "no evidence"
 // rather than "no rules", which is what `automationChecked` on the summary is for.
-export function findOrphanedStatuses(statuses = [], schemeStatusPairs = [], issueCountByStatusId = null, automationByStatusName = null) {
+// boardStatusIds: a Set of status ids that appear in ANY board column's mapping, or null
+// when no board inventory has been built. A status a board column maps is reachable by a
+// person dragging a card into it even when no scheme contains it -- the same "invisible to
+// the workflow admin, real in practice" shape automation references already have here, and
+// it was missing: a status could read "no scheme and no rule reaches it, safe to remove" while
+// three boards still had a column pointed at it, which would silently break those boards'
+// swimlanes the moment someone acted on that claim.
+export function findOrphanedStatuses(statuses = [], schemeStatusPairs = [], issueCountByStatusId = null, automationByStatusName = null, boardStatusIds = null) {
   const referenced = new Set(schemeStatusPairs.map((pair) => String(pair.statusId)));
   return statuses
     .filter((status) => !referenced.has(String(status.statusId ?? status.id)))
@@ -156,6 +163,7 @@ export function findOrphanedStatuses(statuses = [], schemeStatusPairs = [], issu
         ? automationByStatusName[String(status.name || "").toLowerCase()] ?? null
         : null;
       const automationRuleCount = automationByStatusName ? Number(refs?.ruleCount ?? 0) : null;
+      const boardCount = boardStatusIds ? (boardStatusIds.has(id) ? 1 : 0) : null;
 
       return {
         statusId: id,
@@ -170,13 +178,18 @@ export function findOrphanedStatuses(statuses = [], schemeStatusPairs = [], issu
         // cleanup target -- it is configuration that works and is invisible in the workflow
         // admin, which is arguably worse.
         ruleOnly: (automationRuleCount ?? 0) > 0,
+        // Same shape as ruleOnly, for a board column instead of a rule. null (not false) when
+        // no board inventory exists, so a caller can tell "checked, clean" from "not checked".
+        boardOnly: boardStatusIds ? boardCount > 0 : null,
+        boardCount,
         // Only assert safety when the scan actually observed the catalog. A null count
         // means "unknown", which must never render as "safe to delete".
         //
-        // The automation term uses ?? 0 deliberately: with no analysis built the claim
-        // degrades to what it used to mean, and the summary's automationChecked flag is
-        // what tells a reader which of the two they are looking at.
-        safeToRemove: issueCount === 0 && (automationRuleCount ?? 0) === 0,
+        // The automation and board terms use ?? 0 / ?? false deliberately: with no analysis
+        // or board inventory built, the claim degrades to what it used to mean, and the
+        // summary's automationChecked / boardChecked flags are what tell a reader which of
+        // the two they are looking at.
+        safeToRemove: issueCount === 0 && (automationRuleCount ?? 0) === 0 && !(boardCount > 0),
       };
     })
     .sort((left, right) => (right.issueCount ?? 0) - (left.issueCount ?? 0) || left.name.localeCompare(right.name));
@@ -274,6 +287,11 @@ export function summarizeWorkflowInsights({ duplicateGroups = [], orphans = [], 
     // Whether the rule question was asked at all. Without it the two counts above are
     // "0 rule-referenced" only in the sense that nobody looked.
     automationChecked: orphans.some((o) => o.automationRuleCount !== null),
+    // Same shape as the rule pair above, for board columns. A status a board maps is not a
+    // cleanup target even with zero issues and zero rules -- deleting it drops that column's
+    // cards with no error anywhere on the board.
+    boardOnlyStatusCount: orphans.filter((o) => o.boardOnly).length,
+    boardChecked: orphans.some((o) => typeof o.boardOnly === "boolean"),
     flaggedSchemeCount: balance.filter((entry) => entry.flags.length > 0).length,
     // The one scheme flag serious enough to name on its own rather than folding into the
     // lump count above: a scheme with no Done status cannot represent completion at all,
