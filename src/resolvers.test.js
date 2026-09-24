@@ -6675,6 +6675,29 @@ describe("getRemediationCandidates", () => {
     expect(r.items.map((i) => i.id)).toEqual(["1"]);
   });
 
+  // The same finding rovoWorkflowImpact's assessStatusDeletion checks -- a filter reference
+  // is one of the three sources that keep a status off this list, alongside rules and boards.
+  test("status-reachability: excludes a status a saved filter's JQL still names", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "w1" });
+    mocks.loadStatusesCatalog.mockResolvedValue([
+      { statusId: "1", id: "1", name: "Dead End" },
+      { statusId: "2", id: "2", name: "Named In A Filter" },
+      { statusId: "3", id: "3", name: "In Use" },
+    ]);
+    mocks.loadWorkflowSchemeStatuses.mockResolvedValue([{ schemeId: "s1", statusId: "3" }]);
+    mocks.loadStatusIssueCounts.mockResolvedValue(new Map());
+    mocks.loadStatusAutomationReferences.mockResolvedValue({});
+    mocks.readBoardSnapshotMeta.mockResolvedValue({ version: "b1" });
+    mocks.loadBoardColumns.mockResolvedValue([]);
+    mocks.readFilterSnapshotMeta.mockResolvedValue({ version: "f1" });
+    mocks.loadFilterReferenceCounts.mockResolvedValue({ "named in a filter": 2 });
+
+    const r = await getRemediationCandidates({ payload: { findingKey: "status-reachability" }, context: ctxWithAccount() });
+
+    expect(r.available).toBe(true);
+    expect(r.items.map((i) => i.id)).toEqual(["1"]);
+  });
+
   test("status-reachability: reports unavailable with no scheme->status mapping", async () => {
     mocks.readWorkflowSnapshotMeta.mockResolvedValue({ version: "w1" });
     mocks.loadStatusesCatalog.mockResolvedValue([{ statusId: "1", id: "1", name: "Any" }]);
@@ -8160,6 +8183,10 @@ describe("rovo workflow agent", () => {
     expect(r.filtersChecked).toBe(true);
     expect(r.referencingFilterCount).toBe(0);
     expect(r.verdict).toBe("no-evidence-of-use");
+    // Drawn from the same assessStatusDeletion/computeVerdict core assessFieldDeletion uses --
+    // not a bespoke boolean, so the response also carries the blockers/gaps shape.
+    expect(r.blockers).toEqual([]);
+    expect(r.gaps).toEqual([]);
     expect(r.verdictCaveat).toMatch(/board columns, saved filter JQL/);
   });
 
@@ -8171,7 +8198,8 @@ describe("rovo workflow agent", () => {
     mocks.loadBoardColumns.mockResolvedValue([{ boardId: "100", statusIds: ["9"] }]);
     const r = await rovoWorkflowImpact({ name: "On Hold" }, ctx());
     expect(r.onAnyBoard).toBe(true);
-    expect(r.verdict).not.toBe("no-evidence-of-use");
+    expect(r.verdict).toBe("in-use");
+    expect(r.blockers).toEqual([expect.objectContaining({ source: "boards" })]);
   });
 
   test("impact: a status referenced by a saved filter's JQL is not no-evidence, even with zero schemes, rules or issues", async () => {
@@ -8183,18 +8211,35 @@ describe("rovo workflow agent", () => {
     const r = await rovoWorkflowImpact({ name: "On Hold" }, ctx());
     expect(r.referencingFilterCount).toBe(1);
     expect(r.referencingFilters).toEqual([{ id: "4001", name: "Everything On Hold" }]);
-    expect(r.verdict).not.toBe("no-evidence-of-use");
+    expect(r.verdict).toBe("in-use");
+    expect(r.blockers).toEqual([expect.objectContaining({ source: "filters", summary: expect.stringContaining("Everything On Hold") })]);
   });
 
-  test("impact: no board inventory degrades the verdict to unknown rather than a false no-evidence", async () => {
+  test("impact: no board inventory downgrades to unknown, never a false no-evidence, even at zero blockers", async () => {
     seedBuilt();
     mocks.readBoardSnapshotMeta.mockResolvedValue(null);
     const r = await rovoWorkflowImpact({ name: "On Hold" }, ctx());
     expect(r.boardChecked).toBe(false);
     expect(r.onAnyBoard).toBeNull();
-    // Issue count is a measured zero, so this still reads "unknown" rather than "in-use" --
-    // but it must not claim no-evidence-of-use when a whole pillar was never checked.
-    expect(r.verdict).not.toBe("no-evidence-of-use");
+    // Zero blockers everywhere else, but one pillar (boards) was never checked -- that is
+    // exactly the unknown case, not a false no-evidence and not a false in-use.
+    expect(r.verdict).toBe("unknown");
+    expect(r.blockers).toEqual([]);
+    expect(r.gaps).toEqual([expect.objectContaining({ source: "board columns" })]);
+  });
+
+  test("impact: a confirmed automation blocker is in-use even when issue counts were never measured", async () => {
+    // The bug the previous ad-hoc noEvidence boolean had: a real, confirmed blocker (a rule
+    // transitioning into the status) could still read "unknown" if issue counts happened to
+    // be unmeasured, because the old fallback branched on hasIssueCounts instead of on
+    // whether any blocker existed. computeVerdict does not repeat that.
+    seedBuilt();
+    mocks.loadStatusIssueCounts.mockResolvedValue(new Map()); // hasIssueCounts becomes false
+    mocks.loadStatusAutomationReferences.mockResolvedValue({ "on hold": { ruleCount: 2, enabledRuleCount: 2 } });
+    const r = await rovoWorkflowImpact({ name: "On Hold" }, ctx());
+    expect(r.issueCount).toBeNull();
+    expect(r.verdict).toBe("in-use");
+    expect(r.blockers).toEqual([expect.objectContaining({ source: "automation" })]);
   });
 
   test("impact: a status issues sit in is in-use with its governed project sample", async () => {

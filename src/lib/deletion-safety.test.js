@@ -1,5 +1,5 @@
 import { describe, test, expect } from "vitest";
-import { assessFieldDeletion, summarizeDeletionSafety, VERDICT } from "./deletion-safety.js";
+import { assessFieldDeletion, assessStatusDeletion, computeVerdict, summarizeDeletionSafety, VERDICT } from "./deletion-safety.js";
 
 // The verdict the whole product is judged by. Its own stated success metric is "whether a
 // recommended deletion was ever wrong", so almost everything pinned here is about what the
@@ -173,5 +173,118 @@ describe("summarizeDeletionSafety", () => {
 
   test("handles an empty set without inventing a verdict", () => {
     expect(summarizeDeletionSafety([])).toMatchObject({ total: 0 });
+  });
+
+  test("sorts a mixed set of fields and statuses by whichever name key each carries", () => {
+    const result = summarizeDeletionSafety([
+      at("Zeta Field"),
+      assessStatusDeletion({ ...statusAllClean, status: { id: "9", name: "Alpha Status" } }),
+    ]);
+    expect(result.fields.map((r) => r.fieldName ?? r.statusName)).toEqual(["Alpha Status", "Zeta Field"]);
+  });
+});
+
+// computeVerdict is the shared core every assess*Deletion function calls at the end. Pinned
+// directly, not just through assessFieldDeletion, so a future third caller (a screen, an
+// issue type) is provably using the same three-state logic rather than a lookalike.
+describe("computeVerdict — the shared core", () => {
+  test("any blocker at all is in-use, regardless of how many gaps also exist", () => {
+    const { verdict } = computeVerdict([{ source: "x", severity: "low", summary: "s", detail: "d" }], [{ source: "y", reason: "r" }]);
+    expect(verdict).toBe(VERDICT.IN_USE);
+  });
+
+  test("no blockers and no gaps is no-evidence", () => {
+    expect(computeVerdict([], []).verdict).toBe(VERDICT.NO_EVIDENCE);
+  });
+
+  test("no blockers but at least one gap is unknown, never no-evidence", () => {
+    expect(computeVerdict([], [{ source: "y", reason: "r" }]).verdict).toBe(VERDICT.UNKNOWN);
+  });
+
+  test("the headline never contains the words \"safe to delete\"", () => {
+    for (const [blockers, gaps] of [[[], []], [[], [{ source: "y", reason: "r" }]], [[{ source: "x", severity: "low", summary: "s", detail: "d" }], []]]) {
+      expect(computeVerdict(blockers, gaps).headline.toLowerCase()).not.toMatch(/safe to delete/);
+    }
+  });
+});
+
+// Every source consulted and every source clean, mirroring allClean above for the field case.
+const statusAllClean = {
+  status: { id: "9", name: "On Hold" },
+  schemes: { reachedByCount: 0 },
+  issueUsage: { count: 0 },
+  automation: { available: true, writeCount: 0, readCount: 0, triggerCount: 0 },
+  boards: { available: true, onBoard: false },
+  filters: { available: true, count: 0, names: [] },
+};
+
+describe("assessStatusDeletion — what it refuses to say", () => {
+  test("never says safe to delete, even with every source clean", () => {
+    const result = assessStatusDeletion(statusAllClean);
+    expect(result.verdict).toBe(VERDICT.NO_EVIDENCE);
+    expect(result.headline.toLowerCase()).not.toMatch(/safe to delete/);
+  });
+
+  test("carries the Marketplace caveat on every verdict, including the clean ones", () => {
+    expect(assessStatusDeletion(statusAllClean).caveat).toMatch(/Marketplace/);
+  });
+
+  test("downgrades a clean result to unknown when a source could not be checked", () => {
+    const result = assessStatusDeletion({ ...statusAllClean, boards: null });
+    expect(result.verdict).toBe(VERDICT.UNKNOWN);
+    expect(result.gaps).toEqual([expect.objectContaining({ source: "board columns" })]);
+  });
+});
+
+describe("assessStatusDeletion — blockers", () => {
+  test("reachability from a scheme is the highest-severity blocker", () => {
+    const result = assessStatusDeletion({ ...statusAllClean, schemes: { reachedByCount: 2 } });
+    expect(result.verdict).toBe(VERDICT.IN_USE);
+    expect(result.blockers[0]).toMatchObject({ source: "schemes", severity: "high" });
+  });
+
+  test("issues currently sitting in the status block deletion", () => {
+    const result = assessStatusDeletion({ ...statusAllClean, issueUsage: { count: 40 } });
+    expect(result.blockers).toEqual([expect.objectContaining({ source: "usage", summary: expect.stringContaining("40 issues sit") })]);
+  });
+
+  test("a rule that transitions INTO the status is a harder blocker than one that only reads it", () => {
+    const writer = assessStatusDeletion({ ...statusAllClean, automation: { available: true, writeCount: 1, readCount: 0, triggerCount: 0 } });
+    const reader = assessStatusDeletion({ ...statusAllClean, automation: { available: true, writeCount: 0, readCount: 1, triggerCount: 0 } });
+    expect(writer.blockers[0].severity).toBe("high");
+    expect(reader.blockers[0].severity).toBe("medium");
+  });
+
+  test("a board column mapping the status blocks deletion even at zero schemes, issues and rules", () => {
+    const result = assessStatusDeletion({ ...statusAllClean, boards: { available: true, onBoard: true } });
+    expect(result.verdict).toBe(VERDICT.IN_USE);
+    expect(result.blockers).toEqual([expect.objectContaining({ source: "boards" })]);
+  });
+
+  test("a filter reference names what breaks downstream of it", () => {
+    const result = assessStatusDeletion({ ...statusAllClean, filters: { available: true, count: 2, names: ["Open Bugs", "Sprint Board"] } });
+    expect(result.blockers[0].summary).toContain("Open Bugs, Sprint Board");
+  });
+
+  test("orders blockers by severity so the reason not to proceed leads", () => {
+    const result = assessStatusDeletion({
+      ...statusAllClean,
+      filters: { available: true, count: 1, names: ["X"] }, // medium
+      schemes: { reachedByCount: 1 }, // high
+    });
+    expect(result.blockers[0].source).toBe("schemes");
+  });
+});
+
+describe("assessStatusDeletion — evidence quality", () => {
+  test("a blocker outranks a gap: unknown never masks in-use", () => {
+    const result = assessStatusDeletion({ ...statusAllClean, schemes: { reachedByCount: 1 }, automation: null });
+    expect(result.verdict).toBe(VERDICT.IN_USE);
+    expect(result.gaps.length).toBeGreaterThan(0);
+  });
+
+  test("an unnamed status is a gap on the catalogue, not a silent skip", () => {
+    const result = assessStatusDeletion({ ...statusAllClean, status: { id: "9" } });
+    expect(result.gaps).toEqual(expect.arrayContaining([expect.objectContaining({ source: "status catalogue" })]));
   });
 });

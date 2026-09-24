@@ -179,11 +179,7 @@ export function assessFieldDeletion({
 
   blockers.sort((a, b) => (BLOCKER_ORDER[a.severity] ?? 3) - (BLOCKER_ORDER[b.severity] ?? 3));
 
-  // The verdict. Three states, and the third is not a hedge -- it is the difference between
-  // "we looked everywhere we can and found nothing" and "we could not look in two places".
-  const verdict = blockers.length > 0
-    ? VERDICT.IN_USE
-    : (gaps.length > 0 ? VERDICT.UNKNOWN : VERDICT.NO_EVIDENCE);
+  const { verdict, headline } = computeVerdict(blockers, gaps);
 
   return {
     fieldId: field.id ?? field.fieldId ?? null,
@@ -192,6 +188,33 @@ export function assessFieldDeletion({
     blockers,
     gaps,
     checked,
+    headline,
+    // Said on every verdict, including the clean ones. The app cannot read Marketplace app
+    // configuration, and a site running ScriptRunner can have a post-function writing this
+    // field on every transition with nothing here to show for it.
+    caveat: "Observatory cannot read Marketplace app configuration (ScriptRunner listeners, JMWE post-functions) or anything writing through the REST API. Absence of a reference here is absence of one this app can see.",
+  };
+}
+
+// ── The reusable core ────────────────────────────────────────────────────────
+//
+// Everything above this point is field-specific: what counts as a blocker for a field, and
+// what evidence there is to gather. This part is not -- it is the same three-state judgement
+// for ANY entity, and it is the part that must never drift between one assess*Deletion
+// function and the next. A second entity type that reimplemented this independently is
+// exactly how "safe to delete" would eventually leak back in through a copy nobody re-read
+// this file's own opening comment before writing.
+//
+// Blockers and gaps carry no assumption about what kind of entity they describe -- a status
+// blocker and a field blocker are the same shape, `{ source, severity, summary, detail }` --
+// so this function is pure arithmetic over two arrays, nothing more.
+export function computeVerdict(blockers, gaps) {
+  const verdict = blockers.length > 0
+    ? VERDICT.IN_USE
+    : (gaps.length > 0 ? VERDICT.UNKNOWN : VERDICT.NO_EVIDENCE);
+
+  return {
+    verdict,
     // Never "safe to delete", at any confidence. The strongest claim the product makes, in
     // the words it makes it in.
     headline: verdict === VERDICT.IN_USE
@@ -199,10 +222,143 @@ export function assessFieldDeletion({
       : verdict === VERDICT.NO_EVIDENCE
         ? "No evidence of use in anything this app can see."
         : `No evidence of use, but ${gaps.length} source${gaps.length === 1 ? "" : "s"} could not be checked.`,
-    // Said on every verdict, including the clean ones. The app cannot read Marketplace app
-    // configuration, and a site running ScriptRunner can have a post-function writing this
-    // field on every transition with nothing here to show for it.
-    caveat: "Observatory cannot read Marketplace app configuration (ScriptRunner listeners, JMWE post-functions) or anything writing through the REST API. Absence of a reference here is absence of one this app can see.",
+  };
+}
+
+// "Is this status safe to retire" -- the same question as assessFieldDeletion, for the other
+// entity the app already had scattered, ad-hoc versions of this answer for (rovoWorkflowImpact
+// used to compute its own bespoke noEvidence boolean inline; this is that logic, pulled out
+// to the one place the rule can't drift a second time).
+//
+// `evidence` mirrors what a caller has already gathered to answer "does anything reference
+// this status" -- the same five checks rovoWorkflowImpact already makes: scheme reachability,
+// measured issue counts, automation, board columns, and saved filter JQL. Each key is null
+// when that source was never consulted, exactly as assessFieldDeletion treats a missing
+// pillar -- a narrowed claim, never a clean one it did not earn.
+export function assessStatusDeletion({
+  status = {},
+  schemes = null,     // { reachedByCount: number } | null
+  issueUsage = null,  // { count: number } | null
+  automation = null,  // { available, writeCount, readCount, triggerCount } | null
+  boards = null,      // { available, onBoard: boolean } | null
+  filters = null,     // { available, count, names: [] } | null
+} = {}) {
+  const blockers = [];
+  const gaps = [];
+  const checked = [];
+
+  if (!(status.name ?? status.statusName)) {
+    gaps.push(gap("status catalogue", "The status catalogue could not be read, so this status's name is unknown — the automation and filter joins both match on name."));
+  }
+
+  // ── Workflow schemes ──────────────────────────────────────────────────────
+  //
+  // The one check with no "unavailable" state: a caller only reaches this function once it
+  // has the scheme->status mapping, so a status is either reached by some schemes or by none.
+  if (schemes) {
+    checked.push("workflow schemes");
+    const count = Number(schemes.reachedByCount) || 0;
+    if (count > 0) {
+      blockers.push({
+        source: "schemes",
+        severity: "high",
+        summary: `Reachable from ${count} workflow scheme${count === 1 ? "" : "s"}.`,
+        detail: "Every project on one of those schemes can put an issue into this status today. Deleting it breaks the scheme's workflow diagram.",
+      });
+    }
+  } else {
+    gaps.push(gap("workflow schemes", "No scheme->status mapping has been built, so reachability is unknown."));
+  }
+
+  // ── Issues currently in it ────────────────────────────────────────────────
+  if (issueUsage) {
+    checked.push("issue counts");
+    const count = Number(issueUsage.count) || 0;
+    if (count > 0) {
+      blockers.push({
+        source: "usage",
+        severity: "high",
+        summary: `${count} issue${count === 1 ? " sits" : "s sit"} in this status right now.`,
+        detail: "Deleting the status without moving those issues first strands them where nothing can find or transition them.",
+      });
+    }
+  } else {
+    gaps.push(gap("issue counts", "No universe scan has measured current issue counts, so whether issues sit here is unknown."));
+  }
+
+  // ── Automation ────────────────────────────────────────────────────────────
+  if (automation?.available) {
+    checked.push("automation rules");
+    const writes = Number(automation.writeCount ?? automation.ruleCount) || 0;
+    const readsAndTriggers = Number(automation.readCount ?? 0) + Number(automation.triggerCount ?? 0);
+    if (writes > 0) {
+      blockers.push({
+        source: "automation",
+        severity: "high",
+        summary: `${writes} automation rule${writes === 1 ? "" : "s"} transition into this status.`,
+        detail: "Those rules break on deletion, silently, the next time they fire.",
+      });
+    }
+    if (readsAndTriggers > 0) {
+      blockers.push({
+        source: "automation",
+        severity: "medium",
+        summary: `${readsAndTriggers} automation rule${readsAndTriggers === 1 ? "" : "s"} read or trigger on this status.`,
+        detail: "These do not keep the status alive, but they misbehave silently once it is gone.",
+      });
+    }
+  } else {
+    gaps.push(gap("automation rules", "No automation analysis has been imported, so no rule reference can be ruled out."));
+  }
+
+  // ── Board columns ─────────────────────────────────────────────────────────
+  //
+  // Invisible to the workflow admin in the same way automation is: a board column mapping a
+  // status holds it open with nothing in Jira's own status admin to show for it.
+  if (boards?.available) {
+    checked.push("board columns");
+    if (boards.onBoard) {
+      blockers.push({
+        source: "boards",
+        severity: "medium",
+        summary: "At least one board column maps this status.",
+        detail: "Deleting the status drops that column's cards off the board with no error anywhere.",
+      });
+    }
+  } else {
+    gaps.push(gap("board columns", "No board inventory has been built, so whether a column maps this status is unknown."));
+  }
+
+  // ── Saved filters ─────────────────────────────────────────────────────────
+  if (filters?.available) {
+    checked.push("saved filters");
+    const count = Number(filters.count) || 0;
+    if (count > 0) {
+      const names = (filters.names || []).slice(0, 3).join(", ");
+      blockers.push({
+        source: "filters",
+        severity: "medium",
+        summary: `${count} saved filter${count === 1 ? "" : "s"} reference this status${names ? `: ${names}` : ""}.`,
+        detail: "A filter whose JQL names a deleted status errors for everyone who runs it, and every board and subscription on top of it.",
+      });
+    }
+  } else {
+    gaps.push(gap("saved filters", "No filter inventory has been built, so references from saved filters cannot be ruled out."));
+  }
+
+  blockers.sort((a, b) => (BLOCKER_ORDER[a.severity] ?? 3) - (BLOCKER_ORDER[b.severity] ?? 3));
+
+  const { verdict, headline } = computeVerdict(blockers, gaps);
+
+  return {
+    statusId: status.id ?? status.statusId ?? null,
+    statusName: status.name ?? status.statusName ?? null,
+    verdict,
+    blockers,
+    gaps,
+    checked,
+    headline,
+    caveat: "Observatory cannot read Marketplace app configuration (ScriptRunner post-functions, JMWE listeners) or anything transitioning an issue through the REST API directly. Absence of a reference here is absence of one this app can see.",
   };
 }
 
@@ -213,9 +369,14 @@ export function summarizeDeletionSafety(assessments = []) {
 
   // No-evidence first: those are the decisions this report exists to enable. In-use last,
   // because "do not touch this" needs no follow-up.
+  //
+  // Sorted by whichever name key the entity carries -- fieldName for a field, statusName for
+  // a status, and so on for whatever assess*Deletion comes next. Every one of them names its
+  // subject with `<kind>Name`, so this stays generic without a type tag threading through.
+  const nameOf = (a) => a.fieldName ?? a.statusName ?? a.screenName ?? a.name ?? "";
   const rank = { [VERDICT.NO_EVIDENCE]: 0, [VERDICT.UNKNOWN]: 1, [VERDICT.IN_USE]: 2 };
   const fields = [...assessments].sort((a, b) =>
-    (rank[a.verdict] - rank[b.verdict]) || String(a.fieldName || "").localeCompare(String(b.fieldName || ""))
+    (rank[a.verdict] - rank[b.verdict]) || String(nameOf(a)).localeCompare(String(nameOf(b)))
   );
 
   return { total: assessments.length, byVerdict, fields };
