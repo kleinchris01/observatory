@@ -1,4 +1,5 @@
 import { describe, test, expect } from "vitest";
+import { computeSiteHealth } from "./health-score.js";
 import {
   summarizePermissionInsights, summarizePermissionHealth,
   summarizeSecurityInsights, summarizeSecurityHealth,
@@ -124,6 +125,18 @@ describe("summarizeRoleInsights", () => {
     expect(summarizeRoleHealth(s)).toMatchObject({ available: true, projectsWithRoles: 2, projectsMissingAdminActorCount: 1 });
     expect(summarizeRoleInsights({}).available).toBe(false);
     expect(summarizeRoleHealth(summarizeRoleInsights({}))).toEqual({ available: false });
+  });
+
+  // Regression: the health summary dropped the two actor counts, so the score always read
+  // zero off-roster actors and reported Actor hygiene 100 beside a finding counting 1,071.
+  test("health carries the actor counts the role-actor-hygiene dimension scores from", () => {
+    const health = summarizeRoleHealth(summarizeRoleInsights({ roles, holders, rosterAccountIds: roster }));
+    expect(health).toMatchObject({ offRosterActorCount: 1, directUserActorCount: 2 });
+
+    const dim = computeSiteHealth({ roles: health }).dimensions.find((d) => d.key === "role-actor-hygiene");
+    expect(dim.available).toBe(true);
+    expect(dim.score).toBeLessThan(100);
+    expect(dim.detail).toMatch(/1 project-role actors are accounts no longer on the licensed roster/);
   });
 });
 

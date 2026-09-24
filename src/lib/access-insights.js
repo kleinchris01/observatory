@@ -227,5 +227,10 @@ export function summarizeRoleHealth(s) {
     totalRoles: s.totalRoles,
     projectsWithRoles: s.projectsWithRoles,
     projectsMissingAdminActorCount: s.projectsMissingAdminActorCount,
+    // Both read by the role-actor-hygiene dimension. They were dropped here, so the score
+    // saw zero off-roster actors on every site and reported "Actor hygiene 100" directly
+    // above a finding counting 1,071 of them.
+    offRosterActorCount: s.offRosterActorCount,
+    directUserActorCount: s.directUserActorCount,
   };
 }
