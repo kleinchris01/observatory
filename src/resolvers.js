@@ -237,7 +237,7 @@ import {
   summarizeWorkflowInsights,
 } from "./lib/workflow-insights.js";
 import { summarizeScreenFieldCross } from "./lib/screen-insights.js";
-import { assessFieldDeletion, summarizeDeletionSafety } from "./lib/deletion-safety.js";
+import { assessFieldDeletion, assessStatusDeletion, summarizeDeletionSafety } from "./lib/deletion-safety.js";
 import { analyzeCascadeGraph, MAX_CHAIN_DEPTH } from "./lib/cascade-graph.js";
 import { buildOwnershipIndex, summarizeOrphanedOwnership } from "./lib/user-ownership.js";
 import {
@@ -3807,18 +3807,28 @@ async function getRemediationCandidates({ payload, context }) {
     const issueCounts = await loadStatusIssueCounts(installationKey).catch(() => new Map());
     const hasIssueCounts = issueCounts.size > 0;
     const provisional = findOrphanedStatuses(statuses, schemeStatuses, hasIssueCounts ? issueCounts : null);
-    // A status only a rule reaches, or only a board column maps, is not safe to retire --
-    // ask the same automation index and board inventory getWorkflowInsights joins against
-    // before deciding, rather than treating "not yet checked" as "nothing uses it".
-    const [automationByStatus, boardStatusIds] = await Promise.all([
-      provisional.length
-        ? loadStatusAutomationReferences(installationKey, provisional.map((o) => o.name).filter(Boolean)).catch(() => null)
+    // A status only a rule reaches, only a board column maps, or only a saved filter's JQL
+    // names is not safe to retire -- ask the same three sources rovoWorkflowImpact's
+    // assessStatusDeletion checks before deciding, rather than treating "not yet checked" as
+    // "nothing uses it". The filter check was missing here until now: a status a filter's
+    // JQL still names could be auto-ticketed for retirement by this very playbook while the
+    // status detail drawer, reading the same data through rovoWorkflowImpact, already said
+    // "in use" -- two answers to the same question is exactly what a shared check prevents.
+    const provisionalNames = provisional.map((o) => o.name).filter(Boolean);
+    const [automationByStatus, boardStatusIds, filterMeta] = await Promise.all([
+      provisionalNames.length
+        ? loadStatusAutomationReferences(installationKey, provisionalNames).catch(() => null)
         : Promise.resolve(null),
       computeBoardStatusIds(installationKey).catch(() => null),
+      readFilterSnapshotMeta(installationKey).catch(() => null),
     ]);
+    const filterCountByStatus = filterMeta?.version && provisionalNames.length
+      ? await loadFilterReferenceCounts(installationKey, filterMeta.version, "status", provisionalNames).catch(() => null)
+      : null;
     const orphans = findOrphanedStatuses(statuses, schemeStatuses, hasIssueCounts ? issueCounts : null, automationByStatus, boardStatusIds);
     const items = orphans
       .filter((o) => !o.ruleOnly && !o.boardOnly)
+      .filter((o) => !(filterCountByStatus && (filterCountByStatus[String(o.name || "").toLowerCase()] ?? 0) > 0))
       .map((o) => ({
         id: o.statusId,
         name: o.name,
@@ -6796,23 +6806,31 @@ export async function rovoWorkflowImpact(payload, context) {
     const boardStatusIds = await computeBoardStatusIds(installationKey).catch(() => null);
     const onBoard = boardStatusIds ? boardStatusIds.has(sid) : null;
 
-    const filterMeta = await readFilterSnapshotMeta(installationKey).catch(() => null);
-    const filterRefs = filterMeta?.version
-      ? await loadFilterReferencesFor(installationKey, filterMeta.version, "status", status.name).catch(() => null)
-      : null;
-    const referencingFilters = filterRefs?.filters ?? null;
+    // The shared reverse lookup -- getFilterUsage already reads the filter snapshot meta and
+    // calls loadFilterReferencesFor for whichever kind is asked, and is the one place that
+    // join is supposed to live. Called directly rather than re-deriving the same two steps
+    // here a second time; a screen or issue-type impact answer added later reaches for the
+    // same function instead of writing a third copy.
+    const filterUsage = await getFilterUsage({ payload: { kind: "status", label: status.name }, context }).catch(() => null);
+    const referencingFilters = filterUsage?.available ? filterUsage.filters : null;
+    const issueCount = wf.hasIssueCounts ? Number(wf.issueCounts.get(sid) ?? 0) : null;
 
-    // The consequential judgement, phrased at its true strength. A status no scheme reaches
-    // and no rule, board or filter touches has "no evidence of use" -- never "safe to delete".
-    const noEvidence =
-      reachingSchemeIds.size === 0 &&
-      (wf.hasIssueCounts ? Number(wf.issueCounts.get(sid) ?? 0) === 0 : false) &&
-      Boolean(automation) &&
-      !rules &&
-      boardStatusIds !== null &&
-      onBoard === false &&
-      Boolean(referencingFilters) &&
-      referencingFilters.length === 0;
+    // The consequential judgement, drawn from the same shared verdict every deletion-safety
+    // answer in the app uses -- not a bespoke boolean re-derived here. Any real blocker is
+    // in-use regardless of what else could not be checked; the previous version of this
+    // function got that backwards for one case (a confirmed automation reference could still
+    // read "unknown" if issue counts happened to be unmeasured), which assessStatusDeletion
+    // does not repeat because computeVerdict is the one place that logic is allowed to live.
+    const assessment = assessStatusDeletion({
+      status,
+      schemes: { reachedByCount: reachingSchemeIds.size },
+      issueUsage: issueCount === null ? null : { count: issueCount },
+      automation: automation ? { available: true, writeCount: rules?.ruleCount ?? 0 } : null,
+      boards: boardStatusIds ? { available: true, onBoard } : null,
+      filters: referencingFilters
+        ? { available: true, count: referencingFilters.length, names: referencingFilters.map((f) => f.name) }
+        : null,
+    });
 
     return agentOk(wf.refreshedAt, {
       subject: statusRow(status, wf),
@@ -6829,11 +6847,11 @@ export async function rovoWorkflowImpact(payload, context) {
         ? referencingFilters.slice(0, 10).map((f) => ({ id: f.id, name: f.name }))
         : null,
       referencingFilterCount: referencingFilters ? referencingFilters.length : null,
-      issueCount: wf.hasIssueCounts ? Number(wf.issueCounts.get(sid) ?? 0) : null,
+      issueCount,
       everCount: wf.hasHistoryCounts ? (wf.historyCounts.get(sid) ?? null) : null,
-      verdict: noEvidence
-        ? "no-evidence-of-use"
-        : (wf.hasIssueCounts ? "in-use" : "unknown"),
+      verdict: assessment.verdict,
+      blockers: assessment.blockers,
+      gaps: assessment.gaps,
       verdictCaveat:
         "This covers workflow schemes, issue counts, board columns, saved filter JQL and " +
         "(where an analysis exists) automation. It does not cover dashboards built directly " +
