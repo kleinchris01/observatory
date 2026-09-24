@@ -3884,6 +3884,110 @@ async function getRemediationCandidates({ payload, context }) {
     return { available: true, items };
   }
 
+  // Filters sharing identical JQL -- summarizeFilters already groups these for the tab
+  // (duplicateGroups); this is that same computation, not a second one.
+  if (findingKey === "filter-duplicates") {
+    const meta = await readFilterSnapshotMeta(installationKey).catch(() => null);
+    if (!meta?.version) return { available: false, reason: "no-snapshot", items: [] };
+    const filters = await loadFilters(installationKey, meta.version);
+    const summary = summarizeFilters(filters);
+    const items = summary.duplicateGroups.map((g) => ({
+      id: g.key,
+      jql: g.jql,
+      count: g.count,
+      filters: g.filters,
+    }));
+    return { available: true, items };
+  }
+
+  // A filter's JQL naming a project or issue type the site does not define -- the two
+  // "references something that doesn't exist" findings summarizeFilters already computes,
+  // folded into one playbook since the fix (correct the JQL) is the same shape for both.
+  // Needs the project catalog and the issue type catalog to join against; each degrades to
+  // "not checked" independently, matching summarizeFilters' own projectsChecked/typesChecked
+  // tri-state.
+  if (findingKey === "filter-scope") {
+    const meta = await readFilterSnapshotMeta(installationKey).catch(() => null);
+    if (!meta?.version) return { available: false, reason: "no-snapshot", items: [] };
+    const filters = await loadFilters(installationKey, meta.version);
+
+    const fieldMeta = await readSnapshotMeta(installationKey).catch(() => null);
+    let projectKeys = null;
+    if (fieldMeta?.version) {
+      const projects = await listSnapshotProjects(installationKey, fieldMeta.version).catch(() => []);
+      if (projects.length) projectKeys = new Set(projects.flatMap((p) => [p.projectKey, p.projectName]).filter(Boolean));
+    }
+
+    const itMeta = await readIssueTypeSnapshotMeta(installationKey).catch(() => null);
+    let typeNames = null;
+    if (itMeta?.version) {
+      const types = await loadIssueTypes(installationKey, itMeta.version).catch(() => []);
+      if (types.length) typeNames = new Set(types.map((t) => String(t.name || "").toLowerCase()).filter(Boolean));
+    }
+
+    if (!projectKeys && !typeNames) return { available: false, reason: "no-catalog", items: [] };
+
+    const summary = summarizeFilters(filters, { projectKeys, typeNames });
+    const items = [
+      ...summary.brokenProjects.map((f) => ({ id: `${f.id}:project`, name: f.name, ownerName: f.ownerName, missing: f.missing, refKind: "project" })),
+      ...summary.unknownTypeRefs.map((f) => ({ id: `${f.id}:type`, name: f.name, ownerName: f.ownerName, missing: f.missing, refKind: "type" })),
+    ];
+    return { available: true, items };
+  }
+
+  // A field configured for a project (it is in the field's context) but on no screen that
+  // project's issue types route to -- getScreenFieldCrossSignal is the widest join in the
+  // app and already computes this for the tab; called directly rather than re-derived here.
+  if (findingKey === "screen-unreachable-fields") {
+    const cross = await getScreenFieldCrossSignal({ payload: {}, context }).catch(() => null);
+    if (!cross?.available) return { available: false, reason: cross ? "no-snapshot" : "error", items: [] };
+    const items = (cross.unreachableFields || []).map((f) => ({ id: f.fieldId, fieldId: f.fieldId, fieldName: f.fieldName }));
+    return { available: true, items };
+  }
+
+  // Issue types on no scheme at all. getIssueTypeInventory computes two different
+  // "governance" things: `.governance` is aggregate counts from SQL (loadIssueTypeGovernance
+  // Summary, for the health score), and `.governanceFindings` is the live per-item
+  // computation (summarizeIssueTypeInsights, for the tab) that actually carries the list --
+  // this reads the second one, the same one the Issue Types tab does.
+  if (findingKey === "issue-type-reach") {
+    const inv = await getIssueTypeInventory({ context });
+    if (inv.neverBuilt || !inv.version) return { available: false, reason: "no-snapshot", items: [] };
+    const items = (inv.governanceFindings?.orphanTypes || []).map((t) => ({ id: t.id, name: t.name, subtask: t.subtask }));
+    return { available: true, items };
+  }
+
+  // Issue types sharing an identical, spacing-only, or single-character-different name --
+  // same governanceFindings computation as above, a different list on it.
+  if (findingKey === "issue-type-naming") {
+    const inv = await getIssueTypeInventory({ context });
+    if (inv.neverBuilt || !inv.version) return { available: false, reason: "no-snapshot", items: [] };
+    const items = (inv.governanceFindings?.duplicateGroups || []).map((g) => ({ id: g.key, key: g.key, kind: g.kind, count: g.count, types: g.types }));
+    return { available: true, items };
+  }
+
+  // JSM Assets schemas with no object types or no objects -- getAssetInventory's own
+  // governance summary already computes this for the tab.
+  if (findingKey === "asset-schema-hygiene") {
+    const inv = await getAssetInventory({ context });
+    if (!inv.governance?.available) return { available: false, reason: inv.assetsEnabled === false ? "assets-not-enabled" : "no-snapshot", items: [] };
+    const items = (inv.governance.deadSchemas || []).map((s) => ({
+      id: s.id, name: s.name, reason: s.reason, objectTypeCount: s.objectTypeCount, objectCount: s.objectCount,
+    }));
+    return { available: true, items };
+  }
+
+  // Non-abstract JSM Assets object types carrying zero objects in the last measured crawl --
+  // same governance summary, gated on the object-count crawl having ever run (countsMeasured)
+  // since an unmeasured type must never render as an empty one.
+  if (findingKey === "asset-type-usage") {
+    const inv = await getAssetInventory({ context });
+    if (!inv.governance?.available) return { available: false, reason: inv.assetsEnabled === false ? "assets-not-enabled" : "no-snapshot", items: [] };
+    if (!inv.governance.countsMeasured) return { available: false, reason: "no-object-count-crawl", items: [] };
+    const items = (inv.governance.emptyObjectTypes || []).map((t) => ({ id: t.id, name: t.name, schemaId: t.schemaId }));
+    return { available: true, items };
+  }
+
   return { available: false, reason: "not-connected", items: [] };
 }
 

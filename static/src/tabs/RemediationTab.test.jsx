@@ -33,6 +33,13 @@ describe("RemediationTab", () => {
     expect(screen.getByText("Ownership continuity")).toBeInTheDocument();
     expect(screen.getByText("Status reachability")).toBeInTheDocument();
     expect(screen.getByText("Board backing filters")).toBeInTheDocument();
+    expect(screen.getByText("Duplicate filters")).toBeInTheDocument();
+    expect(screen.getByText("Filter scope references")).toBeInTheDocument();
+    expect(screen.getByText("Unreachable fields")).toBeInTheDocument();
+    expect(screen.getByText("Orphaned issue types")).toBeInTheDocument();
+    expect(screen.getByText("Duplicate issue type names")).toBeInTheDocument();
+    expect(screen.getByText("Dead Assets schemas")).toBeInTheDocument();
+    expect(screen.getByText("Empty Assets object types")).toBeInTheDocument();
   });
 
   test("each finding's section collapses and re-expands independently", async () => {

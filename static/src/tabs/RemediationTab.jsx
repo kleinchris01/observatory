@@ -22,6 +22,13 @@ const REMEDIATION_CATALOG = [
   { key: "user-ownership", label: "Ownership continuity", pillar: "People", connected: true },
   { key: "status-reachability", label: "Status reachability", pillar: "Workflows", connected: true },
   { key: "board-backing", label: "Board backing filters", pillar: "Boards", connected: true },
+  { key: "filter-duplicates", label: "Duplicate filters", pillar: "Filters", connected: true },
+  { key: "filter-scope", label: "Filter scope references", pillar: "Filters", connected: true },
+  { key: "screen-unreachable-fields", label: "Unreachable fields", pillar: "Screens", connected: true },
+  { key: "issue-type-reach", label: "Orphaned issue types", pillar: "Issue Types", connected: true },
+  { key: "issue-type-naming", label: "Duplicate issue type names", pillar: "Issue Types", connected: true },
+  { key: "asset-schema-hygiene", label: "Dead Assets schemas", pillar: "Assets", connected: true },
+  { key: "asset-type-usage", label: "Empty Assets object types", pillar: "Assets", connected: true },
 ];
 
 const STATUS_TONE = { done: "success", indeterminate: "active", new: "neutral" };
