@@ -164,6 +164,7 @@ const mocks = vi.hoisted(() => ({
   loadFieldReachabilityByProject: vi.fn(async () => []),
   loadProjectScreenCoverage: vi.fn(async () => []),
   loadPopulatedProjectUsage: vi.fn(async () => ({ rows: [], truncated: false, limit: 20000 })),
+  loadPopulatedFieldProjectPairs: vi.fn(async () => ({ pairs: new Set(), complete: true })),
   writeScreenCrossSummary: vi.fn(async () => ({})),
   readScreenCrossSummary: vi.fn(async () => null),
   loadScreenCountsForFields: vi.fn(),
@@ -422,6 +423,9 @@ vi.mock("./lib/project-store.js", () => ({
   loadFieldReachabilityByProject: mocks.loadFieldReachabilityByProject,
   loadProjectScreenCoverage: mocks.loadProjectScreenCoverage,
   loadPopulatedProjectUsage: mocks.loadPopulatedProjectUsage,
+  loadPopulatedFieldProjectPairs: mocks.loadPopulatedFieldProjectPairs,
+  // Pure; the real rule, so a test's workflow meta decides reachability as it would live.
+  transitionAwareWorkflowVersion: (meta) => (meta?.version && meta.transitionScreens != null ? meta.version : null),
   writeScreenCrossSummary: mocks.writeScreenCrossSummary,
   readScreenCrossSummary: mocks.readScreenCrossSummary,
   loadScreenCountsForFields: mocks.loadScreenCountsForFields,
@@ -6379,7 +6383,7 @@ describe("getPillarReport", () => {
 
   test("screens: pages through every screen and marks the unreached ones", async () => {
     mocks.readScreenSnapshotMeta.mockResolvedValueOnce({ version: "sv1", refreshedAt: "2026-09-01T00:00:00Z" });
-    mocks.readWorkflowSnapshotMeta.mockResolvedValueOnce({ version: "wv1" });
+    mocks.readWorkflowSnapshotMeta.mockResolvedValueOnce({ version: "wv1", transitionScreens: 4 });
     const full = Array.from({ length: 200 }, (_, i) => ({ screenId: String(i), name: `S${i}`, tabCount: 1, fieldCount: 3, tabsResolved: "resolved" }));
     mocks.loadScreensPage
       .mockResolvedValueOnce({ rows: full })
@@ -6393,6 +6397,20 @@ describe("getPillarReport", () => {
     expect(mocks.loadScreensPage.mock.calls[2][2]).toMatchObject({ filter: "unreached", workflowVersion: "wv1" });
     const flagged = Object.fromEntries(report.rows.filter((r) => r.findings.length).map((r) => [r.id, r.findings]));
     expect(flagged).toEqual({ 200: ["empty"], 5: ["unreached"] });
+  });
+
+  // A workflow snapshot that never read transitions cannot say a screen is unreached: every
+  // screen a transition opens would be listed for deletion.
+  test("screens: reachability is skipped when the workflow build never read transitions", async () => {
+    mocks.readScreenSnapshotMeta.mockResolvedValueOnce({ version: "sv1", refreshedAt: "2026-09-01T00:00:00Z" });
+    mocks.readWorkflowSnapshotMeta.mockResolvedValueOnce({ version: "wv1", transitionScreens: null });
+    mocks.loadScreensPage.mockResolvedValueOnce({ rows: [{ screenId: "5", name: "Resolve screen", tabCount: 1, fieldCount: 4, tabsResolved: "resolved" }] });
+
+    const report = await getPillarReport(ctx("screens"));
+
+    expect(mocks.loadScreensPage).toHaveBeenCalledTimes(1);
+    expect(mocks.loadScreensPage.mock.calls[0][2]).toMatchObject({ workflowVersion: null });
+    expect(report.rows.every((r) => !r.findings.includes("unreached"))).toBe(true);
   });
 
   test("automation: unavailable until the rule directory has been imported", async () => {
@@ -9618,6 +9636,8 @@ describe("the screen cross-signal", () => {
     mocks.loadSnapshotFields.mockResolvedValue([
       { id: "cf_1", name: "Story Points" }, { id: "cf_2", name: "Vendor Ref" },
     ]);
+    // Reset per test: clearAllMocks keeps implementations, and one test sets its own.
+    mocks.loadPopulatedFieldProjectPairs.mockResolvedValue({ pairs: new Set(["10|cf_2"]), complete: true });
   };
 
   describe("getScreenFieldCrossSignal", () => {
@@ -9650,16 +9670,50 @@ describe("the screen cross-signal", () => {
 
     test("honours a near-zero clutter threshold from the caller", async () => {
       ready();
-      mocks.loadPopulatedProjectUsage.mockResolvedValue({
-        truncated: false, limit: 20000,
-        rows: [{ fieldId: "cf_1", projectId: "10", projectKey: "OPS", issueCount: 3 }],
-      });
+      // cf_1 holds 3 issues in project 10: populated above a floor of 0, not above 10.
+      mocks.loadPopulatedFieldProjectPairs.mockImplementation(async (_key, _version, { minIssues = 0 } = {}) => ({
+        pairs: new Set(minIssues < 3 ? ["10|cf_1", "10|cf_2"] : ["10|cf_2"]), complete: true,
+      }));
 
       const strict = await getScreenFieldCrossSignal({ payload: {}, ...ctx });
       const lenient = await getScreenFieldCrossSignal({ payload: { clutterMaxIssues: 10 }, ...ctx });
 
       expect(strict.counts.clutterPlacements).toBe(0);
       expect(lenient.counts.clutterPlacements).toBe(1);
+    });
+  });
+
+  describe("getScreenFieldCrossSignal — never filled means measured", () => {
+    // Summary is never tallied by the issue crawl, so it has no usage row anywhere. It was
+    // listed as "on 135 create screens, never filled".
+    test("does not flag a field the crawl never measures", async () => {
+      ready();
+      mocks.loadFieldReachabilityByProject.mockResolvedValue([
+        { projectId: "10", fieldId: "summary", onCreate: true, onEdit: true, onView: true },
+      ]);
+      mocks.loadSnapshotFields.mockResolvedValue([{ id: "summary", name: "Summary" }, { id: "cf_2", name: "Vendor Ref" }]);
+
+      const result = await getScreenFieldCrossSignal({ payload: {}, ...ctx });
+      expect(result.formClutter).toEqual([]);
+    });
+
+    test("reads filled pairs from the complete read, not the capped usage rows", async () => {
+      ready();
+      mocks.loadPopulatedFieldProjectPairs.mockResolvedValueOnce({ pairs: new Set(["10|cf_1", "10|cf_2"]), complete: true });
+
+      const result = await getScreenFieldCrossSignal({ payload: {}, ...ctx });
+      expect(result.counts.clutterPlacements).toBe(0);
+    });
+
+    test("withholds clutter when the complete read fails", async () => {
+      ready();
+      mocks.loadPopulatedFieldProjectPairs.mockRejectedValueOnce(new Error("SQL timeout"));
+
+      const result = await getScreenFieldCrossSignal({ payload: {}, ...ctx });
+      expect(result.clutterAvailable).toBe(false);
+      expect(result.formClutter).toEqual([]);
+      // Invisible data does not depend on it.
+      expect(result.counts.invisibleFields).toBe(1);
     });
   });
 

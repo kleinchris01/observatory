@@ -217,10 +217,12 @@ function CrossSignalView() {
         />
         <StatTile
           label="Form clutter"
-          value={formatNumber(c.clutterPlacements)}
-          hint={`across ${formatNumber(c.clutterFields)} field${c.clutterFields === 1 ? "" : "s"} on create screens`}
+          value={d.clutterAvailable === false ? "Not measured" : formatNumber(c.clutterPlacements)}
+          hint={d.clutterAvailable === false
+            ? "field usage could not be read in full"
+            : `across ${formatNumber(c.clutterFields)} field${c.clutterFields === 1 ? "" : "s"} on create screens`}
           icon="copy"
-          tone={c.clutterPlacements > 0 ? "warning" : "success"}
+          tone={d.clutterAvailable === false ? "neutral" : c.clutterPlacements > 0 ? "warning" : "success"}
         />
         <StatTile
           label="On no screen at all"
@@ -244,7 +246,8 @@ function CrossSignalView() {
         Screens read {d.screenRefreshedAt ? formatRelativeTime(d.screenRefreshedAt) : "at an unknown time"};
         field usage {d.fieldRefreshedAt ? formatRelativeTime(d.fieldRefreshedAt) : "at an unknown time"}.
         {d.projectsResolved < d.projectsTotal && " Projects whose screens could not be fully read are excluded from both findings — neither claim can be made from a chain that was only partly read."}
-        {d.usageTruncated && " The usage read was capped, so both findings can only understate."}
+        {d.usageTruncated && " The invisible-data read was capped, so that finding can only understate."}
+        {d.clutterAvailable === false && " Field usage could not be read in full, so form clutter is withheld rather than guessed."}
       </p>
 
       <Panel
@@ -279,7 +282,12 @@ function CrossSignalView() {
         icon="copy"
         description="Fields on a project's create screen that nobody there fills in. Create is the one form nobody can skip, so this cost is paid on every issue filed — and the remedy is removing the field from those screens, not deleting it."
       >
-        {!d.formClutter.length ? (
+        {d.clutterAvailable === false ? (
+          <EmptyState inline>
+            Not measured. Field usage could not be read in full, and a field missing from a partial
+            read would look never filled. Run a full scan, then check again.
+          </EmptyState>
+        ) : !d.formClutter.length ? (
           <EmptyState inline>Every field on a create screen is filled in by somebody in that project.</EmptyState>
         ) : (
           <div className="screen-list">
@@ -531,7 +539,7 @@ export function ScreensTab({ intent = null, siteOrigin, onBuildFieldReport }) {
     { key: "overview", label: "Overview", icon: "barChart" },
     { key: "screens", label: "Screens", icon: "copy", badge: formatNumber(data?.totalScreens ?? 0) },
     { key: "schemes", label: "Screen schemes", icon: "layers", badge: formatNumber(data?.screenSchemes?.length ?? 0) },
-    { key: "transitions", label: "Transitions", icon: "activity", badge: formatNumber(data?.transitionScreens?.length ?? 0) },
+    { key: "transitions", label: "Transitions", icon: "activity", badge: data?.transitionsAvailable ? formatNumber(data?.transitionScreens?.length ?? 0) : "?" },
     { key: "assignments", label: "Assignments", icon: "folder", badge: formatNumber(data?.issueTypeScreenSchemes?.length ?? 0) },
     // Last, because it is the only view that is not about the inventory itself -- it is what
     // the inventory is FOR.

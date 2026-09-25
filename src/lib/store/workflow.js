@@ -421,6 +421,14 @@ export async function readWorkflowSnapshotMeta(scopeKey) {
   };
 }
 
+// The workflow version to cross screens against -- or null when that snapshot never read
+// transitions. A screen is "unreached" only if neither the scheme chain nor a transition
+// opens it; passing a version whose transitions were never read turns every
+// transition-opened screen into an unreached one, which is the premise for deleting it.
+export function transitionAwareWorkflowVersion(meta) {
+  return meta?.version && meta.transitionScreens != null ? meta.version : null;
+}
+
 export async function writeWorkflowSnapshotMeta(scopeKey, patch) {
   await ensureProjectStoreReady();
   const current = await readWorkflowSnapshotMeta(scopeKey);

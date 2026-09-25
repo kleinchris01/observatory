@@ -1181,10 +1181,17 @@ export function computeSiteHealth({ fieldUsage, workflow, projects, automation, 
     // Denominator is placements, not fields: the same field on ten create screens is ten
     // filing experiences carrying it. A field-count rate would make a widely-placed
     // offender look identical to one on a single form.
-    const placements = Math.max(1, Number(screenCross.createPlacements) || 0);
+    const judged = Number(screenCross.createPlacements) || 0;
+    const placements = Math.max(1, judged);
     const clutter = Number(screenCross.counts?.clutterPlacements) || 0;
 
-    dimensions.push({
+    // No placement the rule could judge -- field usage unreadable in full, or no project
+    // measured -- is unmeasured, not a clean 100. A stored summary carries no flag, so zero
+    // judged placements is the signal on both paths.
+    if (screenCross.clutterAvailable === false || judged === 0) {
+      dimensions.push(unavailable("form-clutter", "Form clutter", "screens",
+        "Field usage could not be read in full, so no create-screen field can be called never filled."));
+    } else dimensions.push({
       key: "form-clutter",
       label: "Form clutter",
       pillar: "screens",

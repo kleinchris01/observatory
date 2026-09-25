@@ -212,10 +212,8 @@ export async function buildWorkflowSnapshot(installationKey) {
     // came from. Recorded per workflow name, matching schemeStatusRows, because that is the
     // only identifier the scheme association gives us to join on.
     //
-    // Empty is a legitimate answer here and is stored as such: it means no transition on
-    // this site opens a screen. It is NOT the same as the workflow expansion having failed,
-    // which leaves `workflows` empty and is already logged above -- the screen catalog
-    // distinguishes the two by whether a workflow snapshot exists at all.
+    // Empty is a legitimate answer only when workflows were read. When the workflow read
+    // failed, `workflows` is empty and the count is recorded as unknown below, not zero.
     const transitionScreenRows = [];
     for (const workflow of workflows) {
       if (!workflow?.name) continue;
@@ -242,11 +240,14 @@ export async function buildWorkflowSnapshot(installationKey) {
       transitionScreens: transitionScreenRows,
     });
 
-    // Recorded as a number even when it is zero. Zero means this build walked the
-    // workflows and found no transition opening a screen; NULL means the snapshot
-    // predates transition capture entirely, and only one of those is a finding.
+    // Zero means this build walked the workflows and found no transition opening a screen.
+    // NULL means it never walked them -- the snapshot predates transition capture, or the
+    // workflow read failed or came back empty. A site always has workflows, so an empty
+    // list is a failed read, never a site whose transitions open nothing; storing it as
+    // zero is what once told a site with hundreds of transition screens that it had none.
+    const transitionScreensKnown = workflows.length > 0;
     logger.info("workflow-snapshot.transition-screens", {
-      installationKey, captured: transitionScreenRows.length, workflows: workflows.length,
+      installationKey, captured: transitionScreenRows.length, workflows: workflows.length, known: transitionScreensKnown,
     });
 
     const completedAt = new Date().toISOString();
@@ -256,10 +257,9 @@ export async function buildWorkflowSnapshot(installationKey) {
       completedAt,
       refreshedAt: completedAt,
       totalSchemes: schemeRows.length,
-      // A number, always -- including zero. Its presence is what tells a later read that
-      // this build looked for transition screens at all; NULL means the snapshot predates
-      // the capture and knows nothing either way.
-      transitionScreens: transitionScreenRows.length,
+      // A number, including zero, only when the workflows were actually read. Its presence
+      // is what tells a later read that this build looked for transition screens at all.
+      transitionScreens: transitionScreensKnown ? transitionScreenRows.length : null,
       lastError: null,
     });
 

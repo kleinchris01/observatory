@@ -557,9 +557,23 @@ describe("ScreensTab — field cross-signal", () => {
     expect(screen.getByText(/only partly read/i)).toBeInTheDocument();
   });
 
-  test("warns when the usage read was capped, since both findings can only understate", async () => {
+  // Only invisible data understates on a capped read. Clutter reads a missing pair as
+  // "never filled", so a cap OVERSTATES it -- the caption used to claim both understate.
+  test("says a capped read understates invisible data only", async () => {
     await openCross(cross({ usageTruncated: true }));
-    expect(await screen.findByText(/can only understate/i)).toBeInTheDocument();
+    const line = await screen.findByText(/invisible-data read was capped/i);
+    expect(line.textContent).toMatch(/that finding can only understate/i);
+    expect(line.textContent).not.toMatch(/both findings/i);
+  });
+
+  test("withholds form clutter as not measured rather than listing guesses", async () => {
+    await openCross(cross({ clutterAvailable: false, formClutter: [] }));
+
+    expect(await screen.findByText(/form clutter is withheld rather than guessed/i)).toBeInTheDocument();
+    expect(screen.getByText("Not measured")).toBeInTheDocument();
+    expect(screen.getByText(/a field missing from a partial\s+read would look never filled/i)).toBeInTheDocument();
+    // Never the clean-bill sentence for a finding nobody could compute.
+    expect(screen.queryByText(/every field on a create screen is filled in by somebody/i)).not.toBeInTheDocument();
   });
 
   test("reports a suppressed cross rather than an empty one", async () => {
@@ -576,5 +590,40 @@ describe("ScreensTab — field cross-signal", () => {
 
     expect(await screen.findByText(/no field holds values in a project that cannot display it/i)).toBeInTheDocument();
     expect(screen.getByText(/every field on a create screen is filled in by somebody/i)).toBeInTheDocument();
+  });
+});
+
+// Transitions are the second route a screen has to a user. When the workflow build could
+// not read workflows at all, the view used to say "no workflow transition on this site
+// opens a screen" -- a confident zero from a read that never happened.
+describe("Screens — transitions view", () => {
+  const base = (over = {}) => ({
+    state: "ready", version: "v1", totalScreens: 780, page: 1, pageSize: 25, sort: "fields-desc",
+    screens: { total: 0, rows: [] },
+    screenSchemes: [], schemeOperations: [], issueTypeScreenSchemes: [],
+    distributions: {}, governance: {}, transitionScreens: [],
+    ...over,
+  });
+
+  const open = async (result) => {
+    invoke.mockImplementation((name) => (name === "getScreenInventory" ? Promise.resolve(result) : Promise.resolve({ pillar: null })));
+    render(<ScreensTab intent={{ view: "transitions" }} />);
+  };
+
+  test("shows unknown, not zero, when transitions were never read", async () => {
+    await open(base({
+      transitionsAvailable: false,
+      transitionsReason: "The last workflow build could not read this site's workflows, so which screens transitions open is unknown.",
+    }));
+
+    expect(await screen.findByText(/could not read this site's workflows/i)).toBeInTheDocument();
+    expect(screen.queryByText(/No workflow transition on this site opens a screen/i)).not.toBeInTheDocument();
+    const nav = screen.getByRole("button", { name: /Transitions/i });
+    expect(nav.textContent).toContain("?");
+  });
+
+  test("states a real zero only when transitions were read", async () => {
+    await open(base({ transitionsAvailable: true, transitionScreens: [] }));
+    expect(await screen.findByText(/No workflow transition on this site opens a screen/i)).toBeInTheDocument();
   });
 });

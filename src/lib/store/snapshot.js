@@ -448,6 +448,45 @@ export async function loadPopulatedProjectUsage(scopeKey, version, { limit = 200
   };
 }
 
+// Every populated field x project pair, as bare ids, read in full -- for form clutter.
+//
+// loadPopulatedProjectUsage above is capped and sorted by volume, which is right for
+// invisible data (a truncated left side can only understate it) and exactly wrong for form
+// clutter, which reads a MISSING pair as "never filled": every low-volume pair past the cap
+// became a finding. So clutter gets its own read, keyset-paged to completion, carrying only
+// the two ids it needs. The ceiling is a guard against a runaway loop, not a sampling cap;
+// hitting it is reported, and the caller withholds the finding rather than guess.
+export async function loadPopulatedFieldProjectPairs(scopeKey, version, { minIssues = 0, pageSize = 10000, ceiling = 500000 } = {}) {
+  await ensureProjectStoreReady();
+  const floor = Math.max(0, Math.trunc(Number(minIssues)) || 0);
+  const size = Math.max(1, Math.min(20000, Math.trunc(Number(pageSize)) || 10000));
+
+  const pairs = new Set();
+  let lastField = "";
+  let lastProject = "";
+  for (;;) {
+    const result = await withSqlRetry(() => sql
+      .prepare(`
+        SELECT field_id, project_id
+        FROM snapshot_project_usage
+        WHERE scope_key = ? AND version = ? AND issue_count > ?
+          AND (field_id > ? OR (field_id = ? AND project_id > ?))
+        ORDER BY field_id ASC, project_id ASC
+        LIMIT ${size}
+      `)
+      .bindParams(scopeKey, version, floor, lastField, lastField, lastProject)
+      .execute());
+
+    const rows = result.rows || [];
+    for (const row of rows) pairs.add(`${row.project_id}|${row.field_id}`);
+    if (rows.length < size) return { pairs, complete: true };
+    if (pairs.size >= ceiling) return { pairs, complete: false };
+    const last = rows[rows.length - 1];
+    lastField = String(last.field_id);
+    lastProject = String(last.project_id);
+  }
+}
+
 export async function loadAnySnapshotProjectUsage(scopeKey, fieldId) {
   await ensureProjectStoreReady();
 
