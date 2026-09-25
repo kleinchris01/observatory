@@ -331,6 +331,192 @@ export function downloadCsv(filename, rows) {
   URL.revokeObjectURL(url);
 }
 
+// ── Pillar reports ─────────────────────────────────────────────────────────
+//
+// The frontend's pillar registry: the Reports tab's per-pillar list and the admin nav's status
+// dots. Keys are the admin tab keys and match getPillarReport (src/lib/pillar-reports.js).
+// `agent` is null where the pillar has no Rovo agent -- the report then simply has no Ask Rovo
+// button. `health` names the HEALTH_PILLARS keys the pillar is scored under (Access is four).
+export const PILLAR_REPORT_NAV = [
+  { key: "fields", label: "Fields", icon: "layers", agent: "observatory-field-expert", health: ["fields"] },
+  { key: "projects", label: "Projects", icon: "folder", agent: "observatory-project-expert", health: ["projects"] },
+  { key: "workflows", label: "Workflows", icon: "activity", agent: "observatory-workflow-expert", health: ["workflows"] },
+  { key: "issueTypes", label: "Issue types", icon: "tag", agent: "observatory-issuetype-expert", health: ["issueTypes"] },
+  { key: "priorities", label: "Priorities", icon: "flag", agent: "observatory-estate-expert", health: ["estate"] },
+  { key: "people", label: "People", icon: "user", agent: "observatory-people-expert", health: ["users"] },
+  { key: "assets", label: "Assets", icon: "database", agent: "observatory-assets-expert", health: ["assets"] },
+  { key: "access", label: "Access", icon: "shield", agent: "observatory-access-expert", health: ["permissions", "security", "notifications", "roles"] },
+  { key: "screens", label: "Screens", icon: "browser", agent: "observatory-screen-expert", health: ["screens"] },
+  { key: "filters", label: "Saved filters", icon: "search", agent: null, health: ["filters"] },
+  { key: "dashboards", label: "Dashboards", icon: "grid", agent: null, health: ["dashboards"] },
+  { key: "boards", label: "Boards", icon: "kanban", agent: null, health: ["boards"] },
+  { key: "automation", label: "Automation", icon: "refreshCw", agent: "observatory-automation-expert", health: ["automation"] },
+  { key: "changes", label: "Changes", icon: "clock", agent: "observatory-change-expert", health: ["drift"] },
+];
+
+// One cell as text, for both the preview table and the CSV. Blank means unknown -- a null
+// is never printed as 0 or "No", because unmeasured and measured-as-zero are different facts.
+export function formatReportCell(value, kind) {
+  if (value === null || value === undefined) return "";
+  if (kind === "boolean") return value ? "Yes" : "No";
+  if (kind === "list") return Array.isArray(value) ? value.join("; ") : String(value);
+  if (kind === "number") return typeof value === "number" ? String(value) : String(value ?? "");
+  return String(value);
+}
+
+// A cell a spreadsheet would execute. Report cells are names people typed in Jira -- a
+// filter called "=HYPERLINK(...)" must arrive as text, not as a formula.
+function neutralizeFormula(text) {
+  return /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+}
+
+// Header, then one line per row, in column order. The first line records what the export is
+// and how old its snapshot was, so a CSV passed around a week later still says so.
+export function reportToCsvRows(report) {
+  const columns = report?.columns || [];
+  const lines = [
+    [`${report?.label || "Pillar"} report`, report?.refreshedAt ? `Snapshot ${report.refreshedAt}` : "Snapshot time unknown"],
+    columns.map((c) => c.label),
+  ];
+  for (const row of report?.rows || []) {
+    lines.push(columns.map((c) => {
+      const text = formatReportCell(row[c.key], c.kind);
+      return c.kind === "number" ? text : neutralizeFormula(text);
+    }));
+  }
+  return lines;
+}
+
+// Below this a dimension sits in the warning band -- the same cut bandFromScore (ui.jsx)
+// draws, so a scorecard row is flagged exactly when the Overview paints it amber.
+export const SCORECARD_ATTENTION_BELOW = 70;
+
+// A pillar's state for the admin nav, from the site health the Overview already computed.
+//
+//   "unmeasured" -- none of its health pillars has been scored: nothing to look at yet.
+//   "attention"  -- a scored pillar sits under SCORECARD_ATTENTION_BELOW, the same cut the
+//                   scorecard and the Overview's amber band use, so the dot never disagrees
+//                   with the page it leads to.
+//   "ok"         -- scored, and nothing under the line.
+//   null         -- not a pillar, or health has not loaded. No dot beats a wrong one.
+export function pillarNavStatus(key, health) {
+  const pillar = PILLAR_REPORT_NAV.find((p) => p.key === key);
+  if (!pillar || !Array.isArray(health?.pillars)) return null;
+  const scored = pillar.health
+    .map((k) => health.pillars.find((p) => p.key === k))
+    .filter((p) => p && p.available && typeof p.score === "number");
+  if (scored.length === 0) {
+    const first = health.pillars.find((p) => pillar.health.includes(p.key));
+    return { state: "unmeasured", label: first?.reason || "Not measured yet" };
+  }
+  const low = scored.filter((p) => p.score < SCORECARD_ATTENTION_BELOW);
+  if (low.length > 0) {
+    return {
+      state: "attention",
+      label: low.map((p) => `${p.label} scores ${p.score}`).join("; "),
+    };
+  }
+  return { state: "ok", label: null };
+}
+
+// localStorage, for per-viewer conveniences only (remembered tab, collapsed sidebar, theme).
+// Guarded because the app runs in a sandboxed Forge iframe where storage can be blocked or
+// throw outright; the page must work identically without it, just without the memory.
+export function readStored(key, fallback = null) {
+  try {
+    const value = window.localStorage.getItem(key);
+    return value === null ? fallback : value;
+  } catch {
+    return fallback;
+  }
+}
+
+export function writeStored(key, value) {
+  try {
+    if (value === null || value === undefined) window.localStorage.removeItem(key);
+    else window.localStorage.setItem(key, String(value));
+  } catch {
+    // Storage unavailable: the preference simply is not remembered.
+  }
+}
+
+// The site health the Overview already computed, in the pillar-report shape, so the
+// scorecard renders and exports through the same view as every pillar report rather than
+// needing a view of its own.
+export function buildScorecardReport(health, { scoredAt = null } = {}) {
+  if (!health || !Array.isArray(health.pillars)) {
+    return {
+      pillar: "scorecard", label: "Governance scorecard", entity: "dimensions", status: "unavailable",
+      reason: "Health has not been scored yet. Open the Overview to score it.",
+      refreshedAt: null, columns: [], rows: [], total: 0, truncated: false, flaggedCount: 0, summary: [], notes: [],
+    };
+  }
+  const rows = [];
+  for (const pillar of health.pillars) {
+    for (const dim of pillar.dimensions || []) {
+      const scored = dim.available && typeof dim.score === "number";
+      rows.push({
+        pillar: pillar.label,
+        pillarScore: pillar.available ? pillar.score : null,
+        dimension: dim.label,
+        score: scored ? dim.score : null,
+        detail: scored ? (dim.detail || "") : (dim.reason || "Not measured"),
+        findings: scored && dim.score < SCORECARD_ATTENTION_BELOW ? ["needs-attention"] : [],
+      });
+    }
+  }
+  const flagged = rows.filter((r) => r.findings.length > 0);
+  const ordered = [...flagged, ...rows.filter((r) => r.findings.length === 0)];
+  const measuredPillars = health.pillars.filter((p) => p.available).length;
+  return {
+    pillar: "scorecard",
+    label: "Governance scorecard",
+    entity: "dimensions",
+    status: "ok",
+    reason: null,
+    // The Overview scores live, so the report's age is when that score was computed.
+    refreshedAt: scoredAt,
+    columns: [
+      { key: "pillar", label: "Pillar", kind: "text" },
+      { key: "pillarScore", label: "Pillar score", kind: "number" },
+      { key: "dimension", label: "Dimension", kind: "text" },
+      { key: "score", label: "Score", kind: "number" },
+      { key: "detail", label: "Detail", kind: "text" },
+      { key: "findings", label: "Findings", kind: "list" },
+    ],
+    rows: ordered,
+    total: rows.length,
+    truncated: false,
+    flaggedCount: flagged.length,
+    summary: [
+      { label: "Site score", value: health.score ?? "—", hint: health.grade ? `Grade ${health.grade}` : undefined },
+      { label: "Pillars measured", value: `${measuredPillars} / ${health.pillars.length}` },
+      { label: "Dimensions scored", value: `${health.dimensionsScored ?? rows.filter((r) => r.score !== null).length} / ${health.dimensionsTotal ?? rows.length}` },
+      { label: "Needing attention", value: flagged.length, tone: flagged.length > 0 ? "warning" : "success" },
+    ],
+    notes: [`Dimensions scoring under ${SCORECARD_ATTENTION_BELOW} are flagged. Unmeasured dimensions are listed with the reason, not scored.`],
+  };
+}
+
+// The prompt a report's Ask Rovo button sends: the report's own totals and its most common
+// finding codes, never the rows themselves -- the agent has its own read actions for those.
+export function buildPillarReportRovoPrompt(report) {
+  const counts = new Map();
+  for (const row of report?.rows || []) {
+    for (const code of row.findings || []) counts.set(code, (counts.get(code) || 0) + 1);
+  }
+  const top = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([code, n]) => `${code} (${n})`);
+  return buildRovoPrompt({
+    task: `Summarise the ${report?.label || "pillar"} report for a Jira admin and say which findings to work on first.`,
+    facts: [
+      ["Snapshot built", report?.refreshedAt || "unknown"],
+      [`Total ${report?.entity || "rows"}`, report?.total ?? null],
+      ["Rows with findings", report?.flaggedCount ?? null],
+      ["Most common findings", top.length ? top.join(", ") : null],
+    ],
+  });
+}
+
 // Copy text to the clipboard, resolving true on success and false on failure.
 //
 // navigator.clipboard is not dependable here: Forge Custom UI renders inside a sandboxed

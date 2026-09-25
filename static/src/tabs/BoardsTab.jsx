@@ -6,7 +6,7 @@ import {
   StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, SortFilterBar, FindingRow, JiraLink,
 } from "../components/ui";
 import { SubNavLayout } from "../components/admin/primitives";
-import { useNavIntent, useVisiblePolling } from "../hooks";
+import { useNavIntent, useVisiblePolling, usePersistentState } from "../hooks";
 
 // Agile boards: every board on the site, where it lives, the saved filter behind it and its
 // column-to-status mapping. Structure only for now -- the cross-pillar findings (a board on a
@@ -66,7 +66,7 @@ function BoardRow({ board, siteOrigin }) {
 }
 
 export function BoardsTab({ intent, siteOrigin }) {
-  const [view, setView] = React.useState("overview");
+  const [view, setView] = usePersistentState("observatory.section.boards", "overview");
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");

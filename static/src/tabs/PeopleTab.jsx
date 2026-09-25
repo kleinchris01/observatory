@@ -5,7 +5,7 @@ import { Icon } from "../components/Icons";
 import { StatTile, StatRow, Panel, EmptyState, Chip, PageHeader, PanelGrid, GridSpan, PillarHealthPanel, BarList, SortFilterBar, AskRovo } from "../components/ui";
 import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
-import { useVisiblePolling } from "../hooks";
+import { useVisiblePolling, usePersistentState } from "../hooks";
 
 // The People pillar: the who, not just the what.
 //
@@ -227,7 +227,7 @@ function sortRoster(users, sort) {
 }
 
 export function PeopleTab() {
-  const [view, setView] = React.useState("overview");
+  const [view, setView] = usePersistentState("observatory.section.people", "overview");
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");

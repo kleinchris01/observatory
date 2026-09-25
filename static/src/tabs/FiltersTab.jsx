@@ -7,7 +7,7 @@ import {
   PanelGrid, GridSpan, PillarHealthPanel,
 } from "../components/ui";
 import { SubNavLayout } from "../components/admin/primitives";
-import { useNavIntent, useVisiblePolling } from "../hooks";
+import { useNavIntent, useVisiblePolling, usePersistentState } from "../hooks";
 // The pure filter/search/sort logic now lives in filter-query.js and runs on the SERVER --
 // see getFilterInventory. Re-exported here so this module is still the one place tests and
 // other tabs import FILTER_FINDINGS/filterRows/sortFilters from; there is exactly one
@@ -115,7 +115,7 @@ export function FiltersTab({ siteOrigin = "", intent = null }) {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
   const [building, setBuilding] = React.useState(false);
-  const [view, setView] = React.useState("filters");
+  const [view, setView] = usePersistentState("observatory.section.filters", "filters");
   const [search, setSearch] = React.useState("");
   // Debounced, the same way FieldBrowserTab debounces its own search box: typing fires a
   // request per keystroke otherwise, and each one is now a server-side scan of every

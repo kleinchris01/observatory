@@ -3,7 +3,7 @@ import { invoke } from "@forge/bridge";
 import { formatRelativeTime, formatNumber, formatTimestamp } from "../utils";
 import { BarList, Chip, EmptyState, FindingRow, Panel, RuleLink, SortFilterBar, StatRow, StatTile } from "../components/ui";
 import { SubNavLayout } from "../components/admin/primitives";
-import { useNavIntent } from "../hooks";
+import { useNavIntent, usePersistentState } from "../hooks";
 import { Icon } from "../components/Icons";
 import { analyzeRules, expandFinding, hydrateRuleDirectory } from "../../../src/lib/automation-analysis";
 
@@ -1036,7 +1036,7 @@ export function AutomationTab({ siteOrigin, intent = null }) {
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
-  const [section, setSection] = React.useState("overview");
+  const [section, setSection] = usePersistentState("observatory.section.automation", "overview");
 
   // Arrived from an Overview finding. The section is this component's to switch; the filter
   // inside it belongs to the section, so the intent is passed down rather than unpacked here.

@@ -5,7 +5,7 @@ import { Icon } from "../components/Icons";
 import { StatTile, StatRow, Panel, EmptyState, PageHeader, SortFilterBar, Chip, RuleLink, AskRovo } from "../components/ui";
 import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
-import { useNavIntent } from "../hooks";
+import { useNavIntent, usePersistentState } from "../hooks";
 
 // Workflow scheme + status inventory.
 //
@@ -566,7 +566,7 @@ function DepartedChart({ statuses }) {
 }
 
 export function WorkflowTab({ intent = null, siteOrigin = "" }) {
-  const [view, setView] = React.useState("schemes");
+  const [view, setView] = usePersistentState("observatory.section.workflows", "schemes");
   // Arrived from an Overview finding: switch to the view that holds it. The filter within
   // that view belongs to the view, so the intent travels on rather than being unpacked here.
   useNavIntent(intent, (nav) => {

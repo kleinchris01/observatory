@@ -8,7 +8,7 @@ import {
 } from "../components/ui";
 import { buildRovoPrompt } from "../utils";
 import { SubNavLayout } from "../components/admin/primitives";
-import { useNavIntent, useVisiblePolling } from "../hooks";
+import { useNavIntent, useVisiblePolling, usePersistentState } from "../hooks";
 
 // The two global value lists in Jira's "Issues" admin section that don't have their own
 // pillar yet: resolutions and priorities. Statuses and issue types are covered elsewhere.
@@ -100,7 +100,7 @@ function duplicateMap(groups = []) {
 }
 
 export function PrioritiesTab({ intent, siteOrigin }) {
-  const [view, setView] = React.useState("overview");
+  const [view, setView] = usePersistentState("observatory.section.priorities", "overview");
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");

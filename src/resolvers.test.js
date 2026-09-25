@@ -689,6 +689,7 @@ const {
   getHealthHistory,
   getProjectOverview,
   getPillarHealth,
+  getPillarReport,
   buildScreenInventory,
   getIssueTypeInventory,
   buildIssueTypeInventory,
@@ -6310,6 +6311,8 @@ describe("getBoardInventory", () => {
     expect(result.insights).toMatchObject({ missingFilter: 1, staleColumnBoards: 1, joinedFilters: true, joinedStatuses: true });
     expect(result.summary.brokenFilter).toBe(1);
     expect(result.summary.staleColumnBoards).toBe(1);
+    // Per-board codes, uncapped, for the pillar report.
+    expect(result.boards[0].issues).toEqual(["backing-filter-deleted", "stale-column-status"]);
   });
 
   test("reports the joins as not-run when the other snapshots are absent", async () => {
@@ -6321,6 +6324,256 @@ describe("getBoardInventory", () => {
 
     const result = await getBoardInventory(ctx);
     expect(result.insights).toMatchObject({ joinedFilters: false, joinedStatuses: false, missingFilter: 0 });
+  });
+});
+
+describe("getPillarReport", () => {
+  const ctx = (pillar) => ({ payload: { pillar }, context: { installContext: "ari:cloud:jira::site/x" } });
+
+  test("rejects a missing or unknown pillar", async () => {
+    await expect(getPillarReport(ctx(""))).rejects.toThrow();
+    await expect(getPillarReport(ctx("nope"))).rejects.toThrow(/Unknown pillar report/);
+  });
+
+  test("an unbuilt pillar is explicitly unavailable, never an empty report", async () => {
+    mocks.readBoardSnapshotMeta.mockResolvedValueOnce(null);
+    const report = await getPillarReport(ctx("boards"));
+    expect(report).toMatchObject({ pillar: "boards", status: "unavailable", rows: [] });
+    expect(report.reason).toMatch(/board inventory/);
+  });
+
+  test("boards: reuses the inventory read and carries its per-board findings", async () => {
+    mocks.readBoardSnapshotMeta.mockResolvedValueOnce({ state: "ready", version: "v1", refreshedAt: "2026-09-09T00:00:00Z" });
+    mocks.loadBoards.mockResolvedValueOnce([
+      { boardId: "1", name: "Clean", type: "scrum", filterId: "4001", configReadable: true, columnCount: 1 },
+      { boardId: "2", name: "Orphan", type: "kanban", filterId: null, configReadable: true, columnCount: 0 },
+    ]);
+    mocks.loadBoardColumns.mockResolvedValueOnce([{ boardId: "1", index: 0, name: "To Do", statusIds: ["1"] }]);
+
+    const report = await getPillarReport(ctx("boards"));
+
+    expect(report).toMatchObject({ status: "ok", refreshedAt: "2026-09-09T00:00:00Z", total: 2, flaggedCount: 1 });
+    expect(report.rows[0]).toMatchObject({ id: "2", findings: ["no-backing-filter"] });
+  });
+
+  test("filters: every filter with its analysis findings, not one page", async () => {
+    mocks.readFilterSnapshotMeta.mockResolvedValueOnce({ version: "fv1", refreshedAt: "2026-09-01T00:00:00Z" });
+    mocks.readSnapshotMeta.mockResolvedValueOnce(null);
+    mocks.readIssueTypeSnapshotMeta.mockResolvedValueOnce(null);
+    mocks.loadFilters.mockResolvedValueOnce(Array.from({ length: 30 }, (_, i) => ({
+      id: String(i), name: `F${i}`, ownerAccountId: "a", ownerName: "Ann", ownerActive: i !== 7, owner: { accountId: "a", displayName: "Ann", active: i !== 7 }, shares: [], subscriptionCount: 0, lastUsedAt: "2026-08-01T00:00:00Z",
+    })));
+
+    const report = await getPillarReport(ctx("filters"));
+
+    expect(report.total).toBe(30);
+    expect(report.rows[0]).toMatchObject({ id: "7", findings: ["orphaned-owner"] });
+  });
+
+  test("screens: pages through every screen and marks the unreached ones", async () => {
+    mocks.readScreenSnapshotMeta.mockResolvedValueOnce({ version: "sv1", refreshedAt: "2026-09-01T00:00:00Z" });
+    mocks.readWorkflowSnapshotMeta.mockResolvedValueOnce({ version: "wv1" });
+    const full = Array.from({ length: 200 }, (_, i) => ({ screenId: String(i), name: `S${i}`, tabCount: 1, fieldCount: 3, tabsResolved: "resolved" }));
+    mocks.loadScreensPage
+      .mockResolvedValueOnce({ rows: full })
+      .mockResolvedValueOnce({ rows: [{ screenId: "200", name: "Last", tabCount: 1, fieldCount: 0, tabsResolved: "resolved" }] })
+      .mockResolvedValueOnce({ rows: [{ screenId: "5" }] });
+
+    const report = await getPillarReport(ctx("screens"));
+
+    expect(report.total).toBe(201);
+    expect(mocks.loadScreensPage).toHaveBeenCalledTimes(3);
+    expect(mocks.loadScreensPage.mock.calls[2][2]).toMatchObject({ filter: "unreached", workflowVersion: "wv1" });
+    const flagged = Object.fromEntries(report.rows.filter((r) => r.findings.length).map((r) => [r.id, r.findings]));
+    expect(flagged).toEqual({ 200: ["empty"], 5: ["unreached"] });
+  });
+
+  test("automation: unavailable until the rule directory has been imported", async () => {
+    mocks.readAutomationPart.mockResolvedValueOnce(null);
+    const report = await getPillarReport(ctx("automation"));
+    expect(report.status).toBe("unavailable");
+    expect(report.reason).toMatch(/Automation tab/);
+  });
+
+  test("automation: rules from the directory, risks from the analysis preview", async () => {
+    mocks.readAutomationAnalysis.mockResolvedValueOnce({ refreshedAt: Date.UTC(2026, 8, 1), findingsPreview: [{ id: 11, r: [{ c: "secret" }] }], findingsTotal: 1 });
+    mocks.readAutomationPart.mockResolvedValueOnce({ rules: [[11, "Notify", 1, "jira:issue_created", 3, "acc"], [12, "Idle", 0, null, 0, null]] });
+
+    const report = await getPillarReport(ctx("automation"));
+
+    expect(report).toMatchObject({ status: "ok", total: 2, refreshedAt: "2026-09-01T00:00:00.000Z" });
+    expect(report.rows[0]).toMatchObject({ id: 11, enabled: true, findings: ["secret"] });
+  });
+
+  test("changes: keyset-pages the trailing window", async () => {
+    mocks.readDriftSnapshotMeta.mockResolvedValueOnce({ version: "d1", refreshedAt: "2026-09-02T00:00:00Z" });
+    const page = Array.from({ length: 500 }, (_, i) => ({ changeId: String(i), detectedAt: `2026-09-01T00:00:${String(i % 60).padStart(2, "0")}Z`, pillar: "fields", changeKind: "added" }));
+    mocks.loadConfigChanges
+      .mockResolvedValueOnce(page)
+      .mockResolvedValueOnce([{ changeId: "x", detectedAt: "2026-08-30T00:00:00Z", pillar: "fields", changeKind: "removed" }]);
+
+    const report = await getPillarReport(ctx("changes"));
+
+    expect(report.total).toBe(501);
+    expect(mocks.loadConfigChanges.mock.calls[1][1]).toMatchObject({ before: page[499].detectedAt, limit: 500 });
+    expect(mocks.loadConfigChanges.mock.calls[0][1].since).toEqual(expect.any(String));
+    expect(report.columns.some((c) => c.key === "findings")).toBe(false);
+  });
+
+  test("assets: an unlicensed site says so rather than reporting unbuilt", async () => {
+    mocks.readAssetSnapshotMeta.mockResolvedValueOnce({ state: "unavailable" });
+    const report = await getPillarReport(ctx("assets"));
+    expect(report.reason).toMatch(/not available on this site/);
+  });
+
+  test.each([
+    ["fields", "readSnapshotMeta", /field inventory/],
+    ["projects", "readSnapshotMeta", /project inventory/],
+    ["workflows", "readWorkflowSnapshotMeta", /workflow inventory/],
+    ["issueTypes", "readIssueTypeSnapshotMeta", /issue type inventory/],
+    ["priorities", "readEstateSnapshotMeta", /priority and resolution/],
+    ["people", "readUserSnapshotMeta", /people inventory/],
+    ["assets", "readAssetSnapshotMeta", /Assets inventory/],
+    ["access", "readAccessSnapshotMeta", /access inventory/],
+    ["screens", "readScreenSnapshotMeta", /screen inventory/],
+    ["filters", "readFilterSnapshotMeta", /saved filter inventory/],
+    ["dashboards", "readDashboardSnapshotMeta", /dashboard inventory/],
+    ["changes", "readDriftSnapshotMeta", /drift pass/],
+  ])("%s is unavailable until its snapshot exists", async (pillar, metaMock, reason) => {
+    mocks[metaMock].mockResolvedValueOnce(null);
+    const report = await getPillarReport(ctx(pillar));
+    expect(report).toMatchObject({ pillar, status: "unavailable", rows: [] });
+    expect(report.reason).toMatch(reason);
+  });
+
+  test("fields: every snapshot field, hydrated for governance", async () => {
+    mocks.readSnapshotMeta.mockResolvedValueOnce({ version: "v1", completedAt: "2026-09-01T00:00:00Z" });
+    mocks.loadSnapshotFields.mockResolvedValueOnce([
+      { id: "customfield_1", name: "Team", type: "select", configuredProjectCount: 0, totalIssueCount: 0, activeProjectCount: 0 },
+      { id: "customfield_2", name: "Budget", type: "number", configuredProjectCount: 1, totalIssueCount: 40, activeProjectCount: 1 },
+    ]);
+
+    const report = await getPillarReport(ctx("fields"));
+
+    expect(report).toMatchObject({ status: "ok", total: 2, refreshedAt: "2026-09-01T00:00:00Z" });
+    expect(report.rows.find((r) => r.id === "customfield_1").findings).toContain("orphaned");
+  });
+
+  test("projects: snapshot projects with adoption, unmeasured when no activity was captured", async () => {
+    mocks.readSnapshotMeta.mockResolvedValueOnce({ version: "v1", refreshedAt: "2026-09-01T00:00:00Z" });
+    mocks.listSnapshotProjects.mockResolvedValueOnce([{ projectId: "1", projectKey: "AAA", projectName: "Alpha", fieldCount: 3 }]);
+    mocks.loadProjectActivity.mockResolvedValueOnce(new Map());
+
+    const report = await getPillarReport(ctx("projects"));
+
+    expect(report.rows[0]).toMatchObject({ key: "AAA", fields: 3, adoption: null, findings: [] });
+    expect(report.notes[0]).toMatch(/unmeasured/);
+  });
+
+  test("issueTypes: the catalogue with scheme membership for the orphan check", async () => {
+    mocks.readIssueTypeSnapshotMeta.mockResolvedValueOnce({ state: "ready", version: "v1", refreshedAt: "2026-09-01T00:00:00Z" });
+    mocks.loadIssueTypes.mockResolvedValueOnce([
+      { id: "1", name: "Story", hierarchyLevel: 0 },
+      { id: "2", name: "Lonely", hierarchyLevel: 0 },
+    ]);
+    mocks.loadIssueTypeSchemes.mockResolvedValueOnce([]);
+    mocks.loadIssueTypeSchemeItems
+      .mockResolvedValueOnce([{ schemeId: "s", issueTypeId: "1" }])
+      .mockResolvedValueOnce([{ schemeId: "s", issueTypeId: "1" }]);
+    mocks.loadIssueTypeSchemeProjects.mockResolvedValueOnce([]);
+    mocks.loadIssueTypeGovernanceSummary.mockResolvedValueOnce({});
+    mocks.readScreenSnapshotMeta.mockResolvedValueOnce(null);
+    mocks.readIssueScanMeta.mockResolvedValueOnce(null);
+
+    const report = await getPillarReport(ctx("issueTypes"));
+
+    expect(report.rows[0]).toMatchObject({ id: "2", findings: ["no-scheme"] });
+    expect(mocks.loadIssueTypeSchemeItems).toHaveBeenLastCalledWith("test-install", "v1");
+  });
+
+  test("priorities: both value lists from the estate inventory", async () => {
+    mocks.readEstateSnapshotMeta.mockResolvedValueOnce({ state: "ready", version: "v1", refreshedAt: "2026-09-01T00:00:00Z" });
+    mocks.loadEstateValues
+      .mockResolvedValueOnce([{ id: "1", name: "Done" }, { id: "2", name: "done" }])
+      .mockResolvedValueOnce([{ id: "10", name: "High", isDefault: true }]);
+
+    const report = await getPillarReport(ctx("priorities"));
+
+    expect(report).toMatchObject({ total: 3, flaggedCount: 2 });
+  });
+
+  test("people: the roster with ownership counts", async () => {
+    mocks.readUserSnapshotMeta.mockResolvedValueOnce({ state: "ready", version: "v1", refreshedAt: "2026-09-01T00:00:00Z" });
+    mocks.loadUsers.mockResolvedValueOnce([{ accountId: "a1", displayName: "Ann", active: true, applications: [], groups: [] }]);
+    mocks.loadUserGovernanceSummary.mockResolvedValueOnce({ totalUsers: 1 });
+
+    const report = await getPillarReport(ctx("people"));
+
+    expect(report.rows[0]).toMatchObject({ accountId: "a1", active: true, findings: [] });
+  });
+
+  test("assets: object types from a built structure snapshot", async () => {
+    mocks.readAssetSnapshotMeta.mockResolvedValueOnce({ state: "ready", version: "v1", refreshedAt: "2026-09-01T00:00:00Z" });
+    mocks.loadAssetSchemas.mockResolvedValueOnce([{ id: "s1", name: "IT", objectTypeCount: 1, objectCount: 4 }]);
+    mocks.loadAssetObjectTypes.mockResolvedValueOnce([{ id: "t1", schemaId: "s1", name: "Laptop" }]);
+    mocks.loadAssetAttributes.mockResolvedValueOnce([]);
+    mocks.loadAssetTypeCounts.mockResolvedValueOnce([]);
+    mocks.readAssetTypeCountMeta.mockResolvedValueOnce(null);
+
+    const report = await getPillarReport(ctx("assets"));
+
+    expect(report.rows[0]).toMatchObject({ schema: "IT", name: "Laptop", findings: ["no-custom-attributes"] });
+  });
+
+  test("access: every scheme family flattened into one table", async () => {
+    mocks.readAccessSnapshotMeta.mockResolvedValueOnce({ state: "ready", version: "v1", refreshedAt: "2026-09-01T00:00:00Z" });
+    mocks.readUserSnapshotMeta.mockResolvedValueOnce(null);
+    const byType = { permission: [{ id: "p1", name: "Spare" }], security: [], notification: [], "project-role": [{ id: "r1", name: "Admins" }] };
+    for (let i = 0; i < 4; i += 1) {
+      mocks.loadSchemes.mockImplementationOnce(async (_k, _v, type) => byType[type] || []);
+      mocks.loadSchemeHolders.mockResolvedValueOnce([]);
+    }
+    for (let i = 0; i < 3; i += 1) mocks.loadSchemeProjects.mockResolvedValueOnce([]);
+    mocks.loadSchemeLevels.mockResolvedValueOnce([]);
+
+    const report = await getPillarReport(ctx("access"));
+
+    const byId = Object.fromEntries(report.rows.map((r) => [r.id, r]));
+    expect(byId.p1).toMatchObject({ type: "Permission scheme", findings: ["unassigned-scheme"] });
+    expect(byId.r1).toMatchObject({ type: "Project role", findings: ["no-actors"] });
+  });
+
+  test("dashboards: every dashboard with its analysis findings", async () => {
+    mocks.readDashboardSnapshotMeta.mockResolvedValueOnce({ version: "d1", refreshedAt: "2026-09-01T00:00:00Z" });
+    mocks.loadDashboards.mockResolvedValueOnce([
+      { id: "1", name: "Blank", gadgetCount: 0, owner: { accountId: "a", active: true }, shares: [], editShares: [] },
+    ]);
+
+    const report = await getPillarReport(ctx("dashboards"));
+
+    expect(report.rows[0].findings).toContain("empty");
+  });
+
+  test("screens: reachability is skipped, and caveated, without a workflow snapshot", async () => {
+    mocks.readScreenSnapshotMeta.mockResolvedValueOnce({ version: "sv1", refreshedAt: "2026-09-01T00:00:00Z" });
+    mocks.readWorkflowSnapshotMeta.mockResolvedValueOnce(null);
+    mocks.loadScreensPage.mockResolvedValueOnce({ rows: [{ screenId: "1", name: "S", tabCount: 1, fieldCount: 2, tabsResolved: "resolved" }] });
+
+    const report = await getPillarReport(ctx("screens"));
+
+    expect(mocks.loadScreensPage).toHaveBeenCalledTimes(1);
+    expect(report.notes[0]).toMatch(/not checked/);
+  });
+
+  test("workflows: schemes with the status catalogue size", async () => {
+    mocks.readWorkflowSnapshotMeta.mockResolvedValueOnce({ version: "wv1", refreshedAt: "2026-09-01T00:00:00Z" });
+    mocks.loadWorkflowSchemes.mockResolvedValueOnce([{ id: "1", name: "Idle", projectCount: 0 }]);
+    mocks.loadStatusesCatalog.mockResolvedValueOnce([{ id: "1" }, { id: "2" }]);
+
+    const report = await getPillarReport(ctx("workflows"));
+
+    expect(report.rows[0].findings).toEqual(["unused-scheme"]);
+    expect(report.summary.find((t) => t.label === "Statuses").value).toBe(2);
   });
 });
 

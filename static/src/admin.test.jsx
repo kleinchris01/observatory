@@ -24,6 +24,74 @@ describe("ADMIN_NAV_TABS", () => {
   });
 });
 
+describe("admin nav", () => {
+  const withHealth = (pillars) => {
+    invoke.mockImplementation((fnName, payload) => (fnName === "getAdminOverview"
+      ? Promise.resolve(makeOverview({ health: { score: 80, grade: "B", pillars } }))
+      : defaultInvokeImpl(fnName, payload)));
+  };
+
+  it("groups the tabs into Pillars / Act / Operate", async () => {
+    await renderAdminApp();
+    const headings = [...document.querySelectorAll(".admin-nav__group")].map((n) => n.textContent);
+    expect(headings).toEqual(["Pillars", "Act", "Operate"]);
+  });
+
+  it("marks the active tab with aria-current", async () => {
+    const user = userEvent.setup();
+    await renderAdminApp();
+    const nav = document.querySelector(".admin-nav");
+    expect(within(nav).getByRole("button", { name: "Overview" })).toHaveAttribute("aria-current", "page");
+    await user.click(within(nav).getByRole("button", { name: "Boards" }));
+    expect(within(nav).getByRole("button", { name: "Boards" })).toHaveAttribute("aria-current", "page");
+    expect(within(nav).getByRole("button", { name: "Overview" })).not.toHaveAttribute("aria-current");
+  });
+
+  it("dots an unmeasured pillar and one in the warning band, and leaves a healthy one alone", async () => {
+    withHealth([
+      { key: "boards", label: "Boards", available: false, score: null, reason: "No board inventory." },
+      { key: "filters", label: "Filters", available: true, score: 55 },
+      { key: "dashboards", label: "Dashboards", available: true, score: 96 },
+    ]);
+    await renderAdminApp();
+    const nav = document.querySelector(".admin-nav");
+    await waitFor(() => expect(nav.querySelector(".admin-nav__dot")).not.toBeNull());
+
+    const boards = within(nav).getByRole("button", { name: "Boards" });
+    expect(boards.querySelector(".admin-nav__dot--unmeasured")).not.toBeNull();
+    expect(boards).toHaveAttribute("aria-description", "Not measured yet: No board inventory.");
+
+    const filters = within(nav).getByRole("button", { name: "Saved Filters" });
+    expect(filters.querySelector(".admin-nav__dot--attention")).not.toBeNull();
+    expect(filters).toHaveAttribute("aria-description", "Needs attention: Filters scores 55");
+
+    expect(within(nav).getByRole("button", { name: "Dashboards" }).querySelector(".admin-nav__dot")).toBeNull();
+  });
+
+  it("reopens the tab the reader last used", async () => {
+    window.localStorage.setItem("observatory.admin.tab", "boards");
+    await renderAdminApp();
+    const nav = document.querySelector(".admin-nav");
+    expect(within(nav).getByRole("button", { name: "Boards" })).toHaveAttribute("aria-current", "page");
+  });
+
+  it("ignores a remembered tab that no longer exists", async () => {
+    window.localStorage.setItem("observatory.admin.tab", "retired-tab");
+    await renderAdminApp();
+    const nav = document.querySelector(".admin-nav");
+    expect(within(nav).getByRole("button", { name: "Overview" })).toHaveAttribute("aria-current", "page");
+  });
+
+  it("remembers the tab across a remount", async () => {
+    const user = userEvent.setup();
+    const { unmount } = await renderAdminApp();
+    await user.click(within(document.querySelector(".admin-nav")).getByRole("button", { name: "Saved Filters" }));
+    unmount();
+    await renderAdminApp();
+    expect(within(document.querySelector(".admin-nav")).getByRole("button", { name: "Saved Filters" })).toHaveAttribute("aria-current", "page");
+  });
+});
+
 describe("theme cycling", () => {
   it("cycles dark -> light -> day -> dark, and stamps the choice on <html>", async () => {
     const user = userEvent.setup();

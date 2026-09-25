@@ -10,10 +10,34 @@
 // filters: the loadFilters rows, or null when the filter inventory has not been built.
 // knownStatusIds: a Set of status ids that exist in the status catalog, or null when the
 //   workflow inventory has not been built.
-export function summarizeBoardInsights({ boards = [], filters = null, knownStatusIds = null } = {}) {
-  const filterById = filters
+export function indexFiltersById(filters) {
+  return filters
     ? new Map(filters.map((f) => [String(f.id ?? f.filterId ?? ""), f]).filter(([k]) => k))
     : null;
+}
+
+// One board's finding codes. Exported so a caller that needs every board's findings (the
+// pillar report) reads them from the same rules as the summary, not from a capped list.
+export function boardIssues(b, filterById = null, knownStatusIds = null) {
+  const issues = [];
+  if (b.configReadable && !b.filterId) issues.push("no-backing-filter");
+
+  if (b.configReadable && b.filterId && filterById) {
+    const f = filterById.get(String(b.filterId));
+    if (!f) issues.push("backing-filter-deleted");
+    else if (f.ownerActive === false) issues.push("backing-filter-owner-inactive");
+  }
+
+  const cols = b.columns || [];
+  if (cols.some((c) => (c.statusIds || []).length === 0)) issues.push("unmapped-column");
+  if (knownStatusIds && cols.some((c) => (c.statusIds || []).some((id) => !knownStatusIds.has(String(id))))) {
+    issues.push("stale-column-status");
+  }
+  return issues;
+}
+
+export function summarizeBoardInsights({ boards = [], filters = null, knownStatusIds = null } = {}) {
+  const filterById = indexFiltersById(filters);
 
   let noFilter = 0;             // config readable, but no backing filter named
   let missingFilter = 0;        // names a filter id that is not in the snapshot -> deleted
@@ -24,33 +48,12 @@ export function summarizeBoardInsights({ boards = [], filters = null, knownStatu
   const flagged = [];
 
   for (const b of boards) {
-    const issues = [];
-
-    if (b.configReadable && !b.filterId) {
-      noFilter += 1;
-      issues.push("no-backing-filter");
-    }
-
-    if (b.configReadable && b.filterId && filterById) {
-      const f = filterById.get(String(b.filterId));
-      if (!f) {
-        missingFilter += 1;
-        issues.push("backing-filter-deleted");
-      } else if (f.ownerActive === false) {
-        inactiveFilterOwner += 1;
-        issues.push("backing-filter-owner-inactive");
-      }
-    }
-
-    const cols = b.columns || [];
-    if (cols.some((c) => (c.statusIds || []).length === 0)) {
-      unmappedColumnBoards += 1;
-      issues.push("unmapped-column");
-    }
-    if (knownStatusIds && cols.some((c) => (c.statusIds || []).some((id) => !knownStatusIds.has(String(id))))) {
-      staleColumnBoards += 1;
-      issues.push("stale-column-status");
-    }
+    const issues = boardIssues(b, filterById, knownStatusIds);
+    if (issues.includes("no-backing-filter")) noFilter += 1;
+    if (issues.includes("backing-filter-deleted")) missingFilter += 1;
+    if (issues.includes("backing-filter-owner-inactive")) inactiveFilterOwner += 1;
+    if (issues.includes("unmapped-column")) unmappedColumnBoards += 1;
+    if (issues.includes("stale-column-status")) staleColumnBoards += 1;
 
     if (issues.length) {
       flagged.push({ boardId: b.boardId, name: b.name, type: b.type, locationKey: b.locationKey || null, issues });

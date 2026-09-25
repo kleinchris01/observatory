@@ -193,7 +193,8 @@ import { queueAccessSnapshotBuild, isAccessBuildStale } from "./lib/access-engin
 import { queueDriftSnapshotBuild, isDriftBuildStale, DRIFT_PILLARS } from "./lib/drift-engine.js";
 import { queueEstateSnapshotBuild, isEstateBuildStale } from "./lib/estate-engine.js";
 import { queueBoardSnapshotBuild, isBoardBuildStale } from "./lib/board-engine.js";
-import { summarizeBoardInsights } from "./lib/board-insights.js";
+import { summarizeBoardInsights, boardIssues, indexFiltersById } from "./lib/board-insights.js";
+import { buildPillarReport, unavailableReport, isPillarReportKey, REPORT_ROW_LIMIT } from "./lib/pillar-reports.js";
 import { summarizeEstateInsights } from "./lib/estate-insights.js";
 import { summarizeIssueTypeInsights } from "./lib/issuetype-insights.js";
 import { summarizeAssetInsights } from "./lib/asset-insights.js";
@@ -2608,13 +2609,17 @@ async function getBoardInventory({ context }) {
     columnsByBoard.get(col.boardId).push(col);
   }
 
+  const filterById = indexFiltersById(filters);
   const rows = boards.map((board) => {
     const cols = columnsByBoard.get(board.boardId) || [];
-    return {
+    const withColumns = {
       ...board,
       columns: cols,
       unmappedColumns: cols.filter((c) => c.statusIds.length === 0).length,
     };
+    // Every board's own finding codes, uncapped -- insights.flagged stops at 50, and the
+    // pillar report needs the full set.
+    return { ...withColumns, issues: boardIssues(withColumns, filterById, knownStatusIds) };
   });
 
   const byType = {};
@@ -2906,6 +2911,60 @@ async function saveAutomationIndex({ payload, context }) {
 // analysis is pure over a few hundred rows, and storing it would mean a second thing to keep
 // in step with the filters -- a stored finding and a rebuilt snapshot can disagree, and a
 // derived one cannot.
+// Every saved filter with its findings attached, plus the summary those findings came from.
+// Shared by the paginated Filters tab read and the pillar report, which needs every row.
+async function loadFiltersWithFindings(installationKey, version) {
+  const [filters, snapshotMeta] = await Promise.all([
+    loadFilters(installationKey, version),
+    readSnapshotMeta(installationKey),
+  ]);
+
+  // The project catalog, for the broken-reference join. Best-effort: without it that one
+  // finding is skipped and `projectsChecked` says so, rather than reporting zero broken
+  // references because nobody looked.
+  let projectKeys = null;
+  if (snapshotMeta?.version) {
+    const projects = await listSnapshotProjects(installationKey, snapshotMeta.version)
+      .catch(fallbackOn("filters.project_keys_load_failed", () => [], { installationKey }));
+    // Both the key and the display name: JQL accepts `project = KEY` and
+    // `project = "Display Name"` equally, and a filter written the second way was being
+    // reported as broken -- a project that genuinely exists, referenced by a name this set
+    // never carried, indistinguishable from a real dangling reference to the check below.
+    if (projects.length) {
+      projectKeys = new Set(
+        projects.flatMap((p) => [p.projectKey, p.projectName]).filter(Boolean)
+      );
+    }
+  }
+
+  // The issue type catalog, for the "JQL names a type nothing defines" join. Same
+  // best-effort posture: skipped and flagged rather than reported as zero.
+  let typeNames = null;
+  const itMeta = await readIssueTypeSnapshotMeta(installationKey).catch(() => null);
+  if (itMeta?.version) {
+    const types = await loadIssueTypes(installationKey, itMeta.version)
+      .catch(fallbackOn("filters.type_names_load_failed", () => [], { installationKey }));
+    if (types.length) typeNames = new Set(types.map((t) => String(t.name || "").toLowerCase()).filter(Boolean));
+  }
+
+  const summary = summarizeFilters(filters, { projectKeys, typeNames });
+  // `summary.filters` is analyzeFilter's own output -- every filter with findings attached,
+  // unbounded, sorted worst-first. It exists so buildFilterOverview (the Overview's "worst"
+  // list) can slice(0, 8) from it. Spreading the whole summary into this response used to
+  // ship that unbounded list a SECOND time, in full, on top of the complete `allFilters`
+  // array below -- every filter with a finding sent twice. At 4,115 filters that duplication
+  // was a meaningful share of what overflowed the response.
+  const { filters: analyzedFilters, ...summaryForWire } = summary;
+
+  // The findings computed above, attached back onto the row shape the tab actually renders,
+  // by id. Without this the tab had to reconstruct it client-side by joining `allFilters`
+  // (no findings) against `summary.filters` (findings, but only the flagged subset) -- the
+  // exact duplication this removes, from the other direction.
+  const findingsById = new Map(analyzedFilters.map((f) => [f.id, f.findings]));
+  const withFindings = filters.map((f) => ({ ...f, findings: findingsById.get(f.id) ?? [] }));
+  return { summary, summaryForWire, withFindings };
+}
+
 async function getFilterInventory({ payload, context }) {
   incrMetric(METRIC_NAMES.resolver);
   try {
@@ -2933,54 +2992,7 @@ async function getFilterInventory({ payload, context }) {
       };
     }
 
-    const [filters, snapshotMeta] = await Promise.all([
-      loadFilters(installationKey, meta.version),
-      readSnapshotMeta(installationKey),
-    ]);
-
-    // The project catalog, for the broken-reference join. Best-effort: without it that one
-    // finding is skipped and `projectsChecked` says so, rather than reporting zero broken
-    // references because nobody looked.
-    let projectKeys = null;
-    if (snapshotMeta?.version) {
-      const projects = await listSnapshotProjects(installationKey, snapshotMeta.version)
-        .catch(fallbackOn("filters.project_keys_load_failed", () => [], { installationKey }));
-      // Both the key and the display name: JQL accepts `project = KEY` and
-      // `project = "Display Name"` equally, and a filter written the second way was being
-      // reported as broken -- a project that genuinely exists, referenced by a name this set
-      // never carried, indistinguishable from a real dangling reference to the check below.
-      if (projects.length) {
-        projectKeys = new Set(
-          projects.flatMap((p) => [p.projectKey, p.projectName]).filter(Boolean)
-        );
-      }
-    }
-
-    // The issue type catalog, for the "JQL names a type nothing defines" join. Same
-    // best-effort posture: skipped and flagged rather than reported as zero.
-    let typeNames = null;
-    const itMeta = await readIssueTypeSnapshotMeta(installationKey).catch(() => null);
-    if (itMeta?.version) {
-      const types = await loadIssueTypes(installationKey, itMeta.version)
-        .catch(fallbackOn("filters.type_names_load_failed", () => [], { installationKey }));
-      if (types.length) typeNames = new Set(types.map((t) => String(t.name || "").toLowerCase()).filter(Boolean));
-    }
-
-    const summary = summarizeFilters(filters, { projectKeys, typeNames });
-    // `summary.filters` is analyzeFilter's own output -- every filter with findings attached,
-    // unbounded, sorted worst-first. It exists so buildFilterOverview (the Overview's "worst"
-    // list) can slice(0, 8) from it. Spreading the whole summary into this response used to
-    // ship that unbounded list a SECOND time, in full, on top of the complete `allFilters`
-    // array below -- every filter with a finding sent twice. At 4,115 filters that duplication
-    // was a meaningful share of what overflowed the response.
-    const { filters: analyzedFilters, ...summaryForWire } = summary;
-
-    // The findings computed above, attached back onto the row shape the tab actually renders,
-    // by id. Without this the tab had to reconstruct it client-side by joining `allFilters`
-    // (no findings) against `summary.filters` (findings, but only the flagged subset) -- the
-    // exact duplication this removes, from the other direction.
-    const findingsById = new Map(analyzedFilters.map((f) => [f.id, f.findings]));
-    const withFindings = filters.map((f) => ({ ...f, findings: findingsById.get(f.id) ?? [] }));
+    const { summaryForWire, summary, withFindings } = await loadFiltersWithFindings(installationKey, meta.version);
 
     // Filter, search and sort HERE, over the full in-memory list, and ship only one page.
     // The full list already exists in memory for the summary above; the fix is not to avoid
@@ -8694,6 +8706,155 @@ async function getPillarHealth({ payload, context }) {
   return { pillar, score: latest?.score ?? null, grade: latest?.grade ?? null };
 }
 
+// One pillar's inventory as an exportable report, in the shape every pillar shares -- see
+// pillar-reports.js for the contract. This is only the I/O: each branch loads what that
+// pillar's own tab already loads (reusing its resolver where one returns the full list) and
+// hands it to the pure builder.
+//
+// An unbuilt pillar returns status "unavailable" with the reason, never an empty report.
+async function getPillarReport({ payload, context }) {
+  incrMetric(METRIC_NAMES.resolver);
+  await ensureProjectStoreReady();
+  const installationKey = getInstallationKey(context);
+  const key = requireNonEmptyString(payload?.pillar, "pillar");
+  if (!isPillarReportKey(key)) throw new Error(`Unknown pillar report "${key}"`);
+
+  const input = await loadPillarReportInput(key, { installationKey, context });
+  if (input.unavailable) return unavailableReport(key, input.unavailable);
+  return buildPillarReport(key, input);
+}
+
+const notBuilt = (what) => `No ${what} inventory has been built yet. Run a scan from the Scans tab.`;
+
+async function loadPillarReportInput(key, { installationKey, context }) {
+  switch (key) {
+    case "fields": {
+      const meta = await readSnapshotMeta(installationKey);
+      if (!meta?.version) return { unavailable: notBuilt("field") };
+      const [fields, config] = await Promise.all([loadSnapshotFields(installationKey, meta.version), readAdminConfig()]);
+      const dup = buildDuplicateNameCountMap(fields);
+      return {
+        refreshedAt: meta.refreshedAt || meta.completedAt,
+        fields: fields.map((f) =>
+          hydrateFieldForGovernance(f, null, dup.get(normalizeFieldName(f.name)) ?? 1, config.governanceThresholds)),
+      };
+    }
+    case "projects": {
+      const meta = await readSnapshotMeta(installationKey);
+      if (!meta?.version) return { unavailable: notBuilt("project") };
+      const projects = await attachUniqueIssueCounts(installationKey, await listSnapshotProjects(installationKey, meta.version));
+      const activity = await loadProjectActivity(installationKey)
+        .catch(fallbackOn("pillar-report.project_activity_load_failed", () => new Map(), { installationKey }));
+      return { refreshedAt: meta.refreshedAt || meta.completedAt, projects, adoption: summarizeAdoption(projects, activity) };
+    }
+    case "workflows": {
+      const meta = await readWorkflowSnapshotMeta(installationKey);
+      if (!meta?.version) return { unavailable: notBuilt("workflow") };
+      const [schemes, statuses] = await Promise.all([
+        loadWorkflowSchemes(installationKey, meta.version),
+        loadStatusesCatalog(installationKey, meta.version).catch(() => null),
+      ]);
+      return { refreshedAt: meta.refreshedAt, schemes, statusCount: statuses ? statuses.length : null };
+    }
+    case "issueTypes": {
+      const inventory = await getIssueTypeInventory({ context });
+      if (inventory.neverBuilt) return { unavailable: notBuilt("issue type") };
+      const schemeItems = await loadIssueTypeSchemeItems(installationKey, inventory.version);
+      return { refreshedAt: inventory.refreshedAt, issueTypes: inventory.issueTypes, schemeItems, usage: inventory.usage };
+    }
+    case "priorities": {
+      const inventory = await getEstateInventory({ context });
+      if (inventory.neverBuilt) return { unavailable: notBuilt("priority and resolution") };
+      return inventory;
+    }
+    case "people": {
+      const inventory = await getUserInventory({ context });
+      if (inventory.neverBuilt) return { unavailable: notBuilt("people") };
+      return inventory;
+    }
+    case "assets": {
+      const inventory = await getAssetInventory({ context });
+      if (inventory.assetsEnabled === false) return { unavailable: "JSM Assets is not available on this site." };
+      if (inventory.neverBuilt) return { unavailable: notBuilt("Assets") };
+      return inventory;
+    }
+    case "access": {
+      const inventory = await getAccessInventory({ context });
+      if (inventory.neverBuilt) return { unavailable: notBuilt("access") };
+      return { refreshedAt: inventory.refreshedAt, inventory };
+    }
+    case "screens": {
+      const meta = await readScreenSnapshotMeta(installationKey);
+      if (!meta?.version) return { unavailable: notBuilt("screen") };
+      const workflowMeta = await readWorkflowSnapshotMeta(installationKey).catch(() => null);
+      const workflowVersion = workflowMeta?.version || null;
+      const screens = await loadAllScreenPages(installationKey, meta.version, { workflowVersion });
+      const unreachedIds = workflowVersion
+        ? new Set((await loadAllScreenPages(installationKey, meta.version, { workflowVersion, filter: "unreached" })).map((r) => String(r.screenId)))
+        : null;
+      return { refreshedAt: meta.refreshedAt, screens, unreachedIds };
+    }
+    case "filters": {
+      const meta = await readFilterSnapshotMeta(installationKey);
+      if (!meta?.version) return { unavailable: notBuilt("saved filter") };
+      const { withFindings } = await loadFiltersWithFindings(installationKey, meta.version);
+      return { refreshedAt: meta.refreshedAt, filters: withFindings };
+    }
+    case "dashboards": {
+      const meta = await readDashboardSnapshotMeta(installationKey);
+      if (!meta?.version) return { unavailable: notBuilt("dashboard") };
+      return { refreshedAt: meta.refreshedAt, dashboards: await loadDashboards(installationKey, meta.version) };
+    }
+    case "boards": {
+      const inventory = await getBoardInventory({ context });
+      if (inventory.neverBuilt) return { unavailable: notBuilt("board") };
+      return inventory;
+    }
+    case "automation": {
+      const [analysis, directory] = await Promise.all([
+        readAutomationAnalysis(installationKey).catch(() => null),
+        readAutomationPart(installationKey, "directory").catch(() => null),
+      ]);
+      if (!directory) return { unavailable: "No automation rules have been imported yet. Import them from the Automation tab." };
+      return {
+        refreshedAt: analysis?.refreshedAt ?? directory.refreshedAt ?? null,
+        rules: [...hydrateRuleDirectory(directory).values()],
+        findingsPreview: analysis?.findingsPreview ?? [],
+        findingsTotal: analysis?.findingsTotal ?? 0,
+      };
+    }
+    case "changes": {
+      const meta = await readDriftSnapshotMeta(installationKey);
+      if (!meta?.version) return { unavailable: "No configuration drift pass has run yet." };
+      const since = new Date(Date.now() - CHANGE_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
+      const changes = [];
+      let before = null;
+      // Keyset pages of 500 until the window is exhausted or the report cap is passed.
+      while (changes.length <= REPORT_ROW_LIMIT) {
+        const page = await loadConfigChanges(installationKey, { since, before, limit: 500 });
+        changes.push(...page);
+        if (page.length < 500) break;
+        before = page[page.length - 1].detectedAt;
+      }
+      return { refreshedAt: meta.refreshedAt, changes, windowDays: CHANGE_WINDOW_DAYS };
+    }
+    default:
+      throw new Error(`Unknown pillar report "${key}"`);
+  }
+}
+
+// Every screen, in pages of the store's maximum. Stops one page past the report cap so the
+// report can still say it was truncated.
+async function loadAllScreenPages(installationKey, version, { workflowVersion = null, filter = null } = {}) {
+  const rows = [];
+  for (let offset = 0; rows.length <= REPORT_ROW_LIMIT; offset += 200) {
+    const page = await loadScreensPage(installationKey, version, { limit: 200, offset, filter, workflowVersion });
+    rows.push(...page.rows);
+    if (page.rows.length < 200) break;
+  }
+  return rows;
+}
+
 // Everything that touches one project, across every pillar.
 //
 // This is the view the Projects tab existed to give and could not: it had the field list and
@@ -9715,6 +9876,7 @@ const RAW_ADMIN_ONLY_FUNCTIONS = {
   getFieldDashboardCounts, // Admin read: dashboard-gadget counts for a page of fields
   getHealthHistory,        // Admin read: the site health series and per-dimension deltas
   getPillarHealth,         // Admin read: one pillar of the score, for the tab it is about
+  getPillarReport,         // Admin read: one pillar's inventory as a normalized, exportable report
   getProjectOverview,      // Admin read: every pillar that touches one project
   getDeletionSafety,            // Admin read: every pillar's evidence about deleting a field
   getScreenFieldCrossSignal,    // Admin read: screen reachability crossed with field usage

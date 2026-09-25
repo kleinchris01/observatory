@@ -5,6 +5,7 @@ import { Icon } from "../components/Icons";
 import { DEFAULT_THRESHOLDS, DEFAULT_MACRO_ACCESS, DEFAULT_REMEDIATION, DEFAULT_CONFIG, DEFAULT_AUTOMATION_STALE_AFTER_DAYS } from "../admin-defaults";
 import { Toggle, ConfigSection, ConfigRow, InlineThresholdInput, SubNavLayout } from "../components/admin/primitives";
 import { PageHeader, StickyActions } from "../components/ui";
+import { usePersistentState } from "../hooks";
 
 // Governance thresholds, macro access and snapshot scheduling.
 
@@ -371,7 +372,7 @@ function mergeTargets(stored) {
   // single scroll. The old layout put nine threshold rules between an admin and the Save
   // button they came here to press, and gave settings, records and diagnostics the same
   // visual weight -- so nothing signalled which of them could change the app's behaviour.
-  const [area, setArea] = React.useState("access");
+  const [area, setArea] = usePersistentState("observatory.section.config", "access");
 
   // SubNavLayout, not a bespoke rail. It already existed in admin/primitives.jsx and the
   // Scans tab already used it; building a second one here is precisely how this app came
